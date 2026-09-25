@@ -76,12 +76,14 @@ public final class R2BaselineFixture {
     public static final long USER_NONE = 9_643_006L;
     public static final long USER_SNAP_ALL = 9_643_007L;
 
-    /** API 映射：svc-a=实例轨单映射 / svc-b=scopeAll 展开双映射；承载服务行（生产形态=映射挂已声明服务，claude 外评 P3 补种） */
+    /** API 映射：svc-a=实例轨单映射 / svc-b=scopeAll 展开双映射＋一条禁用映射（锁 enabled 过滤回归）；
+     *  承载服务行（生产形态=映射挂已声明服务，claude 外评 P3 补种） */
     public static final long SVC_CFG_A = 9_648_001L;
     public static final long SVC_CFG_B = 9_648_002L;
     public static final long MAP_INST = 9_644_001L;
     public static final long MAP_ALL_1 = 9_644_002L;
     public static final long MAP_ALL_2 = 9_644_003L;
+    public static final long MAP_ALL_DISABLED = 9_644_004L;
     public static final String SVC_INST = "r2b-svc-a";
     public static final String SVC_ALL = "r2b-svc-b";
 
@@ -227,6 +229,11 @@ public final class R2BaselineFixture {
                 + "path_pattern, match_order, enabled) VALUES (?, ?, ?, ?, 'POST', ?, 0, true) "
                 + "ON CONFLICT (id) DO NOTHING",
             MAP_ALL_2, TENANT, RES_API_E2, SVC_ALL, "/r2b/all-2");
+        jdbc.update(
+            "INSERT INTO resource_api_mapping (id, tenant_id, resource_entity_id, service_code, http_method, "
+                + "path_pattern, match_order, enabled) VALUES (?, ?, ?, ?, 'POST', ?, 0, false) "
+                + "ON CONFLICT (id) DO NOTHING",
+            MAP_ALL_DISABLED, TENANT, RES_API_E2, SVC_ALL, "/r2b/all-off");
     }
 
     // ===== 缺陷反例 builders（RETURNING id，供各反例用例自建隔离事实）=====

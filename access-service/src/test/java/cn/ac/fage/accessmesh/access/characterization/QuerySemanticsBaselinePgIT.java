@@ -187,25 +187,25 @@ class QuerySemanticsBaselinePgIT {
     @DisplayName("batch-check：基线图六形态 item 与输入序对齐（放行/NO_PERMISSION/CNM/幽灵/类型级/UPDATE 放行）")
     void batchCheckShouldAlignOutcomesWithInputOrderOnBaselineGraph() {
         seedBaseline();
+        List<BatchAuthCheckReq.AuthCheckItem> items = List.of(
+            new BatchAuthCheckReq.AuthCheckItem(R2BaselineFixture.TYPE_T1_CODE, R2BaselineFixture.CODE_R1, "VIEW", null, null, null),
+            new BatchAuthCheckReq.AuthCheckItem(R2BaselineFixture.TYPE_T1_CODE, R2BaselineFixture.CODE_R3, "VIEW", null, null, null),
+            new BatchAuthCheckReq.AuthCheckItem(R2BaselineFixture.TYPE_T1_CODE, R2BaselineFixture.CODE_R4, "VIEW", null, null, null),
+            new BatchAuthCheckReq.AuthCheckItem(R2BaselineFixture.TYPE_T1_CODE, "r2b-ghost", "VIEW", null, null, null),
+            new BatchAuthCheckReq.AuthCheckItem(R2BaselineFixture.TYPE_T1_CODE, null, "VIEW", null, null, null),
+            new BatchAuthCheckReq.AuthCheckItem(R2BaselineFixture.TYPE_T1_CODE, R2BaselineFixture.CODE_R1, "UPDATE", null, null, null));
         BatchAuthCheckResp resp = checkAppService.batchCheck(TENANT, new BatchAuthCheckReq(
-            "USER", String.valueOf(R2BaselineFixture.USER_INST),
-            List.of(
-                new BatchAuthCheckReq.AuthCheckItem(R2BaselineFixture.TYPE_T1_CODE, R2BaselineFixture.CODE_R1, "VIEW", null, null, null),
-                new BatchAuthCheckReq.AuthCheckItem(R2BaselineFixture.TYPE_T1_CODE, R2BaselineFixture.CODE_R3, "VIEW", null, null, null),
-                new BatchAuthCheckReq.AuthCheckItem(R2BaselineFixture.TYPE_T1_CODE, R2BaselineFixture.CODE_R4, "VIEW", null, null, null),
-                new BatchAuthCheckReq.AuthCheckItem(R2BaselineFixture.TYPE_T1_CODE, "r2b-ghost", "VIEW", null, null, null),
-                new BatchAuthCheckReq.AuthCheckItem(R2BaselineFixture.TYPE_T1_CODE, null, "VIEW", null, null, null),
-                new BatchAuthCheckReq.AuthCheckItem(R2BaselineFixture.TYPE_T1_CODE, R2BaselineFixture.CODE_R1, "UPDATE", null, null, null)),
+            "USER", String.valueOf(R2BaselineFixture.USER_INST), items,
             null, null, null, null, Map.of()));
 
         assertThat(resp.items()).hasSize(6);
-        assertItem(resp.items().get(0), true, null, "r1:VIEW 放行");
+        assertItem(resp.items().get(0), items.get(0), true, null, "r1:VIEW 放行");
         assertThat(resp.items().get(0).matchedRoleIds()).containsExactly(R2BaselineFixture.ROLE_A);
-        assertItem(resp.items().get(1), false, "NO_PERMISSION", "r3:VIEW 无授权");
-        assertItem(resp.items().get(2), false, "CONDITION_NOT_MET_OR_CONFLICT", "r4:VIEW 条件摘光");
-        assertItem(resp.items().get(3), false, "NO_PERMISSION", "幽灵编码无投影");
-        assertItem(resp.items().get(4), false, "NO_PERMISSION", "类型级仅实例授权");
-        assertItem(resp.items().get(5), true, null, "r1:UPDATE 直接命中");
+        assertItem(resp.items().get(1), items.get(1), false, "NO_PERMISSION", "r3:VIEW 无授权");
+        assertItem(resp.items().get(2), items.get(2), false, "CONDITION_NOT_MET_OR_CONFLICT", "r4:VIEW 条件摘光");
+        assertItem(resp.items().get(3), items.get(3), false, "NO_PERMISSION", "幽灵编码无投影");
+        assertItem(resp.items().get(4), items.get(4), false, "NO_PERMISSION", "类型级仅实例授权");
+        assertItem(resp.items().get(5), items.get(5), true, null, "r1:UPDATE 直接命中");
         assertThat(resp.items().get(5).matchedPermissionIds())
             .containsExactly(R2BaselineFixture.PERM_R1_UPDATE);
     }
@@ -244,15 +244,19 @@ class QuerySemanticsBaselinePgIT {
         assertThat(resp.scopeGroups()).hasSize(4);
 
         QueryScopesResp.ScopeGroup view = resp.scopeGroups().get(0);
+        assertGroupKey(view, R2BaselineFixture.TYPE_T1_CODE, "VIEW");
         assertThat(view.scopeMode()).isEqualTo(ScopeMode.INSTANCE);
         assertThat(codesOf(view)).containsExactlyInAnyOrder(R2BaselineFixture.CODE_R1, R2BaselineFixture.CODE_R2);
 
         QueryScopesResp.ScopeGroup update = resp.scopeGroups().get(1);
+        assertGroupKey(update, R2BaselineFixture.TYPE_T1_CODE, "UPDATE");
         assertThat(update.scopeMode()).isEqualTo(ScopeMode.INSTANCE);
         assertThat(codesOf(update)).containsExactly(R2BaselineFixture.CODE_R1);
 
+        assertGroupKey(resp.scopeGroups().get(2), R2BaselineFixture.TYPE_T1_CODE, "DELETE");
         assertThat(resp.scopeGroups().get(2).scopeMode())
             .as("DELETE 仅条件行覆盖（评估摘光）→ 有权限无数据").isEqualTo(ScopeMode.EMPTY);
+        assertGroupKey(resp.scopeGroups().get(3), R2BaselineFixture.TYPE_T1_CODE, "CREATE");
         assertThat(resp.scopeGroups().get(3).scopeMode())
             .as("CREATE 无任何覆盖行 → DENIED").isEqualTo(ScopeMode.DENIED);
     }
@@ -269,9 +273,11 @@ class QuerySemanticsBaselinePgIT {
 
         assertThat(resp.reason()).isNull();
         assertThat(resp.matchedParentOperations()).containsExactly("VIEW");
+        assertGroupKey(resp.scopeGroups().get(0), R2BaselineFixture.TYPE_T2_CODE, "VIEW");
         assertThat(resp.scopeGroups().get(0).scopeMode())
             .as("T2:VIEW scopeAll 存活 → ALL（items 空，业务方不加范围过滤）").isEqualTo(ScopeMode.ALL);
         assertThat(resp.scopeGroups().get(0).items()).isEmpty();
+        assertGroupKey(resp.scopeGroups().get(1), R2BaselineFixture.TYPE_T1_CODE, "VIEW");
         assertThat(resp.scopeGroups().get(1).scopeMode())
             .as("u_all 在 T1 无授权 → DENIED").isEqualTo(ScopeMode.DENIED);
     }
@@ -288,6 +294,8 @@ class QuerySemanticsBaselinePgIT {
 
         assertThat(resp.reason()).isEqualTo("NO_PERMISSION");
         assertThat(resp.scopeGroups()).hasSize(2);
+        assertGroupKey(resp.scopeGroups().get(0), R2BaselineFixture.TYPE_T2_CODE, "VIEW");
+        assertGroupKey(resp.scopeGroups().get(1), R2BaselineFixture.TYPE_T1_CODE, "VIEW");
         resp.scopeGroups().forEach(group -> {
             assertThat(group.scopeMode())
                 .as("父判定失败：scopeAll 组同样 DENIED（整表拒绝）").isEqualTo(ScopeMode.DENIED);
@@ -334,6 +342,8 @@ class QuerySemanticsBaselinePgIT {
             });
         assertThat(svcB.allowedApis())
             .extracting(InterfaceSnapshotResp.ApiPermissionEntry::pathPattern)
+            .as("enabled 过滤回归锁：svc-b 第三条映射 /r2b/all-off 为 enabled=false，"
+                + "不得进入快照（Mapper 误删 enabled 过滤则本断言多出该路径变红）")
             .containsExactlyInAnyOrder("/r2b/all-1", "/r2b/all-2");
 
         InterfaceSnapshotResp svcA = queryAppService.interfaceSnapshot(TENANT, new InterfaceSnapshotReq(
@@ -366,10 +376,21 @@ class QuerySemanticsBaselinePgIT {
             null, null, inheritMode, null, null, null, null, Map.of()));
     }
 
-    private static void assertItem(BatchAuthCheckResp.AuthCheckItemResult item, boolean allowed,
-                                   String reason, String desc) {
+    /** 判定值 + 回显键（类型/编码/操作）逐项锁定——判定值相同而错标目标时回显键断言变红。 */
+    private static void assertItem(BatchAuthCheckResp.AuthCheckItemResult item,
+                                   BatchAuthCheckReq.AuthCheckItem source,
+                                   boolean allowed, String reason, String desc) {
+        assertThat(item.resourceTypeCode()).as(desc + " 回显类型").isEqualTo(source.resourceTypeCode());
+        assertThat(item.resourceCode()).as(desc + " 回显编码").isEqualTo(source.resourceCode());
+        assertThat(item.operationCode()).as(desc + " 回显操作").isEqualTo(source.operationCode());
         assertThat(item.allowed()).as(desc + " allowed").isEqualTo(allowed);
         assertThat(item.reason()).as(desc + " reason").isEqualTo(reason);
+    }
+
+    /** 分组键（资源类型×操作）锁定——组序错乱或错标分组时键断言变红（贴回外评 P3 补）。 */
+    private static void assertGroupKey(QueryScopesResp.ScopeGroup group, String typeCode, String opCode) {
+        assertThat(group.resourceTypeCode()).as("范围分组键-类型").isEqualTo(typeCode);
+        assertThat(group.operationCode()).as("范围分组键-操作").isEqualTo(opCode);
     }
 
     private static List<String> codesOf(QueryScopesResp.ScopeGroup group) {
