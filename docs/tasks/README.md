@@ -11,7 +11,7 @@
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
 | access-service 归并（跨服务） | `T-ACCESS` | 063 |
-| permission-center | `T-PERM` | 095 |
+| permission-center | `T-PERM` | 096 |
 | admin-service | `T-ADMIN` | 030 |
 | gateway | `T-GW` | 011 |
 | 组织/用户（跨 admin+perm） | `T-ORG` | 004 |
@@ -37,7 +37,7 @@
 | [T-PERM-082](T-PERM-082.md) | （R2-T03）新请求/结果模型与合法组合 | ⚙️ | T-PERM-080 |
 | [T-PERM-083](T-PERM-083.md) | （R2-T04）角色互斥 S/H/D 确定化与纯互斥计算 | ⚙️ | T-PERM-081 |
 | [T-PERM-084](T-PERM-084.md) | （R2-T05）QueryReadSupport 与读来源分桶 | ⚙️ | T-PERM-082 |
-| [T-PERM-085](T-PERM-085.md) | （R2-T06）TYPE_GRANT/INSTANCE 单一阶段主体 | ⚙️ | T-PERM-083, T-PERM-084 |
+| [T-PERM-085](T-PERM-085.md) | （R2-T06）TYPE_GRANT/INSTANCE 单一阶段主体 | ⚙️ | T-PERM-083, T-PERM-084, T-PERM-095 |
 | [T-PERM-086](T-PERM-086.md) | （R2-T07）父受控子项与 GRANT_LIST 完整事实 | ⚙️ | T-PERM-085 |
 | [T-PERM-087](T-PERM-087.md) | （R2-T08）投影、展示与范围四态 | ⚙️ | T-PERM-086 |
 | [T-PERM-088](T-PERM-088.md) | （R2-T09）根审计、TRACE 与故障证据 | ⚙️ | T-PERM-083, T-PERM-086 |
@@ -47,13 +47,14 @@
 | [T-PERM-092](T-PERM-092.md) | （R2-T13）删除旧执行体与四旧 DTO | ⚙️ | T-PERM-089, T-PERM-090, T-PERM-091 |
 | [T-PERM-093](T-PERM-093.md) | （R2-T14）候选/规则索引与性能测量 | ⚙️ | T-PERM-091 |
 | [T-PERM-094](T-PERM-094.md) | （R2-T15）灰度、故障、缓存与发布演练 | ⚙️ | T-PERM-092, T-PERM-093 |
+| [T-PERM-095](T-PERM-095.md) | （基线补卡）getDenied* 跨 item 互斥最小修复——与 T-PERM-083 构成回退基线 | ⚙️ | T-PERM-081 |
 | [T-ACCESS-056](T-ACCESS-056.md) | （ADM-T01）准入定案回写与协议落账 | ⚙️ | T-PERM-080, T-PERM-082 |
-| [T-ACCESS-057](T-ACCESS-057.md) | （ADM-T02）OPERATION_ADMISSION 阶段与新结果 | ⚙️ | T-PERM-083, T-PERM-084, T-PERM-085, T-PERM-086, T-ACCESS-056 |
+| [T-ACCESS-057](T-ACCESS-057.md) | （ADM-T02）OPERATION_ADMISSION 阶段与新结果 | ⚙️ | T-PERM-083, T-PERM-084, T-PERM-085, T-PERM-086, T-PERM-088, T-ACCESS-056 |
 | [T-ACCESS-058](T-ACCESS-058.md) | （ADM-T03）映射模型、服务模式与同步/管理面 | ⚙️ | T-ACCESS-056 |
 | [T-ACCESS-059](T-ACCESS-059.md) | （ADM-T04）新端点、快照与 SDK/网关链路 | ⚙️ | T-ACCESS-057, T-ACCESS-058 |
 | [T-ACCESS-060](T-ACCESS-060.md) | （ADM-T05）失效、TTL 边界与在途代次 | ⚙️ | T-ACCESS-058, T-ACCESS-059 |
 | [T-ACCESS-061](T-ACCESS-061.md) | （ADM-T06）逐服务业务最终检查与模式切换 | ⚙️ | T-ACCESS-059, T-ACCESS-060 |
-| [T-ACCESS-062](T-ACCESS-062.md) | （ADM-T07）API 独立授权与 legacy 协议退役 | ⚙️ | T-ACCESS-061 |
+| [T-ACCESS-062](T-ACCESS-062.md) | （ADM-T07）API 独立授权与 legacy 协议退役（含授权生产入口退役） | ⚙️ | T-ACCESS-061, T-PERM-092 |
 | [T-PERM-054](T-PERM-054.md) | 手工 API 映射绑定非 API 资源处置——方案 A 落地收口（解除暂缓归入） | ⚙️ | T-ACCESS-058, T-ACCESS-061 |
 
 ### IAM 核心正确性与用户任务闭环
@@ -353,7 +354,7 @@ _当前无未终态 T-ADMIN 任务。`T-ADMIN-001~019`（用户角色代理修�
 
 ### R2 权限查询引擎统一与操作准入（2026-09-25 立项，active）
 
-执行顺序以 [r2-query-engine-and-admission-plan](../plans/r2-query-engine-and-admission-plan.md) 的「当前进度」节为唯一权威；依赖关系以各任务卡 frontmatter `depends_on` 为准。入口：T-PERM-080 全仓清点（与 T-PERM-082 可并行）；动核心实现前先跑 T-PERM-081 语义基线（红跑取证）。
+执行顺序以 [r2-query-engine-and-admission-plan](../plans/r2-query-engine-and-admission-plan.md) 的「当前进度」节为唯一权威；依赖关系以各任务卡 frontmatter `depends_on` 为准。入口：T-PERM-080 全仓清点 → T-PERM-081 语义基线（红跑取证）∥ T-PERM-082 模型；新核心实现（T-PERM-085）前须先落最小正确性修复基线（T-PERM-083+095，设计 §9.3）。
 
 ### product-vertical-slice（✅ 2026-08-27 收口归档：里程碑 A + B 全部达成，18 项任务全 done；计划见 [archive/2026-08-27](../archive/2026-08-27/product-vertical-slice-plan.md)）
 

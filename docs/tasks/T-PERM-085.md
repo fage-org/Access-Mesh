@@ -10,6 +10,7 @@ design_refs:
 depends_on:
   - T-PERM-083
   - T-PERM-084
+  - T-PERM-095
 blocks: []
 acceptance:
   - "唯一 execute 生命周期（§4.1 职责表）与 TYPE_GRANT/INSTANCE 两阶段落地；装载批与判定集合分离——SQL 合批不扩大 item+stage 候选；I08：SQL 分块跨同一 item 时候选合齐后再计算互斥（块边界不改变结果）；新核心不调用旧完整核心"
