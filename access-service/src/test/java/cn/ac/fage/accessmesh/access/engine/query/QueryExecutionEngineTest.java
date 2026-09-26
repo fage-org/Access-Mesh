@@ -167,17 +167,11 @@ class QueryExecutionEngineTest {
                 QueryExecutionEngine.resolveSubject(new Roles(Set.of(1L, 2L)));
 
             assertThat(resolved.roles()).as("Roles({R1,R2}) 视角原样采用：不补加角色、不做 ROLE_MUTEX 过滤；"
-                    + "互斥对事实完整返回的清单链断言随 T-PERM-086 GRANT_LIST 阶段落地补（R03 事实半边）")
+                    + "完整清单链由 QueryStagesTest 验证（R03 事实半边）")
                 .containsExactlyInAnyOrder(1L, 2L);
             assertThat(resolved.resolution()).isEqualTo(SubjectResolution.EXPLICIT_ROLES);
         }
 
-        @Test
-        void should_failClosedInsteadOfNoRole_whenUnimplementedListHasNonEmptyRoles() {
-            assertThatThrownBy(() -> engine.execute(request(new Roles(Set.of(1L, 2L)),
-                QueryItem.grantListFacts("list", null, Evaluation.full(), OutputSpec.kept()))))
-                .isInstanceOf(UnsupportedOperationException.class).hasMessageContaining("T-PERM-086");
-        }
     }
 
     @Test

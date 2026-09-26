@@ -23,9 +23,9 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * 新查询唯一执行主体：主体解析→TYPE_GRANT→INSTANCE→最小事实输出。
+ * 新查询唯一执行主体：主体解析→目标阶段或授权清单→最小事实输出。
  * 暂不注册 Bean，消费者迁移从 T-PERM-089 开始，终名随 T-PERM-092 确定。
- * 父要求/GRANT_LIST、复杂投影/TRACE、审计提交按 086～088 边界后续接入。
+ * 父要求复用目标阶段；复杂投影/TRACE、审计提交按 087～088 边界后续接入。
  * 不调用旧完整核心，所有请求状态随 RunState 释放；Clock 沿进程本地时钟语义。
  */
 public final class QueryExecutionEngine {
@@ -61,9 +61,10 @@ public final class QueryExecutionEngine {
             requireImplemented(request.items());
             request.items().forEach(item -> run.items().put(item, new RunState.ItemExecution()));
             run.evaluator(new CandidateEvaluator(run, reads, conditions, conflicts));
-            Map<TypeOperation, ResolvedOperation> operations = prepareOperations(run);
-            processTypeGrantStage(run, operations);
-            processInstanceStage(run, operations);
+            Map<TypeOperation, ResolvedOperation> operations = prepareOperations(run, request.items());
+            processTypeGrantStage(run, operations, run.items());
+            processInstanceStage(run, operations, run.items());
+            processGrantListStage(run);
             return new QueryResult(run.executionId(), run.evaluatedAt(), request.items().stream()
                 .map(item -> complete(item, run)).toList());
         } finally {
@@ -94,9 +95,6 @@ public final class QueryExecutionEngine {
 
     private static void requireImplemented(List<QueryItem> items) {
         for (QueryItem item : items) {
-            if (item.selection() instanceof GrantList || item.selection() instanceof TargetSet t && t.parent() != null) {
-                throw new UnsupportedOperationException("父要求与 GRANT_LIST 随 T-PERM-086 落地");
-            }
             if (item.selection() instanceof OperationAdmission) {
                 throw new UnsupportedOperationException("ADMISSION_CANDIDATES 随 T-ACCESS-057 落地");
             }
@@ -112,9 +110,9 @@ public final class QueryExecutionEngine {
         }
     }
 
-    private Map<TypeOperation, ResolvedOperation> prepareOperations(RunState run) {
+    private Map<TypeOperation, ResolvedOperation> prepareOperations(RunState run, List<QueryItem> items) {
         Set<TypeOperation> keys = new LinkedHashSet<>();
-        run.request().items().forEach(item -> keys.addAll(requirements(item.selection())));
+        items.forEach(item -> keys.addAll(requirements(item.selection())));
         Map<TypeOperation, OperationDefinition> targets = reads.resolveOperations(run, keys);
         Set<Integer> types = new LinkedHashSet<>();
         targets.values().forEach(op -> types.add(op.resourceType()));
@@ -131,28 +129,31 @@ public final class QueryExecutionEngine {
 
     private static List<TypeOperation> requirements(Selection selection) {
         if (selection instanceof TypeLevel type) return type.requirements();
+        if (selection instanceof GrantList) return List.of();
         return ((TargetSet) selection).clauses().stream().map(TargetClause::operation).toList();
     }
 
-    private void processTypeGrantStage(RunState run, Map<TypeOperation, ResolvedOperation> operations) {
+    private void processTypeGrantStage(RunState run, Map<TypeOperation, ResolvedOperation> operations,
+                                       Map<QueryItem, RunState.ItemExecution> executions) {
         Map<QueryItem, List<CandidateSelector.Clause>> clauses = new LinkedHashMap<>();
-        for (QueryItem item : run.request().items()) {
+        for (QueryItem item : executions.keySet()) {
             if (!applicableStages(item.selection()).contains(Stage.TYPE_GRANT)) continue;
             clauses.put(item, requirements(item.selection()).stream().map(operations::get).filter(Objects::nonNull)
                 .map(op -> new CandidateSelector.Clause(op.type(), op.mask(), Set.of())).toList());
         }
-        evaluateStage(run, Stage.TYPE_GRANT, clauses, reads.scopeGrants(run, run.roles(), masks(clauses)));
+        evaluateStage(run, Stage.TYPE_GRANT, clauses, reads.scopeGrants(run, run.roles(), masks(clauses)), executions);
         clauses.keySet().forEach(item -> {
-            RunState.ItemExecution state = run.items().get(item);
+            RunState.ItemExecution state = executions.get(item);
             if (item.selection() instanceof TargetSet && item.resultForm() == ResultForm.DECISION && state.retained()) {
                 state.shortCircuited = true;
             }
         });
     }
 
-    private void processInstanceStage(RunState run, Map<TypeOperation, ResolvedOperation> operations) {
-        List<QueryItem> items = run.request().items().stream().filter(item -> item.selection() instanceof TargetSet
-            && !run.items().get(item).shortCircuited).toList();
+    private void processInstanceStage(RunState run, Map<TypeOperation, ResolvedOperation> operations,
+                                      Map<QueryItem, RunState.ItemExecution> executions) {
+        List<QueryItem> items = executions.keySet().stream().filter(item -> item.selection() instanceof TargetSet
+            && !executions.get(item).shortCircuited).toList();
         List<ResourceResolveRequest> requested = new ArrayList<>();
         items.forEach(item -> ((TargetSet) item.selection()).clauses().forEach(clause -> {
             if (operations.containsKey(clause.operation()) && clause.resource() instanceof ByCode code) {
@@ -190,7 +191,7 @@ public final class QueryExecutionEngine {
             }
             clauses.put(item, List.copyOf(resolved));
         });
-        evaluateStage(run, Stage.INSTANCE, clauses, reads.instanceGrants(run, run.roles(), allEntities, masks(clauses)));
+        evaluateStage(run, Stage.INSTANCE, clauses, reads.instanceGrants(run, run.roles(), allEntities, masks(clauses)), executions);
     }
 
     private static ResourceResolveRequest resourceRequest(TypeOperation op, ByCode code) {
@@ -203,42 +204,110 @@ public final class QueryExecutionEngine {
         return masks;
     }
 
-    private static void evaluateStage(RunState run, Stage stage,
-        Map<QueryItem, List<CandidateSelector.Clause>> clauses, List<GrantFact> loaded) {
+    private void evaluateStage(RunState run, Stage stage,
+        Map<QueryItem, List<CandidateSelector.Clause>> clauses, List<GrantFact> loaded,
+        Map<QueryItem, RunState.ItemExecution> executions) {
         Map<QueryItem, List<GrantFact>> rawByItem = new LinkedHashMap<>();
         clauses.forEach((item, paired) -> {
             List<GrantFact> candidates = CandidateSelector.select(loaded, paired, stage);
-            List<GrantFact> raw = candidates.stream().filter(f -> f.dependOn() == null).toList();
+            RunState.ItemExecution state = executions.get(item);
+            ParentRequirement requirement = parentRequirement(item.selection());
+            boolean hasDependent = candidates.stream().anyMatch(f -> f.dependOn() != null);
+            Set<Long> parentIds = requirement != null && hasDependent
+                ? resolveParent(run, item, state, requirement).matchedPermissionIds() : Set.of();
+            List<GrantFact> raw = bind(candidates, parentIds);
             // TYPE_LEVEL 的子行不属于有效选择；只有目标项把排除解释为父上下文不匹配。
             if (item.selection() instanceof TargetSet && raw.size() < candidates.size()) {
-                run.items().get(item).dependentExcluded = true;
+                state.dependentExcluded = true;
             }
             rawByItem.put(item, raw);
         });
         run.evaluator().preload(rawByItem);
         rawByItem.forEach((item, raw) -> {
-            var evaluated = run.evaluator().evaluate(item, stage, clauses.get(item), raw);
-            RunState.ItemExecution state = run.items().get(item);
-            StageFacts.Status status = !evaluated.retained().isEmpty() ? StageFacts.Status.PRESENT
-                : raw.isEmpty() ? StageFacts.Status.NO_MATCH : StageFacts.Status.FILTERED_EMPTY;
-            state.stages.put(stage, new StageFacts(stage, raw, evaluated.retained(), status));
-            state.mutexHits.put(stage, evaluated.triggeredRuleIds());
-            state.mutexCandidate |= evaluated.mutexCandidate();
+            recordEvaluation(run, item, executions.get(item), stage, clauses.get(item), raw);
         });
+    }
+
+    private void processGrantListStage(RunState run) {
+        for (QueryItem item : run.request().items()) {
+            if (!(item.selection() instanceof GrantList selection)) continue;
+            RunState.ItemExecution state = run.items().get(item);
+            List<GrantFact> raw = reads.listGrants(run, run.roles());
+            if (!raw.isEmpty() && selection.requiredParent() != null) {
+                RunState.ParentExecution parent = resolveParent(run, item, state, selection.requiredParent());
+                if (!parent.execution.retained()) {
+                    state.parentDenied = true;
+                    continue;
+                }
+                raw = bind(raw, parent.matchedPermissionIds());
+            }
+            run.evaluator().preload(Map.of(item, raw));
+            recordEvaluation(run, item, state, Stage.GRANT_LIST, List.of(), raw);
+        }
+    }
+
+    private RunState.ParentExecution resolveParent(RunState run, QueryItem child, RunState.ItemExecution childState,
+                                                   ParentRequirement requirement) {
+        RunState.ParentExecution parent = run.parents().get(requirement);
+        boolean unloaded = parent == null;
+        if (unloaded) {
+            List<TargetClause> clauses = requirement.operationCodes().stream().sorted()
+                .map(code -> new TargetClause(new TypeOperation(requirement.resourceTypeCode(), code), requirement.resource())).toList();
+            // 内部项使用独立执行表，不能与调用方的 key 碰撞；没有父字段保证仅一层。
+            QueryItem item = QueryItem.decision("parent", new TargetSet(clauses, Inheritance.SELF,
+                TypeFallback.ALLOW, null), OutputSpec.minimal());
+            parent = new RunState.ParentExecution(item);
+            run.parents().put(requirement, parent);
+        }
+        parent.affectedItemKeys.add(child.key());
+        childState.parent = parent;
+        if (unloaded) {
+            Map<QueryItem, RunState.ItemExecution> executions = Map.of(parent.item, parent.execution);
+            Map<TypeOperation, ResolvedOperation> operations = prepareOperations(run, List.of(parent.item));
+            processTypeGrantStage(run, operations, executions);
+            processInstanceStage(run, operations, executions);
+        }
+        return parent;
+    }
+
+    private static List<GrantFact> bind(List<GrantFact> candidates, Set<Long> parentIds) {
+        return candidates.stream().filter(f -> f.dependOn() == null || parentIds.contains(f.dependOn())).toList();
+    }
+
+    private static ParentRequirement parentRequirement(Selection selection) {
+        if (selection instanceof TargetSet target) return target.parent();
+        if (selection instanceof GrantList list) return list.requiredParent();
+        return null;
+    }
+
+    private static void recordEvaluation(RunState run, QueryItem item, RunState.ItemExecution state,
+                                         Stage stage, List<CandidateSelector.Clause> clauses, List<GrantFact> raw) {
+        Set<Long> parentIds = state.parent == null ? Set.of() : state.parent.matchedPermissionIds();
+        var evaluated = run.evaluator().evaluate(item, stage, clauses, raw, parentIds);
+        StageFacts.Status status = !evaluated.retained().isEmpty() ? StageFacts.Status.PRESENT
+            : raw.isEmpty() ? StageFacts.Status.NO_MATCH : StageFacts.Status.FILTERED_EMPTY;
+        state.stages.put(stage, new StageFacts(stage, raw, evaluated.retained(), status));
+        state.mutexHits.put(stage, evaluated.triggeredRuleIds());
+        state.mutexCandidate |= evaluated.mutexCandidate();
     }
 
     private static ItemResult complete(QueryItem item, RunState run) {
         RunState.ItemExecution state = run.items().get(item);
-        Map<Stage, SkipReason> skipped = state.shortCircuited ? Map.of(Stage.INSTANCE, SkipReason.SUFFICIENT_DECISION) : Map.of();
+        Map<Stage, SkipReason> skipped = state.parentDenied ? Map.of(Stage.GRANT_LIST, SkipReason.PARENT_DENIED)
+            : state.shortCircuited ? Map.of(Stage.INSTANCE, SkipReason.SUFFICIENT_DECISION) : Map.of();
         ConditionCoverage condition = !state.hadRaw() ? ConditionCoverage.NO_CANDIDATE
             : item.evaluation().conditionMode() == ConditionMode.EVALUATE ? ConditionCoverage.EVALUATED : ConditionCoverage.PRESERVED;
         MutexCoverage mutex = !state.mutexCandidate ? MutexCoverage.NO_CANDIDATE
             : item.evaluation().mutexMode() == MutexMode.ENFORCE ? MutexCoverage.EVALUATED : MutexCoverage.SKIPPED;
+        ParentCheckCoverage parentCheck = state.parent != null
+            ? state.parent.execution.retained() ? ParentCheckCoverage.PASSED : ParentCheckCoverage.FAILED
+            : parentRequirement(item.selection()) == null ? ParentCheckCoverage.NOT_REQUIRED : ParentCheckCoverage.NOT_TRIGGERED;
         EvaluationCoverage coverage = new EvaluationCoverage(run.subjectResolution(), condition, mutex,
-            ParentCheckCoverage.NOT_REQUIRED, state.stages.keySet(), skipped, !state.shortCircuited, authorizationStage(item.resultForm()));
+            parentCheck, state.stages.keySet(), skipped, !state.shortCircuited && !state.parentDenied, authorizationStage(item.resultForm()));
         ResultDetails details = QueryProjector.project(item.output(), state);
         if (item.resultForm() == ResultForm.FACTS) {
-            GrantSetResult.CollectionStatus status = state.retained() ? GrantSetResult.CollectionStatus.PRESENT
+            GrantSetResult.CollectionStatus status = state.parentDenied ? GrantSetResult.CollectionStatus.PARENT_DENIED
+                : state.retained() ? GrantSetResult.CollectionStatus.PRESENT
                 : state.hadRaw() ? GrantSetResult.CollectionStatus.FILTERED_EMPTY : GrantSetResult.CollectionStatus.NO_MATCH;
             return new GrantSetResult(item.key(), status, coverage, details);
         }

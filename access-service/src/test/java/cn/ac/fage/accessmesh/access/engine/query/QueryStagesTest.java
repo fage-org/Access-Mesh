@@ -38,6 +38,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -400,13 +401,9 @@ class QueryStagesTest {
     }
 
     @Test
-    void should_failExplicitly_whenUnimplementedOutputOrParentRequested() {
+    void should_failExplicitly_whenUnimplementedOutputRequested() {
         assertThatThrownBy(() -> execute(QueryItem.facts("full", target(Inheritance.SELF, TypeFallback.ALLOW, clause(100)),
             Evaluation.full(), OutputSpec.full()))).isInstanceOf(UnsupportedOperationException.class).hasMessageContaining("087/088");
-        var parent = new ParentRequirement("REPORT", new ByEntityId(200), Set.of("VIEW"));
-        assertThatThrownBy(() -> execute(QueryItem.decision("parent", new TargetSet(List.of(clause(100)),
-            Inheritance.SELF, TypeFallback.ALLOW, parent), OutputSpec.minimal())))
-            .isInstanceOf(UnsupportedOperationException.class).hasMessageContaining("086");
         verifyNoInteractions(grants, operations);
     }
 
@@ -453,6 +450,280 @@ class QueryStagesTest {
         verify(cache, times(1)).getBatch(AccessCacheCatalog.CONDITION_RULES, 1L, Set.of(501L));
         verify(cache, never()).beginRead(AccessCacheCatalog.CONDITION_RULES);
         verifyNoInteractions(conditionMapper);
+    }
+
+    static ParentRequirement reportParent() {
+        return new ParentRequirement("REPORT", new ByEntityId(200), Set.of("VIEW"));
+    }
+
+    static QueryItem childItem(String key, long entity) {
+        return QueryItem.decision(key, new TargetSet(List.of(clause(entity)), Inheritance.SELF,
+            TypeFallback.DISALLOW, reportParent()), OutputSpec.minimalWithMatchIds());
+    }
+
+    static RoleResourcePermission dependent(long id, Long entity, long parentId) {
+        RoleResourcePermission row = grant(id, 1, entity, 2);
+        row.setDependOn(parentId);
+        return row;
+    }
+
+    GrantSetResult listFacts(ParentRequirement parent, Evaluation evaluation, ListGrantRead source) {
+        return (GrantSetResult) engine.execute(new QueryRequest(1L, new Roles(Set.of(10L)),
+            CallerContext.of("127.0.0.1"), new ReadOptions(source), List.of(
+                QueryItem.grantListFacts("list", parent, evaluation, OutputSpec.rawAndKept()))))
+            .orderedResults().getFirst();
+    }
+
+    @Test
+    void should_skipParent_whenOnlyIndependentMainGrantIsSelected() {
+        instanceRows.add(grant(101, 1, 100L, 2));
+        var result = decision(execute(childItem("child", 100)), 0);
+        assertThat(result.details().matchedPermissionIds()).containsExactly(101L);
+        assertThat(result.coverage().parentCheck()).isEqualTo(EvaluationCoverage.ParentCheckCoverage.NOT_TRIGGERED);
+        verify(grants, never()).selectScopeAllPermsByBitsBatch(anyLong(), anySet(), anyList());
+        verify(grants, times(1)).selectInstancePermsByBitsBatch(eq(1L), anySet(), eq(Set.of(100L)), anyList());
+    }
+
+    @Test
+    void should_preserveMainGrant_whenParentFailsAndDependentGrantIsExcluded() {
+        instanceRows.add(grant(101, 1, 100L, 2));
+        instanceRows.add(dependent(102, 100L, 999));
+        var result = decision(execute(childItem("child", 100)), 0);
+        assertThat(result.details().matchedPermissionIds()).containsExactly(101L);
+        assertThat(result.coverage().parentCheck()).isEqualTo(EvaluationCoverage.ParentCheckCoverage.FAILED);
+    }
+
+    @Test
+    void should_bindOnlyScopeParentIds_withoutExpandingParentInstanceOrRequiringPublicMatchIds() {
+        scopeRows.add(grant(201, 1, null, 2));
+        instanceRows.add(grant(202, 1, 200L, 2));
+        instanceRows.add(dependent(101, 100L, 201));
+        instanceRows.add(dependent(102, 100L, 202));
+        var selection = new TargetSet(List.of(clause(100)), Inheritance.SELF, TypeFallback.DISALLOW, reportParent());
+        var output = new OutputSpec(FactDetail.RAW_AND_KEPT, false, false, false, false, Set.of(), false);
+        var result = (GrantSetResult) execute(QueryItem.facts("child", selection, Evaluation.full(), output))
+            .orderedResults().getFirst();
+        assertThat(result.details().stageFacts().getFirst().rawAfterContext()).extracting(GrantFact::permissionId).containsExactly(101L);
+        assertThat(result.details().matchedPermissionIds()).isEmpty();
+        assertThat(result.coverage().parentCheck()).isEqualTo(EvaluationCoverage.ParentCheckCoverage.PASSED);
+        verify(grants, never()).selectInstancePermsByBitsBatch(eq(1L), anySet(), eq(Set.of(200L)), anyList());
+    }
+
+    @Test
+    void should_computeSharedParentOnce_andMarkEveryDependentItem() {
+        mutex();
+        instanceRows.add(grant(201, 1, 200L, 2));
+        instanceRows.add(grant(202, 1, 200L, 4));
+        instanceRows.add(dependent(101, 100L, 201));
+        instanceRows.add(dependent(102, 300L, 201));
+        var result = execute(childItem("first", 100), childItem("second", 300));
+        assertThat(result.orderedResults()).allSatisfy(item -> {
+            assertThat(((DecisionResult) item).reason()).isEqualTo(DecisionResult.Reason.DEPENDENT_NOT_IN_PARENT_CONTEXT);
+            assertThat(((DecisionResult) item).coverage().parentCheck()).isEqualTo(EvaluationCoverage.ParentCheckCoverage.FAILED);
+        });
+        verify(grants, times(1)).selectInstancePermsByBitsBatch(eq(1L), anySet(), eq(Set.of(200L)), anyList());
+        verify(grants, times(1)).selectScopeAllPermsByBitsBatch(eq(1L), anySet(), anyList());
+        verifyNoInteractions(audit);
+    }
+
+    @Test
+    void should_evaluateParentFully_whenRootPreservesConditionsAndSkipsMutex() {
+        RoleResourcePermission parent = grant(201, 1, 200L, 2);
+        parent.setConditionId(500L); instanceRows.add(parent);
+        instanceRows.add(dependent(101, 100L, 201));
+        var selection = new TargetSet(List.of(clause(100)), Inheritance.SELF, TypeFallback.DISALLOW, reportParent());
+        var result = (GrantSetResult) execute(QueryItem.facts("child", selection, Evaluation.preserveSkip(), OutputSpec.rawAndKept()))
+            .orderedResults().getFirst();
+        assertThat(result.collectionStatus()).isEqualTo(GrantSetResult.CollectionStatus.NO_MATCH);
+        assertThat(result.coverage().parentCheck()).isEqualTo(EvaluationCoverage.ParentCheckCoverage.FAILED);
+        verify(conditionMapper).selectValidByIds(1L, Set.of(500L));
+    }
+
+    @Test
+    void should_rejectEmptyParentOperations_beforeAnyPermissionRead() {
+        var parent = new ParentRequirement("REPORT", new ByEntityId(200), Set.of());
+        assertThatThrownBy(() -> listFacts(parent, Evaluation.preserveSkip(), ListGrantRead.DATABASE))
+            .isInstanceOf(QueryValidationException.class);
+        verifyNoInteractions(grants, resources, cache, subjects);
+    }
+
+    @Test
+    void should_keepDependentRowsInUnboundList_andNeverTouchSnapshotInDatabaseMode() {
+        when(grants.selectValidByRoleIds(1L, Set.of(10L)))
+            .thenReturn(List.of(grant(101, 1, 100L, 2), dependent(102, 300L, 999)));
+        var result = listFacts(null, Evaluation.preserveSkip(), ListGrantRead.DATABASE);
+        assertThat(result.details().matchedPermissionIds()).containsExactly(101L, 102L);
+        assertThat(result.coverage().requestedSelectionComplete()).isTrue();
+        assertThat(result.coverage().completedStages()).containsExactly(Stage.GRANT_LIST);
+        verifyNoInteractions(cache, operations, resources, resourceMapper);
+    }
+
+    @Test
+    void should_applyMutexToWholeList_beforeAnyConsumerFiltersOneResource() {
+        mutex();
+        // 子行同样参与清单互斥；若提前隐藏它，主授权 101 会错误复活。
+        RoleResourcePermission other = dependent(102, 300L, 999); other.setGrantedBits(4L);
+        when(grants.selectValidByRoleIds(1L, Set.of(10L))).thenReturn(List.of(grant(101, 1, 100L, 2), other));
+        var result = listFacts(null, Evaluation.full(), ListGrantRead.DATABASE);
+        assertThat(result.collectionStatus()).isEqualTo(GrantSetResult.CollectionStatus.FILTERED_EMPTY);
+        assertThat(result.details().stageFacts().getFirst().rawAfterContext()).extracting(GrantFact::permissionId)
+            .containsExactly(101L, 102L);
+        assertThat(result.details().stageFacts().getFirst().retainedAfterEvaluation()).isEmpty();
+    }
+
+    @Test
+    void should_defineRawAfterParentBinding_whenListHasRequiredParent() {
+        scopeRows.add(grant(201, 1, null, 2));
+        when(grants.selectValidByRoleIds(1L, Set.of(10L))).thenReturn(List.of(
+            grant(101, 1, 100L, 2), dependent(102, 300L, 201), dependent(103, 400L, 999)));
+        var result = listFacts(reportParent(), Evaluation.preserveSkip(), ListGrantRead.DATABASE);
+        assertThat(result.details().stageFacts().getFirst().rawAfterContext()).extracting(GrantFact::permissionId)
+            .containsExactly(101L, 102L);
+        assertThat(result.details().matchedPermissionIds()).containsExactly(101L, 102L);
+    }
+
+    @Test
+    void should_notEvaluateParent_whenListSourceIsEmpty() {
+        var result = listFacts(reportParent(), Evaluation.full(), ListGrantRead.DATABASE);
+        assertThat(result.collectionStatus()).isEqualTo(GrantSetResult.CollectionStatus.NO_MATCH);
+        assertThat(result.coverage().parentCheck()).isEqualTo(EvaluationCoverage.ParentCheckCoverage.NOT_TRIGGERED);
+        verify(grants, never()).selectScopeAllPermsByBitsBatch(anyLong(), anySet(), anyList());
+        verifyNoInteractions(operations, resources, conditionMapper, rules);
+    }
+
+    @Test
+    void should_returnBothExplicitRolesFacts_withoutApplyingUserRoleMutex() {
+        var a = grant(101, 1, 100L, 2);
+        var b = grant(102, 1, 300L, 2); b.setAbstractRoleId(20L);
+        when(grants.selectValidByRoleIds(1L, Set.of(10L, 20L))).thenReturn(List.of(a, b));
+        var result = (GrantSetResult) engine.execute(new QueryRequest(1L, new Roles(Set.of(10L, 20L)), CallerContext.of(null),
+            new ReadOptions(ListGrantRead.DATABASE), List.of(QueryItem.grantListFacts("roles", null,
+                Evaluation.preserveSkip(), OutputSpec.kept())))).orderedResults().getFirst();
+        assertThat(result.details().matchedRoleIds()).containsExactlyInAnyOrder(10L, 20L);
+        assertThat(result.details().matchedPermissionIds()).containsExactlyInAnyOrder(101L, 102L);
+        verifyNoInteractions(subjects, rules, audit);
+    }
+
+    @Test
+    void should_stopWholeListAtParentGate_withoutReportingSuccessfulEmptyCollection() {
+        var main = grant(101, 1, 100L, 2); main.setConditionId(501L);
+        when(grants.selectValidByRoleIds(1L, Set.of(10L))).thenReturn(List.of(main));
+        var result = listFacts(reportParent(), Evaluation.full(), ListGrantRead.DATABASE);
+        assertThat(result.collectionStatus()).isEqualTo(GrantSetResult.CollectionStatus.PARENT_DENIED);
+        assertThat(result.coverage().parentCheck()).isEqualTo(EvaluationCoverage.ParentCheckCoverage.FAILED);
+        assertThat(result.coverage().requestedSelectionComplete()).isFalse();
+        assertThat(result.coverage().completedStages()).isEmpty();
+        assertThat(result.coverage().skippedStages()).containsEntry(Stage.GRANT_LIST, EvaluationCoverage.SkipReason.PARENT_DENIED);
+        assertThat(result.details().stageFacts()).isEmpty();
+        assertThat(result.details().matchedPermissionIds()).isEmpty();
+        verifyNoInteractions(conditionMapper);
+    }
+
+    @Test
+    void should_enforceParentMutex_whenListPreservesAllItsOwnFacts() {
+        mutex();
+        instanceRows.add(grant(201, 1, 200L, 2)); instanceRows.add(grant(202, 1, 200L, 4));
+        when(grants.selectValidByRoleIds(1L, Set.of(10L))).thenReturn(List.of(grant(101, 1, 100L, 2)));
+        var result = listFacts(reportParent(), Evaluation.preserveSkip(), ListGrantRead.DATABASE);
+        assertThat(result.collectionStatus()).isEqualTo(GrantSetResult.CollectionStatus.PARENT_DENIED);
+        verify(rules, times(1)).selectByConflictType(1L, "PERM_MUTEX");
+        verifyNoInteractions(audit);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 1, 2})
+    void should_readOnlyMissingRolesAndCacheUnfilteredFacts_whenSnapshotHeatVaries(int hotRoles) {
+        var first = grant(101, 1, 100L, 2);
+        var second = dependent(102, 300L, 999); second.setAbstractRoleId(20L);
+        var mapper = new RolePermEntryMapper();
+        Map<Long, List<cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry>> hot = new LinkedHashMap<>();
+        if (hotRoles > 0) hot.put(10L, List.of(mapper.toEntry(first)));
+        if (hotRoles > 1) hot.put(20L, List.of(mapper.toEntry(second)));
+        when(cache.getBatch(AccessCacheCatalog.ROLE_PERM_SNAPSHOT, 1L, Set.of(10L, 20L))).thenReturn(hot);
+        when(grants.selectValidByRoleIds(eq(1L), anySet())).thenAnswer(i -> {
+            Set<Long> ids = i.getArgument(1);
+            return List.of(first, second).stream().filter(row -> ids.contains(row.getAbstractRoleId())).toList();
+        });
+        CacheService timed = new DefaultCacheService(null, mock(DistributedCacheStore.class), null, new CacheProperties(), null);
+        var token = timed.beginRead(AccessCacheCatalog.ROLE_PERM_SNAPSHOT);
+        when(cache.beginRead(AccessCacheCatalog.ROLE_PERM_SNAPSHOT)).thenReturn(token);
+        var result = (GrantSetResult) engine.execute(new QueryRequest(1L, new Roles(Set.of(10L, 20L)), CallerContext.of(null),
+            ReadOptions.defaults(), List.of(QueryItem.grantListFacts("list", null, Evaluation.preserveSkip(), OutputSpec.kept()))))
+            .orderedResults().getFirst();
+        assertThat(result.details().matchedPermissionIds()).containsExactlyInAnyOrder(101L, 102L);
+        if (hotRoles == 2) {
+            verifyNoInteractions(grants);
+            verify(cache, never()).beginRead(AccessCacheCatalog.ROLE_PERM_SNAPSHOT);
+        } else {
+            Set<Long> misses = hotRoles == 0 ? Set.of(10L, 20L) : Set.of(20L);
+            var order = inOrder(cache, grants);
+            order.verify(cache).beginRead(AccessCacheCatalog.ROLE_PERM_SNAPSHOT);
+            order.verify(grants).selectValidByRoleIds(1L, misses);
+            order.verify(cache).putBatch(eq(token), eq(1L), argThat(data ->
+                data.keySet().equals(misses) && data.get(20L).getFirst().dependOn().equals(999L)));
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {8, 11})
+    void should_keepFirstSnapshotTokenAcrossSqlChunks_whenDatabaseReadConsumesBudget(int readSeconds) {
+        AtomicLong nanos = new AtomicLong();
+        DistributedCacheStore store = mock(DistributedCacheStore.class);
+        CacheService timed = new DefaultCacheService(null, store, null, new CacheProperties(), null, nanos::get);
+        when(cache.beginRead(AccessCacheCatalog.ROLE_PERM_SNAPSHOT)).thenAnswer(i -> timed.beginRead(AccessCacheCatalog.ROLE_PERM_SNAPSHOT));
+        doAnswer(i -> {
+            CacheReadToken<List<cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry>> token = i.getArgument(0);
+            timed.putBatch(token, i.getArgument(1), i.getArgument(2)); return null;
+        }).when(cache).putBatch(any(CacheReadToken.class), eq(1L), anyMap());
+        int size = cn.ac.fage.accessmesh.access.infrastructure.util.SqlBatches.BATCH_SIZE + 1;
+        Set<Long> roles = LongStream.rangeClosed(1, size).boxed().collect(Collectors.toCollection(LinkedHashSet::new));
+        var calls = new java.util.concurrent.atomic.AtomicInteger();
+        when(grants.selectValidByRoleIds(eq(1L), anySet())).thenAnswer(i -> {
+            nanos.set(Duration.ofSeconds(calls.incrementAndGet() == 1 ? 3 : readSeconds).toNanos());
+            Set<Long> batch = i.getArgument(1);
+            return batch.stream().map(role -> {
+                var row = grant(role + 10000, 1, 100L, 2); row.setAbstractRoleId(role); return row;
+            }).toList();
+        });
+        var result = (GrantSetResult) engine.execute(new QueryRequest(1L, new Roles(roles), CallerContext.of(null),
+            ReadOptions.defaults(), List.of(QueryItem.grantListFacts("list", null, Evaluation.preserveSkip(), OutputSpec.kept()))))
+            .orderedResults().getFirst();
+        assertThat(result.details().matchedPermissionIds()).hasSize(size);
+        assertThat(calls.get()).isEqualTo(2);
+        var order = inOrder(cache, grants);
+        order.verify(cache).beginRead(AccessCacheCatalog.ROLE_PERM_SNAPSHOT);
+        order.verify(grants, times(2)).selectValidByRoleIds(eq(1L), anySet());
+        verify(cache, times(1)).beginRead(AccessCacheCatalog.ROLE_PERM_SNAPSHOT);
+        if (readSeconds < 10) {
+            verify(store).putBatch(eq(AccessCacheCatalog.ROLE_PERM_SNAPSHOT), anyMap(), eq(Duration.ofSeconds(2)));
+        } else {
+            verify(store, never()).putBatch(eq(AccessCacheCatalog.ROLE_PERM_SNAPSHOT), anyMap(), any(Duration.class));
+        }
+    }
+
+    @Test
+    void should_keepParentAtSelfAndIgnoreDependentParentRows_whenOnlyAncestorOrNestedGrantExists() {
+        instanceRows.add(dependent(101, 100L, 201));
+        instanceRows.add(dependent(201, 200L, 999));
+        instanceRows.add(grant(202, 1, 400L, 2));
+        assertThat(decision(execute(childItem("child", 100)), 0).reason())
+            .isEqualTo(DecisionResult.Reason.DEPENDENT_NOT_IN_PARENT_CONTEXT);
+        verifyNoInteractions(resourceMapper);
+    }
+
+    @Test
+    void should_shareClockAndConditionMemory_whenParentFallsBackToInstanceAndChildAlsoEvaluates() {
+        var failedScope = grant(200, 1, null, 2); failedScope.setConditionId(500L); scopeRows.add(failedScope);
+        var parent = grant(201, 1, 200L, 2); parent.setConditionId(501L); instanceRows.add(parent);
+        var child = dependent(101, 100L, 201); child.setConditionId(501L); instanceRows.add(child);
+        when(conditionMapper.selectValidByIds(1L, Set.of(501L))).thenReturn(List.of(condition(501, true,
+            "{\"logic\":\"AND\",\"items\":[{\"type\":\"DATE_RANGE\",\"params\":{\"start\":\"2004-01-02\",\"end\":\"2004-01-02\"}}]}")));
+        var result = decision(execute(childItem("parent", 100)), 0);
+        assertThat(result.details().matchedPermissionIds()).containsExactly(101L);
+        assertThat(result.coverage().parentCheck()).isEqualTo(EvaluationCoverage.ParentCheckCoverage.PASSED);
+        verify(conditionMapper, times(1)).selectValidByIds(1L, Set.of(501L));
+        verify(grants).selectInstancePermsByBitsBatch(eq(1L), anySet(), eq(Set.of(200L)), anyList());
+        verifyNoInteractions(resourceMapper, audit);
     }
 
     static PermissionCondition condition(long id, boolean enabled, String rules) {

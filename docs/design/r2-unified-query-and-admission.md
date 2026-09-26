@@ -274,7 +274,7 @@ TARGET_SET 实例未解析时，仍保留之前 TYPE_GRANT 曾被条件／冲突
 | QueryProjector | 组装事实、覆盖操作、描述和展示派生 | 重新鉴权、反向修改候选或 ALLOW |
 | QueryAuditCollector | 收集真实规则／角色对和项关系；根级一次提交 | 用端点猜规则、把准入记为业务成功 |
 
-**迁移期适用边界**：T-PERM-085 已接入 User 有效角色＋纯 ROLE_MUTEX、无父要求的 TYPE_GRANT/INSTANCE 与最小事实投影；C06 的有角色同序等长判定由执行链测试覆盖。新类仍不注册 Spring bean、无生产消费者，旧执行器保持现役。GRANT_LIST 与父要求由 T-PERM-086、ADMISSION_CANDIDATES 由 T-ACCESS-057 承接；非空角色触发尚未实现的选择时抛 `UnsupportedOperationException`，不伪装普通 DENY 或空事实。NO_ROLE 终态继续适用于全部结果形式。尚未实现的输出块在主体读取前明确抛未实现异常。T-PERM-082 的 R03 完整清单事实仍随 T-PERM-086 验证。阶段实现和验证实际落地后才解除对应边界。[骨架边界来源](../archive/2026-09-26/decision-registry-before.md)（原第 201 行）；最小事实输出范围见 §3.3。
+**迁移期适用边界**：T-PERM-085/086 已接入 User 有效角色＋纯 ROLE_MUTEX、TYPE_GRANT/INSTANCE、父要求、GRANT_LIST 与最小事实投影；C06 同序等长判定、R03 显式角色完整清单由执行链测试覆盖。新类仍不注册 Spring bean、无生产消费者，旧执行器保持现役。ADMISSION_CANDIDATES 由 T-ACCESS-057 承接；非空角色触发尚未实现的选择时抛 `UnsupportedOperationException`，不伪装普通 DENY 或空事实。NO_ROLE 终态继续适用于全部结果形式。描述、有效操作、展示与 TRACE 仍由 T-PERM-087/088 承接，尚未实现的输出块在主体读取前明确抛未实现异常。[骨架边界来源](../archive/2026-09-26/decision-registry-before.md)（原第 201 行）；最小事实输出范围见 §3.3，父与清单实现见 §4.5/§4.6 及 [T-PERM-086](../tasks/T-PERM-086.md)。
 
 不要求每行新增独立 Spring Bean，包内 helper 也可；依赖方向是应用→引擎→既有读／领域能力→Mapper。转授服务可调用引擎，引擎不能反注入授权计划／物化服务。
 
@@ -325,7 +325,7 @@ QueryResult execute(QueryRequest request) {
 
 阶段结果去重键必须包含真实候选、type-mask 配对、绑定／父结果与评估策略，不得只按资源类型去重。完整候选的互斥没有做完之前，不能见到第一条授权就返回 ALLOW。
 
-T-PERM-085 以 `CandidateSelector` 切回配对、`CandidateEvaluator` 复用领域条件与纯互斥计算。阶段评估记忆键包含完整 Selection、stage、解析后的 type-mask/closure、上下文后 raw 和评估策略，输出开关不参与判定；当前不支持父要求，后续接入父项时须把实际父绑定结果纳入记忆键。条件在每阶段上下文过滤后按需要求值的候选并集预载，PRESERVE 不加载规则。真实互斥 ruleId 与角色对暂存 RunState，根审计提交和故障证据由 T-PERM-088 实现。
+T-PERM-085/086 以 `CandidateSelector` 切回配对、`CandidateEvaluator` 复用领域条件与纯互斥计算。阶段评估记忆键包含完整 Selection、stage、解析后的 type-mask/closure、上下文后 raw、评估策略及实际父命中权限 ID 集，输出开关不参与判定。条件在每阶段上下文过滤后按需要求值的候选并集预载，PRESERVE 不加载规则；父项固定 FULL，不继承根项弱策略。真实互斥 ruleId 与角色对暂存 RunState，根审计提交和故障证据由 T-PERM-088 实现。
 
 ### 4.4 INSTANCE：按原配对切回候选
 
@@ -373,6 +373,8 @@ record ParentRequirement(String resourceTypeCode, ResourceRef resource,
 
 父结果在同一 RunState 内按完整规范化要求记忆。共享角色、时刻、定义和条件，可为父做必要的额外授权读取，不能错误复用根项范围更窄的事实。父 scopeAll 已命中时，其真实权限 ID 就是绑定集，不能再扩读父实例来扩大可用子授权。
 
+T-PERM-086 实现中，沿 `ParentRequirement` 已有构造前归一约定按完整字段值判等；父项独立于根项执行表，调用方 key 不会覆盖内部父项。父阶段事实、命中 ID、真实互斥规则与受影响根项 key 的关联保存在一次 RunState 中，结束即释放；父与根共享评估时刻和条件读取记忆，父不递归公开 execute、不独立提交审计。[实施证据](../tasks/T-PERM-086.md)
+
 `queryScopes` 的“父对象是否存在”预检查留在外层，OBJECT_KEY_NOT_FOUND 行为保持；存在不等于父权限允许。普通无父 GRANT_LIST 的子行可能先参与原 LIST 条件／互斥、后在装配中隐藏，不能以统一为由提前全部删掉。[E14][E15]
 
 ### 4.6 GRANT_LIST：事实完成目标不能被短路或分页破坏
@@ -382,6 +384,8 @@ record ParentRequirement(String resourceTypeCode, ResourceRef resource,
 本版不把原 queryResources 的 type/op/domain/codeType 或权限码白名单提前到授权 SQL。反例：A、B 冲突而页面只显示 A；先互斥再筛 A 是空，先筛 A 再互斥会让 A 复活。只有证明某个过滤不改变该用途集合语义后，才能单独下推。
 
 操作描述至少覆盖 raw 所涉类型，以及 output.extraOperationKeys 的目标类型。retained 为空也不能缺操作定义；无授权不等于目标操作不存在。
+
+T-PERM-086 已接通完整清单评估与最小 StageFacts 输出，保留绑定后 raw 供 T-PERM-087 的描述/范围投影消费；不提前下推展示过滤。父门禁拒绝时返回 `PARENT_DENIED`，不伪装成成功的空清单。按 §3.3 的实际执行覆盖约束，此时 `parentCheck=FAILED`、`GRANT_LIST` 以 `PARENT_DENIED` 标为跳过、`requestedSelectionComplete=false`，不输出未执行阶段的事实。源为空则不判父，完成空清单并返回 `NO_MATCH`。这些是内部执行说明，外部响应仍由对应迁移卡保持原契约。[实施证据](../tasks/T-PERM-086.md)
 
 ## 5. 共享规则、读取来源、缓存与资源控制
 
@@ -450,7 +454,7 @@ effectiveRoles = S - D
 
 **RolePermEntry 与四个旧 DTO 区别处理：**默认保留 `ROLE_PERM_SNAPSHOT` 的现有序列化载荷，在读边界转为 GrantFact；新应用和执行器不再消费旧 PermResult。这样不强迫 R2 同时改已有缓存格式。备选版本化载荷需明确双命名空间、旧写者和双失效；新准入网关快照则因语义不同必须版本隔离，不能借“缓存兼容”复用旧 API 放行结构。[B02]
 
-T-PERM-084 的读取部件已建立该转换边界：TYPE_GRANT/INSTANCE 固定数据库读取，LIST 的 DATABASE 不读写角色快照，ROLE_SNAPSHOT 只缓存原始 RolePermEntry。缓存 miss 在首次数据库查询前获取令牌，同运行态后续 miss、分块和重试沿用该令牌，剩余 TTL 耗尽时只返回读取事实、不回填。T-PERM-085 已接入普通阶段编排：领域批量条件评估器在本次执行跨阶段复用首次 miss 的令牌；互斥复用读取部件的新鲜目录，不另建或混入长 TTL 掩码桶。I05 的普通 execute 验证覆盖条件缓存的冷/热与增量 miss、令牌耗尽；ROLE_SNAPSHOT 的整体 execute 验证随 T-PERM-086 接入 GRANT_LIST，当前仍保留读取部件验收证据。
+T-PERM-084 的读取部件已建立该转换边界：TYPE_GRANT/INSTANCE 固定数据库读取，LIST 的 DATABASE 不读写角色快照，ROLE_SNAPSHOT 只缓存原始 RolePermEntry。缓存 miss 在首次数据库查询前获取令牌，同运行态后续 miss、分块和重试沿用该令牌，剩余 TTL 耗尽时只返回读取事实、不回填。T-PERM-085/086 已接入普通阶段与 GRANT_LIST 编排：领域批量条件评估器在本次执行跨阶段及父子判定复用读取记忆；互斥复用读取部件的新鲜目录，不另建或混入长 TTL 掩码桶。I05 的整体 execute 验证覆盖条件缓存冷/热与增量 miss、角色快照冷/热/混合 miss、跨 SQL 分块沿用首次令牌以及预算耗尽不回填；真实 PG/Redis 验证筛空结果不污染原始快照、热清单下父判定仍使用数据库事实，以及 DATABASE 读本事务写入不改角色快照。[实施证据](../tasks/T-PERM-086.md)
 
 ### 5.5 SQL、候选算法与预算
 

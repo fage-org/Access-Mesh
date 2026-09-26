@@ -78,7 +78,7 @@ public record EvaluationCoverage(SubjectResolution subjectResolution, ConditionC
         /** 父判定通过。 */
         PASSED,
 
-        /** 父判定失败（GRANT_LIST 整集合门禁）。 */
+        /** 父判定失败；TARGET_SET 保留独立主行，GRANT_LIST 整集合拒绝。 */
         FAILED,
 
         /** 准入用途：运行时父校验延后至业务。 */
@@ -92,7 +92,10 @@ public record EvaluationCoverage(SubjectResolution subjectResolution, ConditionC
         NO_ROLE,
 
         /** 类型级已有充分最终判定，未执行实例阶段。 */
-        SUFFICIENT_DECISION
+        SUFFICIENT_DECISION,
+
+        /** 父整集合门禁拒绝，未执行清单条件/互斥评估。 */
+        PARENT_DENIED
     }
 
     /** 授权阶段（§3.3；准入恒 finalCheckRequired）。 */

@@ -38,7 +38,7 @@
 | [T-PERM-083](T-PERM-083.md) | （R2-T04）角色互斥 S/H/D 确定化与纯互斥计算 | ✅（2026-09-26 收口） | T-PERM-081 |
 | [T-PERM-084](T-PERM-084.md) | （R2-T05）QueryReadSupport 与读来源分桶 | ✅ | T-PERM-082 |
 | [T-PERM-085](T-PERM-085.md) | （R2-T06）TYPE_GRANT/INSTANCE 单一阶段主体 | ✅ | T-PERM-083, T-PERM-084, T-PERM-095 |
-| [T-PERM-086](T-PERM-086.md) | （R2-T07）父受控子项与 GRANT_LIST 完整事实 | ⚙️ | T-PERM-085 |
+| [T-PERM-086](T-PERM-086.md) | （R2-T07）父受控子项与 GRANT_LIST 完整事实 | ✅ | T-PERM-085 |
 | [T-PERM-087](T-PERM-087.md) | （R2-T08）投影、展示与范围四态 | ⚙️ | T-PERM-086 |
 | [T-PERM-088](T-PERM-088.md) | （R2-T09）根审计、TRACE 与故障证据 | ⚙️ | T-PERM-083, T-PERM-086 |
 | [T-PERM-089](T-PERM-089.md) | （R2-T10）迁移 check/batch/管理门禁/getDenied | ⚙️ | T-PERM-085, T-PERM-088 |

@@ -81,6 +81,65 @@ class QueryExecutionPgIT {
     QueryReadSupportPgIT.SqlCounter counter;
     final List<Long> createdRuleIds = new ArrayList<>();
 
+    GrantSetResult listFacts(long role, ParentRequirement parent, ListGrantRead source, Evaluation evaluation) {
+        return (GrantSetResult) engine.execute(new QueryRequest(TENANT, new Roles(Set.of(role)), CallerContext.of(null),
+            new ReadOptions(source), List.of(QueryItem.grantListFacts("list", parent, evaluation, OutputSpec.rawAndKept()))))
+            .orderedResults().getFirst();
+    }
+
+    @Test
+    void should_bindToDatabaseParentDespiteWarmRoleSnapshot_whenParentGrantIsRevoked() {
+        long role = fixture.insertRoleRow(TENANT, "list-parent");
+        long parent = fixture.insertPermRow(role, TYPE_T2, null, 2, true, null);
+        long child = fixture.insertPermRow(role, TYPE_T1, RES_R1, 2, false, null);
+        jdbc.update("UPDATE role_resource_permission SET depend_on=? WHERE id=? AND tenant_id=?", parent, child, TENANT);
+        var requirement = new ParentRequirement(TYPE_T2_CODE, new ByEntityId(RES_S1), Set.of("VIEW"));
+        var first = listFacts(role, requirement, ListGrantRead.ROLE_SNAPSHOT, Evaluation.preserveSkip());
+        assertThat(first.details().matchedPermissionIds()).containsExactlyInAnyOrder(parent, child);
+        assertThat(first.coverage().parentCheck()).isEqualTo(EvaluationCoverage.ParentCheckCoverage.PASSED);
+        assertThat(cache.get(AccessCacheCatalog.ROLE_PERM_SNAPSHOT, TENANT, role))
+            .extracting(cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry::permissionId).containsExactlyInAnyOrder(parent, child);
+        // 故意不发缓存失效，证明父阶段独立数据库读取，不能从根清单快照拼出允许。
+        jdbc.update("UPDATE role_resource_permission SET delete_flag=id WHERE id=? AND tenant_id=?", parent, TENANT);
+        counter.grants.set(0);
+        var second = listFacts(role, requirement, ListGrantRead.ROLE_SNAPSHOT, Evaluation.preserveSkip());
+        assertThat(second.collectionStatus()).isEqualTo(GrantSetResult.CollectionStatus.PARENT_DENIED);
+        assertThat(second.details().matchedPermissionIds()).isEmpty();
+        assertThat(counter.grants.get()).as("热清单零授权读取，父 scopeAll/INSTANCE 各读取一次").isEqualTo(2);
+    }
+
+    @Test
+    void should_preserveRawSnapshotAndListMutexSemantics_whenDependentRowConflictsWithMainRow() {
+        fixture.newType(957, "R2LIST");
+        long view = fixture.insertOperation(957, "VIEW", 2, 0);
+        long update = fixture.insertOperation(957, "UPDATE", 4, 2);
+        long role = fixture.insertRoleRow(TENANT, "list-mutex");
+        long x = fixture.insertResourceRow(957, "list-x"); long y = fixture.insertResourceRow(957, "list-y");
+        long main = fixture.insertPermRow(role, 957, x, 2, false, null);
+        long child = fixture.insertPermRow(role, 957, y, 4, false, null);
+        jdbc.update("UPDATE role_resource_permission SET depend_on=? WHERE id=? AND tenant_id=?", main, child, TENANT);
+        createdRuleIds.add(fixture.insertPermMutexRule(view, update));
+        var filtered = listFacts(role, null, ListGrantRead.ROLE_SNAPSHOT, Evaluation.full());
+        assertThat(filtered.collectionStatus()).isEqualTo(GrantSetResult.CollectionStatus.FILTERED_EMPTY);
+        assertThat(filtered.details().stageFacts().getFirst().rawAfterContext()).extracting(GrantFact::permissionId)
+            .containsExactlyInAnyOrder(main, child);
+        counter.grants.set(0);
+        var raw = listFacts(role, null, ListGrantRead.ROLE_SNAPSHOT, Evaluation.preserveSkip());
+        assertThat(raw.details().matchedPermissionIds()).containsExactlyInAnyOrder(main, child);
+        assertThat(counter.grants.get()).as("第二次执行热缓存仍是原始事实，未缓存首次筛空结果").isZero();
+    }
+
+    @Test
+    @Transactional
+    void should_readOwnWriteWithoutChangingSnapshot_whenListDatabaseModeSelected() {
+        long role = fixture.insertRoleRow(TENANT, "list-database");
+        cache.put(AccessCacheCatalog.ROLE_PERM_SNAPSHOT, TENANT, role, List.of());
+        long permission = fixture.insertPermRow(role, TYPE_T1, RES_R1, 2, false, null);
+        var result = listFacts(role, null, ListGrantRead.DATABASE, Evaluation.preserveSkip());
+        assertThat(result.details().matchedPermissionIds()).containsExactly(permission);
+        assertThat(cache.get(AccessCacheCatalog.ROLE_PERM_SNAPSHOT, TENANT, role)).isEmpty();
+    }
+
     @AfterEach
     void cleanupRules() {
         createdRuleIds.forEach(id -> jdbc.update("DELETE FROM permission_conflict_rule WHERE id=? AND tenant_id=?", id, TENANT));

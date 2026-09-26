@@ -20,7 +20,7 @@ import cn.ac.fage.accessmesh.access.engine.query.EvaluationCoverage.SubjectResol
  * <p>
  * 一次 execute 一个实例：固定评估时刻（注入 Clock）、主体解析结果与已读记忆的宿主。
  * 禁止单例字段、ThreadLocal、跨请求/跨写复用（I07：同一事务先写后新 execute 创建新运行态）。
- * 持有读取记忆、共享条件/互斥评估器及分项阶段事实；父结果与根审计提交由后续任务接入。
+ * 持有读取记忆、共享条件/互斥评估器、父结果及分项阶段事实；根审计提交由后续任务接入。
  * </p>
  */
 final class RunState {
@@ -34,6 +34,7 @@ final class RunState {
     private boolean released;
     private CandidateEvaluator evaluator;
     private final Map<QueryItem, ItemExecution> items = new LinkedHashMap<>();
+    private final Map<ParentRequirement, ParentExecution> parents = new LinkedHashMap<>();
     private List<RolePairRef> roleHits = List.of();
 
     RunState(QueryRequest request, Clock clock) {
@@ -67,6 +68,7 @@ final class RunState {
     }
 
     Map<QueryItem, ItemExecution> items() { return items; }
+    Map<ParentRequirement, ParentExecution> parents() { return parents; }
     CandidateEvaluator evaluator() { return evaluator; }
     void evaluator(CandidateEvaluator evaluator) { this.evaluator = evaluator; }
     void roleHits(List<RolePairRef> hits) { this.roleHits = List.copyOf(hits); }
@@ -78,9 +80,27 @@ final class RunState {
         boolean dependentExcluded;
         boolean mutexCandidate;
         boolean shortCircuited;
+        boolean parentDenied;
+        ParentExecution parent;
 
         boolean retained() { return stages.values().stream().anyMatch(s -> !s.retainedAfterEvaluation().isEmpty()); }
         boolean hadRaw() { return stages.values().stream().anyMatch(s -> !s.rawAfterContext().isEmpty()); }
+    }
+
+    /** 一个实际父判定及其全部根项引用；父阶段证据保留一次，供根审计消费。 */
+    static final class ParentExecution {
+        final QueryItem item;
+        final ItemExecution execution = new ItemExecution();
+        final Set<String> affectedItemKeys = new LinkedHashSet<>();
+
+        ParentExecution(QueryItem item) { this.item = item; }
+
+        Set<Long> matchedPermissionIds() {
+            Set<Long> ids = new LinkedHashSet<>();
+            execution.stages.values().forEach(stage -> stage.retainedAfterEvaluation()
+                .forEach(fact -> ids.add(fact.permissionId())));
+            return Collections.unmodifiableSet(ids);
+        }
     }
 
     /** 读取记忆只属于本次执行；释放后不能重新装载。 */
@@ -112,6 +132,7 @@ final class RunState {
         this.readMemory = null;
         this.evaluator = null;
         this.items.clear();
+        this.parents.clear();
         this.roleHits = List.of();
         this.released = true;
     }

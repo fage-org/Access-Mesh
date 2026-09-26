@@ -45,9 +45,10 @@ final class CandidateEvaluator {
         if (!ids.isEmpty()) conditions.preload(run.request().tenantId(), ids);
     }
 
-    Evaluated evaluate(QueryItem item, Stage stage, List<CandidateSelector.Clause> clauses, List<GrantFact> raw) {
+    Evaluated evaluate(QueryItem item, Stage stage, List<CandidateSelector.Clause> clauses, List<GrantFact> raw,
+                       Set<Long> parentPermissionIds) {
         // 完整 selection 包含继承和绑定要求；阶段、配对、真实候选、策略均参与，输出不参与判定。
-        Key key = new Key(item.selection(), stage, List.copyOf(clauses), raw, item.evaluation());
+        Key key = new Key(item.selection(), stage, List.copyOf(clauses), raw, item.evaluation(), Set.copyOf(parentPermissionIds));
         return results.computeIfAbsent(key, ignored -> compute(item.evaluation(), raw));
     }
 
@@ -80,5 +81,5 @@ final class CandidateEvaluator {
 
     record Evaluated(List<GrantFact> retained, Set<Long> triggeredRuleIds, boolean mutexCandidate) {}
     private record Key(Selection selection, Stage stage, List<CandidateSelector.Clause> clauses,
-                       List<GrantFact> raw, Evaluation evaluation) {}
+                       List<GrantFact> raw, Evaluation evaluation, Set<Long> parentPermissionIds) {}
 }
