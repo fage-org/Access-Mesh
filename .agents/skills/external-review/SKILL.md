@@ -102,7 +102,7 @@ cat prompt.md | claude -p --permission-mode plan --output-format text --disallow
 
 ## 提示词构建标准（2026-09-12 v2 定案：短提示词 + registry 自读；复评感知）
 
-三通道共用同一模板与槽位，组装 = 复制下节模板 + 填三个槽位，整段投喂。目标体量 **~5-8KB**——v1 形态（registry 整段注入，实测 ~90KB）已废止：三通道均有仓库读权限，全量定案改由模板「硬性纪律」首步指令让评审自读 registry 全文兜底，槽位只挑任务相关行。
+三通道共用同一模板与槽位，组装 = 复制下节模板 + 填三个槽位，整段投喂。目标体量 **~5-8KB**——v1 形态（registry 整段注入，实测 ~90KB）已废止：三通道均有仓库读权限，全量定案改由模板「硬性纪律」首步指令让评审自读 registry 现行册兜底（T-ACCESS-063 双册分层：历史册不整读、存疑 rg），槽位只挑任务相关行。
 
 槽位与填法：
 
@@ -126,7 +126,7 @@ cat prompt.md | claude -p --permission-mode plan --output-format text --disallow
 
 - 全程在你的主会话内完成：禁止使用任何子代理/多代理/并行代理机制（如 spawn_agent、Task、Workflow、子代理会话）执行评审的任何部分。
 - 只读评审：不修改任何文件与 git 状态，不主动运行构建或测试；验证仅用只读命令（git log/show/diff、搜索、读文件、CLI --help 类查询）；测试结论只引用仓库既有 surefire/vitest 报告，不重新构建。
-- **第一步：完整读 `docs/design/decision-registry.md` 当前内容**——命中「再报直接撤回」口径的发现直接丢弃不报；命中「报了先核出处」先核出处锚点再定性；仅当发现实现与定案矛盾时，才以「实现与定案冲突」单独报告。报告首行注明「已读 decision-registry 全文」。
+- **第一步：完整读 `docs/design/decision-registry.md`（现行册）**——命中「再报直接撤回」口径的发现直接丢弃不报；命中「报了先核出处」先核出处锚点再定性；仅当发现实现与定案矛盾时，才以「实现与定案冲突」单独报告；结论疑似旧定案但现行册无命中时，先 `rg <关键词> docs/design/decision-registry-history.md`（历史册，不整读）再定性。报告首行注明「已读 decision-registry 现行册」。
 
 ## 〇、评审范围与背景
 

@@ -42,7 +42,7 @@ Gateway (8080) -> access-service (9100)    能力包单体：管理面（用户/
 | ------------------ | ------------------------------------------ |
 | 文档入口与阅读顺序 | `docs/README.md`                           |
 | 工程规范           | `docs/design/project-rules.md`             |
-| 定案登记表         | `docs/design/decision-registry.md`（定案消费与评审豁免唯一入口；用户定案当轮登记） |
+| 定案登记表         | `docs/design/decision-registry.md`（现行册：定案消费与评审豁免唯一入口；用户定案当轮登记、口径 ≤200 字+叙事外置，双册协议见其头部；旧定案迁 `decision-registry-history.md`，存疑先 rg 历史册） |
 | 整体架构           | `docs/design/architecture.md`              |
 | 归并后目标架构     | `docs/design/access-service-architecture.md` |
 | access-service API 契约总册 | `docs/design/access-service-api-contract.md`（单命名空间 `/api/access/**`、按能力分章；T-ACCESS-040 两册合一、T-ACCESS-042 URL 统一——外部路径=服务路径，无 Gateway StripPrefix） |

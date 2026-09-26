@@ -10,7 +10,7 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| access-service 归并（跨服务） | `T-ACCESS` | 063 |
+| access-service 归并（跨服务） | `T-ACCESS` | 064 |
 | permission-center | `T-PERM` | 096 |
 | admin-service | `T-ADMIN` | 030 |
 | gateway | `T-GW` | 011 |
@@ -161,6 +161,7 @@
 | ID | 标题 | 计划 | 设计引用 | 依赖 | 状态 | 回写 |
 |---|---|---|---|---|---|---|
 | [T-ACCESS-051](../archive/2026-09-18/tasks/T-ACCESS-051.md) | Q-013 时序用例裸 sleep 清扫——TaskExecutionLeaseConcurrencyTest 两方法改 5s 有界轮询（✅ 2026-09-18 收口：定向 10/10 + 全量含 E2E 1724 项 0 失败；双轨评审零 P0-P2，同族三处登记 Q-014） | — | testing-standards rule §10.3（口径已载，无设计回写面） | — | ✅ | — |
+| [T-ACCESS-063](T-ACCESS-063.md) | decision-registry 双册分层与行文瘦身治理（2026-09-26 三项拍板：存量迁移性压缩+判据迁移/新行 200 字硬上限/双册结构） | — | docs/design/decision-registry.md（写入协议/消费协议修订） | — | ✅（2026-09-26 收口：现行册 355KB→163KB 可整读、历史册 30 行 append-only、行数守恒零丢失） | ✓ |
 
 ### permission-center（工作单 A/B 计划与 D/E/F 计划均已归档；前端 Phase 2/4 后端任务计划 2026-09-14 归档——T-PERM-035 已取消〔2026-09-19 定稿拆卡 070~073 承接并随批次归档〕；自动授权前置 T-PERM-070 已完成，实施前细化为 T-PERM-078、实施为 T-PERM-071～073；T-PERM-036 维持暂缓；T-PERM-054 已于 2026-09-25 解除暂缓归入 R2 计划〔移至本页 R2 节〕）
 

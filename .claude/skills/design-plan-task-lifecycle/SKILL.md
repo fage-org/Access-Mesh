@@ -533,5 +533,5 @@ open ──可执行（方案清晰/用户拍板启动）──▶ converted ─
 - 权限查询实现细节 → `permission-query-pipeline`
 - 缓存实现细节 → `dual-layer-cache-framework`
 - 仓库通用编码模式（分层/命名/提交规范）→ `accessmesh-patterns`
-- 定案登记（含「不解决问题」拍板）→ `docs/design/decision-registry.md`；`pending-problems.md` 只记问题本体与收敛状态，不复制定案正文
+- 定案登记（含「不解决问题」拍板）→ `docs/design/decision-registry.md`（现行册；定案口径 ≤200 字硬上限、处置叙事外置任务卡/commit body、双册归档判据见其头部写入协议——T-ACCESS-063）；`pending-problems.md` 只记问题本体与收敛状态，不复制定案正文
 - 本技能**只**管 design/plan/task 三层的解耦、生命周期、依赖与索引，以及待解决问题的登记/转出/收敛，不涉及各层的具体技术内容。

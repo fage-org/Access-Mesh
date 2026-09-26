@@ -34,7 +34,7 @@ metadata:
 3. 必设「实证通过项」清单（已核对无问题的面）。
 4. 必设「存疑待用户决策项」：宁可多列，每条给倾向选项与理由；上报时按 `.claude/rules/decision-question-protocol.md` 举例提问。
 5. 子代理残留搜索统一 `rg "<pattern>" -g '!docs/archive/**'`（rg 尊重 .gitignore，`target/`、`node_modules/`、`.claude/worktrees/` 自动跳过；`docs/archive/` 归档文档是唯一需手工排除的假阳性源）。
-6. 豁免段：整段注入 `docs/design/decision-registry.md` 当前内容——结论命中「再报直接撤回」口径即撤回，命中「报了先核出处」先核出处锚点，均不进存疑队列。
+6. 豁免段：整段注入 `docs/design/decision-registry.md`（现行册）内容——结论命中「再报直接撤回」口径即撤回，命中「报了先核出处」先核出处锚点，均不进存疑队列；现行册无命中但疑似旧定案时先 `rg <关键词> docs/design/decision-registry-history.md`（历史册，T-ACCESS-063 双册分层，不整读）。
 7. 减法检查（2026-09-20 用户定规）：新增抽象/配置项/边界分支是否有真实触发场景与调用方、既有机制（DomainService/公共工具/公共组件）能否覆盖——无真实场景或可覆盖的列为「过度设计可裁剪项」上报（位置 + 为何无真实场景 + 裁剪方向），不并入 P0-P3 缺陷分级；裁剪属设计取舍，处置时逐条交用户拍板。
 
 ## 结论处置协议
