@@ -225,6 +225,25 @@ class QueryContractModelsTest {
         }
 
         @Test
+        void should_rejectConstruction_whenAttributesContainMutableNumberSubclass() {
+            assertThatThrownBy(() -> new CallerContext(null, Map.of("bad", new MutableBigDecimal("1.5"))))
+                .as("BigDecimal 可变子类经 instanceof 白名单混入并保留原引用——须精确类型拒绝")
+                .isInstanceOf(QueryValidationException.class)
+                .hasMessageContaining("JSON");
+            assertThatThrownBy(() -> new CallerContext(null, Map.of("bad", new MutableBigInteger("2"))))
+                .isInstanceOf(QueryValidationException.class)
+                .hasMessageContaining("JSON");
+            assertThatThrownBy(() -> new CallerContext(null,
+                Map.of("nested", Map.of("bad", new MutableBigDecimal("1.5")))))
+                .as("嵌套 Map 内同白名单")
+                .isInstanceOf(QueryValidationException.class);
+            assertThatThrownBy(() -> new CallerContext(null,
+                Map.of("list", List.of(new MutableBigInteger("2")))))
+                .as("嵌套 List 内同白名单")
+                .isInstanceOf(QueryValidationException.class);
+        }
+
+        @Test
         void should_rejectConstruction_whenAttributesContainCycles() {
             List<Object> selfList = new ArrayList<>();
             selfList.add(selfList);
@@ -344,12 +363,25 @@ class QueryContractModelsTest {
                 .isInstanceOf(IllegalArgumentException.class);
         }
 
-        private EvaluationCoverage noRoleCoverage() {
-            return new EvaluationCoverage(EvaluationCoverage.SubjectResolution.EXPLICIT_ROLES,
-                EvaluationCoverage.ConditionCoverage.NO_CANDIDATE,
-                EvaluationCoverage.MutexCoverage.NO_CANDIDATE,
-                EvaluationCoverage.ParentCheckCoverage.NOT_REQUIRED,
-                Set.of(), Map.of(), false, EvaluationCoverage.AuthorizationStage.FINAL_DECISION);
+            private EvaluationCoverage noRoleCoverage() {
+                return new EvaluationCoverage(EvaluationCoverage.SubjectResolution.EXPLICIT_ROLES,
+                    EvaluationCoverage.ConditionCoverage.NO_CANDIDATE,
+                    EvaluationCoverage.MutexCoverage.NO_CANDIDATE,
+                    EvaluationCoverage.ParentCheckCoverage.NOT_REQUIRED,
+                    Set.of(), Map.of(), false, EvaluationCoverage.AuthorizationStage.FINAL_DECISION);
+            }
+        }
+
+    /** BigDecimal/BigInteger 非 final——持可变字段的子类用于锁「白名单精确类型判断」边界。 */
+    private static final class MutableBigDecimal extends java.math.BigDecimal {
+        MutableBigDecimal(String val) {
+            super(val);
+        }
+    }
+
+    private static final class MutableBigInteger extends java.math.BigInteger {
+        MutableBigInteger(String val) {
+            super(val);
         }
     }
 }

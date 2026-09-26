@@ -131,10 +131,12 @@ public record CallerContext(String clientIp, Map<String, Object> attributes) {
         throw new QueryValidationException("attributes 仅接受 JSON 值，拒绝: " + value.getClass().getName());
     }
 
-    /** 数值白名单：不可变标准 Number（JSON number 可映射集合）——可变实现（Atomic* 等）与非标准子类拒绝。 */
+    /** 数值白名单：不可变标准 Number（JSON number 可映射集合）——可变实现（Atomic* 等）与非标准子类拒绝；
+     *  BigInteger/BigDecimal 非 final，instanceof 会放行其可变子类，须精确类型判断。 */
     private static boolean isImmutableJsonNumber(Object value) {
         return value instanceof Integer || value instanceof Long || value instanceof Short
-            || value instanceof Byte || value instanceof BigInteger || value instanceof BigDecimal;
+            || value instanceof Byte
+            || value.getClass() == BigInteger.class || value.getClass() == BigDecimal.class;
     }
 
     private static void requireAcyclic(Object value, List<Object> path) {
