@@ -13,12 +13,12 @@ depends_on:
 blocks: []
 acceptance:
   - "PermissionCheckAppServiceImpl.check/batchCheck、AdminPermissionValidatorImpl、ResourceManage/TypeDefinition 等直接门禁、getDeniedResourceCodes/getDeniedEntityIds 全部经新 execute；batchCheck 禁止循环 N 次公开 execute；外层职责保留（主体业务键解析、SELF 缺省、原序/重复项、请求级父上下文）"
-  - "语义变化四消费面（资源树、API 映射、资源依赖、权限树 ID 轨）逐面确认「跨 item 冲突从全拒变各自判」可接受并留差异记录（设计 §6.5 getDenied 行）"
+  - "语义变化消费面按计划附录 A.3 实际清单逐面确认「跨 item 冲突从全拒变各自判」可接受并留差异记录（旧四消费面口径已由 A.3 勘正：「资源依赖」「权限树 ID 轨」两面不存在，清单以 A.3 为准＝设计 §6.5 getDenied 行勘误口径）"
   - "X03 等价差分：除已登记预期修复（PQ-01/06、FACTS 完整性、空角色契约、同源首次读取复用）外全部保持——差分锚来自 T-PERM-081 基线"
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-09-25
+last_updated: 2026-09-26
 ---
 
 # T-PERM-089 （R2-T10）迁移 check/batch/管理门禁/getDenied
