@@ -502,6 +502,8 @@ TRACE 不用另一个时刻重新评条件，不为显示完整过程补跑短�
 
 T-PERM-087 已提供纯 ScopeCoverageProjector：调用方请求 descriptions 并把范围要求加入 extraOperationKeys；投影消费完整 raw/kept 与描述快照，拒绝缺少输出块、未收全或保留条件/跳过互斥的事实结果。NO_ROLE/PARENT_DENIED 仍映射全 DENIED；外部整体原因和父对象预检查由 T-PERM-090 适配层保留。实例以 (codeType, code) 字段元组去重，避免合法字段中的分隔符碰撞；资源有效性沿既有 selectValidByIds 的租户与软删过滤，不额外改变停用资源的现役口径。
 
+父检查摘要由 T-PERM-087 同批提供（来源：2026-09-26 用户确认本次补齐）：ResultDetails.parentCheck.matchedOperationCodes 从已执行父项的 retained 事实和已装载的新鲜操作定义按 covers 投影，只返回父要求中实际覆盖的操作码，排序且不可变；不重评条件、不补跑短路的 INSTANCE、不增加 I/O，也不暴露父权限 ID。摘要独立于事实/描述/matchedIds 输出开关，共享父项只组装一次；实际执行过父判断才有 PARENT_CHECK 块，未触发/无角色时结合 coverage.parentCheck 区分，已拒绝父项的摘要为空。T-PERM-090 将该摘要封装到既有 QueryScopesResp.matchedParentOperations，保留 HTTP/SDK 字段和语义。
+
 ```text
 类型／目标操作未知，或 rawAfterContext 无覆盖 → DENIED
 raw 有覆盖，retained 无覆盖                  → EMPTY

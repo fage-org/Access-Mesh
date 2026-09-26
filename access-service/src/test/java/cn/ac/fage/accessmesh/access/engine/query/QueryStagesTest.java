@@ -171,6 +171,47 @@ class QueryStagesTest {
             Set.of(requirements), false);
     }
 
+    @Test
+    void should_projectOnlyMatchedParentOperationsFromRetainedFacts_withoutReevaluatingOrExposingIds() {
+        scopeRows.add(grant(201, 1, null, 2));
+        var conditional = grant(202, 1, null, 4); conditional.setConditionId(500L); scopeRows.add(conditional);
+        instanceRows.add(dependent(101, 100L, 201)); instanceRows.add(dependent(102, 110L, 201));
+        var parent = new ParentRequirement("REPORT", new ByEntityId(200), Set.of("VIEW", "UPDATE"));
+        var first = QueryItem.decision("first", new TargetSet(List.of(clause(100)), Inheritance.SELF,
+            TypeFallback.DISALLOW, parent), OutputSpec.minimal());
+        var second = QueryItem.decision("second", new TargetSet(List.of(clause(110)), Inheritance.SELF,
+            TypeFallback.DISALLOW, parent), OutputSpec.minimal());
+        var result = execute(first, second);
+        for (DecisionResult item : result.orderedResults().stream().map(DecisionResult.class::cast).toList()) {
+            assertThat(item.details().parentCheck().matchedOperationCodes()).containsExactly("VIEW");
+            assertThat(item.details().loadedSections()).contains(ResultDetails.DetailSection.PARENT_CHECK);
+            assertThat(item.details().matchedPermissionIds()).isEmpty();
+            assertThat(item.details().stageFacts()).isEmpty();
+            assertThat(item.coverage().parentCheck()).isEqualTo(EvaluationCoverage.ParentCheckCoverage.PASSED);
+        }
+        assertThatThrownBy(() -> decision(result, 0).details().parentCheck().matchedOperationCodes().clear())
+            .isInstanceOf(UnsupportedOperationException.class);
+        verify(conditionMapper).selectValidByIds(1L, Set.of(500L));
+        verify(grants).selectScopeAllPermsByBitsBatch(eq(1L), anySet(), anyList());
+        verify(grants, never()).selectInstancePermsByBitsBatch(eq(1L), anySet(), eq(Set.of(200L)), anyList());
+        // 判定所需完整目录 + 普通掩码冷填各一次；摘要不能增加第三次操作读取。
+        verify(operations, times(2)).selectByTenantAndResourceTypes(1L, Set.of(1));
+    }
+
+    @Test
+    void should_distinguishUntriggeredAndDeniedParentSummary_whenParentDoesNotAllow() {
+        instanceRows.add(grant(101, 1, 100L, 2));
+        var untriggered = decision(execute(childItem("main", 100)), 0);
+        assertThat(untriggered.coverage().parentCheck()).isEqualTo(EvaluationCoverage.ParentCheckCoverage.NOT_TRIGGERED);
+        assertThat(untriggered.details().loadedSections()).doesNotContain(ResultDetails.DetailSection.PARENT_CHECK);
+        assertThat(untriggered.details().parentCheck().matchedOperationCodes()).isEmpty();
+        instanceRows.clear(); instanceRows.add(dependent(102, 100L, 999));
+        var denied = decision(execute(childItem("child", 100)), 0);
+        assertThat(denied.coverage().parentCheck()).isEqualTo(EvaluationCoverage.ParentCheckCoverage.FAILED);
+        assertThat(denied.details().loadedSections()).contains(ResultDetails.DetailSection.PARENT_CHECK);
+        assertThat(denied.details().parentCheck().matchedOperationCodes()).isEmpty();
+    }
+
     GrantSetResult projectedList(OutputSpec output, Evaluation evaluation, RoleResourcePermission... rows) {
         when(grants.selectValidByRoleIds(1L, Set.of(10L))).thenReturn(List.of(rows));
         return (GrantSetResult) execute(QueryItem.grantListFacts("list", null, evaluation, output))

@@ -21,11 +21,12 @@ import cn.ac.fage.accessmesh.access.role.entity.AbstractRole;
  * @param descriptions          不可变描述与额外操作定义
  * @param effectiveOperations   评估后授权的有效操作投影
  * @param presentation          评估后授权的展示方向投影
+ * @param parentCheck           已执行父判断的命中操作摘要；未执行时为空
  */
 public record ResultDetails(Set<DetailSection> loadedSections, List<Long> matchedRoleIds,
                             List<Long> matchedPermissionIds, List<StageFacts> stageFacts,
                             Descriptions descriptions, List<EffectiveOperationEntry> effectiveOperations,
-                            List<PresentationEntry> presentation) {
+                            List<PresentationEntry> presentation, ParentCheckSummary parentCheck) {
 
     public ResultDetails {
         loadedSections = loadedSections == null ? Set.of() : Set.copyOf(loadedSections);
@@ -35,10 +36,11 @@ public record ResultDetails(Set<DetailSection> loadedSections, List<Long> matche
         descriptions = descriptions == null ? Descriptions.empty() : descriptions;
         effectiveOperations = effectiveOperations == null ? List.of() : List.copyOf(effectiveOperations);
         presentation = presentation == null ? List.of() : List.copyOf(presentation);
+        parentCheck = parentCheck == null ? ParentCheckSummary.empty() : parentCheck;
     }
 
     public ResultDetails(Set<DetailSection> sections, List<Long> roles, List<Long> permissions, List<StageFacts> facts) {
-        this(sections, roles, permissions, facts, Descriptions.empty(), List.of(), List.of());
+        this(sections, roles, permissions, facts, Descriptions.empty(), List.of(), List.of(), ParentCheckSummary.empty());
     }
 
     public ResultDetails(Set<DetailSection> loadedSections, List<Long> matchedRoleIds, List<Long> matchedPermissionIds) {
@@ -48,6 +50,12 @@ public record ResultDetails(Set<DetailSection> loadedSections, List<Long> matche
     /** 空详情（拒绝/短路项缺省形态）。 */
     public static ResultDetails empty() {
         return new ResultDetails(Set.of(), List.of(), List.of());
+    }
+
+    /** 父要求中实际命中的操作码；不包含父权限 ID，不重新执行父判断。 */
+    public record ParentCheckSummary(List<String> matchedOperationCodes) {
+        public ParentCheckSummary { matchedOperationCodes = List.copyOf(matchedOperationCodes); }
+        static ParentCheckSummary empty() { return new ParentCheckSummary(List.of()); }
     }
 
     /** raw 超集的描述与额外要求的操作定义；未找到的要求不在 requestedOperations 中。 */
@@ -88,6 +96,9 @@ public record ResultDetails(Set<DetailSection> loadedSections, List<Long> matche
 
         /** 命中 ID 块。 */
         MATCHED_IDS,
+
+        /** 已执行的父判断摘要；没有该块时见 coverage.parentCheck 的未触发状态。 */
+        PARENT_CHECK,
 
         /** 评估后事实块。 */
         FACTS_KEPT,

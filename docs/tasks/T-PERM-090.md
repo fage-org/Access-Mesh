@@ -13,13 +13,13 @@ depends_on:
   - T-PERM-089
 blocks: []
 acceptance:
-  - "queryScopes 四态与父对象存在性（OBJECT_KEY_NOT_FOUND 外层返回）保持；ScopeCoverageProjector 只消费结果与已装载定义；queryResources/有效权限码/可见资源投影保持「原 GRANT_LIST 评估→白名单/排除 API/domain/codeType/展示/分页」后置序"
+  - "queryScopes 四态与父对象存在性（OBJECT_KEY_NOT_FOUND 外层返回）保持；matchedParentOperations 取 087 的 ResultDetails.parentCheck.matchedOperationCodes，按基线逐字段对拍，不重跑父判断；ScopeCoverageProjector 只消费结果与已装载定义；queryResources/有效权限码/可见资源投影保持「原 GRANT_LIST 评估→白名单/排除 API/domain/codeType/展示/分页」后置序"
   - "LEGACY_API checkInterface 经新 execute 表达共同集合语义（注册门禁在先、全部匹配 API 组成一个 TARGET_SET、不拆项 OR）；父对象存在≠父权限允许语义保持"
   - "S01~S04：快照 API:VIEW 不覆盖 ACCESS 不下发为放行依据；API scopeAll 只展开目标服务 enabled 注册路由（不产生任意通配）；无条件与各 conditionId 分支保留；坏条件维持有条件与回源 fail-closed 不变无条件"
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-09-25
+last_updated: 2026-09-26
 ---
 
 # T-PERM-090 （R2-T11）迁移范围与 LEGACY_API 接口集合

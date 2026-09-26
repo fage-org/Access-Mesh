@@ -89,6 +89,24 @@ class QueryExecutionPgIT {
     }
 
     @Test
+    void should_matchLegacyParentOperationSummary_whenScopeAdapterUsesNewResult() {
+        var key = new TypeOperation(TYPE_T1_CODE, "VIEW");
+        var output = new OutputSpec(FactDetail.RAW_AND_KEPT, true, true, false,
+            PresentationExpansion.NONE, Set.of(key), false);
+        var parent = new ParentRequirement(TYPE_T1_CODE, new ByCode(CODE_R1, null, null), Set.of("VIEW"));
+        var fresh = (GrantSetResult) execute(new User(USER_INST),
+            QueryItem.grantListFacts("scopes", parent, Evaluation.full(), output)).orderedResults().getFirst();
+        var oldRequest = PermQuery.forScopeQuery(TENANT, USER_INST, Set.of(TYPE_T1_CODE), Set.of("VIEW"));
+        oldRequest.setParentResource(TYPE_T1_CODE, CODE_R1, null, Set.of("VIEW"));
+        oldRequest.setEvalContext(new PermEvalContext(null, java.time.LocalDateTime.of(2026, 9, 26, 2, 0), java.util.Map.of()));
+        var old = legacy.query(oldRequest);
+        assertThat(fresh.details().parentCheck().matchedOperationCodes())
+            .containsExactly("VIEW").containsExactlyInAnyOrderElementsOf(old.parentMatchedOperationCodes());
+        assertThat(fresh.details().loadedSections()).contains(ResultDetails.DetailSection.PARENT_CHECK);
+        assertThat(ScopeCoverageProjector.project(fresh, List.of(key)).getFirst().scopeMode()).isEqualTo(ScopeMode.INSTANCE);
+    }
+
+    @Test
     @Transactional
     void should_projectRealTreeDirectionsWithoutMutatingGrants_whenParentAndChildPresentationRequested() {
         long role = fixture.insertRoleRow(TENANT, "projection-tree");

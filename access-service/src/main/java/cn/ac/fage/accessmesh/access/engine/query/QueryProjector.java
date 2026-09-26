@@ -52,15 +52,20 @@ final class QueryProjector {
         });
         reads.resourceDescriptions(run, definitions, resourceIds);
         reads.roleDescriptions(run, definitions, roleIds);
+        Map<RunState.ParentExecution, ResultDetails.ParentCheckSummary> parentSummaries = new LinkedHashMap<>();
+        run.parents().values().forEach(parent -> parentSummaries.put(parent, projectParent(run, reads, parent)));
         Map<QueryItem, ResultDetails> results = new LinkedHashMap<>();
         run.items().forEach((item, state) -> results.put(item,
-            projectItem(run, reads, item.output(), state, presentations.get(item))));
+            projectItem(run, reads, item.output(), state, presentations.get(item),
+                parentSummaries.getOrDefault(state.parent, ResultDetails.ParentCheckSummary.empty()))));
         return results;
     }
 
     private static ResultDetails projectItem(RunState run, QueryReadSupport reads, OutputSpec output,
-                                              RunState.ItemExecution state, List<PresentationEntry> presentation) {
+                                              RunState.ItemExecution state, List<PresentationEntry> presentation,
+                                              ResultDetails.ParentCheckSummary parentSummary) {
         Set<ResultDetails.DetailSection> sections = EnumSet.noneOf(ResultDetails.DetailSection.class);
+        if (state.parent != null) sections.add(ResultDetails.DetailSection.PARENT_CHECK);
         List<GrantFact> raw = allFacts(state, true), kept = allFacts(state, false);
         Set<Long> roleIds = new LinkedHashSet<>(), permissionIds = new LinkedHashSet<>();
         if (output.matchedIds()) {
@@ -102,7 +107,31 @@ final class QueryProjector {
         }
         if (output.presentationExpansion() != PresentationExpansion.NONE) sections.add(ResultDetails.DetailSection.PRESENTATION);
         return new ResultDetails(sections, List.copyOf(roleIds), List.copyOf(permissionIds), facts, descriptions,
-            effective, output.presentationExpansion() == PresentationExpansion.NONE ? List.of() : presentation);
+            effective, output.presentationExpansion() == PresentationExpansion.NONE ? List.of() : presentation,
+            parentSummary);
+    }
+
+    /** 父判断已装载全部要求的定义；复用同源记忆与 retained，不补跑短路阶段或条件。 */
+    private static ResultDetails.ParentCheckSummary projectParent(RunState run, QueryReadSupport reads,
+                                                                   RunState.ParentExecution parent) {
+        List<GrantFact> retained = allFacts(parent.execution, false);
+        if (retained.isEmpty()) return ResultDetails.ParentCheckSummary.empty();
+        Set<TypeOperation> requirements = new LinkedHashSet<>();
+        ((TargetSet) parent.item.selection()).clauses().forEach(clause -> requirements.add(clause.operation()));
+        Map<TypeOperation, OperationDefinition> targets = reads.resolveOperations(run, requirements);
+        Set<Integer> types = new LinkedHashSet<>();
+        targets.values().forEach(target -> types.add(target.resourceType()));
+        Map<String, OperationPermission> grantedIndex = OperationPermissionUtils.indexByResourceTypeAndBinaryBit(
+            reads.freshOperations(run, types).values().stream().flatMap(List::stream)
+                .map(OperationDefinition::toCacheRow).toList());
+        List<String> matched = targets.entrySet().stream().filter(target -> {
+            OperationPermission requested = target.getValue().toCacheRow();
+            return retained.stream().filter(fact -> Objects.equals(fact.resourceType(), requested.getResourceType()))
+                .anyMatch(fact -> OperationPermissionUtils.covers(
+                    OperationPermissionUtils.findIndexedByResourceTypeAndBinaryBit(grantedIndex,
+                        fact.resourceType(), fact.grantedBits()), requested));
+        }).map(target -> target.getKey().operationCode()).distinct().sorted().toList();
+        return new ResultDetails.ParentCheckSummary(matched);
     }
 
     private static List<GrantFact> allFacts(RunState.ItemExecution state, boolean raw) {

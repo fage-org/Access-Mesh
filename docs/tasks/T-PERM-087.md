@@ -15,6 +15,7 @@ acceptance:
   - "范围四态 G02~G05：raw 有覆盖 retained 无→EMPTY；无覆盖/目标 op 未知→DENIED；retained 含 scopeAll→ALL（不展开全量实例）；原有实例全部失效→EMPTY，而非空 INSTANCE"
   - "A05 执行覆盖部分：scopeAll 短路保持 INSTANCE=SKIPPED 且投影不补查；TRACE 输出与门禁整体归 T-PERM-088，本卡 trace=true 仍明确拒绝；OutputSpec 不能关闭判定必需计算；extraOperationKeys 不扩大 Selection"
   - "接入 T-PERM-084 读取部件的输出入口，在整体投影链验证 I02/I03/I06；extraOperationKeys 采用 Set<TypeOperation>，无授权时仍可补全目标定义"
+  - "父检查摘要复用已执行父项的 retained 与已装载定义，输出实际命中的请求操作码；不新增 I/O、不重评条件或补跑短路阶段、不暴露父权限 ID，与现役 matchedParentOperations 基线对拍一致"
 design_writeback:
   required: true
   status: done
@@ -43,6 +44,7 @@ last_updated: 2026-09-26
 - 全部阶段评估完成后合批装载描述与新鲜操作定义；raw 超集保留筛空项的操作说明，extraOperationKeys 只参与输出。描述使用不可变记录，输出不返回 ORM/缓存对象；loadedSections 区分未请求与已请求为空。
 - ScopeCoverageProjector 为纯结果投影，消费完整 raw/kept、资源描述与额外操作定义；类型/操作未知或 raw 无覆盖为 DENIED，有覆盖但清空/资源失效为 EMPTY，有类型级覆盖为 ALL，其他以 (codeType, code) 去重返回非空 INSTANCE。
 - 条件引用不一致时保留诊断；PRESERVE 原样保留事实，EVALUATE 失败关闭。TRACE 不提前开放；类型级充分判定后的投影不补跑 INSTANCE。
+- 父判断实际执行后提供 PARENT_CHECK 块与不可变 matchedOperationCodes，未触发/无角色与已拒绝状态结合 coverage 区分；摘要独立于事实、描述和 matchedIds 开关，共享父项只组装一次。T-PERM-090 直接适配该摘要到现役 HTTP/SDK 字段，见设计 §6.2（2026-09-26 用户确认本次补齐）。
 
 ## 验收对照
 
@@ -50,6 +52,7 @@ last_updated: 2026-09-26
 - G02～G05：条件筛空 EMPTY、无覆盖/未知类型与操作 DENIED、scopeAll 优先 ALL 且零全量树展开、实例软删除 EMPTY；资源元组去重及不可变描述验证。
 - A05 执行覆盖：scopeAll 充分判定在输出描述后仍记录 INSTANCE=SUFFICIENT_DECISION，实例授权 SQL 零调用；TRACE 未实现请求明确拒绝，输出不重评条件。
 - I02/I03/I06：20 类型整体 execute 单次多类型装载、最小输出不读辅助定义/描述、缓存操作覆盖与新鲜输出定义分桶；NO_ROLE/无目标授权仍可按输出要求补全 extraOperationKeys。
+- 父摘要：共享父的两个独立目标仅返回条件评估后实际覆盖的 VIEW，不把被条件排除的 UPDATE 返回；未触发与已拒绝父项分态、不可变输出与零额外操作读取验证；真实 PG/Redis 对拍旧 parentMatchedOperationCodes。
 
 ## 完成记录
 
@@ -58,3 +61,6 @@ last_updated: 2026-09-26
 - 收口回归：2026-09-26 18:14，`mvn test -T 1C`，11 模块 BUILD SUCCESS；共 2212 项，零失败/错误/跳过，其中 access-service 单测 1550、容器 384（含 heavy）、E2E 16。完整输出落盘后按各 execution 聚合汇总，耗时 16:33。
 - 代码轨实证核对通过：源授权/展示隔离、方向独立、raw 操作定义保留、条件损坏诊断与失败关闭、额外操作不扩大选择、无角色输出、批量读取与同源记忆、缓存载荷不污染、技术异常传播及只读投影；无未解决缺陷、待决策项或过度设计可裁剪项。
 - 文档轨实证核对通过：设计 §3.2/§3.3/§6.2/§6.4、迁移期边界、087/088 验收归属、任务/计划/看板状态及相对链接一致；元数据与注释已同步，无未解决问题。所属计划仍活跃，本卡保留原位。
+- 父操作摘要补齐（2026-09-26 用户确认）：ResultDetails.ParentCheckSummary 输出已执行父判断实际命中的操作，设计 §6.2 与 090 验收已同步；两项行为反例在未接入摘要时 2/2 失败，接入后定向单测 143 项及真实 PG/Redis 16 项通过。代码/文档两轨核对了同源读取复用、零新增 I/O、父短路保持、最小输出仍有摘要、未触发/拒绝区分及既有 HTTP 字段承接，无未解决问题。
+- 最新收口回归：2026-09-26 19:01，`mvn test -T 1C`，11 模块 BUILD SUCCESS；共 2215 项，零失败/错误/跳过，其中 access-service 单测 1552、容器 385（含 heavy）、E2E 16，耗时 15:09。完整日志按 execution 汇总。
+- 独立外部核对对象为 `53d391b17`：Claude 原报 P2×2/P3×2、可裁剪建议 1 项，Grok P0～P3=0；父操作摘要表达缺口经核实采纳并由用户确认本卡补齐。其余未采纳为当前缺陷：scopeAll 保留在源 GrantFact（设计 §3.2），范围要求必须加入 extraOperationKeys（§6.2），描述 Map 当前按键消费而非按序生成响应，四参构造器被三参 this(...) 调用。父摘要增量已按上列本地核对与回归验证，未自动追加外部评审。
