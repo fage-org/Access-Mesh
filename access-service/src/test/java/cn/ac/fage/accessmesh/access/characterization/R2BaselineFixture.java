@@ -8,7 +8,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * 固定 seed 口径（设计 §9.3：离线差分固定 seed／时钟／规则／读入事实）：
  * </p>
  * <ul>
- *   <li>类型段 941~949（type_definition resource_type）；缺陷反例类型段 951~953；</li>
+ *   <li>类型段 941~949（type_definition resource_type）；缺陷反例类型段 951~954；</li>
  *   <li>资源实体 9_641_000+；角色 9_642_000+；主体 9_643_000+；API 映射 9_644_000+；
  *       授权行 9_645_000+；条件 9_646_000+；冲突规则 9_647_000+；操作位 9_649_000+；</li>
  *   <li>基线图全部显式 id + {@code ON CONFLICT (id) DO NOTHING} 幂等，跨用例重复种安全；</li>

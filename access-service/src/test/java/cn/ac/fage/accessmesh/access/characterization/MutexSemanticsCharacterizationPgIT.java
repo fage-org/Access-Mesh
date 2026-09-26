@@ -6,13 +6,16 @@ import cn.ac.fage.accessmesh.access.engine.dto.PermBatchResult;
 import cn.ac.fage.accessmesh.access.engine.dto.PermEvalContext;
 import cn.ac.fage.accessmesh.access.engine.dto.PermQuery;
 import cn.ac.fage.accessmesh.access.engine.dto.PermResult;
+import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
 import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
@@ -29,6 +32,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 /**
  * 互斥语义特征测试（T-PERM-081，真实 PostgreSQL + Redis）。
@@ -70,13 +75,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 })
 class MutexSemanticsCharacterizationPgIT {
 
-    /** 反例类型段（R2BaselineFixture 注记：951~953）与位值（每类型内自洽；UPDATE mask 覆盖 VIEW） */
+    /** 反例类型段（R2BaselineFixture 注记：951~954）与位值（每类型内自洽；UPDATE mask 覆盖 VIEW） */
     private static final int TYPE_D01 = 951;
     private static final int TYPE_D02 = 952;
     private static final int TYPE_D03 = 953;
+    private static final int TYPE_D04 = 954;
     private static final String CODE_D01 = "R2BMX1";
     private static final String CODE_D02 = "R2BMX2";
     private static final String CODE_D03 = "R2BMX3";
+    private static final String CODE_D04 = "R2BMX4";
     private static final long VIEW_BIT = 2L;
     private static final long UPDATE_BIT = 4L;
 
@@ -88,6 +95,8 @@ class MutexSemanticsCharacterizationPgIT {
     @Autowired private PermQueryEngine engine;
     @Autowired private PermissionConflictDomainService conflictDomainService;
     @Autowired private JdbcTemplate jdbc;
+    /** T-PERM-095 引擎级互斥审计聚合锁（⑧ 同款形态：getDenied* ledger 面需要可捕获的审计桩） */
+    @MockBean private AuditDomainService auditDomainService;
 
     private R2BaselineFixture fixture() {
         return new R2BaselineFixture(jdbc);
@@ -207,6 +216,47 @@ class MutexSemanticsCharacterizationPgIT {
             .containsExactly(entityZ);
         assertThat(engine.hasPermissionByEntityId(R2BaselineFixture.TENANT, user, CODE_D03, entityZ, "VIEW"))
             .isFalse();
+    }
+
+    // ===== getDenied* 互斥审计聚合锁（T-PERM-095；BatchAuthCheckPgIT ⑧ 同款——引擎级 ledger 面） =====
+
+    @Test
+    @DisplayName("getDenied 审计锁：两目标各自两端同场触发同规则 → 1 条审计行（group=GET_DENIED:{type}:{op}、hitItemCount=2）；未触发规则不出现")
+    void getDeniedMutexAuditMustAggregatePerRuleAcrossTargets() {
+        R2BaselineFixture fx = fixture();
+        fx.newType(TYPE_D04, CODE_D04);
+        long viewOp = fx.insertOperation(TYPE_D04, "VIEW", VIEW_BIT, 0L);
+        long updateOp = fx.insertOperation(TYPE_D04, "UPDATE", UPDATE_BIT, VIEW_BIT);
+        long triggeredRuleId = fx.insertPermMutexRule(viewOp, updateOp);
+        // 未触发规则端点：同类型 NEVER 位（无任何条目持有 → 两端不同场，永不触发）
+        long neverOp = fx.insertOperation(TYPE_D04, "NEVER", 64L, 0L);
+        long untriggeredRuleId = fx.insertPermMutexRule(neverOp, viewOp);
+        long role = fx.insertRoleRow(R2BaselineFixture.TENANT, "d04");
+        long user = fx.insertUserWithRoles(R2BaselineFixture.TENANT, "d04", role);
+        long entityA = fx.insertResourceRow(TYPE_D04, "r2b-mx-a");
+        long entityB = fx.insertResourceRow(TYPE_D04, "r2b-mx-b");
+        // 两目标各挂双行（各自判定集合内两端同场 → 同规则冲突，D03 语义×2）
+        fx.insertPermRow(role, TYPE_D04, entityA, VIEW_BIT, false, null);
+        fx.insertPermRow(role, TYPE_D04, entityA, UPDATE_BIT, false, null);
+        fx.insertPermRow(role, TYPE_D04, entityB, VIEW_BIT, false, null);
+        fx.insertPermRow(role, TYPE_D04, entityB, UPDATE_BIT, false, null);
+
+        Set<Long> denied = engine.getDeniedEntityIds(R2BaselineFixture.TENANT, user, CODE_D04,
+            Set.of(entityA, entityB), "VIEW");
+        assertThat(denied)
+            .as("两目标各自两端同场：逐目标判拒（D03 语义×2，修复后不变）")
+            .containsExactlyInAnyOrder(entityA, entityB);
+
+        // 引擎级 ledger：同规则跨两目标命中 → 聚合一条审计行（组键+命中目标数+真实规则 detail；
+        // 旧整批 filterPermMutex 形态的 notifyPermConflict 单行无 group 段，本断言组必红）
+        ArgumentCaptor<AuditDomainService.OperationLogEntry> captor =
+            ArgumentCaptor.forClass(AuditDomainService.OperationLogEntry.class);
+        verify(auditDomainService, times(1)).asyncRecordLog(captor.capture());
+        String summary = String.valueOf(captor.getValue().summary());
+        assertThat(summary).contains("group=GET_DENIED:" + CODE_D04 + ":VIEW");
+        assertThat(summary).contains("hitItemCount=2");
+        assertThat(summary).contains("rule[" + triggeredRuleId + "]");
+        assertThat(summary).doesNotContain("rule[" + untriggeredRuleId + "]");
     }
 
     // ===== R01：角色互斥 S/H-D 全命中确定化（原 PQ-06 顺序依赖反例锚，2026-09-26 T-PERM-083 翻转为终态锚） =====

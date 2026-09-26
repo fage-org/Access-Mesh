@@ -61,9 +61,11 @@ public interface BatchPermMutexEvaluator {
     /**
      * 聚合后的互斥命中（ledger 条目）。
      *
-     * @param groupKey 组标识（分组键可读串，如 {@code INSTANCE:MENU:VIEW:...}）
-     * @param ruleId 命中的互斥规则 ID
-     * @param hitItemCount 命中 item 数（去重、段间合并）
+     * @param groupKey 组标识（分组键可读串，如 {@code INSTANCE:MENU:VIEW:...}；getDenied* 轨
+     *                 为 {@code GET_DENIED:{type}:{op}}，T-PERM-095）
+     * @param ruleId   命中的互斥规则 ID
+     * @param hitItemCount 命中计数（queryBatch 轨=命中 item 数〔去重、段间合并〕；
+     *                     getDenied* 轨=命中目标数，T-PERM-095）
      */
     record MutexHit(String groupKey, Long ruleId, int hitItemCount) {}
 }

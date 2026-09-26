@@ -1235,7 +1235,8 @@ class PermQueryEngineTest {
 
             @Override
             public void notifyHits(Long tenantId, List<BatchPermMutexEvaluator.MutexHit> hits) {
-                // 通知面不经单测锁（MutexSemanticsCharacterizationPgIT / BatchPermMutexEvaluatorTest 覆盖）
+                // 引擎级聚合面（组键/hitItemCount/单次 flush）由 MutexSemanticsCharacterizationPgIT
+                // getDenied 审计锁锁；域服务 notifyHits 实现由 BatchPermMutexEvaluatorTest 锁
             }
         };
     }
