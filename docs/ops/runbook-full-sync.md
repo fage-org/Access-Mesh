@@ -95,7 +95,7 @@
 ## 9. 依据锚点
 
 - 同步结果信封 200，仍须检查 `accepted/retryClass` 与 FULL 明细；请求级异常另走错误信封：契约总册 §19.3。
-- 类型级所有权门禁与七内部类型：契约总册 §19 规则条 + T-PERM-052 定案（decision-registry 2026-09-05 行）。
+- 类型级所有权门禁与七内部类型：契约总册 §19 规则条 + T-PERM-052 定案（[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 2026-09-05 行）。
 - full-sync ownership 以 `sync_metadata` 为准、两记录列不作清理依据：契约总册 §19.1/§19.2 + access-service-architecture §4.3（T-PERM-021 F1.c 定案 2026-09-12）。
-- 角色/资源同步互斥守卫（BIND 逐条 `ROLE_MUTEX_CONFLICT`）：T-PERM-063/064（decision-registry 2026-09-12 两行）。
+- 角色/资源同步互斥守卫（BIND 逐条 `ROLE_MUTEX_CONFLICT`）：T-PERM-063/064（[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 2026-09-12 两行）。
 - 服务间认证与凭证绑定：契约总册 §19.5、access-service-architecture §6.2。

@@ -11,7 +11,7 @@ depends_on:
   - T-PERM-081
 blocks: []
 acceptance:
-  - "filterRoleMutex 换 S/H/D 全命中确定化：R01（{A,B,C,D}+规则 A-B/B-C → 仅 D，规则顺序任意同果）在旧实现下红、新实现绿——终结 registry 2026-09-22 留观②「双删顺序不确定」；R02（只持 A/C/D 无 B → 全保留，无图连通传递删除）为恒绿语义锚（修复前后不变，T-PERM-081 翻转契约口径）"
+  - "filterRoleMutex 换 S/H/D 全命中确定化：R01（{A,B,C,D}+规则 A-B/B-C → 仅 D，规则顺序任意同果）在旧实现下红、新实现绿——终结 [历史定案原文](../archive/2026-09-26/decision-registry-before.md) 2026-09-22 留观②「双删顺序不确定」；R02（只持 A/C/D 无 B → 全保留，无图连通传递删除）为恒绿语义锚（修复前后不变，T-PERM-081 翻转契约口径）"
   - "I01：空互斥规则时互斥专用操作目录装载零调用（computeMutexContext 补空规则短路；实施时该方法重构为 computePermMutexInternal）"
   - "单条路径 PERM_MUTEX 返回真实 triggeredRuleIds（notifyPermConflict 不再按冲突端点反推规则）；引擎消费不立即通知的纯角色判定能力，双删/互斥通知每租户×用户×角色对一次无重复（角色双删按角色对 1h 去重、批量路径按 (组,ruleId) 聚合；单条 PERM_MUTEX 通知为存量逐次形态——claude 外评 2026-09-26 处置限定口径）"
 design_writeback:
@@ -24,7 +24,7 @@ last_updated: 2026-09-26
 
 ## 背景
 
-S/H/D 为 2026-09-25 用户拍板定案（registry 同日行）：对原始有效角色集 S 一次算全部命中对 H，端点并集 D 一次删净——顺序无关。删多为预期收紧（持 {A,B,C} 且规则 A-B/B-C：现行保留一端 vs S/H/D 全删），属灰度差异登记项，非回归。报告临时编号 R2-T04。
+S/H/D 为 2026-09-25 用户拍板定案（[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日行）：对原始有效角色集 S 一次算全部命中对 H，端点并集 D 一次删净——顺序无关。删多为预期收紧（持 {A,B,C} 且规则 A-B/B-C：现行保留一端 vs S/H/D 全删），属灰度差异登记项，非回归。报告临时编号 R2-T04。
 
 ## 范围
 
@@ -38,7 +38,7 @@ S/H/D 为 2026-09-25 用户拍板定案（registry 同日行）：对原始有�
 
 ## 实现记录（2026-09-26）
 
-**两项用户拍板（2026-09-26，决策提问；registry 同日行）**：①验收第 3 条「引擎消费不立即通知的纯角色判定能力」落点=**域服务内解耦、引擎调用点零改动**——`PermissionConflictDomainService` 新增公开纯计算（`computeRoleMutex`→`RoleMutexComputation`〔保留集+命中对 `RolePairRef`〕、`computePermMutex`→复用 `BatchPermMutexEvaluator.PermMutexComputation`〔过滤条目+真实 triggeredRuleIds〕），旧入口 `filterRoleMutex`/`filterPermMutex` 保持签名内部复用同一计算叠加去重通知；纯方法本卡零生产消费者（单测锁证纯度），新核心 T-PERM-085/088 消费（沿 T-PERM-082 契约先行先例）。②**收口全量回归合并 T-PERM-095 基线取证一次跑**（两卡构成 §9.3 回退基线），本卡收口=单测轨道+互斥容器定向。
+**两项用户拍板（2026-09-26，决策提问；[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日行）**：①验收第 3 条「引擎消费不立即通知的纯角色判定能力」落点=**域服务内解耦、引擎调用点零改动**——`PermissionConflictDomainService` 新增公开纯计算（`computeRoleMutex`→`RoleMutexComputation`〔保留集+命中对 `RolePairRef`〕、`computePermMutex`→复用 `BatchPermMutexEvaluator.PermMutexComputation`〔过滤条目+真实 triggeredRuleIds〕），旧入口 `filterRoleMutex`/`filterPermMutex` 保持签名内部复用同一计算叠加去重通知；纯方法本卡零生产消费者（单测锁证纯度），新核心 T-PERM-085/088 消费（沿 T-PERM-082 契约先行先例）。②**收口全量回归合并 T-PERM-095 基线取证一次跑**（两卡构成 §9.3 回退基线），本卡收口=单测轨道+互斥容器定向。
 
 **事实消解（未另行提问，设计/约束直接定形）**：RolePairRef=角色对证据，缓存载荷不扩 ruleId——`uk_conflict_rule_role` 唯一约束（tenant+first+second）保证角色对↔规则一一对应，配对证据无损（设计 §5.1「缓存仅存角色对、有真实 ruleId 才附带」）。
 
@@ -58,7 +58,7 @@ S/H/D 为 2026-09-25 用户拍板定案（registry 同日行）：对原始有�
 
 **文档核查**：`engine/implementation.md` 互斥叙述均为调用面口径（filterRoleMutex 原语/resolveJudgementRoleIds 统一入口/双删日志），无顺序遍历算法内述，S/H-D 落地后不失实——沿 T-PERM-080 附录 A.8 口径不动，留计划完结 §3 族整体重写；设计回写=本稿 §5.1/§6.1 两处就地实施注（沿 T-PERM-082 迁移期注先例）。
 
-**双轨评审处置（2026-09-26）**：代码轨 P0-P2=0、P3×3；文档轨 P1×1+P2×3+P3×2——逐条亲核全成立直修：registry 补 2026-09-26 两项拍板行＋拍板段指针（P1）；验收句 R01 红/R02 恒绿语义锚拆分修正；`BatchPermMutexEvaluatorImpl` Javadoc 死链 `PermMutexContext` 与「复用」失实句改口径；R01 测试方法名随翻转更名（OrderIndependent）；设计 `last_reviewed`/计划 `last_updated` bump；接口 Javadoc 补返回集合不可变注。存疑两项（plan 进度行测试计数写法、S/H-D 与 S/H-D 拼写统一）按评审倾向维持现状；过度设计可裁剪项两轨均零。
+**双轨评审处置（2026-09-26）**：代码轨 P0-P2=0、P3×3；文档轨 P1×1+P2×3+P3×2——逐条亲核全成立直修：[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 补 2026-09-26 两项拍板行＋拍板段指针（P1）；验收句 R01 红/R02 恒绿语义锚拆分修正；`BatchPermMutexEvaluatorImpl` Javadoc 死链 `PermMutexContext` 与「复用」失实句改口径；R01 测试方法名随翻转更名（OrderIndependent）；设计 `last_reviewed`/计划 `last_updated` bump；接口 Javadoc 补返回集合不可变注。存疑两项（plan 进度行测试计数写法、S/H-D 与 S/H-D 拼写统一）按评审倾向维持现状；过度设计可裁剪项两轨均零。
 
 **claude 外评处置（2026-09-26，通道=claude headless plan、模型=本机默认 deepseek-flash[1m]；P0-P2=0、P3×2、可裁剪=0）**：两条 P3 逐条亲核全成立、全采纳直修——①`computeRoleMutex` 返回 `Set.copyOf` 换 `Collections.unmodifiableSet(new LinkedHashSet(...))`：SetN 迭代起点按 JVM 级随机盐旋转，而下游 `loadRolePermEntriesWithCache` 按角色迭代序拼接 allEntries 进响应数组/分页切片，跨重启顺序漂移；LinkedHashSet 恢复旧 HashSet 的跨运行确定序，并补返回集合不可变行为锁（`keptRoleIdsShouldBeImmutable`）；②同轮术语清扫三处——验收句 `computeMutexContext` 补现名括注、「通知无重复」限定口径（角色双删按角色对 1h 去重、批量按 (组,ruleId) 聚合、单条 PERM_MUTEX 为存量逐次形态）、interface+impl「内部复用 computePermMutex」字面失实改「共用同一计算体（computePermMutexInternal）」。处置后定向单测 25/25 绿。存量观察五条（PQ-01 归 095、单条通知无去重、未规范化历史行双键、summary 512 截断、implementation.md 口径）登记不修。
 

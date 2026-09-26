@@ -3,7 +3,7 @@ doc_type: design
 title: Gateway 服务设计
 status: adopted
 domain: gateway
-last_reviewed: 2026-09-24   # T-ADMIN-029（claude 外评 P3-2 处置）：§核心链路与 §匿名白名单两处清单补公告自服务两端点（my-notices/read）+同款密钥豁免四载体口径；此前 2026-09-23   # T-GW-010：§CORS 配置终态段修订——默认白名单扩四环回形态+「vite 代理同为同源」前提修正（Gateway 视角跨域）+诊断口径行；此前 2026-09-20   # T-PERM-070：新增「M2M 凭证放行链」节（M2mCredentialFilter -75 skipAuth 仅透传 + InternalSecretFilter 收窄无凭证头兜底注入 + 凭证头不入清洗）；此前 2026-09-19   # T-GW-009（registry 定案⑤）：白名单纳入 /api/access/user/reset-password——核心链路/匿名白名单两处清单同步为 T-ACCESS-042 精确形态（顺带修陈旧整族简写）+ 服务层门禁不变口径；此前 2026-09-15（T-ACCESS-042 路由拓扑更新）；2026-09-10 T-GW-008 codex 外评 P1 处置：§清洗承诺句修正（对 framework 策略清洗不生效）+ §forward-headers-strategy 启动护栏新增（ForwardHeadersStrategyGuard，framework/native 拒启）；同日早前 §请求头清洗与客户端 IP 重建新增（T-GW-008：XFF 清洗+remoteAddr 重建+清洗叠加语义缺陷修复）；此前：2026-09-06 §测试域与 E2E IT 分轨口径更新（T-ACCESS-031）；2026-08-28（T-ACCESS-027）
+last_reviewed: 2026-09-26
 ---
 
 # Gateway 服务设计
@@ -28,7 +28,7 @@ last_reviewed: 2026-09-24   # T-ADMIN-029（claude 外评 P3-2 处置）：§核
 
 ## 请求头清洗与客户端 IP 重建（T-GW-008，2026-09-10）
 
-**信任面背景**：外部传入的 `X-Forwarded-For` / `X-Real-IP` 是客户端可伪造的 IP 声明。T-PERM-057 条件评估拉平后，IP 条件（IP_WHITELIST / IP_BLACKLIST）消费面扩大到管理面写门禁，「持合法凭证 + 伪造 XFF」成为现实绕过面。收口定案（2026-09-10，registry）：**Gateway 清洗 + 重建**，弃可信代理链配置（trusted-proxies，成本与单层 Gateway 主拓扑定位不匹配）。
+**信任面背景**：外部传入的 `X-Forwarded-For` / `X-Real-IP` 是客户端可伪造的 IP 声明。T-PERM-057 条件评估拉平后，IP 条件（IP_WHITELIST / IP_BLACKLIST）消费面扩大到管理面写门禁，「持合法凭证 + 伪造 XFF」成为现实绕过面。收口定案（2026-09-10，[历史定案原文](../../archive/2026-09-26/decision-registry-before.md)）：**Gateway 清洗 + 重建**，弃可信代理链配置（trusted-proxies，成本与单层 Gateway 主拓扑定位不匹配）。
 
 - **清洗（`HeaderCleanFilter`，order -90）**：`gateway.header.clean` 列表加入 `X-Forwarded-For` / `X-Real-IP`，外部传入一律删除；另扩列 `X-Forwarded-Host/Port/Proto/Prefix` 与 `Forwarded`（RFC 7239）——同属外部可伪造转发声明，当前三服务零消费，配合下条启动护栏防未来任一服务消费转发声明时伪造面复活（注意：清洗对 `forward-headers-strategy=framework` 场景**不生效**——Spring 的 ForwardedHeaderTransformer 在全部过滤器之前消费转发头，须靠护栏拒绝）。匹配按 HTTP 头名大小写不敏感（RFC 7230），小写变体（`x-forwarded-for`）一并清除——变体缝隙曾对整个清洗列表有效（含 clean 列表既有全部内部头）。
 - **forward-headers-strategy 启动护栏（`ForwardHeadersStrategyGuard`，codex 外评 P1 处置 2026-09-10）**：`server.forward-headers-strategy=framework` 时 Spring Boot（ReactiveWebServerFactoryAutoConfiguration 条件注册）会启用 ForwardedHeaderTransformer，其在 `HttpWebHandlerAdapter.handle` 首指令（全部 WebFilter 之前）把外部 `X-Forwarded-For` 解析进 `request.getRemoteAddress()` 并删除转发头——清洗来不及参与，`resolveClientIp` 直用 remoteAddr 与 XFF 重建消费的都是伪造 IP（spring-web 6.1.5 + spring-boot 3.2.4 字节码实证）。护栏启动校验：`framework`/`native` 一律拒绝启动（native 在 WebFlux 下无 transformer 不污染，同拒防语义混淆），允许缺省/`none`（Spring Boot 默认）；回归锁钉五分支（缺省/none/NONE 放行，framework/FRAMEWORK/native 拒启）。

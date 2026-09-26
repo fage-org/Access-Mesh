@@ -465,9 +465,11 @@ export function createTestUser(overrides: Partial<User> = {}): User {
 const user = createTestUser({ name: "admin", roles: ["admin"] });
 ```
 
+<a id="test-tracks"></a>
+
 ## 10. 仓库测试基建与轨道归属（AccessMesh 项目级硬约束）
 
-> 权威出处：`docs/design/decision-registry.md`（容器轨道 T-ACCESS-030 / E2E 分轨 T-ACCESS-031 两行）；运行口径见 AGENTS.md 常用命令区与测试运行纪律块。本节是编写面约束——新增测试先按此节选定轨道与基建，禁止自建平行方案。
+> 本节为测试轨道与编写约束的当前权威；运行命令见 AGENTS.md。历史选择依据保存于 `docs/archive/2026-09-26/` 两册快照，不能据历史抖动记录免查新回归。
 
 ### 10.1 轨道归属三选一
 
@@ -478,6 +480,8 @@ const user = createTestUser({ name: "admin", roles: ["admin"] });
 | 跨服务 E2E（子进程拓扑：gateway/access/example 子进程 + 自起容器） | **仅 `e2e` 模块** | 模块整轨，`-DskipE2E` 开关 |
 
 **禁止**把跨服务 E2E 类放进任何服务模块：服务模块为 E2E 声明跨服务 test 依赖会形成 reactor 依赖边，使 `mvn -T` 模块并行对重模块完全失效（T-ACCESS-031 实测：未拆分时 -T 525s ≈ 串行 522s，拆分后日常 269s）。
+
+超大规模参数上限用例使用 `testcontainers-heavy` 标签。日常回归可 `-DskipHeavyIT=true`，任务收口必须跑 heavy 与 E2E；具体命令见 [AGENTS](../../AGENTS.md#常用命令开发阶段预估)。测试 Gateway 白名单中的普通用户自服务端点时，MockMvc 夹具模拟该路径的真实转发：密钥头与 Bearer 令牌，不额外注入用户/租户/签名头绕过会话解析。其他链路按自身真实转发契约构造，不能扩大本项头形态限制。[来源](../../docs/archive/2026-09-26/decision-registry-before.md)（原第 157 行）及[历史记录](../../docs/archive/2026-09-26/decision-registry-history.md)（原第 37 行）。
 
 ### 10.2 容器测试必须用 ItInfra（禁自建基建）
 
@@ -503,6 +507,8 @@ class SomethingPgIT {
 - 每类各自声明 `@DynamicPropertySource` 方法（保证上下文缓存键互异，按类独立上下文）。
 - 类内裸 JDBC 用 `ItInfra.jdbcUrl(X.class)` / `username()` / `password()` / `redisDatabase(X.class)` 访问器，禁自行拼接容器地址。
 - fork 并行（forkCount=2）与库/索引隔离由 ItInfra + pom 承担，测试作者不需要也不得干预。
+
+进程隔离是约束：SaManager 的 JVM 静态状态使线程级测试类并行不可用，不改成 JUnit 线程并行。fork 槽位由 user.home 文件锁分配，Redis 按槽位独占逻辑库段；具体布局以 ItInfra 为准，不恢复共享/奇偶分段。默认 forkCount=2，必要时 `-Dit.forkCount=1` 串行。Docker 客户端 `api.version=1.44` 兼容配置沿 access-service/e2e pom 保留，缺失可能使 Docker 29+ 的容器轨被误判不可用而跳过；升级客户端时再复核。[来源](../../docs/archive/2026-09-26/decision-registry-before.md)（原第 51、52 行）。
 
 ### 10.3 时序/并发用例禁裸 sleep 余量
 

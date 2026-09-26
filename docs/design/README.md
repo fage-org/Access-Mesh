@@ -2,6 +2,8 @@
 
 本文档是 `docs/design/` 目录的入口。后续查阅设计时优先从这里进入，避免误用归档文档中的旧接口或旧字段。
 
+当前规则与有效例外按[定案入口](decision-registry.md)定位；定案历史不默认整读。
+
 ## 权威来源
 
 | 主题                  | 权威文档                                                                               |
@@ -9,7 +11,7 @@
 | 项目工程规范          | [project-rules.md](project-rules.md)                                                   |
 | 微服务整体架构        | [architecture.md](architecture.md)                                                     |
 | access-service 目标架构与归并约束 | [access-service-architecture.md](access-service-architecture.md)（`status: adopted`；归并拓扑、事务、数据、缓存和安全冲突时优先） |
-| access-service 能力包融合目标结构 | [access-service-capability-structure.md](access-service-capability-structure.md)（`status: adopted`，2026-09-13 T-ACCESS-032 完成 §8 归属清单与边界断言定稿、十项裁决登记 decision-registry 同日行；结构迁移已由 T-ACCESS-033 于 2026-09-13 完成，代码即 17 顶层包能力包结构） |
+| access-service 能力包融合目标结构 | [access-service-capability-structure.md](access-service-capability-structure.md)（`status: adopted`，2026-09-13 T-ACCESS-032 完成 §8 归属清单与边界断言定稿、十项裁决登记 [历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日行；结构迁移已由 T-ACCESS-033 于 2026-09-13 完成，代码即 17 顶层包能力包结构） |
 | access-service API 契约总册 | [access-service-api-contract.md](access-service-api-contract.md)（`status: adopted`，2026-09-13 T-ACCESS-040 两册合一——管理面家族（T-ACCESS-040 时称「管理域家族」，裸路径族）与 perm 家族同册分列、按能力分章；原两契约册转 superseded 留原位，锚点对照见总册附录 C） |
 | 引擎子系统概念模型      | [engine/overview.md](engine/overview.md)                                             |
 | 引擎子系统核心调用链路  | [engine/core-flows.md](engine/core-flows.md)                                         |
@@ -97,6 +99,7 @@ Claude 按需技能位于 `.claude/skills/`。
 
 | 归档批次              | 说明                                                                                                                                            |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| [2026-09-26](../archive/2026-09-26/README.md) | T-ACCESS-064：当前决定归所属规范、入口只导航；旧两册与压缩前原文冻结，增量核对及语义对照随任务归档。 |
 | `../archive/2026-09-14/` | access-service 能力包融合计划归档（T-ACCESS-041 终态）：十任务全 done 后用户确认定稿归档。结构契约沉淀至本页 `access-service-capability-structure.md`（adopted，17 顶层包归属清单与边界断言），错误码/缓存目录/操作码单册与契约总册、engine 三册、permission-coding-standards 规则均为现行权威；遗留登记见 pending-problems（Q-006 滚动发布边界 / Q-007 / Q-008；Q-001/Q-009 已收敛——后者 30 边白名单退役为绝对禁断，T-ACCESS-043~046） |
 | `../archive/2026-09-07/` | 计划治理收尾归档批次：product-positioning-landing-plan（三档叙事口径沉淀至本页「能力三档」入口）+ frontend-phase3-plan（九联调任务收口；归档门禁统一冒烟 21/21 通过）。 |
 | `../archive/2026-08-27/` | product-vertical-slice 计划收口归档（T-ACCESS-026）：产品垂直切片与试点加固计划（18 项全 done，里程碑 A+B 达成）+ access-post-merge-plan（T-ACCESS-013~015 全 done）+ improvement-plan 项目级路线图归档（诊断与四阶段拆分使命完成，完成度口径截至 2026-06，痛点 #3/#4 暂缓溯源仍有效）。权威入口：`access-service-architecture.md` |

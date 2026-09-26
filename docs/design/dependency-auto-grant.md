@@ -4,14 +4,14 @@ title: 权限依赖声明与自动授权（简化方案）
 status: adopted
 domain: access-service
 supersedes: docs/archive/2026-09-20/dependency-auto-grant-path-design.md
-last_reviewed: 2026-09-21（073 解释/预览/诊断/对账落地回写）
+last_reviewed: 2026-09-26
 ---
 
 # 权限依赖声明与自动授权（简化方案）
 
 > 本稿为已采纳的实施方向：资源同步与依赖声明保持独立，SDK 协调可选；保留写时物化，来源按需解释，不建立逐种子逐完整路径的持久 support。原完整路径存储、强制两步接入和跨 owner 手工 override 口径由本稿取代。
 >
-> 交付状态：070 服务认证与 078 协议校准已完成；071 声明编译、资源共序、生命周期、迁移及 SDK 已于 2026-09-21 收口（全量含 E2E 回归 + 双轨/外评处置完毕，风格清理转出 T-PERM-079）。072 角色物化已于 2026-09-21 落地：共享推导核心（AutoGrantDerivation，§6.3.1 全表单测）、物化器（AutoGrantMaterializationDomainService，完整 desired 重算 + 事实键精确 diff）、触发面六入口接线（apply-grant-plan/manifest/资源 DELETE 与 FULL/操作位与掩码变更/类型删除与所有权变更/角色删除）、操作引用拒绝 20069、INLINE 统一时序回收、M4 共同锁与提交闸门（PgIT 验证）；grant_dep_id 定案保留不写不读（Q-022），角色删除回收含授权根（Q-023 留观守卫）。旧 autoGrant 与 20048 已退役。073 解释/界面已于 2026-09-21 落地：来源解释 explain（契约 §12.3.1）、授撤影响预览 preview-grant-plan（§11.4.1，prevalidate 拆纯准备 prepare + 保存阶段 INLINE 物化）、声明诊断 declaration-status（§12.3）、依赖页声明状态与来源解释查看器、授权页「预览影响」手动按钮与 M5 边界说明、对账 AutoGrantReconcileDomainService（只读发现，@JobInvocable + bootstrap 种子默认停用任务，registry 2026-09-21）；AutoGrantInsightPgIT 真实 PG 回归锁定。
+> 交付状态：070 服务认证与 078 协议校准已完成；071 声明编译、资源共序、生命周期、迁移及 SDK 已于 2026-09-21 收口（全量含 E2E 回归 + 双轨/外评处置完毕，风格清理转出 T-PERM-079）。072 角色物化已于 2026-09-21 落地：共享推导核心（AutoGrantDerivation，§6.3.1 全表单测）、物化器（AutoGrantMaterializationDomainService，完整 desired 重算 + 事实键精确 diff）、触发面六入口接线（apply-grant-plan/manifest/资源 DELETE 与 FULL/操作位与掩码变更/类型删除与所有权变更/角色删除）、操作引用拒绝 20069、INLINE 统一时序回收、M4 共同锁与提交闸门（PgIT 验证）；grant_dep_id 定案保留不写不读（Q-022），角色删除回收含授权根（Q-023 留观守卫）。旧 autoGrant 与 20048 已退役。073 解释/界面已于 2026-09-21 落地：来源解释 explain（契约 §12.3.1）、授撤影响预览 preview-grant-plan（§11.4.1，prevalidate 拆纯准备 prepare + 保存阶段 INLINE 物化）、声明诊断 declaration-status（§12.3）、依赖页声明状态与来源解释查看器、授权页「预览影响」手动按钮与 M5 边界说明、对账 AutoGrantReconcileDomainService（只读发现，@JobInvocable + bootstrap 种子默认停用任务，[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 2026-09-21）；AutoGrantInsightPgIT 真实 PG 回归锁定。
 
 <a id="scope"></a>
 ## 1. 目标与范围
@@ -78,7 +78,7 @@ MANIFEST 为依赖声明唯一写入来源，范围按 tenant + 服务身份隔�
 
 ### 3.3 编译图 resource_dependency
 
-仅 DependencyCompiler 写。保留源/目标实体、触发位与目标操作位，补目标反向索引以定位受影响角色。诊断 declaration_id 不代表聚合边唯一来源。
+仅 DependencyCompiler 写。保留源/目标实体、触发位与目标操作位，补目标反向索引以定位受影响角色。诊断 declaration_id 不代表聚合边唯一来源。`resource_dependency.sync_key` 同样保留用于诊断，不因当前没有读取消费者而删除；来源与删除始终按编译键定位。[来源](../archive/2026-09-26/decision-registry-before.md)（原第 149 行）。
 
 编译键为源实体 + 目标实体 + COALESCE(source_operation_bits,0)；同键 RESOLVED 声明的目标操作取并集，任一声明变化按键重编译。真实来源按键查询，删除不按诊断字段定位。
 
@@ -87,6 +87,8 @@ auto_grant 已随声明通道退役，后端 DTO、前端请求/表单/列表及
 ### 3.4 自动授权结果
 
 复用 role_resource_permission：grant_source=AUTO_DEP、单 canonical 操作位/行、can_grant=false、depend_on=NULL、条件按推导变体保留。每角色的自动结果仅按资源、canonical 操作与条件身份精确去重，不按操作覆盖或条件宽窄压缩（§6.3）。既有唯一性允许 MANUAL/AUTO_DEP 并列，多条件变体落库仍须对照 DDL 验证。
+
+AUTO_DEP 行形状由唯一物化写者与既有唯一约束保证，不额外增加 DDL CHECK；若新增写者或改变行形状，须复核这项取舍。[来源](../archive/2026-09-26/decision-registry-before.md)（原第 152 行）。
 
 不新增 support 表，不把推导图/路径列表塞入授权行 JSON。grant_dep_id 不作存续或清理依据；单字段不能表达多来源，已定案保留不写不读（2026-09-21，Q-022 留观），物化器永不写入。
 
@@ -244,7 +246,7 @@ INLINE 维持“一个 MANUAL 属主 + 多个系统派生引用”，用户不�
 | 资源 DELETE / FULL 漂移删除 | 删除或降级声明/编译贡献，收缩全部受影响自动结果；不能仅删目标资源上的授权 |
 | 仅资源 DISABLE / UPSERT 或 FULL 中的 status 停用、恢复 | 不改变声明/编译贡献或自动授权传播，不因状态切换回收或重建 AUTO_DEP；同请求的其他事实变更按各自触发规则处理 |
 | 类型删除级联 | 回收声明、边、自动授权与条件孤儿 |
-| 角色删除 | 回收角色授权及条件孤儿（拍板 A：全部有效授权行含 AUTHORITY_ROOT——角色删除成为授权根第二回收路径，仅删所有者角色时触发，registry 2026-09-21），不重算已删角色；全部删除通道一致（管理面 deleteRoles/组织容器角色级联/角色同步 DELETE 与 FULL 漂移），已删角色不作种子、其 AUTO_DEP 按 desired 恒空回收、不构成操作引用（外评 2026-09-21 补全） |
+| 角色删除 | 回收角色授权及条件孤儿（拍板 A：全部有效授权行含 AUTHORITY_ROOT——角色删除成为授权根第二回收路径，仅删所有者角色时触发，[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 2026-09-21），不重算已删角色；全部删除通道一致（管理面 deleteRoles/组织容器角色级联/角色同步 DELETE 与 FULL 漂移），已删角色不作种子、其 AUTO_DEP 按 desired 恒空回收、不构成操作引用（外评 2026-09-21 补全） |
 | 条件编辑/删除 | 维护引用与受影响结果，条件判定保持运行时语义 |
 | 操作定义/类型所有权变更 | 按引用规则拒绝或重编译、重算 |
 
@@ -277,7 +279,11 @@ TypeDefinitionAppServiceImpl.deleteTypesByIds 的混合 resource_type/role_type 
 | 角色/主体/组织/菜单删除及本地投影级联 | 先取得入口需要的 SYS_ORG/ABSTRACT_ROLE/SYS_MENU，再取得 RESOURCE_ENTITY；随后读取授权和依赖引用 | 被删角色不重建自动行，其余受影响角色完整重算 |
 | 条件编辑/删除与 INLINE 属主回收 | 读取授权引用/准备删除条件之前 | 保持条件身份直传，最后按真实剩余引用回收 |
 
-矩阵已由 071/072 逐个实际调用点核对（含内部领域调用；bootstrap 固定图为内部类型不入依赖图，无需接线）。提交闸门已覆盖未提交新种子遇到删边（AutoGrantMaterializationPgIT M4 用例）与定义/资源删除交错；对账不代替正常事务保证。
+锁内全图一致视图批量装载是当前采用形态，不拆成可能陈旧或彼此分离的快照来绕过锁；性能优化须维持同一事务事实视图。[来源](../archive/2026-09-26/decision-registry-before.md)（原第 153 行）。
+
+**实施边界**：矩阵中 MANAGED 条件编辑/删除的共同锁尚未全部落实，既有条件删除交错接受范围见[契约条件删除段](access-service-api-contract.md#151-permission-conditionapiaccesspermission-condition)。不得把矩阵的目标约束当作已关闭该窗口的证明。
+
+资源/依赖/授权/角色等已接线部分由 071/072 逐个实际调用点核对（含内部领域调用；bootstrap 固定图为内部类型不入依赖图，无需接线）。提交闸门已覆盖未提交新种子遇到删边（AutoGrantMaterializationPgIT M4 用例）与定义/资源删除交错；对账不代替正常事务保证。
 
 <a id="credential"></a>
 ## 9. 服务认证与多租户
@@ -317,11 +323,13 @@ manifest 不需要用户 API 快照/固定图授权行；管理 explain 需注�
 
 解释与预览的事实读取使用 AppService 的 REPEATABLE_READ、readOnly 事务，在单次请求中通过无缓存的领域读取端口批量装载角色种子、图、操作、条件身份与实际 AUTO_DEP。管理门禁继续走现有 PermQueryEngine，不绕过引擎查授权表；推导输入不用可能分别过期的运行时快照缓存。事务只覆盖本次读取，结束后不保留跨请求快照。返回 viewedAt 与截断标记，不将多次请求拼成原子快照。
 
+explain/preview 的条件装载必须带租户；apply 响应同事务新鲜读取继续使用既有 NoTenant 读取版本，不能把不同事务与隔离前提下的方法机械互换。[来源](../archive/2026-09-26/decision-registry-before.md)（原第 156 行）。
+
 解释输出共享逻辑 DAG 与直接支持关系，不返回全路径枚举列表。无 target 全集视图仅含参与推导的种子（2026-09-21 定案 B：未命中依赖边的显式授权不进图，防孤点淹没推导链）。界面选定目标事实后沿直接边按需展开来源；maxDepth/maxNodes 只限制输出，完整 desired 仍先由共享核心算出；target 模式下选定事实保底入选输出节点——截断只挤祖先，不把查询目标本身挤出输出（2026-09-21 贴回外评拍板）。达到限额必须标记 truncated 并报告总节点/边数量，不能因没显示某条路径就显示“无来源”。完整路径展示是用户选择一条链的展开，不计算所有根到目标的路径组合。
 
 正式字段与管理门禁登记于契约 §12.3.1；不新增来源表、跨请求游标状态或历史推导事件库。
 
-> **落地注记（T-PERM-073，2026-09-21）**：explain 已实现（契约 §12.3.1 落地状态注记）；前端入口按用户定案仅依赖页查看器（授权页 AUTO_DEP 维持「由资源依赖自动补全」标注，完整 DAG 浏览集中在依赖页——registry 2026-09-21）。
+> **落地注记（T-PERM-073，2026-09-21）**：explain 已实现（契约 §12.3.1 落地状态注记）；前端入口按用户定案仅依赖页查看器（授权页 AUTO_DEP 维持「由资源依赖自动补全」标注，完整 DAG 浏览集中在依赖页——[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 2026-09-21）。
 
 <a id="admin-ui"></a>
 ## 12. 管理台任务
@@ -343,7 +351,9 @@ manifest 不需要用户 API 快照/固定图授权行；管理 explain 需注�
 
 复用同一推导函数，检查 RESOLVED 声明与编译聚合、资源/声明失效残留、desired 与 actual 授权差异。不检查 support 存在性，不做路径回填或另写权限算法。
 
-后台触发复用既有任务设施，周期/诊断已随 073 定案（2026-09-21 用户定案，registry 同日登记）：**bootstrap 种子默认停用的 sys_job**（invokeTarget=`autoGrantReconcileInvoker.reconcile`、cron 预置每日 03:00、insert-if-absent 不覆盖管理员配置），任务管理页手动触发/按需启用周期——drift 只来自改库/历史脏数据（正常链路同事务保证一致），默认零后台负载。对账只发现异常，正常撤销由主事务保证；自动修复若需新写入口，须先定义其门禁/事务/完整触发行为。诊断通道：逐条差异 log.warn + 汇总经 @JobInvocable String 返回值写入任务执行日志成功消息（任务设施最小扩展，void 方法维持缺省消息）；完整事实经 explain 端点核查。已由 `AutoGrantReconcileDomainService`（声明↔编译边一致/失效残留/逐角色 desired diff，种子与防御层口径同物化器）+ `AutoGrantReconcileJob` 落地（作业入口持 REPEATABLE_READ 只读一致事务，2026-09-21 claude 外评处置补——无注解时整轮多类查询分属不同快照，并发写窗口可现不可复现假漂移），PgIT 锁定干净态/漂移/图问题与只读不修复。
+后台触发复用既有任务设施，周期/诊断已随 073 定案（2026-09-21 用户定案，[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日登记）：**bootstrap 种子默认停用的 sys_job**（invokeTarget=`autoGrantReconcileInvoker.reconcile`、cron 预置每日 03:00、insert-if-absent 不覆盖管理员配置），任务管理页手动触发/按需启用周期——drift 只来自改库/历史脏数据（正常链路同事务保证一致），默认零后台负载。对账只发现异常，正常撤销由主事务保证；自动修复若需新写入口，须先定义其门禁/事务/完整触发行为。诊断通道：逐条差异 log.warn + 汇总经 @JobInvocable String 返回值写入任务执行日志成功消息（任务设施最小扩展，void 方法维持缺省消息）；完整事实经 explain 端点核查。已由 `AutoGrantReconcileDomainService`（声明↔编译边一致/失效残留/逐角色 desired diff，种子与防御层口径同物化器）+ `AutoGrantReconcileJob` 落地（作业入口持 REPEATABLE_READ 只读一致事务，2026-09-21 claude 外评处置补——无注解时整轮多类查询分属不同快照，并发写窗口可现不可复现假漂移），PgIT 锁定干净态/漂移/图问题与只读不修复。
+
+**对账种子接受边界**：sys_job 的 insert-if-absent 存在多副本冷启动双插窗口；目前任务只读，接受重复对账，不为该窄窗口新增 DDL 约束。若任务增加写副作用或重复执行影响扩大，重新核实适用性。[来源](../archive/2026-09-26/decision-registry-before.md)（原第 155 行）。
 
 ## 14. 演进方向（非约束）
 

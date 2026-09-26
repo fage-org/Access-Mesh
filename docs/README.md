@@ -48,6 +48,7 @@ docs/
 ├── tasks/                             # 任务（原子执行单元，看板为唯一权威清单）
 │   └── README.md
 └── archive/                           # 归档文档（仅追溯，不作为实现依据）
+    ├── 2026-09-26/
     ├── 2026-09-21/
     ├── 2026-09-20/
     ├── 2026-09-19/
@@ -77,6 +78,8 @@ docs/
     └── 2026-04-28/
 ```
 
+当前规则与有效例外按[定案入口](design/decision-registry.md)定位；定案历史不默认整读。
+
 ## 权威来源
 
 | 主题                 | 权威文档                                                                                                                             |
@@ -98,11 +101,11 @@ docs/
 
 ## 执行计划
 
-当前活跃计划：[R2 权限查询引擎统一与操作准入（方案 A）](plans/r2-query-engine-and-admission-plan.md)（2026-09-25 立项：T-PERM-080~094 + T-ACCESS-056~062 + 归入卡 T-PERM-054；设计定稿 [design/r2-unified-query-and-admission.md](design/r2-unified-query-and-admission.md)，三项拍板见 decision-registry 2026-09-25 行）。最近归档批次：[IAM核心正确性与用户任务闭环计划](archive/2026-09-24/iam-task-closure-plan.md)（2026-09-24 收口归档，18 任务全 done）；[方案](design/iam-task-closure.md)为draft，未决取舍在对应任务启动时确定。
+当前活跃计划：[R2 权限查询引擎统一与操作准入（方案 A）](plans/r2-query-engine-and-admission-plan.md)（2026-09-25 立项：T-PERM-080~094 + T-ACCESS-056~062 + 归入卡 T-PERM-054；设计定稿 [design/r2-unified-query-and-admission.md](design/r2-unified-query-and-admission.md)，三项拍板见 [历史定案原文](archive/2026-09-26/decision-registry-before.md) 2026-09-25 行）。最近归档批次：[IAM核心正确性与用户任务闭环计划](archive/2026-09-24/iam-task-closure-plan.md)（2026-09-24 收口归档，18 任务全 done）；[方案](design/iam-task-closure.md)为draft，未决取舍在对应任务启动时确定。
 
 | 主题 | 文档 |
 |------|------|
-| ~~前端会话生命周期与交互一致性修复~~ | （已归档 2026-09-20）T-GW-009 + T-FE-045~056 十三任务全 done（P1 阻断试用五卡 + P2 一致性清理七卡 + Gateway 白名单前置）；归档批次三项待办同日执行通过（全量回归 1726 项 0 失败含 E2E 实跑、T-FE-046 端到端验收六项判据全过、T-GW-009 Nacos 复核无覆盖风险），见 [archive/2026-09-20/](archive/2026-09-20/)；定案见 decision-registry 2026-09-19/09-20 各行 |
+| ~~前端会话生命周期与交互一致性修复~~ | （已归档 2026-09-20）T-GW-009 + T-FE-045~056 十三任务全 done（P1 阻断试用五卡 + P2 一致性清理七卡 + Gateway 白名单前置）；归档批次三项待办同日执行通过（全量回归 1726 项 0 失败含 E2E 实跑、T-FE-046 端到端验收六项判据全过、T-GW-009 Nacos 复核无覆盖风险），见 [archive/2026-09-20/](archive/2026-09-20/)；定案见 [历史定案原文](archive/2026-09-26/decision-registry-before.md) 2026-09-19/09-20 各行 |
 | ~~Q-009 跨能力 mapper 直读收敛~~ | （已归档 2026-09-15）T-ACCESS-043~046 四批全 done——冻结白名单 19 类 30 边全量收敛至零、断言退役为零容忍绝对禁断（负向自证改测试源集夹具），见 [archive/2026-09-15/](archive/2026-09-15/)；结构契约 [design/access-service-capability-structure.md](design/access-service-capability-structure.md) §8.4（冻结表转历史基线注记，adopted） |
 | ~~access-service 能力包融合~~ | （已归档 2026-09-14）T-ACCESS-032~041 十任务全 done（能力包终态 + 平行设施归零 + 概念单点收口 + 契约/规则口径收尾），三通道外评处置后用户确认定稿，见 [archive/2026-09-14/](archive/2026-09-14/)；结构契约 [design/access-service-capability-structure.md](design/access-service-capability-structure.md)（adopted） |
 | ~~前端 Phase 2 核心功能补齐 + 后端接口改造~~ | （已归档 2026-09-14）逐页后端 T-PERM-022~034/037/040/041 与前端 T-FE-036/038~040、组织树 T-ADMIN-021 全 done；T-PERM-036 脱出后维持暂缓；自动授权由 T-PERM-071～073 按简化设计承接，见 [archive/2026-09-14/](archive/2026-09-14/) |
@@ -166,15 +169,16 @@ docs/
 
 | 归档批次              | 说明                                                                                                   | 入口                                                         |
 | --------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
-| `archive/2026-09-21/` | T-PERM-079 单卡归档（done）：自动授权批次风格与可读性清理——七项验收全落地（doSyncOneInternal 参数组 record/状态字面量常量化/服务启用判据单源/SqlBatches 分批样板收敛/var 定调=登记允许/次要项清理/ResourcePublicationHeavyPgIT 拆档+skipHeavyIT 开关），两项用户拍板与 claude 外评处置（P3×2 直修）见 decision-registry 2026-09-21 各行。 | [archive/2026-09-21/README.md](archive/2026-09-21/README.md) |
-| `archive/2026-09-20/` | 同日包含前端会话一致性归档，以及 IAM 全面评审证据、自动授权历史设计/评估与原定案追溯。frontend-session-consistency-plan 归档：前端会话生命周期与交互一致性修复——T-GW-009 + T-FE-045~056 十三任务全 done（登出真注销/强制改密闭环/删除确认/会话权限热刷新/登录半成功语义/递归 bug/composable 化/拖拽与禁用确认/守卫卫生/token 过期短路/入口文案/menus 派生路由门禁/Gateway 白名单前置），九张独立卡随迁 `tasks/`（其余为纯看板行）；归档批次三项待办同日执行通过——全量回归 `mvn test -T 1C` 1726 项 0 失败（E2E 实跑）+ T-FE-046 端到端验收六项判据全过（真实非管理员用户经 Gateway 阻断→改密→放行，纯空白密码拦截用例一并执行）+ T-GW-009 Nacos 复核（gateway.yml 不存在、无远端覆盖）。定案见 decision-registry 2026-09-19/09-20 各行。 | [archive/2026-09-20/README.md](archive/2026-09-20/README.md) |
-| `archive/2026-09-19/` | T-PERM-035 单卡归档（cancelled）：自动授权旧口径（resolveAutoGrants/autoGrantForInsert）被定稿设计取代——dependency-auto-grant.md + service-authentication.md 双稿 adopted（用户确认定稿），实现承接 T-PERM-070~073，§11 E4 暂缓随定稿解除。原定案与拆分依据见 [原定案追溯](archive/2026-09-20/auto-grant-prior-decisions.md)，当前口径见 decision-registry 的简化方案采纳条目。 | [archive/2026-09-19/README.md](archive/2026-09-19/README.md) |
-| `archive/2026-09-18/` | 两批次：批次一 T-PERM-069（Q-008 转出，API 类型内部来源收紧——种子声明 SYNC+access-service、管理面资源 CRUD 20055；含同日 claude/grok 外评处置）；批次二 T-ACCESS-051（Q-013 转出，TaskExecutionLeaseConcurrencyTest 两裸 sleep(1200) 改 5s 有界轮询；双轨评审上报三处同族裸 sleep 登记 Q-014）。定案与处置见 decision-registry 2026-09-18 行。 | [archive/2026-09-18/README.md](archive/2026-09-18/README.md) |
-| `archive/2026-09-17/` | T-PERM-068 单卡归档（Q-007 转出任务）：跨类型父子边收紧——sync/管理面同类型父边门禁 + 父字段缺省同类型回填，10 回归锁旧实现下实证失败；收口全量含 E2E 1716 项 0 失败；收口时序抖动观察登记 Q-013。定案见 decision-registry 2026-09-17 两行。 | [archive/2026-09-17/README.md](archive/2026-09-17/README.md) |
-| `archive/2026-09-16/` | release-preview-plan 首个发布预览（v0.1.0）归档：T-ACCESS-047~050 四任务全 done（全栈 compose `--profile app` / Q-006 修复 / 发布文档全套 quickstart+deployment+CHANGELOG+LICENSE / 空环境冒烟 22/22 + 开发模式走查 + 本地 tag v0.1.0）+ T-ACCESS-042 终态卡单卡归档，五卡随迁 `tasks/`。定案见 decision-registry 2026-09-16 三行；部署入口 [quickstart](quickstart.md) / [ops/deployment.md](ops/deployment.md)。 | [archive/2026-09-16/README.md](archive/2026-09-16/README.md) |
+| `archive/2026-09-26/` | T-ACCESS-064 当前规范归位与定案入口轻量化；原登记两册、压缩前原文及迁移验证冻结，T-ACCESS-063 历史任务随批归档。 | [归档入口](archive/2026-09-26/README.md) |
+| `archive/2026-09-21/` | T-PERM-079 单卡归档（done）：自动授权批次风格与可读性清理——七项验收全落地（doSyncOneInternal 参数组 record/状态字面量常量化/服务启用判据单源/SqlBatches 分批样板收敛/var 定调=登记允许/次要项清理/ResourcePublicationHeavyPgIT 拆档+skipHeavyIT 开关），两项用户拍板与 claude 外评处置（P3×2 直修）见 [历史定案原文](archive/2026-09-26/decision-registry-before.md) 2026-09-21 各行。 | [archive/2026-09-21/README.md](archive/2026-09-21/README.md) |
+| `archive/2026-09-20/` | 同日包含前端会话一致性归档，以及 IAM 全面评审证据、自动授权历史设计/评估与原定案追溯。frontend-session-consistency-plan 归档：前端会话生命周期与交互一致性修复——T-GW-009 + T-FE-045~056 十三任务全 done（登出真注销/强制改密闭环/删除确认/会话权限热刷新/登录半成功语义/递归 bug/composable 化/拖拽与禁用确认/守卫卫生/token 过期短路/入口文案/menus 派生路由门禁/Gateway 白名单前置），九张独立卡随迁 `tasks/`（其余为纯看板行）；归档批次三项待办同日执行通过——全量回归 `mvn test -T 1C` 1726 项 0 失败（E2E 实跑）+ T-FE-046 端到端验收六项判据全过（真实非管理员用户经 Gateway 阻断→改密→放行，纯空白密码拦截用例一并执行）+ T-GW-009 Nacos 复核（gateway.yml 不存在、无远端覆盖）。定案见 [历史定案原文](archive/2026-09-26/decision-registry-before.md) 2026-09-19/09-20 各行。 | [archive/2026-09-20/README.md](archive/2026-09-20/README.md) |
+| `archive/2026-09-19/` | T-PERM-035 单卡归档（cancelled）：自动授权旧口径（resolveAutoGrants/autoGrantForInsert）被定稿设计取代——dependency-auto-grant.md + service-authentication.md 双稿 adopted（用户确认定稿），实现承接 T-PERM-070~073，§11 E4 暂缓随定稿解除。原定案与拆分依据见 [原定案追溯](archive/2026-09-20/auto-grant-prior-decisions.md)，历史取代证据见 [历史定案原文](archive/2026-09-26/decision-registry-before.md) 的简化方案采纳条目。 | [archive/2026-09-19/README.md](archive/2026-09-19/README.md) |
+| `archive/2026-09-18/` | 两批次：批次一 T-PERM-069（Q-008 转出，API 类型内部来源收紧——种子声明 SYNC+access-service、管理面资源 CRUD 20055；含同日 claude/grok 外评处置）；批次二 T-ACCESS-051（Q-013 转出，TaskExecutionLeaseConcurrencyTest 两裸 sleep(1200) 改 5s 有界轮询；双轨评审上报三处同族裸 sleep 登记 Q-014）。定案与处置见 [历史定案原文](archive/2026-09-26/decision-registry-before.md) 2026-09-18 行。 | [archive/2026-09-18/README.md](archive/2026-09-18/README.md) |
+| `archive/2026-09-17/` | T-PERM-068 单卡归档（Q-007 转出任务）：跨类型父子边收紧——sync/管理面同类型父边门禁 + 父字段缺省同类型回填，10 回归锁旧实现下实证失败；收口全量含 E2E 1716 项 0 失败；收口时序抖动观察登记 Q-013。定案见 [历史定案原文](archive/2026-09-26/decision-registry-before.md) 2026-09-17 两行。 | [archive/2026-09-17/README.md](archive/2026-09-17/README.md) |
+| `archive/2026-09-16/` | release-preview-plan 首个发布预览（v0.1.0）归档：T-ACCESS-047~050 四任务全 done（全栈 compose `--profile app` / Q-006 修复 / 发布文档全套 quickstart+deployment+CHANGELOG+LICENSE / 空环境冒烟 22/22 + 开发模式走查 + 本地 tag v0.1.0）+ T-ACCESS-042 终态卡单卡归档，五卡随迁 `tasks/`。定案见 [历史定案原文](archive/2026-09-26/decision-registry-before.md) 2026-09-16 三行；部署入口 [quickstart](quickstart.md) / [ops/deployment.md](ops/deployment.md)。 | [archive/2026-09-16/README.md](archive/2026-09-16/README.md) |
 | `archive/2026-09-15/` | Q-009 跨能力 mapper 直读收敛归档：capability-mapper-convergence-plan（T-ACCESS-043~046 四批全 done——冻结白名单 19 类 30 边全量收敛至零、断言退役为零容忍绝对禁断、负向自证改测试源集夹具）+ 四任务卡随迁 `tasks/`。同日 T-ACCESS-042（Q-001 URL 单命名空间）单卡收口暂留 tasks/ 待下批单卡归档。 | [archive/2026-09-15/README.md](archive/2026-09-15/README.md) |
 | `archive/2026-09-12/` | 任务/计划归档制落地批次：94 张终态任务卡按所属计划归档日期补迁至各日期目录 `tasks/` 子目录（06-28/07-12/07-26/08-22/08-27/09-07/09-12）；permission-query-unification-plan 物理归档（status 已 archived，四任务全 done）；侧挂归档 `plans/archive/2026-07/`（两取消计划）与 `plans/archive/2026-06/`（v3.0~v3.3 设计史）并入统一归档目录 `archive/2026-07-26/`、`archive/2026-06-18/`。同日追加批次：frontend-phase4-plan（五任务全 done 归档，5 卡随迁）+ permission-grant-record-level-editing-proposal（决策记录，T-FE-040 已实施）+ 无归属终态单卡 T-PERM-062 + design-review-def-followup-plan（D/E/F 工作单三任务全 done，末卡 T-PERM-021 收口含 requestId 单 ID 收敛/审计两列 NOT NULL/ops runbook 建立，3 卡随迁）。 | [archive/2026-09-12/README.md](archive/2026-09-12/README.md) |
-| `archive/2026-09-10/` | 权限排查页设计（`design/frontend/permission-query.md`）归档——页面与 permission-view 8 端点随 T-PERM-059 删除重设计（2026-09-10 三项定案见 decision-registry），重做新形态另立任务。 | [archive/2026-09-10/README.md](archive/2026-09-10/README.md) |
+| `archive/2026-09-10/` | 权限排查页设计（`design/frontend/permission-query.md`）归档——页面与 permission-view 8 端点随 T-PERM-059 删除重设计（2026-09-10 三项定案见 [历史定案原文](archive/2026-09-26/decision-registry-before.md)），重做新形态另立任务。 | [archive/2026-09-10/README.md](archive/2026-09-10/README.md) |
 | `archive/2026-09-07/` | 计划治理收尾归档批次：product-positioning-landing-plan（T-ACCESS-027/028 全 done，2026-08-28 completed）+ frontend-phase3-plan（T-FE-015~022/037 九任务全 done 2026-09-04；归档门禁「统一全页导航/F5/直达 URL 冒烟」2026-09-07 执行通过 21/21，Edge headless）。门禁执行记录见批次 README。 | [archive/2026-09-07/README.md](archive/2026-09-07/README.md) |
 | `archive/2026-08-27/` | product-vertical-slice 计划收口归档（T-ACCESS-026）：产品垂直切片与试点加固计划（18 项全 done，里程碑 A+B 达成）+ access-post-merge-plan（T-ACCESS-013~015 全 done，CI 准入前置关闭）+ improvement-plan 项目级路线图归档（诊断与四阶段拆分使命完成，完成度口径截至 2026-06，痛点 #3/#4 暂缓溯源仍有效）。外部 Docker 验证证据与 CI 口径见任务卡 T-ACCESS-026。权威入口：`design/access-service-architecture.md` | [archive/2026-08-27/README.md](archive/2026-08-27/README.md) |
 | `archive/2026-08-22/` | access-service 归并收口归档（T-ACCESS-012）：四份旧 DDL、原 admin-service 服务设计（superseded）、归并主计划（T-ACCESS-001~012 全部完成）。权威入口：`design/access-service-architecture.md` + `design/schema/access-service.sql` + `design/access-service-api-contract.md`（契约总册） |

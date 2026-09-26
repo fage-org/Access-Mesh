@@ -42,7 +42,7 @@ Gateway (8080) -> access-service (9100)    能力包单体：管理面（用户/
 | ------------------ | ------------------------------------------ |
 | 文档入口与阅读顺序 | `docs/README.md`                           |
 | 工程规范           | `docs/design/project-rules.md`             |
-| 定案登记表         | `docs/design/decision-registry.md`（现行册：定案消费与评审豁免唯一入口；用户定案当轮登记、口径 ≤200 字+叙事外置，双册协议见其头部；旧定案迁 `decision-registry-history.md`，存疑先 rg 历史册） |
+| 定案导航与治理 | `docs/design/decision-registry.md`（按任务范围定位当前规范与例外；写入、修订、评审及增量切换协议见 `project-rules.md` 文档治理） |
 | 整体架构           | `docs/design/architecture.md`              |
 | 归并后目标架构     | `docs/design/access-service-architecture.md` |
 | access-service API 契约总册 | `docs/design/access-service-api-contract.md`（单命名空间 `/api/access/**`、按能力分章；T-ACCESS-040 两册合一、T-ACCESS-042 URL 统一——外部路径=服务路径，无 Gateway StripPrefix） |
@@ -69,20 +69,15 @@ Gateway (8080) -> access-service (9100)    能力包单体：管理面（用户/
 
 统一响应体、错误码分段、路径格式、Lombok 细则、同层横向调用边界、实体类约束等以 `project-rules.md` 为准。
 
-## 权限中心实现提醒
+## 权限面规范定位
 
-- API 路径、请求体、响应体、错误原因以 `docs/design/access-service-api-contract.md`（契约总册）为准。
-- 表字段、索引、约束以 `docs/design/schema/access-service.sql` 为准（admin/perm 旧 schema 已 superseded）。
-- 核心场景链路以 `docs/design/engine/core-flows.md` 为准。
-- 对外 API 使用 `subjectTypeCode/resourceTypeCode/roleTypeCode`；内部表继续使用 `type_value` 数字值。
-- `type_value` 在同一 `tenant_id + type_key` 内全局唯一；不要按业务域重复分配相同内部值。
-- `query-scopes`、`scope_all` 是当前范围权限模型；不要恢复旧的 `query-data-scopes`、`includeDataScope`、`dataScopes`。
-- `resource_dependency.resource_entity_id` 是源资源/被授权资源，`depends_on_resource_entity_id` 是被源资源依赖、需要自动补全的目标资源。
-- **资源类型级所有权**：每个 resource_type 单一所有权，声明于 `type_definition.extra`（`managedMode` MANAGED/SYNC + `syncSourceService` 来源服务）。sync/full-sync 入口做类型门禁（非 SYNC、来源不匹配或来源服务未注册/停用 → `RESOURCE_TYPE_OWNERSHIP_DENIED`；service-config `extra.syncTypes` 仅保留 `subjectTypeCodes/roleTypeCodes/sourceTypes` 三维白名单供 user/role 同步通道消费，资源维度已退役——保存含 `resourceTypeCodes` 或未知字段拒绝（20044）；API 类型禁止经类型定义接口声明 SYNC——所有权由种子钉死）；管理面对 SYNC 类型 create/batch-create/update/move/remove 拒绝（20055，remove 覆盖级联删除全集含跨类型后代）；类型下有有效资源行时声明不可变更（20056）。USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION/CONDITION 为内部事实链路 SYNC（access-service；ADMIN_FILE 文件夹实例由 bootstrap 预置+上传惰性登记产出，T-ADMIN-025；TYPE_DEFINITION 实例投影 code={typeKey}:{typeCode} 复合键由 type-definition 写路径同事务维护+bootstrap 自愈补种，T-PERM-051；CONDITION 管理页条件投影 code=条件 code 由条件写路径同事务维护+bootstrap 自愈补种产出，仅 source=MANAGED（INLINE 内联条件不投影，T-PERM-048 双轨制）），外部同步一律拒；API 同为种子声明 SYNC+access-service（T-PERM-069，2026-09-18 Q-008「仅 API 收紧」）——唯一事实入口=service-config/sync 接口声明通道+bootstrap 固定图（领域直写），资源管理面 CRUD 20055、外部同步一律拒；SERVICE 维持 MANAGED（新 SERVICE 行唯一通道=管理面手工建行，做按服务实例级授权）；`resource_entity.maintain_source/owner_service_code` 为 service-config 通道行归属标记（读取面封闭）。演进历史（退役机制与收编清单）见 `docs/design/decision-registry.md` 与 `docs/design/access-service-architecture.md`。
-- **角色互斥授权时校验**（T-PERM-063+064，2026-09-12 定案）：全部用户-角色持有写入口必须挂互斥守卫——`user-role/assign`、`batch-assign` 命中 ROLE_MUTEX 对整批原子拒绝 20062；`user-role/sync`、`full-sync` 的 BIND 分支冲突 item 逐条 `NON_RETRYABLE` + `ROLE_MUTEX_CONFLICT`（T-PERM-075 起候选=未过期原始持有窗口：含未来 valid_from、含禁用持有与禁用新增目标，区间交判定真正不相交放行；改写后未过期即检查，旧「幂等改期不触发」已消解）；conflict-rule create/update 的 ROLE_MUTEX 分支存量双持非空拒绝 20063（候选经 `findUserIdsByEffectiveRoles` 反查含组角色间接持有）、并拒绝 ORG/POSITION 角色对（VALIDATION_FAILED，投影通道闭合）；互斥规则读取写路径 DB 直查不经 ROLE_MUTEX_RULE 缓存；「授予后状态」=未过期原始持有候选（T-PERM-075 U002 口径取代「仅计启用且当前有效」旧口径）；运行时判定面全部经 resolveJudgementRoleIds 统一互斥双删（取代「ROLE_MUTEX 不归引擎」定案，registry 2026-09-22）。
-- **类型授权根生命周期**（T-PERM-062，2026-09-12 定案）：自定义 resource_type 创建/追加操作同事务向类型所有者（`type_definition.extra.grantOriginRole`，服务端管理键——create 请求 extra 自带该键任意 typeKey 拒绝 20044；缺省 BASIC_ROLE/bootstrap-admin）种单 bit `scope_all+can_grant` 的 `AUTHORITY_ROOT` 首授行（形状由 DDL CHECK `ck_role_resource_permission_authority_root` 焊死）；所有者变更=update 同事务「先清后种」迁移（勿建议只补不迁或 reseed API）；apply-grant-plan 对 AUTHORITY_ROOT 行改删/挂子拒绝（20061，对齐 AUTO_DEP 只读先例）；类型删除级联（T-PERM-050）是类型生命周期回收路径（角色删除级联为第二回收路径，仅删所有者角色时触及授权根，registry 2026-09-21 拍板 A）；20040 reason 细分 `TYPE_GRANT_ORIGIN_MISSING` 仅自定义类型。写入通道 `PermissionGrantPlanDomainService.seedGrants`（bootstrap 固定图共用），checkCanGrant 委托语义零改动。
-- **自动授权物化（T-PERM-072）**：AUTO_DEP 授权行只由 `AutoGrantMaterializationDomainService`（grant 包）同事务 diff 落库——完整 desired 重算（`AutoGrantDerivation` 共享推导：MANUAL 实例主授权种子沿 resource_dependency 编译图闭包、完整事实键=资源+canonical 操作位+条件身份精确去重、条件直传 NULL 并存、不按资源启停过滤、不建 support 表不存全路径），旧 AUTO_DEP 不作种子。全部会收缩自动授权的写入口在读取推导输入之前取得 RESOURCE_ENTITY 树写锁（apply-grant-plan/角色删除为 072 新增挂锁入口，其余沿 071 既有锁序）；操作位变更/删除存在有效 MANUAL/AUTO_DEP 引用拒绝 20069（AUTHORITY_ROOT 不算用户引用）；角色删除（管理面/组织容器角色/角色同步三通道一致）级联回收全部有效授权行+INLINE 条件，已删角色不参与物化与 20069 引用判定；grant_dep_id 定案保留不写不读（Q-022）。
-- **业务域分类模型**：角色、资源等实体不再内嵌 `bizDomainId` 列，域分类通过 `domain_config` 表的 `CLASSIFY` 配置实现（按 `resourceTypeCode` 关联）。全局域(`global=true`，create 可选入口每租户仅一个，20057)的范围：有 CLASSIFY 声明按声明（声明即收窄）、无声明=未被其他域认领的资源类型动态补集（T-PERM-046 定案 2026-09-09）。权限查询管线不感知业务域。管理查询通过 `DomainClassifyService.matchesTypeCode/getClassifiedTypeCodes` 按三种模式(ALL/GLOBAL_PLUS/DOMAIN_ONLY)过滤。
+按任务范围阅读[定案入口](docs/design/decision-registry.md)及相关章节；不能以旧任务完成或历史修复记录直接撤回当前问题。
+
+- API 字段/错误码/门禁：契约总册对应能力章；schema 为表结构唯一权威。
+- 查询、互斥、继承和范围：`engine/`；新旧引擎迁移边界：`r2-unified-query-and-admission.md`。已采纳目标不等于已实现。
+- 类型所有权、授权根、条件与删除生命周期：契约总册 §12/13/15；内部事实投影：服务架构 §4/12。
+- 自动授权推导、完整写入口与锁序：`dependency-auto-grant.md`；旧 AUTO_DEP 不作种子，grant_dep_id 保留不读写。
+- 组织默认树/成员/岗位：`default-org-tree-user-lifecycle.md`；业务域分类：引擎实现 §2.7 与契约 §14，查询管线不感知业务域。
 
 ## 项目级 Skills（自动加载）
 
@@ -161,7 +156,7 @@ docker compose -f docker-compose.yml --profile app up -d --build
 > - 全量分两形态（T-ACCESS-031）：日常 `-T 1C -DskipE2E=true -DskipHeavyIT=true`（跳过 e2e 模块与容器 heavy 组），收口 `-T 1C`（E2E 与 heavy 必跑）——E2E 是产品验收资产（T-ACCESS-021 垂直切片），heavy 是超大规模参数上限验证（T-PERM-079 拆档），**收口不得带 -DskipE2E / -DskipHeavyIT**；ci.yml 单测 job 现行两开关（skipTestcontainers/skipE2E）不变。
 > - e2e 模块（reactor 末位）依赖三服务 artifact，**必须随 reactor 构建**（根构建或 `-pl e2e -am`）——单独 `-pl e2e` 会从本地仓库解析三服务的 repackaged boot jar，类路径为 BOOT-INF 布局必失败。
 > - 全量回归前先停本机 9100 dev 服务（`DualInstanceContainerTest` 占真实端口，冲突即假失败）；mvn 运行期间**禁止改动源码**（并发编译快照污染会制造大面积假失败）。
-> - 全量输出**整文件落盘**再解析（管道 `grep | tail` 会截断聚合统计）；失败先**隔离复跑**定性（已知抖动登记见 decision-registry），再决定是否重跑全量。
+> - 全量输出**整文件落盘**再解析（管道 `grep | tail` 会截断聚合统计）；失败先**隔离复跑**定性（按测试规范核实；历史抖动不豁免新回归），再决定是否重跑全量。
 > - 容器组基建已单例化（`ItInfra`：**每 fork JVM 一份**单例 PG/Redis + 按类建库 + 按类 Redis 逻辑库索引 + fork 级 2 进程并行——sa-token 的 SaManager 是 JVM 级静态单例，同 JVM 线程级类并发下邻类上下文关闭会把静态 dao 指向已 shutdown 的 Redisson，故并行必须走进程隔离；本机开 `~/.testcontainers.properties` 的 `testcontainers.reuse.enable=true` 后各 fork 按配置哈希复用同一对容器，无该文件的环境（如 CI）每 fork 各起一对）；类库/索引由会话首启自动清理，无需手工维护。
 > - `-T 1C` 模块并行下负载抬升曾击穿两个固定 sleep 余量的时序用例（TaskLease 同实例接管、Gateway 失效代际竞态），均已改确定性机制（轮询至可抢占 / CompletableFuture 提交闸门）；新增并发/时序用例**禁用裸 sleep 余量**表达时序。
 

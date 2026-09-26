@@ -3,7 +3,7 @@ doc_type: design
 title: 「组织与用户」融合页 · 权限契约
 status: adopted
 domain: org-user
-last_reviewed: 2026-09-24（T-API-004：§4.B 编辑用户行补显式清空协议括注——phone/email 清空走 phoneClear/emailClear、空白 400、同传 400，统一协议见契约总册 §2.7）2026-09-23 2026-09-15 2026-09-13   # T-ACCESS-034：操作码常量源改挂合一后 OperationCode（原 AdminOperationCode/OperationCodeConstants 两册删除，正文类名机械改挂；备注¹ 定稿考古段保留当时旧类名并加历史限定）；此前 2026-06-20
+last_reviewed: 2026-09-26
 ---
 
 # 「组织与用户」融合页 · 权限契约
@@ -146,7 +146,10 @@ v1.4 起前后端**共用同一套权限词法**（乙层 `资源类型:操作�
 | 查看用户角色 | `USER:VIEW`（`/api/access/user-role/list`） | `USER:VIEW` | 角色区不显示 |
 | 分配/回收功能角色 | **`ROLE:MANAGE`** ³（目标角色实例；T-ACCESS-006 起由权限面 `/api/access/user-role/assign|revoke` 直接提供，admin 侧原 `/api/access/user-role/assign|revoke` 写代理已删除（T-ADMIN-024，无映射 404）；`/api/access/user-role/list` 保留经 `role.service` 聚合） | `ROLE:MANAGE` | 角色区只读 |
 
+<a id="position-actions"></a>
 ### D. 岗位（Tab：岗位管理）—— 岗位 = 特殊组织 `ORG`（按 `orgType=2` 区分）⚠️ 配权贴近红线
+
+岗位停用后仍可发现并恢复，但该行授权入口禁用并给出 tooltip；不改变授予页主体树仅加载启用主体的过滤。该范围外的角色页/组织卡入口与草稿确认问题继续按 Q-037 处理。[来源](../archive/2026-09-26/decision-registry-before.md)（原第 173 行）。
 
 | UI 动作 | 资源:操作（乙层 / 端点） | 前端 perm 码 | 无权降级 |
 |---|---|---|---|

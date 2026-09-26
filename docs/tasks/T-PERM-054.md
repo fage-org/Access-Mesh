@@ -29,7 +29,7 @@ last_updated: 2026-09-25
 
 原问题（2026-09-05 设计体检 P2-3）：`addApiMapping`/`updateApiMapping` 仅校验资源存在不校验类型，非 API 类型可建映射；运行时 `forInterfaceCheck` 固定 `Set.of("API")+ACCESS` 过滤——非 API 绑定为恒 deny 死配置（fail-closed 无越权，P2）。
 
-方向定案（2026-09-09 registry）：API 不单独授权、接口权限由操作权限关联派生。**方案定稿（2026-09-25）**：统一设计 `r2-unified-query-and-admission.md`（v3.1 adopted）落地方案 A，本卡解除暂缓并归入计划 r2-query-engine-and-admission。
+方向定案（2026-09-09 [历史定案原文](../archive/2026-09-26/decision-registry-before.md)）：API 不单独授权、接口权限由操作权限关联派生。**方案定稿（2026-09-25）**：统一设计 `r2-unified-query-and-admission.md`（v3.1 adopted）落地方案 A，本卡解除暂缓并归入计划 r2-query-engine-and-admission。
 
 ## 范围
 

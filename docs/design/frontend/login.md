@@ -3,7 +3,7 @@ doc_type: design
 title: 登录页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-09-20   # T-FE-056 收口：「路由可达性」口径清扫为 menus 派生路由门禁（机制与回归锁见 login.md §路由级 UX 门禁）；此前 2026-09-20 T-FE-054 收口+claude 外评处置（P2 判据单源 isSessionTerminated/401 令牌仍在才提示/代际守卫会话终结不拦/守卫 then 补 catch/短路 SessionExpiredError）；此前：T-FE-054 短路+双分支提示、T-FE-048 会话权限热刷新节、T-FE-046 强制改密闭环、T-FE-049 登录提示两态、T-FE-045 登出流程节、2026-09-15 T-FE-015、2026-08-31 T-FE-041
+last_reviewed: 2026-09-26
 ---
 
 # 登录页 前端设计（T-FE-041 真实登录链路）
@@ -70,6 +70,8 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 - 请求拦截器（T-FE-054 短路口径，2026-09-20 拍板；外评 P2 收口后判据单源）：会话终结判据统一走 `utils/auth.ts isSessionTerminated`（无凭证 ∨ 本地 `expires` 到期；**cookie 过期被清 + userKey 残留**形态下 `getToken()` 兜底 localStorage 仍真值——仅判无凭证会漏，该形态同判终结）→ 统一提示「会话已过期，请重新登录」（10s 去重窗口）+ `logOut()` 清会话回登录页 + **本次请求直接 reject**（`SessionExpiredError`，message 与提示同文案；授予页 `classifySaveError` 按 name 识别为「未发出可安全重试」非「结果未知」）——原「无令牌放行、由 Gateway 401 兜底」口径退役（多一次必然 401 的往返）。白名单 `/api/access/auth/captcha`、`/api/access/auth/login` 不经拦截器令牌逻辑，`/api/access/auth/logout` 亦在白名单但由调用方显式携令牌（见「登出流程」）。
 - 响应拦截器：**仅** HTTP 401 → 统一提示「会话已过期」（**令牌仍在才提示**——主动登出（logOut 已清令牌）后在途请求的 401 不弹「会话已过期」误导，外评 P3 处置）+ `logOut()` 清会话回登录页；提示与本地过期短路双分支统一、共用 10s 去重窗口（T-FE-054）；HTTP 403 → 触发会话权限热刷新（见下节，T-FE-048）；503 等其余状态码由页面层自行处理。
 
+<a id="session-permissions"></a>
+
 ## 会话权限热刷新（T-FE-048，2026-09-19 拍板）
 
 **问题**：管理员给用户 A 新增 `USER:UPDATE` 后 A 的按钮不出现、撤权后按钮残留点击 403，只能 F5/重登——`refreshUserMenu()` 原全仓仅 loginByUsername 与 initRouter 两处调用，且**仅刷 store 不重建侧栏**（permissionStore.wholeMenus 唯一重建点在 initRouter），「按钮权限已新、侧栏旧菜单残留继续点击 403」。**机制必须落在被授权人会话侧**（管理员授权发生在管理员自己的浏览器，页面内刷新帮不了被授权人），403 触发正是「被授权人下一个动作即自愈」的形态（弃轮询/推送——前者延迟=N 分钟且常驻请求量、后者需后端新事件机制属长期项）。
@@ -79,18 +81,22 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 - 成功：侧栏即时重建（撤销的菜单项从侧栏消失；全撤销落「当前账号无可用菜单」占位）；
 - 失败：原样抛出且不触碰 wholeMenus——按钮/侧栏维持旧态（后端 fail-closed 兜底）；门禁状态机维持 loaded（failed 仅由首次加载失败产生）——T-FE-056 起门禁消费面落地：path 集为 menus 的**响应式派生**（每次导航现算，本入口回写 menus 即门禁随会话权限即时收敛，无快照失联——T-FE-055 capability 派生化同款定案）、状态机迁移在本入口所经的 `refreshUserMenu`（见下节）；
 - **single-flight（Q-016 收口，T-FE-054）**：入口内共享在途 Promise——同会话（accessToken 指纹相同）并发调用只发一次 user-menu 请求，403 自动/手动/授予页重试多通道并发不再各发各的（旧响应晚到覆盖新权限串的同会话竞态随之消除）；完成后在途标记复位，下次调用重新发起；
-- **跨会话代际守卫（Q-016 收口，T-FE-054）**：`refreshUserMenu` 回写（Pinia+localStorage userKey）与侧栏重建前均比对 accessToken 指纹——**会话已换**（登出重登、存在另一活会话令牌）时旧响应（成功/失败）一律丢弃，不污染新会话的 menus/权限串/menuLoadFailed；**会话已终结**（getToken 空，如 401 分支已 logOut）不拦——照常置位/上抛（外评 P3 处置：吞掉会话终结型 401 会使手动刷新假成功、登录 401 硬化分支不可达）；
+- **跨会话代际守卫**：成功结果只在 `sessionAlive`（当前令牌存在且仍等于请求指纹）时回写 Pinia、localStorage userKey 与侧栏；令牌已消失时也丢弃成功结果，防止复活旧会话。失败只在 `sessionReplaced`（另一活会话）时丢弃，会话终结型 401 仍上抛，不能让手动刷新假成功。正常 `setUserKey` 恒带 expires，残缺 userKey 的回写入口已封闭，暂不为不可达的 NaN 形态增加防御分支；新增持久化写者时复核。[来源](../../archive/2026-09-26/decision-registry-history.md)（原第 33 行）。
 - 不清理 multiTags 已缓存标签（标签指向的路由由后端 403 兜底）；不经 `handleAsyncRoutes`（其 multiTags 重置仅属登录/F5 的 initRouter 全量路径）。
 
-**403 自动刷新**（`src/utils/http/index.ts` 响应拦截器 403 分支）：窗口去重触发能力刷新——**10s 去重窗口**（2026-09-20 用户拍板；起算于触发时刻，窗口内在途双保险：短时间内多次 403 只刷一次），失败静默维持旧态（仅 console.warn，无 message 弹窗——与手动入口的显式反馈口径区分），**不自动重放原请求**（防循环，用户重新点击即可），排除 user-menu 自身（刷新入口即该请求，其 403 下重发无自愈可能）。403 ≠ 必然权限变更（可能是配错/越权访问）——刷新无害（多一次 user-menu 请求），按钮显隐以最新事实为准。错误本身仍原样 reject 由页面层处理展示。
+**403 自动刷新**（`src/utils/http/index.ts` 响应拦截器 403 分支）：窗口去重触发能力刷新——**10s 去重窗口**（2026-09-20 用户拍板；起算于触发时刻，窗口内在途双保险：短时间内多次 403 只刷一次），失败静默维持旧态（仅 console.warn，无 message 弹窗——与手动入口的显式反馈口径区分），**不自动重放原请求**（防循环，用户重新点击即可），排除 user-menu 自身（刷新入口即该请求，其 403 下重发无自愈可能）。403 ≠ 必然权限变更（可能是配错/越权访问）——刷新无害（多一次 user-menu 请求），按钮显隐以最新事实为准。错误本身仍原样 reject 由页面层处理展示。去重窗口跨登出/登录不清空：接受新会话首次 403 自愈最多延后 10s，避免 HTTP 层反向挂载登出钩子；手动刷新不受此窗口限制。会话/HTTP 耦合方式变化时复核。[来源](../../archive/2026-09-26/decision-registry-before.md)（原第 127 行）。
 
 **顶栏手动入口**（lay-navbar 工具区「刷新权限」图标按钮，经 useNav `refreshPermission`）：直连能力刷新入口（**不走 403 去重通道**——显式动作立即响应，亦不受 10s 窗口限制）；模块级在途 ref（T-FE-054 起「发请求去重」已由入口内 single-flight 承担，useNav 标记职责收窄为防重复进入/重复 message 的 UI 层防抖）；成功 message「权限已刷新」且按钮显隐/侧栏菜单即时更新；失败弹错误 message「权限刷新失败，请稍后重试」（2026-09-20 用户拍板：显式动作配显式反馈）。**已知布局边界（2026-09-20 外评登记，修法定向抽公共组件、暂不实施）**：按钮现仅挂 vertical 布局工具区——mix/horizontal 布局的顶栏工具区由 `NavMix.vue`/`NavHorizontal.vue` 两份手写复制体渲染、暂无此入口；该两布局下靠 403 自动通道（与布局无关）+ F5 兜底，未来收敛为三处共用小组件时消除。
 
 **回归锁**（`src/utils/http/index.spec.ts` + `src/views/perm/grant/utils/hook.spec.ts`）：①403 触发能力刷新恰好一次（窗口内第二次 403 不再触发）；②403 自动刷新成功后侧栏同步重建（撤销项消失/全撤销占位）——两条旧实现（无触发/仅 initRouter 重建）下必红；③retryLoadDeps 先刷权限串（刷新使权限翻真后重试才发依赖请求）——旧实现下必红；附加锁：窗口过期可再触发 / user-menu 自身 403 不触发 / 刷新失败静默维持旧态 / 401 分支不受扰 / 刷新失败不阻断授予页重试。
 
+<a id="route-gate"></a>
+
 ## 路由级 UX 门禁（T-FE-056，2026-09-19 拍板③；拦截落点 2026-09-20 用户拍板全屏 /access-denied）
 
 **口径演进**：T-PERM-037（2026-08-31）当时维持「菜单可见、路由可达、后端 403 兜底」的理由是「meta.auths 为前端静态声明可绕过，与后端派生方案重复」——T-FE-015 后菜单已是后端按权限派生（menus 树），以 menus 派生路由门禁不再有静态可绕过问题，本机制落地后「路由可达、后端 403 兜底」口径退役为「menus 门禁拦 403 + 后端 403 双层兜底」。
+
+模板 `meta.roles` 白名单不启用，菜单权限由后端 menus 派生；`filterNoPermissionTree` 尚有结构处理副作用，不能仅因没有 roles 声明就删除整条调用链。强制改密成功后须等待 `initRouter` 完成再取首菜单落点，不固定跳 welcome。[来源](../../archive/2026-09-26/decision-registry-history.md)（原第 32、34、35 行）。
 
 **门禁集合**（`src/router/gate.ts`，三源之并）：
 
@@ -108,12 +114,16 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 
 **回归锁**（`src/router/index.spec.ts` 守卫行为 + `src/router/gate.spec.ts` 纯函数 + `src/store/modules/user.spec.ts` 状态机）：锁① loaded 态无权限导航拦 403（旧实现放行，红跑实证）；锁② 冷启动深链同步不放行、初始化后被拦（旧实现立即放行，红跑实证）；锁③ `/redirect/:path` 白名单前缀放行（漏配实现红）；锁④ `/perm/grant` 显式映射放行/反向无 `ROLE:VIEW` 拦截（纯 menus 白名单实现红）；锁⑤ failed fail-open 放行（安全锁，现状保持）；状态机行为锁（首载 loading→loaded / 首载失败 failed / 刷新失败维持 loaded / 刷新在途不回退 loading / logOut 重置——旧实现无状态机字段红跑实证）。红跑实证（红数与全量绿数以当轮 vitest 报告为准）。
 
+登录提示与令牌在毫秒级失效交错时仍可能短暂不同，维持现有提示行为；令牌终结统一由请求层处理，不给 menu-retry 等单入口另造判空分支，也不把提示边界扩为鉴权豁免。[来源](../../archive/2026-09-26/decision-registry-before.md)（原第 122 行）。
+
 ## 登出流程（T-FE-045 真注销；T-FE-054 起注销改 fire-and-forget）
+
+请求短路、initRouter 和 menu-retry 的会话终结编排共用 `terminateLocalSession`（提示过期、调用 logOut、抛 SessionExpiredError）；普通主动登出直接调用 logOut，不借终结异常控制流。
 
 登出入口（顶栏下拉 `useNav.logout`、请求拦截器本地过期短路分支、响应拦截器 401 分支、initRouter 会话终结分支〔Q-020，凭证已无形态〕）统一走 `useUserStore.logOut()`：
 
-1. **服务端注销 fire-and-forget（T-FE-054/Q-016 收口，2026-09-20 拍板）**：持令牌时发出 `POST /api/access/auth/logout`（`api/auth.ts logout()`，`R<Void>` 经 unwrap 解包）即**不等完成**——后端黑洞时本地清理与跳转不再被推迟（原 await 形态最长挂 10s），窗口内新登录的凭据也不再被旧清理链清除。注销请求**显式携带 Authorization 头**（store 读当前 token 经 `formatToken` 构造后传入）——该端点已加入 http 请求白名单，拦截器不注入令牌也不做过期判定（防过期分支 `logOut` 递归），令牌仍照常送达服务端：本地 `expires` 已到期路径触发的登出，也能注销可能仍存活的服务端会话（本地到期时刻与 Sa-Token 服务端会话不完全同步）。注销失败仅 `console.warn` 不弹错。
-2. **本地清理无条件立即执行**（同步段完成，不依赖注销结果）：清 Pinia（username/roles/permissions/menus）→ `removeToken`（cookie+localStorage）→ multiTags 重置 → `resetRouter` → 跳 `/login`。登出完成后重复触发时 `getToken()` 已无令牌，不再发请求，仅幂等清理+跳转（`logoutInFlight` 标记在 fire-and-forget 后无实际拦截窗口，保留仅为防御未来重新引入 await 点）。
+1. **服务端注销 fire-and-forget（T-FE-054/Q-016 收口，2026-09-20 拍板）**：持令牌时发出 `POST /api/access/auth/logout`（`api/auth.ts logout()`，`R<Void>` 经 unwrap 解包）即**不等完成**——后端黑洞时本地清理与跳转不再被推迟（原 await 形态最长挂 10s），窗口内新登录的凭据也不再被旧清理链清除。注销请求**显式携带 Authorization 头**（store 读当前 token 经 `formatToken` 构造后传入）——该端点已加入 http 请求白名单，拦截器不注入令牌也不做过期判定（防过期分支 `logOut` 递归），令牌仍照常送达服务端：本地 `expires` 已到期但仍能取得令牌时，可以注销可能仍存活的服务端会话（本地到期时刻与 Sa-Token 服务端会话不完全同步）。注销失败仅 `console.warn` 不弹错。Cookie 已到期且令牌已不可取得时，接受无法主动注销的边界，由服务端 2h TTL 兜底；不为此延长 accessToken 在 localStorage 的留存。[来源](../../archive/2026-09-26/decision-registry-before.md)（原第 114 行）。
+2. **本地清理无条件立即执行**（由 `userStore.logOut` 单源执行，同步段完成，不依赖注销结果）：清 Pinia（username/roles/permissions/menus）→ `removeToken`（cookie+localStorage）→ multiTags 重置 → `resetRouter` → 跳 `/login`。登出完成后重复触发时 `getToken()` 已无令牌，不再发请求，仅幂等清理+跳转（`logoutInFlight` 标记在 fire-and-forget 后无实际拦截窗口，保留仅为防御未来重新引入 await 点）。
 3. **会话已过期提示**（T-FE-054）：三通道（本地过期短路/401 响应/initRouter 会话终结）统一经 `notifySessionExpiredOnce` 弹「会话已过期，请重新登录」warning，10s 去重窗口防并发轰炸。
 
 > T-FE-045 原「服务端注销优先=等注销完成再清理」口径就此演进（2026-09-20，T-FE-054）：「优先」语义从「等注销完成」改为「注销请求先发出即清理」。T-FE-041「前端登出仅清本地、不调接口」口径已于 2026-09-19 退役（T-FE-045）。logoutAll 踢全部端点与多设备会话管理为非目标（另立评估）。

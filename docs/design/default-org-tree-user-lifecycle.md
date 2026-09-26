@@ -3,7 +3,7 @@ doc_type: design
 title: 默认组织树与用户生命周期设计
 status: adopted
 domain: org-user
-last_reviewed: 2026-09-21 2026-09-15   # 2026-09-21 T-ORG-002 §7.0 写入口守卫落地（六入口表+共享判定+恢复 runbook）；此前 2026-09-15（T-PERM-051 六类型口径）
+last_reviewed: 2026-09-26
 ---
 
 # 默认组织树与用户生命周期设计
@@ -221,6 +221,8 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
 
 ---
 
+<a id="default-tree"></a>
+
 ## 7. 默认组织树治理
 
 默认组织树必须满足以下约束：
@@ -245,6 +247,8 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
 | `org-tree-config/delete` | 默认配置行无条件拒绝（身份目录结构性存在；无默认配置的租户放行） | 11018 `ORG_TREE_CONFIG_DEFAULT_PROTECTED` |
 
 共享判定收敛于 `OrgTreeConfigDomainService.findUsersLosingDefaultHome(old, new)`（批量两查、无逐用户 SQL）；锁覆盖=守卫族全部参与方：`org/delete` 守卫在三树锁内、树配置三守卫入口挂 SYS_ORG 树锁（锁内重读配置，防并发写窗口快照过期）、成员关系两写入口（`user-org/assign`/`remove`）在门禁后挂 SYS_ORG 树锁（claude 外评 P2：成员写不持锁时，并发 deleteOrg/setDefault 的守卫读与成员写交错可双放行致归属归 0——同锁串行后窗口闭合）。tenant 1 固定图根业务键漂移由 bootstrap 重启检测兜底（与菜单根 code 漂移同口径），写入口不重复拦截。`create` 新配置的根与其他树祖先/后代重叠校验不在守卫面内（不改变现有默认身份池；登记 Q-024 留观）。事故态（守卫上线前的存量/直改库）诊断与定点恢复见 [runbook-default-tree-recovery](../ops/runbook-default-tree-recovery.md)。
+
+`set-primary` 与 assign/remove 共用默认树解析和同一树写锁；目标不存在与无权分别按 10101/403 返回，不为隐藏存在性改写已采纳顺序。set-default 在有成员归属时拒绝，update 的安全扩围按本节既有规则放行；默认归属约束采用宁严勿松的取舍。[来源](../archive/2026-09-26/decision-registry-before.md)（原第 161 行）及[历史决定](../archive/2026-09-26/decision-registry-history.md)（原第 36 行）。
 
 ### 7.1 组织树归属解析约定
 

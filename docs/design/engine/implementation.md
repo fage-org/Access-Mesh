@@ -3,7 +3,7 @@ doc_type: design
 title: 权限中心 — 核心功能实现设计
 status: adopted
 domain: access-service
-last_reviewed: 2026-09-22（T-PERM-075：§2.4 候选口径统一为未过期原始持有候选 + resolveJudgementRoleIds 共同判定入口成文、§3 头注定案①加取代括注、§3.3 管线图角色解析句、§3.5 ROLE_MUTEX 口径重写、§3.8 接口快照行同步）；此前 2026-09-17（T-PERM-068 Q-007 三定案：§3 引语定案③括注更新——sync 通道跨类型父边已收紧为同类型拒绝，闭包止步语义保留作 DB 直写脏数据防线；§3 遗留节「后续禁止资源树跨类型」改进项划线收口）；此前 2026-09-15 大小写口径由 Q-003 登记待统一改定案终态——raw 严格化，DTO @Pattern 大写边界保证 + 授权域归一退役）；此前 2026-09-14（轻量清扫批次四 Q-004 改名：§8 等正文类名引用 BusinessKeys→BusinessKeyUtil、SyncKeyCodec→SyncKeyCodecUtil，纯改名零行为——历史链内旧类名保留原文）；此前 2026-09-14（T-ACCESS-041：域叙事改管理面/权限面口径——术语指针、§3.4 门禁入口族叙事、§4.3 门面表述、frontmatter domain 改 access-service）；此前 2026-09-13（T-ACCESS-039：§5.1 缓存表与正文目录册引用改挂合一后 AccessCacheCatalog——mode/TTL 与键格式零改动；last_reviewed 历史链内 2026-09-11 时点注记保留旧册名原文）；此前 2026-09-13（T-ACCESS-034：操作码常量类引用改挂合一后 OperationCode + §8.3 死常量注记口径变更——统一常量面=注册表镜像）；此前 2026-09-13（T-ACCESS-040 迁位 docs/design/engine/，内容原样；api-contract 引用重挂总册）；此前 2026-09-12（T-PERM-063：§2.4 角色互斥三面守卫成文 + §3 头注与定案①/遗留清单注记闭环）；此前 2026-09-11   # 2026-09-11 T-PERM-061 实施落地：§3.10 A+ 形态实施（引擎 queryBatch/BatchEvalContext + openBatchEvaluator 四态条件快照 + openBatchMutexEvaluator 计算通知解耦 + batchCheck 编排重写 + queryInstance 空目标集守卫 + BatchAuthCheckPgIT 回归锁①-⑪），§3.8 batch-check 行与 §6.1 a2 批量口径注记（api-contract）同步；此前 2026-09-11 T-PERM-061 设计定稿：新增 §3.10 batchCheck 批量化 A+ 形态设计（共享装载分段化/条件增量四态快照/分组键/投影谓词不变量表/评估粒度与顺序不变量/reason 双轨/b2 ledger 与父判定审计桶/回归锁清单，经外部评审逐条核实处置后用户确认），§3.8 对外接口表 batch-check 行指向目标形态（实施未开始）；同批 §5.1 快照链路四缓存行修正对齐 PermCacheCatalog 实际（L2_ONLY/10s，既有债随文档评审批次修正）；此前 2026-09-11 T-PERM-055 顺带收口：§2.7 域分类接口摘录同步（preloadCoveredTypeCodes 新方法 + 既有 findDomainIdsByTypeCodes 补齐，正文注记批量上下文预载口径）；此前 2026-09-10 T-PERM-059 收口：§3.8 对外接口表权限视图/权限解释两行删除（permission-view 七端点+query-permission-tree 退役）+ §3.1 注记口径更新（登录权限串为 forUserView 管线唯一存续消费面）+ §7.5 权限树整节删 + §6.2 diff_snapshot 形状引用改指 api-contract §5.8；此前 2026-09-10 T-PERM-058 收口：§3.1 便捷入口 depend_on 口径注记 + §3.3 三态判别补 depend_on 处理（TYPE_LEVEL 读侧排除/INSTANCE 主资源上下文过滤与惰性父判定/LIST 不变）+ 管线图补 filterDependentEntries + 遗留清单移除已收口项；此前 2026-09-09 T-PERM-057 §3 全节重写为统一引擎版（targetMode 三态+判定面闭包+评估拉平+六套形态收编；三条实施定案见 §3 头注）；此前 2026-09-07 T-PERM-051 §8.1 typeInstanceBusinessKey 注记改已落地（投影+门禁消费链见 architecture §12.3）；同日早前 T-PERM-019 D2 新增 §8 业务键统一构造（perm-common BusinessKeys——2026-09-14 已更名 BusinessKeyUtil + parity golden 锁）与 D3 一致性核对结论、ASSIGN/REVOKE 死常量删除；此前：2026-08-28 §3.6/§3.7 工厂表收敛（forResourceQuery/forResourceCheck 删除 8→6、补 forValidateByEntityId）
+last_reviewed: 2026-09-26
 ---
 
 # 权限中心 — 核心功能实现设计
@@ -170,6 +170,7 @@ public interface SubjectDomainService {
 
     // 用户有效角色解析
     Set<Long> resolveEffectiveRoles(Long tenantId, Long userId);
+    // 保留批量有效角色公共能力；判定入口用 resolveJudgementRoleIds，写守卫用 batchResolveRawHoldings。
     Map<Long, Set<Long>> batchResolveEffectiveRoles(Long tenantId, Set<Long> userIds);
 
     // 缓存失效
@@ -240,7 +241,7 @@ public interface PermissionConflictDomainService {
 }
 ```
 
-角色互斥守卫与判定（T-PERM-063 2026-09-12 落地；T-PERM-064 补全 sync 通道；T-PERM-075 2026-09-22 候选口径统一）：①**授予守卫**——`user-role/assign`、`batch-assign` 与 `UserRoleSyncAppServiceImpl.applyItemSync` BIND 分支（sync/full-sync 共用单点）事务内校验，命中互斥对分别整批原子拒绝 **20062** / item 级 `NON_RETRYABLE` + `ROLE_MUTEX_CONFLICT`（full-sync 同批同用户多 BIND 经请求级批内累积判定）。候选口径（T-PERM-075 U002 两项拍板，registry 2026-09-22 行）：**未过期原始持有候选**（`batchResolveRawHoldings`：valid_to >= now OR null，未来 valid_from 窗口同入、闭区间口径 null=无限期、首尾相接同刻算重叠；组展开含禁用子树；不缓存 DB 新鲜读）∪ 本批未过期新增（含禁用目标）；已过期行永不生效不计；sync 改写后未过期即检查（旧「幂等改期不触发」随窗口重叠判定消解——纯幂等重放因持有侧无冲突天然通过）；full-sync 批内一次预载消 N+1（批内写入由 appliedThisBatch 补偿）。规则面 create/update 拒绝 ORG/POSITION 角色对（结构角色对由本地投影通道维护，规则面拒绝即闭合投影通道）；②**存量守卫**——`conflict-rule/create`、`update` 的 ROLE_MUTEX 分支写入前检查存量双持（原始持有候选口径，禁用/未来持有同计——消除「绑定时拒、立规时放」双通道不一致），非空拒绝 **20063**（message 含用户 id 清单截断 20），候选经 `findUserIdsByEffectiveRoles` 三路反查（含组角色间接持有），PERM_MUTEX 分支与 remove 不适用；③**运行时统一判定**——全部判定入口经 `resolveJudgementRoleIds` 消费互斥过滤后角色集（双删命中记 CONFLICT_DETECTED 日志；空规则集也回填缓存防判定路径打 DB）。并发双开两笔授予的窄竞态窗口与「禁用角色绑定 vs 启用」竞态窗口接受（运行时双删兜底 fail-closed，无安全回退；角色启用动作不查存量互斥——U002-2 拍板，启用保持全局性）。
+角色互斥守卫与判定（T-PERM-063 2026-09-12 落地；T-PERM-064 补全 sync 通道；T-PERM-075 2026-09-22 候选口径统一）：①**授予守卫**——`user-role/assign`、`batch-assign` 与 `UserRoleSyncAppServiceImpl.applyItemSync` BIND 分支（sync/full-sync 共用单点）事务内校验，命中互斥对分别整批原子拒绝 **20062** / item 级 `NON_RETRYABLE` + `ROLE_MUTEX_CONFLICT`（full-sync 同批同用户多 BIND 经请求级批内累积判定）。候选口径（T-PERM-075 U002 两项拍板，[历史定案原文](../../archive/2026-09-26/decision-registry-before.md) 2026-09-22 行）：**未过期原始持有候选**（`batchResolveRawHoldings`：valid_to >= now OR null，未来 valid_from 窗口同入、闭区间口径 null=无限期、首尾相接同刻算重叠；组展开含禁用子树；不缓存 DB 新鲜读）∪ 本批未过期新增（含禁用目标）；已过期行永不生效不计；sync 改写后未过期即检查（旧「幂等改期不触发」随窗口重叠判定消解——纯幂等重放因持有侧无冲突天然通过）；full-sync 批内一次预载消 N+1（批内写入由 appliedThisBatch 补偿）。规则面 create/update 拒绝 ORG/POSITION 角色对（结构角色对由本地投影通道维护，规则面拒绝即闭合投影通道）；②**存量守卫**——`conflict-rule/create`、`update` 的 ROLE_MUTEX 分支写入前检查存量双持（原始持有候选口径，禁用/未来持有同计——消除「绑定时拒、立规时放」双通道不一致），非空拒绝 **20063**（message 含用户 id 清单截断 20），候选经 `findUserIdsByEffectiveRoles` 三路反查（含组角色间接持有），PERM_MUTEX 分支与 remove 不适用；③**运行时统一判定**——全部判定入口经 `resolveJudgementRoleIds` 消费互斥过滤后角色集（双删命中记 CONFLICT_DETECTED 日志；空规则集也回填缓存防判定路径打 DB）。并发双开两笔授予的窄竞态窗口与「禁用角色绑定 vs 启用」竞态窗口接受（运行时双删兜底 fail-closed，无安全回退；角色启用动作不查存量互斥——U002-2 拍板，启用保持全局性）。
 
 成员 sync/full-sync 在依赖与关系预加载前取得租户 ABSTRACT_ROLE 写锁，复用树锁的 afterCompletion 释放协议。版本只读预判、依赖/归属/互斥预检、原子版本比较和关系写入都处于该窗口；预期拒绝不写版本，版本后的技术失败通过入口事务回滚。full-sync 复用批量结果，已确认缺失的主体/角色/关系不回退逐项查询。该锁防止同步入口间旧预加载结果覆盖新事实，不改变管理面与同步面之间已接受的角色互斥竞态边界。
 
@@ -264,7 +265,7 @@ public interface PermissionConditionDomainService {
 }
 ```
 
-条件双轨制（T-PERM-048 五项定案 2026-09-11，详见 registry）：`permission_condition.source` 区分 MANAGED（管理页轨——ConditionAppService CRUD，update/remove 实例级门禁 CONDITION:UPDATE/DELETE@{code} 经 resource_entity(CONDITION) 投影解析，删除引用守卫 20059，有实例投影）与 INLINE（内联轨——apply-grant-plan 携带 inlineCondition 同事务创建/编辑/回收，1:1 属于授权记录不可共享，code 自动生成 inline- 前缀，enabled 恒 true，不投影；管理面防线 20060 三面 + conditionCode 引用轨值域焊死 MANAGED）。条件写路径同事务维护 CONDITION 实例投影（`LocalProjectionDomainService.upsertConditionResource`，status 镜像 enabled）+ bootstrap 自愈补种（`backfillConditionProjections` 仅 MANAGED）。
+条件双轨制（T-PERM-048 五项定案 2026-09-11，详见 [历史定案原文](../../archive/2026-09-26/decision-registry-before.md)）：`permission_condition.source` 区分 MANAGED（管理页轨——ConditionAppService CRUD，update/remove 实例级门禁 CONDITION:UPDATE/DELETE@{code} 经 resource_entity(CONDITION) 投影解析，删除引用守卫 20059，有实例投影）与 INLINE（内联轨——apply-grant-plan 携带 inlineCondition 同事务创建/编辑/回收，由一个 MANUAL 授权拥有，可被其多个系统派生 AUTO_DEP 行按同一条件身份引用；禁止用户显式共享，回收须确认零有效引用（见 [自动授权设计 §6.4](../dependency-auto-grant.md#64-diff撤销与条件回收)），code 自动生成 inline- 前缀，enabled 恒 true，不投影；管理面防线 20060 三面 + conditionCode 引用轨值域焊死 MANAGED）。条件写路径同事务维护 CONDITION 实例投影（`LocalProjectionDomainService.upsertConditionResource`，status 镜像 enabled）+ bootstrap 自愈补种（`backfillConditionProjections` 仅 MANAGED）。
 
 ---
 
@@ -326,6 +327,8 @@ public interface PermissionGrantDomainService {
 在 PermQueryEngine 查询管线中批量预解析 `resourceTypeCode→typeValue` 和 `(resourceTypeCode, operationCode)→operationId`，避免管线中重复调用 TypeResolutionService。
 
 ---
+
+<a id="permission-query"></a>
 
 ## 3. 鉴权查询模块（PermQueryEngine）
 
@@ -503,7 +506,7 @@ query-scopes 四态分组（T-PERM-009 契约维持）：AppService 只留线格
 - **缓存键不变**（§5.2 核对）：ROLE_PERM_SNAPSHOT / OPERATION_PERMISSIONS_BY_TYPE / EFFECTIVE_ROLES / 网关 gw:interface-snapshot 均不因闭包下推改变键与失效；ORG_VISIBILITY 已由 PermissionChangeAspect 租户级 evictAll 覆盖（继承后可见闭包语义确变但失效机制已闭合）。
 - **OAuth2 委托链路显式排除**（2026-08-22 用户决策维持）：OAuth2 资源服务器链路（access.oauth2.resource-paths 显式开放路径 + delegatedClientId 独立映射，T-ACCESS-013）不接入统一引擎——重构不得误接入。
 - **回归面**：四个门禁入口族（管理面门面 / 权限面 code 轨 / 资源树 entityId 轨 / SDK auth-check 族）语义回归 + targetMode 三态互不串义锁 + 判定面闭包锁（`TargetModeClosurePgIT`：TYPE_LEVEL 串义拒绝 / 单点闭包 / 批量回映射 / 止步同类型 / 软删截断 / inheritMode 接通）+ golden fixtures（`GoldenFixturePgIT` 单点判定收敛，nodeClosure 语义=引擎原生闭包）。
-- **遗留**：~~角色互斥授权时校验 → 另行立项~~（已由 T-PERM-063 落地，2026-09-12）；（原列两项已收口 2026-09-10：check 族全量回传 → T-API-003 done；权限视图/排查删除 → T-PERM-059 done，新形态另立任务）；~~「后续禁止资源节点树跨类型」（sync 通道跨类型边治理）~~（已由 T-PERM-068 落地 2026-09-17：sync/full-sync 与管理面 create/batch-create 全通道同类型父边收紧，定案见 decision-registry 同日行）。
+- **遗留**：~~角色互斥授权时校验 → 另行立项~~（已由 T-PERM-063 落地，2026-09-12）；（原列两项已收口 2026-09-10：check 族全量回传 → T-API-003 done；权限视图/排查删除 → T-PERM-059 done，新形态另立任务）；~~「后续禁止资源节点树跨类型」（sync 通道跨类型边治理）~~（已由 T-PERM-068 落地 2026-09-17：sync/full-sync 与管理面 create/batch-create 全通道同类型父边收紧，定案见 [历史定案原文](../../archive/2026-09-26/decision-registry-before.md) 同日行）。
 
 ### 3.10 batchCheck 批量化（queryBatch 入口）——A+ 形态（T-PERM-061 设计定稿 2026-09-11，同日实施落地）
 
@@ -529,6 +532,10 @@ query-scopes 四态分组（T-PERM-009 契约维持）：AppService 只留线格
 **reason 双轨**：TYPE_LEVEL 组二值（scopeAllMatchedBeforeEval ? CONDITION_NOT_MET_OR_CONFLICT : NO_PERMISSION，无 DEPENDENT 支无目标不可解析支）；INSTANCE 组两段各三支——目标空：scopeAllEvaluatedEmpty→CONDITION ＞ dependentOnlyExcluded→DEPENDENT ＞ NO_PERMISSION；评估清空：(评估前有行||scopeAllEvaluatedEmpty)→CONDITION ＞ dependentOnlyExcluded→DEPENDENT ＞ NO_PERMISSION。组 scopeAll 评估通过→组内全 allowed（code 可不可解析都放行，短路优先）。NO_ROLE/USER_NOT_FOUND 整批前置；ResultSlot 按原始输入序输出；拒绝项 matched 字段族恒空列表。
 
 **互斥通知（b2 定案）**：计算与通知解耦；批量层维护 `(组, ruleId) → 命中 originalIndex 列表` ledger，scopeAll 段与实例段分桶写入、scopeAll 短路 return 前 flush；每 (组, ruleId) 一条审计行，detail 由实际命中规则集（AND 两端）构造 + hitItemCount（item 去重段间合并）；**父判定审计桶**——共享父判定每请求 ≤1 次触发，其内部互斥通知维持现有形态不入 ledger（无去重需求；纳入需穿透递归 query 与既有注入面决策冲突）。
+
+**旧执行体迁移边界**：父判定仍经既有 roleIds + evalContext 递归注入，不穿透递归统一批量条件装载；父段最多增加父私有冷条件数次单查，父审计维持前述独立桶。旧 ledger 组键以 `-` 作空位标记的碰撞边界暂时接受。两者随 [R2 执行器和根审计](../r2-unified-query-and-admission.md#41-职责划分和一次执行的生命周期) 实际替换时复核，不能由“后续任务 done”自动判定解除。[来源](../../archive/2026-09-26/decision-registry-history.md)（原第 16 行）。
+
+旧引擎内部闭包与展开的 500–1000 分片优化待真实负载证据后推进，不因通用批量原则直接判为必须立即改造；外部请求已有上限仍须遵守。实际负载、参数上限或执行器替换时复核。[来源](../../archive/2026-09-26/decision-registry-history.md)（原第 12 行）。
 
 **回归锁（容器轨，GoldenFixturePgIT/TargetModeClosurePgIT 先例）**：等价差分（query()×N vs queryBatch 逐 item 对拍 allowed/reason/matched 按集合比较）＋共享计数锁（N=10/100 mapper 调用次数不变）＋投影谓词否定锁（默认模式授父查子 deny / TYPE_LEVEL+depend_on+父上下文 deny / 跨类型位泄漏 deny）＋空目标集批（1000 项上限形态）200 全 deny 禁 500 ＋互斥真锁（VIEW 行+UPDATE 行（inherit_mask 覆盖）+互斥规则→逐 item 双 allowed）＋reason 边界（幽灵 code+仅子行 scopeAll→DEPENDENT_NOT_IN_PARENT_CONTEXT）＋时间窗边界＋通知次数/内容锁＋禁用条件 fail-close 两轨锁＋条件-互斥顺序锁＋条件增量快照次数锁。现有 PermissionCheckAppServiceImplTest mock 了引擎——改 stub 到新入口，不作等价证据。
 
@@ -994,6 +1001,8 @@ Map<String, PermissionGrantDomainService.GrantCheckResult> grantResults =
 
 ---
 
+<a id="business-keys"></a>
+
 ## 8. 业务键统一构造（T-PERM-019 D2）
 
 ### 8.1 定位与边界
@@ -1002,13 +1011,15 @@ Map<String, PermissionGrantDomainService.GrantCheckResult> grantResults =
 
 - **为什么收敛**：同一格式的构造与消费曾分散多类（类型解析缓存键由 TypeResolutionServiceImpl 写入、TypeDefinitionAppServiceImpl 失效，靠缓存目录册注释口头约定一致；转授检查五段键在授权域/授权计划域逐字重复实现），任一侧手改格式即静默错配。
 - **范围**：跨类格式契约键（类型解析缓存、操作位/操作编码、资源三段、转授五段、relationKey 解析、typeCode 生成码、对外权限串）+ 单文件内部映射键（主体/角色定位、关系去重、diff 去重、API 路由）——2026-09-07 用户定案 A+B 全收。**补收（2026-09-08，业务键统一定案）**：竖线分隔八族入 BusinessKeyUtil——`permEntrySourceKey`（权限条目生效来源六段，三处逐字重复实现收编）/`inheritedEntryKey`（继承展开去重）/`roleProjectionIndexKey`/`userRoleTripleKey`（投影三元组）/`apiRouteResourceKey`（映射同步活跃键）/`scopeItemKey`/`apiEntryDedupKey`（快照去重四段）/`apiMappingPresenceKey`（bootstrap 缺行判定）；`sync_metadata.sync_key` 三段与 `resource_api_mapping.extra.syncKey` 两段归 `SyncKeyCodecUtil.syncKey/apiMappingSyncKey`（同步通道族）。
-- **出界（不经 BusinessKeyUtil）**：sync API 契约键（percent-encoded）归 access-service `SyncKeyCodecUtil`；缓存框架存储信封（common cache）；Gateway 本地快照键；登录计数/任务幂等/树写锁等基础设施键；错误文案与日志 summary 拼接。
+- **出界（不经 BusinessKeyUtil）**：sync API 契约键（percent-encoded）归 access-service `SyncKeyCodecUtil`；缓存框架存储信封（common cache）；Gateway 本地快照键；登录计数/任务幂等/树写锁等基础设施键；错误文案与日志 summary 拼接，以及 SignatureVerifier 的基础设施签名载荷。
 - **放置依据**：落 perm-common 而非 access-service 自身 util，依据 §3 单一来源先例（PageResp/ItemsResp 同款）——SDK 侧（starter 测试夹具、未来投影数据）需与 access-service 同格式构造 relationKey 等键；任务卡 acceptance 明写「收敛到 perm-common」。
 - **TYPE_DEFINITION 实例投影（T-PERM-051 已落地 2026-09-07）**：`typeInstanceBusinessKey(typeKey, typeCode)` 复合键是实例投影与门禁的唯一构造入口（`LocalProjectionDomainService.upsertTypeDefinitionResource`/`TypeDefinitionAppServiceImpl` 全部消费方经此构造，不得裸拼）；语义与级联细节见 architecture §12.3。
 
+业务键格式防回归由 `BusinessKeyUtilParityTest` golden 值锁定，不另建裸拼源码扫描守卫。跨层契约编码键与仅用于单类内存匹配的元组键须区分：资源批量创建/删除的 `TripleKey` 私有 record 保留结构化元组，不能为统一字符串形式重新引入分隔符碰撞；改变公共编码需单独核实全部消费方与 golden 契约。[来源](../../archive/2026-09-26/decision-registry-before.md)（原第 53、168 行）。
+
 ### 8.2 大小写口径（T-PERM-066 定案：raw 严格化，2026-09-14）
 
-`operationCodeKey` 族**统一 raw 裸拼、不做大小写归一**——大写由入站 DTO `@Pattern("^[A-Z][A-Z0-9_]*$")` 在边界保证（400/90001 前置拒绝），小写/混合大小写/首尾空格在授权面与查询面**一致拒绝**（原「授权域 `toUpperCase()`/`trim()` 归一 → apply-grant-plan 传小写 `view` 可匹配 DB `VIEW` 授权成功；查询/解析域裸拼 → 同一份小写走 check/dependency 链路 20005 fail-closed 拒绝」的双语义已消除——授权域归一站点随 T-PERM-066 全部退役）。定义侧（operation-permission `code`、type-definition `typeCode`）同款 @Pattern 锁死，小写定义不可再建（未部署零存量）。覆盖面、边界（roleTypeCode/subjectTypeCode/domainCode/typeKey 不在锁范围；OrgQuery VIEW/CREATE 白名单与 check-interface 固定 ACCESS 维持既有口径）与守卫测试见总册 §2.5 T-PERM-066 注记；定案原文见 decision-registry 2026-09-14 行。
+`operationCodeKey` 族**统一 raw 裸拼、不做大小写归一**——大写由入站 DTO `@Pattern("^[A-Z][A-Z0-9_]*$")` 在边界保证（400/90001 前置拒绝），小写/混合大小写/首尾空格在授权面与查询面**一致拒绝**（原「授权域 `toUpperCase()`/`trim()` 归一 → apply-grant-plan 传小写 `view` 可匹配 DB `VIEW` 授权成功；查询/解析域裸拼 → 同一份小写走 check/dependency 链路 20005 fail-closed 拒绝」的双语义已消除——授权域归一站点随 T-PERM-066 全部退役）。定义侧（operation-permission `code`、type-definition `typeCode`）同款 @Pattern 锁死，小写定义不可再建（未部署零存量）。覆盖面、边界（roleTypeCode/subjectTypeCode/domainCode/typeKey 不在锁范围；OrgQuery VIEW/CREATE 白名单与 check-interface 固定 ACCESS 维持既有口径）与守卫测试见总册 §2.5 T-PERM-066 注记；定案原文见 [历史定案原文](../../archive/2026-09-26/decision-registry-before.md) 2026-09-14 行。
 
 ### 8.3 D3 一致性核对结论（2026-09-07）
 

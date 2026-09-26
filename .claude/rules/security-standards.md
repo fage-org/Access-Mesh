@@ -194,7 +194,7 @@ public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
 - **网关自身条件评估直用 remoteAddr**：`PermissionFilter` 做 IP_WHITELIST / IP_BLACKLIST 评估时直接取 socket 层 remoteAddr，不读任何请求头——即使清洗配置被误删，网关侧评估也不复活伪造面。
 - **下游统一消费重建值**：access-service 门禁条件评估与操作/登录日志消费网关重建后的 XFF（值=网关观测的直连对端 IP）；下游服务不得自行采信外部 XFF / X-Real-IP 声明。
-- **多层 LB / nginx / CDN 拓扑部署前提**：网关观测到的是**代理出口 IP**，按真实客户端 IP 的黑白名单在此类拓扑下不工作（所有客户端同呈一个代理 IP）。要么 IP 条件改配代理出口网段（粒度变粗），要么把按真实客户端 IP 的过滤上移到最外层可信设施（nginx/WAF）；需要网关层精确采信真实客户端 IP 须重启已弃的 trusted-proxies 设计（另立项，定案见 decision-registry 2026-09-10）。
+- **多层 LB / nginx / CDN 拓扑部署前提**：网关观测到的是**代理出口 IP**，按真实客户端 IP 的黑白名单在此类拓扑下不工作（所有客户端同呈一个代理 IP）。要么 IP 条件改配代理出口网段（粒度变粗），要么把按真实客户端 IP 的过滤上移到最外层可信设施（nginx/WAF）；需要网关层精确采信真实客户端 IP 须重启已弃的 trusted-proxies 设计（另立项，定案见 [历史定案原文](../../docs/archive/2026-09-26/decision-registry-before.md) 2026-09-10）。
 - **forward-headers-strategy 启动护栏**：`server.forward-headers-strategy=framework` 时 Spring 的 ForwardedHeaderTransformer 在全部 WebFilter 之前把外部 X-Forwarded-For 解析进 `request.getRemoteAddress()` 并删除转发头——清洗来不及参与、remoteAddr 已被污染（spring-web/spring-boot 字节码实证，codex 外评 P1）。`ForwardHeadersStrategyGuard` 启动校验 framework/native 一律拒绝启动（native 在 WebFlux 下无 transformer 不污染，同拒防语义混淆），允许缺省/none（Spring Boot 默认）。评审勿再建议开启 framework 转发策略或在 Gateway 处理转发头——与「socket 对端=唯一可信 IP 来源」定案冲突。
 - **实现约束**：请求头清洗必须走显式 `headers(h -> h.remove(...))` 删除语义，**禁止**「构建干净头副本再 `putAll`」——`ServerHttpRequest.Builder#headers` 的 consumer 收到的是原请求头的可写视图，`putAll` 为叠加语义、清洗项不会被移除（归并起 HeaderCleanFilter 即因此从未真正删除过头，仅靠下游注入 filter 的 set 覆盖兜底；T-GW-008 实测修正并以回归锁钉住）。
 

@@ -3,7 +3,7 @@ doc_type: design
 title: 权限条件 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-09-20   # T-FE-056 收口：「路由可达性」口径清扫为 menus 派生路由门禁（机制与回归锁见 login.md §路由级 UX 门禁）；此前 2026-09-15 域共享」→「权限面共享」一处）；此前 2026-09-13   # T-ACCESS-034：操作码常量类名机械改挂 OperationCode；此前 2026-09-11 T-PERM-048 双轨制收口：§9 新增（管理页条件轨定位、list 缺省只回 MANAGED 零改动、门禁/守卫后端变化、错误透传）；此前 2026-09-02 T-FE-020 联调收口（§API 依赖补 Gateway 路径联调注记、§组件结构 mock 终态化）；2026-08-30 §8 全量收口 + 字段/API 表对齐（T-PERM-029 落地：detail/update/remove 切业务键 code、detail 查不到 20006、list 全量不分页设计定案、ConditionResp 补 updatedAt、remove 幂等静默跳过）+ 写门禁口径收窄为类型级（CONDITION 无实例投影，实例级原声称系 ID 空间错位废弃；实例投影与条件双轨制登记 T-PERM-048）；此前 2026-08-08 产品确认移除 CONDITION:VIEW 读取门禁
+last_reviewed: 2026-09-26
 ---
 
 # 3.2 权限条件 前端设计
@@ -171,7 +171,7 @@ sec 负责条件定义（与 RESOURCE/OPERATION 同源），拥有 CREATE+UPDATE
 
 ## §9 条件双轨制收口（T-PERM-048，2026-09-11）
 
-本页为**管理页条件轨**（source=MANAGED）唯一管理面，双轨制定案（五项见 decision-registry 同日行）落地口径：
+本页为**管理页条件轨**（source=MANAGED）唯一管理面，双轨制定案（五项见 [历史定案原文](../../archive/2026-09-26/decision-registry-before.md) 同日行）落地口径：
 
 - **数据面零改动**：list 缺省只回 MANAGED（后端过滤），本页搜索/列表/CRUD 全链路无需感知 INLINE——内联条件在本页查不到也不能管理（产品构想原文收口）。
 - **门禁变化（后端）**：update/remove 升实例级 CONDITION:UPDATE/DELETE@{code}（scope_all 存量授权零破坏）；删除加引用守卫 20059（被授权引用不可删，message 带冲突 code 清单）；ConditionResp 新增 source 字段（本页恒 MANAGED，不展示列）。

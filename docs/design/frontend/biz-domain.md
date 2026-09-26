@@ -3,7 +3,7 @@ doc_type: design
 title: 5.1 业务域页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-09-20   # T-FE-056 收口：「路由可达性」口径清扫为 menus 派生路由门禁（机制与回归锁见 login.md §路由级 UX 门禁）；此前 2026-09-15 # 2026-09-09 T-PERM-046 三项加固收口（§4.2 create「全局域」开关 + 20057 兜底、§8/§9 全局域范围新口径=CLASSIFY 声明或动态补集 + domain_config 唯一键 20058 + remove/save 域行锁）；2026-09-02 T-FE-021 联调收口（mock 四文件退役、api 切 Gateway /perm 前缀路径，见 §6/§9 联调注记）；2026-08-31 T-PERM-037 收口：路由级 auths 登记收口（menus 接线归 Phase 3 T-FE-015）；2026-08-29 T-PERM-026 后端收口终态化（业务键/分页/global/删除保护/JSON 校验/JSONB 确认）；原文 2026-07-01 Phase 1 前端设计定稿
+last_reviewed: 2026-09-26
 ---
 
 # 5.1 业务域页 前端设计
@@ -119,6 +119,7 @@ last_reviewed: 2026-09-20   # T-FE-056 收口：「路由可达性」口径清�
 
 - 顶部「新增业务域」按钮（门禁 `SYSTEM_CONFIG:MANAGE`，即 CONFIG_SAVE）→ BizDomainForm 弹窗。
 - 表单：code 可填、name、description、「全局域」开关（T-PERM-046，仅 create 态展示——创建后不可变，换轨=新建域）。弹窗打开时预查租户是否已有全局域（`checkGlobalDomainExists` 拉字典全量判断）：已存在时开关禁用并提示「该租户已存在全局域（每租户仅一个），本次将创建普通域」（预判失败由后端 20057 兜底，查询失败按不存在处理不阻断）。
+- 异步预查使用模块级打开序列号，仅最后一次打开请求生效；不采用先打开弹窗再异步填充，避免预查晚到覆盖用户随后打开的其他弹窗。[来源](../../archive/2026-09-26/decision-registry-before.md)（原第 61 行）。
 - 提交 → `createBizDomain`（code+name+description+global）→ 后端查重（重复 20052，uk_biz_domain 兜底；global=true 且已存在全局域拒绝 20057，uk_biz_domain_global 兜底）后落库 → 成功 `loadTable`。
 
 ### 4.3 主表：编辑业务域
@@ -188,7 +189,7 @@ views/system/biz-domain/
     └── types.ts               # 表单类型 + 工厂 + CONFIG_TYPE_OPTIONS 2 项（SUB_PERM/CLASSIFY） + parseExtra
 ```
 
-> **mock 共享注册表（已退役）**：Phase 1 时期 `mock/_bizDomainRegistry.ts` + `mock/_domainConfigRegistry.ts` 支撑 mock 间运行时数据一致（CRUD/引用检查/resolveDomainId 等价）。T-FE-021 联调切真实接口后 mock 四文件（biz-domain/domain-config/两个 registry）整删，注册表范式随之退役。
+> **mock 共享注册表（已退役）**：Phase 1 时期 `mock/_bizDomainRegistry.ts` + `mock/_domainConfigRegistry.ts` 支撑 mock 间运行时数据一致（CRUD/引用检查/resolveDomainId 等价）。T-FE-021 联调切真实接口后 mock 四文件（biz-domain/domain-config/两个 mock 注册表）整删，注册表范式随之退役。
 
 ### Step 1.5 组件识别（登记 T-FE-001 组件池）
 

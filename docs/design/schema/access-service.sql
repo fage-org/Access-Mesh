@@ -706,7 +706,7 @@ INSERT INTO type_definition (tenant_id, type_key, type_code, type_value, name, i
 -- 两条通道均领域直写不经管理面门禁；管理面资源 CRUD 20055 enforcement——堵手工 MANUAL 行
 -- 口径外通道（FULL diff 清理与服务删除级联只覆盖 SERVICE_SYNC，MANUAL 行成永久孤儿）。
 -- SERVICE 维持 MANAGED：新 SERVICE 行唯一通道=管理面手工建行（按服务实例级授权目标行），
--- 收紧即零 writer 死局（配套事实链另议，见 registry 同日行）。
+-- 收紧即零 writer 死局（配套事实链另议，见 docs/archive/2026-09-26/decision-registry-before.md（历史决定） 同日行）。
 UPDATE type_definition
 SET extra = '{"managedMode":"SYNC","syncSourceService":"access-service"}'
 WHERE tenant_id = 1 AND type_key = 'resource_type'

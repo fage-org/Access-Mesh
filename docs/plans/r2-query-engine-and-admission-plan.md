@@ -36,7 +36,7 @@ last_updated: 2026-09-26
 
 # R2 权限查询引擎统一与操作准入（方案 A）
 
-> 设计依据：[r2-unified-query-and-admission.md](../design/r2-unified-query-and-admission.md)（v3.1，adopted，2026-09-25 定稿——三项拍板〔时区不处理 / 角色互斥 S/H/D / configGeneration 限定语义〕见 decision-registry 同日行）。
+> 设计依据：[r2-unified-query-and-admission.md](../design/r2-unified-query-and-admission.md)（v3.1，adopted，2026-09-25 定稿——三项拍板〔时区不处理 / 角色互斥 S/H/D / configGeneration 限定语义〕见 [历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日行）。
 > 立项说明：统一设计稿的报告临时编号（R2-T01~15 / ADM-T01~07）按看板计数器转为正式任务 ID，映射见下表；T-PERM-054 解除暂缓归入本计划。
 
 ## 目标
@@ -53,7 +53,7 @@ last_updated: 2026-09-26
 
 ## 准入条件
 
-- 设计已定稿（registry 2026-09-25 行）；T-PERM-081 语义基线先行（红跑取证）；最小正确性修复基线（T-PERM-083+095，设计 §9.3）先于新核心实现（T-PERM-085）落地。
+- 设计已定稿（[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 2026-09-25 行）；T-PERM-081 语义基线先行（红跑取证）；最小正确性修复基线（T-PERM-083+095，设计 §9.3）先于新核心实现（T-PERM-085）落地。
 - 核心任务收口跑全量回归（含 E2E/heavy，测试运行纪律见 AGENTS.md）。
 
 ## 任务清单
@@ -105,10 +105,10 @@ last_updated: 2026-09-26
 
 - 2026-09-25 立项并转 active（准入条件①设计定稿已达成、②为执行纪律）；立项时全部任务 proposed。依赖概览（唯一权威=各卡 frontmatter depends_on）：T-PERM-080 → 081/082 → 083/084/095（083+095=最小正确性修复基线，§9.3）→ 085 → 086（088 依赖 083+086，可与 087 并行）→ 087/089 → 090 → 091 → 092/093 → 094；ADM 支线：T-ACCESS-056 → 057（跨线依赖 R2 主线 083~086+088）/058 → 059 → 060 → 061 → 062（另依赖 092——两个完成条件在此会合）；T-PERM-054 收口于 T-ACCESS-058/061 之后。
 - 2026-09-25 T-PERM-080 完成：全仓清点册见附录 A（清点口径、生产调用点逐点迁移目标、测试/文档/容量盘点与设计 §6.5 增补结论）；设计 §6.5 已增补指针与四消费面勘正。
-- 2026-09-25 T-PERM-081 完成：R2 语义基线资产三件落库（`R2BaselineFixture`＋`MutexSemanticsCharacterizationPgIT`〔PQ-01/06 反例锚，断言=锁当前行为、T-PERM-083/095 修复时翻转〕＋`QuerySemanticsBaselinePgIT`〔四族 X03 差分锚〕，入册 A.7）；红跑取证与三项拍板见 registry 同日行。
-- 2026-09-25 T-PERM-082 完成：`engine/query` 新包契约模型＋结构校验＋骨架 execute（`QueryExecutionEngine` 暂名，零消费者与旧引擎并行——三项拍板见 registry 同日行，设计 §4.1 已补迁移期注）；契约单测 C01~C08/R03/I07 按结构半边口径落锁，R03 事实半边/C06 判定版分别随 T-PERM-086/085 补。
-- 2026-09-26 T-PERM-083 完成：S/H-D 就地落地（`computeRoleMutex`/`computePermMutex` 纯计算+`RolePairRef`、I01 空规则短路、真实 triggeredRuleIds、通知明细去反推；引擎调用点零改动=拍板①「域服务内解耦」、拍板②收口全量合并 095 基线取证，registry 同日行）；红跑 5/5 行为锁+容器定向（Mutex 5/BatchAuthCheck 11/QuerySemantics 17/RoleMutexGuard 9）+单测轨 1460 项 0 失败；双轨评审处置完毕（代码轨 P3×3/文档轨 P1×1+P2×3+P3×2 全核实成立直修、可裁剪=0）；设计 §5.1/§6.1 就地实施注。全量回归（含 E2E/heavy）与基线落账随 T-PERM-095 收口一次取得。
-- 2026-09-26 T-PERM-095 完成：PQ-01 最小修复（`computeInstanceDenied` 候选按目标闭包切分各自 PERM_MUTEX——沿 queryBatch 逐 item 形态；互斥经 `openBatchMutexEvaluator` 共享装载+评估器补 I01 空规则短路〔通道切换查询数零回归〕；命中 (组,规则) 聚合一次通知）；D01 两断言按翻转契约转终态锚（Mutex 6/6 含新增 getDenied 审计锁）；**最小正确性修复基线落账=本地 annotated tag `r2-baseline-correctness`（用户拍板 tag 形态；13df35589〔083〕+c1e56e3a6〔095〕）**；083 欠的收口全量在本卡取得（`mvn test -T 1C` 含 E2E/heavy 11 模块 BUILD SUCCESS 0 失败+单测轨 1462 绿）；双轨评审处置完毕（P3×2 全核实成立直修、存疑两项按既有口径留待、可裁剪=0）；registry 同日行。T-PERM-085 前置（083+084+095）仅余 084。
+- 2026-09-25 T-PERM-081 完成：R2 语义基线资产三件落库（`R2BaselineFixture`＋`MutexSemanticsCharacterizationPgIT`〔PQ-01/06 反例锚，断言=锁当前行为、T-PERM-083/095 修复时翻转〕＋`QuerySemanticsBaselinePgIT`〔四族 X03 差分锚〕，入册 A.7）；红跑取证与三项拍板见 [历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日行。
+- 2026-09-25 T-PERM-082 完成：`engine/query` 新包契约模型＋结构校验＋骨架 execute（`QueryExecutionEngine` 暂名，零消费者与旧引擎并行——三项拍板见 [历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日行，设计 §4.1 已补迁移期注）；契约单测 C01~C08/R03/I07 按结构半边口径落锁，R03 事实半边/C06 判定版分别随 T-PERM-086/085 补。
+- 2026-09-26 T-PERM-083 完成：S/H-D 就地落地（`computeRoleMutex`/`computePermMutex` 纯计算+`RolePairRef`、I01 空规则短路、真实 triggeredRuleIds、通知明细去反推；引擎调用点零改动=拍板①「域服务内解耦」、拍板②收口全量合并 095 基线取证，[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日行）；红跑 5/5 行为锁+容器定向（Mutex 5/BatchAuthCheck 11/QuerySemantics 17/RoleMutexGuard 9）+单测轨 1460 项 0 失败；双轨评审处置完毕（代码轨 P3×3/文档轨 P1×1+P2×3+P3×2 全核实成立直修、可裁剪=0）；设计 §5.1/§6.1 就地实施注。全量回归（含 E2E/heavy）与基线落账随 T-PERM-095 收口一次取得。
+- 2026-09-26 T-PERM-095 完成：PQ-01 最小修复（`computeInstanceDenied` 候选按目标闭包切分各自 PERM_MUTEX——沿 queryBatch 逐 item 形态；互斥经 `openBatchMutexEvaluator` 共享装载+评估器补 I01 空规则短路〔通道切换查询数零回归〕；命中 (组,规则) 聚合一次通知）；D01 两断言按翻转契约转终态锚（Mutex 6/6 含新增 getDenied 审计锁）；**最小正确性修复基线落账=本地 annotated tag `r2-baseline-correctness`（用户拍板 tag 形态；13df35589〔083〕+c1e56e3a6〔095〕）**；083 欠的收口全量在本卡取得（`mvn test -T 1C` 含 E2E/heavy 11 模块 BUILD SUCCESS 0 失败+单测轨 1462 绿）；双轨评审处置完毕（P3×2 全核实成立直修、存疑两项按既有口径留待、可裁剪=0）；[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日行。T-PERM-085 前置（083+084+095）仅余 084。
 
 ## 附录 A：全仓旧执行体清点册（T-PERM-080 产出）
 
@@ -227,7 +227,7 @@ last_updated: 2026-09-26
 
 **指令面（rules/skills——AGENTS.md 指针表登记的治理入口，随 T-PERM-089/092 同批回写，skills 双副本同批同步）**：`.claude/rules/permission-coding-standards.md`（现役 API 用法示例最密集的指令文件）、`.claude/rules/testing-standards.md`、`.claude/skills/permission-query-pipeline/SKILL.md`＋`.agents/skills/` 双副本（引擎使用规范）、`.claude/skills/accessmesh-patterns/SKILL.md`＋双副本。**活跃任务卡**：`docs/tasks/T-PERM-036.md`（proposed，验收含 PermQueryEngine 链路叙述——该卡若在 R2 完结前推进须按新 execute 口径改写验收）。
 
-高密度（正文以引擎口径行文，回写主目标）：`engine/implementation.md`（最密，R2 完结后 §3 族整体重写）、`engine/overview.md`、`engine/core-flows.md`。契约/治理面（门禁矩阵与调用口径行）：`access-service-api-contract.md`、`access-service-architecture.md`、`project-rules.md`、`access-service-capability-structure.md`、`org-user-permission-contract.md`、`schema/access-service.sql`（注释）、`permission-center-v3.5-design.md`、`dependency-auto-grant.md`、`extension-guide.md`、`iam-task-closure.md`、`frontend/permission-grant.md`、`frontend/service-interface-mapping.md`（:127 `getDeniedResourceCodes` 带日期划线历史注记——T-PERM-092 触达时按「带日期历史句」口径定去留）。治理索引：AGENTS.md、docs/README.md、docs/design/README.md、decision-registry.md（历史定案行不改写）、CHANGELOG.md。文档清扫统一口径=代码退役后按「现行文档规范回写」执行（本计划归档条件），decision-registry 历史行例外保留。
+高密度（正文以引擎口径行文，回写主目标）：`engine/implementation.md`（最密，R2 完结后 §3 族整体重写）、`engine/overview.md`、`engine/core-flows.md`。契约/治理面（门禁矩阵与调用口径行）：`access-service-api-contract.md`、`access-service-architecture.md`、`project-rules.md`、`access-service-capability-structure.md`、`org-user-permission-contract.md`、`schema/access-service.sql`（注释）、`permission-center-v3.5-design.md`、`dependency-auto-grant.md`、`extension-guide.md`、`iam-task-closure.md`、`frontend/permission-grant.md`、`frontend/service-interface-mapping.md`（:127 `getDeniedResourceCodes` 带日期划线历史注记——T-PERM-092 触达时按「带日期历史句」口径定去留）。治理索引：AGENTS.md、docs/README.md、docs/design/README.md、decision-registry.md（历史定案行不改写）、CHANGELOG.md。文档清扫统一口径=代码退役后按「现行文档规范回写」执行（本计划归档条件），[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 历史行例外保留。
 
 ### A.9 容量与上限盘点
 

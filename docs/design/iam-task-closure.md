@@ -3,7 +3,7 @@ doc_type: design
 title: IAM 核心正确性与用户任务闭环方案
 status: draft
 domain: cross-service
-last_reviewed: 2026-09-24（T-ACCESS-055 组合验收收口：五项拍板〔载体=全组合 PgIT/双视角浏览器/Q-034 维持登记/自动化重跑+手工引用/视角 B 缺口=前端修+后端实例准入翻 052 半边登记〕+三新组合 PgIT 红跑 3/3+验收证据落盘 evidence/t-access-055/；registry 同日行）同日（T-ACCESS-054 §6.2 转已实施：U010 底座保留+ADMIN_JOB 最小运营三档种子〔VIEW/TRIGGER/ENABLE〕+job 三读端点补 VIEW 门禁、U011 legacy 别名随过渡窗口关闭整体删除——两项拍板见 registry 同日行）同日（T-API-004 §4.3 转已实施：U006 四项拍板〔冲突全端点拒绝/type extraClear 拒清空/service extra 清=撤白名单/空串拒 400/范围=六字段+perm 轨 extra〕+同型矩阵结论登记 Q-043，定案见 registry 同日行）同日（T-ADMIN-029 §4.5 转已实施：U007 四项拍板——typed IDs 一次性切换零兼容层/ORG 受众预留不做/严格状态机转换拒绝/my-notices+read 白名单+管理面 bootstrap 五档类型级授权；无存量结论+runbook fail-fast 处置登记）同日（T-FE-058 §4.2 转已实施：U005 迁移+同批退役 /role/list/选择器形态 el-select remote+下拉内翻页/Q-035+Q-036 随卡收敛，三项拍板见 registry 同日行）同日（T-FE-059 §4.4 转已实施：loader contextKey/clear/onClear 四消费面接线+保存时核对层拍板「加」）同日（T-ACCESS-053 §5.2 补实施定案段：U008 维持现状登记 Q-040/撤销恢复主线 E2E⑧+文档/compose 空环境实测/文档改现有三处）同日（T-ACCESS-052 §3.2 已实施收口：四项拍板+全量同模式目录实例准入+菜单准入+种子四条 canGrant；端到端 DelegatedDirectoryClosurePgIT+双轨评审处置完毕+全量含 E2E 绿） 2026-09-22   # 2026-09-22 T-FE-057 §4.1 转已实施（管理列表全状态+筛选+禁用标注+编辑弹窗恢复，三项拍板见 registry 同日行）；2026-09-22 T-ORG-003 §3.1 转已实施（候选门禁同权落地+浏览器链让渡 T-ACCESS-055 拍板+Q-025 随卡收敛）；2026-09-22 T-PERM-077 §2.6 转已实施（缺省归一 0 唯一入口+掩码不做符号校验拍板）；同日 T-PERM-076 §2.5 转已实施（完整键查重+批内首项胜出+畸形项收集拍板+响应主键回查）；同日 T-ADMIN-028 §2.2 转已实施（客户端关联校验最小面落地）；2026-09-21 T-ORG-002 §2.1 转已实施（U001 拍板=拒绝并提示人数+树配置最小面落地）
+last_reviewed: 2026-09-26
 ---
 
 # IAM 核心正确性与用户任务闭环方案
@@ -12,7 +12,7 @@ last_reviewed: 2026-09-24（T-ACCESS-055 组合验收收口：五项拍板〔载
 
 本稿承接[评审证据](../archive/2026-09-20/comprehensive-review.md)，实施编排见[计划](../../archive/2026-09-24/iam-task-closure-plan.md)，任务状态只看[任务看板](../tasks/README.md)。本文件为**待实施方案**，不表示产品已具备所述行为，也不取代现行 adopted 设计。
 
-本次授权是制定完整方案与任务；可以重新评估既有设计，尚未决定的技术取舍保留到对应任务启动时处理。任务先核实基线并完成本稿所列最小反例，再解决相关 U 编号；实际采纳时登记 decision-registry、更新权威设计与契约，并同步受影响任务，不把推荐方案自动当作用户定案。自动授权简化方向已另行采纳，§6.1 指向其 adopted 权威设计；其余未决项不受此状态变化影响。无须等待全部 U 项解决才能推进相互独立的任务。
+本次授权是制定完整方案与任务；可以重新评估既有设计，尚未决定的技术取舍保留到对应任务启动时处理。任务先核实基线并完成本稿所列最小反例，再解决相关 U 编号；实际采纳时按[文档治理](project-rules.md#decision-governance)当轮归位，更新权威设计与契约，并同步受影响任务，不把推荐方案自动当作用户定案。自动授权简化方向已另行采纳，§6.1 指向其 adopted 权威设计；其余未决项不受此状态变化影响。无须等待全部 U 项解决才能推进相互独立的任务。
 
 ### 1.1 目标与减法约束
 
@@ -30,7 +30,7 @@ last_reviewed: 2026-09-24（T-ACCESS-055 组合验收收口：五项拍板〔载
 ## 2. 核心正确性
 
 <a id="directory"></a>
-### 2.1 默认身份目录完整性（F001，T-ORG-002；✅ 已实施 2026-09-21，拍板见 decision-registry 同日行）
+### 2.1 默认身份目录完整性（F001，T-ORG-002；✅ 已实施 2026-09-21，拍板见 [历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日行）
 
 **实施口径**：保留默认组织树作为身份池。默认根不允许经普通组织删除入口删除（`ORG_DEFAULT_ROOT_DELETE_FORBIDDEN` 11017，无子节点同样拒绝）；非根删除先批量计算受影响用户是否还具有有效的默认树归属，任一用户会失去最后归属则整体拒绝（`USER_LOSE_DEFAULT_TREE_HOME` 11013，message 含受影响人数），要求先迁移成员。共享判定收敛为 `OrgTreeConfigDomainService.findUsersLosingDefaultHome(old, new)`（两次批量查询），成员移除入口原内联保护换绑同源判定——直接移除与级联删除对同一业务结果一致（同码 11013）。
 
@@ -61,9 +61,9 @@ A的scope=read、audience=aud-a，B的scope=other、audience=aud-b：A的合法�
 覆盖user-role以及资源DISABLE不存在的同型分支，并类推subject/role/resource同步。对已提前消费的存量版本先核对账本与事实；恢复需带业务键和期望版本的定点方案，不能让调用方凭空提版本。权威恢复语义回写契约§19与runbook-full-sync。
 
 <a id="mutex"></a>
-### 2.4 互斥后的有效角色成为共同判定语义（F004／D002，T-PERM-075；拍板见 decision-registry 2026-09-22 行）
+### 2.4 互斥后的有效角色成为共同判定语义（F004／D002，T-PERM-075；拍板见 [历史定案原文](../archive/2026-09-26/decision-registry-before.md) 2026-09-22 行）
 
-**实施口径**：全部运行时判定经 `PermissionConflictDomainService.resolveJudgementRoleIds`（=有效角色解析 + 互斥双删）消费同一角色集——引擎 query/queryBatch 解析分支、getDenied* 两便捷入口、菜单/权限串 `buildEffectiveView`、接口快照（快照专有两步过滤消除）。显式 roleIds 分支不过滤（调用方语义=按指定角色判定，写校验面模拟角色视角）。`EFFECTIVE_ROLES` 缓存语义维持「过滤前集合」：互斥过滤判定时叠加（规则经 ROLE_MUTEX_RULE 缓存），规则变更沿既有 10s TTL 收敛，零缓存迁移；写守卫（DB 直查）不受缓存窗口影响。空规则集也回填缓存防判定路径打 DB。取代 2026-09-09「ROLE_MUTEX 不归引擎」定案（取代关系登记 registry superseded 表）。
+**实施口径**：全部运行时判定经 `PermissionConflictDomainService.resolveJudgementRoleIds`（=有效角色解析 + 互斥双删）消费同一角色集——引擎 query/queryBatch 解析分支、getDenied* 两便捷入口、菜单/权限串 `buildEffectiveView`、接口快照（快照专有两步过滤消除）。显式 roleIds 分支不过滤（调用方语义=按指定角色判定，写校验面模拟角色视角）。`EFFECTIVE_ROLES` 缓存语义维持「过滤前集合」：互斥过滤判定时叠加（规则经 ROLE_MUTEX_RULE 缓存），规则变更沿既有 10s TTL 收敛，零缓存迁移；写守卫（DB 直查）不受缓存窗口影响。空规则集也回填缓存防判定路径打 DB。取代 2026-09-09「ROLE_MUTEX 不归引擎」定案（取代关系登记 [历史定案原文](../archive/2026-09-26/decision-registry-before.md) superseded 表）。
 
 写守卫看**原始持有候选**（`SubjectDomainService.batchResolveRawHoldings`：未过期原始行 ∪ 组展开含禁用子树，不缓存 DB 新鲜读），不做运行时过滤——不能先过滤再断言无冲突；full-sync 批内一次预载消 N+1（批内写入由 appliedThisBatch 补偿）。
 
@@ -98,16 +98,18 @@ A的scope=read、audience=aud-a，B的scope=other、audience=aud-b：A的合法�
 
 普通组织MANAGE_MEMBER／岗位ASSIGN_POSITION_USER的管理员无需ORG:UPDATE即可完成选人和挂载，仍不得编辑组织结构。该修正独立于菜单重设计：用足够的VIEW权限先进入页面即可验收。权威总册旧UPDATE句与组织权限契约同时对齐。
 
-**实施口径**：门禁收敛落 `UserAppServiceImpl.memberCandidates` 唯一入口——先验目标组织存在（`ORG_NOT_FOUND`，与 setPrimaryOrg 同序）再 `resolveForUserOrg(orgType, UPDATE)` 判权（普通组织 MANAGE_MEMBER、岗位 ASSIGN_POSITION_USER），与 assign/remove/set-primary 共用既有动作码解析；可见范围裁剪与已绑定排除零改动。总册校准面含门禁总表 member-candidates 行与 §8.x user-org 三端点、§7.2 门禁与验收句（含 USER:VIEW 旧措辞修准为 ORG:VIEW 机制描述）、§7.5 user/delete 默认树二次校验可见性措辞；前端选择/提交链路核对无需改动（PositionTab/UserDetailPanel 权限口径本就按成员码门控），仅陈旧注释两处事实修正。Q-025 随本卡收敛（registry 2026-09-21 绑定：UserOrgAppServiceImpl 读面私有副本换绑 `OrgTreeConfigDomainService` 共享入口并删除，顺带清死 helper `isPositionOrg`）。验收④「浏览器分配链」按 2026-09-22 用户拍板让渡 T-ACCESS-055 组合验收承接（其 acceptance③「有限管理员实际操作页面」），本卡以真权限 API 组合链（PgIT：有限管理员候选→挂载→排除已绑定→改结构拒→无成员动作权拒→越租户拒，旧实现下主链 403 实证红）+ 前端静态核对为证据，任务卡验收④同步改写并明确未验收项。回归锁：`UserAppServiceMemberCandidatesGateTest` 门禁解析四锁（旧实现下 4/4 红）。claude 外评处置（同日）：setPrimaryOrg 补 SYS_ORG 树锁（P2，与 assign/remove 同族——并发 deleteOrg 交错下主归属静默丢失）与两处 validateOrgInDefaultTree 逐字副本换绑共享入口（P3 类推）等四项，详见任务卡完成记录与 registry 同日行。
+**实施口径**：门禁收敛落 `UserAppServiceImpl.memberCandidates` 唯一入口——先验目标组织存在（`ORG_NOT_FOUND`，与 setPrimaryOrg 同序）再 `resolveForUserOrg(orgType, UPDATE)` 判权（普通组织 MANAGE_MEMBER、岗位 ASSIGN_POSITION_USER），与 assign/remove/set-primary 共用既有动作码解析；可见范围裁剪与已绑定排除零改动。总册校准面含门禁总表 member-candidates 行与 §8.x user-org 三端点、§7.2 门禁与验收句（含 USER:VIEW 旧措辞修准为 ORG:VIEW 机制描述）、§7.5 user/delete 默认树二次校验可见性措辞；前端选择/提交链路核对无需改动（PositionTab/UserDetailPanel 权限口径本就按成员码门控），仅陈旧注释两处事实修正。Q-025 随本卡收敛（[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 2026-09-21 绑定：UserOrgAppServiceImpl 读面私有副本换绑 `OrgTreeConfigDomainService` 共享入口并删除，顺带清死 helper `isPositionOrg`）。验收④「浏览器分配链」按 2026-09-22 用户拍板让渡 T-ACCESS-055 组合验收承接（其 acceptance③「有限管理员实际操作页面」），本卡以真权限 API 组合链（PgIT：有限管理员候选→挂载→排除已绑定→改结构拒→无成员动作权拒→越租户拒，旧实现下主链 403 实证红）+ 前端静态核对为证据，任务卡验收④同步改写并明确未验收项。回归锁：`UserAppServiceMemberCandidatesGateTest` 门禁解析四锁（旧实现下 4/4 红）。claude 外评处置（同日）：setPrimaryOrg 补 SYS_ORG 树锁（P2，与 assign/remove 同族——并发 deleteOrg 交错下主归属静默丢失）与两处 validateOrgInDefaultTree 逐字副本换绑共享入口（P3 类推）等四项，详见任务卡完成记录与 [历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日行。
 
 <a id="delegated-directory"></a>
 ### 3.2 可见目录、菜单与实例授权共同成立（D001，T-ACCESS-052；✅ 已实施 2026-09-23）
+
+当前约束见[目录裁剪当前边界](access-service-api-contract.md#resource-directory)，本稿保留任务背景，不作为该规则的唯一实施依据。
 
 **推荐目标**：类型级VIEW表示全量；仅有实例权限者只能发现职责对象。有至少一个当前合法可见实例即可显示对应入口，目录返回授权过滤后的对象；路由仍从后端派生menus准入，写操作继续逐对象校验。不要放开任意深链或授予全类型VIEW作为补丁。
 
 目录分页必须先做权限／类型／租户过滤再算total、排序和分页，不能取第一页后在Java或前端过滤导致缺页与侧漏。优先复用引擎已有批量结果／可见集合与现有查询DomainService；不得逐行N次鉴权。遇到条件、继承或大量候选，明确下推可用范围与上限，不能把“有任何权限”视为有VIEW。
 
-**U003，已拍板（2026-09-23）**：**菜单任意操作／目录 VIEW**——菜单入口=该类型有任一直接实例授权即显示（维持 v3.5 §4.1 任意操作语义，含 CREATE-only）；目录列表内容=按 VIEW（含继承覆盖）过滤，不自动创建“管理即查看”新隐含规则；CREATE-only 者入口可见但列表空。service-a负责人可看a不能看b；部门成员管理员可选可见人员但不能看其他部门名单。
+**U003，已拍板（2026-09-23）**：**菜单任意操作／目录 VIEW**——菜单入口=该类型有任一直接实例授权即显示（维持 v3.5 §4.1 任意操作语义，含 CREATE-only）；目录列表内容=按 VIEW（含继承覆盖）过滤，不自动创建“管理即查看”新隐含规则；CREATE-only 者入口可见，但没有可见 VIEW 实例时目录请求返回 403；以[契约目录门禁](access-service-api-contract.md)为准。service-a负责人可看a不能看b；部门成员管理员可选可见人员但不能看其他部门名单。
 
 **首次委派（U004），已拍板（2026-09-23）**：**最小集四条**——bootstrap 固定图既有行 canGrant 翻 true：SERVICE:MANAGE、SERVICE:MANAGE_API_MAPPING、ORG:MANAGE_MEMBER、USER:VIEW（USER:VIEW 为部门管理员「用户目录门票」——类型级 VIEW 门票+内容按组织可见性裁剪兜底，「门票+裁剪」同批拍板）；其余内置类型维持不可转授；禁全局 canGrant=true 维持；存量已初始化库登记 runbook 订正语句（幂等种子 canGrant 属可变属性仅 warn 放行不重种）。
 
@@ -120,6 +122,8 @@ A的scope=read、audience=aud-a，B的scope=other、audience=aud-b：A的合法�
 <a id="position-lifecycle"></a>
 ### 4.1 管理列表保留停用项（F007，T-FE-057；✅ 已实施 2026-09-22）
 
+当前约束见[岗位授权入口当前边界](org-user-permission-contract.md#position-actions)，本稿保留任务背景，不作为该规则的唯一实施依据。
+
 推荐岗位管理默认显示所有状态，提供状态筛选、状态标识和重新启用入口；用于分配“当前有效岗位”的选择器仍只显示启用项。启停继续调用现有API，不新增独立恢复端点。恢复后实际角色／菜单／权限行为由现有投影链验证，不能只检查列表出现。
 
 **实施口径**：`PositionTab` 管理列表查询不再固定 `status=1`——缺省=全部状态（`/org/page` status 可选，省略即不过滤），停用岗位保留可见；新增状态筛选下拉（服务端参数，MemberTab 同款先例，默认「全部状态」）与卡片「禁用」红色标签（仅停用项标注，组织信息卡同款 el-tag 先例）；`loadPositions` 带请求代际守卫（`positionReqSeq`，双轨评审 P3-1 处置用户拍板顺手加——筛选/组织切换并发时旧响应不回写）。恢复入口=编辑弹窗改状态单选（2026-09-22 用户拍板，与组织同 OrgForm 先例一致，不新增行内快捷开关）；停用岗位上成员挂载/移除/授权/删除等写操作维持可用（用户拍板——后端事实链负责语义：停用容器角色经引擎有效角色剪枝，恢复后自动生效，界面不造本地规则）。失败提示换绑 `toErrorMessage`（后端 body 文案优先，T-FE-051 同款，八处含展开成员列表）；筛选/搜索空态文案区分「无匹配」与「暂无数据」。查询构造抽取 `utils/positionList.ts`（红跑实证：旧固定 status:1 形态下 3 用例红）。「分配用有效岗位候选排除停用」面核实无需改动：授权页主体树请求层 `status=1`（SubjectTreePanel，2026-09-04 定案）；用户详情面板岗位只读、新增用户表单只选普通组织，均不涉及。浏览器实测验收（用户拍板证据形态）：dev 栈全链路——创建(启用)→编辑禁用→**列表保留+禁用标签**（旧实现此步岗位消失=缺陷本体）→筛选启用=空(无匹配文案)→筛选禁用=可见→编辑恢复→筛选禁用下消失→重置回全部无标签，截图入仓 docs/tasks/evidence/t-fe-057/；冒烟数据已清理。存量发现登记 Q-035（新增岗位弹窗 initialData.parentOrgId 通道失效，须手选上级）。
@@ -131,7 +135,7 @@ A的scope=read、audience=aud-a，B的scope=other、audience=aud-b：A的合法�
 
 不给100／200换更大常量；数据少且有明确上限的字典可循环取全，但用户目录不照搬。验证第101岗位／候选、第201角色可找到且不可越权；不用为所有选择器引入新的通用组件框架。
 
-**实施定案（2026-09-23 用户拍板三项）**：①U005=**迁移+同批退役**——UserDetailPanel 功能角色候选迁 `/api/access/abstract-role/list`（`roleTypeCodes=[BASIC_ROLE,GROUP_ROLE,PERSONAL]`+keyword+分页），`/api/access/role/list` 同批退役（端点链/契约 §10.2 退役注记/bootstrap 固定图行/存量库订正语句同批，RetiredRoleApiContractTest 负向锁 404）；门禁随端点对齐角色管理页实例准入口径（取代 T-ACCESS-052 范围拍板的 role/list 半边，resource-api-mapping/list 半边维持原登记——该半边已被 T-ACCESS-055 翻案为实例准入，registry 2026-09-24 行），分配动作仍受 user-role/assign 门禁。②选择器形态=**el-select 远程搜索+下拉内翻页**（remote-method + #footer 上一页/下一页；已选缓存合并渲染保留已选项、提交对象取自缓存不取自当前页；局部 composable `remoteOptions.ts`，不引入通用组件框架）。③**Q-035/Q-036 随卡收敛**（新增岗位弹窗 parentOrgId prop 通道、org-tree prop 接线修复「位置」列、成员展开失败态区分）。岗位列表用 `/org/page` 既有 orgName 模糊+分页（卡片列表+底部分页，默认 20/页）；成员候选用 `/user/member-candidates` 既有 keyword+分页（用户目录不照搬字典拉全）；两后端端点零改动（先过滤再分页口径已在 T-ORG-003/T-ACCESS-052 落地）。
+**实施定案（2026-09-23 用户拍板三项）**：①U005=**迁移+同批退役**——UserDetailPanel 功能角色候选迁 `/api/access/abstract-role/list`（`roleTypeCodes=[BASIC_ROLE,GROUP_ROLE,PERSONAL]`+keyword+分页），`/api/access/role/list` 同批退役（端点链/契约 §10.2 退役注记/bootstrap 固定图行/存量库订正语句同批，RetiredRoleApiContractTest 负向锁 404）；门禁随端点对齐角色管理页实例准入口径（取代 T-ACCESS-052 范围拍板的 role/list 半边，resource-api-mapping/list 半边维持原登记——该半边已被 T-ACCESS-055 翻案为实例准入，[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 2026-09-24 行），分配动作仍受 user-role/assign 门禁。②选择器形态=**el-select 远程搜索+下拉内翻页**（remote-method + #footer 上一页/下一页；已选缓存合并渲染保留已选项、提交对象取自缓存不取自当前页；局部 composable `remoteOptions.ts`，不引入通用组件框架）。③**Q-035/Q-036 随卡收敛**（新增岗位弹窗 parentOrgId prop 通道、org-tree prop 接线修复「位置」列、成员展开失败态区分）。岗位列表用 `/org/page` 既有 orgName 模糊+分页（卡片列表+底部分页，默认 20/页）；成员候选用 `/user/member-candidates` 既有 keyword+分页（用户目录不照搬字典拉全）；两后端端点零改动（先过滤再分页口径已在 T-ORG-003/T-ACCESS-052 落地）。
 
 <a id="clear-fields"></a>
 ### 4.3 字段保留、设置、清空三态（F009，T-API-004；✅ 已实施 2026-09-24）
@@ -160,6 +164,8 @@ A的scope=read、audience=aud-a，B的scope=other、audience=aud-b：A的合法�
 
 **实施口径**：受众明确语义——ALL 带 targetUserIds 拒（10008）、USER 空列表/缺省拒（10008）、USER 目标须全部为当前租户有效用户（10001）、targetType 非法值含 ORG 拒（90001 @Pattern）；my-notices SQL 层受众过滤（`status=1 AND (target_type='ALL' OR target_type='USER' AND target_ids @> to_jsonb(userId))`，USER 空/NULL 数组 fail-closed 不匹配任何人）；标已读前置可见性校验（不可见统一 10401 不泄露存在性——草稿/撤回/非受众/不存在同码）；删除公告级联物理清理 sys_user_notice（本表无 delete_flag，兑现 Controller 历来 javadoc 声称）；update 用 UpdateEntity 显式列集（USER→ALL 切换 target_ids 必须真置空——update(entity) 忽略 null 列会残留旧受众数组）；编辑不设状态限制（维持现状最小改动，撤回/已发布可编辑，已读记录挂 noticeId 语义自洽）。历史状态错写存量结论=**无存量**（依据：bootstrap 不种公告数据、项目无生产部署、开发库经 rebuild-runbook 重建即可）——不出迁移/翻转语句；已初始化旧库重启将因固定图缺 9 行 API 报「部分存在」fail-fast（预期），处置=重建库（runbook T-ADMIN-029 行）。bootstrap 计数随 9 API 行+5 档授权更新（AccessBootstrapPgIT 98/97/148/50）。红跑实证两层：typed 数组请求旧实现 90001 拒收（零兼容层锁）+旧逗号串请求旧实现 403（bootstrap 无 ADMIN_NOTICE 授权——F010「请求被门禁拒绝」根因实证，旧实现管理面服务层即不可达、行为验证只能靠 403 冒充；本卡授权后行为面才真正可验收）。回归锁 NoticeLifecyclePgIT 真权限链组合两用例（MockMvc 真链+真登录会话）+快照测试 revoke 行。
 
+当前约束见[公告当前合同](access-service-api-contract.md#notice-contract)，本稿保留任务背景，不作为该规则的唯一实施依据。
+
 ## 5. 首次接入与能力边界
 
 <a id="cors"></a>
@@ -167,7 +173,7 @@ A的scope=read、audience=aud-a，B的scope=other、audience=aud-b：A的合法�
 
 推荐先修quickstart中端口、域名、scheme与Gateway允许Origin的组合示例及诊断。Vite changeOrigin不抹去浏览器Origin；经Gateway仍可能被CORS拒绝。按localhost默认端口、Nacos冲突后的替代端口、127.0.0.1形态验证，不采用通配Origin+credentials。
 
-实施定案（2026-09-23 用户拍板，registry 同日行）：默认白名单扩为四个环回 dev 形态（localhost/127.0.0.1 × 8848/8890）——8890 避让形态经 F012 实证必要（旧单条默认 403 空体拒），即「已证明运行时必要」；前端 dev 默认端口维持 8848。四形态浏览器登录、nginx 同源实测与三态诊断表证据见任务卡完成记录。
+实施定案（2026-09-23 用户拍板，[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日行）：默认白名单扩为四个环回 dev 形态（localhost/127.0.0.1 × 8848/8890）——8890 避让形态经 F012 实证必要（旧单条默认 403 空体拒），即「已证明运行时必要」；前端 dev 默认端口维持 8848。四形态浏览器登录、nginx 同源实测与三态诊断表证据见任务卡完成记录。
 
 nginx默认80、外部非默认端口、TLS终结是不同形态，选择当前支持形态实测并如实说明。只有已证明运行时必要时才改默认配置；不为修开发文档自动引入trusted-proxy体系或削弱现有转发头信任边界。
 

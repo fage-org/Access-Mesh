@@ -3,7 +3,7 @@ doc_type: design
 title: access-service 能力包结构与两域融合
 status: adopted
 domain: cross-service
-last_reviewed: 2026-09-24（T-ACCESS-054：§3/§8.2 legacy 别名终态口径——Q-006 过渡窗口关闭整体删除）； 2026-09-15 Q-009 收敛退役：§4 裁决表 row9 与 §8.4 豁免 6 冻结基线转历史注记 + 规则 1 零容忍化（负向样例改 menu.fixture 夹具）+ 四批收敛进度注记（T-ACCESS-043~046）；此前 2026-09-15 文档与叙事第三项落地 + §9 补三行修订对照；域叙事词汇=管理面/权限面）；此前 2026-09-13（T-ACCESS-039：§3/§8.2/§9 缓存目录合一收口——单册 AccessCacheCatalog、admin:org-visibility 越域归位 access:org-visibility、mode/TTL 零改动）；此前 2026-09-13（T-ACCESS-038：§3/§8.2/§9 错误码合一收口——单册 AccessErrorCode、碰撞三组 ADMIN_/PERM_ 段前缀、能力无专属段规则成文）；此前 2026-09-13（T-ACCESS-040：§7 文档与叙事三项执行完毕——契约总册落地/旧册 superseded/内档迁 engine 文档位）
+last_reviewed: 2026-09-26
 ---
 
 # access-service 能力包结构与两域融合
@@ -91,7 +91,7 @@ last_reviewed: 2026-09-24（T-ACCESS-054：§3/§8.2 legacy 别名终态口径�
 ### 5.1 操作码（唯一权限语义变更）
 
 - **常量面合一**：AdminOperationCode 与 OperationCodeConstants 并为单一操作码常量面（按资源类型分节）；补录 `API:ACCESS`（消除 bootstrap/快照装配/接口判定四处裸字符串）与 `ROLE:ASSIGN`/`ROLE:REVOKE`（DDL 种子在册、后端零代码引用——按「统一常量面=注册表镜像」收录，与既有「常量类只镜像代码引用面」口径的关系随 T-ACCESS-034 登记）。
-- **USER 轨细粒度化**：UserManageAppServiceImpl 换绑——updateUser 按字段分档（name/extra 变更查 `USER:UPDATE`；`enabled != null` 查 `USER:ENABLE`，防 UPDATE 绕过启停分权）、deleteUsers 查 `USER:DELETE`；`USER:MANAGE` 退役（无消费即删，仓库既有政策）。bootstrap 固定图 USER 段本无 MANAGE 位（空库上 perm 轨 update/remove 恒拒不可用）——换绑后由拒转放行是**预期的行为变化**（修复该死锁），非等价改写。自身豁免（两轨同款 operatorId==targetId 跳过门禁）保留；豁免**范围限定**（改自己的可变字段/动作边界）登记为已知遗留（docs/pending-problems.md Q-002）、不在本计划解决（2026-09-13 定案）【已收敛：2026-09-14 T-PERM-067 定案豁免收窄为档案字段，启停/删除不豁免，见同日 registry 行】。
+- **USER 轨细粒度化**：UserManageAppServiceImpl 换绑——updateUser 按字段分档（name/extra 变更查 `USER:UPDATE`；`enabled != null` 查 `USER:ENABLE`，防 UPDATE 绕过启停分权）、deleteUsers 查 `USER:DELETE`；`USER:MANAGE` 退役（无消费即删，仓库既有政策）。bootstrap 固定图 USER 段本无 MANAGE 位（空库上 perm 轨 update/remove 恒拒不可用）——换绑后由拒转放行是**预期的行为变化**（修复该死锁），非等价改写。自身豁免（两轨同款 operatorId==targetId 跳过门禁）保留；豁免**范围限定**（改自己的可变字段/动作边界）登记为已知遗留（docs/pending-problems.md Q-002）、不在本计划解决（2026-09-13 定案）【已收敛：2026-09-14 T-PERM-067 定案豁免收窄为档案字段，启停/删除不豁免，见同日 [历史定案原文](../archive/2026-09-26/decision-registry-before.md) 行】。
 - 粗细粒度双轨仅统一 USER 一处；ROLE / RESOURCE 等的 `MANAGE` 惯例不动。
 - SDK `DefaultOpCode`（VIEW/EDIT/DELETE）维持（SDK 自身契约）；EDIT 在服务端操作码注册表无预置，登记为已知差异。
 - 影响面：DDL 种子与 schema/表征测试（InstanceGate/UserRoleWriteProjectionPgIT 的 MANAGE 行迁细码）、注释残留清扫、契约文档；bootstrap 固定图零变更（仅加无 MANAGE 断言）；前端 user 页已用细粒度且零 abstract-user 消费、e2e 无 MANAGE 断言（均已核实，无迁移项）。
@@ -125,7 +125,7 @@ last_reviewed: 2026-09-24（T-ACCESS-054：§3/§8.2 legacy 别名终态口径�
 
 ## 8. 归属清单与边界断言（T-ACCESS-032 定稿，2026-09-13）
 
-> 本章为 T-ACCESS-033 机械迁移的**唯一搬迁依据**；十项裁决用户已拍板（decision-registry 2026-09-13 融合定稿行与 T-ACCESS-032 行）。源类基线 = 归并后 live 树 `cn.ac.fage.accessmesh.access` 主源码全部类（完整性由 033 全量核对兜底；测试树随主类同规则迁移，不在表中重复）。
+> 本章为 T-ACCESS-033 机械迁移的**唯一搬迁依据**；十项裁决用户已拍板（[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 2026-09-13 融合定稿行与 T-ACCESS-032 行）。源类基线 = 归并后 live 树 `cn.ac.fage.accessmesh.access` 主源码全部类（完整性由 033 全量核对兜底；测试树随主类同规则迁移，不在表中重复）。
 
 ### 8.0 裁决汇总（十项拍板）
 
@@ -139,7 +139,7 @@ last_reviewed: 2026-09-24（T-ACCESS-054：§3/§8.2 legacy 别名终态口径�
 | 6 | bootstrap 设施 | **独立顶层 bootstrap 包**（BootstrapSeedWriter 接口与实现随包迁入；断言排除集收敛为单包） |
 | 7 | 门禁设施与操作码常量面 | **都归 engine**：AdminPermissionValidator（含 Impl）为引擎门面；AdminOperationCode + OperationCodeConstants 033 先两册随迁 engine、034 合一为单册 |
 | 8 | LocalProjectionDomainService + PermConstants | **独立顶层 projection 包**（内部事实投影统一门面，横跨五能力不可拆；两个 ProjectionWriter 各随实体） |
-| 9 | 存量跨能力 mapper 直读（双轨评审发现） | **已收敛退役**（2026-09-13 拍板冻结白名单锁「不得新增」；2026-09-15 Q-009 转出 T-ACCESS-043~046 四批全量收敛 19 类 30 边至零，白名单退役为**零容忍绝对禁断**，断言负向自证改测试源集夹具形态；定案与硬契约见 decision-registry 2026-09-15 两行） |
+| 9 | 存量跨能力 mapper 直读（双轨评审发现） | **已收敛退役**（2026-09-13 拍板冻结白名单锁「不得新增」；2026-09-15 Q-009 转出 T-ACCESS-043~046 四批全量收敛 19 类 30 边至零，白名单退役为**零容忍绝对禁断**，断言负向自证改测试源集夹具形态；定案与硬契约见 [历史定案原文](../archive/2026-09-26/decision-registry-before.md) 2026-09-15 两行） |
 | 10 | 僵尸 DTO 扩面（双轨评审发现） | `BatchResultResp`、`OperationDetailReq` 与 `PermissionCheckReq` 同批随 033 删除（全仓零消费实测，「无消费即删」政策） |
 
 ### 8.1 终态顶层包总览
@@ -503,4 +503,4 @@ Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{
 | access-service-architecture §5.2 管理事实表与权限计算表不强行合并 | **维持，无修订** |
 | 2026-09-12 T-PERM-065 admin Req DTO 不换绑 | **维持，无修订**（实质口径随 T-ACCESS-041 改述为「管理面家族同名 `IdsReq`/`UserRoleListReq` 合法独立形态」） |
 | project-rules §1.2「管理域和权限域枚举不得合并」互斥句 | 已随 T-ACCESS-038 单册落地废止，T-ACCESS-041 承接改写（单册 AccessErrorCode + 服务级册制表述） |
-| 规则/skills/AGENTS/adopted 设计的 admin/permission 域现行结构叙事 | T-ACCESS-041 全量清扫，替换词汇=管理面/权限面（registry 2026-09-14 行）；带日期历史句与「原 X 域」出处注记保留 |
+| 规则/skills/AGENTS/adopted 设计的 admin/permission 域现行结构叙事 | T-ACCESS-041 全量清扫，替换词汇=管理面/权限面（[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 2026-09-14 行）；带日期历史句与「原 X 域」出处注记保留 |

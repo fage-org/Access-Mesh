@@ -31,7 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>
  * 单用例灌 65540 行资源+metadata 做全量差异清理，是容器组最重用例——挂
  * {@code testcontainers-heavy} 标签：日常形态 {@code -DskipHeavyIT=true} 跳过、
- * 收口形态 {@code mvn test -T 1C} 必跑（拆档机制见 decision-registry T-PERM-079 行）。
+ * 收口形态 {@code mvn test -T 1C} 必跑（拆档机制见 .claude/rules/testing-standards.md §10）。
  * </p>
  */
 @Tag("testcontainers")

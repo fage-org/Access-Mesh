@@ -3,12 +3,12 @@ doc_type: design
 title: 公共服务认证模块（per-service credential）
 status: adopted
 domain: access-service
-last_reviewed: 2026-09-23   # T-ACCESS-053 评审处置：§4 20065 描述补「白名单外路径」（对齐契约 §24.2 单源）+ §2 表③ SDK 注入括注收窄（仅 X-Service-Code 保留声明、X-Internal-Secret 无条件追加——claude 外评 P3 类推面）；此前 2026-09-20   # T-PERM-070 实施落地：§3.2 验证顺序与 TLS 段按实施拍板修订（registry 2026-09-20 行）、§4 占位换契约 §24 指针；实施终态见任务卡与契约总册 §24
+last_reviewed: 2026-09-26
 ---
 
 # 公共服务认证模块（per-service credential）设计
 
-> **状态口径**：`adopted`（2026-09-19 同批定稿依据见[原定案全文](../archive/2026-09-20/auto-grant-prior-decisions.md)；自动授权部分取代关系见[定案登记表](decision-registry.md)）。本公共模块由 **T-PERM-070** 实现并已完成；自动授权由 **T-PERM-078** 先细化协议，再沿 **T-PERM-071～073** 实施，完整前置依赖以[任务看板](../tasks/README.md)为准。
+> **状态口径**：`adopted`（2026-09-19 同批定稿依据见[原定案全文](../archive/2026-09-20/auto-grant-prior-decisions.md)；自动授权部分取代关系见[自动授权当前设计](dependency-auto-grant.md)）。本公共模块由 **T-PERM-070** 实现并已完成；自动授权由 **T-PERM-078** 先细化协议，再沿 **T-PERM-071～073** 实施，完整前置依赖以[任务看板](../tasks/README.md)为准。
 >
 > **定位**：机器对机器（M2M）服务身份认证是**多通道共用的平台能力**（资源同步通道、manifest 依赖声明通道、未来任何服务身份端点），不隶属单一特性——本稿从 dependency-auto-grant §9 升格拆出，含现有认证系统的完整盘点。
 
@@ -80,7 +80,7 @@ CREATE TABLE service_credential (
 
 ```text
 请求头：X-Credential-Id + X-Credential-Secret（TLS 传输）
-验证（2026-09-20 实施拍板修订：secret 比对先于状态细分——三态细分仅对持有正确 secret 的请求者暴露，半头/错误 secret 一律 20065 无凭证状态探测面；registry 同日行）：
+验证（2026-09-20 实施拍板修订：secret 比对先于状态细分——三态细分仅对持有正确 secret 的请求者暴露，半头/错误 secret 一律 20065 无凭证状态探测面；[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日行）：
   ① credential 行定位（credential_id **全局唯一**（§3.1 uk）；行不存在 → 20065）
   ② BCrypt 常量时间比对 secret（失败 → 20065）
   ③ 状态/过期细分：停用 → 20067；已过期 → 20066
