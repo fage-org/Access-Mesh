@@ -134,9 +134,11 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
                 dropped.add(pair.second());
             }
         }
-        Set<Long> kept = new HashSet<>(effectiveRoleIds);
+        // LinkedHashSet 而非 Set.copyOf：SetN 的迭代起点按 JVM 级随机盐旋转（跨重启顺序漂移），
+        // 下游 allEntries 按角色迭代序拼接进响应数组与分页切片——保持跨运行确定序（claude 外评 P3-1）
+        Set<Long> kept = new LinkedHashSet<>(effectiveRoleIds);
         kept.removeAll(dropped);
-        return new RoleMutexComputation(Set.copyOf(kept), hits);
+        return new RoleMutexComputation(Collections.unmodifiableSet(kept), hits);
     }
 
     /**
@@ -370,7 +372,8 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
     /**
      * 过滤权限互斥冲突
      * <p>
-     * 内部复用 {@link #computePermMutex} 纯计算；检测到冲突时异步通知——
+     * 内部与公开入口 {@link #computePermMutex} 共用同一计算体（私有
+     * {@code computePermMutexInternal}）；检测到冲突时异步通知——
      * 明细由真实命中规则（AND 两端在场）构造，不按冲突端点反推（T-PERM-083）。
      * </p>
      *

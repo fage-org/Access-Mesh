@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -429,6 +430,18 @@ class PermissionConflictDomainServiceImplTest {
                 new PermissionConflictDomainService.RolePairRef(100L, 200L),
                 new PermissionConflictDomainService.RolePairRef(200L, 300L)), computation.hits());
             verifyNoInteractions(auditDomainService);
+        }
+
+        /** 返回集合不可变行为锁（claude 外评 2026-09-26 处置补）：写入抛 UnsupportedOperationException */
+        @Test
+        void keptRoleIdsShouldBeImmutable() {
+            when(cacheService.get(AccessCacheCatalog.ROLE_MUTEX_RULE, TENANT, "all"))
+                .thenReturn("[{\"first\":100,\"second\":200}]");
+
+            var computation = service.computeRoleMutex(TENANT, Set.of(100L, 200L, 300L));
+
+            assertThrows(UnsupportedOperationException.class,
+                () -> computation.keptRoleIds().add(400L));
         }
     }
 

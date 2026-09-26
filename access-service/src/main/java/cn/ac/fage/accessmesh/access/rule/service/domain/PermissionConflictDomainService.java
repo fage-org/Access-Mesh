@@ -168,7 +168,8 @@ public interface PermissionConflictDomainService {
      * 根据权限互斥规则过滤权限条目列表。
      * 如果用户同时拥有互斥的两个操作权限，则同时移除这两个权限。
      * 检测到冲突时异步发出通知——明细由真实命中规则（AND 两端在场）构造，
-     * 不按冲突端点反推（T-PERM-083）。内部复用 {@link #computePermMutex} 纯计算。
+     * 不按冲突端点反推（T-PERM-083）。内部与公开入口 {@link #computePermMutex}
+     * 共用同一计算体（私有 {@code computePermMutexInternal}）。
      * </p>
      *
      * @param tenantId     租户ID
