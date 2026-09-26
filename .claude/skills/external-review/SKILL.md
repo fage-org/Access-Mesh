@@ -1,15 +1,16 @@
 ---
 name: external-review
 description: >-
-  外部 AI 评审执行规范（claude / grok / codex 三通道；codex 默认 gpt-6-luna max、点名 gpt-6-sol 封顶 xhigh 等；
-  两模型分档——luna 显式注入 872k 上下文、sol 不注入覆盖（2026-09-23 换代拍板沿旧分档）；全程禁止子代理；本机运行或用户贴回结论两种形态）。
+  外部 AI 评审执行规范（claude / grok / codex 三通道；未点名时使用 CLI 当前配置的默认模型，不检查模型漂移；
+  codex 默认配置示例 gpt-6-luna max，点名 gpt-6-sol 封顶 xhigh；grok 默认 grok-4.7；
+  全程禁止子代理；本机运行或用户贴回结论两种形态）。
   TRIGGER when: 用户显式要求外部 AI 评审/复评（「用codex/claude/grok评审」「codex 复评」、逐字给出提示词、
   贴回外部 AI 结论要求「核实并修复」）；仅用户触发，收口流程不得自动串联。
 disable-model-invocation: true
 origin: project
 metadata:
   project: AccessMesh
-  version: "2.5.1"
+  version: "2.6.0"
 ---
 
 # 外部 AI 评审（claude / grok / codex；仅用户触发；全程禁止子代理）
@@ -17,7 +18,8 @@ metadata:
 ## 触发纪律（2026-09-06 用户定案）
 
 - **仅当用户显式指令时执行**：如「用codex评审」「claude/grok 复评」、用户逐字给出提示词、用户贴回外部 AI 结论并要求核实修复（此形态不必本机运行 CLI）。
-- **通道与模型由用户点名**：可单通道也可多通道并行（先例 2026-09-12：codex sol xhigh + grok 双轨共用同一提示词文件）。codex 模型与推理档逐轮点名，无点名时默认 luna max；claude/grok 一般用各自默认模型，用户点名另定。
+- **通道由用户点名，模型与推理档优先采用用户本次指定值**：可单通道也可多通道并行；未指定的项沿用对应 CLI 当前配置，不用技能中的示例覆盖配置。Codex 默认配置示例为 `gpt-6-luna` + `max`，用户可指定 `gpt-6-sol`（封顶 `xhigh`）；Grok 默认模型为 `grok-4.7`。
+- **不再检查模型漂移（2026-09-26 用户定案）**：不比对配置、启动 banner 与会话返回的模型身份，不为此运行探针、停机、重跑或要求用户决策。报告按调用通道及已指定参数说明即可，不把配置名宣称为已验证的后端模型身份。本条取代原强制注入默认模型、启动核对及返回模型身份核验要求。
 - 收口流程（`dual-track-local-review`）不得自动串联本轨道；复评是否续跑、跑几轮**由用户拍板**，无自动收敛轮数——每轮报告后停下等指令，不自行发起下一轮。
 
 ## 禁止子代理（2026-09-12 用户定案，三通道统一硬约束）
@@ -39,33 +41,35 @@ metadata:
 - 三通道可同批并行：各自后台跑 + 输出整文件落盘，互不干扰。
 - **后台跑的 stdin 语义（codex）**：argv 传短提示词且后台运行时必须 `< /dev/null`（run_in_background 的 stdin 是永不关闭的管道，codex 打印 `Reading additional input from stdin...` 后无限等待）；用 `- < prompt.md` 投喂时 stdin 即提示词文件、EOF 正常到达，无需 `< /dev/null`。
 
-### codex（默认 luna max；点名形态如 sol xhigh）
+### codex（未点名时沿用当前配置；点名形态如 sol xhigh）
+
+未点名模型与推理档时，不传 `-m` 或 `model_reasoning_effort` 覆盖项。当前配置为 luna 时，保留既有上下文参数：
 
 ```bash
-codex exec -m gpt-6-luna -c 'model_reasoning_effort="max"' -c model_context_window=872000 --disable multi_agent -s read-only --color never - < prompt.md
+codex exec -c model_context_window=872000 --disable multi_agent -s read-only --color never - < prompt.md
 ```
 
-#### 模型与上下文（2026-09-08 定案默认 luna max；2026-09-13 定规两模型分档；2026-09-23 模型换代 gpt-5.6→gpt-6）
+#### 模型与上下文
 
-- 评审默认模型 **`gpt-6-luna` + reasoning effort `max`**（「luna max」= luna 模型挂 max 推理档；不存在名为 luna-max 的模型 ID）。一律**显式注入**、不依赖 `~/.codex/config.toml` 默认值。
-- **800k 级上下文的写法是 `872000`，不是 `800000`**（2026-09-08 三探针实证，证据为 rollout 会话文件 `model_context_window` 字段）：
-  - luna@max 无覆盖：272k×95% = **258.4k**（此前桌面端 828.4k 会话是桌面端自行注入的窗口，CLI 不带覆盖拿不到）；
-  - `-c model_context_window=800000`：800k×95% = **760k**——95% 有效窗口折扣同样作用于覆盖值，字面 800k 反而不达标；
-  - `-c model_context_window=872000`（= models_cache 中 luna 的 `max_context_window`）：**828.4k** ✅。
-- **两模型参数分档（2026-09-13 用户定规；2026-09-23 换代拍板「沿旧分档映射」）**：luna 与 sol 定位不同，推理档与上下文注入按模型区分，勿套同一写法：
+- `gpt-6-luna` + reasoning effort `max` 是默认配置示例；「luna max」不是单独的模型 ID。实际选择以当前 CLI 配置或用户显式指定为准，不强制改回示例值。
+- 上下文参数按本次使用的配置模型或点名模型区分；读取配置用于选择调用参数，不核验后端返回身份：
 
   | 模型 | reasoning effort | 上下文注入 |
   | ---- | ---------------- | ---------- |
-  | luna（`gpt-6-luna`） | `max` | `-c model_context_window=872000`（800k 级写法） |
-  | sol（`gpt-6-sol`） | **封顶 `xhigh`**，不越档 | **不注入**（保守沿用旧能力判断，见下） |
+  | luna（`gpt-6-luna`） | 未点名沿用配置（默认示例 `max`） | `-c model_context_window=872000`（800k 级写法） |
+  | sol（`gpt-6-sol`） | 点名时**封顶 `xhigh`**，用户指定更低档则按指定值 | **不注入** |
+  | 其他当前配置模型 | 沿用配置或用户指定值 | 不套用 luna 覆盖参数 |
 
-  - sol 点名写法：`-m gpt-6-sol -c 'model_reasoning_effort="xhigh"'`（**不带** `-c model_context_window`）。2026-09-23 models_cache 实证 gpt-6-sol `max_context_window=872000` 且档位支持到 ultra（旧 272k 前提已失效）——用户拍板**维持旧分档**（sol 仍封顶 xhigh+不注入，保守沿用能力判断）；若后续要求解封，须用户显式拍板后再改本表。点名时先读 `~/.codex/models_cache.json` 核对当前值再定参数。
-  - 点名模型探针：`codex models` 无 tty 直接报错（`Error: stdin is not a terminal`），改读 `~/.codex/models_cache.json`。
-- 启动后核对 banner `model:` / `reasoning effort:` 行与点名一致，不符即停；启动时 `failed to refresh available models: timeout` ERROR 行为良性噪声，不阻断。
+- 点名 sol 的调用示例：
 
-#### 运行前检查
+  ```bash
+  codex exec -m gpt-6-sol -c 'model_reasoning_effort="xhigh"' --disable multi_agent -s read-only --color never - < prompt.md
+  ```
 
-- **模型漂移**：本机 `~/.codex/config.toml` 默认模型会变（gpt-5.6-sol → gpt-6-astra 实证）。因此一律显式 `-m` + `-c` 注入；banner 不符即停，探针确认点名模型可用后重跑。
+- luna 上下文仍用 `872000`，不是 `800000`：按既有 95% 有效窗口折扣，分别为 828.4k 与 760k。sol 仍沿用用户确认的封顶 `xhigh`、不注入上下文分档；不因工具支持更高档而自行解封。
+
+#### 运行注意
+
 - **进程清理**：清理 codex.exe「残留」前先查父进程——Codex 桌面应用常驻 app-server 会持续再生 codex.exe，那是用户自己的进程，勿误杀；仅 TaskStop 后日志停止增长但进程存活的情况才需要 taskkill。
 - **404 故障窗口**：chatgpt.com 后端 404 可持续数十分钟后自愈，先最小探针确认，别急着归因本机。
 
@@ -77,7 +81,7 @@ codex exec -m gpt-6-luna -c 'model_reasoning_effort="max"' -c model_context_wind
 | 要 codex 实跑测试        | `-s workspace-write` + 提示词约束逻辑只读（禁改任何 git 跟踪文件、结束 git status 须与开始一致）；测试长命令在主上下文跑（子代理禁令），大输出优先本机自跑后引用落盘报告                    |
 
 - 跑完必须实核 `git status` 干净。
-- **额度中断 → resume 续跑不从头**（用户定规省额度）：`codex exec resume <session-id> "继续…"`；resume 子命令不认 `--color`/`-s`（feature 开关 `--disable` 与 `-c` 均可用）——模型用 `-m`、沙箱用 `-c sandbox_mode="workspace-write"`、上下文按模型分档（luna 用 `-c model_context_window=872000`、sol 不注入，见「模型与上下文」）、子代理禁令用 `--disable multi_agent` 或 `-c features.multi_agent=false`，`-o <file>` 可把最终报告单独落盘。**先报告中断并等用户定续跑时刻**（codex 报的重试窗口未必等于实际额度重置点）；续跑前先最小探针确认额度已重置（一句话探针数秒返回服务端判定，口头「应该重置了」不作数）；session-id 在日志头 `session id:` 行。
+- **额度中断 → resume 续跑不从头**（用户定规省额度）：`codex exec resume <session-id> "继续…"`；resume 子命令不认 `--color`/`-s`（feature 开关 `--disable` 与 `-c` 均可用）——模型仅在用户点名时用 `-m`（未点名沿用当前配置）、沙箱用 `-c sandbox_mode="workspace-write"`、上下文按模型分档（luna 用 `-c model_context_window=872000`、sol 不注入，见「模型与上下文」）、子代理禁令用 `--disable multi_agent` 或 `-c features.multi_agent=false`，`-o <file>` 可把最终报告单独落盘。**先报告中断并等用户定续跑时刻**（codex 报的重试窗口未必等于实际额度重置点）；续跑前先最小探针确认额度已重置（一句话探针数秒返回服务端判定，口头「应该重置了」不作数）；session-id 在日志头 `session id:` 行。
 - 沙箱环境限制要澄清勿误采信：workspace-write 无 Docker（Testcontainers 全 skip）、esbuild spawn EPERM（vitest/build 起不来）——「无法复验」≠声明造假，以本机实跑记录为准、本地补跑定向测试。
 
 ### claude
@@ -86,18 +90,18 @@ codex exec -m gpt-6-luna -c 'model_reasoning_effort="max"' -c model_context_wind
 cat prompt.md | claude -p --permission-mode plan --output-format text --disallowedTools Task Workflow
 ```
 
-- 默认模型随 `~/.claude/settings.json` 漂移，报告注明当时值；用户点名则显式指定。
+- 未点名时使用当前 CLI 配置的默认模型；用户点名则显式指定。不额外核验配置与返回模型身份。
 - headless plan 模式 ExitPlanMode 不可用时完整产出落 `~/.claude/plans/*.md`、stdout 只有摘要——**必须去读 plan 文件**。
 - stderr 的 `claude.ai connectors are disabled` 警告为良性噪声。
 
 ### grok
 
 ```bash
-~/.grok/bin/grok --prompt-file prompt.md -m grok-4.6 --reasoning-effort xhigh --always-approve --sandbox read-only --max-turns 40 --no-subagents
+~/.grok/bin/grok --prompt-file prompt.md --always-approve --sandbox read-only --max-turns 40 --no-subagents
 ```
 
 - **headless 后台跑禁用 plan/dontAsk 权限模式**：无 TTY 下工具审批无人应答，会话存档实证工具调用全部「User cancelled」（2026-09-12 plan/dontAsk 两形态复现；dontAsk 语义=仅预批工具的严格白名单）——免审批用 `--always-approve`、只读用 `--sandbox read-only`（读全盘、只写 ~/.grok+temp，产品定位即 code review）双闸，跑完实核 `git status` 干净兜底。
-- 推理档显式钉 `--reasoning-effort`（本机 config `default_reasoning_effort` 会漂移；先例 xhigh），用户点名另定；模型默认 grok-4.6。
+- 默认模型配置为 `grok-4.7`；未点名时沿用 CLI 当前配置的模型与推理档，不传覆盖参数。用户点名时用 `-m` / `--reasoning-effort` 指定对应项。
 - grok 是独立 CLI，**不在 codex models_cache 里**；stdout 会混排中途叙述与最终报告，落盘后取报告段。
 
 ## 提示词构建标准（2026-09-12 v2 定案：短提示词；复评感知）
