@@ -152,4 +152,24 @@ class BatchPermMutexEvaluatorTest {
         evaluator.notifyHits(TENANT, List.of());
         verify(auditDomainService, never()).asyncRecordLog(any());
     }
+
+    /**
+     * I01 空规则短路（T-PERM-095，对齐单路径 computePermMutexInternal 同名短路）：
+     * 规则装载为空时 compute 直接返回原条目，操作目录零装载——getDenied* 切换到
+     * 批量评估器通道（PQ-01 逐 item 修复）后，无互斥规则租户不得比旧单条通道多付
+     * 一次 selectByTenantAndResourceTypes（裸 DB 查询、无缓存）。
+     */
+    @Test
+    void computeMustShortCircuitOnEmptyRulesWithoutOperationLoading() {
+        when(conflictRuleMapper.selectByConflictType(eq(TENANT), eq("PERM_MUTEX")))
+            .thenReturn(List.of());
+
+        BatchPermMutexEvaluator evaluator = service.openBatchMutexEvaluator(TENANT);
+        BatchPermMutexEvaluator.PermMutexComputation computation =
+            evaluator.compute(List.of(entry(VIEW_BIT), entry(UPDATE_BIT)));
+
+        assertEquals(2, computation.filtered().size(), "空规则：条目原样保留");
+        assertTrue(computation.triggeredRuleIds().isEmpty());
+        verify(operationPermissionMapper, never()).selectByTenantAndResourceTypes(any(), any());
+    }
 }

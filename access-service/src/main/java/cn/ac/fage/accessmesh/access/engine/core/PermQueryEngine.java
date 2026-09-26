@@ -1066,6 +1066,7 @@ public class PermQueryEngine {
      * 内存计算拒绝集合。未解析到投影实体的 code 直接拒绝（fail-closed，与单条 forAuthCheck
      * 内部解析语义一致）。T-PERM-057：判定面继承（管理面写门禁默认开）——目标集扩为
      * {目标}∪同类型祖先链，条目挂祖先实体经闭包回映射判目标允许（评估口径拉平：条件+条目互斥）。
+     * T-PERM-095：条目互斥按目标切分各自判定（PQ-01——独立目标不合并判定集合）。
      * </p>
      *
      * @param tenantId         租户ID
@@ -1121,9 +1122,11 @@ public class PermQueryEngine {
             return distinctCodes; // 无有效投影 = 全部拒绝
         }
 
-        // 5. 实例级批量查询（含条件与冲突评估）+ 闭包回映射；未解析的 code 一并拒绝（fail-closed）
+        // 5. 实例级批量查询（条件整批评估＋互斥按目标切分各自判定，T-PERM-095）+ 闭包回映射；
+        //    未解析的 code 一并拒绝（fail-closed）
         Set<Long> deniedEntityIds = computeInstanceDenied(
-            tenantId, roleIds, new LinkedHashSet<>(entityIdByCode.values()), bitMasks, evalMap, true);
+            tenantId, roleIds, new LinkedHashSet<>(entityIdByCode.values()), bitMasks, evalMap, true,
+            "GET_DENIED:" + resourceTypeCode + ":" + operationCode);
         Set<String> denied = new LinkedHashSet<>();
         for (String code : distinctCodes) {
             Long entityId = entityIdByCode.get(code);
@@ -1141,8 +1144,8 @@ public class PermQueryEngine {
      * {@link #hasPermissionByEntityId}。门禁主体契约同 {@link #hasPermissionByCode}。
      * 未知类型/未知操作/无角色 fail-closed 全量拒绝。相比 N 次单独查询：
      * 一次解析用户角色 → 一次类型级 scopeAll 查询（命中则全部允许，含条件与冲突评估）→
-     * 一次批量实例级查询（含条件与冲突评估）→ 内存计算拒绝集合（判定面继承开启时经闭包回映射，
-     * 条目挂同类型祖先实体的目标判允许）。
+     * 一次批量实例级查询（条件整批评估＋互斥按目标切分各自判定，T-PERM-095）→
+     * 内存计算拒绝集合（判定面继承开启时经闭包回映射，条目挂同类型祖先实体的目标判允许）。
      * </p>
      *
      * @param tenantId         租户ID
@@ -1185,8 +1188,9 @@ public class PermQueryEngine {
             return Set.of();
         }
 
-        // 4. 实例级批量查询（含条件与冲突评估）+ 闭包回映射计算拒绝集合
-        return computeInstanceDenied(tenantId, roleIds, resourceEntityIds, bitMasks, evalMap, true);
+        // 4. 实例级批量查询（条件整批评估＋互斥按目标切分各自判定，T-PERM-095）+ 闭包回映射计算拒绝集合
+        return computeInstanceDenied(tenantId, roleIds, resourceEntityIds, bitMasks, evalMap, true,
+            "GET_DENIED:" + resourceTypeCode + ":" + operationCode);
     }
 
     /**
@@ -1238,10 +1242,18 @@ public class PermQueryEngine {
      * （实现成败点，engine/implementation.md §3.9：条目挂祖先、请求目标不在条目实体集
      * 不得误判 DENIED）。
      * </p>
+     * <p>
+     * T-PERM-095（PQ-01 修复）：候选按目标闭包切分、各自做 PERM_MUTEX——独立目标不合并
+     * 判定集合（沿 queryBatch 逐 item 语义形态，设计 §4.4）：单端+单端跨 item 不再凑成
+     * 「两端同场」整批双删。条件评估整批一次（逐条目语义，与切分等价）；互斥经请求级
+     * {@link BatchPermMutexEvaluator} 共享装载（规则一次、空规则短路零操作目录装载），
+     * 命中按 (组, 规则) 聚合后一次通知（hitItemCount=命中目标数）。
+     * </p>
      */
     private Set<Long> computeInstanceDenied(Long tenantId, Set<Long> roleIds,
                                              Set<Long> resourceEntityIds, Map<Integer, Long> bitMasks,
-                                             Map<String, Object> evalMap, boolean inheritClosure) {
+                                             Map<String, Object> evalMap, boolean inheritClosure,
+                                             String mutexGroupKey) {
         // 目标闭包：target → {自身}∪同类型祖先
         Map<Long, Set<Long>> closureByTarget = new LinkedHashMap<>();
         Set<Long> queryEntityIds = new LinkedHashSet<>(resourceEntityIds);
@@ -1265,17 +1277,11 @@ public class PermQueryEngine {
         if (!instanceEntries.isEmpty()) {
             instanceEntries = conditionDomainService.evaluate(tenantId, instanceEntries, evalMap);
         }
-        if (!instanceEntries.isEmpty()) {
-            instanceEntries = conflictDomainService.filterPermMutex(tenantId, instanceEntries);
-        }
 
-        Set<Long> allowedEntityIds = new HashSet<>();
-        for (RolePermEntry entry : instanceEntries) {
-            if (entry.resourceEntityId() != null) {
-                allowedEntityIds.add(entry.resourceEntityId());
-            }
-        }
-
+        // PQ-01 修复（T-PERM-095）：每个目标（闭包集）一个判定集合，各自 PERM_MUTEX；
+        // 互斥命中按 (组, 规则) 记账（hitItemCount=命中目标数），循环后一次通知
+        BatchPermMutexEvaluator mutexEvaluator = conflictDomainService.openBatchMutexEvaluator(tenantId);
+        Map<Long, Integer> mutexHitTargetsByRule = new LinkedHashMap<>();
         Set<Long> denied = new LinkedHashSet<>();
         for (Long entityId : resourceEntityIds) {
             if (entityId == null) {
@@ -1283,10 +1289,23 @@ public class PermQueryEngine {
                 continue;
             }
             Set<Long> closure = closureByTarget.getOrDefault(entityId, Set.of(entityId));
-            boolean allowed = closure.stream().anyMatch(allowedEntityIds::contains);
-            if (!allowed) {
+            List<RolePermEntry> itemEntries = instanceEntries.stream()
+                .filter(e -> e.resourceEntityId() != null && closure.contains(e.resourceEntityId()))
+                .toList();
+            BatchPermMutexEvaluator.PermMutexComputation mutex = mutexEvaluator.compute(itemEntries);
+            for (Long ruleId : mutex.triggeredRuleIds()) {
+                mutexHitTargetsByRule.merge(ruleId, 1, Integer::sum);
+            }
+            if (mutex.filtered().isEmpty()) {
                 denied.add(entityId);
             }
+        }
+        if (!mutexHitTargetsByRule.isEmpty()) {
+            List<BatchPermMutexEvaluator.MutexHit> hits = new ArrayList<>();
+            for (Map.Entry<Long, Integer> hit : mutexHitTargetsByRule.entrySet()) {
+                hits.add(new BatchPermMutexEvaluator.MutexHit(mutexGroupKey, hit.getKey(), hit.getValue()));
+            }
+            mutexEvaluator.notifyHits(tenantId, hits);
         }
         return denied;
     }

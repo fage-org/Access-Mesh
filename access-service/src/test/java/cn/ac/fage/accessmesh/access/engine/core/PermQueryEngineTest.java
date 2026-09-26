@@ -498,7 +498,7 @@ class PermQueryEngineTest {
         when(rolePermMapper.selectInstancePermsByBitsBatch(eq(1L), eq(Set.of(20L)), eq(Set.of(1001L, 1002L)), any()))
             .thenReturn(List.of(granted));
         when(conditionDomainService.evaluate(eq(1L), any(), any())).thenAnswer(inv -> inv.getArgument(1));
-        when(conflictDomainService.filterPermMutex(eq(1L), any())).thenAnswer(inv -> inv.getArgument(1));
+        when(conflictDomainService.openBatchMutexEvaluator(eq(1L))).thenReturn(passThroughMutexEvaluator());
 
         Set<String> denied = engine.getDeniedResourceCodes(
             1L, 10L, "USER", new java.util.LinkedHashSet<>(List.of("10", "20", "30")), "MANAGE");
@@ -1212,14 +1212,32 @@ class PermQueryEngineTest {
         // 旧实现下消费——子行存活进 allowedEntityIds → denied 不含 200 → 断言失败（真锁前提）
         org.mockito.Mockito.lenient().when(conditionDomainService.evaluate(eq(1L), any(), any()))
             .thenAnswer(invocation -> invocation.getArgument(1));
-        org.mockito.Mockito.lenient().when(conflictDomainService.filterPermMutex(eq(1L), any()))
-            .thenAnswer(invocation -> invocation.getArgument(1));
+        // T-PERM-095：实例路径互斥改经请求级批量评估器（逐目标 compute），透传桩零剔除
+        when(conflictDomainService.openBatchMutexEvaluator(eq(1L))).thenReturn(passThroughMutexEvaluator());
         when(resourceEntityMapper.selectSelfAndAncestorClosureBatch(1L, Set.of(200L)))
             .thenReturn(List.of());
 
         Set<Long> denied = engine.getDeniedEntityIds(1L, 10L, "SERVICE", Set.of(200L), "VIEW");
 
         assertThat(denied).as("子权限行不计入批量便捷入口的放行面（旧实现拒绝集缺失）").contains(200L);
+    }
+
+    /**
+     * T-PERM-095：getDenied* 实例路径互斥改经请求级批量评估器（逐目标 compute + 聚合通知）——
+     * 单测透传桩：计算零剔除、通知空操作（互斥语义由 PgIT 真实规则锁）。
+     */
+    private static BatchPermMutexEvaluator passThroughMutexEvaluator() {
+        return new BatchPermMutexEvaluator() {
+            @Override
+            public BatchPermMutexEvaluator.PermMutexComputation compute(List<RolePermEntry> entries) {
+                return new BatchPermMutexEvaluator.PermMutexComputation(entries, Set.of());
+            }
+
+            @Override
+            public void notifyHits(Long tenantId, List<BatchPermMutexEvaluator.MutexHit> hits) {
+                // 通知面不经单测锁（MutexSemanticsCharacterizationPgIT / BatchPermMutexEvaluatorTest 覆盖）
+            }
+        };
     }
 
     private OperationPermission operation(Long id, Integer resourceType, String code, Long binaryBit, Long inheritMask) {

@@ -438,6 +438,12 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
                 return new PermMutexComputation(List.of(), Set.of());
             }
             ensureRulesLoaded();
+            // I01（T-PERM-095，对齐单路径 computePermMutexInternal 同名短路）：空规则租户
+            // 直接返回原条目，操作目录零装载——getDenied* 切换本评估器通道（PQ-01 逐 item
+            // 修复）后不得比旧单条通道多付一次裸 DB 操作目录查询
+            if (rules.isEmpty()) {
+                return new PermMutexComputation(List.copyOf(entries), Set.of());
+            }
             ensureOperationIndex(entries);
             // 剔除语义与单条路径一致（集合语义：对子集整体算 opIds，两端同场才冲突且两端全丢）
             Set<Long> opIds = entries.stream()

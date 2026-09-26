@@ -29,7 +29,8 @@ public interface BatchPermMutexEvaluator {
      * <p>
      * 与单条 {@code filterPermMutex} 的剔除语义逐分支一致：条目 grantedBits 经
      * (resourceType, binaryBit) 精确查表解析操作（无精确匹配的复合位行被静默排除出
-     * 互斥判定）；规则两端都在条目操作 ID 集合中时两端全部剔除。
+     * 互斥判定）；规则两端都在条目操作 ID 集合中时两端全部剔除。空规则短路（I01，
+     * T-PERM-095）：规则装载为空时直接返回原条目，操作目录零装载。
      * </p>
      *
      * @param entries 待互斥计算的权限条目列表

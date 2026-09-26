@@ -47,11 +47,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  *       任一执行计划下序稳定），R02 锁「只持一端不产生传递冲突」的正确语义锚。</li>
  * </ul>
  * <p>
- * 修复翻转契约：T-PERM-095 落地后 D01 两断言翻转为「拒绝集为空」；
- * T-PERM-083 落地后 R01 两租户存活集均收敛为「仅 D」且相等（顺序无关）——
- * <b>已翻转（2026-09-26，T-PERM-083 S/H-D 落地）</b>：R01 现锁 S/H-D 终态语义
- * （对原始集一次算全部命中对、端点并集一次删净），D01 仍锁 PQ-01 现状待 T-PERM-095。
- * D02/D03/R02 修复前后语义不变。queryBatch 逐 item 放行侧由 BatchAuthCheckPgIT ⑤ 同款锁定。
+ * 翻转状态（均已完成）：<b>T-PERM-083</b>（2026-09-26）落地 S/H-D 后 R01 翻转为终态锚
+ * （对原始集一次算全部命中对、端点并集一次删净——顺序无关）；<b>T-PERM-095</b>（2026-09-26）
+ * 落地逐目标判定后 D01 两断言翻转为「拒绝集为空」（独立目标各自 PERM_MUTEX——沿 queryBatch
+ * 逐 item 语义形态）。D02/D03/R02 修复前后语义不变。queryBatch 逐 item 放行侧由
+ * BatchAuthCheckPgIT ⑤ 同款锁定。
  * </p>
  */
 @Tag("testcontainers")
@@ -96,7 +96,7 @@ class MutexSemanticsCharacterizationPgIT {
     // ===== D01：PQ-01 getDenied* 跨 item 整批互斥过拒 vs queryBatch 逐 item 评估 =====
 
     @Test
-    @DisplayName("D01 反例：X:VIEW 行 + Y:UPDATE 行（覆盖 VIEW）+ VIEW⊥UPDATE 规则——queryBatch 双放行，getDenied* 现状双拒（PQ-01）")
+    @DisplayName("D01 锚：X:VIEW 行 + Y:UPDATE 行（覆盖 VIEW）+ VIEW⊥UPDATE 规则——queryBatch 双放行，getDenied* 逐目标判定双放行（T-PERM-095 终态）")
     void shouldOverDenyAcrossItemsInGetDeniedWhileQueryBatchAllowsPerItem() {
         R2BaselineFixture fx = fixture();
         fx.newType(TYPE_D01, CODE_D01);
@@ -120,18 +120,18 @@ class MutexSemanticsCharacterizationPgIT {
         assertThat(outcomes.get(0).allowed()).as("item1 子集仅 VIEW 端：单端不冲突").isTrue();
         assertThat(outcomes.get(1).allowed()).as("item2 子集仅 UPDATE 端：单端不冲突").isTrue();
 
-        // PQ-01 特征锚：computeInstanceDenied 把两个独立目标的条目合并成一个判定集合，
-        // 单端+单端凑成两端同场 → 双删 → 两个目标都被拒（设计 §10.2 D01 正确预期=getDenied 投影为空；
-        // T-PERM-095 修复时本两断言翻转为 isEmpty）
+        // D01 终态锚（T-PERM-095 翻转，2026-09-26）：候选按目标闭包切分各自 PERM_MUTEX——
+        // 各目标判定集合内仅单端在场，不构成冲突 → 双目标放行（设计 §10.2 D01 正确预期达成）。
+        // 翻转前红跑取证 2026-09-25：旧整批 filterPermMutex 单端+单端凑成两端同场双删，
+        // 实际返回两个实体 id / 两个编码
         assertThat(engine.getDeniedEntityIds(R2BaselineFixture.TENANT, user, CODE_D01,
                 Set.of(entityX, entityY), "VIEW"))
-            .as("PQ-01 现状：id 轨整批互斥跨 item 双删 → 双目标过拒（T-PERM-095 修复翻转为空集；"
-                + "红跑取证 2026-09-25：正确预期 isEmpty 下实际返回两个实体 id）")
-            .containsExactlyInAnyOrder(entityX, entityY);
+            .as("D01：独立目标各自判定——id 轨拒绝集为空")
+            .isEmpty();
         assertThat(engine.getDeniedResourceCodes(R2BaselineFixture.TENANT, user, CODE_D01,
                 Set.of("r2b-mx-x", "r2b-mx-y"), "VIEW"))
-            .as("PQ-01 现状：code 轨同形态（T-PERM-095 修复翻转为空集）")
-            .containsExactlyInAnyOrder("r2b-mx-x", "r2b-mx-y");
+            .as("D01：code 轨同形态——拒绝集为空")
+            .isEmpty();
 
         // 单目标对照：判定集合内仅单端——现状与修复后语义一致，均为放行
         assertThat(engine.getDeniedEntityIds(R2BaselineFixture.TENANT, user, CODE_D01,
