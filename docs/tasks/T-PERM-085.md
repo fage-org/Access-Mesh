@@ -6,7 +6,7 @@ status: done
 plan: docs/plans/r2-query-engine-and-admission-plan.md
 domain: access-service
 design_refs:
-  - docs/design/r2-unified-query-and-admission.md §3.3/§5.4
+  - docs/design/r2-unified-query-and-admission.md §3.3/§3.4/§5.4/§6.1
   - docs/design/r2-unified-query-and-admission.md §4.1~§4.4
 depends_on:
   - T-PERM-083
@@ -45,6 +45,7 @@ last_updated: 2026-09-26
 
 - FACTS 在本卡提供最小可消费输出：不可变 StageFacts、按 OutputSpec 保留的 raw/kept 与命中 ID；类型回退命中后仍收集实例阶段。描述、有效操作、展示与 TRACE 留后续任务，未实现输出明确抛未实现异常，不返回伪完整结果。范围依据见设计 §3.3（2026-09-26 确认）。
 - I05 在普通 execute 验证条件缓存的首次 miss 令牌、跨阶段增量读取和热缓存复用；ROLE_SNAPSHOT 属 GRANT_LIST 来源，其 execute 验证由 T-PERM-086 承接（设计 §5.4）。
+- TYPE_LEVEL 仅有 depend_on 子授权时返回 NO_PERMISSION；TARGET_SET 父上下文排除仍返回 DEPENDENT_NOT_IN_PARENT_CONTEXT，见设计 §3.4（2026-09-26 确认）。运行态保留 User 角色互斥计算结果的迭代顺序，遵守设计 §6.1 的不可变与保序边界。
 
 ## 验收对照
 
@@ -57,7 +58,6 @@ last_updated: 2026-09-26
 ## 完成记录
 
 - 2026-09-26：新 execute 已接通 TYPE_GRANT/INSTANCE 与最小事实投影，复用纯角色互斥、批量条件和权限互斥能力；候选按 item+stage 隔离，阶段结果和读取记忆随 RunState 释放。
-- 定向单测：`mvn test -pl access-service -DskipTestcontainers=true -Dtest=QueryStagesTest,QueryExecutionEngineTest,QueryReadSupportTest,QueryContractModelsTest,PermissionConditionDomainServiceImplTest,PermissionConflictDomainServiceImplTest`，113 项通过；时钟反例以固定历史日收紧后，由收口全量再次通过。
-- 真实 PG/Redis：`mvn test -pl access-service -Dtest=QueryExecutionPgIT`，9 项通过。初始阶段反例在旧骨架上因未实现而失败，接线后通过。
-- 收口全量：`mvn test -T 1C`，2026-09-26 15:14 完成，2167 项、零失败/错误/跳过；access-service 单测 1511、容器 378（含 heavy）、跨服务 E2E 16，11 模块全部成功。
+- 定向验证：`mvn test -pl access-service -Dtest=QueryStagesTest,QueryExecutionPgIT,QueryExecutionEngineTest`，40 项单测＋10 项真实 PG/Redis 通过；覆盖旧单条/批量 TYPE_LEVEL 原因对照与角色顺序传递。新增及调整的原因/保序反例修复前有 3 处失败，修复后全通过；初始阶段反例在旧骨架上因未实现而失败，接线后通过。
+- 收口全量：`mvn test -T 1C`，2026-09-26 15:57 完成，2170 项、零失败/错误/跳过；access-service 单测 1513、容器 379（含 heavy）、跨服务 E2E 16，11 模块全部成功。
 - 代码轨与文档轨本地核对完成，无待决策或未解决缺陷；设计引用、读取来源边界、后续任务责任与最小事实输出已回写。任务所属计划仍活跃，本卡保留原位。

@@ -37,6 +37,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -160,8 +161,18 @@ class QueryStagesTest {
         instanceRows.add(grant(101, 1, 100L, 2));
         RoleResourcePermission child = grant(102, 1, null, 2); child.setDependOn(999L); scopeRows.add(child);
         QueryItem type = QueryItem.decision("type", new TypeLevel(List.of(new TypeOperation("REPORT", "VIEW"))), OutputSpec.minimal());
-        assertThat(decision(execute(type), 0).reason()).isEqualTo(DecisionResult.Reason.DEPENDENT_NOT_IN_PARENT_CONTEXT);
+        assertThat(decision(execute(type), 0).reason()).isEqualTo(DecisionResult.Reason.NO_PERMISSION);
         verify(grants, never()).selectInstancePermsByBitsBatch(anyLong(), anySet(), anySet(), anyList());
+    }
+
+    @Test
+    void should_distinguishTypeSelectionFromTargetParentExclusion_whenOnlyDependentScopeAllExists() {
+        RoleResourcePermission child = grant(102, 1, null, 2); child.setDependOn(999L); scopeRows.add(child);
+        QueryResult result = execute(
+            QueryItem.decision("type", new TypeLevel(List.of(new TypeOperation("REPORT", "VIEW"))), OutputSpec.minimal()),
+            QueryItem.decision("target", target(Inheritance.SELF, TypeFallback.ALLOW, clause(100)), OutputSpec.minimal()));
+        assertThat(decision(result, 0).reason()).isEqualTo(DecisionResult.Reason.NO_PERMISSION);
+        assertThat(decision(result, 1).reason()).isEqualTo(DecisionResult.Reason.DEPENDENT_NOT_IN_PARENT_CONTEXT);
     }
 
     @Test
@@ -359,6 +370,23 @@ class QueryStagesTest {
         verify(subjects, times(1)).resolveEffectiveRoles(1L, 1000L);
         assertThat(decision(execute(item("explicit", clause(100))), 0).outcome()).isEqualTo(DecisionResult.Decision.ALLOW);
         verifyNoInteractions(audit);
+    }
+
+    @Test
+    void should_preserveResolvedUserRoleOrder_whenPassingRolesToBatchedGrantReads() {
+        when(cache.get(AccessCacheCatalog.ROLE_MUTEX_RULE, 1L, "all")).thenReturn("[]");
+        instanceRows.add(grant(101, 1, 100L, 2));
+        // 两个相反输入序列避免依赖 SetN 的 JVM 随机迭代起点：旧复制至少会丢失其中一个顺序。
+        for (List<Long> order : List.of(List.of(10L, 20L, 30L), List.of(30L, 20L, 10L))) {
+            when(subjects.resolveEffectiveRoles(1L, 1000L)).thenReturn(new LinkedHashSet<>(order));
+            clearInvocations(grants);
+            QueryResult result = engine.execute(new QueryRequest(1L, new User(1000L), CallerContext.of(null),
+                ReadOptions.defaults(), List.of(item("ordered", clause(100)))));
+            assertThat(decision(result, 0).outcome()).isEqualTo(DecisionResult.Decision.ALLOW);
+            org.mockito.ArgumentCaptor<Set<Long>> captured = org.mockito.ArgumentCaptor.forClass(Set.class);
+            verify(grants).selectInstancePermsByBitsBatch(eq(1L), captured.capture(), eq(Set.of(100L)), anyList());
+            assertThat(captured.getValue()).containsExactlyElementsOf(order);
+        }
     }
 
     @Test

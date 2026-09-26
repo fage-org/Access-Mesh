@@ -258,6 +258,8 @@ TRACE 解释真实执行，不是全面配置扫描；scopeAll 短路的 INSTANC
 
 TARGET_SET 实例未解析时，仍保留之前 TYPE_GRANT 曾被条件／冲突清空的原因，不一律覆盖为 NO_PERMISSION。损坏条件规则按既有四态失败关闭；数据库读取失败则是技术故障，两者分别记录。新内部原因不未经版本化直接扩散到普通 SDK。
 
+**类型级子授权的原因口径（2026-09-26 用户确认）**：TYPE_LEVEL 没有父资源上下文，depend_on 子行不属于其有效候选；仅有此类行时返回 `NO_PERMISSION`，沿用旧单条/批量类型级门禁口径。有主授权候选但被条件/互斥清空时仍返回 `CONDITION_NOT_MET_OR_CONFLICT`。`DEPENDENT_NOT_IN_PARENT_CONTEXT` 适用于 TARGET_SET 的父上下文排除，不因类型级选择排除子行而产生。
+
 ## 4. 唯一执行器：阶段算法与父上下文
 
 ### 4.1 职责划分和一次执行的生命周期

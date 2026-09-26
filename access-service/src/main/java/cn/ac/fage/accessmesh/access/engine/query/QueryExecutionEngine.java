@@ -209,7 +209,10 @@ public final class QueryExecutionEngine {
         clauses.forEach((item, paired) -> {
             List<GrantFact> candidates = CandidateSelector.select(loaded, paired, stage);
             List<GrantFact> raw = candidates.stream().filter(f -> f.dependOn() == null).toList();
-            if (raw.size() < candidates.size()) run.items().get(item).dependentExcluded = true;
+            // TYPE_LEVEL 的子行不属于有效选择；只有目标项把排除解释为父上下文不匹配。
+            if (item.selection() instanceof TargetSet && raw.size() < candidates.size()) {
+                run.items().get(item).dependentExcluded = true;
+            }
             rawByItem.put(item, raw);
         });
         run.evaluator().preload(rawByItem);

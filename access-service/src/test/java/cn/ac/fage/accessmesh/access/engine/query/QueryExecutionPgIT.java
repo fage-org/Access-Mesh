@@ -4,6 +4,9 @@ import cn.ac.fage.accessmesh.access.characterization.R2BaselineFixture;
 import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
+import cn.ac.fage.accessmesh.access.engine.dto.PermQuery;
+import cn.ac.fage.accessmesh.access.engine.dto.PermBatchQuery;
+import cn.ac.fage.accessmesh.access.engine.dto.PermEvalContext;
 import cn.ac.fage.accessmesh.access.engine.util.RolePermEntryMapper;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
@@ -230,5 +233,25 @@ class QueryExecutionPgIT {
         QueryResult results = execute(new Roles(Set.of(ROLE_A)), decision("chunks", Inheritance.SELF, TypeFallback.DISALLOW, clauses));
         assertThat(result(results, 0).reason()).isEqualTo(DecisionResult.Reason.CONDITION_NOT_MET_OR_CONFLICT);
         assertThat(counter.grants.get()).as("实际授权 SQL prepare 分块计数").isEqualTo(2);
+    }
+
+    @Test
+    void should_matchLegacyTypeLevelReason_withoutChangingTargetParentExclusion() {
+        long role = fixture.insertRoleRow(TENANT, "type-dependent");
+        long user = fixture.insertUserWithRoles(TENANT, "type-dependent", role);
+        long parent = fixture.insertPermRow(role, TYPE_T2, null, 2, true, null);
+        long child = fixture.insertPermRow(role, TYPE_T1, null, 2, true, null);
+        jdbc.update("UPDATE role_resource_permission SET depend_on=? WHERE id=? AND tenant_id=?", parent, child, TENANT);
+        QueryResult results = execute(new User(user),
+            QueryItem.decision("type", new TypeLevel(List.of(new TypeOperation(TYPE_T1_CODE, "VIEW"))), OutputSpec.minimal()),
+            decision("target", Inheritance.SELF, TypeFallback.ALLOW, clause(TYPE_T1_CODE, CODE_R3)));
+        assertThat(result(results, 0).reason()).isEqualTo(DecisionResult.Reason.NO_PERMISSION);
+        assertThat(result(results, 1).reason()).isEqualTo(DecisionResult.Reason.DEPENDENT_NOT_IN_PARENT_CONTEXT);
+        assertThat(legacy.query(PermQuery.forAuthCheck(TENANT, user, TYPE_T1_CODE, null, "VIEW")).reason())
+            .isEqualTo(result(results, 0).reason().name());
+        PermBatchQuery batch = PermBatchQuery.forAuthCheckBatch(TENANT, user,
+            List.of(new PermBatchQuery.Item(TYPE_T1_CODE, null, "VIEW", null, null, false)));
+        batch.setEvalContext(new PermEvalContext(null, results.evaluatedAt(), java.util.Map.of()));
+        assertThat(legacy.queryBatch(batch).outcomes().getFirst().reason()).isEqualTo(result(results, 0).reason().name());
     }
 }

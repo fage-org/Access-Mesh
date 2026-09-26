@@ -6,6 +6,9 @@ import java.util.Set;
 import java.util.List;
 import java.util.Map;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Collections;
+import java.util.Objects;
 import cn.ac.fage.accessmesh.access.engine.dto.PermEvalContext;
 import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService.RolePairRef;
 import java.util.UUID;
@@ -96,7 +99,9 @@ final class RunState {
 
     /** 记录主体解析结果（每请求一次；Roles 视角原样采用，User 经共同入口，§2.2）。 */
     void resolveSubject(Set<Long> roles, SubjectResolution resolution) {
-        this.roles = Set.copyOf(roles);
+        Set<Long> resolvedRoles = new LinkedHashSet<>(roles);
+        resolvedRoles.forEach(Objects::requireNonNull);
+        this.roles = Collections.unmodifiableSet(resolvedRoles);
         this.subjectResolution = resolution;
     }
 
