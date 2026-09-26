@@ -306,6 +306,25 @@ class QueryStagesTest {
             .extracting(GrantFact::grantSource).containsExactly("MANUAL", "AUTO_DEP");
         assertThat(result.details().effectiveOperations()).filteredOn(e -> e.displayedEntityId().equals(100L))
             .extracting(ResultDetails.EffectiveOperationEntry::operationCode).containsExactly("VIEW", "UPDATE", "VIEW", "UPDATE");
+        var expectedOperations = new ArrayList<>(List.of(
+            tuple(100L, PresentationEntry.Derivation.ORIGINAL, "UPDATE", "UPDATE"),
+            tuple(100L, PresentationEntry.Derivation.OPERATION_COVERAGE, "UPDATE", "VIEW")));
+        if (direction.parents()) {
+            expectedOperations.add(tuple(90L, PresentationEntry.Derivation.PARENT, "UPDATE", "UPDATE"));
+            expectedOperations.add(tuple(90L, PresentationEntry.Derivation.PARENT, "UPDATE", "VIEW"));
+        }
+        if (direction.children()) {
+            expectedOperations.add(tuple(110L, PresentationEntry.Derivation.CHILD, "UPDATE", "UPDATE"));
+            expectedOperations.add(tuple(110L, PresentationEntry.Derivation.CHILD, "UPDATE", "VIEW"));
+        }
+        for (long permissionId : List.of(101L, 102L)) {
+            assertThat(result.details().effectiveOperations()).filteredOn(e -> e.sourcePermissionId().equals(permissionId))
+                .extracting(ResultDetails.EffectiveOperationEntry::displayedEntityId,
+                    ResultDetails.EffectiveOperationEntry::derivation,
+                    ResultDetails.EffectiveOperationEntry::grantedOperationCode,
+                    ResultDetails.EffectiveOperationEntry::operationCode)
+                .containsExactlyInAnyOrderElementsOf(expectedOperations);
+        }
         if (direction == PresentationExpansion.NONE) {
             assertThat(result.details().presentation()).isEmpty();
             assertThat(result.details().loadedSections()).doesNotContain(ResultDetails.DetailSection.PRESENTATION);

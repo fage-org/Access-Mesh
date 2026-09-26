@@ -41,7 +41,10 @@ public record OutputSpec(FactDetail factDetail, boolean matchedIds, boolean desc
         return new OutputSpec(FactDetail.KEPT, true, false, false, PresentationExpansion.NONE, Set.of(), false);
     }
 
-    /** 范围输出：raw＋retained 双轨（queryScopes 四态投影必需）。 */
+    /**
+     * 事实输出：raw＋retained 双轨，不含描述或额外操作定义。
+     * 范围四态投影还须请求 descriptions，并将每个范围要求加入 extraOperationKeys。
+     */
     public static OutputSpec rawAndKept() {
         return new OutputSpec(FactDetail.RAW_AND_KEPT, true, false, false, PresentationExpansion.NONE, Set.of(), false);
     }

@@ -524,7 +524,9 @@ retained 有类型级覆盖                         → ALL
 
 `queryResources`、有效权限码和可见资源投影继续先做原 GRANT_LIST 评估，再做白名单、排除 API、domain/codeType、展示与分页。权限码全量聚合，不因分页漏掉有效操作。物理子孙展开在授权集合评估之后，不把展示后代提前加入互斥候选。[E14][E17]
 
-T-PERM-087 的展示展开按保留事实源批量读取既有祖先/后代 CTE，scopeAll 不展开业务实例；PresentationEntry 以真实授权/角色 ID 关联 GrantFact，保留 ORIGINAL/PARENT/CHILD 派生来源。有效操作输出沿 OperationPermissionUtils 覆盖算法，并标记 OPERATION_COVERAGE，不将不同授权来源、条件或父绑定揉成一行。PRESERVE 保留存储条件字段且对不一致引用记诊断，EVALUATE 对同类损坏保持失败关闭；展示不修正原事实或将损坏条件降为无条件。
+T-PERM-087 的展示展开按保留事实源批量读取既有祖先/后代 CTE，scopeAll 不展开业务实例；PresentationEntry 以真实授权/角色 ID 关联 GrantFact，保留 ORIGINAL/PARENT/CHILD 派生来源。有效操作输出沿 OperationPermissionUtils 覆盖算法，不将不同授权来源、条件或父绑定揉成一行。PRESERVE 保留存储条件字段且对不一致引用记诊断，EVALUATE 对同类损坏保持失败关闭；展示不修正原事实或将损坏条件降为无条件。
+
+有效操作条目的 `derivation` 采用方向优先：父/子展示行保留 PARENT/CHILD；只有源资源上的操作覆盖行标 OPERATION_COVERAGE，源资源上的原授操作仍标 ORIGINAL。是否为操作覆盖通过比较 `grantedOperationCode` 与 `operationCode` 的字符串内容是否不同判断，消费方不得只筛 OPERATION_COVERAGE。例如资源 100 授予 UPDATE 且覆盖 VIEW，展开到子资源 110 后，110 的 VIEW 行保持 CHILD，两个操作码分别为 UPDATE/VIEW；父资源展开同理。方向与覆盖分别由现有字段表达，不新增枚举组合或字段；此口径不改变鉴权结论。（来源：2026-09-26 用户确认保留方向优先；视图迁移验收见 [T-PERM-091](../tasks/T-PERM-091.md)。）
 
 当前新基线的菜单还支持 `resourceCode` 为空的类型页因该类型存在实例授权而显示；具体 A/B 菜单仍分别绑定 REPORT_A／REPORT_B。这个入口仍是“任意有效操作”语义，不等于 REPORT:VIEW 的操作准入，不能复用成接口安全算法。[C15][C16]
 

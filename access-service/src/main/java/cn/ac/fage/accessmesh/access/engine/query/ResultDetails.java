@@ -85,7 +85,11 @@ public record ResultDetails(Set<DetailSection> loadedSections, List<Long> matche
         }
     }
 
-    /** 覆盖操作保留真实授权引用；不把不同角色/条件/父绑定的授权合成一行。 */
+    /**
+     * 覆盖操作保留真实授权引用；不把不同角色/条件/父绑定的授权合成一行。
+     * derivation 优先保留 PARENT/CHILD；操作覆盖应比较 grantedOperationCode 与 operationCode，
+     * 不能仅筛选 OPERATION_COVERAGE（该标记只用于源资源上的覆盖行）。
+     */
     public record EffectiveOperationEntry(Long sourcePermissionId, Long sourceRoleId, Long displayedEntityId,
                                           PresentationEntry.Derivation derivation, Integer resourceType,
                                           Long grantedBits, String grantedOperationCode, long effectiveBits,

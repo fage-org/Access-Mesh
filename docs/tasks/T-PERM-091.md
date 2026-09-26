@@ -15,11 +15,12 @@ blocks: []
 acceptance:
   - "checkCanGrant：GRANT_LIST+FACTS、DATABASE（bypassPermSnapshot 直查不回填语义保持）、PRESERVE+SKIP、无展示展开、额外装载待授类型-操作定义；转授四例 T01~T04 全绿——同一条真实授权同行验证资格（不拼接两行）、无目标类型授权时 NO_PERMISSION≠INVALID_OPERATION、运行时祖先可用不自动扩大转授、refineGrantOriginMissing 留在领域层"
   - "PermissionViewAppServiceImpl 迁移：类型页「任意有效操作」语义（instanceIdsByType 不含子孙扩展）保持；具体 A/B 菜单仍分别绑定 REPORT_A/REPORT_B；权限码全量聚合不因分页漏有效操作"
+  - "视图消费遵守设计 §6.4 的方向优先口径：UPDATE 覆盖 VIEW 时，源资源及父/子展开资源的 VIEW 均被识别为覆盖操作，同时保留父/子方向；不以 derivation == OPERATION_COVERAGE 作为唯一筛选条件"
   - "角色配置 Roles+SELF+DISALLOW（防 scopeAll 混进配置清单）；查看者管理门禁与被查看角色可用性两判定不因配置展示删除带条件授权"
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-09-25
+last_updated: 2026-09-26
 ---
 
 # T-PERM-091 （R2-T12）迁移旧快照、转授、视图与配置

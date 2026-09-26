@@ -45,6 +45,7 @@ last_updated: 2026-09-26
 
 - FACTS 在本卡提供最小可消费输出：不可变 StageFacts、按 OutputSpec 保留的 raw/kept 与命中 ID；类型回退命中后仍收集实例阶段。描述、有效操作、展示与 TRACE 留后续任务，未实现输出明确抛未实现异常，不返回伪完整结果。范围依据见设计 §3.3（2026-09-26 确认）。
 - I05 在普通 execute 验证条件缓存的首次 miss 令牌、跨阶段增量读取和热缓存复用；ROLE_SNAPSHOT 属 GRANT_LIST 来源，其 execute 验证由 T-PERM-086 承接（设计 §5.4）。
+- 条件缓存令牌复用落在共享的 PermissionConditionDomainServiceImpl.BatchConditionEvaluatorImpl：同一评估器首次 miss 时 beginRead，后续增量 miss 沿用该令牌。现役旧 PermQueryEngine.queryBatch 同样受影响，其 scopeAll 条件预载与后续实例条件预载共享评估器，回填预算从首次 miss 起累计，不在实例阶段重新起算；本卡未修改旧引擎执行体或迁移其消费者。
 - TYPE_LEVEL 仅有 depend_on 子授权时返回 NO_PERMISSION；TARGET_SET 父上下文排除仍返回 DEPENDENT_NOT_IN_PARENT_CONTEXT，见设计 §3.4（2026-09-26 确认）。运行态保留 User 角色互斥计算结果的迭代顺序，遵守设计 §6.1 的不可变与保序边界。
 
 ## 验收对照
