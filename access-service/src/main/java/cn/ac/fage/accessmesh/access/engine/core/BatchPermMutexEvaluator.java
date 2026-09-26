@@ -9,8 +9,8 @@ import java.util.Set;
  * 请求级批量权限互斥评估器（T-PERM-061 A+ 形态——计算与通知解耦 + 静态数据共享装载）。
  * <p>
  * 由 {@link PermissionConflictDomainService#openBatchMutexEvaluator} 创建，per-request 实例
- * 经方法参数传递（禁止落在单例字段）。与单条 {@code filterPermMutex}（检出冲突即通知、
- * detail 用任一端点命中 OR 过滤）的差异为设计定稿（b2 定案）：
+ * 经方法参数传递（禁止落在单例字段）。与单条 {@code filterPermMutex}（检出冲突即逐次通知、
+ * detail 自 T-PERM-083 起同样用 AND 两端在场的真实命中规则构造）的差异为设计定稿（b2 定案）：
  * </p>
  * <ul>
  *   <li><b>只共享装载，不共享计算</b>：PERM_MUTEX 规则请求级装载一次；操作索引按 distinct
