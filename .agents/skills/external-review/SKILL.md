@@ -9,7 +9,7 @@ disable-model-invocation: true
 origin: project
 metadata:
   project: AccessMesh
-  version: "2.5.0"
+  version: "2.5.1"
 ---
 
 # 外部 AI 评审（claude / grok / codex；仅用户触发；全程禁止子代理）
@@ -31,7 +31,7 @@ metadata:
 | grok   | `--no-subagents`          | Disable subagent spawning                                                                  |
 
 - 原「codex 实跑测试时 spawn_agent 委派子代理隔离长输出」手法**退役**：子代理禁令下测试长命令只能落主上下文（占额度），大输出测试优先本机自跑、评审只引用落盘报告。
-- 本地双轨评审（`dual-track-local-review`）的并行子代理不受本禁令影响——禁令只约束外部评审三通道。
+- 本地双轨评审（`dual-track-local-review`）自 2026-09-26 起同样不使用子代理（主代理直跑两轨）——子代理禁令已覆盖全部评审通道。
 
 ## 三通道调用形态（大提示词 stdin/文件投喂；输出整文件落盘）
 
