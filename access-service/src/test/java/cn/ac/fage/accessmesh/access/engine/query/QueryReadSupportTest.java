@@ -75,7 +75,7 @@ class QueryReadSupportTest {
 
     @Test
     void should_skipAllOutputReads_whenMinimalOutputIncludesUnusedExtraKeys() {
-        OutputSpec output = new OutputSpec(FactDetail.NONE, false, false, false, false,
+        OutputSpec output = new OutputSpec(FactDetail.NONE, false, false, false, PresentationExpansion.NONE,
             Set.of(new TypeOperation("REPORT", "VIEW")), false);
         assertThat(reads.outputOperations(run(ListGrantRead.DATABASE), output, Set.of(1))).isEmpty();
         assertThat(reads.resourceDescriptions(run(ListGrantRead.DATABASE), output, Set.of(100L))).isEmpty();
@@ -87,7 +87,7 @@ class QueryReadSupportTest {
     void should_loadExtraTargetDefinition_whenNoGrantsOfThatTypeExist() {
         when(types.batchResolveTypeValues(1L, "resource_type", Set.of("REPORT"))).thenReturn(Map.of("REPORT", 1));
         when(operations.selectByTenantAndResourceTypes(1L, Set.of(1))).thenReturn(List.of(operation(11, 1, "VIEW", 2)));
-        OutputSpec output = new OutputSpec(FactDetail.KEPT, false, true, false, false,
+        OutputSpec output = new OutputSpec(FactDetail.KEPT, false, true, false, PresentationExpansion.NONE,
             Set.of(new TypeOperation("REPORT", "VIEW")), false);
         assertThat(reads.outputOperations(run(ListGrantRead.DATABASE), output, Set.of()).get(1))
             .extracting(OperationDefinition::code).containsExactly("VIEW");
@@ -218,7 +218,7 @@ class QueryReadSupportTest {
 
     @Test
     void should_rejectMalformedExtraOperationPair_beforeAnyRead() {
-        OutputSpec output = new OutputSpec(FactDetail.NONE, false, false, false, false,
+        OutputSpec output = new OutputSpec(FactDetail.NONE, false, false, false, PresentationExpansion.NONE,
             Set.of(new TypeOperation("REPORT", " ")), false);
         QueryRequest request = new QueryRequest(1L, new Roles(Set.of()), CallerContext.of(null), ReadOptions.defaults(),
             List.of(QueryItem.decision("check", new TypeLevel(List.of(new TypeOperation("REPORT", "VIEW"))), output)));

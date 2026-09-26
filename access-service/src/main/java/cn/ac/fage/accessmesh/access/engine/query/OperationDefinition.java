@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import java.time.LocalDateTime;
 
 /** 请求内操作定义快照，隔离可变 ORM/缓存对象；读取来源由各自记忆桶表达。 */
-record OperationDefinition(Long id, Integer resourceType, String code, String name,
+public record OperationDefinition(Long id, Integer resourceType, String code, String name,
                            Long binaryBit, Long inheritMask, Long tenantId, Long createdBy, Long updatedBy,
                            Long deletedBy, LocalDateTime createdAt, LocalDateTime updatedAt,
                            LocalDateTime deletedAt, Long deleteFlag) {

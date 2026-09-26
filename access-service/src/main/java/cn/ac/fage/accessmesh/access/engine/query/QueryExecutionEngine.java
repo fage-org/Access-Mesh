@@ -23,9 +23,9 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * 新查询唯一执行主体：主体解析→目标阶段或授权清单→最小事实输出。
+ * 新查询唯一执行主体：主体解析→目标阶段或授权清单→事实与展示投影。
  * 暂不注册 Bean，消费者迁移从 T-PERM-089 开始，终名随 T-PERM-092 确定。
- * 父要求复用目标阶段；复杂投影/TRACE、审计提交按 087～088 边界后续接入。
+ * 父要求复用目标阶段；输出投影在全部评估后完成，TRACE 与审计提交由 088 接入。
  * 不调用旧完整核心，所有请求状态随 RunState 释放；Clock 沿进程本地时钟语义。
  */
 public final class QueryExecutionEngine {
@@ -56,17 +56,18 @@ public final class QueryExecutionEngine {
         }
         RunState run = new RunState(request, clock);
         try {
-            resolveSubject(run);
-            if (run.roles().isEmpty()) return noRoleResults(run);
-            requireImplemented(request.items());
             request.items().forEach(item -> run.items().put(item, new RunState.ItemExecution()));
+            resolveSubject(run);
+            if (run.roles().isEmpty()) return noRoleResults(run, QueryProjector.project(run, reads, resourceMapper));
+            requireImplemented(request.items());
             run.evaluator(new CandidateEvaluator(run, reads, conditions, conflicts));
             Map<TypeOperation, ResolvedOperation> operations = prepareOperations(run, request.items());
             processTypeGrantStage(run, operations, run.items());
             processInstanceStage(run, operations, run.items());
             processGrantListStage(run);
+            Map<QueryItem, ResultDetails> details = QueryProjector.project(run, reads, resourceMapper);
             return new QueryResult(run.executionId(), run.evaluatedAt(), request.items().stream()
-                .map(item -> complete(item, run)).toList());
+                .map(item -> complete(item, run, details.get(item))).toList());
         } finally {
             run.release();
         }
@@ -104,8 +105,8 @@ public final class QueryExecutionEngine {
     private static void requireImplementedOutputs(List<QueryItem> items) {
         for (QueryItem item : items) {
             OutputSpec output = item.output();
-            if (output.descriptions() || output.effectiveOperations() || output.presentationExpansion() || output.trace()) {
-                throw new UnsupportedOperationException("描述/有效操作/展示/TRACE 随 T-PERM-087/088 落地");
+            if (output.trace()) {
+                throw new UnsupportedOperationException("TRACE 输出与诊断门禁随 T-PERM-088 落地");
             }
         }
     }
@@ -291,7 +292,7 @@ public final class QueryExecutionEngine {
         state.mutexCandidate |= evaluated.mutexCandidate();
     }
 
-    private static ItemResult complete(QueryItem item, RunState run) {
+    private static ItemResult complete(QueryItem item, RunState run, ResultDetails details) {
         RunState.ItemExecution state = run.items().get(item);
         Map<Stage, SkipReason> skipped = state.parentDenied ? Map.of(Stage.GRANT_LIST, SkipReason.PARENT_DENIED)
             : state.shortCircuited ? Map.of(Stage.INSTANCE, SkipReason.SUFFICIENT_DECISION) : Map.of();
@@ -304,7 +305,6 @@ public final class QueryExecutionEngine {
             : parentRequirement(item.selection()) == null ? ParentCheckCoverage.NOT_REQUIRED : ParentCheckCoverage.NOT_TRIGGERED;
         EvaluationCoverage coverage = new EvaluationCoverage(run.subjectResolution(), condition, mutex,
             parentCheck, state.stages.keySet(), skipped, !state.shortCircuited && !state.parentDenied, authorizationStage(item.resultForm()));
-        ResultDetails details = QueryProjector.project(item.output(), state);
         if (item.resultForm() == ResultForm.FACTS) {
             GrantSetResult.CollectionStatus status = state.parentDenied ? GrantSetResult.CollectionStatus.PARENT_DENIED
                 : state.retained() ? GrantSetResult.CollectionStatus.PRESENT
@@ -317,7 +317,7 @@ public final class QueryExecutionEngine {
         return DecisionResult.deny(item.key(), reason, coverage, details);
     }
 
-    private static QueryResult noRoleResults(RunState run) {
+    private static QueryResult noRoleResults(RunState run, Map<QueryItem, ResultDetails> projected) {
         List<ItemResult> results = run.request().items().stream().map(item -> {
             Map<Stage, SkipReason> skipped = new EnumMap<>(Stage.class);
             applicableStages(item.selection()).forEach(stage -> skipped.put(stage, SkipReason.NO_ROLE));
@@ -326,7 +326,7 @@ public final class QueryExecutionEngine {
             EvaluationCoverage coverage = new EvaluationCoverage(run.subjectResolution(), ConditionCoverage.NO_CANDIDATE,
                 MutexCoverage.NO_CANDIDATE, parentRequired ? ParentCheckCoverage.NOT_TRIGGERED : ParentCheckCoverage.NOT_REQUIRED,
                 Set.of(), skipped, false, authorizationStage(item.resultForm()));
-            ResultDetails details = QueryProjector.project(item.output(), new RunState.ItemExecution());
+            ResultDetails details = projected.get(item);
             return switch (item.resultForm()) {
                 case DECISION -> (ItemResult) DecisionResult.deny(item.key(), DecisionResult.Reason.NO_ROLE, coverage, details);
                 case FACTS -> new GrantSetResult(item.key(), GrantSetResult.CollectionStatus.NO_ROLE, coverage, details);

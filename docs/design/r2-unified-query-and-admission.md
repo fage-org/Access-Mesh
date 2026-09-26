@@ -223,6 +223,8 @@ rawAfterContext 是**上下文绑定处理之后、条件／权限互斥之前**
 
 OutputSpec 包括事实档 `NONE / KEPT / RAW_AND_KEPT`、matchedIds、描述块、有效操作展开、展示父／子展开、extraOperationKeys、TRACE。FACTS 至少 KEPT；范围必须 RAW_AND_KEPT；最小 DECISION／ADMISSION 可为 NONE。extraOperationKeys 只供描述／投影，不能扩大 Selection。
 
+展示方向采用 `PresentationExpansion.NONE/PARENTS/CHILDREN/BOTH` 四态，替换不能表达单方向的布尔值；方向只影响评估后的展示投影，保留旧 inheritParents/inheritChildren 的全部组合，不改变判定面 Inheritance。T-PERM-087 验收 A05 的执行覆盖与不补查部分，TRACE 输出和敏感信息门禁整体由 T-PERM-088 实现；087 期间 trace=true 继续明确拒绝，不返回伪 TRACE。（来源：2026-09-26 T-PERM-087 实施时用户确认。）
+
 `extraOperationKeys` 使用 `Set<TypeOperation>`，与 Selection 的类型—操作配对复用同一内部模型；不再以 `"REPORT:EXPORT"` 字符串编码。配对在执行前校验，两字段均须非空白，不改变外部 HTTP DTO（T-PERM-084，2026-09-26 用户确认）。
 
 Details 用 loadedSections 或显式可选块区分“没有请求”与“请求后为空”，不返回 RunState、ORM 可变实体或缓存对象。内部父 matchedPermissionIds 即使不对外展示也必须计算；拒绝项公开命中集保持空，TRACE 仅受权诊断可用。[E14][E17]
@@ -241,7 +243,7 @@ Details 用 loadedSections 或显式可选块区分“没有请求”与“请�
 
 TRACE 解释真实执行，不是全面配置扫描；scopeAll 短路的 INSTANCE 显示 SKIPPED。确需目标描述时可在结论后为输出补读，但不得因此改变已完成判断；判定 I/O 与投影 I/O 分开统计。
 
-**最小事实输出实施边界（T-PERM-085，2026-09-26 用户确认）**：TYPE_GRANT/INSTANCE 的 FACTS 在本卡接入不可变 StageFacts，提供按 OutputSpec 保留的 raw/kept 与命中 ID；不等待完整投影才开放 FACTS。描述、有效操作、展示与 TRACE 仍由 T-PERM-087/088 承接，未实现输出明确抛未实现异常，不忽略请求或返回伪完整结果。
+**事实与投影实施边界**：T-PERM-085 已接入 TYPE_GRANT/INSTANCE 的不可变 StageFacts、raw/kept 和命中 ID；T-PERM-087 接入描述、有效操作和四态展示方向。结果的描述使用不可变资源/角色记录及 OperationDefinition，不暴露 ORM 或缓存对象；loadedSections 区分未请求与已装载为空。TRACE 由 T-PERM-088 承接，未实现时明确抛未实现异常，不忽略请求或返回伪完整结果。
 
 ### 3.4 原因和异常不混淆
 
@@ -274,7 +276,7 @@ TARGET_SET 实例未解析时，仍保留之前 TYPE_GRANT 曾被条件／冲突
 | QueryProjector | 组装事实、覆盖操作、描述和展示派生 | 重新鉴权、反向修改候选或 ALLOW |
 | QueryAuditCollector | 收集真实规则／角色对和项关系；根级一次提交 | 用端点猜规则、把准入记为业务成功 |
 
-**迁移期适用边界**：T-PERM-085/086 已接入 User 有效角色＋纯 ROLE_MUTEX、TYPE_GRANT/INSTANCE、父要求、GRANT_LIST 与最小事实投影；C06 同序等长判定、R03 显式角色完整清单由执行链测试覆盖。新类仍不注册 Spring bean、无生产消费者，旧执行器保持现役。ADMISSION_CANDIDATES 由 T-ACCESS-057 承接；非空角色触发尚未实现的选择时抛 `UnsupportedOperationException`，不伪装普通 DENY 或空事实。NO_ROLE 终态继续适用于全部结果形式。描述、有效操作、展示与 TRACE 仍由 T-PERM-087/088 承接，尚未实现的输出块在主体读取前明确抛未实现异常。[骨架边界来源](../archive/2026-09-26/decision-registry-before.md)（原第 201 行）；最小事实输出范围见 §3.3，父与清单实现见 §4.5/§4.6 及 [T-PERM-086](../tasks/T-PERM-086.md)。
+**迁移期适用边界**：T-PERM-085/086 已接入 User 有效角色＋纯 ROLE_MUTEX、TYPE_GRANT/INSTANCE、父要求与 GRANT_LIST，T-PERM-087 接入完整输出投影；C06 同序等长判定、R03 显式角色完整清单由执行链测试覆盖。新类仍不注册 Spring bean、无生产消费者，旧执行器保持现役。ADMISSION_CANDIDATES 由 T-ACCESS-057 承接；非空角色触发尚未实现的选择时抛 `UnsupportedOperationException`，不伪装普通 DENY 或空事实。NO_ROLE 终态继续适用于全部结果形式，并可按输出要求装载额外操作定义；不因此装载授权。TRACE 由 T-PERM-088 承接，在主体读取前明确拒绝该未实现输出。[骨架边界来源](../archive/2026-09-26/decision-registry-before.md)（原第 201 行）；输出范围见 §3.3，父与清单实现见 §4.5/§4.6 及 [T-PERM-086](../tasks/T-PERM-086.md)。
 
 不要求每行新增独立 Spring Bean，包内 helper 也可；依赖方向是应用→引擎→既有读／领域能力→Mapper。转授服务可调用引擎，引擎不能反注入授权计划／物化服务。
 
@@ -347,7 +349,7 @@ C(item) = 对 item 中各 clause c 求联合：
 
 SELF 不能消费同批其他项加载的祖先；不同类型相同 bit 不相互覆盖；不同 item 的候选不能共同互斥。一个 item 跨多个 SQL 块时，候选必须合齐再计算互斥。
 
-T-PERM-085 先使用同一 Selector 内顺序扫描作为正确性基线；继承目标合批查询既有同类型闭包 CTE，并在 RunState 记忆目标→闭包，SELF 固定自身集合。读取分块全部完成后才进入逐项候选选择和评估。`QueryProjector` 仅投影实际完成阶段的不可变事实与命中 ID，不补读或改变结论；DECISION 类型级充分短路用 `INSTANCE=SUFFICIENT_DECISION` 明示未执行，FACTS 则继续收集实例事实。
+T-PERM-085 先使用同一 Selector 内顺序扫描作为正确性基线；继承目标合批查询既有同类型闭包 CTE，并在 RunState 记忆目标→闭包，SELF 固定自身集合。读取分块全部完成后才进入逐项候选选择和评估。`QueryProjector` 投影实际完成阶段的不可变事实与命中 ID；可在判定后按输出要求读取描述及展示树关系，不能补跑授权阶段或改变结论。DECISION 类型级充分短路用 `INSTANCE=SUFFICIENT_DECISION` 明示未执行，FACTS 则继续收集实例事实。
 
 **充分决策允许阶段短路，不允许集合内不完整互斥。**这是准入“找到充分候选可以停”和普通实例鉴权的关键区别，见第 7 节。
 
@@ -498,6 +500,8 @@ TRACE 不用另一个时刻重新评条件，不为显示完整过程补跑短�
 
 `queryScopes` 使用一个 GRANT_LIST＋必要父要求、EVALUATE＋ENFORCE、RAW_AND_KEPT。ScopeCoverageProjector 只消费结果和已装载定义，不再查授权／条件／规则；额外请求每个范围 type-operation 的定义。
 
+T-PERM-087 已提供纯 ScopeCoverageProjector：调用方请求 descriptions 并把范围要求加入 extraOperationKeys；投影消费完整 raw/kept 与描述快照，拒绝缺少输出块、未收全或保留条件/跳过互斥的事实结果。NO_ROLE/PARENT_DENIED 仍映射全 DENIED；外部整体原因和父对象预检查由 T-PERM-090 适配层保留。实例以 (codeType, code) 字段元组去重，避免合法字段中的分隔符碰撞；资源有效性沿既有 selectValidByIds 的租户与软删过滤，不额外改变停用资源的现役口径。
+
 ```text
 类型／目标操作未知，或 rawAfterContext 无覆盖 → DENIED
 raw 有覆盖，retained 无覆盖                  → EMPTY
@@ -517,6 +521,8 @@ retained 有类型级覆盖                         → ALL
 ### 6.4 查询、视图、菜单与配置
 
 `queryResources`、有效权限码和可见资源投影继续先做原 GRANT_LIST 评估，再做白名单、排除 API、domain/codeType、展示与分页。权限码全量聚合，不因分页漏掉有效操作。物理子孙展开在授权集合评估之后，不把展示后代提前加入互斥候选。[E14][E17]
+
+T-PERM-087 的展示展开按保留事实源批量读取既有祖先/后代 CTE，scopeAll 不展开业务实例；PresentationEntry 以真实授权/角色 ID 关联 GrantFact，保留 ORIGINAL/PARENT/CHILD 派生来源。有效操作输出沿 OperationPermissionUtils 覆盖算法，并标记 OPERATION_COVERAGE，不将不同授权来源、条件或父绑定揉成一行。PRESERVE 保留存储条件字段且对不一致引用记诊断，EVALUATE 对同类损坏保持失败关闭；展示不修正原事实或将损坏条件降为无条件。
 
 当前新基线的菜单还支持 `resourceCode` 为空的类型页因该类型存在实例授权而显示；具体 A/B 菜单仍分别绑定 REPORT_A／REPORT_B。这个入口仍是“任意有效操作”语义，不等于 REPORT:VIEW 的操作准入，不能复用成接口安全算法。[C15][C16]
 

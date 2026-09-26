@@ -41,6 +41,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Set;
+import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import java.util.stream.IntStream;
 
 import static cn.ac.fage.accessmesh.access.characterization.R2BaselineFixture.*;
@@ -85,6 +86,62 @@ class QueryExecutionPgIT {
         return (GrantSetResult) engine.execute(new QueryRequest(TENANT, new Roles(Set.of(role)), CallerContext.of(null),
             new ReadOptions(source), List.of(QueryItem.grantListFacts("list", parent, evaluation, OutputSpec.rawAndKept()))))
             .orderedResults().getFirst();
+    }
+
+    @Test
+    @Transactional
+    void should_projectRealTreeDirectionsWithoutMutatingGrants_whenParentAndChildPresentationRequested() {
+        long role = fixture.insertRoleRow(TENANT, "projection-tree");
+        long permission = fixture.insertPermRow(role, TYPE_T1, RES_R1, T1_UPDATE_BIT, false, null);
+        var output = new OutputSpec(FactDetail.RAW_AND_KEPT, true, true, true,
+            PresentationExpansion.CHILDREN, Set.of(), false);
+        var result = (GrantSetResult) execute(new Roles(Set.of(role)),
+            QueryItem.grantListFacts("children", null, Evaluation.preserveSkip(), output)).orderedResults().getFirst();
+        assertThat(result.details().presentation()).extracting(PresentationEntry::displayedEntityId)
+            .contains(RES_R1, RES_R2, RES_R3);
+        assertThat(result.details().stageFacts().getFirst().retainedAfterEvaluation()).singleElement()
+            .satisfies(f -> { assertThat(f.permissionId()).isEqualTo(permission); assertThat(f.resourceEntityId()).isEqualTo(RES_R1); });
+        assertThat(result.details().descriptions().resources()).containsKeys(RES_R1, RES_R2, RES_R3);
+        assertThat(result.details().effectiveOperations()).anySatisfy(e -> {
+            assertThat(e.displayedEntityId()).isEqualTo(RES_R2);
+            assertThat(e.operationCode()).isEqualTo("VIEW");
+            assertThat(e.sourcePermissionId()).isEqualTo(permission);
+        });
+        var cached = cache.get(AccessCacheCatalog.ROLE_PERM_SNAPSHOT, TENANT, role);
+        assertThat(cached).singleElement().satisfies(f -> {
+            assertThat(f.resourceEntityId()).isEqualTo(RES_R1);
+            assertThat(f.grantSource()).isNotEqualTo("INHERITED");
+        });
+        var parents = new OutputSpec(FactDetail.KEPT, true, true, false, PresentationExpansion.PARENTS, Set.of(), false);
+        var childRole = fixture.insertRoleRow(TENANT, "projection-parent");
+        fixture.insertPermRow(childRole, TYPE_T1, RES_R2, T1_VIEW_BIT, false, null);
+        var parentResult = (GrantSetResult) execute(new Roles(Set.of(childRole)),
+            QueryItem.grantListFacts("parents", null, Evaluation.preserveSkip(), parents)).orderedResults().getFirst();
+        assertThat(parentResult.details().presentation()).contains(
+            new PresentationEntry(parentResult.details().matchedPermissionIds().getFirst(), childRole, RES_R1,
+                PresentationEntry.Derivation.PARENT));
+        assertThat(parentResult.details().presentation()).extracting(PresentationEntry::displayedEntityId).doesNotContain(RES_R3);
+    }
+
+    @Test
+    @Transactional
+    void should_returnEmptyForDeletedResourceDespiteWarmGrantSnapshot_whenScopeProjectionLoadsCurrentDescriptions() {
+        long role = fixture.insertRoleRow(TENANT, "projection-deleted");
+        long resource = fixture.insertResourceRow(TYPE_T1, "projection-deleted");
+        fixture.insertPermRow(role, TYPE_T1, resource, T1_VIEW_BIT, false, null);
+        var key = new TypeOperation(TYPE_T1_CODE, "VIEW");
+        var output = new OutputSpec(FactDetail.RAW_AND_KEPT, true, true, false, PresentationExpansion.NONE, Set.of(key), false);
+        var item = QueryItem.grantListFacts("scopes", null, Evaluation.full(), output);
+        var first = (GrantSetResult) execute(new Roles(Set.of(role)), item).orderedResults().getFirst();
+        assertThat(ScopeCoverageProjector.project(first, List.of(key)).getFirst().scopeMode()).isEqualTo(ScopeMode.INSTANCE);
+        // 走生产的 Mapper 写通道，使同事务 MyBatis 一级缓存与数据库同步失效。
+        // JdbcTemplate 旁路写不会通知该缓存，不能用它模拟应用内的资源删除。
+        assertThat(resources.softDeleteBatch(TENANT, List.of(resource), java.time.LocalDateTime.of(2026, 9, 26, 2, 0)))
+            .isEqualTo(1);
+        var second = (GrantSetResult) execute(new Roles(Set.of(role)), item).orderedResults().getFirst();
+        assertThat(second.details().stageFacts().getFirst().retainedAfterEvaluation()).hasSize(1);
+        assertThat(ScopeCoverageProjector.project(second, List.of(key)).getFirst().scopeMode()).isEqualTo(ScopeMode.EMPTY);
+        assertThat(second.details().descriptions().operations()).isNotEmpty();
     }
 
     @Test

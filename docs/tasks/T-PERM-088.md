@@ -18,7 +18,7 @@ acceptance:
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-09-25
+last_updated: 2026-09-26
 ---
 
 # T-PERM-088 （R2-T09）根审计、TRACE 与故障证据
@@ -30,6 +30,7 @@ last_updated: 2026-09-25
 ## 范围
 
 - 证据模型与根级受控提交（非阻塞，失败记技术日志/指标）；新内部原因不未经版本化扩散到普通 SDK（外部错误映射在适配层保持）。
+- A05 TRACE 输出在本卡接入，复用 087 已验证的真实阶段覆盖，不补跑 scopeAll 短路的实例阶段；TRACE 输出与敏感字段门禁一并交付（设计 §3.3，2026-09-26 用户确认）。
 - 三类公开异常边界对齐 permission-coding-standards（技术故障≠SecurityException）。
 
 ## 非目标 / 遗留

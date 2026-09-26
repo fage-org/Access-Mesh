@@ -14,12 +14,12 @@ import java.util.Set;
  * @param matchedIds            是否输出命中角色/权限 id
  * @param descriptions          是否输出描述块
  * @param effectiveOperations   是否输出有效操作展开
- * @param presentationExpansion 是否输出展示父/子展开（与判定面继承分离）
+ * @param presentationExpansion 展示方向 NONE/PARENTS/CHILDREN/BOTH（与判定面继承分离）
  * @param extraOperationKeys    额外类型—操作配对（仅描述/投影）；null 归一为空集
  * @param trace                 是否输出 TRACE（仅受权诊断可用，门禁在应用层）
  */
 public record OutputSpec(FactDetail factDetail, boolean matchedIds, boolean descriptions,
-                         boolean effectiveOperations, boolean presentationExpansion,
+                         boolean effectiveOperations, PresentationExpansion presentationExpansion,
                          Set<TypeOperation> extraOperationKeys, boolean trace) {
 
     public OutputSpec {
@@ -28,26 +28,26 @@ public record OutputSpec(FactDetail factDetail, boolean matchedIds, boolean desc
 
     /** 最小输出：无事实、无描述，判定必需计算不受影响。 */
     public static OutputSpec minimal() {
-        return new OutputSpec(FactDetail.NONE, false, false, false, false, Set.of(), false);
+        return new OutputSpec(FactDetail.NONE, false, false, false, PresentationExpansion.NONE, Set.of(), false);
     }
 
     /** 最小输出＋命中 ID（A.1 普通最终鉴权缺省形态）。 */
     public static OutputSpec minimalWithMatchIds() {
-        return new OutputSpec(FactDetail.NONE, true, false, false, false, Set.of(), false);
+        return new OutputSpec(FactDetail.NONE, true, false, false, PresentationExpansion.NONE, Set.of(), false);
     }
 
     /** 事实输出：保留评估后事实＋命中 ID。 */
     public static OutputSpec kept() {
-        return new OutputSpec(FactDetail.KEPT, true, false, false, false, Set.of(), false);
+        return new OutputSpec(FactDetail.KEPT, true, false, false, PresentationExpansion.NONE, Set.of(), false);
     }
 
     /** 范围输出：raw＋retained 双轨（queryScopes 四态投影必需）。 */
     public static OutputSpec rawAndKept() {
-        return new OutputSpec(FactDetail.RAW_AND_KEPT, true, false, false, false, Set.of(), false);
+        return new OutputSpec(FactDetail.RAW_AND_KEPT, true, false, false, PresentationExpansion.NONE, Set.of(), false);
     }
 
     /** 完整输出：全档事实＋描述＋操作展开＋展示展开＋TRACE。 */
     public static OutputSpec full() {
-        return new OutputSpec(FactDetail.RAW_AND_KEPT, true, true, true, true, Set.of(), true);
+        return new OutputSpec(FactDetail.RAW_AND_KEPT, true, true, true, PresentationExpansion.BOTH, Set.of(), true);
     }
 }

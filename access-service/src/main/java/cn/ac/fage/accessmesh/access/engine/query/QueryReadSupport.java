@@ -323,6 +323,25 @@ final class QueryReadSupport {
         return targetGrants(run, roleIds, entityIds, masks, false);
     }
 
+    /** 展示后代仅在判定完成后读取；按源资源记忆空集合，禁止 scopeAll 展开全表。 */
+    Map<Long, Set<Long>> descendantClosures(RunState run,
+        cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper mapper, Set<Long> targets) {
+        Memory memory = run.readMemory();
+        Set<Long> missing = missing(targets, memory.descendantClosures);
+        if (!missing.isEmpty()) {
+            Map<Long, Set<Long>> loaded = new LinkedHashMap<>();
+            missing.forEach(id -> loaded.put(id, new LinkedHashSet<>()));
+            SqlBatches.forEach(List.copyOf(missing), batch -> mapper.selectDescendantIdsBatch(
+                run.request().tenantId(), new LinkedHashSet<>(batch)).forEach(row -> {
+                    Set<Long> descendants = loaded.get(row.getResourceId());
+                    if (descendants != null && row.getDescendantId() != null
+                        && !row.getResourceId().equals(row.getDescendantId())) descendants.add(row.getDescendantId());
+                }));
+            loaded.forEach((id, descendants) -> memory.descendantClosures.put(id, Set.copyOf(descendants)));
+        }
+        return subset(memory.descendantClosures, targets);
+    }
+
     private List<GrantFact> targetGrants(RunState run, Set<Long> roleIds, Set<Long> entityIds,
                                        Map<Integer, Long> masks, boolean scopeAll) {
         Memory memory = run.readMemory();
@@ -401,6 +420,7 @@ final class QueryReadSupport {
         final Map<Long, GrantFact> databaseFacts = new LinkedHashMap<>();
         final Map<GrantLoad, List<GrantFact>> targetLoads = new LinkedHashMap<>();
         final Map<Long, Set<Long>> ancestorClosures = new LinkedHashMap<>();
+        final Map<Long, Set<Long>> descendantClosures = new LinkedHashMap<>();
         CacheReadToken<List<RolePermEntry>> snapshotToken;
     }
 

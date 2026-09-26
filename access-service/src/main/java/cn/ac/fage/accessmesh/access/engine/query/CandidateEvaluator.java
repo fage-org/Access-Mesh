@@ -54,14 +54,12 @@ final class CandidateEvaluator {
 
     private Evaluated compute(Evaluation evaluation, List<GrantFact> raw) {
         if (raw.isEmpty()) return new Evaluated(List.of(), Set.of(), false);
+        raw.stream().filter(f -> f.hasCondition() != (f.conditionId() != null)).forEach(f ->
+            log.error("Inconsistent condition reference: tenantId={}, permissionId={}",
+                run.request().tenantId(), f.permissionId()));
         List<GrantFact> eligible = raw;
         if (evaluation.conditionMode() == ConditionMode.EVALUATE) {
-            eligible = raw.stream().filter(f -> {
-                boolean valid = f.hasCondition() == (f.conditionId() != null);
-                if (!valid) log.error("Inconsistent condition reference: tenantId={}, permissionId={}",
-                    run.request().tenantId(), f.permissionId());
-                return valid;
-            }).toList();
+            eligible = raw.stream().filter(f -> f.hasCondition() == (f.conditionId() != null)).toList();
         }
         List<RolePermEntry> adapted = eligible.stream().map(entries::toEntry).toList();
         if (evaluation.conditionMode() == ConditionMode.EVALUATE && !adapted.isEmpty()) {

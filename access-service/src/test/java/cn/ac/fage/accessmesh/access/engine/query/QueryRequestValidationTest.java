@@ -374,7 +374,7 @@ class QueryRequestValidationTest {
 
         @Test
         void should_rejectStructure_whenOutputFactDetailNullViaCanonicalConstructor() {
-            OutputSpec nullDetail = new OutputSpec(null, true, false, false, false, Set.of(), false);
+            OutputSpec nullDetail = new OutputSpec(null, true, false, false, PresentationExpansion.NONE, Set.of(), false);
             assertThatThrownBy(() -> QueryRequestValidator.validate(request(
                 typeLevelItem("k1", ResultForm.FACTS, Evaluation.preserveSkip(), nullDetail))))
                 .as("canonical 构造的 null 事实档位为结构错误——不可绕过 FACTS≥KEPT")

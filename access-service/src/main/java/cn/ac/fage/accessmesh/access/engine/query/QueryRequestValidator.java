@@ -84,6 +84,9 @@ final class QueryRequestValidator {
             if (item.output().factDetail() == null) {
                 throw new QueryValidationException(at + " OutputSpec.factDetail 不能为空");
             }
+            if (item.output().presentationExpansion() == null) {
+                throw new QueryValidationException(at + " OutputSpec.presentationExpansion 不能为空");
+            }
             for (TypeOperation extra : item.output().extraOperationKeys()) {
                 validateTypeOperation(at + " extraOperationKeys", extra);
             }

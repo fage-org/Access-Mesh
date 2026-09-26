@@ -87,7 +87,7 @@ class QueryContractModelsTest {
         void should_copyResultCollections_whenConstructed() {
             java.util.HashSet<Long> roleSource = new java.util.HashSet<>(Set.of(1L, 2L));
             Roles roles = new Roles(roleSource);
-            OutputSpec spec = new OutputSpec(FactDetail.KEPT, true, false, false, false,
+            OutputSpec spec = new OutputSpec(FactDetail.KEPT, true, false, false, PresentationExpansion.NONE,
                 new java.util.HashSet<>(Set.of(new TypeOperation("REPORT", "EXPORT"))), false);
             ResultDetails details = new ResultDetails(Set.of(ResultDetails.DetailSection.MATCHED_IDS),
                 new ArrayList<>(List.of(1L)), new ArrayList<>(List.of(2L)));
@@ -117,7 +117,7 @@ class QueryContractModelsTest {
             assertThat(new QueryRequest(1L, new Roles(Set.of()), CallerContext.of(null),
                 ReadOptions.defaults(), null).items()).isEmpty();
             assertThat(new CallerContext(null, null).attributes()).isEmpty();
-            assertThat(new OutputSpec(FactDetail.NONE, false, false, false, false, null, false)
+            assertThat(new OutputSpec(FactDetail.NONE, false, false, false, PresentationExpansion.NONE, null, false)
                 .extraOperationKeys()).isEmpty();
             assertThat(new ReadOptions(null).listGrantRead()).isEqualTo(ListGrantRead.ROLE_SNAPSHOT);
             assertThat(new ResultDetails(null, null, null).loadedSections()).isEmpty();

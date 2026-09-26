@@ -31,6 +31,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.EnumSource;
+import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -129,6 +131,256 @@ class QueryStagesTest {
             ReadOptions.defaults(), List.of(items)));
     }
     static DecisionResult decision(QueryResult result, int index) { return (DecisionResult) result.orderedResults().get(index); }
+
+    @Test
+    void should_loadRequestedDefinitionsWithoutExpandingSelection_whenExtraOperationHasNoGrant() {
+        scopeRows.add(grant(101, 1, null, 2));
+        OutputSpec output = new OutputSpec(FactDetail.NONE, true, true, false, PresentationExpansion.NONE,
+            Set.of(new TypeOperation("USER", "UPDATE")), false);
+        var result = decision(execute(QueryItem.decision("scope",
+            target(Inheritance.SELF, TypeFallback.ALLOW, clause(100)), output)), 0);
+        assertThat(result.outcome()).isEqualTo(DecisionResult.Decision.ALLOW);
+        assertThat(result.details().loadedSections()).contains(ResultDetails.DetailSection.DESCRIPTIONS);
+        assertThat(result.details().matchedPermissionIds()).containsExactly(101L);
+        assertThat(result.details().descriptions().requestedOperations())
+            .containsKey(new TypeOperation("USER", "UPDATE"));
+        assertThat(result.coverage().skippedStages()).containsEntry(Stage.INSTANCE,
+            EvaluationCoverage.SkipReason.SUFFICIENT_DECISION);
+        verify(grants, never()).selectInstancePermsByBitsBatch(anyLong(), anySet(), anySet(), anyList());
+    }
+
+    @Test
+    void should_distinguishLoadedEmptyDescriptionBlocks_whenSubjectHasNoRoles() {
+        OutputSpec output = new OutputSpec(FactDetail.RAW_AND_KEPT, true, true, true, PresentationExpansion.NONE,
+            Set.of(new TypeOperation("REPORT", "VIEW")), false);
+        var result = (GrantSetResult) engine.execute(new QueryRequest(1L, new Roles(Set.of()),
+            CallerContext.of(null), ReadOptions.defaults(), List.of(
+                QueryItem.grantListFacts("empty", null, Evaluation.full(), output)))).orderedResults().getFirst();
+        assertThat(result.collectionStatus()).isEqualTo(GrantSetResult.CollectionStatus.NO_ROLE);
+        assertThat(result.details().loadedSections()).contains(ResultDetails.DetailSection.DESCRIPTIONS,
+            ResultDetails.DetailSection.EFFECTIVE_OPERATIONS);
+        assertThat(result.details().matchedPermissionIds()).isEmpty();
+        assertThat(result.details().descriptions().requestedOperations()).containsKey(new TypeOperation("REPORT", "VIEW"));
+        assertThat(ScopeCoverageProjector.project(result, List.of(new TypeOperation("REPORT", "VIEW"))).getFirst().scopeMode())
+            .isEqualTo(ScopeMode.DENIED);
+        verifyNoInteractions(grants, resources, resourceMapper, roleMapper);
+    }
+
+    static OutputSpec scopeOutput(TypeOperation... requirements) {
+        return new OutputSpec(FactDetail.RAW_AND_KEPT, true, true, false, PresentationExpansion.NONE,
+            Set.of(requirements), false);
+    }
+
+    GrantSetResult projectedList(OutputSpec output, Evaluation evaluation, RoleResourcePermission... rows) {
+        when(grants.selectValidByRoleIds(1L, Set.of(10L))).thenReturn(List.of(rows));
+        return (GrantSetResult) execute(QueryItem.grantListFacts("list", null, evaluation, output))
+            .orderedResults().getFirst();
+    }
+
+    static ResourceEntity describedResource(long id, String code, String codeType) {
+        ResourceEntity row = new ResourceEntity();
+        row.setId(id); row.setResourceType(1); row.setCode(code); row.setCodeType(codeType);
+        row.setName("report-" + id); row.setDeleteFlag(0L); row.setStatus(1);
+        return row;
+    }
+
+    @Test
+    void should_returnEmptyAndKeepRawDefinitions_whenConditionsRemoveEveryCoveringGrant() {
+        var key = new TypeOperation("REPORT", "VIEW");
+        var row = grant(101, 1, 100L, 4); row.setConditionId(500L);
+        var result = projectedList(scopeOutput(key), Evaluation.full(), row);
+        assertThat(result.details().stageFacts().getFirst().retainedAfterEvaluation()).isEmpty();
+        assertThat(result.details().descriptions().operations()).containsKeys(11L, 12L);
+        assertThat(ScopeCoverageProjector.project(result, List.of(key)).getFirst().scopeMode()).isEqualTo(ScopeMode.EMPTY);
+        verify(conditionMapper).selectValidByIds(1L, Set.of(500L));
+        verify(operations).selectByTenantAndResourceTypes(1L, Set.of(1));
+    }
+
+    @Test
+    void should_returnDenied_whenRawDoesNotCoverOrRequestedOperationIsUnknown() {
+        var update = new TypeOperation("REPORT", "UPDATE");
+        var unknown = new TypeOperation("REPORT", "UNKNOWN");
+        var missing = new TypeOperation("UNKNOWN", "VIEW");
+        var result = projectedList(scopeOutput(update, unknown, missing), Evaluation.full(), grant(101, 1, 100L, 2));
+        assertThat(ScopeCoverageProjector.project(result, List.of(update, unknown, missing)))
+            .extracting(g -> g.scopeMode()).containsOnly(ScopeMode.DENIED);
+    }
+
+    @Test
+    void should_preferAllWithoutExpandingBusinessInstances_whenRetainedScopeAllCovers() {
+        var key = new TypeOperation("REPORT", "VIEW");
+        var output = new OutputSpec(FactDetail.RAW_AND_KEPT, true, true, true,
+            PresentationExpansion.BOTH, Set.of(key), false);
+        var result = projectedList(output, Evaluation.full(), grant(101, 1, null, 4));
+        var group = ScopeCoverageProjector.project(result, List.of(key)).getFirst();
+        assertThat(group.scopeMode()).isEqualTo(ScopeMode.ALL);
+        assertThat(group.items()).isEmpty();
+        assertThat(result.details().presentation()).containsExactly(
+            new PresentationEntry(101L, 10L, null, PresentationEntry.Derivation.ORIGINAL));
+        verifyNoInteractions(resources, resourceMapper);
+    }
+
+    @Test
+    void should_returnEmpty_whenRetainedInstancesNoLongerExist() {
+        var key = new TypeOperation("REPORT", "VIEW");
+        var result = projectedList(scopeOutput(key), Evaluation.full(), grant(101, 1, 100L, 2));
+        assertThat(result.collectionStatus()).isEqualTo(GrantSetResult.CollectionStatus.PRESENT);
+        assertThat(ScopeCoverageProjector.project(result, List.of(key)).getFirst().scopeMode()).isEqualTo(ScopeMode.EMPTY);
+        verify(resources).selectValidByIds(1L, Set.of(100L));
+    }
+
+    @Test
+    void should_deduplicateResourceTuplesWithoutMergingGrantFacts_whenSameResourceHasMultipleSources() {
+        var key = new TypeOperation("REPORT", "VIEW");
+        var first = describedResource(100, "sys:user", "default");
+        var second = describedResource(200, "sys", "user:default");
+        when(resources.selectValidByIds(1L, Set.of(100L, 200L))).thenReturn(List.of(first, second));
+        var result = projectedList(scopeOutput(key), Evaluation.full(),
+            grant(101, 1, 100L, 2), grant(102, 1, 100L, 4), grant(103, 1, 200L, 2));
+        first.setName("changed after projection"); first.setCode("changed");
+        var group = ScopeCoverageProjector.project(result, List.of(key)).getFirst();
+        assertThat(group.scopeMode()).isEqualTo(ScopeMode.INSTANCE);
+        assertThat(group.items()).extracting(i -> i.resourceCode()).containsExactly("sys:user", "sys");
+        assertThat(group.items().getFirst().resourceName()).isEqualTo("report-100");
+        assertThat(result.details().matchedPermissionIds()).containsExactly(101L, 102L, 103L);
+        assertThatThrownBy(() -> result.details().descriptions().resources().clear()).isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @ParameterizedTest
+    @EnumSource(PresentationExpansion.class)
+    void should_expandOnlyRequestedDirectionsWithoutChangingFacts_whenProjectionIsEnabled(PresentationExpansion direction) {
+        var ancestor = new ResourceEntityMapper.AncestorClosureResult();
+        ancestor.setTargetId(100L); ancestor.setClosureId(90L);
+        var child = new ResourceEntityMapper.DescendantResult();
+        child.setResourceId(100L); child.setDescendantId(110L);
+        when(resourceMapper.selectSelfAndAncestorClosureBatch(1L, Set.of(100L))).thenReturn(List.of(ancestor));
+        when(resourceMapper.selectDescendantIdsBatch(1L, Set.of(100L))).thenReturn(List.of(child));
+        var one = grant(101, 1, 100L, 4); one.setGrantSource("MANUAL");
+        var two = grant(102, 1, 100L, 4); two.setGrantSource("AUTO_DEP"); two.setDependOn(999L); two.setConditionId(500L);
+        var output = new OutputSpec(FactDetail.RAW_AND_KEPT, true, false, true, direction, Set.of(), false);
+        var result = projectedList(output, Evaluation.preserveSkip(), one, two);
+        assertThat(result.details().stageFacts().getFirst().retainedAfterEvaluation())
+            .extracting(GrantFact::resourceEntityId).containsExactly(100L, 100L);
+        assertThat(result.details().stageFacts().getFirst().retainedAfterEvaluation())
+            .extracting(GrantFact::grantSource).containsExactly("MANUAL", "AUTO_DEP");
+        assertThat(result.details().effectiveOperations()).filteredOn(e -> e.displayedEntityId().equals(100L))
+            .extracting(ResultDetails.EffectiveOperationEntry::operationCode).containsExactly("VIEW", "UPDATE", "VIEW", "UPDATE");
+        if (direction == PresentationExpansion.NONE) {
+            assertThat(result.details().presentation()).isEmpty();
+            assertThat(result.details().loadedSections()).doesNotContain(ResultDetails.DetailSection.PRESENTATION);
+        } else {
+            Set<Long> expected = new LinkedHashSet<>(Set.of(100L));
+            if (direction.parents()) expected.add(90L);
+            if (direction.children()) expected.add(110L);
+            assertThat(result.details().presentation()).extracting(PresentationEntry::displayedEntityId)
+                .containsOnlyElementsOf(expected);
+            assertThat(result.details().presentation()).hasSize(expected.size() * 2);
+        }
+        verify(resourceMapper, times(direction.parents() ? 1 : 0)).selectSelfAndAncestorClosureBatch(anyLong(), anySet());
+        verify(resourceMapper, times(direction.children() ? 1 : 0)).selectDescendantIdsBatch(anyLong(), anySet());
+        verifyNoInteractions(conditionMapper, rules, resources);
+    }
+
+    @Test
+    void should_batchTwentyOutputTypesOnce_whenGrantListNeedsAncillaryDefinitions() {
+        definitions.clear();
+        List<RoleResourcePermission> rows = new ArrayList<>();
+        for (int type = 1; type <= 20; type++) {
+            definitions.add(op(type, type, "VIEW", 2, 0));
+            rows.add(grant(100 + type, type, null, 2));
+        }
+        var output = new OutputSpec(FactDetail.KEPT, false, true, true, PresentationExpansion.NONE, Set.of(), false);
+        var result = projectedList(output, Evaluation.preserveSkip(), rows.toArray(RoleResourcePermission[]::new));
+        assertThat(result.details().descriptions().operations()).hasSize(20);
+        assertThat(result.details().effectiveOperations()).hasSize(20);
+        verify(operations).selectByTenantAndResourceTypes(eq(1L), argThat(types -> types.size() == 20));
+        verifyNoMoreInteractions(operations);
+        verifyNoInteractions(types, conditionMapper, rules, resources, resourceMapper);
+    }
+
+    @Test
+    void should_keepCachedJudgementSeparateFromFreshProjection_whenOperationCoverageChanged() {
+        definitions.removeIf(op -> op.getId().equals(12L));
+        definitions.add(op(12, 1, "UPDATE", 4, 0));
+        when(cache.getBatch(eq(AccessCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE), eq(1L), anySet()))
+            .thenReturn(Map.of(AccessCacheCatalog.operationPermissionsByTypeKey(1),
+                Map.of(11L, op(11, 1, "VIEW", 2, 0), 12L, op(12, 1, "UPDATE", 4, 2))));
+        scopeRows.add(grant(101, 1, null, 4));
+        var output = new OutputSpec(FactDetail.NONE, true, true, true, PresentationExpansion.NONE, Set.of(), false);
+        var a = QueryItem.decision("described", target(Inheritance.SELF, TypeFallback.ALLOW, clause(100)), output);
+        var b = QueryItem.decision("minimal", target(Inheritance.SELF, TypeFallback.ALLOW, clause(100)), OutputSpec.minimal());
+        var result = execute(a, b);
+        assertThat(decision(result, 0).outcome()).isEqualTo(DecisionResult.Decision.ALLOW);
+        assertThat(decision(result, 1).outcome()).isEqualTo(DecisionResult.Decision.ALLOW);
+        assertThat(decision(result, 0).details().effectiveOperations())
+            .extracting(ResultDetails.EffectiveOperationEntry::operationCode).containsExactly("UPDATE");
+        verify(operations).selectByTenantAndResourceTypes(1L, Set.of(1));
+        verifyNoMoreInteractions(operations);
+        verify(grants, never()).selectInstancePermsByBitsBatch(anyLong(), anySet(), anySet(), anyList());
+    }
+
+    @Test
+    void should_rejectPartialOrPreservedFacts_whenUsedAsEvaluatedScopes() {
+        var key = new TypeOperation("REPORT", "VIEW");
+        var preserved = projectedList(scopeOutput(key), Evaluation.preserveSkip(), grant(101, 1, 100L, 2));
+        assertThatThrownBy(() -> ScopeCoverageProjector.project(preserved, List.of(key)))
+            .isInstanceOf(IllegalArgumentException.class);
+        var noRaw = projectedList(OutputSpec.kept(), Evaluation.full(), grant(101, 1, 100L, 2));
+        assertThatThrownBy(() -> ScopeCoverageProjector.project(noRaw, List.of(key)))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void should_propagateDescriptionFailure_whenFactsWereAlreadyEvaluated() {
+        when(resources.selectValidByIds(1L, Set.of(100L))).thenThrow(new IllegalStateException("description database down"));
+        assertThatThrownBy(() -> projectedList(scopeOutput(new TypeOperation("REPORT", "VIEW")),
+            Evaluation.full(), grant(101, 1, 100L, 2))).isInstanceOf(IllegalStateException.class)
+            .hasMessage("description database down");
+    }
+
+    @Test
+    void should_rejectTraceAndMissingDirectionBeforeReading_whenOutputContractCannotBeSatisfied() {
+        assertThatThrownBy(() -> execute(QueryItem.decision("trace",
+            target(Inheritance.SELF, TypeFallback.ALLOW, clause(100)), OutputSpec.full())))
+            .isInstanceOf(UnsupportedOperationException.class).hasMessageContaining("TRACE");
+        var invalid = new OutputSpec(FactDetail.NONE, false, false, false, null, Set.of(), false);
+        assertThatThrownBy(() -> execute(QueryItem.decision("invalid",
+            target(Inheritance.SELF, TypeFallback.ALLOW, clause(100)), invalid))).isInstanceOf(QueryValidationException.class);
+        verifyNoInteractions(grants, types, operations, resources, resourceMapper, subjects);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void should_diagnoseBrokenConditionWithoutNormalizingFacts_whenPreservedForDisplay(boolean declaredConditional) {
+        Long conditionId = declaredConditional ? null : 500L;
+        var broken = new cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry(101L, 10L, 100L, null,
+            1, 2L, null, null, "MANUAL", true, conditionId, declaredConditional, null, false);
+        when(cache.getBatch(eq(AccessCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), anySet()))
+            .thenReturn(Map.of(10L, List.of(broken)));
+        var logger = (org.apache.logging.log4j.core.Logger) org.apache.logging.log4j.LogManager.getLogger(CandidateEvaluator.class);
+        List<String> diagnostics = new ArrayList<>();
+        var appender = new org.apache.logging.log4j.core.appender.AbstractAppender("condition-reference-test", null,
+            null, true, org.apache.logging.log4j.core.config.Property.EMPTY_ARRAY) {
+            @Override public void append(org.apache.logging.log4j.core.LogEvent event) {
+                diagnostics.add(event.getMessage().getFormattedMessage());
+            }
+        };
+        appender.start(); logger.addAppender(appender);
+        try {
+            var output = new OutputSpec(FactDetail.RAW_AND_KEPT, true, true, true, PresentationExpansion.NONE, Set.of(), false);
+            var preserved = projectedList(output, Evaluation.preserveSkip());
+            assertThat(preserved.details().stageFacts().getFirst().retainedAfterEvaluation()).singleElement().satisfies(f -> {
+                assertThat(f.hasCondition()).isEqualTo(declaredConditional);
+                assertThat(f.conditionId()).isEqualTo(conditionId);
+            });
+            assertThat(diagnostics).anyMatch(message -> message.contains("Inconsistent condition reference"));
+            var evaluated = projectedList(output, Evaluation.full());
+            assertThat(evaluated.details().stageFacts().getFirst().retainedAfterEvaluation()).isEmpty();
+            assertThat(evaluated.details().effectiveOperations()).isEmpty();
+        } finally {
+            logger.removeAppender(appender); appender.stop();
+        }
+    }
 
     @Test
     void should_allowIndependentTargetsButDenyTheirUnion_whenMutuallyExclusiveGrantsCoverView() {
@@ -393,7 +645,7 @@ class QueryStagesTest {
     @Test
     void should_notReadOutputOnlyKeys_whenMinimalOutputNamesExtraOperations() {
         scopeRows.add(grant(101, 1, null, 2));
-        var output = new OutputSpec(FactDetail.NONE, false, false, false, false, Set.of(new TypeOperation("USER", "UPDATE")), false);
+        var output = new OutputSpec(FactDetail.NONE, false, false, false, PresentationExpansion.NONE, Set.of(new TypeOperation("USER", "UPDATE")), false);
         assertThat(decision(execute(QueryItem.decision("x", new TypeLevel(List.of(new TypeOperation("REPORT", "VIEW"))), output)), 0)
             .outcome()).isEqualTo(DecisionResult.Decision.ALLOW);
         verify(types).batchResolveTypeValues(1L, "resource_type", Set.of("REPORT"));
@@ -401,9 +653,9 @@ class QueryStagesTest {
     }
 
     @Test
-    void should_failExplicitly_whenUnimplementedOutputRequested() {
+    void should_failExplicitly_whenTraceOutputRequestedBefore088() {
         assertThatThrownBy(() -> execute(QueryItem.facts("full", target(Inheritance.SELF, TypeFallback.ALLOW, clause(100)),
-            Evaluation.full(), OutputSpec.full()))).isInstanceOf(UnsupportedOperationException.class).hasMessageContaining("087/088");
+            Evaluation.full(), OutputSpec.full()))).isInstanceOf(UnsupportedOperationException.class).hasMessageContaining("T-PERM-088");
         verifyNoInteractions(grants, operations);
     }
 
@@ -500,7 +752,7 @@ class QueryStagesTest {
         instanceRows.add(dependent(101, 100L, 201));
         instanceRows.add(dependent(102, 100L, 202));
         var selection = new TargetSet(List.of(clause(100)), Inheritance.SELF, TypeFallback.DISALLOW, reportParent());
-        var output = new OutputSpec(FactDetail.RAW_AND_KEPT, false, false, false, false, Set.of(), false);
+        var output = new OutputSpec(FactDetail.RAW_AND_KEPT, false, false, false, PresentationExpansion.NONE, Set.of(), false);
         var result = (GrantSetResult) execute(QueryItem.facts("child", selection, Evaluation.full(), output))
             .orderedResults().getFirst();
         assertThat(result.details().stageFacts().getFirst().rawAfterContext()).extracting(GrantFact::permissionId).containsExactly(101L);
@@ -608,7 +860,11 @@ class QueryStagesTest {
     void should_stopWholeListAtParentGate_withoutReportingSuccessfulEmptyCollection() {
         var main = grant(101, 1, 100L, 2); main.setConditionId(501L);
         when(grants.selectValidByRoleIds(1L, Set.of(10L))).thenReturn(List.of(main));
-        var result = listFacts(reportParent(), Evaluation.full(), ListGrantRead.DATABASE);
+        var key = new TypeOperation("REPORT", "VIEW");
+        var result = (GrantSetResult) engine.execute(new QueryRequest(1L, new Roles(Set.of(10L)),
+            CallerContext.of(null), new ReadOptions(ListGrantRead.DATABASE), List.of(
+                QueryItem.grantListFacts("list", reportParent(), Evaluation.full(), scopeOutput(key)))))
+            .orderedResults().getFirst();
         assertThat(result.collectionStatus()).isEqualTo(GrantSetResult.CollectionStatus.PARENT_DENIED);
         assertThat(result.coverage().parentCheck()).isEqualTo(EvaluationCoverage.ParentCheckCoverage.FAILED);
         assertThat(result.coverage().requestedSelectionComplete()).isFalse();
@@ -616,6 +872,7 @@ class QueryStagesTest {
         assertThat(result.coverage().skippedStages()).containsEntry(Stage.GRANT_LIST, EvaluationCoverage.SkipReason.PARENT_DENIED);
         assertThat(result.details().stageFacts()).isEmpty();
         assertThat(result.details().matchedPermissionIds()).isEmpty();
+        assertThat(ScopeCoverageProjector.project(result, List.of(key)).getFirst().scopeMode()).isEqualTo(ScopeMode.DENIED);
         verifyNoInteractions(conditionMapper);
     }
 
