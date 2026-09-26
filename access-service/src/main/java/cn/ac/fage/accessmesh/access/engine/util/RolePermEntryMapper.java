@@ -19,6 +19,13 @@ import java.util.Map;
 @Component
 public class RolePermEntryMapper {
 
+    /** 新事实与既有领域评估能力的边界适配，不附加展示字段。 */
+    public RolePermEntry toEntry(cn.ac.fage.accessmesh.access.engine.query.GrantFact fact) {
+        return new RolePermEntry(fact.permissionId(), fact.roleId(), fact.resourceEntityId(), null,
+            fact.resourceType(), fact.grantedBits(), null, null, fact.grantSource(), fact.canGrant(),
+            fact.conditionId(), fact.hasCondition(), fact.dependOn(), fact.scopeAll());
+    }
+
     /**
      * 将权限实体转换为权限条目
      *

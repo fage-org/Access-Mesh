@@ -14,10 +14,11 @@ acceptance:
   - "ParentRequirement 一层结构、惰性父判定（无子候选不判父、父结果 RunState 内按完整规范化要求记忆）、父项复用阶段函数不递归公开 execute、父固定 SELF/ALLOW/EVALUATE+ENFORCE"
   - "P01~P08 全绿：无父排除子行、有父仅主授权不触发父查询、父失败主行仍生效、GRANT_LIST 父失败整集合 PARENT_DENIED、父 scopeAll 命中即绑定不扩读、共享父一次计算+证据映射全部受影响项、父操作空集不解释为不限操作、根 PRESERVE/SKIP 时父仍 FULL 评估"
   - "G01/G06/G07：无父 GRANT_LIST 子行按存储事实参与原清单流程（装配后隐藏契约保持）；页面筛选 A 且 A-B 互斥时后置过滤不让 A 复活；FACTS 收全所选阶段不漏"
+  - "接入角色快照读取的整体 execute 验证 I05（冷/热/混合 miss、首次令牌不重置），复用 T-PERM-084 部件与 T-PERM-085 最小 StageFacts 输出；DATABASE 不读写角色快照"
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-09-25
+last_updated: 2026-09-26
 ---
 
 # T-PERM-086 （R2-T07）父受控子项与 GRANT_LIST 完整事实

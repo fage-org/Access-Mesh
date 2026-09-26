@@ -1,141 +1,287 @@
 package cn.ac.fage.accessmesh.access.engine.query;
 
+import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
+import cn.ac.fage.accessmesh.access.engine.query.EvaluationCoverage.*;
+import cn.ac.fage.accessmesh.access.engine.util.OperationPermissionUtils;
+import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceResolveRequest;
+import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
+import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService;
+import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService;
+import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
+
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
-import cn.ac.fage.accessmesh.access.engine.query.EvaluationCoverage.AuthorizationStage;
-import cn.ac.fage.accessmesh.access.engine.query.EvaluationCoverage.ConditionCoverage;
-import cn.ac.fage.accessmesh.access.engine.query.EvaluationCoverage.MutexCoverage;
-import cn.ac.fage.accessmesh.access.engine.query.EvaluationCoverage.ParentCheckCoverage;
-import cn.ac.fage.accessmesh.access.engine.query.EvaluationCoverage.SkipReason;
-import cn.ac.fage.accessmesh.access.engine.query.EvaluationCoverage.SubjectResolution;
-
 /**
- * 唯一 execute 主体骨架（T-PERM-082，设计 §1.1/§4.1）。
- * <p>
- * 生命周期：结构校验（零权限 I/O 整体拒绝）→ 空 items 短路（零权限 I/O）→
- * 创建本次 {@link RunState} → 主体解析一次 → 无有效角色按结果形式返回 NO_ROLE →
- * 判定阶段（TYPE_GRANT/INSTANCE 随 T-PERM-085、GRANT_LIST 随 T-PERM-086、
- * ADMISSION_CANDIDATES 随 T-ACCESS-057〔ADM-T02〕落地；落地前 fail-closed 抛
- * {@link UnsupportedOperationException}）→ finally 释放运行态。
- * </p>
- * <p>
- * 类名为迁移期暂名（2026-09-25 拍板：骨架独立成类、不动旧执行体 PermQueryEngine；
- * 旧类随 T-PERM-092 退出时定终名）。暂不注册 Spring bean——本卡零生产消费者，
- * 消费者迁移自 T-PERM-089 起，届时补 Clock 装配（Clock.systemDefaultZone()）。
- * 评估时刻由注入 Clock 固定：不引入 ZoneId 抽象，沿进程本地时钟语义
- * （时区拍板 2026-09-25；JVM 默认时区由既有 UtcTimezoneEnvironmentPostProcessor 启动即强制 UTC）。
- * </p>
+ * 新查询唯一执行主体：主体解析→TYPE_GRANT→INSTANCE→最小事实输出。
+ * 暂不注册 Bean，消费者迁移从 T-PERM-089 开始，终名随 T-PERM-092 确定。
+ * 父要求/GRANT_LIST、复杂投影/TRACE、审计提交按 086～088 边界后续接入。
+ * 不调用旧完整核心，所有请求状态随 RunState 释放；Clock 沿进程本地时钟语义。
  */
 public final class QueryExecutionEngine {
-
     private final Clock clock;
+    private final QueryReadSupport reads;
+    private final SubjectDomainService subjects;
+    private final PermissionConditionDomainService conditions;
+    private final PermissionConflictDomainService conflicts;
+    private final ResourceEntityMapper resourceMapper;
 
-    public QueryExecutionEngine(Clock clock) {
-        this.clock = Objects.requireNonNull(clock, "clock 不能为空");
+    QueryExecutionEngine(Clock clock, QueryReadSupport reads, SubjectDomainService subjects,
+                         PermissionConditionDomainService conditions, PermissionConflictDomainService conflicts,
+                         ResourceEntityMapper resourceMapper) {
+        this.clock = Objects.requireNonNull(clock);
+        this.reads = Objects.requireNonNull(reads);
+        this.subjects = Objects.requireNonNull(subjects);
+        this.conditions = Objects.requireNonNull(conditions);
+        this.conflicts = Objects.requireNonNull(conflicts);
+        this.resourceMapper = Objects.requireNonNull(resourceMapper);
     }
 
-    /**
-     * 统一查询执行入口。
-     *
-     * @param request 已通过适配层构造的内部请求
-     * @return 与输入等长同序的结果
-     * @throws QueryValidationException 非法结构/组合/混批（执行前整体拒绝）
-     * @throws UnsupportedOperationException 判定阶段未落地（TYPE_GRANT/INSTANCE→T-PERM-085、
-     *         GRANT_LIST→T-PERM-086、ADMISSION_CANDIDATES→T-ACCESS-057；骨架 fail-closed）
-     */
+    /** 结构错误零权限 I/O 拒绝；技术故障保留原异常，不伪装 DENY 或返回半批结果。 */
     public QueryResult execute(QueryRequest request) {
         QueryRequestValidator.validate(request);
+        requireImplementedOutputs(request.items());
         if (request.items().isEmpty()) {
             return new QueryResult(UUID.randomUUID().toString(), LocalDateTime.now(clock), List.of());
         }
         RunState run = new RunState(request, clock);
         try {
-            ResolvedSubject subject = resolveSubject(request.subject());
-            run.resolveSubject(subject.roles(), subject.resolution());
-            if (subject.roles().isEmpty()) {
-                return noRoleResults(run);
-            }
-            throw new UnsupportedOperationException(
-                "判定阶段未落地：TYPE_GRANT/INSTANCE→T-PERM-085、GRANT_LIST→T-PERM-086、"
-                    + "ADMISSION_CANDIDATES→T-ACCESS-057（ADM-T02）");
+            resolveSubject(run);
+            if (run.roles().isEmpty()) return noRoleResults(run);
+            requireImplemented(request.items());
+            request.items().forEach(item -> run.items().put(item, new RunState.ItemExecution()));
+            run.evaluator(new CandidateEvaluator(run, reads, conditions, conflicts));
+            Map<TypeOperation, ResolvedOperation> operations = prepareOperations(run);
+            processTypeGrantStage(run, operations);
+            processInstanceStage(run, operations);
+            return new QueryResult(run.executionId(), run.evaluatedAt(), request.items().stream()
+                .map(item -> complete(item, run)).toList());
         } finally {
             run.release();
         }
     }
 
-    /**
-     * 主体解析（每请求一次，§2.2）：Roles 视角原样采用——不暗中解析用户、不补加角色、
-     * 不做 ROLE_MUTEX 过滤（R03 口径；过滤仅发生在 User 主体共同入口，随 T-PERM-084/085 落地）。
-     */
-    static ResolvedSubject resolveSubject(Subject subject) {
-        if (subject instanceof Roles roles) {
-            return new ResolvedSubject(roles.roleIds(), SubjectResolution.EXPLICIT_ROLES);
+    private void resolveSubject(RunState run) {
+        if (run.request().subject() instanceof Roles roles) {
+            ResolvedSubject resolved = resolveSubject(roles);
+            run.resolveSubject(resolved.roles(), resolved.resolution());
+        } else {
+            User user = (User) run.request().subject();
+            Set<Long> held = subjects.resolveEffectiveRoles(run.request().tenantId(), user.userId());
+            if (held.isEmpty()) {
+                run.resolveSubject(Set.of(), SubjectResolution.USER_EFFECTIVE_WITH_MUTEX);
+                return;
+            }
+            var computed = conflicts.computeRoleMutex(run.request().tenantId(), held);
+            run.roleHits(computed.hits());
+            run.resolveSubject(computed.keptRoleIds(), SubjectResolution.USER_EFFECTIVE_WITH_MUTEX);
         }
-        throw new UnsupportedOperationException("User 主体有效角色+ROLE_MUTEX 解析随 T-PERM-084/085 落地");
     }
 
-    private QueryResult noRoleResults(RunState run) {
-        SubjectResolution resolution = Objects.requireNonNull(run.subjectResolution(),
-            "主体解析必须先于 NO_ROLE 结果组装");
-        List<ItemResult> results = new ArrayList<>(run.request().items().size());
-        for (QueryItem item : run.request().items()) {
-            results.add(noRoleResult(item, resolution));
+    static ResolvedSubject resolveSubject(Roles roles) {
+        return new ResolvedSubject(roles.roleIds(), SubjectResolution.EXPLICIT_ROLES);
+    }
+
+    private static void requireImplemented(List<QueryItem> items) {
+        for (QueryItem item : items) {
+            if (item.selection() instanceof GrantList || item.selection() instanceof TargetSet t && t.parent() != null) {
+                throw new UnsupportedOperationException("父要求与 GRANT_LIST 随 T-PERM-086 落地");
+            }
+            if (item.selection() instanceof OperationAdmission) {
+                throw new UnsupportedOperationException("ADMISSION_CANDIDATES 随 T-ACCESS-057 落地");
+            }
         }
+    }
+
+    private static void requireImplementedOutputs(List<QueryItem> items) {
+        for (QueryItem item : items) {
+            OutputSpec output = item.output();
+            if (output.descriptions() || output.effectiveOperations() || output.presentationExpansion() || output.trace()) {
+                throw new UnsupportedOperationException("描述/有效操作/展示/TRACE 随 T-PERM-087/088 落地");
+            }
+        }
+    }
+
+    private Map<TypeOperation, ResolvedOperation> prepareOperations(RunState run) {
+        Set<TypeOperation> keys = new LinkedHashSet<>();
+        run.request().items().forEach(item -> keys.addAll(requirements(item.selection())));
+        Map<TypeOperation, OperationDefinition> targets = reads.resolveOperations(run, keys);
+        Set<Integer> types = new LinkedHashSet<>();
+        targets.values().forEach(op -> types.add(op.resourceType()));
+        Map<Integer, List<OperationPermission>> catalogs = new LinkedHashMap<>();
+        reads.maskOperations(run, types).forEach((type, values) ->
+            catalogs.put(type, values.stream().map(OperationDefinition::toCacheRow).toList()));
+        Map<TypeOperation, ResolvedOperation> resolved = new LinkedHashMap<>();
+        targets.forEach((key, target) -> {
+            long mask = OperationPermissionUtils.computeCoveringBitMask(catalogs.get(target.resourceType()), target.binaryBit());
+            if (mask != 0) resolved.put(key, new ResolvedOperation(target.resourceType(), mask));
+        });
+        return Map.copyOf(resolved);
+    }
+
+    private static List<TypeOperation> requirements(Selection selection) {
+        if (selection instanceof TypeLevel type) return type.requirements();
+        return ((TargetSet) selection).clauses().stream().map(TargetClause::operation).toList();
+    }
+
+    private void processTypeGrantStage(RunState run, Map<TypeOperation, ResolvedOperation> operations) {
+        Map<QueryItem, List<CandidateSelector.Clause>> clauses = new LinkedHashMap<>();
+        for (QueryItem item : run.request().items()) {
+            if (!applicableStages(item.selection()).contains(Stage.TYPE_GRANT)) continue;
+            clauses.put(item, requirements(item.selection()).stream().map(operations::get).filter(Objects::nonNull)
+                .map(op -> new CandidateSelector.Clause(op.type(), op.mask(), Set.of())).toList());
+        }
+        evaluateStage(run, Stage.TYPE_GRANT, clauses, reads.scopeGrants(run, run.roles(), masks(clauses)));
+        clauses.keySet().forEach(item -> {
+            RunState.ItemExecution state = run.items().get(item);
+            if (item.selection() instanceof TargetSet && item.resultForm() == ResultForm.DECISION && state.retained()) {
+                state.shortCircuited = true;
+            }
+        });
+    }
+
+    private void processInstanceStage(RunState run, Map<TypeOperation, ResolvedOperation> operations) {
+        List<QueryItem> items = run.request().items().stream().filter(item -> item.selection() instanceof TargetSet
+            && !run.items().get(item).shortCircuited).toList();
+        List<ResourceResolveRequest> requested = new ArrayList<>();
+        items.forEach(item -> ((TargetSet) item.selection()).clauses().forEach(clause -> {
+            if (operations.containsKey(clause.operation()) && clause.resource() instanceof ByCode code) {
+                requested.add(resourceRequest(clause.operation(), code));
+            }
+        }));
+        var resourceIds = reads.resolveResources(run, requested);
+        Map<TargetClause, Long> targets = new LinkedHashMap<>();
+        Set<Long> inheritedTargets = new LinkedHashSet<>();
+        items.forEach(item -> {
+            TargetSet selection = (TargetSet) item.selection();
+            for (TargetClause clause : selection.clauses()) {
+                if (!operations.containsKey(clause.operation())) continue;
+                Long id = clause.resource() instanceof ByEntityId entity ? entity.entityId()
+                    : resourceIds.get(resourceRequest(clause.operation(), (ByCode) clause.resource()).toKey());
+                if (id != null) {
+                    targets.put(clause, id);
+                    if (selection.inheritance() == Inheritance.SELF_AND_ANCESTORS) inheritedTargets.add(id);
+                }
+            }
+        });
+        Map<Long, Set<Long>> closures = reads.ancestorClosures(run, resourceMapper, inheritedTargets);
+        Map<QueryItem, List<CandidateSelector.Clause>> clauses = new LinkedHashMap<>();
+        Set<Long> allEntities = new LinkedHashSet<>();
+        items.forEach(item -> {
+            TargetSet selection = (TargetSet) item.selection();
+            List<CandidateSelector.Clause> resolved = new ArrayList<>();
+            for (TargetClause clause : selection.clauses()) {
+                Long id = targets.get(clause);
+                if (id == null) continue;
+                ResolvedOperation op = operations.get(clause.operation());
+                Set<Long> closure = selection.inheritance() == Inheritance.SELF ? Set.of(id) : closures.get(id);
+                resolved.add(new CandidateSelector.Clause(op.type(), op.mask(), closure));
+                allEntities.addAll(closure);
+            }
+            clauses.put(item, List.copyOf(resolved));
+        });
+        evaluateStage(run, Stage.INSTANCE, clauses, reads.instanceGrants(run, run.roles(), allEntities, masks(clauses)));
+    }
+
+    private static ResourceResolveRequest resourceRequest(TypeOperation op, ByCode code) {
+        return new ResourceResolveRequest(op.resourceTypeCode(), code.code(), code.codeType(), code.domainCode());
+    }
+
+    private static Map<Integer, Long> masks(Map<QueryItem, List<CandidateSelector.Clause>> clauses) {
+        Map<Integer, Long> masks = new LinkedHashMap<>();
+        clauses.values().forEach(values -> values.forEach(c -> masks.merge(c.type(), c.mask(), (a, b) -> a | b)));
+        return masks;
+    }
+
+    private static void evaluateStage(RunState run, Stage stage,
+        Map<QueryItem, List<CandidateSelector.Clause>> clauses, List<GrantFact> loaded) {
+        Map<QueryItem, List<GrantFact>> rawByItem = new LinkedHashMap<>();
+        clauses.forEach((item, paired) -> {
+            List<GrantFact> candidates = CandidateSelector.select(loaded, paired, stage);
+            List<GrantFact> raw = candidates.stream().filter(f -> f.dependOn() == null).toList();
+            if (raw.size() < candidates.size()) run.items().get(item).dependentExcluded = true;
+            rawByItem.put(item, raw);
+        });
+        run.evaluator().preload(rawByItem);
+        rawByItem.forEach((item, raw) -> {
+            var evaluated = run.evaluator().evaluate(item, stage, clauses.get(item), raw);
+            RunState.ItemExecution state = run.items().get(item);
+            StageFacts.Status status = !evaluated.retained().isEmpty() ? StageFacts.Status.PRESENT
+                : raw.isEmpty() ? StageFacts.Status.NO_MATCH : StageFacts.Status.FILTERED_EMPTY;
+            state.stages.put(stage, new StageFacts(stage, raw, evaluated.retained(), status));
+            state.mutexHits.put(stage, evaluated.triggeredRuleIds());
+            state.mutexCandidate |= evaluated.mutexCandidate();
+        });
+    }
+
+    private static ItemResult complete(QueryItem item, RunState run) {
+        RunState.ItemExecution state = run.items().get(item);
+        Map<Stage, SkipReason> skipped = state.shortCircuited ? Map.of(Stage.INSTANCE, SkipReason.SUFFICIENT_DECISION) : Map.of();
+        ConditionCoverage condition = !state.hadRaw() ? ConditionCoverage.NO_CANDIDATE
+            : item.evaluation().conditionMode() == ConditionMode.EVALUATE ? ConditionCoverage.EVALUATED : ConditionCoverage.PRESERVED;
+        MutexCoverage mutex = !state.mutexCandidate ? MutexCoverage.NO_CANDIDATE
+            : item.evaluation().mutexMode() == MutexMode.ENFORCE ? MutexCoverage.EVALUATED : MutexCoverage.SKIPPED;
+        EvaluationCoverage coverage = new EvaluationCoverage(run.subjectResolution(), condition, mutex,
+            ParentCheckCoverage.NOT_REQUIRED, state.stages.keySet(), skipped, !state.shortCircuited, authorizationStage(item.resultForm()));
+        ResultDetails details = QueryProjector.project(item.output(), state);
+        if (item.resultForm() == ResultForm.FACTS) {
+            GrantSetResult.CollectionStatus status = state.retained() ? GrantSetResult.CollectionStatus.PRESENT
+                : state.hadRaw() ? GrantSetResult.CollectionStatus.FILTERED_EMPTY : GrantSetResult.CollectionStatus.NO_MATCH;
+            return new GrantSetResult(item.key(), status, coverage, details);
+        }
+        if (state.retained()) return DecisionResult.allow(item.key(), coverage, details);
+        DecisionResult.Reason reason = state.hadRaw() ? DecisionResult.Reason.CONDITION_NOT_MET_OR_CONFLICT
+            : state.dependentExcluded ? DecisionResult.Reason.DEPENDENT_NOT_IN_PARENT_CONTEXT : DecisionResult.Reason.NO_PERMISSION;
+        return DecisionResult.deny(item.key(), reason, coverage, details);
+    }
+
+    private static QueryResult noRoleResults(RunState run) {
+        List<ItemResult> results = run.request().items().stream().map(item -> {
+            Map<Stage, SkipReason> skipped = new EnumMap<>(Stage.class);
+            applicableStages(item.selection()).forEach(stage -> skipped.put(stage, SkipReason.NO_ROLE));
+            boolean parentRequired = item.selection() instanceof TargetSet t && t.parent() != null
+                || item.selection() instanceof GrantList g && g.requiredParent() != null;
+            EvaluationCoverage coverage = new EvaluationCoverage(run.subjectResolution(), ConditionCoverage.NO_CANDIDATE,
+                MutexCoverage.NO_CANDIDATE, parentRequired ? ParentCheckCoverage.NOT_TRIGGERED : ParentCheckCoverage.NOT_REQUIRED,
+                Set.of(), skipped, false, authorizationStage(item.resultForm()));
+            ResultDetails details = QueryProjector.project(item.output(), new RunState.ItemExecution());
+            return switch (item.resultForm()) {
+                case DECISION -> (ItemResult) DecisionResult.deny(item.key(), DecisionResult.Reason.NO_ROLE, coverage, details);
+                case FACTS -> new GrantSetResult(item.key(), GrantSetResult.CollectionStatus.NO_ROLE, coverage, details);
+                case ADMISSION -> AdmissionResult.deny(item.key(), AdmissionResult.Reason.NO_ROLE, coverage, details);
+            };
+        }).toList();
         return new QueryResult(run.executionId(), run.evaluatedAt(), results);
     }
 
-    private ItemResult noRoleResult(QueryItem item, SubjectResolution resolution) {
-        EvaluationCoverage coverage = noRoleCoverage(item, resolution);
-        return switch (item.resultForm()) {
-            case DECISION -> DecisionResult.deny(item.key(), DecisionResult.Reason.NO_ROLE, coverage, ResultDetails.empty());
-            case FACTS -> new GrantSetResult(item.key(), GrantSetResult.CollectionStatus.NO_ROLE, coverage, ResultDetails.empty());
-            case ADMISSION -> AdmissionResult.deny(item.key(), AdmissionResult.Reason.NO_ROLE, coverage, ResultDetails.empty());
-        };
-    }
-
-    private EvaluationCoverage noRoleCoverage(QueryItem item, SubjectResolution resolution) {
-        Map<Stage, SkipReason> skipped = new EnumMap<>(Stage.class);
-        applicableStages(item.selection()).forEach(stage -> skipped.put(stage, SkipReason.NO_ROLE));
-        boolean parentRequired = switch (item.selection()) {
-            case TargetSet targetSet -> targetSet.parent() != null;
-            case GrantList grantList -> grantList.requiredParent() != null;
-            default -> false;
-        };
-        return new EvaluationCoverage(resolution, ConditionCoverage.NO_CANDIDATE,
-            MutexCoverage.NO_CANDIDATE,
-            parentRequired ? ParentCheckCoverage.NOT_TRIGGERED : ParentCheckCoverage.NOT_REQUIRED,
-            Set.of(), skipped, false, authorizationStage(item.resultForm()));
-    }
-
-    private Set<Stage> applicableStages(Selection selection) {
+    private static Set<Stage> applicableStages(Selection selection) {
         return switch (selection) {
             case TypeLevel ignored -> EnumSet.of(Stage.TYPE_GRANT);
-            case TargetSet targetSet -> targetSet.typeFallback() == TypeFallback.ALLOW
-                ? EnumSet.of(Stage.TYPE_GRANT, Stage.INSTANCE)
-                : EnumSet.of(Stage.INSTANCE);
+            case TargetSet t -> t.typeFallback() == TypeFallback.ALLOW
+                ? EnumSet.of(Stage.TYPE_GRANT, Stage.INSTANCE) : EnumSet.of(Stage.INSTANCE);
             case GrantList ignored -> EnumSet.of(Stage.GRANT_LIST);
             case OperationAdmission ignored -> EnumSet.of(Stage.ADMISSION_CANDIDATES);
         };
     }
 
-    private AuthorizationStage authorizationStage(ResultForm resultForm) {
-        return switch (resultForm) {
+    private static AuthorizationStage authorizationStage(ResultForm form) {
+        return switch (form) {
             case DECISION -> AuthorizationStage.FINAL_DECISION;
             case FACTS -> AuthorizationStage.FACT_COLLECTION;
             case ADMISSION -> AuthorizationStage.OPERATION_ADMISSION;
         };
     }
 
-    /** 主体解析结果（角色集＋解析方式）。 */
-    record ResolvedSubject(Set<Long> roles, SubjectResolution resolution) {
-    }
+    record ResolvedSubject(Set<Long> roles, SubjectResolution resolution) {}
+    private record ResolvedOperation(int type, long mask) {}
 }

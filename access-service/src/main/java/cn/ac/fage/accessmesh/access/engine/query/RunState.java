@@ -3,16 +3,21 @@ package cn.ac.fage.accessmesh.access.engine.query;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Set;
+import java.util.List;
+import java.util.Map;
+import java.util.LinkedHashMap;
+import cn.ac.fage.accessmesh.access.engine.dto.PermEvalContext;
+import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService.RolePairRef;
 import java.util.UUID;
 
 import cn.ac.fage.accessmesh.access.engine.query.EvaluationCoverage.SubjectResolution;
 
 /**
- * 单次执行运行态（T-PERM-082，设计 §4.1 骨架）。
+ * 单次执行运行态（设计 §4.1）。
  * <p>
  * 一次 execute 一个实例：固定评估时刻（注入 Clock）、主体解析结果与已读记忆的宿主。
  * 禁止单例字段、ThreadLocal、跨请求/跨写复用（I07：同一事务先写后新 execute 创建新运行态）。
- * 已读/缺失三态记忆与读取来源桶由 T-PERM-084 挂载；阶段规则、条件结果、父结果与审计随后接入。
+ * 持有读取记忆、共享条件/互斥评估器及分项阶段事实；父结果与根审计提交由后续任务接入。
  * </p>
  */
 final class RunState {
@@ -24,6 +29,9 @@ final class RunState {
     private SubjectResolution subjectResolution;
     private QueryReadSupport.Memory readMemory;
     private boolean released;
+    private CandidateEvaluator evaluator;
+    private final Map<QueryItem, ItemExecution> items = new LinkedHashMap<>();
+    private List<RolePairRef> roleHits = List.of();
 
     RunState(QueryRequest request, Clock clock) {
         this.request = request;
@@ -48,6 +56,28 @@ final class RunState {
 
     SubjectResolution subjectResolution() {
         return subjectResolution;
+    }
+
+    Map<String, Object> evalContext() {
+        CallerContext caller = request.context();
+        return new PermEvalContext(caller.clientIp(), evaluatedAt, caller.attributes()).toEvalMap();
+    }
+
+    Map<QueryItem, ItemExecution> items() { return items; }
+    CandidateEvaluator evaluator() { return evaluator; }
+    void evaluator(CandidateEvaluator evaluator) { this.evaluator = evaluator; }
+    void roleHits(List<RolePairRef> hits) { this.roleHits = List.copyOf(hits); }
+
+    /** 证据随请求保留，根审计/TRACE 在 T-PERM-088 接入。 */
+    static final class ItemExecution {
+        final Map<Stage, StageFacts> stages = new LinkedHashMap<>();
+        final Map<Stage, Set<Long>> mutexHits = new LinkedHashMap<>();
+        boolean dependentExcluded;
+        boolean mutexCandidate;
+        boolean shortCircuited;
+
+        boolean retained() { return stages.values().stream().anyMatch(s -> !s.retainedAfterEvaluation().isEmpty()); }
+        boolean hadRaw() { return stages.values().stream().anyMatch(s -> !s.rawAfterContext().isEmpty()); }
     }
 
     /** 读取记忆只属于本次执行；释放后不能重新装载。 */
@@ -75,6 +105,9 @@ final class RunState {
         this.roles = null;
         this.subjectResolution = null;
         this.readMemory = null;
+        this.evaluator = null;
+        this.items.clear();
+        this.roleHits = List.of();
         this.released = true;
     }
 }

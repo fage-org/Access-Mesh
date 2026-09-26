@@ -241,6 +241,8 @@ Details 用 loadedSections 或显式可选块区分“没有请求”与“请�
 
 TRACE 解释真实执行，不是全面配置扫描；scopeAll 短路的 INSTANCE 显示 SKIPPED。确需目标描述时可在结论后为输出补读，但不得因此改变已完成判断；判定 I/O 与投影 I/O 分开统计。
 
+**最小事实输出实施边界（T-PERM-085，2026-09-26 用户确认）**：TYPE_GRANT/INSTANCE 的 FACTS 在本卡接入不可变 StageFacts，提供按 OutputSpec 保留的 raw/kept 与命中 ID；不等待完整投影才开放 FACTS。描述、有效操作、展示与 TRACE 仍由 T-PERM-087/088 承接，未实现输出明确抛未实现异常，不忽略请求或返回伪完整结果。
+
 ### 3.4 原因和异常不混淆
 
 | 情况 | 处理 |
@@ -270,7 +272,7 @@ TARGET_SET 实例未解析时，仍保留之前 TYPE_GRANT 曾被条件／冲突
 | QueryProjector | 组装事实、覆盖操作、描述和展示派生 | 重新鉴权、反向修改候选或 ALLOW |
 | QueryAuditCollector | 收集真实规则／角色对和项关系；根级一次提交 | 用端点猜规则、把准入记为业务成功 |
 
-**骨架期适用边界**：合法但判定阶段尚未实现的请求抛 `UnsupportedOperationException`，不得伪装成普通 DENY 或空结果。TYPE_GRANT/INSTANCE 由 T-PERM-085、GRANT_LIST 由 T-PERM-086、ADMISSION_CANDIDATES 由 T-ACCESS-057 承接。T-PERM-082 的 R03 只验主体解析半边，事实完整性随 T-PERM-086；C06 只验 NO_ROLE 路径的同序等长/key 对应，判定版随 T-PERM-085。任务完成只触发核实，阶段实现和验证实际落地后才解除该边界。[来源](../archive/2026-09-26/decision-registry-before.md)（原第 201 行）。
+**迁移期适用边界**：T-PERM-085 已接入 User 有效角色＋纯 ROLE_MUTEX、无父要求的 TYPE_GRANT/INSTANCE 与最小事实投影；C06 的有角色同序等长判定由执行链测试覆盖。新类仍不注册 Spring bean、无生产消费者，旧执行器保持现役。GRANT_LIST 与父要求由 T-PERM-086、ADMISSION_CANDIDATES 由 T-ACCESS-057 承接；非空角色触发尚未实现的选择时抛 `UnsupportedOperationException`，不伪装普通 DENY 或空事实。NO_ROLE 终态继续适用于全部结果形式。尚未实现的输出块在主体读取前明确抛未实现异常。T-PERM-082 的 R03 完整清单事实仍随 T-PERM-086 验证。阶段实现和验证实际落地后才解除对应边界。[骨架边界来源](../archive/2026-09-26/decision-registry-before.md)（原第 201 行）；最小事实输出范围见 §3.3。
 
 不要求每行新增独立 Spring Bean，包内 helper 也可；依赖方向是应用→引擎→既有读／领域能力→Mapper。转授服务可调用引擎，引擎不能反注入授权计划／物化服务。
 
@@ -321,6 +323,8 @@ QueryResult execute(QueryRequest request) {
 
 阶段结果去重键必须包含真实候选、type-mask 配对、绑定／父结果与评估策略，不得只按资源类型去重。完整候选的互斥没有做完之前，不能见到第一条授权就返回 ALLOW。
 
+T-PERM-085 以 `CandidateSelector` 切回配对、`CandidateEvaluator` 复用领域条件与纯互斥计算。阶段评估记忆键包含完整 Selection、stage、解析后的 type-mask/closure、上下文后 raw 和评估策略，输出开关不参与判定；当前不支持父要求，后续接入父项时须把实际父绑定结果纳入记忆键。条件在每阶段上下文过滤后按需要求值的候选并集预载，PRESERVE 不加载规则。真实互斥 ruleId 与角色对暂存 RunState，根审计提交和故障证据由 T-PERM-088 实现。
+
 ### 4.4 INSTANCE：按原配对切回候选
 
 仅处理尚需实例决策或完整实例事实的 TARGET_SET。
@@ -340,6 +344,8 @@ C(item) = 对 item 中各 clause c 求联合：
 ```
 
 SELF 不能消费同批其他项加载的祖先；不同类型相同 bit 不相互覆盖；不同 item 的候选不能共同互斥。一个 item 跨多个 SQL 块时，候选必须合齐再计算互斥。
+
+T-PERM-085 先使用同一 Selector 内顺序扫描作为正确性基线；继承目标合批查询既有同类型闭包 CTE，并在 RunState 记忆目标→闭包，SELF 固定自身集合。读取分块全部完成后才进入逐项候选选择和评估。`QueryProjector` 仅投影实际完成阶段的不可变事实与命中 ID，不补读或改变结论；DECISION 类型级充分短路用 `INSTANCE=SUFFICIENT_DECISION` 明示未执行，FACTS 则继续收集实例事实。
 
 **充分决策允许阶段短路，不允许集合内不完整互斥。**这是准入“找到充分候选可以停”和普通实例鉴权的关键区别，见第 7 节。
 
@@ -442,7 +448,7 @@ effectiveRoles = S - D
 
 **RolePermEntry 与四个旧 DTO 区别处理：**默认保留 `ROLE_PERM_SNAPSHOT` 的现有序列化载荷，在读边界转为 GrantFact；新应用和执行器不再消费旧 PermResult。这样不强迫 R2 同时改已有缓存格式。备选版本化载荷需明确双命名空间、旧写者和双失效；新准入网关快照则因语义不同必须版本隔离，不能借“缓存兼容”复用旧 API 放行结构。[B02]
 
-T-PERM-084 的读取部件已建立该转换边界：TYPE_GRANT/INSTANCE 固定数据库读取，LIST 的 DATABASE 不读写角色快照，ROLE_SNAPSHOT 只缓存原始 RolePermEntry。缓存 miss 在首次数据库查询前获取令牌，同运行态后续 miss、分块和重试沿用该令牌，剩余 TTL 耗尽时只返回读取事实、不回填。角色/规则/条件的阶段编排与事实投影仍由后续阶段任务接入。
+T-PERM-084 的读取部件已建立该转换边界：TYPE_GRANT/INSTANCE 固定数据库读取，LIST 的 DATABASE 不读写角色快照，ROLE_SNAPSHOT 只缓存原始 RolePermEntry。缓存 miss 在首次数据库查询前获取令牌，同运行态后续 miss、分块和重试沿用该令牌，剩余 TTL 耗尽时只返回读取事实、不回填。T-PERM-085 已接入普通阶段编排：领域批量条件评估器在本次执行跨阶段复用首次 miss 的令牌；互斥复用读取部件的新鲜目录，不另建或混入长 TTL 掩码桶。I05 的普通 execute 验证覆盖条件缓存的冷/热与增量 miss、令牌耗尽；ROLE_SNAPSHOT 的整体 execute 验证随 T-PERM-086 接入 GRANT_LIST，当前仍保留读取部件验收证据。
 
 ### 5.5 SQL、候选算法与预算
 

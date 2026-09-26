@@ -206,4 +206,8 @@ public interface PermissionConflictDomainService {
      */
     BatchPermMutexEvaluator openBatchMutexEvaluator(Long tenantId);
 
+    /** 新执行器提供同请求的新鲜定义读取入口；复用纯互斥算法，空规则不触发目录读取。 */
+    BatchPermMutexEvaluator openBatchMutexEvaluator(Long tenantId,
+        java.util.function.Function<Set<Integer>, List<cn.ac.fage.accessmesh.access.type.entity.OperationPermission>> operationReader);
+
 }

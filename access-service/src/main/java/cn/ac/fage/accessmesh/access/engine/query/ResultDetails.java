@@ -8,20 +8,26 @@ import java.util.Set;
  * <p>
  * 用 loadedSections 区分「没有请求」与「请求后为空」；不返回 RunState、
  * ORM 可变实体或缓存对象。拒绝项公开命中集保持空。
- * GrantFact 已在读取边界建立；阶段事实与展示条目接入本结果块随 T-PERM-086/087 扩展。
+ * 阶段事实为不可变快照；描述与展示随 T-PERM-087 扩展。
  * </p>
  *
  * @param loadedSections        本次装载的输出块集合；null 归一为空集
  * @param matchedRoleIds        命中角色 id；null 归一为空
  * @param matchedPermissionIds  命中权限 id；null 归一为空
+ * @param stageFacts            按实际执行顺序保留的阶段事实；档位由 loadedSections 表达
  */
 public record ResultDetails(Set<DetailSection> loadedSections, List<Long> matchedRoleIds,
-                            List<Long> matchedPermissionIds) {
+                            List<Long> matchedPermissionIds, List<StageFacts> stageFacts) {
 
     public ResultDetails {
         loadedSections = loadedSections == null ? Set.of() : Set.copyOf(loadedSections);
         matchedRoleIds = matchedRoleIds == null ? List.of() : List.copyOf(matchedRoleIds);
         matchedPermissionIds = matchedPermissionIds == null ? List.of() : List.copyOf(matchedPermissionIds);
+        stageFacts = stageFacts == null ? List.of() : List.copyOf(stageFacts);
+    }
+
+    public ResultDetails(Set<DetailSection> loadedSections, List<Long> matchedRoleIds, List<Long> matchedPermissionIds) {
+        this(loadedSections, matchedRoleIds, matchedPermissionIds, List.of());
     }
 
     /** 空详情（拒绝/短路项缺省形态）。 */

@@ -89,7 +89,10 @@ public record EvaluationCoverage(SubjectResolution subjectResolution, ConditionC
     public enum SkipReason {
 
         /** 无有效角色，主体阶段短路。 */
-        NO_ROLE
+        NO_ROLE,
+
+        /** 类型级已有充分最终判定，未执行实例阶段。 */
+        SUFFICIENT_DECISION
     }
 
     /** 授权阶段（§3.3；准入恒 finalCheckRequired）。 */

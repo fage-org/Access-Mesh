@@ -20,17 +20,26 @@ import cn.ac.fage.accessmesh.access.engine.query.EvaluationCoverage.SubjectResol
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.*;
+import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
+import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService;
+import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService;
+import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
 
 /**
- * 骨架执行器契约单测（T-PERM-082，C01/C04/C06/I07/R03＋未实现阶段 fail-closed）。
+ * 执行器结构与空主体契约；判定阶段与存储接线见 QueryStagesTest。
  */
 class QueryExecutionEngineTest {
 
     private static final LocalDateTime FIXED_AT = LocalDateTime.of(2026, 9, 25, 2, 15, 30);
     private static final TypeOperation REPORT_VIEW = new TypeOperation("REPORT", "VIEW");
 
-    private final QueryExecutionEngine engine = new QueryExecutionEngine(
-        Clock.fixed(Instant.parse("2026-09-25T02:15:30Z"), ZoneOffset.UTC));
+    private final QueryExecutionEngine engine = emptyEngine(Clock.fixed(Instant.parse("2026-09-25T02:15:30Z"), ZoneOffset.UTC));
+
+    static QueryExecutionEngine emptyEngine(Clock clock) {
+        return new QueryExecutionEngine(clock, mock(QueryReadSupport.class), mock(SubjectDomainService.class),
+            mock(PermissionConditionDomainService.class), mock(PermissionConflictDomainService.class), mock(ResourceEntityMapper.class));
+    }
 
     private static QueryRequest request(Subject subject, QueryItem... items) {
         return new QueryRequest(1L, subject, CallerContext.of(null), ReadOptions.defaults(), List.of(items));
@@ -141,8 +150,7 @@ class QueryExecutionEngineTest {
         QueryResult result = engine.execute(request(new Roles(Set.of()),
             decisionItem("key-a"), decisionItem("key-b")));
 
-        assertThat(result.orderedResults()).as("两个不同 key 指向同目标仍各自返回（C06 顺序/key 半边；"
-                + "完整判定版随 T-PERM-085 TYPE_GRANT/INSTANCE 阶段落地补锁）").hasSize(2);
+        assertThat(result.orderedResults()).as("两个不同 key 指向同目标仍各自返回；有角色判定见 QueryStagesTest").hasSize(2);
         assertThat(result.orderedResults())
             .extracting(ItemResult::key)
             .containsExactly("key-a", "key-b");
@@ -165,10 +173,10 @@ class QueryExecutionEngineTest {
         }
 
         @Test
-        void should_failClosedInsteadOfNoRole_whenRolesSubjectNonEmpty() {
-            assertThatThrownBy(() -> engine.execute(request(new Roles(Set.of(1L, 2L)), decisionItem("k1"))))
-                .as("Roles 非空不落 NO_ROLE（不回退登录用户、不吞角色集）；判定阶段未落地时 fail-closed")
-                .isInstanceOf(UnsupportedOperationException.class);
+        void should_failClosedInsteadOfNoRole_whenUnimplementedListHasNonEmptyRoles() {
+            assertThatThrownBy(() -> engine.execute(request(new Roles(Set.of(1L, 2L)),
+                QueryItem.grantListFacts("list", null, Evaluation.full(), OutputSpec.kept()))))
+                .isInstanceOf(UnsupportedOperationException.class).hasMessageContaining("T-PERM-086");
         }
     }
 
@@ -178,8 +186,7 @@ class QueryExecutionEngineTest {
         QueryResult second = engine.execute(request(new Roles(Set.of())));
 
         assertThat(first.executionId())
-                .as("同一事务先写后新 execute 创建新 RunState（I07 骨架锁：executionId 互异=运行态不复用；"
-                    + "写后复读三态记忆版随 T-PERM-084/085 数据面落地补强）")
+                .as("新 execute 创建新 RunState；事务写后复读见 QueryExecutionPgIT")
                 .isNotEqualTo(second.executionId());
         assertThat(second.evaluatedAt()).isEqualTo(FIXED_AT);
     }
@@ -202,10 +209,10 @@ class QueryExecutionEngineTest {
     class FailClosedUnimplementedRegion {
 
         @Test
-        void should_throwUnsupported_whenUserSubjectResolutionNotImplemented() {
-            assertThatThrownBy(() -> engine.execute(request(new User(1L), decisionItem("k1"))))
-                .as("User 主体有效角色+ROLE_MUTEX 解析随 T-PERM-084/085 落地（骨架 fail-closed）")
-                .isInstanceOf(UnsupportedOperationException.class);
+        void should_throwUnsupported_whenAdmissionStageNotImplemented() {
+            assertThatThrownBy(() -> engine.execute(request(new Roles(Set.of(1L)),
+                QueryItem.admission("admission", REPORT_VIEW, OutputSpec.minimal()))))
+                .isInstanceOf(UnsupportedOperationException.class).hasMessageContaining("T-ACCESS-057");
         }
 
         @Test

@@ -222,7 +222,7 @@ class QueryReadSupportTest {
             Set.of(new TypeOperation("REPORT", " ")), false);
         QueryRequest request = new QueryRequest(1L, new Roles(Set.of()), CallerContext.of(null), ReadOptions.defaults(),
             List.of(QueryItem.decision("check", new TypeLevel(List.of(new TypeOperation("REPORT", "VIEW"))), output)));
-        assertThatThrownBy(() -> new QueryExecutionEngine(Clock.systemUTC()).execute(request))
+        assertThatThrownBy(() -> QueryExecutionEngineTest.emptyEngine(Clock.systemUTC()).execute(request))
             .isInstanceOf(QueryValidationException.class).hasMessageContaining("operationCode");
     }
 

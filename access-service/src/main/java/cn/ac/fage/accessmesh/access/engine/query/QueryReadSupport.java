@@ -301,6 +301,24 @@ final class QueryReadSupport {
         return targetGrants(run, roleIds, Set.of(), masks, true);
     }
 
+    /** 只为请求继承的目标合批查闭包；空查询结果仍保留自身且记忆，SELF 不消费此桶。 */
+    Map<Long, Set<Long>> ancestorClosures(RunState run,
+        cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper mapper, Set<Long> targets) {
+        Memory memory = run.readMemory();
+        Set<Long> missing = missing(targets, memory.ancestorClosures);
+        if (!missing.isEmpty()) {
+            Map<Long, Set<Long>> loaded = new LinkedHashMap<>();
+            missing.forEach(id -> loaded.put(id, new LinkedHashSet<>(Set.of(id))));
+            SqlBatches.forEach(List.copyOf(missing), batch -> mapper.selectSelfAndAncestorClosureBatch(
+                run.request().tenantId(), new LinkedHashSet<>(batch)).forEach(row -> {
+                    Set<Long> closure = loaded.get(row.getTargetId());
+                    if (closure != null && row.getClosureId() != null) closure.add(row.getClosureId());
+                }));
+            loaded.forEach((id, closure) -> memory.ancestorClosures.put(id, Set.copyOf(closure)));
+        }
+        return subset(memory.ancestorClosures, targets);
+    }
+
     List<GrantFact> instanceGrants(RunState run, Set<Long> roleIds, Set<Long> entityIds, Map<Integer, Long> masks) {
         return targetGrants(run, roleIds, entityIds, masks, false);
     }
@@ -382,6 +400,7 @@ final class QueryReadSupport {
         final Map<Long, List<GrantFact>> listByRole = new LinkedHashMap<>();
         final Map<Long, GrantFact> databaseFacts = new LinkedHashMap<>();
         final Map<GrantLoad, List<GrantFact>> targetLoads = new LinkedHashMap<>();
+        final Map<Long, Set<Long>> ancestorClosures = new LinkedHashMap<>();
         CacheReadToken<List<RolePermEntry>> snapshotToken;
     }
 

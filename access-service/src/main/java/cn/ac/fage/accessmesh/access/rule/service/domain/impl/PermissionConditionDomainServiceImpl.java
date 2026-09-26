@@ -120,6 +120,7 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
         private final Map<Long, LoadedRules> snapshot = new LinkedHashMap<>();
         /** conditionId → 评估结果记忆（评估上下文请求级唯一，同条件结果恒同） */
         private final Map<Long, Boolean> evaluated = new HashMap<>();
+        private CacheReadToken<JsonNode> readToken;
 
         BatchConditionEvaluatorImpl(Long tenantId) {
             this.tenantId = tenantId;
@@ -156,7 +157,9 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
             // ② miss 批量回源：selectValidByIds 只滤租户+软删不滤 enabled——禁用/缺失/解析
             //    失败记请求级失败状态，仅 OK 入正缓存（朴素批量把禁用条件当有效规则入缓存
             //    = 权限绕过方向，T-PERM-061 设计定稿四态 fail-close）
-            CacheReadToken<JsonNode> readToken = cacheService.beginRead(AccessCacheCatalog.CONDITION_RULES);
+            if (readToken == null) {
+                readToken = cacheService.beginRead(AccessCacheCatalog.CONDITION_RULES);
+            }
             List<PermissionCondition> rows = conditionMapper.selectValidByIds(tenantId, miss);
             Map<Long, PermissionCondition> rowById = new LinkedHashMap<>();
             for (PermissionCondition condition : rows) {

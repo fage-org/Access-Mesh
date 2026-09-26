@@ -407,7 +407,14 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
 
     @Override
     public BatchPermMutexEvaluator openBatchMutexEvaluator(Long tenantId) {
-        return new BatchPermMutexEvaluatorImpl(tenantId);
+        return openBatchMutexEvaluator(tenantId,
+            types -> operationPermissionDomainService.selectByTenantAndResourceTypes(tenantId, types));
+    }
+
+    @Override
+    public BatchPermMutexEvaluator openBatchMutexEvaluator(Long tenantId,
+        java.util.function.Function<Set<Integer>, List<OperationPermission>> operationReader) {
+        return new BatchPermMutexEvaluatorImpl(tenantId, operationReader);
     }
 
     /**
@@ -427,9 +434,12 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
         /** (resourceType, binaryBit) → 操作索引，按已见类型惰性扩（distinct 类型 O(K)） */
         private final Map<String, OperationPermission> opByTypeAndBit = new LinkedHashMap<>();
         private final Set<Integer> indexedTypes = new HashSet<>();
+        private final java.util.function.Function<Set<Integer>, List<OperationPermission>> operationReader;
 
-        BatchPermMutexEvaluatorImpl(Long tenantId) {
+        BatchPermMutexEvaluatorImpl(Long tenantId,
+            java.util.function.Function<Set<Integer>, List<OperationPermission>> operationReader) {
             this.tenantId = tenantId;
+            this.operationReader = Objects.requireNonNull(operationReader);
         }
 
         @Override
@@ -525,10 +535,9 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
             if (missing.isEmpty()) {
                 return;
             }
-            indexedTypes.addAll(missing);
-            List<OperationPermission> loaded = operationPermissionDomainService
-                .selectByTenantAndResourceTypes(tenantId, missing);
+            List<OperationPermission> loaded = operationReader.apply(missing);
             opByTypeAndBit.putAll(OperationPermissionUtils.indexByResourceTypeAndBinaryBit(loaded));
+            indexedTypes.addAll(missing);
         }
     }
 
