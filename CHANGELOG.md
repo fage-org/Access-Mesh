@@ -7,7 +7,7 @@
 ### Added
 
 - **公告撤回端点与受众生命周期（T-ADMIN-029）**：新增 `POST /api/access/notice/revoke`（已发布 1→已撤回 2；撤回后受众不可读不可标已读、已读记录保留——重新发布已读延续）；新增错误码 **10402** `NOTICE_STATUS_CONFLICT`（严格状态机：对已发布重复发布、对草稿/已撤回撤回均拒绝，不做幂等 no-op）。`my-notices`/`read` 进 Gateway 白名单（普通用户自服务，服务层登录态+可见性校验；管理面七端点进 bootstrap 固定图+`ADMIN_NOTICE` 五档类型级授权——此前公告全族 8 端点因固定图零注册被网关 fail-closed 403，行为验证只能以门禁拒绝冒充）。
-- **自动授权物化与共享推导（T-PERM-072）**：`apply-grant-plan` / manifest 发布 / 资源 DELETE 与 FULL 缺失删除 / 操作位与继承掩码变更 / 类型删除与所有权变更 / 角色删除六类写入口同事务触发按角色完整重算——MANUAL 实例主授权种子沿编译图逻辑闭包推导 AUTO_DEP 行（`grant_source=AUTO_DEP`、单 canonical 操作位、条件变体直传含 NULL 并存、完整事实键精确去重），desired 与 actual diff 落库，无来源自动行同事务回收（共享来源单源保留、末源回收；中间事实继续传播；独立 MANUAL 不受物化删除）；资源停用/恢复不改变传播。新增错误码 **20069** `OPERATION_REFERENCED_BY_GRANTS`（操作位变更/删除存在有效 MANUAL/AUTO_DEP 引用时整批拒绝，AUTHORITY_ROOT 基座不算用户引用）。角色删除级联回收全部有效授权行与 INLINE 条件孤儿（授权根随角色消亡，边界修订见 decision-registry 2026-09-21 行）。
+- **自动授权物化与共享推导（T-PERM-072）**：`apply-grant-plan` / manifest 发布 / 资源 DELETE 与 FULL 缺失删除 / 操作位与继承掩码变更 / 类型删除与所有权变更 / 角色删除六类写入口同事务触发按角色完整重算——MANUAL 实例主授权种子沿编译图逻辑闭包推导 AUTO_DEP 行（`grant_source=AUTO_DEP`、单 canonical 操作位、条件变体直传含 NULL 并存、完整事实键精确去重），desired 与 actual diff 落库，无来源自动行同事务回收（共享来源单源保留、末源回收；中间事实继续传播；独立 MANUAL 不受物化删除）；资源停用/恢复不改变传播。新增错误码 **20069** `OPERATION_REFERENCED_BY_GRANTS`（操作位变更/删除存在有效 MANUAL/AUTO_DEP 引用时整批拒绝，AUTHORITY_ROOT 基座不算用户引用）。角色删除级联回收全部有效授权行与 INLINE 条件孤儿（授权根随角色消亡，边界修订见 [历史定案原文](docs/archive/2026-09-26/decision-registry-before.md) 2026-09-21 行）。
 - **独立依赖 manifest 发布通道与可选 SDK（T-PERM-071）**：新增 M2M 端点 `POST /api/access/integration/permission-manifest/full-sync`（服务凭证认证，所属服务发布依赖声明清单，逐项 RESOLVED/REJECTED 诊断）；SDK 新增 `perm-registration-spring-boot-starter`（静态 JSON 启动发布/动态 Provider 固定快照/显式资源前置与两步协调，默认关闭）；资源与清单发布引入发布源递增代次（平台按 scope 原子拒旧、同代次同指纹重试放行）。
 
 ### Changed

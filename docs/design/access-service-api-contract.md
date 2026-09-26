@@ -1618,6 +1618,8 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
 > 操作权限端点的业务键定位、类型查询参数、响应字段与授权根联动契约与 resource-entity 同节成文，见 §12.1（原册 §12 整节迁移，语义零变化）。
 
 ## 14. domain 能力（业务域与域配置）
+<a id="domain-classify"></a>
+
 ### 14.1 biz-domain（/api/access/biz-domain/*）
 
 | 接口                                    | 说明                 |

@@ -282,6 +282,8 @@ public interface TypeResolutionService {
 
 ---
 
+<a id="domain-classify"></a>
+
 ### 2.7 `DomainClassifyService` — 域分类
 
 ```java

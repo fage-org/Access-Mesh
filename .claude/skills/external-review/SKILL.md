@@ -100,7 +100,7 @@ cat prompt.md | claude -p --permission-mode plan --output-format text --disallow
 - 推理档显式钉 `--reasoning-effort`（本机 config `default_reasoning_effort` 会漂移；先例 xhigh），用户点名另定；模型默认 grok-4.6。
 - grok 是独立 CLI，**不在 codex models_cache 里**；stdout 会混排中途叙述与最终报告，落盘后取报告段。
 
-## 提示词构建标准（2026-09-12 v2 定案：短提示词 + registry 自读；复评感知）
+## 提示词构建标准（2026-09-12 v2 定案：短提示词；复评感知）
 
 三通道共用模板和三个槽位，目标体量约 5–8KB。提供相同评审对象版本和初始范围，相关约束通过当前规范位置定位，不注入历史总表；评审者可独立扩展读取。治理统一见 `docs/design/project-rules.md` 文档治理。
 
