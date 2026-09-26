@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Collections;
 import java.util.Objects;
+import cn.ac.fage.accessmesh.access.engine.core.BatchPermMutexEvaluator;
 import cn.ac.fage.accessmesh.access.engine.dto.PermEvalContext;
 import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService.RolePairRef;
 import java.util.UUID;
@@ -20,7 +21,8 @@ import cn.ac.fage.accessmesh.access.engine.query.EvaluationCoverage.SubjectResol
  * <p>
  * 一次 execute 一个实例：固定评估时刻（注入 Clock）、主体解析结果与已读记忆的宿主。
  * 禁止单例字段、ThreadLocal、跨请求/跨写复用（I07：同一事务先写后新 execute 创建新运行态）。
- * 持有读取记忆、共享条件/互斥评估器、父结果及分项阶段事实；根审计提交由后续任务接入。
+ * 持有读取记忆、共享条件/互斥评估器、父结果及分项阶段事实；根级受控证据提交在释放前由
+ * QueryAuditCollector 消费本运行态（T-PERM-088）。
  * </p>
  */
 final class RunState {
@@ -36,6 +38,9 @@ final class RunState {
     private final Map<QueryItem, ItemExecution> items = new LinkedHashMap<>();
     private final Map<ParentRequirement, ParentExecution> parents = new LinkedHashMap<>();
     private List<RolePairRef> roleHits = List.of();
+    private Throwable executionFailure;
+    private boolean evidenceSubmitted;
+    private int parentSequence;
 
     RunState(QueryRequest request, Clock clock) {
         this.request = request;
@@ -72,11 +77,37 @@ final class RunState {
     CandidateEvaluator evaluator() { return evaluator; }
     void evaluator(CandidateEvaluator evaluator) { this.evaluator = evaluator; }
     void roleHits(List<RolePairRef> hits) { this.roleHits = List.copyOf(hits); }
+    List<RolePairRef> roleHits() { return roleHits; }
 
-    /** 证据随请求保留，根审计/TRACE 在 T-PERM-088 接入。 */
+    /** 记录执行中途技术失败（§4.1：证据按 EXECUTION_ERROR_AFTER_CONFIRMED_STAGE 提交，主异常不被覆盖）。 */
+    void recordExecutionFailure(Throwable error) {
+        if (executionFailure == null) {
+            executionFailure = error;
+        }
+    }
+
+    Throwable executionFailure() { return executionFailure; }
+
+    boolean executionFailed() { return executionFailure != null; }
+
+    /** 父项证据标识序列（本次执行内唯一；父项不占调用方 key 空间）。 */
+    String nextParentEvidenceId() {
+        return "parent#" + ++parentSequence;
+    }
+
+    /** 根级受控提交幂等闸（一次 execute 至多一次提交）。 */
+    boolean markEvidenceSubmitted() {
+        if (evidenceSubmitted) {
+            return false;
+        }
+        evidenceSubmitted = true;
+        return true;
+    }
+
+    /** 证据随请求保留（T-PERM-088）：阶段互斥命中携带规则引用，供根审计与 TRACE 消费。 */
     static final class ItemExecution {
         final Map<Stage, StageFacts> stages = new LinkedHashMap<>();
-        final Map<Stage, Set<Long>> mutexHits = new LinkedHashMap<>();
+        final Map<Stage, List<BatchPermMutexEvaluator.MutexRuleRef>> mutexHits = new LinkedHashMap<>();
         boolean dependentExcluded;
         boolean mutexCandidate;
         boolean shortCircuited;
@@ -89,11 +120,16 @@ final class RunState {
 
     /** 一个实际父判定及其全部根项引用；父阶段证据保留一次，供根审计消费。 */
     static final class ParentExecution {
+        /** 父项内部证据标识（父项不占调用方 key 空间；序号在本次执行内唯一）。 */
+        final String evidenceItemId;
         final QueryItem item;
         final ItemExecution execution = new ItemExecution();
         final Set<String> affectedItemKeys = new LinkedHashSet<>();
 
-        ParentExecution(QueryItem item) { this.item = item; }
+        ParentExecution(String evidenceItemId, QueryItem item) {
+            this.evidenceItemId = evidenceItemId;
+            this.item = item;
+        }
 
         Set<Long> matchedPermissionIds() {
             Set<Long> ids = new LinkedHashSet<>();
@@ -125,7 +161,7 @@ final class RunState {
         this.subjectResolution = resolution;
     }
 
-    /** 释放可清理引用（execute 完成后调用；运行态不跨请求存活）。 */
+    /** 释放可清理引用（execute 完成后调用；运行态不跨请求存活——证据提交先于释放）。 */
     void release() {
         this.roles = null;
         this.subjectResolution = null;
@@ -134,6 +170,8 @@ final class RunState {
         this.items.clear();
         this.parents.clear();
         this.roleHits = List.of();
+        this.executionFailure = null;
+        this.evidenceSubmitted = true;
         this.released = true;
     }
 }

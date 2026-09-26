@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.engine.query;
 
+import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.characterization.R2BaselineFixture;
 import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
@@ -238,7 +239,9 @@ class QueryExecutionPgIT {
         counter.operations.set(0); counter.grants.set(0);
         engine = new QueryExecutionEngine(Clock.fixed(Instant.parse("2026-09-26T02:00:00Z"), ZoneOffset.UTC),
             new QueryReadSupport(types, operations, resources, roleMapper, grants, cache, entries),
-            subjects, conditions, conflicts, resourceMapper);
+            subjects, conditions, conflicts, resourceMapper,
+            new QueryAuditCollector(org.mockito.Mockito.mock(AuditDomainService.class), QueryEngineMetrics.noop()),
+            QueryEngineMetrics.noop());
     }
 
     static TargetClause clause(String type, String code) {

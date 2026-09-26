@@ -245,6 +245,8 @@ TRACE 解释真实执行，不是全面配置扫描；scopeAll 短路的 INSTANC
 
 **事实与投影实施边界**：T-PERM-085 已接入 TYPE_GRANT/INSTANCE 的不可变 StageFacts、raw/kept 和命中 ID；T-PERM-087 接入描述、有效操作和四态展示方向。结果的描述使用不可变资源/角色记录及 OperationDefinition，不暴露 ORM 或缓存对象；loadedSections 区分未请求与已装载为空。TRACE 由 T-PERM-088 承接，未实现时明确抛未实现异常，不忽略请求或返回伪完整结果。
 
+**（T-PERM-088 就地实施注，2026-09-26）**：TRACE 已以 `ResultDetails.ExecutionTrace` 落地——主体解析后角色集／角色互斥删除对／各阶段 raw 与 retained 快照（含 permissionId/roleId）／真实命中互斥规则（BatchPermMutexEvaluator.MutexRuleRef）／共享父证据（内部 ID＋受影响根项＋命中权限 ID），全部为已完成计算的快照：零新增 I/O、不重评条件、不补跑短路阶段（A05：scopeAll 短路项 TRACE 不含 INSTANCE 条目）。敏感字段门禁经用户拍板暂缓（引擎侧无门禁机制，登记 `docs/pending-problems.md` Q-045）；T-PERM-089+ 接线前外部契约不得透传 trace 字段。
+
 ### 3.4 原因和异常不混淆
 
 | 情况 | 处理 |
@@ -259,6 +261,8 @@ TRACE 解释真实执行，不是全面配置扫描；scopeAll 短路的 INSTANC
 | DB、缓存无法可信回源、规则装载、预算／deadline 故障 | QueryExecutionException 或明确配置／技术错误；不得当普通 DENY、空清单或半批成功 |
 
 TARGET_SET 实例未解析时，仍保留之前 TYPE_GRANT 曾被条件／冲突清空的原因，不一律覆盖为 NO_PERMISSION。损坏条件规则按既有四态失败关闭；数据库读取失败则是技术故障，两者分别记录。新内部原因不未经版本化直接扩散到普通 SDK。
+
+**（T-PERM-088 就地实施注，2026-09-26）**：运行态内技术故障（DB／缓存回源／规则装载／描述读取）统一包装 `QueryExecutionException`（cause 保留原异常）；`QueryValidationException` 与未实现区域的 `UnsupportedOperationException` 不是技术故障、原样抛出。执行中途失败只提交此前已确认阶段的证据并标 `EXECUTION_ERROR_AFTER_CONFIRMED_STAGE`，不返回半份 FACTS 或未经完整评估的 ALLOW（X01/X02）。EngineLimits（预算／deadline 配置本体）按计划附录 A.9 归 T-PERM-093，届时超限抛出走同一整体失败边界。
 
 **类型级子授权的原因口径（2026-09-26 用户确认）**：TYPE_LEVEL 没有父资源上下文，depend_on 子行不属于其有效候选；仅有此类行时返回 `NO_PERMISSION`，沿用旧单条/批量类型级门禁口径。有主授权候选但被条件/互斥清空时仍返回 `CONDITION_NOT_MET_OR_CONFLICT`。`DEPENDENT_NOT_IN_PARENT_CONTEXT` 适用于 TARGET_SET 的父上下文排除，不因类型级选择排除子行而产生。
 
@@ -276,7 +280,7 @@ TARGET_SET 实例未解析时，仍保留之前 TYPE_GRANT 曾被条件／冲突
 | QueryProjector | 组装事实、覆盖操作、描述和展示派生 | 重新鉴权、反向修改候选或 ALLOW |
 | QueryAuditCollector | 收集真实规则／角色对和项关系；根级一次提交 | 用端点猜规则、把准入记为业务成功 |
 
-**迁移期适用边界**：T-PERM-085/086 已接入 User 有效角色＋纯 ROLE_MUTEX、TYPE_GRANT/INSTANCE、父要求与 GRANT_LIST，T-PERM-087 接入完整输出投影；C06 同序等长判定、R03 显式角色完整清单由执行链测试覆盖。新类仍不注册 Spring bean、无生产消费者，旧执行器保持现役。ADMISSION_CANDIDATES 由 T-ACCESS-057 承接；非空角色触发尚未实现的选择时抛 `UnsupportedOperationException`，不伪装普通 DENY 或空事实。NO_ROLE 终态继续适用于全部结果形式，并可按输出要求装载额外操作定义；不因此装载授权。TRACE 由 T-PERM-088 承接，在主体读取前明确拒绝该未实现输出。[骨架边界来源](../archive/2026-09-26/decision-registry-before.md)（原第 201 行）；输出范围见 §3.3，父与清单实现见 §4.5/§4.6 及 [T-PERM-086](../tasks/T-PERM-086.md)。
+**迁移期适用边界**：T-PERM-085/086 已接入 User 有效角色＋纯 ROLE_MUTEX、TYPE_GRANT/INSTANCE、父要求与 GRANT_LIST，T-PERM-087 接入完整输出投影；C06 同序等长判定、R03 显式角色完整清单由执行链测试覆盖。新类仍不注册 Spring bean、无生产消费者，旧执行器保持现役。ADMISSION_CANDIDATES 由 T-ACCESS-057 承接；非空角色触发尚未实现的选择时抛 `UnsupportedOperationException`，不伪装普通 DENY 或空事实。NO_ROLE 终态继续适用于全部结果形式，并可按输出要求装载额外操作定义；不因此装载授权。TRACE 已随 T-PERM-088 落地（`ResultDetails.ExecutionTrace`，敏感字段门禁暂缓登记 Q-045）；根级受控证据提交与 `QueryExecutionException` 技术故障边界同批接入（§6.1/§3.4 实施注）。[骨架边界来源](../archive/2026-09-26/decision-registry-before.md)（原第 201 行）；输出范围见 §3.3，父与清单实现见 §4.5/§4.6 及 [T-PERM-086](../tasks/T-PERM-086.md)。
 
 不要求每行新增独立 Spring Bean，包内 helper 也可；依赖方向是应用→引擎→既有读／领域能力→Mapper。转授服务可调用引擎，引擎不能反注入授权计划／物化服务。
 
@@ -493,6 +497,8 @@ ConflictEvidence
 **旧单条通知的接受边界**：旧单条 PERM_MUTEX 的 summary 拼入规则明细后可能被 512 长度截断，现阶段维持该行为；批量路径每行单规则不在本项接受范围。T-PERM-088 按规则生成 ConflictEvidence 并受控提交实际落地后复核，出现范围外新影响也须复核。T-PERM-095 已把 getDenied* 改为批量 (组,ruleId) 聚合，不能再按旧单条形态扩大本例外。[来源](../archive/2026-09-26/decision-registry-before.md)（原第 206、208 行）。
 
 TRACE 不用另一个时刻重新评条件，不为显示完整过程补跑短路阶段；敏感角色／授权 ID、IP 规则只向经门禁的诊断开放。指标按选择／阶段／结果聚合，不使用任意 resourceCode、permissionId、itemKey 等高基数标签。
+
+> **就地实施注（2026-09-26，T-PERM-088）**：ConflictEvidence 已按本节形状落地（executionId／ruleRef〔PermRuleId|RolePair〕／evaluationItemId／affectedRootItemKeys／stage／actualConflictingOperationIds／completion），按 execution＋实际内部 item＋stage＋ruleRef 聚合；根 execute 在 finally 一次受控提交（先于 RunState 释放，幂等闸），每条证据一行 CONFLICT_DETECTED 经 `asyncRecordLog` 异步落库，提交失败仅技术日志＋指标、不覆盖主异常。纯计算与父项不发日志：共享父=一条 `parent#N` 证据关联全部受影响根项；主体解析角色对证据 stage=null、evaluationItemId=subject，NO_ROLE 全删早退仍提交。**512 截断复核结论**：新核心单行单规则（结构化摘要，短于列上限），多规则拼接截断形态不进入新核心；旧单条路径维持既有接受边界至 T-PERM-092 退出，无范围外新影响。跨请求去重口径（2026-09-26 用户拍板沿旧）：角色对证据按「租户×用户×命中对」1h JVM 去重（提交期同步失败回滚标记允许窗口内重试），PERM 规则证据不去重（旧批量 (组,ruleId) 轨亦无跨请求去重）。指标以枚举端口 `QueryEngineMetrics` 交付——参数类型仅枚举与布尔（选择类型／阶段／阶段终态／执行终态／证据类别），高基数标签在类型上无进入通道；Micrometer 绑定随引擎 Bean 化（T-PERM-089+）与观测演练（T-PERM-094）接线，默认 no-op。TRACE 门禁暂缓（Q-045，见 §3.3 实施注）。
 
 纯互斥计算在 T-PERM-083 阶段允许零生产消费者，由 T-PERM-085/088 接入；当前交付证据证明能力可供消费且无通知副作用，不宣称引擎已切换。返回角色集合保持不可变及确定迭代顺序，避免响应数组与分页随 JVM 重启漂移。全量验证让渡已由 T-PERM-095 完成，不再保留为待兑现例外。[来源](../archive/2026-09-26/decision-registry-before.md)（原第 204、205、208 行）。
 

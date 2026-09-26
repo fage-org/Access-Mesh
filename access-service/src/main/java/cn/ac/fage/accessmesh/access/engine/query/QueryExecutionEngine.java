@@ -25,7 +25,9 @@ import java.util.UUID;
 /**
  * 新查询唯一执行主体：主体解析→目标阶段或授权清单→事实与展示投影。
  * 暂不注册 Bean，消费者迁移从 T-PERM-089 开始，终名随 T-PERM-092 确定。
- * 父要求复用目标阶段；输出投影在全部评估后完成，TRACE 与审计提交由 088 接入。
+ * 父要求复用目标阶段；输出投影在全部评估后完成。根级受控证据提交与 TRACE
+ * 输出已随 T-PERM-088 接入：运行中技术失败统一包装 {@link QueryExecutionException}
+ * （不当 DENY/空清单/半批返回），证据在 finally 一次提交且不覆盖主异常。
  * 不调用旧完整核心，所有请求状态随 RunState 释放；Clock 沿进程本地时钟语义。
  */
 public final class QueryExecutionEngine {
@@ -35,22 +37,26 @@ public final class QueryExecutionEngine {
     private final PermissionConditionDomainService conditions;
     private final PermissionConflictDomainService conflicts;
     private final ResourceEntityMapper resourceMapper;
+    private final QueryAuditCollector audit;
+    private final QueryEngineMetrics metrics;
 
     QueryExecutionEngine(Clock clock, QueryReadSupport reads, SubjectDomainService subjects,
                          PermissionConditionDomainService conditions, PermissionConflictDomainService conflicts,
-                         ResourceEntityMapper resourceMapper) {
+                         ResourceEntityMapper resourceMapper, QueryAuditCollector audit,
+                         QueryEngineMetrics metrics) {
         this.clock = Objects.requireNonNull(clock);
         this.reads = Objects.requireNonNull(reads);
         this.subjects = Objects.requireNonNull(subjects);
         this.conditions = Objects.requireNonNull(conditions);
         this.conflicts = Objects.requireNonNull(conflicts);
         this.resourceMapper = Objects.requireNonNull(resourceMapper);
+        this.audit = Objects.requireNonNull(audit);
+        this.metrics = metrics == null ? QueryEngineMetrics.noop() : metrics;
     }
 
-    /** 结构错误零权限 I/O 拒绝；技术故障保留原异常，不伪装 DENY 或返回半批结果。 */
+    /** 结构错误零权限 I/O 拒绝；技术故障保留原异常并包装，不伪装 DENY 或返回半批结果。 */
     public QueryResult execute(QueryRequest request) {
         QueryRequestValidator.validate(request);
-        requireImplementedOutputs(request.items());
         if (request.items().isEmpty()) {
             return new QueryResult(UUID.randomUUID().toString(), LocalDateTime.now(clock), List.of());
         }
@@ -68,9 +74,25 @@ public final class QueryExecutionEngine {
             Map<QueryItem, ResultDetails> details = QueryProjector.project(run, reads, resourceMapper);
             return new QueryResult(run.executionId(), run.evaluatedAt(), request.items().stream()
                 .map(item -> complete(item, run, details.get(item))).toList());
+        } catch (RuntimeException error) {
+            run.recordExecutionFailure(error);
+            throw technicalFailure(error);
         } finally {
+            // 证据提交先于释放；提交器内部消化一切提交期异常，不覆盖主异常（§4.1/§6.1）
+            audit.submitConfirmedEvidenceOnce(run);
+            metrics.executionCompleted(run.executionFailed()
+                ? QueryEngineMetrics.ExecutionOutcome.TECHNICAL_FAILURE : QueryEngineMetrics.ExecutionOutcome.SUCCESS);
             run.release();
         }
+    }
+
+    /** 运行中技术故障统一包装（X01/X02）；结构错误与未实现区域不是技术故障，原样抛出。 */
+    private static RuntimeException technicalFailure(RuntimeException error) {
+        if (error instanceof QueryValidationException || error instanceof UnsupportedOperationException
+            || error instanceof QueryExecutionException) {
+            return error;
+        }
+        return new QueryExecutionException("权限查询执行技术故障: " + error.getMessage(), error);
     }
 
     private void resolveSubject(RunState run) {
@@ -98,15 +120,6 @@ public final class QueryExecutionEngine {
         for (QueryItem item : items) {
             if (item.selection() instanceof OperationAdmission) {
                 throw new UnsupportedOperationException("ADMISSION_CANDIDATES 随 T-ACCESS-057 落地");
-            }
-        }
-    }
-
-    private static void requireImplementedOutputs(List<QueryItem> items) {
-        for (QueryItem item : items) {
-            OutputSpec output = item.output();
-            if (output.trace()) {
-                throw new UnsupportedOperationException("TRACE 输出与诊断门禁随 T-PERM-088 落地");
             }
         }
     }
@@ -257,7 +270,7 @@ public final class QueryExecutionEngine {
             // 内部项使用独立执行表，不能与调用方的 key 碰撞；没有父字段保证仅一层。
             QueryItem item = QueryItem.decision("parent", new TargetSet(clauses, Inheritance.SELF,
                 TypeFallback.ALLOW, null), OutputSpec.minimal());
-            parent = new RunState.ParentExecution(item);
+            parent = new RunState.ParentExecution(run.nextParentEvidenceId(), item);
             run.parents().put(requirement, parent);
         }
         parent.affectedItemKeys.add(child.key());
@@ -288,14 +301,15 @@ public final class QueryExecutionEngine {
         StageFacts.Status status = !evaluated.retained().isEmpty() ? StageFacts.Status.PRESENT
             : raw.isEmpty() ? StageFacts.Status.NO_MATCH : StageFacts.Status.FILTERED_EMPTY;
         state.stages.put(stage, new StageFacts(stage, raw, evaluated.retained(), status));
-        state.mutexHits.put(stage, evaluated.triggeredRuleIds());
+        state.mutexHits.put(stage, evaluated.triggeredRules());
         state.mutexCandidate |= evaluated.mutexCandidate();
     }
 
-    private static ItemResult complete(QueryItem item, RunState run, ResultDetails details) {
+    private ItemResult complete(QueryItem item, RunState run, ResultDetails details) {
         RunState.ItemExecution state = run.items().get(item);
         Map<Stage, SkipReason> skipped = state.parentDenied ? Map.of(Stage.GRANT_LIST, SkipReason.PARENT_DENIED)
             : state.shortCircuited ? Map.of(Stage.INSTANCE, SkipReason.SUFFICIENT_DECISION) : Map.of();
+        emitStageMetrics(item, skipped, state.stages.keySet());
         ConditionCoverage condition = !state.hadRaw() ? ConditionCoverage.NO_CANDIDATE
             : item.evaluation().conditionMode() == ConditionMode.EVALUATE ? ConditionCoverage.EVALUATED : ConditionCoverage.PRESERVED;
         MutexCoverage mutex = !state.mutexCandidate ? MutexCoverage.NO_CANDIDATE
@@ -317,10 +331,11 @@ public final class QueryExecutionEngine {
         return DecisionResult.deny(item.key(), reason, coverage, details);
     }
 
-    private static QueryResult noRoleResults(RunState run, Map<QueryItem, ResultDetails> projected) {
+    private QueryResult noRoleResults(RunState run, Map<QueryItem, ResultDetails> projected) {
         List<ItemResult> results = run.request().items().stream().map(item -> {
             Map<Stage, SkipReason> skipped = new EnumMap<>(Stage.class);
             applicableStages(item.selection()).forEach(stage -> skipped.put(stage, SkipReason.NO_ROLE));
+            emitStageMetrics(item, skipped, Set.of());
             boolean parentRequired = item.selection() instanceof TargetSet t && t.parent() != null
                 || item.selection() instanceof GrantList g && g.requiredParent() != null;
             EvaluationCoverage coverage = new EvaluationCoverage(run.subjectResolution(), ConditionCoverage.NO_CANDIDATE,
@@ -334,6 +349,30 @@ public final class QueryExecutionEngine {
             };
         }).toList();
         return new QueryResult(run.executionId(), run.evaluatedAt(), results);
+    }
+
+    /** 阶段终态打点：维度全部为固定枚举（§6.1 低基数——无任何目标标识进入标签）。 */
+    private void emitStageMetrics(QueryItem item, Map<Stage, SkipReason> skipped, Set<Stage> completed) {
+        QueryEngineMetrics.SelectionKind selection = selectionKind(item.selection());
+        applicableStages(item.selection()).forEach(stage -> metrics.itemStage(selection, stage,
+            skipped.containsKey(stage) ? stageOutcome(skipped.get(stage)) : QueryEngineMetrics.StageOutcome.COMPLETED));
+    }
+
+    private static QueryEngineMetrics.StageOutcome stageOutcome(SkipReason reason) {
+        return switch (reason) {
+            case NO_ROLE -> QueryEngineMetrics.StageOutcome.SKIPPED_NO_ROLE;
+            case SUFFICIENT_DECISION -> QueryEngineMetrics.StageOutcome.SKIPPED_SUFFICIENT_DECISION;
+            case PARENT_DENIED -> QueryEngineMetrics.StageOutcome.SKIPPED_PARENT_DENIED;
+        };
+    }
+
+    private static QueryEngineMetrics.SelectionKind selectionKind(Selection selection) {
+        return switch (selection) {
+            case TypeLevel ignored -> QueryEngineMetrics.SelectionKind.TYPE_LEVEL;
+            case TargetSet ignored -> QueryEngineMetrics.SelectionKind.TARGET_SET;
+            case GrantList ignored -> QueryEngineMetrics.SelectionKind.GRANT_LIST;
+            case OperationAdmission ignored -> QueryEngineMetrics.SelectionKind.OPERATION_ADMISSION;
+        };
     }
 
     private static Set<Stage> applicableStages(Selection selection) {

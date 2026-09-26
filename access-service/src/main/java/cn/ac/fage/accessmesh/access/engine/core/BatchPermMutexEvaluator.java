@@ -39,6 +39,21 @@ public interface BatchPermMutexEvaluator {
     PermMutexComputation compute(List<RolePermEntry> entries);
 
     /**
+     * 按 ruleId 返回规则操作端点（新核心证据收集用，T-PERM-088）。
+     * <p>
+     * 消费评估器请求级已装载的规则数据，零额外 I/O；未装载（未计算过）或未知的
+     * ruleId 不返回条目——证据收集仅在存在命中时调用，此时规则必已装载。
+     * </p>
+     *
+     * @param ruleIds 命中的互斥规则 ID 集合
+     * @return 规则引用列表（ruleId＋两端操作权限 ID）
+     */
+    List<MutexRuleRef> describeRules(Set<Long> ruleIds);
+
+    /** 互斥规则引用（ruleId＋两端操作权限 ID；ConflictEvidence.actualConflictingOperationIds 来源）。 */
+    record MutexRuleRef(long ruleId, long firstOperationPermissionId, long secondOperationPermissionId) {}
+
+    /**
      * 聚合通知互斥命中（ledger flush；每 hit 一条审计行）。
      * <p>
      * detail 由请求级规则数据按 AND 命中构造（ruleId → first/second 操作），未触发规则

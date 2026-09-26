@@ -70,7 +70,7 @@ last_updated: 2026-09-26
 | [T-PERM-085](../tasks/T-PERM-085.md) | TYPE_GRANT/INSTANCE 单一阶段主体（R2-T06） | ✅ |
 | [T-PERM-086](../tasks/T-PERM-086.md) | 父受控子项与 GRANT_LIST 完整事实（R2-T07） | ✅ |
 | [T-PERM-087](../tasks/T-PERM-087.md) | 投影、展示与范围四态（R2-T08） | ✅ |
-| [T-PERM-088](../tasks/T-PERM-088.md) | 根审计、TRACE 与故障证据（R2-T09） | ⚙️ |
+| [T-PERM-088](../tasks/T-PERM-088.md) | 根审计、TRACE 与故障证据（R2-T09） | ✅ |
 | [T-PERM-089](../tasks/T-PERM-089.md) | 迁移 check/batch/管理门禁/getDenied（R2-T10） | ⚙️ |
 | [T-PERM-090](../tasks/T-PERM-090.md) | 迁移范围与 LEGACY_API 接口集合（R2-T11） | ⚙️ |
 | [T-PERM-091](../tasks/T-PERM-091.md) | 迁移旧快照、转授、视图与配置（R2-T12） | ⚙️ |
@@ -109,6 +109,7 @@ last_updated: 2026-09-26
 - 2026-09-25 T-PERM-082 完成：`engine/query` 新包契约模型＋结构校验＋骨架 execute（`QueryExecutionEngine` 暂名，零消费者与旧引擎并行——三项拍板见 [历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日行，设计 §4.1 已补迁移期注）；契约单测 C01~C08/R03/I07 按结构半边口径落锁，R03 事实半边/C06 判定版分别随 T-PERM-086/085 补。
 - 2026-09-26 T-PERM-083 完成：S/H-D 就地落地（`computeRoleMutex`/`computePermMutex` 纯计算+`RolePairRef`、I01 空规则短路、真实 triggeredRuleIds、通知明细去反推；引擎调用点零改动=拍板①「域服务内解耦」、拍板②收口全量合并 095 基线取证，[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日行）；红跑 5/5 行为锁+容器定向（Mutex 5/BatchAuthCheck 11/QuerySemantics 17/RoleMutexGuard 9）+单测轨 1460 项 0 失败；双轨评审处置完毕（代码轨 P3×3/文档轨 P1×1+P2×3+P3×2 全核实成立直修、可裁剪=0）；设计 §5.1/§6.1 就地实施注。全量回归（含 E2E/heavy）与基线落账随 T-PERM-095 收口一次取得。
 - 2026-09-26 T-PERM-095 完成：PQ-01 最小修复（`computeInstanceDenied` 候选按目标闭包切分各自 PERM_MUTEX——沿 queryBatch 逐 item 形态；互斥经 `openBatchMutexEvaluator` 共享装载+评估器补 I01 空规则短路〔通道切换查询数零回归〕；命中 (组,规则) 聚合一次通知）；D01 两断言按翻转契约转终态锚（Mutex 6/6 含新增 getDenied 审计锁）；**最小正确性修复基线落账=本地 annotated tag `r2-baseline-correctness`（用户拍板 tag 形态；13df35589〔083〕+c1e56e3a6〔095〕）**；083 欠的收口全量在本卡取得（`mvn test -T 1C` 含 E2E/heavy 11 模块 BUILD SUCCESS 0 失败+单测轨 1462 绿）；双轨评审处置完毕（P3×2 全核实成立直修、存疑两项按既有口径留待、可裁剪=0）；[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日行。T-PERM-085 前置状态以任务清单及各任务卡为准。
+- 2026-09-26 T-PERM-088 完成：ConflictEvidence（execution+内部 item+stage+ruleRef 聚合，共享父=一条 parent#N 证据关联全部受影响根项）＋根 execute finally 一次受控提交（`QueryAuditCollector`，非阻塞、幂等闸、提交/聚合期异常不覆盖主异常、A04 标 EXECUTION_ERROR_AFTER_CONFIRMED_STAGE）＋运行态技术故障统一包装 `QueryExecutionException`（X01/X02；EngineLimits 本体按 A.9 归 093）＋TRACE 输出（`ResultDetails.ExecutionTrace` 复用已完成计算快照，零新增 I/O/零重评/不补跑短路阶段，A05）＋指标枚举端口 `QueryEngineMetrics`（低基数结构性锁定）。四项用户拍板：X01 统一包装、角色对证据沿旧 1h 去重（PERM 规则不去重）、TRACE 敏感字段门禁暂缓（登记 [pending-problems](../pending-problems.md) Q-045——089+ 接线前外部契约不得透传 trace）、指标走端口（Micrometer 绑定随 089+/094）。512 截断复核：新核心单行单规则，旧单条多规则拼接形态不进入；旧路径接受边界维持至 092。双轨评审（代码轨 P3×2 过时注释直修、文档轨一致、可裁剪=0）；收口全量回归随本卡执行（结果见任务卡完成记录）。
 
 ## 附录 A：全仓旧执行体清点册（T-PERM-080 产出）
 

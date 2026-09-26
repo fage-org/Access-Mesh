@@ -3,6 +3,7 @@ package cn.ac.fage.accessmesh.access.engine.query;
 import java.util.List;
 import java.util.Set;
 import java.util.Map;
+import cn.ac.fage.accessmesh.access.engine.core.BatchPermMutexEvaluator;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.role.entity.AbstractRole;
 
@@ -11,7 +12,11 @@ import cn.ac.fage.accessmesh.access.role.entity.AbstractRole;
  * <p>
  * 用 loadedSections 区分「没有请求」与「请求后为空」；不返回 RunState、
  * ORM 可变实体或缓存对象。拒绝项公开命中集保持空。
- * 阶段事实、描述与展示均为不可变快照，不返回 ORM 或缓存对象。
+ * 阶段事实、描述与展示均为不可变快照，不返回 ORM/缓存对象。
+ * TRACE 块（T-PERM-088）为真实执行解释：复用已完成的阶段事实与命中规则，
+ * 不用另一时刻重评条件、不补跑短路阶段；内含角色/授权 ID 等敏感字段——
+ * 引擎侧门禁暂缓（2026-09-26 用户拍板，登记 docs/pending-problems.md），
+ * 消费方接线（T-PERM-089+）前不得将本块透出到普通外部响应。
  * </p>
  *
  * @param loadedSections        本次装载的输出块集合；null 归一为空集
@@ -22,11 +27,13 @@ import cn.ac.fage.accessmesh.access.role.entity.AbstractRole;
  * @param effectiveOperations   评估后授权的有效操作投影
  * @param presentation          评估后授权的展示方向投影
  * @param parentCheck           已执行父判断的命中操作摘要；未执行时为空
+ * @param trace                 真实执行解释块；未请求时为空
  */
 public record ResultDetails(Set<DetailSection> loadedSections, List<Long> matchedRoleIds,
                             List<Long> matchedPermissionIds, List<StageFacts> stageFacts,
                             Descriptions descriptions, List<EffectiveOperationEntry> effectiveOperations,
-                            List<PresentationEntry> presentation, ParentCheckSummary parentCheck) {
+                            List<PresentationEntry> presentation, ParentCheckSummary parentCheck,
+                            ExecutionTrace trace) {
 
     public ResultDetails {
         loadedSections = loadedSections == null ? Set.of() : Set.copyOf(loadedSections);
@@ -37,10 +44,12 @@ public record ResultDetails(Set<DetailSection> loadedSections, List<Long> matche
         effectiveOperations = effectiveOperations == null ? List.of() : List.copyOf(effectiveOperations);
         presentation = presentation == null ? List.of() : List.copyOf(presentation);
         parentCheck = parentCheck == null ? ParentCheckSummary.empty() : parentCheck;
+        trace = trace == null ? ExecutionTrace.empty() : trace;
     }
 
     public ResultDetails(Set<DetailSection> sections, List<Long> roles, List<Long> permissions, List<StageFacts> facts) {
-        this(sections, roles, permissions, facts, Descriptions.empty(), List.of(), List.of(), ParentCheckSummary.empty());
+        this(sections, roles, permissions, facts, Descriptions.empty(), List.of(), List.of(),
+            ParentCheckSummary.empty(), ExecutionTrace.empty());
     }
 
     public ResultDetails(Set<DetailSection> loadedSections, List<Long> matchedRoleIds, List<Long> matchedPermissionIds) {
@@ -56,6 +65,53 @@ public record ResultDetails(Set<DetailSection> loadedSections, List<Long> matche
     public record ParentCheckSummary(List<String> matchedOperationCodes) {
         public ParentCheckSummary { matchedOperationCodes = List.copyOf(matchedOperationCodes); }
         static ParentCheckSummary empty() { return new ParentCheckSummary(List.of()); }
+    }
+
+    /**
+     * 真实执行解释（TRACE，T-PERM-088，设计 §3.3/§6.1）。
+     * <p>
+     * 只解释本次实际执行：阶段事实、真实命中规则与主体解析结果为已完成计算的快照，
+     * 不重评条件、不补跑短路阶段（短路仅见 coverage.skippedStages，本块不虚构条目）。
+     * 含角色/授权 ID 等敏感字段——仅限内部诊断消费，见类级注释门禁暂缓说明。
+     * </p>
+     *
+     * @param resolvedRoleIds 主体解析后角色集（User 经 ROLE_MUTEX 双删；Roles 视角原样）
+     * @param roleMutexHits   主体解析删除的角色互斥对（敏感）
+     * @param stages          实际执行阶段的解释条目（未执行阶段不出现）
+     * @param parents         本项共享父判定的内部证据标识、受影响根项与命中权限 ID
+     */
+    public record ExecutionTrace(List<Long> resolvedRoleIds, List<RolePairHit> roleMutexHits,
+                                 List<StageTrace> stages, List<ParentTrace> parents) {
+        public ExecutionTrace {
+            resolvedRoleIds = resolvedRoleIds == null ? List.of() : List.copyOf(resolvedRoleIds);
+            roleMutexHits = roleMutexHits == null ? List.of() : List.copyOf(roleMutexHits);
+            stages = stages == null ? List.of() : List.copyOf(stages);
+            parents = parents == null ? List.of() : List.copyOf(parents);
+        }
+        static ExecutionTrace empty() { return new ExecutionTrace(List.of(), List.of(), List.of(), List.of()); }
+
+        /** 角色互斥命中对（敏感）。 */
+        public record RolePairHit(long firstRoleId, long secondRoleId) {}
+
+        /** 一个实际执行阶段的解释：raw/retained 引用阶段事实同源快照，规则为真实命中。 */
+        public record StageTrace(Stage stage, List<GrantFact> rawAfterContext,
+                                 List<GrantFact> retainedAfterEvaluation,
+                                 List<BatchPermMutexEvaluator.MutexRuleRef> triggeredRules) {
+            public StageTrace {
+                rawAfterContext = rawAfterContext == null ? List.of() : List.copyOf(rawAfterContext);
+                retainedAfterEvaluation = retainedAfterEvaluation == null ? List.of() : List.copyOf(retainedAfterEvaluation);
+                triggeredRules = triggeredRules == null ? List.of() : List.copyOf(triggeredRules);
+            }
+        }
+
+        /** 共享父判定解释（敏感：父命中权限 ID 仅限诊断）。 */
+        public record ParentTrace(String evidenceItemId, List<String> affectedRootItemKeys,
+                                  List<Long> matchedPermissionIds) {
+            public ParentTrace {
+                affectedRootItemKeys = affectedRootItemKeys == null ? List.of() : List.copyOf(affectedRootItemKeys);
+                matchedPermissionIds = matchedPermissionIds == null ? List.of() : List.copyOf(matchedPermissionIds);
+            }
+        }
     }
 
     /** raw 超集的描述与额外要求的操作定义；未找到的要求不在 requestedOperations 中。 */

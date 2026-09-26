@@ -485,6 +485,19 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
         }
 
         @Override
+        public List<MutexRuleRef> describeRules(Set<Long> ruleIds) {
+            if (ruleIds == null || ruleIds.isEmpty() || rules == null) {
+                return List.of();
+            }
+            return ruleIds.stream().sorted()
+                .map(ruleById::get)
+                .filter(Objects::nonNull)
+                .map(rule -> new MutexRuleRef(rule.getId(),
+                    rule.getFirstOperationPermissionId(), rule.getSecondOperationPermissionId()))
+                .toList();
+        }
+
+        @Override
         public void notifyHits(Long tenantId, List<MutexHit> hits) {
             if (hits == null || hits.isEmpty()) {
                 return;

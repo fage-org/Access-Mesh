@@ -2,8 +2,7 @@ package cn.ac.fage.accessmesh.access.engine.query;
 
 import cn.ac.fage.accessmesh.access.engine.core.BatchConditionEvaluator;
 import cn.ac.fage.accessmesh.access.engine.core.BatchPermMutexEvaluator;
-import cn.ac.fage.accessmesh.access.engine.util.RolePermEntryMapper;
-import cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry;
+import cn.ac.fage.accessmesh.access.engine.util.RolePermEntryMapper;import cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry;
 import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService;
 import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService;
 import org.slf4j.Logger;
@@ -53,7 +52,7 @@ final class CandidateEvaluator {
     }
 
     private Evaluated compute(Evaluation evaluation, List<GrantFact> raw) {
-        if (raw.isEmpty()) return new Evaluated(List.of(), Set.of(), false);
+        if (raw.isEmpty()) return new Evaluated(List.of(), Set.of(), List.of(), false);
         raw.stream().filter(f -> f.hasCondition() != (f.conditionId() != null)).forEach(f ->
             log.error("Inconsistent condition reference: tenantId={}, permissionId={}",
                 run.request().tenantId(), f.permissionId()));
@@ -67,17 +66,22 @@ final class CandidateEvaluator {
         }
         boolean mutexCandidate = !adapted.isEmpty();
         Set<Long> hits = Set.of();
+        List<BatchPermMutexEvaluator.MutexRuleRef> triggeredRules = List.of();
         if (evaluation.mutexMode() == MutexMode.ENFORCE && mutexCandidate) {
             var computed = mutex.compute(adapted);
             adapted = computed.filtered();
             hits = Set.copyOf(computed.triggeredRuleIds());
+            // 证据规则引用复用请求级已装载规则（零额外 I/O；收集责任在根审计，见 §6.1）
+            triggeredRules = mutex.describeRules(hits);
         }
         Set<Long> retainedIds = new LinkedHashSet<>();
         adapted.forEach(e -> retainedIds.add(e.permissionId()));
-        return new Evaluated(raw.stream().filter(f -> retainedIds.contains(f.permissionId())).toList(), hits, mutexCandidate);
+        return new Evaluated(raw.stream().filter(f -> retainedIds.contains(f.permissionId())).toList(),
+            hits, triggeredRules, mutexCandidate);
     }
 
-    record Evaluated(List<GrantFact> retained, Set<Long> triggeredRuleIds, boolean mutexCandidate) {}
+    record Evaluated(List<GrantFact> retained, Set<Long> triggeredRuleIds,
+                     List<BatchPermMutexEvaluator.MutexRuleRef> triggeredRules, boolean mutexCandidate) {}
     private record Key(Selection selection, Stage stage, List<CandidateSelector.Clause> clauses,
                        List<GrantFact> raw, Evaluation evaluation, Set<Long> parentPermissionIds) {}
 }

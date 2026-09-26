@@ -97,7 +97,8 @@ class QueryStagesTest {
         var conflicts = new PermissionConflictDomainServiceImpl(rules, cache, json, audit, operations, subjects);
         engine = new QueryExecutionEngine(clock,
             new QueryReadSupport(types, operations, resources, roleMapper, grants, cache, new RolePermEntryMapper()),
-            subjects, conditions, conflicts, resourceMapper);
+            subjects, conditions, conflicts, resourceMapper,
+            new QueryAuditCollector(audit, QueryEngineMetrics.noop()), QueryEngineMetrics.noop());
     }
 
     static OperationPermission op(long id, int type, String code, long bit, long inherit) {
@@ -391,18 +392,35 @@ class QueryStagesTest {
     }
 
     @Test
-    void should_propagateDescriptionFailure_whenFactsWereAlreadyEvaluated() {
+    void should_wrapTechnicalFailureAsQueryExecutionException_whenFactsWereAlreadyEvaluated() {
         when(resources.selectValidByIds(1L, Set.of(100L))).thenThrow(new IllegalStateException("description database down"));
         assertThatThrownBy(() -> projectedList(scopeOutput(new TypeOperation("REPORT", "VIEW")),
-            Evaluation.full(), grant(101, 1, 100L, 2))).isInstanceOf(IllegalStateException.class)
-            .hasMessage("description database down");
+            Evaluation.full(), grant(101, 1, 100L, 2)))
+            .isInstanceOf(QueryExecutionException.class)
+            .hasMessageContaining("技术故障")
+            .hasRootCauseMessage("description database down");
     }
 
     @Test
-    void should_rejectTraceAndMissingDirectionBeforeReading_whenOutputContractCannotBeSatisfied() {
-        assertThatThrownBy(() -> execute(QueryItem.decision("trace",
-            target(Inheritance.SELF, TypeFallback.ALLOW, clause(100)), OutputSpec.full())))
-            .isInstanceOf(UnsupportedOperationException.class).hasMessageContaining("TRACE");
+    void should_acceptTraceOutputWithoutExtraInstanceQueries_whenScopeAllShortCircuitsInstanceStage() {
+        scopeRows.add(grant(101, 1, null, 2));
+        var output = new OutputSpec(FactDetail.NONE, true, false, false, PresentationExpansion.NONE, Set.of(), true);
+        var result = execute(QueryItem.decision("trace",
+            target(Inheritance.SELF, TypeFallback.ALLOW, clause(100)), output));
+        assertThat(decision(result, 0).outcome()).isEqualTo(DecisionResult.Decision.ALLOW);
+        assertThat(decision(result, 0).details().loadedSections()).contains(ResultDetails.DetailSection.TRACE);
+        assertThat(decision(result, 0).details().trace().stages())
+            .as("TRACE 只列实际执行阶段；scopeAll 短路的 INSTANCE 不出现（A05 不补跑、不虚构）")
+            .extracting(ResultDetails.ExecutionTrace.StageTrace::stage)
+            .containsExactly(Stage.TYPE_GRANT);
+        assertThat(decision(result, 0).coverage().skippedStages())
+            .containsEntry(Stage.INSTANCE, EvaluationCoverage.SkipReason.SUFFICIENT_DECISION);
+        verify(grants, never()).selectInstancePermsByBitsBatch(anyLong(), anySet(), anySet(), anyList());
+        verifyNoInteractions(conditionMapper, resourceMapper);
+    }
+
+    @Test
+    void should_rejectMissingDirectionBeforeReading_whenOutputContractCannotBeSatisfied() {
         var invalid = new OutputSpec(FactDetail.NONE, false, false, false, null, Set.of(), false);
         assertThatThrownBy(() -> execute(QueryItem.decision("invalid",
             target(Inheritance.SELF, TypeFallback.ALLOW, clause(100)), invalid))).isInstanceOf(QueryValidationException.class);
@@ -452,7 +470,7 @@ class QueryStagesTest {
         assertThat(decision(result, 1).outcome()).isEqualTo(DecisionResult.Decision.ALLOW);
         assertThat(decision(result, 2).reason()).isEqualTo(DecisionResult.Reason.CONDITION_NOT_MET_OR_CONFLICT);
         assertThat(decision(result, 2).details().matchedPermissionIds()).isEmpty();
-        verifyNoInteractions(audit);
+        verify(audit, times(1)).asyncRecordLog(any());
     }
 
     @Test
@@ -666,7 +684,9 @@ class QueryStagesTest {
         var failure = new org.springframework.dao.DataAccessResourceFailureException("db unavailable");
         when(grants.selectInstancePermsByBitsBatch(eq(1L), anySet(), anySet(), anyList())).thenThrow(failure);
         var facts = QueryItem.facts("facts", target(Inheritance.SELF, TypeFallback.ALLOW, clause(100)), Evaluation.full(), OutputSpec.kept());
-        assertThatThrownBy(() -> execute(facts)).isSameAs(failure);
+        assertThatThrownBy(() -> execute(facts))
+            .isInstanceOf(QueryExecutionException.class)
+            .hasCause(failure);
         when(grants.selectInstancePermsByBitsBatch(eq(1L), anySet(), anySet(), anyList())).thenReturn(List.of(grant(102, 1, 100L, 2)));
         assertThat(((GrantSetResult) execute(facts).orderedResults().getFirst()).details().matchedPermissionIds()).containsExactly(101L, 102L);
         verify(grants, times(2)).selectScopeAllPermsByBitsBatch(eq(1L), anySet(), anyList());
@@ -682,7 +702,7 @@ class QueryStagesTest {
         assertThat(user.orderedResults()).allSatisfy(r -> assertThat(((DecisionResult) r).reason()).isEqualTo(DecisionResult.Reason.NO_ROLE));
         verify(subjects, times(1)).resolveEffectiveRoles(1L, 1000L);
         assertThat(decision(execute(item("explicit", clause(100))), 0).outcome()).isEqualTo(DecisionResult.Decision.ALLOW);
-        verifyNoInteractions(audit);
+        verify(audit, times(1)).asyncRecordLog(any());
     }
 
     @Test
@@ -713,10 +733,16 @@ class QueryStagesTest {
     }
 
     @Test
-    void should_failExplicitly_whenTraceOutputRequestedBefore088() {
-        assertThatThrownBy(() -> execute(QueryItem.facts("full", target(Inheritance.SELF, TypeFallback.ALLOW, clause(100)),
-            Evaluation.full(), OutputSpec.full()))).isInstanceOf(UnsupportedOperationException.class).hasMessageContaining("T-PERM-088");
-        verifyNoInteractions(grants, operations);
+    void should_executeTraceOutputViaDetailsBlock_whenRequested() {
+        scopeRows.add(grant(101, 1, null, 2));
+        var result = (GrantSetResult) execute(QueryItem.facts("full",
+            target(Inheritance.SELF, TypeFallback.ALLOW, clause(100)), Evaluation.full(), OutputSpec.full()))
+            .orderedResults().getFirst();
+        assertThat(result.details().loadedSections()).contains(ResultDetails.DetailSection.TRACE);
+        assertThat(result.details().trace().stages())
+            .as("TRACE 已随 T-PERM-088 落地：不再拒绝，且解释真实执行的 TYPE_GRANT 阶段")
+            .extracting(ResultDetails.ExecutionTrace.StageTrace::stage)
+            .contains(Stage.TYPE_GRANT);
     }
 
     @ParameterizedTest
@@ -835,7 +861,12 @@ class QueryStagesTest {
         });
         verify(grants, times(1)).selectInstancePermsByBitsBatch(eq(1L), anySet(), eq(Set.of(200L)), anyList());
         verify(grants, times(1)).selectScopeAllPermsByBitsBatch(eq(1L), anySet(), anyList());
-        verifyNoInteractions(audit);
+        org.mockito.ArgumentCaptor<cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService.OperationLogEntry> evidence =
+            org.mockito.ArgumentCaptor.forClass(cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService.OperationLogEntry.class);
+        verify(audit, times(1)).asyncRecordLog(evidence.capture());
+        assertThat(evidence.getValue().summary())
+            .as("共享父一条证据关联全部受影响根项（不虚构多次父冲突）")
+            .contains("item=parent#1").contains("affected=[first, second]");
     }
 
     @Test
@@ -944,7 +975,7 @@ class QueryStagesTest {
         var result = listFacts(reportParent(), Evaluation.preserveSkip(), ListGrantRead.DATABASE);
         assertThat(result.collectionStatus()).isEqualTo(GrantSetResult.CollectionStatus.PARENT_DENIED);
         verify(rules, times(1)).selectByConflictType(1L, "PERM_MUTEX");
-        verifyNoInteractions(audit);
+        verify(audit, times(1)).asyncRecordLog(any());
     }
 
     @ParameterizedTest

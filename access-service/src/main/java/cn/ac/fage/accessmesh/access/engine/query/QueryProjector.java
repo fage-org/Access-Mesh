@@ -106,9 +106,27 @@ final class QueryProjector {
             effective = effectiveOperations(kept, presentation, operations);
         }
         if (output.presentationExpansion() != PresentationExpansion.NONE) sections.add(ResultDetails.DetailSection.PRESENTATION);
+        ResultDetails.ExecutionTrace trace = ResultDetails.ExecutionTrace.empty();
+        if (output.trace()) {
+            sections.add(ResultDetails.DetailSection.TRACE);
+            trace = trace(run, state);
+        }
         return new ResultDetails(sections, List.copyOf(roleIds), List.copyOf(permissionIds), facts, descriptions,
             effective, output.presentationExpansion() == PresentationExpansion.NONE ? List.of() : presentation,
-            parentSummary);
+            parentSummary, trace);
+    }
+
+    /** TRACE 只解释真实执行：已完成阶段事实/命中规则/主体解析快照，零新增 I/O、零重评。 */
+    private static ResultDetails.ExecutionTrace trace(RunState run, RunState.ItemExecution state) {
+        List<ResultDetails.ExecutionTrace.RolePairHit> pairs = run.roleHits().stream()
+            .map(pair -> new ResultDetails.ExecutionTrace.RolePairHit(pair.firstRoleId(), pair.secondRoleId())).toList();
+        List<ResultDetails.ExecutionTrace.StageTrace> stages = state.stages.values().stream()
+            .map(stage -> new ResultDetails.ExecutionTrace.StageTrace(stage.stage(), stage.rawAfterContext(),
+                stage.retainedAfterEvaluation(), state.mutexHits.getOrDefault(stage.stage(), List.of()))).toList();
+        List<ResultDetails.ExecutionTrace.ParentTrace> parents = state.parent == null ? List.of()
+            : List.of(new ResultDetails.ExecutionTrace.ParentTrace(state.parent.evidenceItemId,
+                List.copyOf(state.parent.affectedItemKeys), List.copyOf(state.parent.matchedPermissionIds())));
+        return new ResultDetails.ExecutionTrace(List.copyOf(run.roles()), pairs, stages, parents);
     }
 
     /** 父判断已装载全部要求的定义；复用同源记忆与 retained，不补跑短路阶段或条件。 */

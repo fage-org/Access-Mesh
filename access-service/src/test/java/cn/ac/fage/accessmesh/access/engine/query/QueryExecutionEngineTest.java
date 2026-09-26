@@ -21,6 +21,7 @@ import cn.ac.fage.accessmesh.access.engine.query.EvaluationCoverage.SubjectResol
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
+import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService;
 import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService;
@@ -38,7 +39,9 @@ class QueryExecutionEngineTest {
 
     static QueryExecutionEngine emptyEngine(Clock clock) {
         return new QueryExecutionEngine(clock, mock(QueryReadSupport.class), mock(SubjectDomainService.class),
-            mock(PermissionConditionDomainService.class), mock(PermissionConflictDomainService.class), mock(ResourceEntityMapper.class));
+            mock(PermissionConditionDomainService.class), mock(PermissionConflictDomainService.class),
+            mock(ResourceEntityMapper.class), new QueryAuditCollector(mock(AuditDomainService.class),
+            QueryEngineMetrics.noop()), QueryEngineMetrics.noop());
     }
 
     private static QueryRequest request(Subject subject, QueryItem... items) {
