@@ -65,6 +65,10 @@ public interface ResourceEntityDomainService {
      */
     List<ResourceEntity> selectValidByIds(Long tenantId, Set<Long> resourceIds);
 
+    /** 多类型业务键物理合批读取；返回超集，由调用方按完整类型/code/codeType 精确匹配。 */
+    List<ResourceEntity> selectByTypesAndCodesAndCodeTypes(Long tenantId, Set<Integer> resourceTypes,
+                                                          Set<String> codes, Set<String> codeTypes);
+
     /**
      * 类型下是否存在有效资源行（T-PERM-052 类型所有权声明变更守卫：无有效行才可改）。
      *

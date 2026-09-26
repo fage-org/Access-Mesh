@@ -1,6 +1,5 @@
 package cn.ac.fage.accessmesh.access.engine.query;
 
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -16,12 +15,12 @@ import java.util.Set;
  * @param descriptions          是否输出描述块
  * @param effectiveOperations   是否输出有效操作展开
  * @param presentationExpansion 是否输出展示父/子展开（与判定面继承分离）
- * @param extraOperationKeys    额外操作键（仅描述/投影）；null 归一为空集
+ * @param extraOperationKeys    额外类型—操作配对（仅描述/投影）；null 归一为空集
  * @param trace                 是否输出 TRACE（仅受权诊断可用，门禁在应用层）
  */
 public record OutputSpec(FactDetail factDetail, boolean matchedIds, boolean descriptions,
                          boolean effectiveOperations, boolean presentationExpansion,
-                         Set<String> extraOperationKeys, boolean trace) {
+                         Set<TypeOperation> extraOperationKeys, boolean trace) {
 
     public OutputSpec {
         extraOperationKeys = extraOperationKeys == null ? Set.of() : Set.copyOf(extraOperationKeys);

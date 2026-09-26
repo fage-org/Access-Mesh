@@ -42,6 +42,13 @@ public class ResourceEntityDomainServiceImpl implements ResourceEntityDomainServ
         this.resourceEntityMapper = resourceEntityMapper;
     }
 
+    @Override
+    public List<ResourceEntity> selectByTypesAndCodesAndCodeTypes(Long tenantId, Set<Integer> resourceTypes,
+                                                                 Set<String> codes, Set<String> codeTypes) {
+        if (resourceTypes.isEmpty() || codes.isEmpty() || codeTypes.isEmpty()) return List.of();
+        return resourceEntityMapper.selectByTypesAndCodesAndCodeTypes(tenantId, resourceTypes, codes, codeTypes);
+    }
+
     /**
      * 批量获取多个资源的子孙ID
      *

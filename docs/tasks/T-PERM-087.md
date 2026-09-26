@@ -14,10 +14,11 @@ acceptance:
   - "QueryProjector：GrantFact 与 PresentationEntry 分离——展示继承/操作覆盖展开不改 GrantFact.resourceEntityId、不将展示 INHERITED 写成真实 grantSource；hasCondition 与 conditionId 不一致时诊断而非降级为无条件"
   - "范围四态 G02~G05：raw 有覆盖 retained 无→EMPTY；无覆盖/目标 op 未知→DENIED；retained 含 scopeAll→ALL（不展开全量实例）；原有实例全部失效→EMPTY 非空 INSTANCE"
   - "A05：TRACE+scopeAll 短路显示 INSTANCE=SKIPPED 不补查；OutputSpec 不能关闭判定必需计算；extraOperationKeys 不扩大 Selection"
+  - "接入 T-PERM-084 读取部件的输出入口，在整体投影链验证 I02/I03/I06；extraOperationKeys 采用 Set<TypeOperation>，无授权时仍可补全目标定义"
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-09-25
+last_updated: 2026-09-26
 ---
 
 # T-PERM-087 （R2-T08）投影、展示与范围四态

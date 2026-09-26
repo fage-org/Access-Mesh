@@ -8,7 +8,7 @@ import java.util.Set;
  * <p>
  * 用 loadedSections 区分「没有请求」与「请求后为空」；不返回 RunState、
  * ORM 可变实体或缓存对象。拒绝项公开命中集保持空。
- * 事实行（GrantFact/StageFacts）与展示条目（PresentationEntry）随 T-PERM-086/087 扩展。
+ * GrantFact 已在读取边界建立；阶段事实与展示条目接入本结果块随 T-PERM-086/087 扩展。
  * </p>
  *
  * @param loadedSections        本次装载的输出块集合；null 归一为空集

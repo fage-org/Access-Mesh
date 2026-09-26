@@ -16,10 +16,11 @@ acceptance:
   - "唯一 execute 生命周期（§4.1 职责表）与 TYPE_GRANT/INSTANCE 两阶段落地；装载批与判定集合分离——SQL 合批不扩大 item+stage 候选；I08：SQL 分块跨同一 item 时候选合齐后再计算互斥（块边界不改变结果）；新核心不调用旧完整核心"
   - "D01~D14 阶段用例全绿：独立 item 双允许/共同集合按项拒绝、同目标互斥两端必拒（不见第一条授权即返回）、条件剔除互斥一端、类型级门禁不认实例/子 scopeAll、scopeAll 短路（最小输出不解析实例）、DISALLOW 不回退、scopeAll 评估清空后实例仍可命中、原因优先级（CONDITION_NOT_MET_OR_CONFLICT 优先于 DEPENDENT/NO_PERMISSION）、SELF 不消费他项闭包、跨类型同位值不泄漏、物理合批超集切回原配对"
   - "getDenied* 跨 item 冲突语义并入本阶段验收（PQ-01 修复面：每目标独立评估）"
+  - "接入 T-PERM-084 读取部件，并在真实 execute 判定链验证相关读取不变量（I03 最小输出、I04 缺失记忆、I05 令牌、I06 来源隔离），不以部件测试替代整体执行验证"
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-09-25
+last_updated: 2026-09-26
 ---
 
 # T-PERM-085 （R2-T06）TYPE_GRANT/INSTANCE 单一阶段主体

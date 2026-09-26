@@ -84,6 +84,9 @@ final class QueryRequestValidator {
             if (item.output().factDetail() == null) {
                 throw new QueryValidationException(at + " OutputSpec.factDetail 不能为空");
             }
+            for (TypeOperation extra : item.output().extraOperationKeys()) {
+                validateTypeOperation(at + " extraOperationKeys", extra);
+            }
             if (item.resultForm() == ResultForm.FACTS && item.output().factDetail() == FactDetail.NONE) {
                 throw new QueryValidationException(at + " FACTS 结果的事实档至少为 KEPT");
             }

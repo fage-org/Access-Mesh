@@ -12,7 +12,7 @@ import cn.ac.fage.accessmesh.access.engine.query.EvaluationCoverage.SubjectResol
  * <p>
  * 一次 execute 一个实例：固定评估时刻（注入 Clock）、主体解析结果与已读记忆的宿主。
  * 禁止单例字段、ThreadLocal、跨请求/跨写复用（I07：同一事务先写后新 execute 创建新运行态）。
- * 已读/缺失三态记忆、规则、条件结果、父结果、原始行与审计随 T-PERM-084~088 逐卡挂载。
+ * 已读/缺失三态记忆与读取来源桶由 T-PERM-084 挂载；阶段规则、条件结果、父结果与审计随后接入。
  * </p>
  */
 final class RunState {
@@ -22,6 +22,8 @@ final class RunState {
     private final QueryRequest request;
     private Set<Long> roles;
     private SubjectResolution subjectResolution;
+    private QueryReadSupport.Memory readMemory;
+    private boolean released;
 
     RunState(QueryRequest request, Clock clock) {
         this.request = request;
@@ -48,6 +50,20 @@ final class RunState {
         return subjectResolution;
     }
 
+    /** 读取记忆只属于本次执行；释放后不能重新装载。 */
+    QueryReadSupport.Memory readMemory() {
+        if (released) {
+            throw new IllegalStateException("RunState 已释放");
+        }
+        if (request.tenantId() <= 0) {
+            throw new QueryValidationException("tenantId 必须为正数");
+        }
+        if (readMemory == null) {
+            readMemory = new QueryReadSupport.Memory();
+        }
+        return readMemory;
+    }
+
     /** 记录主体解析结果（每请求一次；Roles 视角原样采用，User 经共同入口，§2.2）。 */
     void resolveSubject(Set<Long> roles, SubjectResolution resolution) {
         this.roles = Set.copyOf(roles);
@@ -58,5 +74,7 @@ final class RunState {
     void release() {
         this.roles = null;
         this.subjectResolution = null;
+        this.readMemory = null;
+        this.released = true;
     }
 }

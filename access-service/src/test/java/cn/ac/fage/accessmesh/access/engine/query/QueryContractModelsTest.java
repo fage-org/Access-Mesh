@@ -88,7 +88,7 @@ class QueryContractModelsTest {
             java.util.HashSet<Long> roleSource = new java.util.HashSet<>(Set.of(1L, 2L));
             Roles roles = new Roles(roleSource);
             OutputSpec spec = new OutputSpec(FactDetail.KEPT, true, false, false, false,
-                new java.util.HashSet<>(Set.of("REPORT:EXPORT")), false);
+                new java.util.HashSet<>(Set.of(new TypeOperation("REPORT", "EXPORT"))), false);
             ResultDetails details = new ResultDetails(Set.of(ResultDetails.DetailSection.MATCHED_IDS),
                 new ArrayList<>(List.of(1L)), new ArrayList<>(List.of(2L)));
             EvaluationCoverage coverage = new EvaluationCoverage(
@@ -104,7 +104,7 @@ class QueryContractModelsTest {
 
             roleSource.add(99L);
             assertThat(roles.roleIds()).containsExactlyInAnyOrder(1L, 2L);
-            assertThat(spec.extraOperationKeys()).containsExactly("REPORT:EXPORT");
+            assertThat(spec.extraOperationKeys()).containsExactly(new TypeOperation("REPORT", "EXPORT"));
             assertThat(details.matchedRoleIds()).containsExactly(1L);
             assertThat(coverage.completedStages()).containsExactly(Stage.TYPE_GRANT);
             assertThat(result.orderedResults()).hasSize(1);

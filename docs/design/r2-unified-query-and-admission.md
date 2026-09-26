@@ -223,6 +223,8 @@ rawAfterContext 是**上下文绑定处理之后、条件／权限互斥之前**
 
 OutputSpec 包括事实档 `NONE / KEPT / RAW_AND_KEPT`、matchedIds、描述块、有效操作展开、展示父／子展开、extraOperationKeys、TRACE。FACTS 至少 KEPT；范围必须 RAW_AND_KEPT；最小 DECISION／ADMISSION 可为 NONE。extraOperationKeys 只供描述／投影，不能扩大 Selection。
 
+`extraOperationKeys` 使用 `Set<TypeOperation>`，与 Selection 的类型—操作配对复用同一内部模型；不再以 `"REPORT:EXPORT"` 字符串编码。配对在执行前校验，两字段均须非空白，不改变外部 HTTP DTO（T-PERM-084，2026-09-26 用户确认）。
+
 Details 用 loadedSections 或显式可选块区分“没有请求”与“请求后为空”，不返回 RunState、ORM 可变实体或缓存对象。内部父 matchedPermissionIds 即使不对外展示也必须计算；拒绝项公开命中集保持空，TRACE 仅受权诊断可用。[E14][E17]
 
 | EvaluationCoverage 字段 | 必须能表达 |
@@ -416,6 +418,10 @@ effectiveRoles = S - D
 
 每个记忆表区分 UNLOADED／LOADED_EMPTY／LOADED_VALUE。只按 ID 读过几个操作，不能标记整个类型目录已完整读取；缓存掩码目录不得覆盖 freshDefinitionIndex。转授没有目标类型授权时，仍须加载额外目标操作定义，区分 INVALID_OPERATION 与 NO_PERMISSION。
 
+**读取部件迁移边界（T-PERM-084，2026-09-26 用户确认）**：本卡仅实现新 QueryReadSupport，I02～I06 在部件级验收；旧 PermQueryEngine 不改动，现役路径的附属读取问题随消费者迁移退出。整体 execute 的判定、投影接线分别由 T-PERM-085/087 验证，部件验收不代表新执行器已承接生产流量。
+
+读取记忆归单次 RunState，键缺失表示未读，Optional.empty/空集合表示已读空；完整类型目录与按 ID 索引分别记忆。`OperationDefinition` 隔离可变操作实体，保留完整字段以维持普通操作缓存载荷；缓存命中只进入掩码桶，不写新鲜定义索引。数据库首次读到的定义在本次执行复用，部分 ID 读取仍需补读完整类型目录。资源键读取复用已解析类型，经现有多类型 Mapper 装载超集后按完整业务键取回；null/空白 codeType 沿既有缺省语义，不增加 trim/大小写归一。RunState 释放时丢弃读取记忆，后续执行重新读取。
+
 ### 5.3 新准入不能照搬旧快照的缓存安全结论
 
 现有目录明确把长 TTL 操作缓存定义为“不进接口快照内容”，并以受限的安全目录、回源截止和网关 L1 TTL 组成原快照边界。**新准入把业务操作覆盖转换为快照候选，依赖关系已经改变。**若直接使用 L1 60 分钟／L2 120 分钟的旧操作缓存构建新快照，不能仍沿用原有约 30 秒的配置安全边界。[B02]
@@ -431,6 +437,8 @@ effectiveRoles = S - D
 一次 execute 完成后释放 RunState。同一事务先查询、写入、再查询，也要创建新的运行态。更强一致性需分别设计 DB 隔离／缓存绕过、完整事实版本检测、写侧锁，不能用一个“强一致”布尔值代替。
 
 **RolePermEntry 与四个旧 DTO 区别处理：**默认保留 `ROLE_PERM_SNAPSHOT` 的现有序列化载荷，在读边界转为 GrantFact；新应用和执行器不再消费旧 PermResult。这样不强迫 R2 同时改已有缓存格式。备选版本化载荷需明确双命名空间、旧写者和双失效；新准入网关快照则因语义不同必须版本隔离，不能借“缓存兼容”复用旧 API 放行结构。[B02]
+
+T-PERM-084 的读取部件已建立该转换边界：TYPE_GRANT/INSTANCE 固定数据库读取，LIST 的 DATABASE 不读写角色快照，ROLE_SNAPSHOT 只缓存原始 RolePermEntry。缓存 miss 在首次数据库查询前获取令牌，同运行态后续 miss、分块和重试沿用该令牌，剩余 TTL 耗尽时只返回读取事实、不回填。角色/规则/条件的阶段编排与事实投影仍由后续阶段任务接入。
 
 ### 5.5 SQL、候选算法与预算
 
