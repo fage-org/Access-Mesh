@@ -3,7 +3,7 @@ doc_type: design
 title: R2 权限查询引擎统一与操作准入（方案 A）设计
 status: adopted
 domain: access-service
-last_reviewed: 2026-09-25
+last_reviewed: 2026-09-26（T-PERM-083：§5.1/§6.1 补就地实施注——S/H-D、纯计算解耦、I01、RolePairRef 已落地旧执行体）；此前 2026-09-25（v3.1 定稿）
 ---
 
 # Access-Mesh：R2 权限查询引擎与 T-PERM-054 统一设计
@@ -391,6 +391,8 @@ effectiveRoles = S - D
 
 现有角色规则缓存可能仅存角色对；证据用 RolePairRef，有真实 ruleId 才附带。引擎调用不立即通知的角色判定能力，避免旧 resolveJudgementRoleIds 先通知、根执行再发一遍。仍在迁移的旧入口也复用同一纯计算，不保留另一种冲突算法。
 
+> **就地实施注（2026-09-26，T-PERM-083）**：S/H-D 定案算法、`computeRoleMutex`/`computePermMutex` 纯计算（不通知）与 `RolePairRef` 配对证据（uk_conflict_rule_role 唯一约束下对↔规则一一对应，缓存载荷不扩 ruleId）已就地落地于旧执行体——旧入口 `filterRoleMutex`/`filterPermMutex` 保持签名、内部复用同一纯计算叠加去重通知（引擎调用点零改动，2026-09-26 用户拍板「域服务内解耦」）；PERM_MUTEX 空规则短路（I01）与真实 triggeredRuleIds 直返同批落地，与 T-PERM-095（PQ-01）共同构成 §9.3 最小正确性修复基线。
+
 ### 5.2 明确读取矩阵，不使用一个 FRESH 标签掩盖差异
 
 | 数据／用途 | 默认来源 | 请求内复用与限制 |
@@ -454,7 +456,9 @@ ConflictEvidence
 
 按 execution＋实际内部 item＋stage＋ruleRef 聚合。重复用户输入的 key 不同，应分别计影响；共享父被多项引用时是一条父证据关联多项，不虚构多次父冲突。物理读取去重、计算复用、审计输入计数不能混为一件事。
 
-根 execute 统一受控提交，纯规则计算和父项不发日志。保持既有非阻塞提交策略，不宣称持久必达或跨请求 exactly-once；提交失败记录技术日志／指标，不覆盖主查询异常。执行中途失败只提交已确认阶段，标明执行未完成。准入事件独立标注 OPERATION_ADMISSION，不能写“业务实例互斥已通过”或“业务操作已成功”。
+根 execute 统一受控提交，纯规则计算和父项不发日志。保持既有非阻塞提交策略，不宣称持久必达或跨请求 exactly-once；提交失败记录技术日志／指标，不覆盖主查询异常。执行中途失败只提交已确认阶段，标明执行未完成。
+
+> **就地实施注（2026-09-26，T-PERM-083）**：纯计算与通知已按上述责任边界在旧执行体预解耦——域服务暴露不通知的纯互斥计算（§5.1 实施注），旧入口通知保持每「租户×用户×命中对/规则」一次去重；新核心落地（T-PERM-085/088）直接消费纯计算并自管受控提交，不经旧通知入口，无双发窗口。准入事件独立标注 OPERATION_ADMISSION，不能写“业务实例互斥已通过”或“业务操作已成功”。
 
 TRACE 不用另一个时刻重新评条件，不为显示完整过程补跑短路阶段；敏感角色／授权 ID、IP 规则只向经门禁的诊断开放。指标按选择／阶段／结果聚合，不使用任意 resourceCode、permissionId、itemKey 等高基数标签。
 

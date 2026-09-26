@@ -35,7 +35,7 @@
 | [T-PERM-080](T-PERM-080.md) | （R2-T01）全仓调用与语义清点 | ✅（2026-09-25 收口） | — |
 | [T-PERM-081](T-PERM-081.md) | （R2-T02）PQ-01/06 反例与正常语义基线 | ✅（2026-09-25 收口） | T-PERM-080 |
 | [T-PERM-082](T-PERM-082.md) | （R2-T03）新请求/结果模型与合法组合 | ✅（2026-09-25 收口） | T-PERM-080 |
-| [T-PERM-083](T-PERM-083.md) | （R2-T04）角色互斥 S/H/D 确定化与纯互斥计算 | ⚙️ | T-PERM-081 |
+| [T-PERM-083](T-PERM-083.md) | （R2-T04）角色互斥 S/H/D 确定化与纯互斥计算 | ✅（2026-09-26 收口） | T-PERM-081 |
 | [T-PERM-084](T-PERM-084.md) | （R2-T05）QueryReadSupport 与读来源分桶 | ⚙️ | T-PERM-082 |
 | [T-PERM-085](T-PERM-085.md) | （R2-T06）TYPE_GRANT/INSTANCE 单一阶段主体 | ⚙️ | T-PERM-083, T-PERM-084, T-PERM-095 |
 | [T-PERM-086](T-PERM-086.md) | （R2-T07）父受控子项与 GRANT_LIST 完整事实 | ⚙️ | T-PERM-085 |

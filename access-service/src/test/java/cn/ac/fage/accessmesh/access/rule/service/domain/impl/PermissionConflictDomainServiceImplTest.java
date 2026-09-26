@@ -118,13 +118,11 @@ class PermissionConflictDomainServiceImplTest {
         verify(auditDomainService).asyncRecordLog(org.mockito.ArgumentMatchers.any(AuditDomainService.OperationLogEntry.class));
     }
 
-    /** 无命中规则：全部保留、不触发通知 */
+    /** 无命中规则：全部保留、不触发通知（I01 空规则短路后操作目录零装载，无需 stub） */
     @Test
     void shouldKeepAllEntriesWhenNoRuleFires() {
         when(conflictRuleMapper.selectByConflictType(TENANT, ConflictType.PERM_MUTEX.getValue()))
             .thenReturn(List.of());
-        when(operationPermissionMapper.selectByTenantAndResourceTypes(TENANT, java.util.Set.of(1)))
-            .thenReturn(List.of(op(11L, 1, 1L, "VIEW")));
 
         List<RolePermEntry> survivors = service.filterPermMutex(TENANT, List.of(entry(501L, 20L, 1L)));
 
@@ -363,6 +361,137 @@ class PermissionConflictDomainServiceImplTest {
             verify(cacheService).put(
                 org.mockito.ArgumentMatchers.<cn.ac.fage.accessmesh.common.cache.CacheReadToken<String>>isNull(),
                 eq(TENANT), eq("all"), eq("[]"));
+        }
+    }
+
+    @Nested
+    class ShdRoleMutex {
+
+        /** S/H-D 链式全命中一次删净（T-PERM-083）：{A,B,C,D}+规则 A-B/B-C → 仅 D——
+         *  旧顺序遍历边删边判保留一端（{C,D}），本用例必红 */
+        @Test
+        void shouldDeleteAllHitEndpointsFromOriginalSetUnderChainedRules() {
+            when(cacheService.get(AccessCacheCatalog.ROLE_MUTEX_RULE, TENANT, "all"))
+                .thenReturn("[{\"first\":100,\"second\":200},{\"first\":200,\"second\":300}]");
+
+            Set<Long> kept = service.filterRoleMutex(TENANT, 20L, Set.of(100L, 200L, 300L, 400L));
+
+            assertEquals(Set.of(400L), kept);
+        }
+
+        /** 规则顺序倒置同果（顺序无关性，真实倒置序用例）：[B-C, A-B] → 仍仅 D——
+         *  旧实现倒序处理结果 {A,D}，本用例必红 */
+        @Test
+        void shouldProduceSameResultUnderReversedRuleOrder() {
+            when(cacheService.get(AccessCacheCatalog.ROLE_MUTEX_RULE, TENANT, "all"))
+                .thenReturn("[{\"first\":200,\"second\":300},{\"first\":100,\"second\":200}]");
+
+            Set<Long> kept = service.filterRoleMutex(TENANT, 20L, Set.of(100L, 200L, 300L, 400L));
+
+            assertEquals(Set.of(400L), kept);
+        }
+
+        /** 无图连通传递删除（R02 单测锚）：只持 {A,C,D} 无 B → 规则均不触发全保留
+         *  （旧实现同结果——正确语义锚，修复前后不变） */
+        @Test
+        void shouldNotDeleteByConnectivityWhenOnlyOneEndHeld() {
+            when(cacheService.get(AccessCacheCatalog.ROLE_MUTEX_RULE, TENANT, "all"))
+                .thenReturn("[{\"first\":100,\"second\":200},{\"first\":200,\"second\":300}]");
+
+            Set<Long> kept = service.filterRoleMutex(TENANT, 20L, Set.of(100L, 300L, 400L));
+
+            assertEquals(Set.of(100L, 300L, 400L), kept);
+        }
+
+        /** 链式命中对各通知一条：S/H-D 对原始集算 H，(A,B)(B,C) 都命中——
+         *  旧实现边删边判第二对不再两端在场只通知一条，本用例必红 */
+        @Test
+        void shouldNotifyEachHitPairComputedFromOriginalSet() {
+            when(cacheService.get(AccessCacheCatalog.ROLE_MUTEX_RULE, TENANT, "all"))
+                .thenReturn("[{\"first\":100,\"second\":200},{\"first\":200,\"second\":300}]");
+
+            service.filterRoleMutex(TENANT, 20L, Set.of(100L, 200L, 300L));
+
+            verify(auditDomainService, times(2)).asyncRecordLog(any(AuditDomainService.OperationLogEntry.class));
+        }
+
+        /** 纯计算不通知 + 命中对证据直返（T-PERM-083 设计 §5.1）：computeRoleMutex
+         *  无 userId/通知参数——新核心消费面不立即通知的契约由本用例锁证 */
+        @Test
+        void computeRoleMutexShouldReturnHitsWithoutNotifying() {
+            when(cacheService.get(AccessCacheCatalog.ROLE_MUTEX_RULE, TENANT, "all"))
+                .thenReturn("[{\"first\":100,\"second\":200},{\"first\":200,\"second\":300}]");
+
+            var computation = service.computeRoleMutex(TENANT, Set.of(100L, 200L, 300L, 400L));
+
+            assertEquals(Set.of(400L), computation.keptRoleIds());
+            assertEquals(List.of(
+                new PermissionConflictDomainService.RolePairRef(100L, 200L),
+                new PermissionConflictDomainService.RolePairRef(200L, 300L)), computation.hits());
+            verifyNoInteractions(auditDomainService);
+        }
+    }
+
+    @Nested
+    class PermMutexShortCircuitAndRealTriggeredRules {
+
+        /** I01：空互斥规则短路——互斥专用操作目录装载零调用（旧实现空规则仍装载，
+         *  本用例必红）+ 全保留 + 不通知 */
+        @Test
+        void shouldSkipOperationDirectoryLoadWhenNoPermMutexRules() {
+            when(conflictRuleMapper.selectByConflictType(TENANT, ConflictType.PERM_MUTEX.getValue()))
+                .thenReturn(List.of());
+
+            List<RolePermEntry> survivors = service.filterPermMutex(TENANT, List.of(entry(501L, 20L, 1L)));
+
+            assertEquals(1, survivors.size());
+            verify(operationPermissionMapper, never()).selectByTenantAndResourceTypes(anyLong(), any());
+            verifyNoInteractions(auditDomainService);
+        }
+
+        /** 通知明细只含真实触发规则（AND 两端在场）：rule 9（op11⊥op12）触发、rule 10（op12⊥op13）
+         *  因 op13 不在场未触发——明细不得按冲突端点 OR 反推把 rule 10 列入（旧实现反推必红） */
+        @Test
+        void shouldNotifyDetailWithRealTriggeredRulesOnly() {
+            when(conflictRuleMapper.selectByConflictType(TENANT, ConflictType.PERM_MUTEX.getValue()))
+                .thenReturn(List.of(rule(9L, 11L, 12L), rule(10L, 12L, 13L)));
+            when(operationPermissionMapper.selectByTenantAndResourceTypes(TENANT, Set.of(1)))
+                .thenReturn(List.of(
+                    op(11L, 1, 1L, "VIEW"),
+                    op(12L, 1, 2L, "MANAGE"),
+                    op(13L, 1, 4L, "SYNC")));
+
+            // 条目仅持 VIEW(11) 与 MANAGE(12)：两端同场 → 双删
+            List<RolePermEntry> survivors = service.filterPermMutex(TENANT, List.of(
+                entry(501L, 20L, 1L), entry(502L, 21L, 2L)));
+
+            assertEquals(0, survivors.size());
+            org.mockito.ArgumentCaptor<AuditDomainService.OperationLogEntry> captor =
+                org.mockito.ArgumentCaptor.forClass(AuditDomainService.OperationLogEntry.class);
+            verify(auditDomainService).asyncRecordLog(captor.capture());
+            assertTrue(captor.getValue().summary().contains("rule[9]"), "通知明细含真实触发规则 rule[9]");
+            assertTrue(!captor.getValue().summary().contains("rule[10]"),
+                "未触发规则 rule[10] 不进明细（旧按冲突端点 OR 反推在此必红）");
+        }
+
+        /** 纯计算不通知 + 真实 triggeredRuleIds 直返（T-PERM-083 设计 §5.1）：
+         *  AND 命中集恰含触发规则，未触发规则（单端在场）不混入 */
+        @Test
+        void computePermMutexShouldReturnRealTriggeredRuleIdsWithoutNotifying() {
+            when(conflictRuleMapper.selectByConflictType(TENANT, ConflictType.PERM_MUTEX.getValue()))
+                .thenReturn(List.of(rule(9L, 11L, 12L), rule(10L, 12L, 13L)));
+            when(operationPermissionMapper.selectByTenantAndResourceTypes(TENANT, Set.of(1)))
+                .thenReturn(List.of(
+                    op(11L, 1, 1L, "VIEW"),
+                    op(12L, 1, 2L, "MANAGE"),
+                    op(13L, 1, 4L, "SYNC")));
+
+            var computation = service.computePermMutex(TENANT, List.of(
+                entry(501L, 20L, 1L), entry(502L, 21L, 2L)));
+
+            assertEquals(0, computation.filtered().size());
+            assertEquals(Set.of(9L), computation.triggeredRuleIds());
+            verifyNoInteractions(auditDomainService);
         }
     }
 }

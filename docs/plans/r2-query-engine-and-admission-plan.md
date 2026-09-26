@@ -31,7 +31,7 @@ tasks:
   - T-ACCESS-062
   - T-PERM-054
 acceptance: "两个完成条件各自闭合：①T-PERM-092（旧执行体与四旧 DTO 退出）可在仍有 LEGACY_API 服务时完成——legacy 语义经新 execute 表达；②T-ACCESS-062（全服务迁完、API 独立授权与 legacy 协议退役）。设计 §11 最终完成定义逐条有对应项目测试与运行证据"
-last_updated: 2026-09-25
+last_updated: 2026-09-26
 ---
 
 # R2 权限查询引擎统一与操作准入（方案 A）
@@ -65,7 +65,7 @@ last_updated: 2026-09-25
 | [T-PERM-080](../tasks/T-PERM-080.md) | 全仓调用与语义清点（R2-T01） | ✅ |
 | [T-PERM-081](../tasks/T-PERM-081.md) | PQ-01/06 反例与正常语义基线（R2-T02） | ✅ |
 | [T-PERM-082](../tasks/T-PERM-082.md) | 新请求/结果模型与合法组合（R2-T03） | ✅ |
-| [T-PERM-083](../tasks/T-PERM-083.md) | 角色互斥 S/H/D 确定化与纯互斥计算（R2-T04） | ⚙️ |
+| [T-PERM-083](../tasks/T-PERM-083.md) | 角色互斥 S/H/D 确定化与纯互斥计算（R2-T04） | ✅ |
 | [T-PERM-084](../tasks/T-PERM-084.md) | QueryReadSupport 与读来源分桶（R2-T05） | ⚙️ |
 | [T-PERM-085](../tasks/T-PERM-085.md) | TYPE_GRANT/INSTANCE 单一阶段主体（R2-T06） | ⚙️ |
 | [T-PERM-086](../tasks/T-PERM-086.md) | 父受控子项与 GRANT_LIST 完整事实（R2-T07） | ⚙️ |
@@ -107,6 +107,7 @@ last_updated: 2026-09-25
 - 2026-09-25 T-PERM-080 完成：全仓清点册见附录 A（清点口径、生产调用点逐点迁移目标、测试/文档/容量盘点与设计 §6.5 增补结论）；设计 §6.5 已增补指针与四消费面勘正。
 - 2026-09-25 T-PERM-081 完成：R2 语义基线资产三件落库（`R2BaselineFixture`＋`MutexSemanticsCharacterizationPgIT`〔PQ-01/06 反例锚，断言=锁当前行为、T-PERM-083/095 修复时翻转〕＋`QuerySemanticsBaselinePgIT`〔四族 X03 差分锚〕，入册 A.7）；红跑取证与三项拍板见 registry 同日行。
 - 2026-09-25 T-PERM-082 完成：`engine/query` 新包契约模型＋结构校验＋骨架 execute（`QueryExecutionEngine` 暂名，零消费者与旧引擎并行——三项拍板见 registry 同日行，设计 §4.1 已补迁移期注）；契约单测 C01~C08/R03/I07 按结构半边口径落锁，R03 事实半边/C06 判定版分别随 T-PERM-086/085 补。
+- 2026-09-26 T-PERM-083 完成：S/H-D 就地落地（`computeRoleMutex`/`computePermMutex` 纯计算+`RolePairRef`、I01 空规则短路、真实 triggeredRuleIds、通知明细去反推；引擎调用点零改动=拍板①「域服务内解耦」、拍板②收口全量合并 095 基线取证，registry 同日行）；红跑 5/5 行为锁+容器定向（Mutex 5/BatchAuthCheck 11/QuerySemantics 17/RoleMutexGuard 9）+单测轨 1460 项 0 失败；双轨评审处置完毕（代码轨 P3×3/文档轨 P1×1+P2×3+P3×2 全核实成立直修、可裁剪=0）；设计 §5.1/§6.1 就地实施注。全量回归（含 E2E/heavy）与基线落账随 T-PERM-095 收口一次取得。
 
 ## 附录 A：全仓旧执行体清点册（T-PERM-080 产出）
 

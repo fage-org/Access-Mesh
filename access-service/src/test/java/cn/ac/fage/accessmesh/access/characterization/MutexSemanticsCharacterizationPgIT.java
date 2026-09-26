@@ -48,7 +48,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * </ul>
  * <p>
  * 修复翻转契约：T-PERM-095 落地后 D01 两断言翻转为「拒绝集为空」；
- * T-PERM-083 落地后 R01 两租户存活集均收敛为「仅 D」且相等（顺序无关）。
+ * T-PERM-083 落地后 R01 两租户存活集均收敛为「仅 D」且相等（顺序无关）——
+ * <b>已翻转（2026-09-26，T-PERM-083 S/H-D 落地）</b>：R01 现锁 S/H-D 终态语义
+ * （对原始集一次算全部命中对、端点并集一次删净），D01 仍锁 PQ-01 现状待 T-PERM-095。
  * D02/D03/R02 修复前后语义不变。queryBatch 逐 item 放行侧由 BatchAuthCheckPgIT ⑤ 同款锁定。
  * </p>
  */
@@ -207,11 +209,11 @@ class MutexSemanticsCharacterizationPgIT {
             .isFalse();
     }
 
-    // ===== R01：PQ-06 角色互斥顺序依赖（两租户两插入序实跑，2026-09-25 拍板） =====
+    // ===== R01：角色互斥 S/H-D 全命中确定化（原 PQ-06 顺序依赖反例锚，2026-09-26 T-PERM-083 翻转为终态锚） =====
 
     @Test
-    @DisplayName("R01 反例：{A,B,C,D}+规则 A-B/B-C——两租户两规则序存活集不同（顺序依赖），且都不是正确答案「仅 D」")
-    void shouldProduceOrderDependentRoleSurvivalUnderChainedMutexRules() {
+    @DisplayName("R01 锚：{A,B,C,D}+规则 A-B/B-C——两租户两规则序存活集均为「仅 D」且相等（S/H-D 顺序无关）")
+    void shouldProduceOrderIndependentRoleSurvivalUnderChainedMutexRules() {
         R2BaselineFixture fx = fixture();
         // 规则处理序双控（selectByConflictType 无 ORDER BY，PG 实际走 uk_conflict_rule_role 索引扫描，
         // 返回序=first_abstract_role_id 索引序，非堆插入序——实测取证 2026-09-25）：
@@ -239,24 +241,21 @@ class MutexSemanticsCharacterizationPgIT {
         Set<String> survivalB = labelsOf(conflictDomainService.resolveJudgementRoleIds(
             R2BaselineFixture.TENANT_R1B, holderB), graphB);
 
-        // PQ-06 特征锚：顺序遍历对不断缩小的结果集判定——任一顺序下 B 必删、D 必留、存活恰 2 个
-        // （先 A-B → {C,D}；先 B-C → {A,D}）。设计 §10.2 R01 正确预期=对原始集算全部命中再一次删除 → 仅 D；
-        // T-PERM-083 修复时两断言翻转为 containsExactly("D")
+        // S/H-D 终态锚（T-PERM-083，2026-09-26 翻转）：对原始集 {A,B,C,D} 一次算全部命中对
+        // H={(A,B),(B,C)}、端点并集 D={A,B,C} 一次删净 → 两租户存活集均为「仅 D」。
+        // 翻转前红跑取证 2026-09-25：租户 A（规则序 A-B→B-C）实际 ["C","D"]、
+        // 租户 B（规则序 B-C→A-B）实际 {A,D}——顺序依赖证据留档。
         assertThat(survivalA)
-            .as("PQ-06 现状（租户 A，规则序 A-B→B-C）：顺序依赖存活集 ≠ 正确答案 {D}"
-                + "（红跑取证 2026-09-25：正确预期 containsExactly(\"D\") 下实际 [\"C\",\"D\"]）")
-            .hasSize(2).contains("D").doesNotContain("B")
-            .isNotEqualTo(Set.of("D"));
+            .as("S/H-D（租户 A，规则序 A-B→B-C）：全命中端点一次删净 → 仅 D")
+            .containsExactlyInAnyOrder("D");
         assertThat(survivalB)
-            .as("PQ-06 现状（租户 B，规则序 B-C→A-B）：顺序依赖存活集 {A,D} ≠ 正确答案 {D}"
-                + "（绿跑 isNotEqualTo 反证取证 2026-09-25）")
-            .hasSize(2).contains("D").doesNotContain("B")
-            .isNotEqualTo(Set.of("D"));
-        // 顺序敏感性实跑证据：同规则集、同持有集、不同规则处理序 → 不同存活集（{C,D} vs {A,D}，
-        // 由本断言绿跑通过反证；T-PERM-083 修复后两边同为 {D}，本断言翻转为 isEqualTo）
+            .as("S/H-D（租户 B，规则序 B-C→A-B）：全命中端点一次删净 → 仅 D")
+            .containsExactlyInAnyOrder("D");
+        // 顺序无关性锚：同规则集、同持有集、不同规则处理序 → 存活集相等
+        // （翻转前本断言为 isNotEqualTo 并绿跑通过，作为顺序敏感性反证留档）
         assertThat(survivalA)
-            .as("PQ-06 顺序敏感性：两种规则处理序产生不同结果（filterRoleMutex 顺序遍历边删边判）")
-            .isNotEqualTo(survivalB);
+            .as("S/H-D 顺序无关：两种规则处理序产生相同结果")
+            .isEqualTo(survivalB);
     }
 
     // ===== R02：只持一端不产生传递冲突（正确语义锚，修复前后不变） =====

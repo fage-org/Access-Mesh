@@ -22,21 +22,37 @@ import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 public interface PermissionConflictDomainService {
 
     /**
-     * 过滤角色互斥冲突
+     * 过滤角色互斥冲突（S/H-D 全命中确定化，T-PERM-083）
      * <p>
-     * 根据角色互斥规则过滤有效角色集合。
-     * 如果用户同时拥有互斥的两个角色，则同时移除这两个角色。
-     * 角色互斥规则从数据库或缓存加载。
-     * 双删命中时记录 CONFLICT_DETECTED 操作日志（T-PERM-063，对齐 PERM_MUTEX 先例；
-     * 每「租户×用户×规则」每 JVM 1 小时至多一条，去重限流）。
+     * 对原始有效角色集 S 一次算全部命中对 H（规则两端都在 S），端点并集 D 一次删净——
+     * 结果与规则顺序无关、不做图连通传递删除（2026-09-25 拍板定案算法；链式双持
+     * 删多为预期收紧，灰度差异按设计 §10.5 预期修复登记）。
+     * 内部复用 {@link #computeRoleMutex} 纯计算（不保留第二种冲突算法），叠加双删通知：
+     * 每「租户×用户×命中对」每 JVM 1 小时至多一条 CONFLICT_DETECTED（T-PERM-063 去重限流）。
      * </p>
      *
      * @param tenantId        租户ID
      * @param userId          用户ID（快照构建方已知，日志归因用）
      * @param effectiveRoleIds 有效角色ID集合
-     * @return 过滤后的有效角色ID集合（移除互斥角色）
+     * @return 过滤后的有效角色ID集合（移除互斥角色；不可变集合）
      */
     Set<Long> filterRoleMutex(Long tenantId, Long userId, Set<Long> effectiveRoleIds);
+
+    /**
+     * S/H-D 纯角色互斥计算（T-PERM-083，不通知）
+     * <p>
+     * 引擎/新核心消费的「不立即通知的角色判定能力」（设计 §5.1）：纯计算只返回保留集与
+     * 全部命中对，通知责任归调用方受控提交（设计 §6.1 根执行统一提交），避免判定入口
+     * 先通知、根执行再发一遍。仍在迁移的旧入口（{@link #filterRoleMutex}）内部复用
+     * 本计算。命中对证据用 {@link RolePairRef}——角色规则缓存仅存角色对、不虚构 ruleId
+     * （uk_conflict_rule_role 唯一约束下角色对↔规则一一对应，配对证据无损）。
+     * </p>
+     *
+     * @param tenantId        租户ID
+     * @param effectiveRoleIds 原始有效角色ID集合
+     * @return 保留角色集（不可变）+ 全部命中对（顺序无关）
+     */
+    RoleMutexComputation computeRoleMutex(Long tenantId, Set<Long> effectiveRoleIds);
 
     /**
      * 解析参与运行时判定的有效角色集（T-PERM-075 共同判定语义唯一入口）。
@@ -127,11 +143,32 @@ public interface PermissionConflictDomainService {
     record RoleMutexAssignConflict(Long userId, Long ruleId, Long firstRoleId, Long secondRoleId) {}
 
     /**
+     * S/H-D 纯计算结果（T-PERM-083）。
+     *
+     * @param keptRoleIds 保留角色集（原始集 − 命中对端点并集）
+     * @param hits        全部命中对（对原始集判定，顺序无关）
+     */
+    record RoleMutexComputation(Set<Long> keptRoleIds, List<RolePairRef> hits) {}
+
+    /**
+     * 角色互斥命中对证据（T-PERM-083，设计 §5.1）。
+     * <p>
+     * 角色规则缓存仅存角色对——证据用角色对本身，不虚构 ruleId；
+     * uk_conflict_rule_role 唯一约束下角色对↔规则一一对应，配对证据无损。
+     * </p>
+     *
+     * @param firstRoleId  互斥角色一
+     * @param secondRoleId 互斥角色二
+     */
+    record RolePairRef(Long firstRoleId, Long secondRoleId) {}
+
+    /**
      * 过滤权限互斥冲突
      * <p>
      * 根据权限互斥规则过滤权限条目列表。
      * 如果用户同时拥有互斥的两个操作权限，则同时移除这两个权限。
-     * 检测到冲突时异步发出通知。
+     * 检测到冲突时异步发出通知——明细由真实命中规则（AND 两端在场）构造，
+     * 不按冲突端点反推（T-PERM-083）。内部复用 {@link #computePermMutex} 纯计算。
      * </p>
      *
      * @param tenantId     租户ID
@@ -139,6 +176,21 @@ public interface PermissionConflictDomainService {
      * @return 过滤后的权限条目列表（移除互斥权限）
      */
     List<RolePermEntry> filterPermMutex(Long tenantId, List<RolePermEntry> passedEntries);
+
+    /**
+     * PERM_MUTEX 单路径纯计算（T-PERM-083，不通知；空规则短路零装载）
+     * <p>
+     * 与批量评估器 {@link BatchPermMutexEvaluator#compute} 同剔除语义、共用结果形状
+     * {@link BatchPermMutexEvaluator.PermMutexComputation}：真实 triggeredRuleIds 由
+     * AND 两端在场判定直返。新核心消费本方法后自管通知（设计 §6.1）；旧入口
+     * {@link #filterPermMutex} 内部复用本计算叠加通知。
+     * </p>
+     *
+     * @param tenantId     租户ID
+     * @param passedEntries 通过初步检查的权限条目列表
+     * @return 过滤后的权限条目列表 + 命中的互斥规则 ID 集合（空集 = 无冲突）
+     */
+    BatchPermMutexEvaluator.PermMutexComputation computePermMutex(Long tenantId, List<RolePermEntry> passedEntries);
 
     /**
      * 创建请求级批量互斥评估器（T-PERM-061 A+ 形态：计算与通知解耦 + 静态数据共享装载）。

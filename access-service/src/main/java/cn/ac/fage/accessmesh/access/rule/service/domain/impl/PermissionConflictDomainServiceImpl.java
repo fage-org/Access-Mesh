@@ -32,8 +32,13 @@ import java.util.stream.Collectors;
  * <p>
  * 提供权限冲突检测和处理功能。
  * 支持两种冲突类型：
- * - ROLE_MUTEX（角色互斥）：两个角色不能同时拥有，发生冲突时同时移除
- * - PERM_MUTEX（权限互斥）：两个操作权限不能同时授予，发生冲突时同时移除
+ * - ROLE_MUTEX（角色互斥）：两个角色不能同时拥有，发生冲突时同时移除——
+ *   S/H-D 全命中确定化（T-PERM-083，2026-09-25 拍板）：对原始集一次算全部命中对、
+ *   端点并集一次删净，顺序无关、无图连通传递删除
+ * - PERM_MUTEX（权限互斥）：两个操作权限不能同时授予，发生冲突时同时移除——
+ *   真实命中规则 AND 判定直返，空规则短路零装载（T-PERM-083）
+ * 纯计算（{@link #computeRoleMutex}/{@link #computePermMutex}）与通知解耦：
+ * 判定入口包装叠加去重通知，新核心消费纯计算自管通知（设计 §5.1/§6.1）。
  * 角色互斥规则通过统一 CacheService 缓存提高查询性能。
  * 检测到权限冲突时，记录操作日志并发出通知（日志写入经 AuditDomainService
  * 有界线程池异步执行，不阻塞主流程）。
@@ -86,12 +91,9 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
     }
 
     /**
-     * 过滤角色互斥冲突
+     * 过滤角色互斥冲突（S/H-D 全命中确定化，T-PERM-083）
      * <p>
-     * 根据角色互斥规则过滤有效角色集合。
-     * 如果用户同时拥有互斥的两个角色，则同时移除这两个角色。
-     * 角色互斥规则通过 CacheService 缓存（JSON格式）。
-     * 双删命中时记录 CONFLICT_DETECTED 操作日志（T-PERM-063，对齐 PERM_MUTEX 先例；
+     * 内部复用 {@link #computeRoleMutex} 纯计算，叠加双删通知（每命中对一条，
      * 去重限流见 {@link #mutexDropNotified}）——此前双删静默无痕，用户权限消失无任何可查记录。
      * </p>
      *
@@ -102,35 +104,59 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
      */
     @Override
     public Set<Long> filterRoleMutex(Long tenantId, Long userId, Set<Long> effectiveRoleIds) {
-        // 从缓存获取角色互斥规则（JSON格式）
+        RoleMutexComputation computation = computeRoleMutex(tenantId, effectiveRoleIds);
+        // S/H-D 对原始集算全部命中对：链式双持各对都通知（旧顺序遍历第二对不再两端在场漏报的形态终结）
+        for (RolePairRef hit : computation.hits()) {
+            notifyRoleMutexDrop(tenantId, userId, hit);
+        }
+        return computation.keptRoleIds();
+    }
+
+    /**
+     * S/H-D 纯角色互斥计算（T-PERM-083，2026-09-25 拍板定案算法；不通知）。
+     * <p>
+     * H = 规则两端都在原始集 S 的全部命中对；D = H 端点并集；结果 = S − D——
+     * 一次算全、一次删净：规则顺序无关（旧顺序遍历边删边判的顺序依赖终结，
+     * registry 2026-09-22 留观②闭合）、仅持单端不成对不删（无图连通传递删除）。
+     * 删多为预期收紧（灰度差异按设计 §10.5 预期修复登记，非回归）。
+     * </p>
+     */
+    @Override
+    public RoleMutexComputation computeRoleMutex(Long tenantId, Set<Long> effectiveRoleIds) {
+        List<RoleMutexPair> mutexPairs = loadMutexPairs(tenantId);
+        List<RolePairRef> hits = new ArrayList<>();
+        Set<Long> dropped = new HashSet<>();
+        for (RoleMutexPair pair : mutexPairs) {
+            if (pair.first() != null && pair.second() != null
+                && effectiveRoleIds.contains(pair.first()) && effectiveRoleIds.contains(pair.second())) {
+                hits.add(new RolePairRef(pair.first(), pair.second()));
+                dropped.add(pair.first());
+                dropped.add(pair.second());
+            }
+        }
+        Set<Long> kept = new HashSet<>(effectiveRoleIds);
+        kept.removeAll(dropped);
+        return new RoleMutexComputation(Set.copyOf(kept), hits);
+    }
+
+    /**
+     * 角色互斥规则装载（ROLE_MUTEX_RULE 缓存 JSON 优先，miss/损坏回源 DB 并回填）。
+     */
+    private List<RoleMutexPair> loadMutexPairs(Long tenantId) {
         String cachedJson = cacheService.get(AccessCacheCatalog.ROLE_MUTEX_RULE, tenantId, "all");
 
-        List<RoleMutexPair> mutexPairs;
         if (cachedJson != null) {
             try {
                 List<Map<String, Long>> cachedRules = objectMapper.readValue(cachedJson,
                     new TypeReference<List<Map<String, Long>>>() {});
-                mutexPairs = cachedRules.stream()
+                return cachedRules.stream()
                     .map(m -> new RoleMutexPair(m.get("first"), m.get("second")))
                     .collect(Collectors.toList());
             } catch (Exception e) {
                 log.warn("Failed to parse cached mutex rules, fallback to DB: tenantId={}", tenantId);
-                mutexPairs = loadMutexRulesFromDb(tenantId);
-            }
-        } else {
-            mutexPairs = loadMutexRulesFromDb(tenantId);
-        }
-
-        Set<Long> result = new HashSet<>(effectiveRoleIds);
-        for (RoleMutexPair pair : mutexPairs) {
-            if (pair.first() != null && pair.second() != null
-                && result.contains(pair.first()) && result.contains(pair.second())) {
-                result.remove(pair.first());
-                result.remove(pair.second());
-                notifyRoleMutexDrop(tenantId, userId, pair);
             }
         }
-        return result;
+        return loadMutexRulesFromDb(tenantId);
     }
 
     /**
@@ -153,10 +179,11 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
      * 双删日志（T-PERM-063）：异步记录 CONFLICT_DETECTED，去重限流。
      * <p>
      * 审计写入经 {@link AuditDomainService#asyncRecordLog} 有界线程池异步执行，不阻塞快照链路。
+     * 证据=角色对（{@link RolePairRef}，缓存仅存角色对不虚构 ruleId，T-PERM-083）。
      * </p>
      */
-    private void notifyRoleMutexDrop(Long tenantId, Long userId, RoleMutexPair pair) {
-        String dedupKey = tenantId + ":" + userId + ":" + pair.first() + ":" + pair.second();
+    private void notifyRoleMutexDrop(Long tenantId, Long userId, RolePairRef pair) {
+        String dedupKey = tenantId + ":" + userId + ":" + pair.firstRoleId() + ":" + pair.secondRoleId();
         if (mutexDropNotified.getIfPresent(dedupKey) != null) {
             return;
         }
@@ -166,7 +193,7 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
                 tenantId, "PERMISSION", "CONFLICT_DETECTED", "permission_conflict_rule", null,
                 String.format("Role mutex dropped: tenantId=%d, userId=%d, roles=%d vs %d "
                     + "(both roles removed from effective set at judgement, T-PERM-075 unified entries)",
-                    tenantId, userId, pair.first(), pair.second()),
+                    tenantId, userId, pair.firstRoleId(), pair.secondRoleId()),
                 null, null, null, OperatorContext.getRequestId(), null, null, null
             ));
         } catch (Exception e) {
@@ -343,9 +370,8 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
     /**
      * 过滤权限互斥冲突
      * <p>
-     * 根据权限互斥规则过滤权限条目列表。
-     * 如果用户同时拥有互斥的两个操作权限，则同时移除这两个权限。
-     * 检测到权限冲突时，异步发出通知并记录操作日志。
+     * 内部复用 {@link #computePermMutex} 纯计算；检测到冲突时异步通知——
+     * 明细由真实命中规则（AND 两端在场）构造，不按冲突端点反推（T-PERM-083）。
      * </p>
      *
      * @param tenantId     租户ID
@@ -354,15 +380,26 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
      */
     @Override
     public List<RolePermEntry> filterPermMutex(Long tenantId, List<RolePermEntry> passedEntries) {
-        PermMutexContext context = computeMutexContext(tenantId, passedEntries);
-
-        // 检测到权限冲突时触发异步通知
-        if (!context.conflictingOpIds().isEmpty()) {
-            notifyPermConflict(tenantId, context.conflictingOpIds(), context.rules());
+        PermMutexComputationInternal computation = computePermMutexInternal(tenantId, passedEntries);
+        if (!computation.triggeredRules().isEmpty()) {
+            notifyPermConflict(tenantId, computation.conflictingOpIds(), computation.triggeredRules());
         }
-        return passedEntries.stream()
-            .filter(entry -> !context.isConflicting(entry))
-            .collect(Collectors.toList());
+        return computation.keptEntries();
+    }
+
+    /**
+     * PERM_MUTEX 单路径纯计算（T-PERM-083，不通知；空规则短路零装载）。
+     * <p>
+     * 与批量评估器 {@link BatchPermMutexEvaluator} 同剔除语义：条目 grantedBits 经
+     * (resourceType, binaryBit) 精确查表解析操作，规则两端都在条目操作 ID 集合中时
+     * 两端全部剔除；真实 triggeredRuleIds 由 AND 判定直返（设计 §5.1）。
+     * </p>
+     */
+    @Override
+    public BatchPermMutexEvaluator.PermMutexComputation computePermMutex(Long tenantId, List<RolePermEntry> passedEntries) {
+        PermMutexComputationInternal computation = computePermMutexInternal(tenantId, passedEntries);
+        return new BatchPermMutexEvaluator.PermMutexComputation(
+            computation.keptEntries(), computation.triggeredRuleIds());
     }
 
     @Override
@@ -374,8 +411,8 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
      * 请求级批量互斥评估器（T-PERM-061：静态数据共享装载 + 计算通知解耦）。
      * <p>
      * 规则惰性装载一次、操作索引按 distinct 类型惰性扩；剔除语义与
-     * {@link #filterPermMutex} 逐分支一致（复用 {@link PermMutexContext} 的
-     * 精确查表与两端同场判定），但不通知——通知由调用方 ledger 聚合后
+     * {@link #filterPermMutex}（内部 {@code computePermMutexInternal}）逐分支一致
+     * （同款精确查表与两端同场判定），但不通知——通知由调用方 ledger 聚合后
      * 经 {@link #notifyHits} 触发（b2 定案）。
      * </p>
      */
@@ -488,11 +525,17 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
 
 
     /**
-     * 计算权限互斥上下文：操作索引、条目覆盖的操作ID集合、命中的互斥规则与冲突操作ID集合
+     * PERM_MUTEX 单路径计算体：操作索引装载、AND 命中规则收集、条目剔除（T-PERM-083）。
      */
-    private PermMutexContext computeMutexContext(Long tenantId, List<RolePermEntry> passedEntries) {
+    private PermMutexComputationInternal computePermMutexInternal(Long tenantId, List<RolePermEntry> passedEntries) {
         List<PermissionConflictRule> rules = conflictRuleMapper.selectByConflictType(
             tenantId, ConflictType.PERM_MUTEX.getValue());
+
+        // I01（T-PERM-083，设计 §5.1）：成功读到空规则即短路——互斥专用操作目录零装载
+        // （旧实现空规则租户每次判定仍按条目类型装载操作目录，纯开销）
+        if (rules.isEmpty()) {
+            return new PermMutexComputationInternal(new ArrayList<>(passedEntries), Set.of(), List.of(), Set.of());
+        }
 
         Set<Integer> resourceTypes = passedEntries.stream()
             .map(RolePermEntry::resourceType)
@@ -513,38 +556,40 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
             .map(OperationPermission::getId)
             .collect(Collectors.toSet());
 
+        // 真实命中规则一次收集（AND 两端在场）：triggeredRuleIds 直返、通知明细不反推（T-PERM-083）
+        Set<Long> triggeredRuleIds = new LinkedHashSet<>();
+        List<PermissionConflictRule> triggeredRules = new ArrayList<>();
         Set<Long> conflictingOpIds = new HashSet<>();
         for (PermissionConflictRule rule : rules) {
-            if (rule.getFirstOperationPermissionId() != null && rule.getSecondOperationPermissionId() != null) {
-                if (opIds.contains(rule.getFirstOperationPermissionId()) && opIds.contains(rule.getSecondOperationPermissionId())) {
-                    conflictingOpIds.add(rule.getFirstOperationPermissionId());
-                    conflictingOpIds.add(rule.getSecondOperationPermissionId());
-                }
+            if (rule.getFirstOperationPermissionId() != null && rule.getSecondOperationPermissionId() != null
+                && opIds.contains(rule.getFirstOperationPermissionId())
+                && opIds.contains(rule.getSecondOperationPermissionId())) {
+                triggeredRuleIds.add(rule.getId());
+                triggeredRules.add(rule);
+                conflictingOpIds.add(rule.getFirstOperationPermissionId());
+                conflictingOpIds.add(rule.getSecondOperationPermissionId());
             }
         }
-        return new PermMutexContext(rules, opByTypeAndBit, opIds, conflictingOpIds);
+
+        List<RolePermEntry> keptEntries = passedEntries.stream()
+            .filter(entry -> {
+                OperationPermission granted = OperationPermissionUtils.findIndexedByResourceTypeAndBinaryBit(
+                    opByTypeAndBit, entry.resourceType(), entry.grantedBits());
+                return granted == null || !conflictingOpIds.contains(granted.getId());
+            })
+            .collect(Collectors.toList());
+        return new PermMutexComputationInternal(keptEntries, triggeredRuleIds, triggeredRules, conflictingOpIds);
     }
 
     /**
-     * 权限互斥上下文（规则 + 操作索引 + 冲突操作ID集合）
+     * PERM_MUTEX 单路径计算结果（内部富形态：公开面见 {@link #computePermMutex}）。
      */
-    private record PermMutexContext(
-        List<PermissionConflictRule> rules,
-        Map<String, OperationPermission> opByTypeAndBit,
-        Set<Long> opIds,
+    private record PermMutexComputationInternal(
+        List<RolePermEntry> keptEntries,
+        Set<Long> triggeredRuleIds,
+        List<PermissionConflictRule> triggeredRules,
         Set<Long> conflictingOpIds
-    ) {
-        OperationPermission grantedOperation(RolePermEntry entry) {
-            return OperationPermissionUtils.findIndexedByResourceTypeAndBinaryBit(
-                opByTypeAndBit, entry.resourceType(), entry.grantedBits());
-        }
-
-        boolean isConflicting(RolePermEntry entry) {
-            OperationPermission granted = grantedOperation(entry);
-            return granted != null && conflictingOpIds.contains(granted.getId());
-        }
-
-    }
+    ) {}
 
     /**
      * 角色互斥对内部记录类
@@ -558,6 +603,8 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
      * 通知权限冲突（记录冲突操作日志）。
      * <p>
      * 检测到权限互斥冲突时记录冲突的租户ID、操作权限ID集合、触发规则详情。
+     * detail 由真实命中规则（AND 两端在场，计算期收集）构造——不按冲突端点 OR 反推：
+     * 旧反推会把仅单端恰好落在冲突操作集的未触发规则也列入明细（T-PERM-083 终结）。
      * 本方法由同类方法内调用（self-invocation），无 Spring 代理，故不再标注
      * {@code @Async}（标注了也不生效）；"异步"职责统一归到底层
      * {@link AuditDomainService#asyncRecordLog}（其自身 {@code @Async} + REQUIRES_NEW
@@ -566,13 +613,11 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
      *
      * @param tenantId         租户ID
      * @param conflictingOpIds 冲突的操作权限ID集合
-     * @param triggeredRules   触发的冲突规则列表
+     * @param triggeredRules   真实触发的冲突规则列表（AND 判定收集，非反推）
      */
     void notifyPermConflict(Long tenantId, Set<Long> conflictingOpIds, List<PermissionConflictRule> triggeredRules) {
         try {
             String detail = triggeredRules.stream()
-                .filter(r -> conflictingOpIds.contains(r.getFirstOperationPermissionId())
-                          || conflictingOpIds.contains(r.getSecondOperationPermissionId()))
                 .map(r -> String.format("rule[%d]: op%d vs op%d", r.getId(),
                     r.getFirstOperationPermissionId(), r.getSecondOperationPermissionId()))
                 .collect(Collectors.joining("; "));
@@ -580,7 +625,8 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
                 tenantId, conflictingOpIds, detail);
             auditDomainService.asyncRecordLog(new AuditDomainService.OperationLogEntry(
                 tenantId, "PERMISSION", "CONFLICT_DETECTED", "permission_conflict_rule", null,
-                String.format("Perm conflict blocked: tenantId=%d, ops=%s", tenantId, conflictingOpIds),
+                String.format("Perm conflict blocked: tenantId=%d, ops=%s, detail=%s",
+                    tenantId, conflictingOpIds, detail),
                 null, null, null, OperatorContext.getRequestId(), null, null, null
             ));
         } catch (Exception e) {
