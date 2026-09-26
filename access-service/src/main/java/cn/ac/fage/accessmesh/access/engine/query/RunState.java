@@ -86,8 +86,6 @@ final class RunState {
         }
     }
 
-    Throwable executionFailure() { return executionFailure; }
-
     boolean executionFailed() { return executionFailure != null; }
 
     /** 父项证据标识序列（本次执行内唯一；父项不占调用方 key 空间）。 */

@@ -96,12 +96,24 @@ class QueryAuditAndTraceTest {
             Set<Long> ids = i.getArgument(2);
             return instanceRows.stream().filter(r -> ids.contains(r.getResourceEntityId())).toList();
         });
+        engine = newEngine(metrics);
+    }
+
+    /** 复用同一批 mock 部件构造引擎（不同指标实现的回归锁用）。 */
+    QueryExecutionEngine newEngine(QueryEngineMetrics metricsImpl) {
         var conditions = new PermissionConditionDomainServiceImpl(conditionMapper,
             mock(RoleResourcePermissionDomainService.class), new ObjectMapper(), cache);
         var conflicts = new PermissionConflictDomainServiceImpl(rules, cache, new ObjectMapper(), audit, operations, subjects);
-        engine = new QueryExecutionEngine(clock,
+        return new QueryExecutionEngine(clock,
             new QueryReadSupport(types, operations, resources, roleMapper, grants, cache, new RolePermEntryMapper()),
-            subjects, conditions, conflicts, resourceMapper, new QueryAuditCollector(audit, metrics), metrics);
+            subjects, conditions, conflicts, resourceMapper, new QueryAuditCollector(audit, metricsImpl), metricsImpl);
+    }
+
+    /** 新核心直连的互斥评估器（describeRules 契约锁用）。 */
+    cn.ac.fage.accessmesh.access.engine.core.BatchPermMutexEvaluator mutexEvaluator() {
+        var conflicts = new PermissionConflictDomainServiceImpl(rules, cache, new ObjectMapper(), audit, operations, subjects);
+        return conflicts.openBatchMutexEvaluator(1L, requested -> definitions.stream()
+            .filter(op -> requested.contains(op.getResourceType())).toList());
     }
 
     static OperationPermission operation(long id, int type, String code, long bit, long inherit) {
@@ -423,5 +435,68 @@ class QueryAuditAndTraceTest {
         executeAsUser(500L, QueryItem.decision("a", target(clause(100)), OutputSpec.minimal()));
         assertThat(metrics.events).contains("stage:TARGET_SET:INSTANCE:SKIPPED_NO_ROLE");
         assertThat(metrics.events).contains("execution:SUCCESS");
+    }
+
+    // ===== 外评 P3 回归锁：打点失败不得放大为查询故障或覆盖主异常 =====
+
+    @Test
+    void should_isolateMetricFailures_fromQueryOutcomeAndEvidenceSubmission() {
+        QueryEngineMetrics throwing = new QueryEngineMetrics() {
+            @Override public void itemStage(SelectionKind selection, Stage stage, StageOutcome outcome) {
+                throw new IllegalStateException("metric backend down");
+            }
+            @Override public void executionCompleted(ExecutionOutcome outcome) {
+                throw new IllegalStateException("metric backend down");
+            }
+            @Override public void evidenceSubmissionFailed(EvidenceKind evidenceKind) {
+                throw new IllegalStateException("metric backend down");
+            }
+        };
+        var safeEngine = newEngine(throwing);
+        instanceRows.add(grant(101, 1, 100L, 2));
+        var result = safeEngine.execute(new QueryRequest(1L, new Roles(Set.of(10L)), CallerContext.of(null),
+            ReadOptions.defaults(), List.of(QueryItem.decision("a", target(clause(100)), OutputSpec.minimal()))));
+        assertThat(((DecisionResult) result.orderedResults().get(0)).outcome())
+            .as("打点实现抛异常不改变查询结果、不外抛（观测故障不放大为查询故障）")
+            .isEqualTo(DecisionResult.Decision.ALLOW);
+        verify(audit, never()).asyncRecordLog(any());
+    }
+
+    // ===== 外评 P3 回归锁：describeRules 对端点缺失规则不 NPE（与 compute AND 判定同守卫） =====
+
+    @Test
+    void should_skipNullEndpointRulesInDescribeRules_whenRuleRowHasMissingEndpoints() {
+        var broken = permRule(97L, 11L, 12L);
+        broken.setSecondOperationPermissionId(null);
+        permMutexRules(permRule(90L, 11L, 12L), broken);
+        var evaluator = mutexEvaluator();
+        // 先经 compute 触发规则装载（VIEW+UPDATE 两端在场触发规则 90；97 端点缺失不满足 AND 判定）
+        var view = new cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry(101L, 10L, 100L, null,
+            1, 2L, null, null, "MANUAL", true, null, false, null, false);
+        var update = new cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry(102L, 10L, 100L, null,
+            1, 4L, null, null, "MANUAL", true, null, false, null, false);
+        assertThat(evaluator.compute(List.of(view, update)).triggeredRuleIds()).containsExactly(90L);
+        assertThat(evaluator.describeRules(Set.of(97L)))
+            .as("端点缺失规则不进规则引用（MutexRuleRef 组件为 long，null 拆箱 NPE）")
+            .isEmpty();
+    }
+
+    // ===== 外评 P3 回归锁：>8 受影响根项不折叠计数，key 列表保留在摘要 =====
+
+    @Test
+    void should_keepAllAffectedKeysInSummary_whenMoreThanEightRootItemsShareRolePair() {
+        roleMutexRules(roleRule(80L, 10L, 20L));
+        when(subjects.resolveEffectiveRoles(1L, 500L)).thenReturn(Set.of(10L, 20L, 30L));
+        instanceRows.add(grant(101, 1, 100L, 2));
+        var items = new ArrayList<QueryItem>();
+        for (int i = 1; i <= 9; i++) {
+            items.add(QueryItem.decision("key-" + i, target(clause(100)), OutputSpec.minimal()));
+        }
+        executeAsUser(500L, items.toArray(QueryItem[]::new));
+        assertThat(auditSummaries()).singleElement().satisfies(summary -> {
+            assertThat(summary).contains("key-1").contains("key-9")
+                .as("9 个根项仍逐一列出（不折叠为计数）且 completion 在 affected 前")
+                .matches(s -> s.indexOf("completion=COMPLETE") < s.indexOf("affected="));
+        });
     }
 }

@@ -489,9 +489,11 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
             if (ruleIds == null || ruleIds.isEmpty() || rules == null) {
                 return List.of();
             }
+            // 端点缺失规则与 compute 的 AND 判定同守卫（外评 P3：MutexRuleRef 组件为 long，null 拆箱 NPE）
             return ruleIds.stream().sorted()
                 .map(ruleById::get)
                 .filter(Objects::nonNull)
+                .filter(rule -> rule.getFirstOperationPermissionId() != null && rule.getSecondOperationPermissionId() != null)
                 .map(rule -> new MutexRuleRef(rule.getId(),
                     rule.getFirstOperationPermissionId(), rule.getSecondOperationPermissionId()))
                 .toList();

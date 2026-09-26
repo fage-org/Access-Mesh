@@ -8,6 +8,8 @@ import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService;
 import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -31,6 +33,7 @@ import java.util.UUID;
  * 不调用旧完整核心，所有请求状态随 RunState 释放；Clock 沿进程本地时钟语义。
  */
 public final class QueryExecutionEngine {
+    private static final Logger log = LoggerFactory.getLogger(QueryExecutionEngine.class);
     private final Clock clock;
     private final QueryReadSupport reads;
     private final SubjectDomainService subjects;
@@ -51,7 +54,31 @@ public final class QueryExecutionEngine {
         this.conflicts = Objects.requireNonNull(conflicts);
         this.resourceMapper = Objects.requireNonNull(resourceMapper);
         this.audit = Objects.requireNonNull(audit);
-        this.metrics = metrics == null ? QueryEngineMetrics.noop() : metrics;
+        // 打点失败不得放大为查询故障或覆盖主异常/跳过 release（外评 P3：Micrometer 绑定 089+ 接线后的防御面）
+        QueryEngineMetrics target = metrics == null ? QueryEngineMetrics.noop() : metrics;
+        this.metrics = new QueryEngineMetrics() {
+            @Override public void itemStage(SelectionKind selection, Stage stage, StageOutcome outcome) {
+                try {
+                    target.itemStage(selection, stage, outcome);
+                } catch (RuntimeException error) {
+                    log.warn("Query stage metric failed: {}", error.getMessage());
+                }
+            }
+            @Override public void executionCompleted(ExecutionOutcome outcome) {
+                try {
+                    target.executionCompleted(outcome);
+                } catch (RuntimeException error) {
+                    log.warn("Query execution metric failed: {}", error.getMessage());
+                }
+            }
+            @Override public void evidenceSubmissionFailed(EvidenceKind evidenceKind) {
+                try {
+                    target.evidenceSubmissionFailed(evidenceKind);
+                } catch (RuntimeException error) {
+                    log.warn("Query evidence metric failed: {}", error.getMessage());
+                }
+            }
+        };
     }
 
     /** 结构错误零权限 I/O 拒绝；技术故障保留原异常并包装，不伪装 DENY 或返回半批结果。 */
@@ -309,7 +336,7 @@ public final class QueryExecutionEngine {
         RunState.ItemExecution state = run.items().get(item);
         Map<Stage, SkipReason> skipped = state.parentDenied ? Map.of(Stage.GRANT_LIST, SkipReason.PARENT_DENIED)
             : state.shortCircuited ? Map.of(Stage.INSTANCE, SkipReason.SUFFICIENT_DECISION) : Map.of();
-        emitStageMetrics(item, skipped, state.stages.keySet());
+        emitStageMetrics(item, skipped);
         ConditionCoverage condition = !state.hadRaw() ? ConditionCoverage.NO_CANDIDATE
             : item.evaluation().conditionMode() == ConditionMode.EVALUATE ? ConditionCoverage.EVALUATED : ConditionCoverage.PRESERVED;
         MutexCoverage mutex = !state.mutexCandidate ? MutexCoverage.NO_CANDIDATE
@@ -335,7 +362,7 @@ public final class QueryExecutionEngine {
         List<ItemResult> results = run.request().items().stream().map(item -> {
             Map<Stage, SkipReason> skipped = new EnumMap<>(Stage.class);
             applicableStages(item.selection()).forEach(stage -> skipped.put(stage, SkipReason.NO_ROLE));
-            emitStageMetrics(item, skipped, Set.of());
+            emitStageMetrics(item, skipped);
             boolean parentRequired = item.selection() instanceof TargetSet t && t.parent() != null
                 || item.selection() instanceof GrantList g && g.requiredParent() != null;
             EvaluationCoverage coverage = new EvaluationCoverage(run.subjectResolution(), ConditionCoverage.NO_CANDIDATE,
@@ -351,8 +378,9 @@ public final class QueryExecutionEngine {
         return new QueryResult(run.executionId(), run.evaluatedAt(), results);
     }
 
-    /** 阶段终态打点：维度全部为固定枚举（§6.1 低基数——无任何目标标识进入标签）。 */
-    private void emitStageMetrics(QueryItem item, Map<Stage, SkipReason> skipped, Set<Stage> completed) {
+    /** 阶段终态打点：维度全部为固定枚举（§6.1 低基数——无任何目标标识进入标签）；
+     * 打点集合=applicableStages，实际执行与短路由 skipped 对齐（跳过即不记 COMPLETED）。 */
+    private void emitStageMetrics(QueryItem item, Map<Stage, SkipReason> skipped) {
         QueryEngineMetrics.SelectionKind selection = selectionKind(item.selection());
         applicableStages(item.selection()).forEach(stage -> metrics.itemStage(selection, stage,
             skipped.containsKey(stage) ? stageOutcome(skipped.get(stage)) : QueryEngineMetrics.StageOutcome.COMPLETED));

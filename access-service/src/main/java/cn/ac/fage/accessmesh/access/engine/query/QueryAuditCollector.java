@@ -37,8 +37,9 @@ final class QueryAuditCollector {
 
     private final AuditDomainService audit;
     private final QueryEngineMetrics metrics;
+    // 沿旧表双保险口径：有界（10000 条）＋ expireAfterWrite(1h)（外评 P3：只沿 TTL 丢了界）
     private final Cache<String, Boolean> rolePairNotified = Caffeine.newBuilder()
-        .expireAfterWrite(Duration.ofHours(1)).build();
+        .maximumSize(10_000).expireAfterWrite(Duration.ofHours(1)).build();
 
     QueryAuditCollector(AuditDomainService audit, QueryEngineMetrics metrics) {
         this.audit = audit;
@@ -92,21 +93,20 @@ final class QueryAuditCollector {
             summary(evidence), null, null, null, null, null, null, null));
     }
 
-    /** 单行单规则的结构化摘要（角色/授权 ID 仅入内部审计行；summary 截断由审计服务兜底）。 */
+    /** 单行单规则的结构化摘要（角色/授权 ID 仅入内部审计行）。固定字段全部前移、变长 affected
+     * 殿后：512 尾截时只损失 key 列表尾部，completion 等关键标记不先丢（外评 P3 合并修）；
+     * key 列表不按条数折叠（外评 P3：9 个短 key 远短于列上限，折叠先丢关联信息）。 */
     private static String summary(ConflictEvidence evidence) {
         RuleRef rule = evidence.ruleRef();
-        String affected = evidence.affectedRootItemKeys().size() > 8
-            ? evidence.affectedRootItemKeys().size() + " items"
-            : evidence.affectedRootItemKeys().toString();
         if (rule instanceof RolePair pair) {
-            return String.format("Role mutex evidence: execution=%s, pair=%d vs %d, affected=%s, completion=%s",
+            return String.format("Role mutex evidence: execution=%s, pair=%d vs %d, completion=%s, affected=%s",
                 evidence.executionId(), pair.firstRoleId(), pair.secondRoleId(),
-                affected, evidence.completion());
+                evidence.completion(), evidence.affectedRootItemKeys());
         }
         PermRuleId perm = (PermRuleId) rule;
-        return String.format("Perm conflict evidence: execution=%s, item=%s, stage=%s, rule=%d, ops=%s, affected=%s, completion=%s",
+        return String.format("Perm conflict evidence: execution=%s, item=%s, stage=%s, rule=%d, ops=%s, completion=%s, affected=%s",
             evidence.executionId(), evidence.evaluationItemId(), evidence.stage(), perm.ruleId(),
-            evidence.actualConflictingOperationIds(), affected, evidence.completion());
+            evidence.actualConflictingOperationIds(), evidence.completion(), evidence.affectedRootItemKeys());
     }
 
     private void recordFailure(ConflictEvidence evidence, RunState run, RuntimeException error) {
