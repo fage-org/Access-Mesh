@@ -327,4 +327,62 @@ class QueryReadSupportTest {
         verify(roles, times(1)).selectValidByIds(1L, Set.of(10L));
         verifyNoInteractions(types);
     }
+
+    @Test
+    void should_refillMasksFromNewDatabaseRead_whenFreshWasLoadedBeforeInvalidation() {
+        OperationPermission before = operation(12, 1, "UPDATE", 4);
+        before.setInheritMask(2L);
+        OperationPermission after = operation(12, 1, "UPDATE", 4);
+        after.setInheritMask(0L);
+        when(operations.selectByTenantAndResourceTypes(1L, Set.of(1))).thenReturn(List.of(before), List.of(after));
+        RunState run = run(ListGrantRead.DATABASE);
+        assertThat(reads.freshOperations(run, Set.of(1)).get(1).getFirst().inheritMask()).isEqualTo(2);
+        // 此后管理员提交 inheritMask=0 并失效缓存；getBatch 缺省空 map 模拟该 miss。
+        assertThat(reads.maskOperations(run, Set.of(1)).get(1).getFirst().inheritMask()).isZero();
+        assertThat(reads.freshOperations(run, Set.of(1)).get(1).getFirst().inheritMask()).isEqualTo(2);
+        verify(operations, times(2)).selectByTenantAndResourceTypes(1L, Set.of(1));
+        verify(cache).putBatch(eq(AccessCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE), eq(1L), argThat(data ->
+            data.get(AccessCacheCatalog.operationPermissionsByTypeKey(1)).get(12L).getInheritMask() == 0L));
+    }
+
+    @Test
+    void should_notRefillPartialIdMemory_whenColdMaskDirectoryIsLoaded() {
+        when(operations.selectValidByIds(1L, Set.of(11L))).thenReturn(List.of(operation(11, 1, "VIEW", 2)));
+        when(operations.selectByTenantAndResourceTypes(1L, Set.of(1))).thenReturn(List.of(operation(11, 1, "VIEW", 8)));
+        RunState run = run(ListGrantRead.DATABASE);
+        reads.freshOperationsByIds(run, Set.of(11L));
+        assertThat(reads.maskOperations(run, Set.of(1)).get(1).getFirst().binaryBit()).isEqualTo(8);
+        assertThat(reads.freshOperationsByIds(run, Set.of(11L)).get(11L).binaryBit()).isEqualTo(2);
+        verify(cache).putBatch(eq(AccessCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE), eq(1L), argThat(data ->
+            data.get(AccessCacheCatalog.operationPermissionsByTypeKey(1)).get(11L).getBinaryBit() == 8L));
+    }
+
+    @Test
+    void should_preserveFirstMissingIdOnlyInThisRun_andNeverWriteItToSharedMasks() {
+        when(operations.selectByTenantAndResourceTypes(1L, Set.of(1))).thenReturn(List.of(operation(11, 1, "VIEW", 2)));
+        RunState run = run(ListGrantRead.DATABASE);
+        assertThat(reads.freshOperationsByIds(run, Set.of(11L))).isEmpty();
+        assertThat(reads.freshOperations(run, Set.of(1)).get(1)).isEmpty();
+        assertThat(reads.freshOperationsByIds(run, Set.of(11L))).isEmpty();
+        assertThat(reads.maskOperations(run, Set.of(1)).get(1)).extracting(OperationDefinition::id).containsExactly(11L);
+        assertThat(reads.freshOperations(run, Set.of(1)).get(1)).isEmpty();
+        assertThat(reads.freshOperations(run(ListGrantRead.DATABASE), Set.of(1)).get(1))
+            .extracting(OperationDefinition::id).containsExactly(11L);
+        verify(operations, times(1)).selectValidByIds(1L, Set.of(11L));
+    }
+
+    @Test
+    void should_resolveDistinctIds_whenCodeAndCodeTypeContainColons() {
+        when(types.batchResolveTypeValues(1L, "resource_type", Set.of("REPORT"))).thenReturn(Map.of("REPORT", 1));
+        ResourceEntity first = new ResourceEntity();
+        first.setId(100L); first.setResourceType(1); first.setCode("sys:user"); first.setCodeType("default");
+        ResourceEntity second = new ResourceEntity();
+        second.setId(200L); second.setResourceType(1); second.setCode("sys"); second.setCodeType("user:default");
+        when(resources.selectByTypesAndCodesAndCodeTypes(1L, Set.of(1), Set.of("sys:user", "sys"), Set.of("default", "user:default")))
+            .thenReturn(List.of(first, second));
+        ResourceResolveRequest firstKey = new ResourceResolveRequest("REPORT", "sys:user", "default", null);
+        ResourceResolveRequest secondKey = new ResourceResolveRequest("REPORT", "sys", "user:default", null);
+        assertThat(reads.resolveResources(run(ListGrantRead.DATABASE), List.of(firstKey, secondKey)))
+            .containsExactlyInAnyOrderEntriesOf(Map.of(firstKey.toKey(), 100L, secondKey.toKey(), 200L));
+    }
 }

@@ -19,7 +19,6 @@ import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomainService;
 import cn.ac.fage.accessmesh.common.cache.CacheReadToken;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
-import cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtil;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -65,9 +64,7 @@ final class QueryReadSupport {
         Set<Integer> requested = nonNull(requestedTypes);
         Set<Integer> missing = missing(requested, memory.freshByType);
         if (!missing.isEmpty()) {
-            List<OperationPermission> rows = new ArrayList<>();
-            SqlBatches.forEach(List.copyOf(missing), batch -> rows.addAll(
-                operations.selectByTenantAndResourceTypes(run.request().tenantId(), new LinkedHashSet<>(batch))));
+            List<OperationPermission> rows = loadOperationRows(run, missing);
             // 全批成功后再发布完整性标记；异常不伪装成空目录。
             Map<Integer, Map<Long, OperationDefinition>> loaded = new LinkedHashMap<>();
             missing.forEach(type -> loaded.put(type, new LinkedHashMap<>()));
@@ -107,6 +104,13 @@ final class QueryReadSupport {
         return memory.freshDefinitionIndex.get(row.getId());
     }
 
+    private List<OperationPermission> loadOperationRows(RunState run, Set<Integer> requestedTypes) {
+        List<OperationPermission> rows = new ArrayList<>();
+        SqlBatches.forEach(List.copyOf(requestedTypes), batch -> rows.addAll(
+            operations.selectByTenantAndResourceTypes(run.request().tenantId(), new LinkedHashSet<>(batch))));
+        return rows;
+    }
+
     /** 普通判定的长 TTL 掩码目录，与 freshDefinitionIndex 单向隔离：缓存命中不填新鲜桶。 */
     Map<Integer, List<OperationDefinition>> maskOperations(RunState run, Set<Integer> requestedTypes) {
         Memory memory = run.readMemory();
@@ -127,10 +131,14 @@ final class QueryReadSupport {
                 }
             }
             if (!misses.isEmpty()) {
-                Map<Integer, List<OperationDefinition>> loaded = freshOperations(run, misses);
+                // 共享缓存回填必须使用本次数据库读取，不能发布 RunState 的旧值/负记忆。
+                List<OperationPermission> rows = loadOperationRows(run, misses);
+                Map<Integer, List<OperationDefinition>> loaded = new LinkedHashMap<>();
+                misses.forEach(type -> loaded.put(type, new ArrayList<>()));
+                rows.forEach(row -> loaded.get(row.getResourceType()).add(OperationDefinition.from(row)));
                 Map<String, Map<Long, OperationPermission>> refill = new LinkedHashMap<>();
                 loaded.forEach((type, definitions) -> {
-                    memory.maskByType.put(type, definitions);
+                    memory.maskByType.put(type, List.copyOf(definitions));
                     Map<Long, OperationPermission> byId = new LinkedHashMap<>();
                     definitions.forEach(definition -> byId.put(definition.id(), definition.toCacheRow()));
                     refill.put(AccessCacheCatalog.operationPermissionsByTypeKey(type), byId);
@@ -189,19 +197,19 @@ final class QueryReadSupport {
             Map<String, Integer> typeValues = resolveTypes(run, missing.stream()
                 .map(ResourceResolveKey::resourceTypeCode).collect(Collectors.toSet()));
             List<ResourceResolveKey> resolvable = missing.stream().filter(key -> typeValues.containsKey(key.resourceTypeCode())).toList();
-            Map<String, Long> loaded = new LinkedHashMap<>();
+            Map<ResourceIdentity, Long> loaded = new LinkedHashMap<>();
             SqlBatches.forEach(resolvable, batch -> {
                 Set<Integer> resourceTypes = batch.stream().map(key -> typeValues.get(key.resourceTypeCode())).collect(Collectors.toSet());
                 Set<String> codes = batch.stream().map(ResourceResolveKey::resourceCode).collect(Collectors.toSet());
                 Set<String> codeTypes = batch.stream().map(key -> defaultCodeType(key.codeType())).collect(Collectors.toSet());
                 resources.selectByTypesAndCodesAndCodeTypes(run.request().tenantId(), resourceTypes, codes, codeTypes)
-                    .forEach(row -> loaded.put(BusinessKeyUtil.resourceTripleValueKey(row.getResourceType(),
+                    .forEach(row -> loaded.put(new ResourceIdentity(row.getResourceType(),
                         row.getCode(), defaultCodeType(row.getCodeType())), row.getId()));
             });
             // SQL 可装载笛卡尔超集，按原始完整配对取回；域分类不进入鉴权查询管线。
             missing.forEach(key -> {
                 Integer type = typeValues.get(key.resourceTypeCode());
-                Long id = type == null ? null : loaded.get(BusinessKeyUtil.resourceTripleValueKey(type,
+                Long id = type == null ? null : loaded.get(new ResourceIdentity(type,
                     key.resourceCode(), defaultCodeType(key.codeType())));
                 memory.resourceIds.put(key, Optional.ofNullable(id));
             });
@@ -378,4 +386,7 @@ final class QueryReadSupport {
     }
 
     private record GrantLoad(boolean scopeAll, Set<Long> roles, Set<Long> entities, Map<Integer, Long> masks) {}
+
+    /** 内存精确匹配用字段元组；code/codeType 可含冒号，不能用跨层编码字符串作身份键。 */
+    private record ResourceIdentity(Integer resourceType, String code, String codeType) {}
 }

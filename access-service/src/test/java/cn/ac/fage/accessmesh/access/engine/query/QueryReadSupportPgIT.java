@@ -153,6 +153,45 @@ class QueryReadSupportPgIT {
             .containsKey(R2BaselineFixture.ROLE_A);
     }
 
+    @Test
+    void should_keepColonContainingIdentitiesDistinct_whenSqlReturnsBothResources() {
+        long tenant = R2BaselineFixture.TENANT;
+        int type = R2BaselineFixture.TYPE_T1;
+        Long first = jdbc.queryForObject("INSERT INTO resource_entity(tenant_id,resource_type,code,code_type,name) VALUES (?,?,?,?,?) RETURNING id",
+            Long.class, tenant, type, "r2b:colon", "default", "colon first");
+        Long second = jdbc.queryForObject("INSERT INTO resource_entity(tenant_id,resource_type,code,code_type,name) VALUES (?,?,?,?,?) RETURNING id",
+            Long.class, tenant, type, "r2b", "colon:default", "colon second");
+        ResourceResolveRequest firstKey = new ResourceResolveRequest(R2BaselineFixture.TYPE_T1_CODE, "r2b:colon", "default", null);
+        ResourceResolveRequest secondKey = new ResourceResolveRequest(R2BaselineFixture.TYPE_T1_CODE, "r2b", "colon:default", null);
+        assertThat(reads.resolveResources(run(tenant, ListGrantRead.DATABASE), List.of(firstKey, secondKey)))
+            .containsExactlyInAnyOrderEntriesOf(Map.of(firstKey.toKey(), first, secondKey.toKey(), second));
+    }
+
+    @Test
+    void should_refillRedisFromCurrentDatabase_whenOldFreshMemorySurvivesInvalidation() {
+        long tenant = R2BaselineFixture.TENANT;
+        int type = R2BaselineFixture.TYPE_T1;
+        long operationId = R2BaselineFixture.OP_T1_UPDATE;
+        String cacheKey = AccessCacheCatalog.operationPermissionsByTypeKey(type);
+        Long originalMask = jdbc.queryForObject("SELECT inherit_mask FROM operation_permission WHERE tenant_id=? AND id=?",
+            Long.class, tenant, operationId);
+        RunState run = run(tenant, ListGrantRead.DATABASE);
+        reads.freshOperations(run, Set.of(type));
+        try {
+            jdbc.update("UPDATE operation_permission SET inherit_mask=0 WHERE tenant_id=? AND id=?", tenant, operationId);
+            cache.evict(AccessCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenant, cacheKey);
+            assertThat(reads.maskOperations(run, Set.of(type)).get(type))
+                .filteredOn(definition -> definition.id() == operationId)
+                .extracting(OperationDefinition::inheritMask).containsExactly(0L);
+            var shared = cache.get(AccessCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenant, cacheKey);
+            assertThat(shared.get(operationId).getInheritMask()).isZero();
+            assertThat(reads.freshOperationsByIds(run, Set.of(operationId)).get(operationId).inheritMask()).isEqualTo(originalMask);
+        } finally {
+            jdbc.update("UPDATE operation_permission SET inherit_mask=? WHERE tenant_id=? AND id=?", originalMask, tenant, operationId);
+            cache.evict(AccessCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenant, cacheKey);
+        }
+    }
+
     @Intercepts(@Signature(type = StatementHandler.class, method = "prepare", args = {Connection.class, Integer.class}))
     static class SqlCounter implements Interceptor {
         final AtomicInteger operations = new AtomicInteger();

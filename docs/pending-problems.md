@@ -1,8 +1,8 @@
 ---
 doc_type: problems
 title: 待解决问题清单
-counter: Q-043           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-25（R2 计划立项核对：open 问题逐条对照，无一项由该计划直接解决；Q-040 加 T-ACCESS-059 对齐注记。此前 2026-09-24：Q-033 resolved 随 T-ACCESS-055 收敛+Q-034 拍板注记、Q-006 终结随 T-ACCESS-054、Q-043 登记）
+counter: Q-044           # 已分配最大问题号；分配后冻结，不复用不重排
+last_updated: 2026-09-26
 ---
 
 # 待解决问题清单（pending problems）
@@ -12,6 +12,19 @@ last_updated: 2026-09-25（R2 计划立项核对：open 问题逐条对照，无
 **边界**：决定（含“不解决”拍板）当轮归所属权威规范或任务，本文件只更新问题状态与引用；不复制规则、例外正文或转出后的实施细节。统一协议见 [文档治理](design/project-rules.md#decision-governance)，主题定位见[定案入口](design/decision-registry.md)。
 
 ## 未收敛问题
+
+## Q-044 旧共享批量资源解析使用拼接键——code/codeType 含冒号时可绑定到另一资源
+
+- **状态**：open
+- **登记**：2026-09-26
+- **来源**：T-PERM-084 外部评审与同型调用链核对
+- **关联**：[T-PERM-084](tasks/T-PERM-084.md)；engine/implementation.md 业务键内存元组边界
+
+**现象与证据**：`TypeResolutionServiceImpl.batchResolveResourceIds` 的 resourceLookup 使用 `BusinessKeyUtil.resourceCodeTypeKey`（`resourceCode + ":" + codeType`）。同类型下 `("sys:user","default")` 与 `("sys","user:default")` 同为 `sys:user:default`，两编码同批查询时可互相覆盖。`ResourceManageAppServiceImpl.TripleKey` 已明确 code/codeType 可含冒号，采用字段元组。084 新 QueryReadSupport 已独立修正该形态；旧共享入口仍被 PermQueryEngine、PermissionGrantDomainServiceImpl、PermissionGrantPlanDomainServiceImpl、UserMenuQueryAppServiceImpl、ResourceEntitySyncAppServiceImpl 和 ResourceManageAppServiceImpl 的父资源解析消费。
+
+**影响**：命中上述同批数据形态时可能将资源键绑定到另一资源 ID，影响旧鉴权/转授/授权计划或父资源解析。R2 迁移只替换旧引擎消费面，不能据此认为共享解析服务的全部消费方已修复。未宣称已发生线上事故。
+
+**设想方向（未定案）**：在共享解析入口使用结构化内存键并验证全部消费方，保持跨层 BusinessKeyUtil 编码格式不变；具体范围和验收需单独确定。本卡仅改新读取部件，不扩修旧路径。
 
 ## Q-043 显式清空协议同型字段未覆盖——condition description、menu path/icon、OAuth2 client 字段族仍无清空通道
 
