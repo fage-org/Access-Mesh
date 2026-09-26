@@ -77,7 +77,7 @@ last_updated: 2026-09-26
 | [T-PERM-092](../tasks/T-PERM-092.md) | 删除旧执行体与四旧 DTO（R2-T13） | ⚙️ |
 | [T-PERM-093](../tasks/T-PERM-093.md) | 候选/规则索引与性能测量（R2-T14） | ⚙️ |
 | [T-PERM-094](../tasks/T-PERM-094.md) | 灰度、故障、缓存与发布演练（R2-T15） | ⚙️ |
-| [T-PERM-095](../tasks/T-PERM-095.md) | （基线补卡，无报告编号）getDenied* 跨 item 互斥最小修复——与 T-PERM-083 构成回退基线 | ⚙️ |
+| [T-PERM-095](../tasks/T-PERM-095.md) | （基线补卡，无报告编号）getDenied* 跨 item 互斥最小修复——与 T-PERM-083 构成回退基线 | ✅ |
 
 ### ADM 系列（操作准入方案 A，T-ACCESS-056~062）
 
@@ -108,6 +108,7 @@ last_updated: 2026-09-26
 - 2026-09-25 T-PERM-081 完成：R2 语义基线资产三件落库（`R2BaselineFixture`＋`MutexSemanticsCharacterizationPgIT`〔PQ-01/06 反例锚，断言=锁当前行为、T-PERM-083/095 修复时翻转〕＋`QuerySemanticsBaselinePgIT`〔四族 X03 差分锚〕，入册 A.7）；红跑取证与三项拍板见 registry 同日行。
 - 2026-09-25 T-PERM-082 完成：`engine/query` 新包契约模型＋结构校验＋骨架 execute（`QueryExecutionEngine` 暂名，零消费者与旧引擎并行——三项拍板见 registry 同日行，设计 §4.1 已补迁移期注）；契约单测 C01~C08/R03/I07 按结构半边口径落锁，R03 事实半边/C06 判定版分别随 T-PERM-086/085 补。
 - 2026-09-26 T-PERM-083 完成：S/H-D 就地落地（`computeRoleMutex`/`computePermMutex` 纯计算+`RolePairRef`、I01 空规则短路、真实 triggeredRuleIds、通知明细去反推；引擎调用点零改动=拍板①「域服务内解耦」、拍板②收口全量合并 095 基线取证，registry 同日行）；红跑 5/5 行为锁+容器定向（Mutex 5/BatchAuthCheck 11/QuerySemantics 17/RoleMutexGuard 9）+单测轨 1460 项 0 失败；双轨评审处置完毕（代码轨 P3×3/文档轨 P1×1+P2×3+P3×2 全核实成立直修、可裁剪=0）；设计 §5.1/§6.1 就地实施注。全量回归（含 E2E/heavy）与基线落账随 T-PERM-095 收口一次取得。
+- 2026-09-26 T-PERM-095 完成：PQ-01 最小修复（`computeInstanceDenied` 候选按目标闭包切分各自 PERM_MUTEX——沿 queryBatch 逐 item 形态；互斥经 `openBatchMutexEvaluator` 共享装载+评估器补 I01 空规则短路〔通道切换查询数零回归〕；命中 (组,规则) 聚合一次通知）；D01 两断言按翻转契约转终态锚（Mutex 6/6 含新增 getDenied 审计锁）；**最小正确性修复基线落账=本地 annotated tag `r2-baseline-correctness`（用户拍板 tag 形态；13df35589〔083〕+c1e56e3a6〔095〕）**；083 欠的收口全量在本卡取得（`mvn test -T 1C` 含 E2E/heavy 11 模块 BUILD SUCCESS 0 失败+单测轨 1462 绿）；双轨评审处置完毕（P3×2 全核实成立直修、存疑两项按既有口径留待、可裁剪=0）；registry 同日行。T-PERM-085 前置（083+084+095）仅余 084。
 
 ## 附录 A：全仓旧执行体清点册（T-PERM-080 产出）
 

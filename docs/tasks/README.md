@@ -47,7 +47,7 @@
 | [T-PERM-092](T-PERM-092.md) | （R2-T13）删除旧执行体与四旧 DTO | ⚙️ | T-PERM-089, T-PERM-090, T-PERM-091 |
 | [T-PERM-093](T-PERM-093.md) | （R2-T14）候选/规则索引与性能测量 | ⚙️ | T-PERM-091 |
 | [T-PERM-094](T-PERM-094.md) | （R2-T15）灰度、故障、缓存与发布演练 | ⚙️ | T-PERM-092, T-PERM-093 |
-| [T-PERM-095](T-PERM-095.md) | （基线补卡）getDenied* 跨 item 互斥最小修复——与 T-PERM-083 构成回退基线 | ⚙️ | T-PERM-081 |
+| [T-PERM-095](T-PERM-095.md) | （基线补卡）getDenied* 跨 item 互斥最小修复——与 T-PERM-083 构成回退基线 | ✅（2026-09-26 收口：与 083 构成最小正确性修复基线=本地 tag r2-baseline-correctness〔用户拍板 tag 形态〕；全量含 E2E/heavy BUILD SUCCESS 0 失败；双轨评审 P3×2 全核实成立直修、可裁剪=0；定案见 registry 同日行） | T-PERM-081 |
 | [T-ACCESS-056](T-ACCESS-056.md) | （ADM-T01）准入定案回写与协议落账 | ⚙️ | T-PERM-080, T-PERM-082 |
 | [T-ACCESS-057](T-ACCESS-057.md) | （ADM-T02）OPERATION_ADMISSION 阶段与新结果 | ⚙️ | T-PERM-083, T-PERM-084, T-PERM-085, T-PERM-086, T-PERM-088, T-ACCESS-056 |
 | [T-ACCESS-058](T-ACCESS-058.md) | （ADM-T03）映射模型、服务模式与同步/管理面 | ⚙️ | T-ACCESS-056 |
