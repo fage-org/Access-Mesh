@@ -12,6 +12,7 @@ import cn.ac.fage.accessmesh.access.engine.service.PermissionViewAppService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.engine.util.PermViewAssembler;
 import cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry;
@@ -53,6 +54,7 @@ class PermissionViewAppServiceImplTest {
     @Mock private PermissionConflictDomainService permissionConflictDomainService;
     @Mock private TypeResolutionService typeResolutionService;
     @Mock private PermQueryEngine engine;
+    @Mock private QueryGate queryGate;
     @Mock private PermViewAssembler permViewAssembler;
 
     private PermissionViewAppServiceImpl service;
@@ -64,7 +66,7 @@ class PermissionViewAppServiceImplTest {
         operatorContextMock.when(OperatorContext::getOperatorId).thenReturn(1L);
 
         service = new PermissionViewAppServiceImpl(
-            resourceEntityMapper, typeResolutionService, engine, permViewAssembler, permissionConflictDomainService);
+            resourceEntityMapper, typeResolutionService, engine, queryGate, permViewAssembler, permissionConflictDomainService);
     }
 
     @AfterEach
@@ -161,14 +163,14 @@ class PermissionViewAppServiceImplTest {
 
         assertNotNull(resp);
         assertTrue(resp.permissions().isEmpty());
-        verify(engine, never()).hasPermissionByCode(anyLong(), anyLong(), any(), any(), any());
+        verify(queryGate, never()).hasPermissionByCode(anyLong(), anyLong(), any(), any(), any());
     }
 
     @Test
     void getEffectivePermissionCodesForManageShouldDenyOthersWithoutUserView() {
         // 查他人：operator 投影主体=1001，subject "2" 投影=1002，无 USER:VIEW → SecurityException（门禁用 abstract 主体，非 sys id）
         when(typeResolutionService.resolveUserId(1L, "LOCAL_USER", "2")).thenReturn(1002L);
-        when(engine.hasPermissionByCode(1L, 1L, ResourceTypeCode.USER, "1002", OperationCode.VIEW))
+        when(queryGate.hasPermissionByCode(1L, 1L, ResourceTypeCode.USER, "1002", OperationCode.VIEW))
             .thenReturn(false);
 
         assertThrows(SecurityException.class, () ->
@@ -180,7 +182,7 @@ class PermissionViewAppServiceImplTest {
     void getEffectivePermissionCodesForManageShouldAllowOthersWithUserView() {
         // 查他人：operator 投影主体=1001，subject "2" 投影=1002，有 USER:VIEW → 正常下发
         when(typeResolutionService.resolveUserId(1L, "LOCAL_USER", "2")).thenReturn(1002L);
-        when(engine.hasPermissionByCode(1L, 1L, ResourceTypeCode.USER, "1002", OperationCode.VIEW))
+        when(queryGate.hasPermissionByCode(1L, 1L, ResourceTypeCode.USER, "1002", OperationCode.VIEW))
             .thenReturn(true);
         when(permissionConflictDomainService.resolveJudgementRoleIds(1L, 1002L)).thenReturn(Set.of());
 

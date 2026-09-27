@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.type.service.impl;
 
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
 import cn.ac.fage.accessmesh.access.type.service.TypeDefinitionAppService;
@@ -56,7 +56,7 @@ class MixedTypeDeletionLockPgIT {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private PlatformTransactionManager transactions;
     @SpyBean private TreeWriteLockSupport locks;
-    @MockBean private PermQueryEngine gate;
+    @MockBean private QueryGate gate;
 
     @Test
     void shouldAcquireRoleBeforeResource_whenRoleProjectionTransactionIsInFlight() throws Exception {

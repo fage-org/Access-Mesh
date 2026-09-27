@@ -8,7 +8,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.projection.PermConstants;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.perm.common.dto.req.RoleCreateReq;
 import cn.ac.fage.accessmesh.access.role.dto.resp.RoleResp;
 import cn.ac.fage.accessmesh.access.role.dto.resp.RoleTreeResp;
@@ -72,7 +72,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
     private final LocalProjectionGuard localProjectionGuard;
     private final LocalProjectionDomainService localProjectionDomainService;
     private final cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService autoGrantMaterializationDomainService;
-    private final PermQueryEngine engine;
+    private final QueryGate queryGate;
     private final TreeWriteLockSupport treeWriteLockSupport;
 
     /**
@@ -96,7 +96,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
                                  LocalProjectionGuard localProjectionGuard,
                                  LocalProjectionDomainService localProjectionDomainService,
             cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService autoGrantMaterializationDomainService,
-                                 PermQueryEngine engine,
+                                 QueryGate queryGate,
                                  TreeWriteLockSupport treeWriteLockSupport) {
         this.abstractRoleMapper = abstractRoleMapper;
         this.subjectDomainService = subjectDomainService;
@@ -107,7 +107,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         this.localProjectionGuard = localProjectionGuard;
         this.localProjectionDomainService = localProjectionDomainService;
         this.autoGrantMaterializationDomainService = autoGrantMaterializationDomainService;
-        this.engine = engine;
+        this.queryGate = queryGate;
         this.treeWriteLockSupport = treeWriteLockSupport;
     }
 
@@ -136,7 +136,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         // 无锁时并发 deleteRoles 软删目标父 → 本事务挂入已删父 → 存活孤儿角色
         treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE);
 
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, null, OperationCode.CREATE)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, null, OperationCode.CREATE)) {
             throw new SecurityException("无创建角色的权限");
         }
         localProjectionGuard.rejectReservedRoleType(req.roleTypeCode());
@@ -187,7 +187,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
             return null;
         }
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, String.valueOf(role.getId()), OperationCode.VIEW)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, String.valueOf(role.getId()), OperationCode.VIEW)) {
             return null;
         }
         // T-PERM-022：业务键二元组定位（uk_abstract_role_external）
@@ -219,7 +219,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
                 "不支持更新 GROUP_ROLE 分组角色（首期功能角色仅 BASIC_ROLE）");
         }
 
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCode.MANAGE)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCode.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
         }
 
@@ -277,7 +277,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         }
         localProjectionGuard.rejectIfLocalRole(role);
 
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCode.MANAGE)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCode.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
         }
 
@@ -370,7 +370,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
             .collect(Collectors.toMap(AbstractRole::getId, r -> r));
 
         // T-PERM-042：ROLE 实例门禁改业务编码语义（resource_entity(ROLE).code = roleId）
-        Set<String> deniedRoleCodes = engine.getDeniedResourceCodes(
+        Set<String> deniedRoleCodes = queryGate.getDeniedResourceCodes(
             tenantId, operatorId, ResourceTypeCode.ROLE,
             existingRoles.keySet().stream().map(String::valueOf).collect(Collectors.toSet()),
             OperationCode.MANAGE);
@@ -583,7 +583,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
      * 批量判定（含继承覆盖）得到可见子集；子集为空抛 403（无任何可见实例，fail-closed）。
      */
     private Set<Long> resolveVisibleRoleIdsOrNull(Long tenantId, Long operatorId) {
-        if (engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, null, OperationCode.VIEW)) {
+        if (queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, null, OperationCode.VIEW)) {
             return null;
         }
         Set<Long> allRoleIds = new LinkedHashSet<>(abstractRoleMapper.selectValidRoleIds(tenantId));
@@ -591,7 +591,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
             throw new SecurityException("Permission denied: VIEW on ROLE");
         }
         Set<String> allRoleCodes = allRoleIds.stream().map(String::valueOf).collect(Collectors.toCollection(LinkedHashSet::new));
-        Set<String> deniedCodes = engine.getDeniedResourceCodes(
+        Set<String> deniedCodes = queryGate.getDeniedResourceCodes(
             tenantId, operatorId, ResourceTypeCode.ROLE, allRoleCodes, OperationCode.VIEW);
         Set<Long> visible = allRoleIds.stream()
             .filter(id -> !deniedCodes.contains(String.valueOf(id)))

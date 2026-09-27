@@ -5,7 +5,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionOwner;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.common.enums.GlobalErrorCode;
 import cn.ac.fage.accessmesh.common.exception.SystemException;
 import cn.dev33.satoken.stp.StpUtil;
@@ -19,7 +19,9 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 本地权限门禁：通过 PermQueryEngine 校验，不再 Feign 自调用。
+ * 本地权限门禁：经 QueryGate（新 execute）校验，不再 Feign 自调用。
+ * 门面接口形状保留（设计 §9.4），实现内部随 T-PERM-089 换新执行器；
+ * 当前操作者解析与 SecurityException（安全拒绝）/技术错误（SystemException）分界保留。
  */
 @Service
 @Primary
@@ -28,12 +30,12 @@ public class AdminPermissionValidatorImpl implements AdminPermissionValidator {
     private static final Logger log = LoggerFactory.getLogger(AdminPermissionValidatorImpl.class);
 
     private final TypeResolutionService typeResolutionService;
-    private final PermQueryEngine engine;
+    private final QueryGate queryGate;
 
     public AdminPermissionValidatorImpl(TypeResolutionService typeResolutionService,
-                                        PermQueryEngine engine) {
+                                        QueryGate queryGate) {
         this.typeResolutionService = typeResolutionService;
-        this.engine = engine;
+        this.queryGate = queryGate;
     }
 
     @Override
@@ -58,7 +60,7 @@ public class AdminPermissionValidatorImpl implements AdminPermissionValidator {
                     operatorId, resourceTypeCode, operationCode);
                 throw new SecurityException("权限校验失败: 操作者主体不存在");
             }
-            return engine.hasPermissionByCode(tenantId, userId, resourceTypeCode, null, operationCode);
+            return queryGate.hasPermissionByCode(tenantId, userId, resourceTypeCode, null, operationCode);
         } catch (SystemException | SecurityException e) {
             // SecurityException=上方主体缺失的明确拒绝（403），放行不得转技术故障
             throw e;
@@ -106,7 +108,7 @@ public class AdminPermissionValidatorImpl implements AdminPermissionValidator {
                 operatorId, resourceTypeCode, resourceCodes, operationCode);
             throw new SecurityException("权限校验失败: 操作者主体不存在");
         }
-        return engine.getDeniedResourceCodes(tenantId, userId, resourceTypeCode, resourceCodes, operationCode);
+        return queryGate.getDeniedResourceCodes(tenantId, userId, resourceTypeCode, resourceCodes, operationCode);
     }
 
     private void checkAndThrow(String resourceTypeCode, String resourceCode, String operationCode) {
@@ -126,9 +128,9 @@ public class AdminPermissionValidatorImpl implements AdminPermissionValidator {
                 operatorId, resourceTypeCode, resourceCode, operationCode);
             throw new SecurityException("权限校验失败: 操作者主体不存在");
         }
-        // T-PERM-042 评审 P2：单点门禁按 admin contract §2 终态收敛到 engine.hasPermissionByCode
-        //（forValidate 语义），不再构造 forAuthCheck + query 的第二套门禁语义
-        if (!engine.hasPermissionByCode(tenantId, userId, resourceTypeCode, resourceCode, operationCode)) {
+        // T-PERM-042 评审 P2：单点门禁终态收敛到 hasPermissionByCode（forValidate 语义）；
+        // T-PERM-089：判定面换 QueryGate（新 execute），口径不变
+        if (!queryGate.hasPermissionByCode(tenantId, userId, resourceTypeCode, resourceCode, operationCode)) {
             log.warn("Permission denied: operatorId={}, resourceType={}, resourceCode={}, operation={}",
                 operatorId, resourceTypeCode, resourceCode, operationCode);
             throw new SecurityException(

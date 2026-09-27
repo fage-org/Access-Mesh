@@ -272,15 +272,16 @@ public final class R2BaselineFixture {
     }
 
     /**
-     * 新建主体并绑定角色（user_type=1；缺陷反例链路全部按内部 subjectId 直连引擎/领域服务，
-     * externalId 仅需满足唯一约束，不参与解析）。
+     * 新建主体并绑定角色（user_type=1；externalId=id 字符串——对齐基线 {@code insertUser} 口径，
+     * T-PERM-089 门面链改写后 D01/D03 对照极经服务面「"USER"/<id 串>」主体解析）。
      */
     public long insertUserWithRoles(Long tenantId, String tag, Long... roleIds) {
-        String externalId = "r2b-" + tag + "-" + System.nanoTime();
         long userId = jdbc.queryForObject(
             "INSERT INTO abstract_user (tenant_id, user_type, external_id, name, enabled, extra, owner_service_code) "
                 + "VALUES (?, 1, ?, ?, true, '{}', NULL) RETURNING id",
-            Long.class, tenantId, externalId, "r2b-" + tag);
+            Long.class, tenantId, "r2b-" + tag + "-" + System.nanoTime(), "r2b-" + tag);
+        jdbc.update("UPDATE abstract_user SET external_id = ? WHERE id = ?",
+            String.valueOf(userId), userId);
         for (Long roleId : roleIds) {
             jdbc.update(
                 "INSERT INTO user_role (tenant_id, abstract_user_id, target_type, target_id) VALUES (?, ?, 'ROLE', ?)",

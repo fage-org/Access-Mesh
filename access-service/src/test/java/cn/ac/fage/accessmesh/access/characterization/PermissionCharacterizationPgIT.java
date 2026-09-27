@@ -3,7 +3,7 @@ package cn.ac.fage.accessmesh.access.characterization;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
 import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -75,7 +75,7 @@ class PermissionCharacterizationPgIT {
     @Autowired
     private SubjectDomainService subjectDomainService;
     @Autowired
-    private PermQueryEngine permQueryEngine;
+    private QueryGate permQueryEngine;
     @Autowired
     private CacheService cacheService;
     @Autowired

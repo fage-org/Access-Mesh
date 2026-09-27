@@ -71,7 +71,7 @@ last_updated: 2026-09-26
 | [T-PERM-086](../tasks/T-PERM-086.md) | 父受控子项与 GRANT_LIST 完整事实（R2-T07） | ✅ |
 | [T-PERM-087](../tasks/T-PERM-087.md) | 投影、展示与范围四态（R2-T08） | ✅ |
 | [T-PERM-088](../tasks/T-PERM-088.md) | 根审计、TRACE 与故障证据（R2-T09） | ✅ |
-| [T-PERM-089](../tasks/T-PERM-089.md) | 迁移 check/batch/管理门禁/getDenied（R2-T10） | ⚙️ |
+| [T-PERM-089](../tasks/T-PERM-089.md) | 迁移 check/batch/管理门禁/getDenied（R2-T10） | ✅ |
 | [T-PERM-090](../tasks/T-PERM-090.md) | 迁移范围与 LEGACY_API 接口集合（R2-T11） | ⚙️ |
 | [T-PERM-091](../tasks/T-PERM-091.md) | 迁移旧快照、转授、视图与配置（R2-T12） | ⚙️ |
 | [T-PERM-092](../tasks/T-PERM-092.md) | 删除旧执行体与四旧 DTO（R2-T13） | ⚙️ |
@@ -110,6 +110,7 @@ last_updated: 2026-09-26
 - 2026-09-26 T-PERM-083 完成：S/H-D 就地落地（`computeRoleMutex`/`computePermMutex` 纯计算+`RolePairRef`、I01 空规则短路、真实 triggeredRuleIds、通知明细去反推；引擎调用点零改动=拍板①「域服务内解耦」、拍板②收口全量合并 095 基线取证，[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日行）；红跑 5/5 行为锁+容器定向（Mutex 5/BatchAuthCheck 11/QuerySemantics 17/RoleMutexGuard 9）+单测轨 1460 项 0 失败；双轨评审处置完毕（代码轨 P3×3/文档轨 P1×1+P2×3+P3×2 全核实成立直修、可裁剪=0）；设计 §5.1/§6.1 就地实施注。全量回归（含 E2E/heavy）与基线落账随 T-PERM-095 收口一次取得。
 - 2026-09-26 T-PERM-095 完成：PQ-01 最小修复（`computeInstanceDenied` 候选按目标闭包切分各自 PERM_MUTEX——沿 queryBatch 逐 item 形态；互斥经 `openBatchMutexEvaluator` 共享装载+评估器补 I01 空规则短路〔通道切换查询数零回归〕；命中 (组,规则) 聚合一次通知）；D01 两断言按翻转契约转终态锚（Mutex 6/6 含新增 getDenied 审计锁）；**最小正确性修复基线落账=本地 annotated tag `r2-baseline-correctness`（用户拍板 tag 形态；13df35589〔083〕+c1e56e3a6〔095〕）**；083 欠的收口全量在本卡取得（`mvn test -T 1C` 含 E2E/heavy 11 模块 BUILD SUCCESS 0 失败+单测轨 1462 绿）；双轨评审处置完毕（P3×2 全核实成立直修、存疑两项按既有口径留待、可裁剪=0）；[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日行。T-PERM-085 前置状态以任务清单及各任务卡为准。
 - 2026-09-26 T-PERM-088 完成：ConflictEvidence（execution+内部 item+stage+ruleRef 聚合，共享父=一条 parent#N 证据关联全部受影响根项）＋根 execute finally 一次受控提交（`QueryAuditCollector`，非阻塞、幂等闸、提交/聚合期异常不覆盖主异常、A04 标 EXECUTION_ERROR_AFTER_CONFIRMED_STAGE）＋运行态技术故障统一包装 `QueryExecutionException`（X01/X02；EngineLimits 本体按 A.9 归 093）＋TRACE 输出（`ResultDetails.ExecutionTrace` 复用已完成计算快照，零新增 I/O/零重评/不补跑短路阶段，A05）＋指标枚举端口 `QueryEngineMetrics`（低基数结构性锁定）。四项用户拍板：X01 统一包装、角色对证据沿旧 1h 去重（PERM 规则不去重）、TRACE 敏感字段门禁暂缓（登记 [pending-problems](../pending-problems.md) Q-045——089+ 接线前外部契约不得透传 trace）、指标走端口（Micrometer 绑定随 089+/094）。512 截断复核：新核心单行单规则，旧单条多规则拼接形态不进入；旧路径接受边界维持至 092。双轨评审（代码轨 P3×2 过时注释直修、文档轨一致、可裁剪=0）；收口全量回归随本卡执行（结果见任务卡完成记录）。
+- 2026-09-27 T-PERM-089 完成：判定面切新 execute——引擎 Bean 化（`QueryEngineConfiguration`）＋薄门面 `engine.query.QueryGate`（四方法沿旧签名，§9.4 架构锁入 QueryBoundaryArchitectureTest）＋check/batchCheck 适配层直构 QueryRequest（外层职责保留：原序/重复项=下标 key、请求级单父上下文、RunState 单时钟）＋A.2/A.3 全部门禁与 getDenied 消费面切换（17 生产文件+AdminPermissionValidatorImpl+PermissionView:71 门禁）＋指令面回写（rule/skill 双副本/AGENTS 硬约束行）。四项用户拍板：QueryGate 命名、本卡 metrics noop（094 接 Micrometer）、空白 resourceCode 归一 TYPE_LEVEL、context 保留键 500（clientIp 仍提取）。X03 新增微差三条入任务卡差异记录（timestamp 键/顶层 null 过滤/空白编码角落 reason）。MutexSemantics 门面链改写（getDenied*→QueryGate、queryBatch 对照→batchCheck 服务面、D02→TargetSet 多 clause、⑧审计锁改 ConflictEvidence item 级形态）；旧引擎生产消费者仅剩 090/091 目标。双轨评审 P2×1（@SpyBean when() 反模式两 PgIT 39 用例，旧引擎 null 主体容忍掩盖，改 doReturn 后绿）。收口全量 `mvn test -T 1C` 含 E2E/heavy 11 模块 BUILD SUCCESS。
 
 ## 附录 A：全仓旧执行体清点册（T-PERM-080 产出）
 

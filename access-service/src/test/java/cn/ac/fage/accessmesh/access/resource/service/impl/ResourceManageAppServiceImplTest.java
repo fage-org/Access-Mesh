@@ -12,7 +12,7 @@ import cn.ac.fage.accessmesh.access.domain.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.access.type.service.domain.ResourceTypeOwnershipGuard;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -50,7 +50,7 @@ class ResourceManageAppServiceImplTest {
     @Mock private ResourceEntityDomainService resourceEntityDomainService;
     @Mock private TypeResolutionService typeResolutionService;
     @Mock private DomainClassifyService domainClassifyService;
-    @Mock private PermQueryEngine engine;
+    @Mock private QueryGate engine;
     @Mock private RoleResourcePermissionDomainService rolePermMapper;
     @Mock private ResourceTypeOwnershipGuard resourceTypeOwnershipGuard;
     @Mock private TreeWriteLockSupport treeWriteLockSupport;

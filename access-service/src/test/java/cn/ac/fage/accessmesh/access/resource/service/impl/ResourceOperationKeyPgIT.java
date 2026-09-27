@@ -22,7 +22,7 @@ import cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionD
 import cn.ac.fage.accessmesh.access.domain.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import org.junit.jupiter.api.AfterEach;
@@ -115,8 +115,8 @@ class ResourceOperationKeyPgIT {
 
     private final LocalDateTime now = LocalDateTime.now();
 
-    private PermQueryEngine permitAllEngine() {
-        PermQueryEngine engine = mock(PermQueryEngine.class);
+    private QueryGate permitAllEngine() {
+        QueryGate engine = mock(QueryGate.class);
         lenient().when(engine.hasPermissionByCode(anyLong(), any(), any(), any(), any())).thenReturn(true);
         lenient().when(engine.hasPermissionByEntityId(anyLong(), any(), any(), any(), any())).thenReturn(true);
         lenient().when(engine.getDeniedResourceCodes(anyLong(), any(), any(), any(), any()))
@@ -126,7 +126,7 @@ class ResourceOperationKeyPgIT {
         return engine;
     }
 
-    private ResourceManageAppServiceImpl newResourceManageAppService(PermQueryEngine engine) {
+    private ResourceManageAppServiceImpl newResourceManageAppService(QueryGate engine) {
         return new ResourceManageAppServiceImpl(resourceEntityMapper, resourceApiMappingMapper,
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper.class),
             resourceEntityDomainService, typeResolutionService, domainClassifyService,
@@ -134,7 +134,7 @@ class ResourceOperationKeyPgIT {
             mock(TreeWriteLockSupport.class));
     }
 
-    private OperationAppServiceImpl newOperationAppService(PermQueryEngine engine) {
+    private OperationAppServiceImpl newOperationAppService(QueryGate engine) {
         return new OperationAppServiceImpl(operationPermissionMapper, typeResolutionService, engine,
             mock(cn.ac.fage.accessmesh.common.cache.CacheService.class),
             typeDefinitionMapper,

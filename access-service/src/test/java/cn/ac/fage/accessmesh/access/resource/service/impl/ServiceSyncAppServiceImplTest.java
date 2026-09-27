@@ -8,7 +8,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.sync.strategy.SyncModeStrategyFactory;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceSyncHandler;
 import cn.ac.fage.accessmesh.access.resource.service.domain.MappingSyncHandler;
@@ -34,7 +34,7 @@ class ServiceSyncAppServiceImplTest {
     @Mock private ServiceConfigMapper serviceConfigMapper;
     @Mock private TypeResolutionService typeResolutionService;
     @Mock private SyncModeStrategyFactory strategyFactory;
-    @Mock private PermQueryEngine engine;
+    @Mock private QueryGate engine;
     @Mock private cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport treeWriteLockSupport;
 
     private ServiceSyncAppServiceImpl service;

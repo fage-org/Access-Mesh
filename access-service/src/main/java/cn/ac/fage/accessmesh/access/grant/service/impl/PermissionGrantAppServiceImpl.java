@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtil;
 import cn.ac.fage.accessmesh.access.projection.PermConstants;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.grant.dto.req.ApplyGrantPlanReq;
 import cn.ac.fage.accessmesh.access.grant.dto.req.PreviewGrantPlanReq;
 import cn.ac.fage.accessmesh.access.grant.dto.resp.GrantPlanPreviewResp;
@@ -72,7 +72,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
     private final PermissionGrantPlanDomainService permissionGrantPlanDomainService;
     private final AuditDomainService auditDomainService;
     private final TypeResolutionService typeResolutionService;
-    private final PermQueryEngine engine;
+    private final QueryGate queryGate;
     private final ObjectMapper objectMapper;
     private final SubjectDomainService subjectDomainService;
     private final PermissionConditionDomainService conditionDomainService;
@@ -87,7 +87,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
                                       PermissionGrantPlanDomainService permissionGrantPlanDomainService,
                                       AuditDomainService auditDomainService,
                                       TypeResolutionService typeResolutionService,
-                                      PermQueryEngine engine,
+                                      QueryGate queryGate,
                                       ObjectMapper objectMapper,
                                       SubjectDomainService subjectDomainService,
                                       ResourceEntityDomainService resourceEntityDomainService,
@@ -99,7 +99,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         this.permissionGrantPlanDomainService = permissionGrantPlanDomainService;
         this.auditDomainService = auditDomainService;
         this.typeResolutionService = typeResolutionService;
-        this.engine = engine;
+        this.queryGate = queryGate;
         this.objectMapper = objectMapper;
         this.subjectDomainService = subjectDomainService;
         this.conditionDomainService = conditionDomainService;
@@ -122,7 +122,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
             throw biz(AccessErrorCode.ROLE_NOT_FOUND);
         }
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE,
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE,
             String.valueOf(roleId), OperationCode.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
         }
@@ -174,7 +174,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
             throw biz(AccessErrorCode.ROLE_NOT_FOUND);
         }
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE,
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE,
             String.valueOf(roleId), OperationCode.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
         }
@@ -212,7 +212,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
 
         // 操作者授权校验 - 需要VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCode.VIEW)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCode.VIEW)) {
             return List.of();
         }
 
@@ -406,7 +406,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
             throw biz(AccessErrorCode.ROLE_NOT_FOUND);
         }
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE,
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE,
             String.valueOf(roleId), OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on ROLE:" + roleId);
         }

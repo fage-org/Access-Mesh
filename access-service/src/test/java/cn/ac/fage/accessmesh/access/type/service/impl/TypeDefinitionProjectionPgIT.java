@@ -11,7 +11,7 @@ import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.type.service.TypeDefinitionAppService;
 import cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService;
 import cn.ac.fage.accessmesh.access.type.service.domain.ResourceTypeOwnershipGuard;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -90,7 +90,7 @@ class TypeDefinitionProjectionPgIT {
     @Autowired
     private ResourceTypeOwnershipGuard resourceTypeOwnershipGuard;
     @Autowired
-    private PermQueryEngine permQueryEngine;
+    private QueryGate permQueryEngine;
     @Autowired
     private JdbcTemplate jdbc;
 

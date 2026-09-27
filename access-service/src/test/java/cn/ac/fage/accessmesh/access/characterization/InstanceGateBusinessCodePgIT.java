@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.characterization;
 
 import cn.ac.fage.accessmesh.access.it.ItInfra;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -69,7 +69,7 @@ class InstanceGateBusinessCodePgIT {
     }
 
     @Autowired
-    private PermQueryEngine permQueryEngine;
+    private QueryGate permQueryEngine;
     @Autowired
     private JdbcTemplate jdbc;
 

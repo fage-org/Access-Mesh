@@ -8,7 +8,7 @@ import cn.ac.fage.accessmesh.access.type.dto.req.OperationUpdateReq;
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.type.service.OperationAppService;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -34,7 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 旧实现（写路径无 evict，靠 TTL 兜底）下三个场景的「写后判定」断言均失败：
  * 覆盖掩码由缓存的 per-type 全量操作 Map 计算（effectiveBits = binaryBit|inheritMask），
  * 陈旧 Map 让引擎按旧位值/已删操作/缺新增操作判定。写走真实 OperationAppService bean
- * （@Transactional + afterCommit 失效真实生效）；判定走真实 PermQueryEngine（scopeAll
+ * （@Transactional + afterCommit 失效真实生效）；判定走真实 QueryGate（新 execute）（scopeAll
  * 类型级授权 + computeCoveringBitMask）。三场景各用独立资源类型 + 独立位段 + 独立主体，
  * 互不共享缓存键与 EFFECTIVE_ROLES 键。
  * </p>
@@ -78,7 +78,7 @@ class OperationPermissionCacheEvictionPgIT {
     @Autowired
     private OperationAppService operationAppService;
     @Autowired
-    private PermQueryEngine permQueryEngine;
+    private QueryGate permQueryEngine;
     @Autowired
     private OperationPermissionMapper operationPermissionMapper;
     @Autowired

@@ -1,8 +1,11 @@
 package cn.ac.fage.accessmesh.access.engine.service.impl;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 import cn.ac.fage.accessmesh.perm.common.dto.req.AuthCheckReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq;
@@ -11,25 +14,37 @@ import cn.ac.fage.accessmesh.access.engine.dto.AuthCheckResp;
 import cn.ac.fage.accessmesh.access.engine.dto.BatchAuthCheckResp;
 import cn.ac.fage.accessmesh.access.engine.dto.BatchAuthCheckResp.AuthCheckItemResult;
 import cn.ac.fage.accessmesh.access.engine.dto.CheckInterfaceResp;
+import cn.ac.fage.accessmesh.access.engine.query.ByCode;
+import cn.ac.fage.accessmesh.access.engine.query.CallerContext;
+import cn.ac.fage.accessmesh.access.engine.query.DecisionResult;
+import cn.ac.fage.accessmesh.access.engine.query.FactDetail;
+import cn.ac.fage.accessmesh.access.engine.query.Inheritance;
+import cn.ac.fage.accessmesh.access.engine.query.OutputSpec;
+import cn.ac.fage.accessmesh.access.engine.query.ParentRequirement;
+import cn.ac.fage.accessmesh.access.engine.query.PresentationExpansion;
+import cn.ac.fage.accessmesh.access.engine.query.QueryExecutionEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryItem;
+import cn.ac.fage.accessmesh.access.engine.query.QueryRequest;
+import cn.ac.fage.accessmesh.access.engine.query.QueryResult;
+import cn.ac.fage.accessmesh.access.engine.query.ReadOptions;
+import cn.ac.fage.accessmesh.access.engine.query.Selection;
+import cn.ac.fage.accessmesh.access.engine.query.TargetClause;
+import cn.ac.fage.accessmesh.access.engine.query.TargetSet;
+import cn.ac.fage.accessmesh.access.engine.query.TypeFallback;
+import cn.ac.fage.accessmesh.access.engine.query.TypeLevel;
+import cn.ac.fage.accessmesh.access.engine.query.TypeOperation;
+import cn.ac.fage.accessmesh.access.engine.query.User;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.access.engine.service.PermissionCheckAppService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
-import cn.ac.fage.accessmesh.access.engine.dto.PermBatchQuery;
-import cn.ac.fage.accessmesh.access.engine.dto.PermBatchResult;
-import cn.ac.fage.accessmesh.access.engine.dto.PermEvalContext;
 import cn.ac.fage.accessmesh.access.engine.dto.PermQuery;
-import cn.ac.fage.accessmesh.access.engine.dto.PermResult;
 import cn.ac.fage.accessmesh.access.engine.util.PermResultUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.AntPathMatcher;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
 import java.util.stream.Collectors;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 
@@ -37,7 +52,10 @@ import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
  * 权限检查应用服务实现
  * <p>
  * 提供纯校验功能：单次校验、批量校验、接口级校验。
- * 使用 PermQueryEngine 作为统一查询入口。
+ * check/batchCheck 已随 T-PERM-089 迁移新 execute（X03 等价迁移：外层职责保留——
+ * 主体业务键解析、USER_NOT_FOUND 缺省、原序/重复项（按下标 item key）、请求级父上下文
+ * 与请求级单一评估时刻〔RunState 单时钟〕）；checkInterface 仍走旧引擎（LEGACY_API，
+ * T-PERM-090 迁移）。
  * </p>
  */
 @Service
@@ -46,6 +64,7 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 
     private final TypeResolutionService typeResolutionService;
+    private final QueryExecutionEngine queryEngine;
     private final PermQueryEngine engine;
     private final ResourceApiMappingMapper apiMappingMapper;
 
@@ -53,13 +72,16 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
      * 构造函数注入依赖
      *
      * @param typeResolutionService 类型解析服务
-     * @param engine                 权限查询引擎
+     * @param queryEngine            新查询执行器（check/batchCheck）
+     * @param engine                 旧权限查询引擎（仅 checkInterface，T-PERM-090 迁移）
      * @param apiMappingMapper       API映射数据访问层
      */
     public PermissionCheckAppServiceImpl(TypeResolutionService typeResolutionService,
+                                         QueryExecutionEngine queryEngine,
                                          PermQueryEngine engine,
                                          ResourceApiMappingMapper apiMappingMapper) {
         this.typeResolutionService = typeResolutionService;
+        this.queryEngine = queryEngine;
         this.engine = engine;
         this.apiMappingMapper = apiMappingMapper;
     }
@@ -68,7 +90,10 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
      * 单次权限校验
      * <p>
      * 校验指定用户对某资源的某操作是否有权限。
-     * 使用PermQuery.forAuthCheck构建查询，通过引擎返回结果。
+     * 无编码目标（含空白串归一，2026-09-27 用户拍板）= TYPE_LEVEL；有编码目标 =
+     * 单 clause TARGET_SET，判定面继承按 inheritMode 显式开（PARENT/BOTH）。
+     * context.clientIp 提取为受信 IP（SDK 契约）；顶层 evaluatedAt/timestamp 键
+     * 不再静默处理——CallerContext 结构拒绝（500，2026-09-27 用户拍板）。
      * </p>
      *
      * @param tenantId 租户ID
@@ -81,28 +106,22 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
         Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
         if (userId == null) return AuthCheckResp.deny("USER_NOT_FOUND");
 
-        PermQuery q = PermQuery.forAuthCheck(tenantId, userId,
-            req.resourceTypeCode(), req.resourceCode(), req.operationCode());
-        q.setCodeType(req.codeType());
-        q.setDomainCode(req.domainCode());
-        if (req.inheritMode() != null) q.setInheritMode(req.inheritMode());
-        // T-PERM-058 主资源上下文：depend_on 子权限实例的父判定入参（不传=fail-closed 排除子行）
-        if (req.parentResourceTypeCode() != null && req.parentResourceCode() != null) {
-            q.setParentResource(req.parentResourceTypeCode(), req.parentResourceCode(),
-                req.parentCodeType(), toOperationCodeSet(req.parentOperationCodes()));
-        }
-        q.setEvalContext(PermEvalContext.fromCallerMap(req.context()));
-
-        return PermResultUtils.toAuthCheckResp(engine.query(q));
+        QueryItem item = QueryItem.decision("check", selection(req.resourceTypeCode(), req.resourceCode(),
+            req.operationCode(), req.codeType(), req.domainCode(), PermQuery.inheritClosureOf(req.inheritMode()),
+            parentRequirement(req.parentResourceTypeCode(), req.parentResourceCode(),
+                req.parentCodeType(), req.parentOperationCodes())), checkOutput());
+        QueryResult result = queryEngine.execute(new QueryRequest(tenantId, new User(userId),
+            callerContext(req.context()), ReadOptions.defaults(), List.of(item)));
+        return PermResultUtils.toAuthCheckResp((DecisionResult) result.orderedResults().get(0));
     }
 
     /**
      * 批量权限校验
      * <p>
-     * T-PERM-061 A+ 形态（分组 + 请求级共享装载）：编排层组装批量查询（item 粒度参数与
-     * 单条 forAuthCheck 对齐）并钉住请求级唯一评估时刻（a2 定案——唯一非空
-     * PermEvalContext 挂全链，禁各 item 重钉禁 now() 回退），判定收敛到
-     * {@link PermQueryEngine#queryBatch}；结果按原始输入序与 items 下标对齐拆分。
+     * 多个独立 DECISION item 一次 execute 批量表达（禁循环 N 次公开 execute）：
+     * item key=输入下标（原序/重复项天然对齐）；请求级单一评估时刻由新引擎
+     * RunState 单时钟承担（旧 a2 定案的钉住语义等价）；请求级父上下文＝同值
+     * ParentRequirement 挂全批 item（首版混批约束下单父共享，惰性判定一次）。
      * </p>
      *
      * @param tenantId 租户ID
@@ -120,33 +139,28 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
                     List.of(), List.of()))
                 .toList());
         }
-        // a2 定案：请求级单一评估时刻——fromCallerMap 后立即钉住 evaluatedAt，
-        // 全部 item 评估/父判定递归/条件评估共用同一实例（旧逐 item 路径各 item 各自 now()）
-        PermEvalContext caller = PermEvalContext.fromCallerMap(req.context());
-        PermEvalContext pinned = new PermEvalContext(
-            caller.clientIp(), LocalDateTime.now(), caller.attributes());
-
-        PermBatchQuery batch = PermBatchQuery.forAuthCheckBatch(tenantId, userId, req.items().stream()
-            .map(item -> new PermBatchQuery.Item(
-                item.resourceTypeCode(), item.resourceCode(), item.operationCode(),
-                item.codeType(), item.domainCode(), PermQuery.inheritClosureOf(item.inheritMode())))
-            .toList());
-        batch.setEvalContext(pinned);
-        // T-PERM-058 主资源上下文（请求级）：与 query-scopes 对齐——批量项共享同一父上下文
-        if (req.parentResourceTypeCode() != null && req.parentResourceCode() != null) {
-            batch.setParentResource(req.parentResourceTypeCode(), req.parentResourceCode(),
-                req.parentCodeType(), toOperationCodeSet(req.parentOperationCodes()));
+        CallerContext caller = callerContext(req.context());
+        ParentRequirement parent = parentRequirement(req.parentResourceTypeCode(), req.parentResourceCode(),
+            req.parentCodeType(), req.parentOperationCodes());
+        List<QueryItem> items = new ArrayList<>(req.items().size());
+        for (int i = 0; i < req.items().size(); i++) {
+            BatchAuthCheckReq.AuthCheckItem item = req.items().get(i);
+            items.add(QueryItem.decision(String.valueOf(i), selection(item.resourceTypeCode(),
+                item.resourceCode(), item.operationCode(), item.codeType(), item.domainCode(),
+                PermQuery.inheritClosureOf(item.inheritMode()), parent), checkOutput()));
         }
-
-        List<PermBatchResult.ItemOutcome> outcomes = engine.queryBatch(batch).outcomes();
+        QueryResult result = queryEngine.execute(new QueryRequest(tenantId, new User(userId), caller,
+            ReadOptions.defaults(), items));
         List<AuthCheckItemResult> results = new ArrayList<>(req.items().size());
         for (int i = 0; i < req.items().size(); i++) {
             BatchAuthCheckReq.AuthCheckItem item = req.items().get(i);
-            PermBatchResult.ItemOutcome outcome = outcomes.get(i);
+            DecisionResult outcome = (DecisionResult) result.orderedResults().get(i);
             results.add(new AuthCheckItemResult(
                 item.resourceTypeCode(), item.resourceCode(), item.operationCode(),
-                outcome.allowed(), outcome.reason(),
-                List.copyOf(outcome.matchedRoleIds()), List.copyOf(outcome.matchedPermissionIds())));
+                outcome.outcome() == DecisionResult.Decision.ALLOW,
+                outcome.reason() != null ? outcome.reason().name() : null,
+                List.copyOf(outcome.details().matchedRoleIds()),
+                List.copyOf(outcome.details().matchedPermissionIds())));
         }
         return new BatchAuthCheckResp(List.copyOf(results));
     }
@@ -157,6 +171,7 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
      * 校验用户是否有权访问指定的API接口。
      * 根据服务编码和HTTP方法查找API映射，匹配路径模式，
      * 然后使用PermQuery.forInterfaceCheck校验ACCESS权限。
+     * LEGACY_API 迁移期形态（T-PERM-090 经新 execute 表达共同集合语义）。
      * </p>
      *
      * @param tenantId 租户ID
@@ -181,8 +196,64 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
             .map(ResourceApiMapping::getResourceEntityId).filter(Objects::nonNull).collect(Collectors.toSet());
 
         PermQuery q = PermQuery.forInterfaceCheck(tenantId, userId, Set.of("API"), entityIds, OperationCode.ACCESS);
-        q.setEvalContext(PermEvalContext.fromCallerMap(req.context()));
+        q.setEvalContext(cn.ac.fage.accessmesh.access.engine.dto.PermEvalContext.fromCallerMap(req.context()));
         return PermResultUtils.toCheckInterfaceResp(engine.query(q), 30);
+    }
+
+    /** 目标选择两档：无编码目标（含空白串归一 TYPE_LEVEL，2026-09-27 拍板）或单 clause TARGET_SET。 */
+    private static Selection selection(String resourceTypeCode, String resourceCode, String operationCode,
+                                        String codeType, String domainCode, boolean inheritClosure,
+                                        ParentRequirement parent) {
+        TypeOperation operation = new TypeOperation(resourceTypeCode, operationCode);
+        if (resourceCode == null || resourceCode.isBlank()) {
+            return new TypeLevel(List.of(operation));
+        }
+        TargetClause clause = new TargetClause(operation, new ByCode(resourceCode, codeType, domainCode));
+        return new TargetSet(List.of(clause),
+            inheritClosure ? Inheritance.SELF_AND_ANCESTORS : Inheritance.SELF,
+            TypeFallback.ALLOW, parent);
+    }
+
+    /**
+     * 主资源操作码集合转换（null 元素防御过滤——SDK 请求经 JSON 反序列化
+     * 可含 null 值；过滤后空集＝父判定必不命中，语义等价于无父（depend_on 子行同被排除），
+     * 归一为无父构造，避免新引擎父要求空集结构拒绝）。
+     */
+    private static ParentRequirement parentRequirement(String parentResourceTypeCode, String parentResourceCode,
+                                                        String parentCodeType, List<String> operationCodes) {
+        if (parentResourceTypeCode == null || parentResourceCode == null) {
+            return null;
+        }
+        Set<String> filtered = operationCodes == null ? Set.of()
+            : Set.copyOf(operationCodes.stream().filter(Objects::nonNull).toList());
+        if (filtered.isEmpty()) {
+            return null;
+        }
+        return new ParentRequirement(parentResourceTypeCode,
+            new ByCode(parentResourceCode, parentCodeType, null), filtered);
+    }
+
+    /** check 族输出：命中 ID（T-API-003 回传）＋保留事实（conditionEvaluated 从保留事实派生，零额外 I/O）。 */
+    private static OutputSpec checkOutput() {
+        return new OutputSpec(FactDetail.KEPT, true, false, false, PresentationExpansion.NONE, Set.of(), false);
+    }
+
+    /** SDK 契约 {@code context.clientIp} 键提取为受信 IP，其余键归调用方属性；
+     *  顶层 evaluatedAt/timestamp 键由 CallerContext 结构拒绝（2026-09-27 用户拍板，直接 500）。 */
+    private static CallerContext callerContext(Map<String, Object> context) {
+        if (context == null || context.isEmpty()) {
+            return CallerContext.of(null);
+        }
+        String clientIp = null;
+        Map<String, Object> rest = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : context.entrySet()) {
+            if (CallerContext.KEY_CLIENT_IP.equals(entry.getKey())) {
+                clientIp = entry.getValue() == null ? null : String.valueOf(entry.getValue());
+            } else {
+                rest.put(entry.getKey(), entry.getValue());
+            }
+        }
+        return new CallerContext(clientIp, rest);
     }
 
     /**
@@ -196,18 +267,6 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
      * @param path    请求路径
      * @return 是否匹配
      */
-    /**
-     * 主资源操作码集合转换（null 整体透传=父判定不限操作由引擎按必填口径处理；
-     * null 元素防御过滤——SDK 请求经 JSON 反序列化可含 null 值，Set.copyOf 禁 null
-     * 会把可 400/拒绝的入参放大成 500，PermEvalContext.filterValid 同款缺陷类先例）。
-     */
-    private static Set<String> toOperationCodeSet(List<String> operationCodes) {
-        if (operationCodes == null) {
-            return null;
-        }
-        return Set.copyOf(operationCodes.stream().filter(Objects::nonNull).toList());
-    }
-
     private boolean pathMatches(String pattern, String path) {
         if (pattern.equals(path)) return true;
         return PATH_MATCHER.match(pattern, path);

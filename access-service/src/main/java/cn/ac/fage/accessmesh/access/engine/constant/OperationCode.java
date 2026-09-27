@@ -20,12 +20,13 @@ package cn.ac.fage.accessmesh.access.engine.constant;
  * （extension-guide §2.3 注记）。</p>
  *
  * <p>使用示例（T-ORG-001 统一后操作者 ID 即主体 ID，无转换层；
- * 业务对象门禁统一业务编码语义，{@code resource_entity(ROLE).code = roleId}）：
+ * 业务对象门禁统一业务编码语义，{@code resource_entity(ROLE).code = roleId}；
+ * 判定面门面=QueryGate，T-PERM-089）：
  * <pre>
- * if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCode.MANAGE)) {
+ * if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCode.MANAGE)) {
  *     throw new SecurityException("Permission denied");
  * }
- * engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.USER, String.valueOf(userId), OperationCode.VIEW);
+ * queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.USER, String.valueOf(userId), OperationCode.VIEW);
  * </pre>
  * </p>
  */

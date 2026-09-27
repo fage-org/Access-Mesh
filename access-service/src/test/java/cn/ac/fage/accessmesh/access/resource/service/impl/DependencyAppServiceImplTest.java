@@ -7,7 +7,7 @@ import cn.ac.fage.accessmesh.access.resource.mapper.ResourceDependencyMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -38,7 +38,7 @@ class DependencyAppServiceImplTest {
     @Mock private ResourceDependencyMapper dependencyMapper;
     @Mock private ResourceEntityMapper resourceEntityMapper;
     @Mock private TypeResolutionService typeResolutionService;
-    @Mock private PermQueryEngine engine;
+    @Mock private QueryGate engine;
     @Mock private cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantInsightDomainService autoGrantInsightDomainService;
     @Mock private cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomainService operationPermissionDomainService;
     @Mock private cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService conditionDomainService;

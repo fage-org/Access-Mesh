@@ -9,7 +9,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.domain.mapper.BizDomainMapper;
 import cn.ac.fage.accessmesh.access.domain.mapper.DomainConfigMapper;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
@@ -43,7 +43,7 @@ class DomainConfigAppServiceImplTest {
     @Mock private DomainConfigMapper domainConfigMapper;
     @Mock private BizDomainMapper bizDomainMapper;
     @Mock private TypeResolutionService typeResolutionService;
-    @Mock private PermQueryEngine engine;
+    @Mock private QueryGate engine;
 
     private DomainConfigAppServiceImpl service;
 

@@ -4,6 +4,7 @@ import cn.ac.fage.accessmesh.access.it.ItInfra;
 import cn.ac.fage.accessmesh.access.engine.dto.PermQuery;
 import cn.ac.fage.accessmesh.access.engine.dto.PermResult;
 import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -67,6 +68,8 @@ class TargetModeClosurePgIT {
     @Autowired
     private PermQueryEngine permQueryEngine;
     @Autowired
+    private QueryGate queryGate;
+    @Autowired
     private JdbcTemplate jdbc;
 
     // PER_METHOD 生命周期下跨用例递增（每用例新建实例，实例字段会重置）
@@ -85,12 +88,12 @@ class TargetModeClosurePgIT {
 
         // 仅有实例授权行：类型级门禁拒绝（MANAGE 实例授权不构成类型级 MANAGE）
         insertPerm(roleId, type, resourceId, 16L, false);
-        assertThat(permQueryEngine.hasPermissionByCode(TENANT, subjectId, "TMCL_A", null, "MANAGE"))
+        assertThat(queryGate.hasPermissionByCode(TENANT, subjectId, "TMCL_A", null, "MANAGE"))
             .as("实例授权不得放行 TYPE_LEVEL 门禁").isFalse();
 
         // 补 scopeAll 行：类型级门禁放行
         insertPerm(roleId, type, null, 16L, true);
-        assertThat(permQueryEngine.hasPermissionByCode(TENANT, subjectId, "TMCL_A", null, "MANAGE"))
+        assertThat(queryGate.hasPermissionByCode(TENANT, subjectId, "TMCL_A", null, "MANAGE"))
             .as("scopeAll 行放行 TYPE_LEVEL 门禁").isTrue();
     }
 
@@ -110,16 +113,16 @@ class TargetModeClosurePgIT {
         insertPerm(roleId, type, parentId, 16L, false);
 
         // 单点：查子目标经闭包命中父授权（四入口默认开——管理面写门禁矩阵）
-        assertThat(permQueryEngine.hasPermissionByEntityId(TENANT, subjectId, "TMCL_B", childA, "MANAGE"))
+        assertThat(queryGate.hasPermissionByEntityId(TENANT, subjectId, "TMCL_B", childA, "MANAGE"))
             .as("授父 MANAGE → 查子单点判定放行（判定面继承）").isTrue();
-        assertThat(permQueryEngine.hasPermissionByEntityId(TENANT, subjectId, "TMCL_B", parentId, "MANAGE"))
+        assertThat(queryGate.hasPermissionByEntityId(TENANT, subjectId, "TMCL_B", parentId, "MANAGE"))
             .as("父目标直接命中").isTrue();
 
         // 批量拒绝闭包回映射：条目挂祖先实体，请求目标不在条目实体集不得误判 DENIED
-        assertThat(permQueryEngine.getDeniedEntityIds(TENANT, subjectId, "TMCL_B",
+        assertThat(queryGate.getDeniedEntityIds(TENANT, subjectId, "TMCL_B",
                 java.util.Set.of(childA, childB), "MANAGE"))
             .as("批量轨闭包回映射：授父 → 子目标全部允许").isEmpty();
-        assertThat(permQueryEngine.getDeniedEntityIds(TENANT, subjectId, "TMCL_B",
+        assertThat(queryGate.getDeniedEntityIds(TENANT, subjectId, "TMCL_B",
                 java.util.Set.of(childA, childB, orphan), "MANAGE"))
             .as("无授权孤儿仍拒绝").containsExactlyInAnyOrder(orphan);
     }
@@ -140,9 +143,9 @@ class TargetModeClosurePgIT {
         // 授权挂父（父类型行）
         insertPerm(roleId, parentType, parentId, 16L, false);
 
-        assertThat(permQueryEngine.hasPermissionByEntityId(TENANT, subjectId, "TMCL_C2", crossChild, "MANAGE"))
+        assertThat(queryGate.hasPermissionByEntityId(TENANT, subjectId, "TMCL_C2", crossChild, "MANAGE"))
             .as("跨类型父授权不覆盖异类型子目标（闭包止步同类型）").isFalse();
-        assertThat(permQueryEngine.hasPermissionByEntityId(TENANT, subjectId, "TMCL_C1", parentId, "MANAGE"))
+        assertThat(queryGate.hasPermissionByEntityId(TENANT, subjectId, "TMCL_C1", parentId, "MANAGE"))
             .as("父类型目标自身判定不受影响").isTrue();
     }
 
@@ -157,12 +160,12 @@ class TargetModeClosurePgIT {
         long child = insertResource(type, "tmcl-d-child", parentId);
         insertPerm(roleId, type, parentId, 16L, false);
 
-        assertThat(permQueryEngine.hasPermissionByEntityId(TENANT, subjectId, "TMCL_D", child, "MANAGE"))
+        assertThat(queryGate.hasPermissionByEntityId(TENANT, subjectId, "TMCL_D", child, "MANAGE"))
             .as("软删前：授父覆盖子").isTrue();
 
         jdbc.update("UPDATE resource_entity SET delete_flag = 1 WHERE tenant_id = ? AND id = ?", TENANT, parentId);
 
-        assertThat(permQueryEngine.hasPermissionByEntityId(TENANT, subjectId, "TMCL_D", child, "MANAGE"))
+        assertThat(queryGate.hasPermissionByEntityId(TENANT, subjectId, "TMCL_D", child, "MANAGE"))
             .as("软删后：闭包截断，子目标仅剩自身判定（授权行挂软删父不生效）").isFalse();
     }
 
@@ -226,7 +229,7 @@ class TargetModeClosurePgIT {
         jdbc.update("UPDATE role_resource_permission SET scope_all = true, resource_entity_id = NULL "
             + "WHERE tenant_id = ? AND abstract_role_id = ? AND depend_on IS NOT NULL AND delete_flag = 0",
             TENANT, roleId);
-        assertThat(permQueryEngine.hasPermissionByCode(TENANT, subjectId, "TMCL_F2", null, "VIEW"))
+        assertThat(queryGate.hasPermissionByCode(TENANT, subjectId, "TMCL_F2", null, "VIEW"))
             .as("scopeAll 子权限行不得放行类型级门禁（读侧排除）").isFalse();
     }
 

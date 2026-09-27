@@ -6,7 +6,7 @@ import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -41,7 +41,7 @@ class OperationAppServiceImplTest {
 
     @Mock private OperationPermissionMapper operationPermissionMapper;
     @Mock private TypeResolutionService typeResolutionService;
-    @Mock private PermQueryEngine engine;
+    @Mock private QueryGate engine;
     @Mock private cn.ac.fage.accessmesh.common.cache.CacheService cacheService;
     @Mock private cn.ac.fage.accessmesh.access.type.mapper.TypeDefinitionMapper typeDefinitionMapper;
     @Mock private cn.ac.fage.accessmesh.access.grant.service.domain.GrantOriginDomainService grantOriginDomainService;

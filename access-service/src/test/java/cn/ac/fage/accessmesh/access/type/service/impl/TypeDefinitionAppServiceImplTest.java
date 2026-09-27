@@ -9,7 +9,7 @@ import cn.ac.fage.accessmesh.access.type.dto.resp.TypeDefinitionResp;
 import cn.ac.fage.accessmesh.access.type.entity.TypeDefinition;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.service.domain.TypeDefinitionDomainService;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,7 +45,7 @@ class TypeDefinitionAppServiceImplTest {
 
     @Mock private cn.ac.fage.accessmesh.access.type.mapper.TypeDefinitionMapper typeDefinitionMapper;
     @Mock private cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper operationPermissionMapper;
-    @Mock private PermQueryEngine engine;
+    @Mock private QueryGate engine;
     @Mock private cn.ac.fage.accessmesh.access.resource.service.domain.ServiceConfigDomainService serviceConfigMapper;
     @Mock private cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService resourceEntityDomainService;
     @Mock private cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService localProjectionDomainService;

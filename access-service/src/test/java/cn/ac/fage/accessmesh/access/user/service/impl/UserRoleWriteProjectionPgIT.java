@@ -12,7 +12,7 @@ import cn.ac.fage.accessmesh.access.user.dto.resp.AbstractUserResp;
 import cn.ac.fage.accessmesh.access.role.service.RoleManageAppService;
 import cn.ac.fage.accessmesh.access.user.service.UserManageAppService;
 import cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.common.exception.SystemException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -96,7 +96,7 @@ class UserRoleWriteProjectionPgIT {
     @Autowired
     private cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService subjectDomainService;
     @Autowired
-    private PermQueryEngine permQueryEngine;
+    private QueryGate permQueryEngine;
     @Autowired
     private JdbcTemplate jdbc;
 

@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.characterization;
 
 import cn.ac.fage.accessmesh.access.it.ItInfra;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
@@ -78,7 +78,7 @@ class GoldenFixturePgIT {
     }
 
     @Autowired
-    private PermQueryEngine permQueryEngine;
+    private QueryGate permQueryEngine;
     @Autowired
     private JdbcTemplate jdbc;
 

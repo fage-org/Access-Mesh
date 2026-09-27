@@ -85,7 +85,7 @@ class RoleMutexGuardPgIT {
     @Autowired
     private SubjectDomainService subjectDomainService;
     @Autowired
-    private cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine permQueryEngine;
+    private cn.ac.fage.accessmesh.access.engine.query.QueryGate permQueryEngine;
     @Autowired
     private cn.ac.fage.accessmesh.access.engine.service.PermissionQueryAppService permissionQueryAppService;
     @Autowired

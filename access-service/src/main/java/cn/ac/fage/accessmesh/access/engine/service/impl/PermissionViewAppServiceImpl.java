@@ -9,6 +9,7 @@ import cn.ac.fage.accessmesh.access.engine.dto.PermQuery;
 import cn.ac.fage.accessmesh.access.engine.dto.PermResult;
 import cn.ac.fage.accessmesh.access.engine.dto.PermViewFilter;
 import cn.ac.fage.accessmesh.access.engine.dto.PermViewResult;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.engine.service.PermissionViewAppService;
@@ -30,17 +31,20 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
     private final ResourceEntityMapper resourceEntityMapper;
     private final TypeResolutionService typeResolutionService;
     private final PermQueryEngine engine;
+    private final QueryGate queryGate;
     private final PermViewAssembler permViewAssembler;
     private final PermissionConflictDomainService permissionConflictDomainService;
 
     public PermissionViewAppServiceImpl(ResourceEntityMapper resourceEntityMapper,
                                          TypeResolutionService typeResolutionService,
                                          PermQueryEngine engine,
+                                         QueryGate queryGate,
                                          PermViewAssembler permViewAssembler,
                                          PermissionConflictDomainService permissionConflictDomainService) {
         this.resourceEntityMapper = resourceEntityMapper;
         this.typeResolutionService = typeResolutionService;
         this.engine = engine;
+        this.queryGate = queryGate;
         this.permViewAssembler = permViewAssembler;
         this.permissionConflictDomainService = permissionConflictDomainService;
     }
@@ -67,8 +71,9 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
         }
 
         // 门禁：自查豁免；查他人时操作者需对被查用户有 USER:VIEW，防任意登录用户枚举 ID 越权读取他人权限码。
+        // T-PERM-089：查看他人门禁换 QueryGate（新 execute）；主视图管线仍走旧引擎（T-PERM-091 迁移）。
         if (!Objects.equals(operatorId, userId)
-            && !engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.USER, String.valueOf(userId), OperationCode.VIEW)) {
+            && !queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.USER, String.valueOf(userId), OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on USER:" + userId);
         }
         return getEffectivePermissionCodes(tenantId, req);

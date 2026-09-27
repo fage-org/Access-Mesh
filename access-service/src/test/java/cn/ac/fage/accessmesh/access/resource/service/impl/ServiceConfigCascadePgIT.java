@@ -17,7 +17,7 @@ import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomain
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceSyncHandler;
 import cn.ac.fage.accessmesh.access.sync.guard.SyncTypeGuard;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.type.entity.TypeDefinition;
@@ -108,8 +108,8 @@ class ServiceConfigCascadePgIT {
                 typeDefinitionMapper, serviceConfigDomainService, resourceEntityDomainService, new com.fasterxml.jackson.databind.ObjectMapper());
     }
 
-    private PermQueryEngine permitAllEngine() {
-        PermQueryEngine engine = mock(PermQueryEngine.class);
+    private QueryGate permitAllEngine() {
+        QueryGate engine = mock(QueryGate.class);
         lenient().when(engine.hasPermissionByCode(anyLong(), any(), any(),
             any(), any())).thenReturn(true);
         lenient().when(engine.getDeniedResourceCodes(anyLong(), any(), any(),
@@ -117,13 +117,13 @@ class ServiceConfigCascadePgIT {
         return engine;
     }
 
-    private ServiceConfigAppServiceImpl newServiceConfigAppService(PermQueryEngine engine) {
+    private ServiceConfigAppServiceImpl newServiceConfigAppService(QueryGate engine) {
         return new ServiceConfigAppServiceImpl(serviceConfigMapper, engine,
             resourceApiMappingMapper, syncTypeGuard, resourceSyncHandler,
             typeResolutionService, mock(ResourceManageAppService.class));
     }
 
-    private ResourceManageAppService newResourceManageAppService(PermQueryEngine engine) {
+    private ResourceManageAppService newResourceManageAppService(QueryGate engine) {
         return new ResourceManageAppServiceImpl(resourceEntityMapper, resourceApiMappingMapper,
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper.class),
             resourceEntityDomainService, typeResolutionService, domainClassifyService,
@@ -200,7 +200,7 @@ class ServiceConfigCascadePgIT {
         insertMapping(res2.getId(), "PGIT27SVC_B", "/pgit27/b/2");   // B 跨服务手工映射（引用 A 的同步资源）
         insertMapping(res3.getId(), "PGIT27SVC_B", "/pgit27/b/3");   // B 手工映射
 
-        PermQueryEngine engine = permitAllEngine();
+        QueryGate engine = permitAllEngine();
         ServiceConfigAppServiceImpl service = newServiceConfigAppService(engine);
         service.deleteServiceConfigsByIds(TENANT, List.of(svcA.getId()), 100L);
 

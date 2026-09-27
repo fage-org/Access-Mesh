@@ -13,7 +13,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConflictRuleMapper;
 import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
@@ -65,7 +65,7 @@ class ConflictRuleAppServiceImplTest {
     private static final long RULE_ID = 9L;
 
     @Mock private PermissionConflictRuleMapper conflictRuleMapper;
-    @Mock private PermQueryEngine engine;
+    @Mock private QueryGate engine;
     @Mock private PermissionConflictDomainService permissionConflictDomainService;
     @Mock private cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService subjectDomainService;
     @Mock private cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService typeResolutionService;

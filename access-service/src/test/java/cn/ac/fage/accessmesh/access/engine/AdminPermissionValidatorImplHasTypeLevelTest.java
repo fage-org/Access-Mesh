@@ -5,7 +5,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionOwner;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.common.enums.GlobalErrorCode;
 import cn.ac.fage.accessmesh.common.exception.SystemException;
 import org.junit.jupiter.api.AfterEach;
@@ -40,7 +40,7 @@ class AdminPermissionValidatorImplHasTypeLevelTest {
     private static final Long SUBJECT_ID = 52L;
 
     private final TypeResolutionService typeResolutionService = mock(TypeResolutionService.class);
-    private final PermQueryEngine engine = mock(PermQueryEngine.class);
+    private final QueryGate engine = mock(QueryGate.class);
     private final AdminPermissionValidatorImpl validator =
         new AdminPermissionValidatorImpl(typeResolutionService, engine);
 

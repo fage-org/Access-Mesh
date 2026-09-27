@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.grant.service.impl;
 
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.grant.dto.req.ApplyGrantPlanReq;
 import cn.ac.fage.accessmesh.access.grant.service.PermissionGrantAppService;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
@@ -97,10 +97,10 @@ class AutoGrantMaterializationPgIT {
     @Autowired private RoleManageAppService roleManage;
     @Autowired private JdbcTemplate jdbc;
     @SpyBean private TreeWriteLockSupport locks;
-    @SpyBean private PermQueryEngine engine;
+    @SpyBean private QueryGate engine;
 
     @BeforeEach void allowManagement() {
-        when(engine.hasPermissionByCode(anyLong(), any(), anyString(), any(), anyString())).thenReturn(true);
+        doReturn(true).when(engine).hasPermissionByCode(anyLong(), any(), anyString(), any(), anyString());
         doReturn(java.util.Set.of()).when(engine).getDeniedResourceCodes(any(), any(), any(), any(), any());
         jdbc.execute("INSERT INTO abstract_role(tenant_id,role_type,external_id,name) SELECT 1,6,'bootstrap-admin','admin' WHERE NOT EXISTS (SELECT 1 FROM abstract_role WHERE tenant_id=1 AND role_type=6 AND external_id='bootstrap-admin' AND delete_flag=0)");
     }

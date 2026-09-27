@@ -134,7 +134,7 @@ class OrgTreeIncludePositionsPgIT {
 
     /** 故障验收用引擎 spy：仅指定操作码注入技术故障，其余真实 */
     @SpyBean
-    private cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine permQueryEngine;
+    private cn.ac.fage.accessmesh.access.engine.query.QueryGate permQueryEngine;
 
     private final ObjectMapper mapper = new ObjectMapper();
 

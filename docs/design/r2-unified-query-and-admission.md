@@ -560,6 +560,20 @@ T-PERM-087 的展示展开按保留事实源批量读取既有祖先/后代 CTE�
 
 > **T-PERM-080 清点增补（2026-09-25）**：全仓清点册已成册——`r2-query-engine-and-admission-plan` 附录 A（生产调用点逐点迁移目标、门面链、结果加工面、缓存序列化面、测试夹具全量分组、活文档清单、容量盘点；行号为 HEAD `320d16a87` 快照）。勘正一处：本节 getDenied 行「语义变化四消费面（资源树、API 映射、资源依赖、权限树 ID 轨）」与实际不符——四面中「资源依赖」（DependencyAppServiceImpl 无 getDenied 调用）与「权限树 ID 轨」（端点已随 T-PERM-059 删除）两面不存在，实际全量消费面清单见附录 A.3；逐面确认以附录 A.3 为准。四旧 DTO（含 PermResult）均不进缓存载荷（唯一缓存接触面=ROLE_PERM_SNAPSHOT 的 List<RolePermEntry>）。
 
+> **就地实施注（2026-09-27，T-PERM-089）**：本矩阵前四类已切新 execute——①check/batchCheck 在
+> `PermissionCheckAppServiceImpl` 适配层直构 `QueryRequest`（外层职责保留：主体业务键解析/USER_NOT_FOUND、
+> 原序与重复项〔item key=输入下标〕、请求级单一评估时刻〔RunState 单时钟〕、请求级父上下文〔同值
+> ParentRequirement 挂全批 item〕）；②管理面单点门禁与 getDenied* 经薄门面 `engine.query.QueryGate`
+> （§9.4 形态：仅依赖新执行器，方法形状沿旧四入口，评估口径=旧 forValidate 拉平）；③AdminPermissionValidatorImpl
+> 实现内部换门面（接口形状与 SecurityException/技术错误分界保留）。四项适配拍板（2026-09-27 用户）：
+> 空白 resourceCode 归一 TYPE_LEVEL；外部 context 顶层 `clientIp` 仍提取为受信 IP 而 `evaluatedAt`/`timestamp`
+> 保留键由 CallerContext 结构拒绝（500）；QueryEngineMetrics 维持 no-op（Micrometer 绑定随 T-PERM-094）；
+> 门面命名 QueryGate。X03 等价差分记录（已登记预期修复外的新增微差，均无证据消费面）：context 顶层
+> `timestamp` 键不再透传进条件评估；顶层 null 值键静默过滤（CallerContext 契约）；空白编码且仅有
+> depend_on 子 scopeAll 行时拒绝原因 DEPENDENT_NOT_IN_PARENT_CONTEXT→NO_PERMISSION。旧引擎
+> `query`/`queryBatch` 生产消费者仅剩 T-PERM-090/091 目标（queryResources/queryScopes/checkInterface/
+> interfaceSnapshot/视图/转授）。
+
 ### 6.6 LEGACY_API 兼容边界不能误写成终态
 
 迁移期旧接口仍先检查注册，再对全部匹配 API 资源组成一个共同 TARGET_SET，SELF、ALLOW、FULL；不拆项 OR。旧快照仍从 GRANT_LIST PRESERVE＋ENFORCE 结果投影，仅**有效位覆盖 ACCESS 的操作位集合**（ACCESS 位 ∪ inheritMask 覆盖 ACCESS 的自定义位，与现行 SnapshotAssembler 口径一致）才放行；dependent 条目按旧装配顺序排除；API 的 ALL 展开为**目标服务已注册且启用的路由**，不产生任意路径通配；无条件与各 conditionId 分支保留。

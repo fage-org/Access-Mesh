@@ -14,7 +14,7 @@ import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.domain.mapper.BizDomainMapper;
 import cn.ac.fage.accessmesh.access.domain.mapper.DomainConfigMapper;
 import cn.ac.fage.accessmesh.access.domain.service.BizDomainAppService;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorUtil;
 import cn.ac.fage.accessmesh.access.infrastructure.util.StringUtils;
@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
  * 业务域应用服务实现类
  * <p>
  * 提供业务域的CRUD操作。
- * 所有操作均通过PermQueryEngine进行权限校验：
+ * 所有操作均经QueryGate判定门禁：
  * 读（detail/list/count）门禁 DOMAIN:VIEW 类型级；写（create/update/remove）门禁 SYSTEM_CONFIG:MANAGE。
  * T-PERM-026 收口：detail/update 按业务键 code 定位（uk_biz_domain）、list 服务端过滤分页、
  * Resp 返回 global、create 编码查重（预查 + uk_biz_domain DIVE 兜底）、
@@ -45,7 +45,7 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
 
     private final BizDomainMapper bizDomainMapper;
     private final DomainConfigMapper domainConfigMapper;
-    private final PermQueryEngine engine;
+    private final QueryGate queryGate;
 
     /**
      * 构造函数注入依赖
@@ -56,10 +56,10 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
      */
     public BizDomainAppServiceImpl(BizDomainMapper bizDomainMapper,
                                     DomainConfigMapper domainConfigMapper,
-                                    PermQueryEngine engine) {
+                                    QueryGate queryGate) {
         this.bizDomainMapper = bizDomainMapper;
         this.domainConfigMapper = domainConfigMapper;
-        this.engine = engine;
+        this.queryGate = queryGate;
     }
 
     /**
@@ -86,7 +86,7 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
     public BizDomainResp createBizDomain(Long tenantId, BizDomainCreateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCode.MANAGE)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCode.MANAGE)) {
             throw new SecurityException("No permission to create biz domain");
         }
 
@@ -148,7 +148,7 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
     @Transactional(readOnly = true)
     public BizDomainResp getBizDomain(Long tenantId, String domainCode) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DOMAIN, null, OperationCode.VIEW)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DOMAIN, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on DOMAIN");
         }
 
@@ -171,7 +171,7 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
     @Transactional(readOnly = true)
     public long countBizDomains(Long tenantId, String keyword) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DOMAIN, null, OperationCode.VIEW)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DOMAIN, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on DOMAIN");
         }
         return bizDomainMapper.countByCondition(tenantId, StringUtils.normalizeFilterParam(keyword));
@@ -194,7 +194,7 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
     @Transactional(readOnly = true)
     public List<BizDomainResp> listBizDomains(Long tenantId, String keyword, int offset, int limit) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DOMAIN, null, OperationCode.VIEW)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DOMAIN, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on DOMAIN");
         }
 
@@ -223,7 +223,7 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
     public BizDomainResp updateBizDomain(Long tenantId, BizDomainUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCode.MANAGE)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCode.MANAGE)) {
             throw new SecurityException("No permission to update biz domain");
         }
 
@@ -258,7 +258,7 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
     public void deleteBizDomainsByIds(Long tenantId, List<Long> ids, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCode.MANAGE)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCode.MANAGE)) {
             throw new SecurityException("No permission to delete biz domains");
         }
 

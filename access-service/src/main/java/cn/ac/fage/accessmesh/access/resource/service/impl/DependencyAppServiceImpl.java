@@ -28,7 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -40,7 +40,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
     private final ResourceDependencyMapper dependencyMapper;
     private final ResourceEntityMapper resourceEntityMapper;
     private final TypeResolutionService typeResolutionService;
-    private final PermQueryEngine engine;
+    private final QueryGate queryGate;
     private final AutoGrantInsightDomainService autoGrantInsightDomainService;
     private final OperationPermissionDomainService operationPermissionDomainService;
     private final PermissionConditionDomainService conditionDomainService;
@@ -51,7 +51,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
     public DependencyAppServiceImpl(ResourceDependencyMapper dependencyMapper,
                                     ResourceEntityMapper resourceEntityMapper,
                                     TypeResolutionService typeResolutionService,
-                                    PermQueryEngine engine,
+                                    QueryGate queryGate,
                                     AutoGrantInsightDomainService autoGrantInsightDomainService,
                                     OperationPermissionDomainService operationPermissionDomainService,
                                     PermissionConditionDomainService conditionDomainService,
@@ -61,7 +61,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
         this.dependencyMapper = dependencyMapper;
         this.resourceEntityMapper = resourceEntityMapper;
         this.typeResolutionService = typeResolutionService;
-        this.engine = engine;
+        this.queryGate = queryGate;
         this.autoGrantInsightDomainService = autoGrantInsightDomainService;
         this.operationPermissionDomainService = operationPermissionDomainService;
         this.conditionDomainService = conditionDomainService;
@@ -87,7 +87,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
     @Override
     public List<ResourceDependencyResp> listDependencies(Long tenantId, Long resourceEntityId) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, null, OperationCode.VIEW)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on DEPENDENCY");
         }
         List<ResourceDependency> dependencies = dependencyMapper.selectByTenantAndResourceEntityId(tenantId, resourceEntityId);
@@ -109,7 +109,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
     @Override
     public List<ResourceDependencyResp> listAllDependencies(Long tenantId) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, null, OperationCode.VIEW)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on DEPENDENCY");
         }
         List<ResourceDependency> dependencies = dependencyMapper.selectByTenantId(tenantId);
@@ -134,7 +134,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
     @Override
     public boolean hasDependencyCycle(Long tenantId, ResourceDependencyCheckReq req) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, null, OperationCode.VIEW)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on DEPENDENCY");
         }
         Long sourceId = typeResolutionService.resolveResourceId(
@@ -193,7 +193,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public AutoGrantExplainResp explainAutoGrant(Long tenantId, AutoGrantExplainReq req) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, null, OperationCode.VIEW)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on DEPENDENCY");
         }
         Long roleId = typeResolutionService.resolveRoleId(
@@ -261,7 +261,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
     @Transactional(readOnly = true)
     public DependencyDeclarationStatusResp declarationStatus(Long tenantId, DependencyDeclarationStatusReq req) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, null, OperationCode.VIEW)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on DEPENDENCY");
         }
         String serviceFilter = req == null || req.sourceService() == null || req.sourceService().isBlank()

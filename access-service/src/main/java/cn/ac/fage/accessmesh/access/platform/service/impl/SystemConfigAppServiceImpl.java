@@ -9,7 +9,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.platform.mapper.SystemConfigMapper;
 import cn.ac.fage.accessmesh.access.platform.service.SystemConfigAppService;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.audit.util.JsonValidationUtils;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.infrastructure.util.StringUtils;
@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
  * 系统配置应用服务实现类
  * <p>
  * 提供系统配置的CRUD操作。
- * 所有操作均通过PermQueryEngine进行权限校验。
+ * 所有操作均经QueryGate判定门禁。
  * </p>
  */
 @Service
@@ -38,7 +38,7 @@ public class SystemConfigAppServiceImpl implements SystemConfigAppService {
     private static final String[] ALLOWED_CONFIG_KEY_PREFIXES = {"admin.", "permission.", "access."};
 
     private final SystemConfigMapper systemConfigMapper;
-    private final PermQueryEngine engine;
+    private final QueryGate queryGate;
 
     /**
      * 构造函数注入依赖
@@ -47,9 +47,9 @@ public class SystemConfigAppServiceImpl implements SystemConfigAppService {
      * @param engine             权限查询引擎
      */
     public SystemConfigAppServiceImpl(SystemConfigMapper systemConfigMapper,
-                                       PermQueryEngine engine) {
+                                       QueryGate queryGate) {
         this.systemConfigMapper = systemConfigMapper;
-        this.engine = engine;
+        this.queryGate = queryGate;
     }
 
     /**
@@ -72,7 +72,7 @@ public class SystemConfigAppServiceImpl implements SystemConfigAppService {
     @OperationLog(module = "PERMISSION", action = "SYSTEM_CONFIG_UPSERT", targetType = "system_config", targetId = "#req.configKey()", summary = "'upsert system config ' + #req.configKey()")
     public SystemConfigResp upsertSystemConfig(Long tenantId, SystemConfigReq req) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCode.MANAGE)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCode.MANAGE)) {
             throw new SecurityException("No permission to manage system config");
         }
 
@@ -127,7 +127,7 @@ public class SystemConfigAppServiceImpl implements SystemConfigAppService {
     @Transactional(readOnly = true)
     public SystemConfigResp getSystemConfig(Long tenantId, String configKey) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCode.VIEW)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
         }
 
@@ -149,7 +149,7 @@ public class SystemConfigAppServiceImpl implements SystemConfigAppService {
     @Transactional(readOnly = true)
     public long countSystemConfigs(Long tenantId, String keyword) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCode.VIEW)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
         }
         return systemConfigMapper.countByCondition(tenantId, StringUtils.normalizeFilterParam(keyword));
@@ -171,7 +171,7 @@ public class SystemConfigAppServiceImpl implements SystemConfigAppService {
     @Transactional(readOnly = true)
     public List<SystemConfigResp> listSystemConfigs(Long tenantId, String keyword, int offset, int limit) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCode.VIEW)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
         }
 

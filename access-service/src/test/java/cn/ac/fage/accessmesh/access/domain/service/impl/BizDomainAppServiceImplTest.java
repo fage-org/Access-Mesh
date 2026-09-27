@@ -9,7 +9,7 @@ import cn.ac.fage.accessmesh.access.domain.entity.DomainConfig;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.domain.mapper.BizDomainMapper;
 import cn.ac.fage.accessmesh.access.domain.mapper.DomainConfigMapper;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,7 +45,7 @@ class BizDomainAppServiceImplTest {
 
     @Mock private BizDomainMapper bizDomainMapper;
     @Mock private DomainConfigMapper domainConfigMapper;
-    @Mock private PermQueryEngine engine;
+    @Mock private QueryGate engine;
 
     private BizDomainAppServiceImpl service;
 

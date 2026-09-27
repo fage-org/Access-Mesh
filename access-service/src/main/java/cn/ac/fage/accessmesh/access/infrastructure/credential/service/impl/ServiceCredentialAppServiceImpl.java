@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.access.infrastructure.credential.service.impl;
 
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.infrastructure.credential.dto.req.ServiceCredentialCreateReq;
 import cn.ac.fage.accessmesh.access.infrastructure.credential.dto.req.ServiceCredentialListReq;
 import cn.ac.fage.accessmesh.access.infrastructure.credential.dto.req.ServiceCredentialUpdateReq;
@@ -35,14 +35,14 @@ public class ServiceCredentialAppServiceImpl implements ServiceCredentialAppServ
 
     private final ServiceCredentialDomainService serviceCredentialDomainService;
     private final ServiceConfigDomainService serviceConfigDomainService;
-    private final PermQueryEngine engine;
+    private final QueryGate queryGate;
 
     public ServiceCredentialAppServiceImpl(ServiceCredentialDomainService serviceCredentialDomainService,
                                            ServiceConfigDomainService serviceConfigDomainService,
-                                           PermQueryEngine engine) {
+                                           QueryGate queryGate) {
         this.serviceCredentialDomainService = serviceCredentialDomainService;
         this.serviceConfigDomainService = serviceConfigDomainService;
-        this.engine = engine;
+        this.queryGate = queryGate;
     }
 
     @Override
@@ -52,7 +52,7 @@ public class ServiceCredentialAppServiceImpl implements ServiceCredentialAppServ
         summary = "'issue service credential for ' + #req.serviceCode()")
     public ServiceCredentialCreateResp create(Long tenantId, ServiceCredentialCreateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCode.MANAGE)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCode.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on SERVICE");
         }
         // 绑定服务须已注册且启用（对齐 20055 门禁的服务注册段——签发凭证给未注册/停用服务
@@ -73,7 +73,7 @@ public class ServiceCredentialAppServiceImpl implements ServiceCredentialAppServ
         summary = "'update service credential ' + #req.id()")
     public ServiceCredentialResp update(Long tenantId, ServiceCredentialUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCode.MANAGE)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCode.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on SERVICE");
         }
         if (req.status() == null && req.expiresAt() == null) {
@@ -107,7 +107,7 @@ public class ServiceCredentialAppServiceImpl implements ServiceCredentialAppServ
         summary = "'remove service credential ' + #id")
     public void remove(Long tenantId, Long id, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCode.MANAGE)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCode.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on SERVICE");
         }
         int rows = serviceCredentialDomainService.remove(tenantId, id, operatorId);
@@ -120,7 +120,7 @@ public class ServiceCredentialAppServiceImpl implements ServiceCredentialAppServ
     @Transactional(readOnly = true)
     public ItemsResp<ServiceCredentialResp> list(Long tenantId, ServiceCredentialListReq req) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCode.VIEW)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SERVICE");
         }
         List<ServiceCredentialResp> items = serviceCredentialDomainService.list(tenantId, req.normalizedServiceCode())

@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.resource.service.impl;
 
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
@@ -72,7 +72,7 @@ class DependencyLifecyclePgIT {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private PlatformTransactionManager transactions;
     @SpyBean private TreeWriteLockSupport locks;
-    @MockBean private PermQueryEngine engine;
+    @MockBean private QueryGate engine;
     @BeforeEach void allowManagement() {
         when(engine.hasPermissionByCode(anyLong(), any(), anyString(), any(), anyString())).thenReturn(true);
         jdbc.execute("INSERT INTO abstract_role(tenant_id,role_type,external_id,name) SELECT 1,6,'bootstrap-admin','admin' WHERE NOT EXISTS (SELECT 1 FROM abstract_role WHERE tenant_id=1 AND role_type=6 AND external_id='bootstrap-admin' AND delete_flag=0)");

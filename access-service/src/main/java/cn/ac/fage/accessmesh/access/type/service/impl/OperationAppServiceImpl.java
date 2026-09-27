@@ -30,7 +30,7 @@ import cn.ac.fage.accessmesh.common.cache.CacheService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -45,7 +45,7 @@ import java.util.stream.Collectors;
  * 提供操作权限（OperationPermission）的CRUD操作。
  * 操作权限定义了系统支持的各种操作类型，如查看、编辑、删除、管理等。
  * 每个操作权限有二进制位用于位运算权限匹配，继承掩码用于权限继承。
- * 所有操作均通过PermQueryEngine进行权限校验，确保操作安全。
+ * 所有操作均经QueryGate判定门禁，确保操作安全。
  * 批量删除操作采用批量软删除策略，避免N+1查询问题。
  * </p>
  */
@@ -55,7 +55,7 @@ public class OperationAppServiceImpl implements OperationAppService {
     private final DependencyCompilationDomainService compilation;
     private final OperationPermissionMapper operationPermissionMapper;
     private final TypeResolutionService typeResolutionService;
-    private final PermQueryEngine engine;
+    private final QueryGate queryGate;
     private final CacheService cacheService;
     private final TypeDefinitionMapper typeDefinitionMapper;
     private final GrantOriginDomainService grantOriginDomainService;
@@ -76,7 +76,7 @@ public class OperationAppServiceImpl implements OperationAppService {
      */
     public OperationAppServiceImpl(OperationPermissionMapper operationPermissionMapper,
                                       TypeResolutionService typeResolutionService,
-                                      PermQueryEngine engine,
+                                      QueryGate queryGate,
                                       CacheService cacheService,
                                       TypeDefinitionMapper typeDefinitionMapper,
                                       GrantOriginDomainService grantOriginDomainService,
@@ -87,7 +87,7 @@ public class OperationAppServiceImpl implements OperationAppService {
         this.compilation = compilation;
         this.operationPermissionMapper = operationPermissionMapper;
         this.typeResolutionService = typeResolutionService;
-        this.engine = engine;
+        this.queryGate = queryGate;
         this.cacheService = cacheService;
         this.typeDefinitionMapper = typeDefinitionMapper;
         this.grantOriginDomainService = grantOriginDomainService;
@@ -122,7 +122,7 @@ public class OperationAppServiceImpl implements OperationAppService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // 权限校验
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationCode.CREATE)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationCode.CREATE)) {
             throw new SecurityException("No permission to create operation");
         }
 
@@ -199,7 +199,7 @@ public class OperationAppServiceImpl implements OperationAppService {
     public OperationPermissionResp getOperation(Long tenantId, OperationKeyReq key) {
         // T-PERM-028：详情读门禁（类型级 OPERATION:VIEW，对齐 list 门禁先例）
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationCode.VIEW)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on OPERATION");
         }
         return toResp(selectOperationByBusinessKey(tenantId, key));
@@ -242,7 +242,7 @@ public class OperationAppServiceImpl implements OperationAppService {
     public List<OperationPermissionResp> listOperations(Long tenantId, String resourceTypeCode) {
         // T-PERM-042：授权页操作列表读门禁（architecture §14.5 终态，类型级 OPERATION:VIEW）
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationCode.VIEW)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on OPERATION");
         }
         Integer resourceType = null;
@@ -297,7 +297,7 @@ public class OperationAppServiceImpl implements OperationAppService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // 权限校验
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationCode.MANAGE)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationCode.MANAGE)) {
             throw new SecurityException("No permission to update operation");
         }
 
@@ -369,7 +369,7 @@ public class OperationAppServiceImpl implements OperationAppService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // 权限校验
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationCode.MANAGE)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationCode.MANAGE)) {
             throw new SecurityException("No permission to delete operations");
         }
 

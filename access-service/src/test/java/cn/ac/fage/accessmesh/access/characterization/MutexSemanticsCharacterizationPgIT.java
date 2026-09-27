@@ -1,11 +1,27 @@
 package cn.ac.fage.accessmesh.access.characterization;
 
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
-import cn.ac.fage.accessmesh.access.engine.dto.PermBatchQuery;
-import cn.ac.fage.accessmesh.access.engine.dto.PermBatchResult;
-import cn.ac.fage.accessmesh.access.engine.dto.PermEvalContext;
-import cn.ac.fage.accessmesh.access.engine.dto.PermQuery;
-import cn.ac.fage.accessmesh.access.engine.dto.PermResult;
+import cn.ac.fage.accessmesh.access.engine.query.ByCode;
+import cn.ac.fage.accessmesh.access.engine.query.CallerContext;
+import cn.ac.fage.accessmesh.access.engine.query.DecisionResult;
+import cn.ac.fage.accessmesh.access.engine.query.Inheritance;
+import cn.ac.fage.accessmesh.access.engine.query.OutputSpec;
+import cn.ac.fage.accessmesh.access.engine.query.QueryExecutionEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryItem;
+import cn.ac.fage.accessmesh.access.engine.query.QueryRequest;
+import cn.ac.fage.accessmesh.access.engine.query.ReadOptions;
+import cn.ac.fage.accessmesh.access.engine.query.TargetClause;
+import cn.ac.fage.accessmesh.access.engine.query.TargetSet;
+import cn.ac.fage.accessmesh.access.engine.query.TypeFallback;
+import cn.ac.fage.accessmesh.access.engine.query.TypeOperation;
+import cn.ac.fage.accessmesh.access.engine.query.User;
+import cn.ac.fage.accessmesh.access.engine.service.PermissionCheckAppService;
+import cn.ac.fage.accessmesh.access.engine.dto.BatchAuthCheckResp;
+import cn.ac.fage.accessmesh.perm.common.dto.req.AuthCheckReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq;
+import java.util.Map;
+import java.util.Set;
+
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
 import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService;
@@ -24,11 +40,8 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -39,11 +52,17 @@ import static org.mockito.Mockito.verify;
  * 互斥语义特征测试（T-PERM-081，真实 PostgreSQL + Redis）。
  * <p>
  * PQ-01／PQ-06 反例复现与留证（设计 §1.2、§10.2 D01~D03／R01~R02；断言口径=锁当前行为，
- * 2026-09-25 拍板——缺陷断言今天绿，修复任务落地当天变红强制翻转）：
+ * 2026-09-25 拍板——缺陷断言今天绿，修复任务落地当天变红强制翻转）。
+ * T-PERM-089 门面链改写：getDenied*／hasPermission* 断言改经 QueryGate（新 execute，
+ * 断言与事实集保留）；queryBatch 对照极改经 batchCheck 服务面（生产消费者）；
+ * D02 共同集合锚改直构 TargetSet 多 clause 单 item（旧 forAuthCheck 多编码形态的
+ * 新核心对应——checkInterface 共同集合语义〔T-PERM-090〕的引擎契约先锚）；
+ * ⑧ 审计锁按新引擎 ConflictEvidence 形态改写（按 execution＋item＋stage＋ruleRef 聚合，
+ * 独立目标分别计影响——不再合并为旧 (组,ruleId) 单行）。
  * </p>
  * <ul>
- *   <li><b>PQ-01</b>（{@code computeInstanceDenied} 整批 {@code filterPermMutex} 后回映射）：
- *       D01 锁现状「getDenied* 跨 item 整批互斥过拒」并与 queryBatch 逐 item 放行对拍；
+ *   <li><b>PQ-01</b>（getDenied* 跨 item 判定）：
+ *       D01 锁「getDenied* 逐目标判定」并与 batchCheck 逐 item 放行对拍；
  *       D02／D03 锁正确语义锚（一个目标集合项两端同场按共同集合拒绝／同目标挂两端必须拒绝），
  *       防 T-PERM-095 修复时把互斥改没；</li>
  *   <li><b>PQ-06</b>（{@code filterRoleMutex} 顺序遍历边删边判、规则查询无 ORDER BY）：
@@ -54,9 +73,8 @@ import static org.mockito.Mockito.verify;
  * <p>
  * 翻转状态（均已完成）：<b>T-PERM-083</b>（2026-09-26）落地 S/H-D 后 R01 翻转为终态锚
  * （对原始集一次算全部命中对、端点并集一次删净——顺序无关）；<b>T-PERM-095</b>（2026-09-26）
- * 落地逐目标判定后 D01 两断言翻转为「拒绝集为空」（独立目标各自 PERM_MUTEX——沿 queryBatch
- * 逐 item 语义形态）。D02/D03/R02 修复前后语义不变。queryBatch 逐 item 放行侧由
- * BatchAuthCheckPgIT ⑤ 同款锁定。
+ * 落地逐目标判定后 D01 两断言翻转为「拒绝集为空」（独立目标各自 PERM_MUTEX——沿逐 item
+ * 语义形态）。D02/D03/R02 修复前后语义不变。
  * </p>
  */
 @Tag("testcontainers")
@@ -92,20 +110,22 @@ class MutexSemanticsCharacterizationPgIT {
         ItInfra.register(registry, MutexSemanticsCharacterizationPgIT.class);
     }
 
-    @Autowired private PermQueryEngine engine;
+    @Autowired private QueryGate queryGate;
+    @Autowired private QueryExecutionEngine queryEngine;
+    @Autowired private PermissionCheckAppService checkAppService;
     @Autowired private PermissionConflictDomainService conflictDomainService;
     @Autowired private JdbcTemplate jdbc;
-    /** T-PERM-095 引擎级互斥审计聚合锁（⑧ 同款形态：getDenied* ledger 面需要可捕获的审计桩） */
+    /** 引擎级互斥审计锁（新引擎受控提交面需要可捕获的审计桩；QueryAuditCollector 消费本服务） */
     @MockBean private AuditDomainService auditDomainService;
 
     private R2BaselineFixture fixture() {
         return new R2BaselineFixture(jdbc);
     }
 
-    // ===== D01：PQ-01 getDenied* 跨 item 整批互斥过拒 vs queryBatch 逐 item 评估 =====
+    // ===== D01：PQ-01 getDenied* 跨 item 整批互斥过拒 vs batchCheck 逐 item 评估 =====
 
     @Test
-    @DisplayName("D01 锚：X:VIEW 行 + Y:UPDATE 行（覆盖 VIEW）+ VIEW⊥UPDATE 规则——queryBatch 双放行，getDenied* 逐目标判定双放行（T-PERM-095 终态）")
+    @DisplayName("D01 锚：X:VIEW 行 + Y:UPDATE 行（覆盖 VIEW）+ VIEW⊥UPDATE 规则——batchCheck 双放行，getDenied* 逐目标判定双放行（T-PERM-095 终态）")
     void shouldOverDenyAcrossItemsInGetDeniedWhileQueryBatchAllowsPerItem() {
         R2BaselineFixture fx = fixture();
         fx.newType(TYPE_D01, CODE_D01);
@@ -120,30 +140,30 @@ class MutexSemanticsCharacterizationPgIT {
         fx.insertPermRow(roleX, TYPE_D01, entityX, VIEW_BIT, false, null);
         fx.insertPermRow(roleY, TYPE_D01, entityY, UPDATE_BIT, false, null);
 
-        // 对照极：queryBatch 逐 item 评估——各 item 闭包子集内仅单端在场，不构成冲突
-        PermBatchQuery batch = PermBatchQuery.forAuthCheckBatch(R2BaselineFixture.TENANT, user, List.of(
-            new PermBatchQuery.Item(CODE_D01, "r2b-mx-x", "VIEW", null, null, false),
-            new PermBatchQuery.Item(CODE_D01, "r2b-mx-y", "VIEW", null, null, false)));
-        batch.setEvalContext(pinnedNow());
-        List<PermBatchResult.ItemOutcome> outcomes = engine.queryBatch(batch).outcomes();
-        assertThat(outcomes.get(0).allowed()).as("item1 子集仅 VIEW 端：单端不冲突").isTrue();
-        assertThat(outcomes.get(1).allowed()).as("item2 子集仅 UPDATE 端：单端不冲突").isTrue();
+        // 对照极：batchCheck 逐 item 评估（服务面＝生产消费者）——各 item 候选集内仅单端在场，不构成冲突
+        BatchAuthCheckResp resp = checkAppService.batchCheck(R2BaselineFixture.TENANT, new BatchAuthCheckReq(
+            "USER", String.valueOf(user), List.of(
+                new BatchAuthCheckReq.AuthCheckItem(CODE_D01, "r2b-mx-x", "VIEW", null, null, null),
+                new BatchAuthCheckReq.AuthCheckItem(CODE_D01, "r2b-mx-y", "VIEW", null, null, null)),
+            null, null, null, null, Map.of()));
+        assertThat(resp.items().get(0).allowed()).as("item1 子集仅 VIEW 端：单端不冲突").isTrue();
+        assertThat(resp.items().get(1).allowed()).as("item2 子集仅 UPDATE 端：单端不冲突").isTrue();
 
-        // D01 终态锚（T-PERM-095 翻转，2026-09-26）：候选按目标闭包切分各自 PERM_MUTEX——
+        // D01 终态锚（T-PERM-095 翻转，2026-09-26）：候选按目标切分各自 PERM_MUTEX——
         // 各目标判定集合内仅单端在场，不构成冲突 → 双目标放行（设计 §10.2 D01 正确预期达成）。
         // 翻转前红跑取证 2026-09-25：旧整批 filterPermMutex 单端+单端凑成两端同场双删，
         // 实际返回两个实体 id / 两个编码
-        assertThat(engine.getDeniedEntityIds(R2BaselineFixture.TENANT, user, CODE_D01,
+        assertThat(queryGate.getDeniedEntityIds(R2BaselineFixture.TENANT, user, CODE_D01,
                 Set.of(entityX, entityY), "VIEW"))
             .as("D01：独立目标各自判定——id 轨拒绝集为空")
             .isEmpty();
-        assertThat(engine.getDeniedResourceCodes(R2BaselineFixture.TENANT, user, CODE_D01,
+        assertThat(queryGate.getDeniedResourceCodes(R2BaselineFixture.TENANT, user, CODE_D01,
                 Set.of("r2b-mx-x", "r2b-mx-y"), "VIEW"))
             .as("D01：code 轨同形态——拒绝集为空")
             .isEmpty();
 
         // 单目标对照：判定集合内仅单端——现状与修复后语义一致，均为放行
-        assertThat(engine.getDeniedEntityIds(R2BaselineFixture.TENANT, user, CODE_D01,
+        assertThat(queryGate.getDeniedEntityIds(R2BaselineFixture.TENANT, user, CODE_D01,
                 Set.of(entityX), "VIEW"))
             .as("单目标仅 VIEW 端：任何实现下都不应被拒").isEmpty();
     }
@@ -151,7 +171,7 @@ class MutexSemanticsCharacterizationPgIT {
     // ===== D02：一个目标集合项两端同场 → 共同集合拒绝（正确语义锚，修复前后不变） =====
 
     @Test
-    @DisplayName("D02 语义锚：同样数据放进一个目标集合项（单 query 多编码目标）→ 两端同场按共同集合拒绝")
+    @DisplayName("D02 语义锚：同样数据放进一个目标集合项（单 item 多 clause）→ 两端同场按共同集合拒绝")
     void shouldDenyAsCommonSetWhenBothEndsInOneTargetSetQuery() {
         R2BaselineFixture fx = fixture();
         fx.newType(TYPE_D02, CODE_D02);
@@ -166,16 +186,22 @@ class MutexSemanticsCharacterizationPgIT {
         fx.insertPermRow(roleX, TYPE_D02, entityX, VIEW_BIT, false, null);
         fx.insertPermRow(roleY, TYPE_D02, entityY, UPDATE_BIT, false, null);
 
-        // 单条 query 的 INSTANCE 目标集 = 整个编码集合一个判定集合（TargetSet 共同集合语义的旧核心对应形态）
-        PermQuery q = PermQuery.forAuthCheck(R2BaselineFixture.TENANT, user, CODE_D02, "r2b-mx-x", "VIEW");
-        q.setResourceCodes(Set.of("r2b-mx-x", "r2b-mx-y"));
-        q.setEvalContext(pinnedNow());
-        PermResult result = engine.query(q);
+        // 新核心对应形态：单 item 的 TARGET_SET 多 clause＝一个共同候选集合（设计 §2.4——
+        // 旧 forAuthCheck+setResourceCodes 多编码形态的语义等价物；checkInterface〔T-PERM-090〕
+        // 的共同集合语义在引擎契约层先行锚定）。判定面继承关（旧 forAuthCheck 默认）。
+        TypeOperation view = new TypeOperation(CODE_D02, "VIEW");
+        QueryItem item = QueryItem.decision("d02", new TargetSet(List.of(
+            new TargetClause(view, new ByCode("r2b-mx-x", null, null)),
+            new TargetClause(view, new ByCode("r2b-mx-y", null, null))),
+            Inheritance.SELF, TypeFallback.ALLOW, null), OutputSpec.minimal());
+        DecisionResult result = (DecisionResult) queryEngine.execute(new QueryRequest(
+            R2BaselineFixture.TENANT, new User(user), CallerContext.of(null),
+            ReadOptions.defaults(), List.of(item))).orderedResults().get(0);
 
-        assertThat(result.allowed())
+        assertThat(result.outcome())
             .as("D02 正确语义锚：目标集合项内两端同场 → 共同集合拒绝（T-PERM-095 修复后仍须拒绝）")
-            .isFalse();
-        assertThat(result.reason()).isEqualTo("CONDITION_NOT_MET_OR_CONFLICT");
+            .isEqualTo(DecisionResult.Decision.DENY);
+        assertThat(result.reason()).isEqualTo(DecisionResult.Reason.CONDITION_NOT_MET_OR_CONFLICT);
     }
 
     // ===== D03：同目标挂互斥两端 → 必须拒绝（正确语义锚，修复前后不变） =====
@@ -194,34 +220,34 @@ class MutexSemanticsCharacterizationPgIT {
         fx.insertPermRow(role, TYPE_D03, entityZ, VIEW_BIT, false, null);
         fx.insertPermRow(role, TYPE_D03, entityZ, UPDATE_BIT, false, null);
 
-        // 单点：不能第一条授权提前返回——互斥两端同目标必须拒绝
-        PermQuery single = PermQuery.forAuthCheck(R2BaselineFixture.TENANT, user, CODE_D03, "r2b-mx-z", "VIEW");
-        single.setEvalContext(pinnedNow());
-        PermResult singleResult = engine.query(single);
-        assertThat(singleResult.allowed())
+        // 单点（服务面 check）：不能第一条授权提前返回——互斥两端同目标必须拒绝
+        var single = checkAppService.check(R2BaselineFixture.TENANT, new AuthCheckReq(
+            "USER", String.valueOf(user), CODE_D03, "r2b-mx-z", "VIEW",
+            null, null, null, null, null, null, null, Map.of()));
+        assertThat(single.allowed())
             .as("D03 正确语义锚：同目标两端同场必须拒绝").isFalse();
-        assertThat(singleResult.reason()).isEqualTo("CONDITION_NOT_MET_OR_CONFLICT");
+        assertThat(single.reason()).isEqualTo("CONDITION_NOT_MET_OR_CONFLICT");
 
-        // 批量 item 同形
-        PermBatchQuery batch = PermBatchQuery.forAuthCheckBatch(R2BaselineFixture.TENANT, user, List.of(
-            new PermBatchQuery.Item(CODE_D03, "r2b-mx-z", "VIEW", null, null, false)));
-        batch.setEvalContext(pinnedNow());
-        PermBatchResult.ItemOutcome outcome = engine.queryBatch(batch).outcomes().get(0);
-        assertThat(outcome.allowed()).isFalse();
-        assertThat(outcome.reason()).isEqualTo("CONDITION_NOT_MET_OR_CONFLICT");
+        // 批量 item 同形（服务面 batchCheck）
+        BatchAuthCheckResp batch = checkAppService.batchCheck(R2BaselineFixture.TENANT, new BatchAuthCheckReq(
+            "USER", String.valueOf(user), List.of(
+                new BatchAuthCheckReq.AuthCheckItem(CODE_D03, "r2b-mx-z", "VIEW", null, null, null)),
+            null, null, null, null, Map.of()));
+        assertThat(batch.items().get(0).allowed()).isFalse();
+        assertThat(batch.items().get(0).reason()).isEqualTo("CONDITION_NOT_MET_OR_CONFLICT");
 
         // getDenied 单目标（集合语义对单目标=共同集合）：修复后仍应拒绝
-        assertThat(engine.getDeniedEntityIds(R2BaselineFixture.TENANT, user, CODE_D03, Set.of(entityZ), "VIEW"))
+        assertThat(queryGate.getDeniedEntityIds(R2BaselineFixture.TENANT, user, CODE_D03, Set.of(entityZ), "VIEW"))
             .as("D03：同目标两端 → getDenied 必含该目标（T-PERM-095 修复后不变）")
             .containsExactly(entityZ);
-        assertThat(engine.hasPermissionByEntityId(R2BaselineFixture.TENANT, user, CODE_D03, entityZ, "VIEW"))
+        assertThat(queryGate.hasPermissionByEntityId(R2BaselineFixture.TENANT, user, CODE_D03, entityZ, "VIEW"))
             .isFalse();
     }
 
-    // ===== getDenied* 互斥审计聚合锁（T-PERM-095；BatchAuthCheckPgIT ⑧ 同款——引擎级 ledger 面） =====
+    // ===== getDenied* 互斥审计锁（T-PERM-089 起按新引擎 ConflictEvidence 形态） =====
 
     @Test
-    @DisplayName("getDenied 审计锁：两目标各自两端同场触发同规则 → 1 条审计行（group=GET_DENIED:{type}:{op}、hitItemCount=2）；未触发规则不出现")
+    @DisplayName("getDenied 审计锁：两目标各自两端同场触发同规则 → 两条 item 级 CONFLICT_DETECTED 证据行（同规则、affected 各自目标）；未触发规则不出现")
     void getDeniedMutexAuditMustAggregatePerRuleAcrossTargets() {
         R2BaselineFixture fx = fixture();
         fx.newType(TYPE_D04, CODE_D04);
@@ -241,22 +267,30 @@ class MutexSemanticsCharacterizationPgIT {
         fx.insertPermRow(role, TYPE_D04, entityB, VIEW_BIT, false, null);
         fx.insertPermRow(role, TYPE_D04, entityB, UPDATE_BIT, false, null);
 
-        Set<Long> denied = engine.getDeniedEntityIds(R2BaselineFixture.TENANT, user, CODE_D04,
+        Set<Long> denied = queryGate.getDeniedEntityIds(R2BaselineFixture.TENANT, user, CODE_D04,
             Set.of(entityA, entityB), "VIEW");
         assertThat(denied)
             .as("两目标各自两端同场：逐目标判拒（D03 语义×2，修复后不变）")
             .containsExactlyInAnyOrder(entityA, entityB);
 
-        // 引擎级 ledger：同规则跨两目标命中 → 聚合一条审计行（组键+命中目标数+真实规则 detail；
-        // 旧整批 filterPermMutex 形态的 notifyPermConflict 单行无 group 段，本断言组必红）
+        // 新引擎受控提交（T-PERM-088）：按 execution＋item＋stage＋ruleRef 聚合——独立目标
+        // key 不同应分别计影响（设计 §6.1），两目标同规则 = 两条证据行（旧 (组,ruleId) 跨目标
+        // 合并单行形态随旧执行体退场；「hitItemCount=2」聚合语义由 item 级两行分别承载）。
         ArgumentCaptor<AuditDomainService.OperationLogEntry> captor =
             ArgumentCaptor.forClass(AuditDomainService.OperationLogEntry.class);
-        verify(auditDomainService, times(1)).asyncRecordLog(captor.capture());
-        String summary = String.valueOf(captor.getValue().summary());
-        assertThat(summary).contains("group=GET_DENIED:" + CODE_D04 + ":VIEW");
-        assertThat(summary).contains("hitItemCount=2");
-        assertThat(summary).contains("rule[" + triggeredRuleId + "]");
-        assertThat(summary).doesNotContain("rule[" + untriggeredRuleId + "]");
+        verify(auditDomainService, times(2)).asyncRecordLog(captor.capture());
+        List<String> summaries = captor.getAllValues().stream()
+            .map(entry -> String.valueOf(entry.summary())).toList();
+        assertThat(summaries)
+            .allSatisfy(summary -> assertThat(summary)
+                .contains("rule=" + triggeredRuleId)
+                .contains("stage=INSTANCE")
+                .contains("completion=COMPLETE"));
+        // 独立目标分别计影响：两条行各自 affected 只含本目标 key
+        assertThat(summaries).anySatisfy(summary -> assertThat(summary).contains("item=" + entityA));
+        assertThat(summaries).anySatisfy(summary -> assertThat(summary).contains("item=" + entityB));
+        // 未触发规则端点不出现
+        assertThat(summaries).noneSatisfy(summary -> assertThat(summary).contains("rule=" + untriggeredRuleId));
     }
 
     // ===== R01：角色互斥 S/H-D 全命中确定化（原 PQ-06 顺序依赖反例锚，2026-09-26 T-PERM-083 翻转为终态锚） =====
@@ -346,9 +380,5 @@ class MutexSemanticsCharacterizationPgIT {
             .filter(e -> roleIds.contains(e.getValue()))
             .map(Map.Entry::getKey)
             .collect(Collectors.toSet());
-    }
-
-    private static PermEvalContext pinnedNow() {
-        return new PermEvalContext(null, LocalDateTime.now(), Map.of());
     }
 }

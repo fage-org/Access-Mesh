@@ -9,7 +9,7 @@ import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.audit.mapper.OperationLogMapper;
 import cn.ac.fage.accessmesh.access.audit.mapper.PermissionChangeLogMapper;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,7 +47,7 @@ class LogQueryAppServiceImplChangeLogTest {
 
     @Mock private PermissionChangeLogMapper changeLogMapper;
     @Mock private OperationLogMapper operationLogMapper;
-    @Mock private PermQueryEngine engine;
+    @Mock private QueryGate engine;
     @Mock private TypeResolutionService typeResolutionService;
 
     private LogQueryAppServiceImpl service;

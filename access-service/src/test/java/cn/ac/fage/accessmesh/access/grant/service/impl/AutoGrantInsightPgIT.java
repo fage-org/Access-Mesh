@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.grant.service.impl;
 
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.grant.dto.req.ApplyGrantPlanReq;
 import cn.ac.fage.accessmesh.access.grant.dto.req.PreviewGrantPlanReq;
 import cn.ac.fage.accessmesh.access.grant.dto.resp.GrantPlanPreviewResp;
@@ -51,7 +51,6 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.when;
 
 /**
  * T-PERM-073 按需来源解释、授撤影响预览、声明诊断与对账验收（真实 PG/Redis + 真实链路）。
@@ -87,10 +86,10 @@ class AutoGrantInsightPgIT {
     @Autowired private ResourceEntitySyncAppService resources;
     @Autowired private AutoGrantReconcileDomainService reconcile;
     @Autowired private JdbcTemplate jdbc;
-    @SpyBean private PermQueryEngine engine;
+    @SpyBean private QueryGate engine;
 
     @BeforeEach void allowManagement() {
-        when(engine.hasPermissionByCode(anyLong(), any(), anyString(), any(), anyString())).thenReturn(true);
+        doReturn(true).when(engine).hasPermissionByCode(anyLong(), any(), anyString(), any(), anyString());
         doReturn(java.util.Set.of()).when(engine).getDeniedResourceCodes(any(), any(), any(), any(), any());
         jdbc.execute("INSERT INTO abstract_role(tenant_id,role_type,external_id,name) SELECT 1,6,'bootstrap-admin','admin' WHERE NOT EXISTS (SELECT 1 FROM abstract_role WHERE tenant_id=1 AND role_type=6 AND external_id='bootstrap-admin' AND delete_flag=0)");
     }
@@ -209,7 +208,7 @@ class AutoGrantInsightPgIT {
         assertThatThrownBy(() -> dependencies.explainAutoGrant(1L,
             new AutoGrantExplainReq(null, "BASIC_ROLE", f.roleExternal(), null, null, null, null)))
             .isInstanceOf(SecurityException.class);
-        when(engine.hasPermissionByCode(anyLong(), any(), anyString(), any(), anyString())).thenReturn(true);
+        doReturn(true).when(engine).hasPermissionByCode(anyLong(), any(), anyString(), any(), anyString());
         assertThatThrownBy(() -> dependencies.explainAutoGrant(1L,
             new AutoGrantExplainReq(null, "BASIC_ROLE", "no-such-role", null, null, null, null)))
             .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
@@ -352,7 +351,7 @@ class AutoGrantInsightPgIT {
         AccessRequestContext.bind(RequestContext.user(1L, 100L));
         assertThatThrownBy(() -> previewRemove(f, permissionId))
             .isInstanceOf(SecurityException.class);
-        when(engine.hasPermissionByCode(anyLong(), any(), anyString(), any(), anyString())).thenReturn(true);
+        doReturn(true).when(engine).hasPermissionByCode(anyLong(), any(), anyString(), any(), anyString());
         jdbc.update("UPDATE abstract_role SET status=0 WHERE id=?", f.roleId());
         assertThatThrownBy(() -> previewRemove(f, permissionId))
             .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)

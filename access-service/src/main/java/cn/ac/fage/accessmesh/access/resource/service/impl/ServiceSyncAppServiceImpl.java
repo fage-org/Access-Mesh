@@ -16,7 +16,7 @@ import cn.ac.fage.accessmesh.access.resource.service.ServiceSyncAppService;
 import cn.ac.fage.accessmesh.access.resource.service.domain.MappingSyncHandler;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceSyncHandler;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.sync.strategy.SyncContext;
 import cn.ac.fage.accessmesh.access.sync.strategy.SyncModeStrategy;
 import cn.ac.fage.accessmesh.access.sync.strategy.SyncModeStrategyFactory;
@@ -42,7 +42,7 @@ public class ServiceSyncAppServiceImpl implements ServiceSyncAppService {
     private final ServiceConfigMapper serviceConfigMapper;
     private final TypeResolutionService typeResolutionService;
     private final SyncModeStrategyFactory strategyFactory;
-    private final PermQueryEngine engine;
+    private final QueryGate queryGate;
     private final TreeWriteLockSupport treeWriteLockSupport;
 
     /**
@@ -61,14 +61,14 @@ public class ServiceSyncAppServiceImpl implements ServiceSyncAppService {
             ServiceConfigMapper serviceConfigMapper,
             TypeResolutionService typeResolutionService,
             SyncModeStrategyFactory strategyFactory,
-            PermQueryEngine engine,
+            QueryGate queryGate,
             TreeWriteLockSupport treeWriteLockSupport) {
         this.resourceSyncHandler = resourceSyncHandler;
         this.mappingSyncHandler = mappingSyncHandler;
         this.serviceConfigMapper = serviceConfigMapper;
         this.typeResolutionService = typeResolutionService;
         this.strategyFactory = strategyFactory;
-        this.engine = engine;
+        this.queryGate = queryGate;
         this.treeWriteLockSupport = treeWriteLockSupport;
     }
 
@@ -131,7 +131,7 @@ public class ServiceSyncAppServiceImpl implements ServiceSyncAppService {
      * @throws SecurityException 无权限时抛出
      */
     private void validatePermission(Long tenantId, Long operatorId, ServiceConfigSyncReq req) {
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, req.serviceCode(), OperationCode.SYNC_INTERFACE)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, req.serviceCode(), OperationCode.SYNC_INTERFACE)) {
             throw new SecurityException("Permission denied: SYNC_INTERFACE on SERVICE:" + req.serviceCode());
         }
     }

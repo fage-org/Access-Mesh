@@ -6,7 +6,7 @@ import cn.ac.fage.accessmesh.access.org.mapper.OrgVisibilityQueryMapper;
 import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
 import cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionOwner;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -36,7 +36,7 @@ import static org.mockito.Mockito.when;
 class OrgVisibilityQueryAppServiceImplTest {
 
     @Mock private TypeResolutionService typeResolutionService;
-    @Mock private PermQueryEngine engine;
+    @Mock private QueryGate engine;
     @Mock private OrgVisibilityQueryMapper orgVisibilityQueryMapper;
     @Mock private CacheService cacheService;
 

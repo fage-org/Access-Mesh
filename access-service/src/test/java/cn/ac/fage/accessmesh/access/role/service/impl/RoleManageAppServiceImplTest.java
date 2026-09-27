@@ -13,7 +13,7 @@ import cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.domain.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,7 +50,7 @@ class RoleManageAppServiceImplTest {
     @Mock private DomainClassifyService domainClassifyService;
     @Mock private AuditDomainService auditDomainService;
     @Mock private LocalProjectionDomainService localProjectionDomainService;
-    @Mock private PermQueryEngine engine;
+    @Mock private QueryGate engine;
     @Mock private TreeWriteLockSupport treeWriteLockSupport;
     @Mock private cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService autoGrantMaterializationDomainService;
 

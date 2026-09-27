@@ -20,7 +20,7 @@ import cn.ac.fage.accessmesh.access.domain.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.resource.service.impl.ResourceManageAppServiceImpl;
 import cn.ac.fage.accessmesh.access.type.service.impl.TypeDefinitionAppServiceImpl;
 import cn.ac.fage.accessmesh.access.user.service.impl.UserManageAppServiceImpl;
@@ -96,7 +96,7 @@ class OperationLogRuntimeContextAppServiceTest {
     private cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService localProjectionDomainService;
 
     @Mock
-    private PermQueryEngine engine;
+    private QueryGate engine;
 
     @BeforeEach
     void setUp() {

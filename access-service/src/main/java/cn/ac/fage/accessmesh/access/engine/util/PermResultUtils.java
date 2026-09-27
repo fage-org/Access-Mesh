@@ -3,6 +3,8 @@ package cn.ac.fage.accessmesh.access.engine.util;
 import cn.ac.fage.accessmesh.access.engine.dto.PermResult;
 import cn.ac.fage.accessmesh.access.engine.dto.AuthCheckResp;
 import cn.ac.fage.accessmesh.access.engine.dto.CheckInterfaceResp;
+import cn.ac.fage.accessmesh.access.engine.query.DecisionResult;
+import cn.ac.fage.accessmesh.access.engine.query.GrantFact;
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry;
@@ -12,16 +14,17 @@ import java.util.*;
 /**
  * 权限结果转换工具类
  * <p>
- * 提供PermResult转换为各种响应DTO的静态方法。
- * 在engine.query()返回结果后使用这些方法进行响应转换。
+ * 提供权限查询结果转换为各种响应DTO的静态方法。
+ * toAuthCheckResp 已随 T-PERM-089 改为新 {@link DecisionResult} → 既有外部响应的
+ * 纯转换（不重建旧 PermResult 再转换，设计 §9.1）；toCheckInterfaceResp 仍消费旧
+ * PermResult（LEGACY_API checkInterface，T-PERM-090 迁移）。
  * </p>
  * <p>
  * T-API-002（2026-09-06）check 族响应内部 id 字段族裁剪已被 T-API-003（2026-09-09）
  * 推翻：check 族三端点恢复结果记录全量回传（matchedRoleIds / matchedPermissionIds /
  * matchedResources[].resourceId），本工具类恢复产出该字段族；需要 matched id 集合
- * 的内部场景直接消费 {@link PermResult} 不经线格式中转（原消费方 explain 已随 T-PERM-059 删除，2026-09-10）。
- * 零调用的 toQueryResourcesResp 已删除（真实组装在
- * PermissionQueryAppServiceImpl.buildQueryResourcesResponse）。
+ * 的内部场景直接消费引擎结果不经线格式中转。零调用的 toQueryResourcesResp 已删除
+ * （真实组装在 PermissionQueryAppServiceImpl.buildQueryResourcesResponse）。
  * </p>
  */
 public final class PermResultUtils {
@@ -51,24 +54,27 @@ public final class PermResultUtils {
     // ===== DTO转换 =====
 
     /**
-     * 转换PermResult为AuthCheckResp
+     * 转换新 DecisionResult 为 AuthCheckResp
      * <p>
-     * 将权限查询结果转换为权限校验响应DTO。
-     * 包含校验结果、命中结果记录与条件评估状态
-     * （T-API-003：matched id 字段族恢复回传，拒绝时为空列表）。
+     * 将新引擎单项最终判定转换为权限校验响应 DTO（纯转换，T-PERM-089）。
+     * 拒绝原因词表 1:1（枚举 name 与旧 reason 字符串一致）；允许时命中 ID 与
+     * 条件评估状态从结果详情派生（conditionEvaluated=保留事实中存在挂条件行，
+     * 拒绝时为空列表/false）。
      * </p>
      *
-     * @param r 权限查询结果
+     * @param r 新引擎单项最终判定结果
      * @return 权限校验响应
      */
-    public static AuthCheckResp toAuthCheckResp(PermResult r) {
-        if (!r.allowed()) {
-            return AuthCheckResp.deny(r.reason() != null ? r.reason() : "DENIED");
+    public static AuthCheckResp toAuthCheckResp(DecisionResult r) {
+        if (r.outcome() == DecisionResult.Decision.DENY) {
+            return AuthCheckResp.deny(r.reason() != null ? r.reason().name() : "DENIED");
         }
-        boolean condEvaluated = r.allEntries().stream().anyMatch(RolePermEntry::hasCondition);
+        boolean conditionEvaluated = r.details().stageFacts().stream()
+            .flatMap(facts -> facts.retainedAfterEvaluation().stream())
+            .anyMatch(GrantFact::hasCondition);
         return AuthCheckResp.allow(
-            r.matchedRoleIds().stream().toList(),
-            r.matchedPermissionIds().stream().toList(), condEvaluated);
+            r.details().matchedRoleIds().stream().toList(),
+            r.details().matchedPermissionIds().stream().toList(), conditionEvaluated);
     }
 
     /**

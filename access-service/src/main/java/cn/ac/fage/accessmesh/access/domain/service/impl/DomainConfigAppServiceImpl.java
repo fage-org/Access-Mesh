@@ -14,7 +14,7 @@ import cn.ac.fage.accessmesh.access.domain.mapper.BizDomainMapper;
 import cn.ac.fage.accessmesh.access.domain.mapper.DomainConfigMapper;
 import cn.ac.fage.accessmesh.access.domain.service.DomainConfigAppService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.audit.util.JsonValidationUtils;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorUtil;
@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
  * 域配置应用服务实现类
  * <p>
  * 提供域配置的CRUD操作。
- * 所有操作均通过PermQueryEngine进行权限校验。
+ * 所有操作均经QueryGate判定门禁。
  * </p>
  */
 @Service
@@ -40,7 +40,7 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
     private final DomainConfigMapper domainConfigMapper;
     private final BizDomainMapper bizDomainMapper;
     private final TypeResolutionService typeResolutionService;
-    private final PermQueryEngine engine;
+    private final QueryGate queryGate;
 
     /**
      * 构造函数注入依赖
@@ -53,11 +53,11 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
     public DomainConfigAppServiceImpl(DomainConfigMapper domainConfigMapper,
                                        BizDomainMapper bizDomainMapper,
                                        TypeResolutionService typeResolutionService,
-                                       PermQueryEngine engine) {
+                                       QueryGate queryGate) {
         this.domainConfigMapper = domainConfigMapper;
         this.bizDomainMapper = bizDomainMapper;
         this.typeResolutionService = typeResolutionService;
-        this.engine = engine;
+        this.queryGate = queryGate;
     }
 
     /**
@@ -86,7 +86,7 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
     @OperationLog(module = "PERMISSION", action = "DOMAIN_CONFIG_UPSERT", targetType = "domain_config", targetId = "#result.id()", summary = "'upsert domain config ' + #req.domainCode() + ':' + #req.configType()")
     public DomainConfigResp upsertDomainConfig(Long tenantId, DomainConfigReq req) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCode.MANAGE)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCode.MANAGE)) {
             throw new SecurityException("No permission to manage domain config");
         }
 
@@ -153,7 +153,7 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
     @Transactional(readOnly = true)
     public DomainConfigResp getDomainConfig(Long tenantId, String domainCode, String configType) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCode.VIEW)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
         }
 
@@ -181,7 +181,7 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
     @Transactional(readOnly = true)
     public List<DomainConfigResp> listDomainConfigs(Long tenantId, String domainCode) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCode.VIEW)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
         }
 
@@ -216,7 +216,7 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
     public void deleteDomainConfigsByIds(Long tenantId, List<Long> ids, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCode.MANAGE)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCode.MANAGE)) {
             throw new SecurityException("No permission to delete domain configs");
         }
 

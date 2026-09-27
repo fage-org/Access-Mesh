@@ -29,7 +29,7 @@ import cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.access.type.service.domain.ResourceTypeOwnershipGuard;
 import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtil;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorUtil;
@@ -51,7 +51,7 @@ import java.util.stream.Collectors;
  * 类型定义应用服务实现类
  * <p>
  * 提供类型定义的CRUD操作。
- * 所有操作均通过PermQueryEngine进行权限校验。
+ * 所有操作均经QueryGate判定门禁。
  * </p>
  */
 @Service
@@ -60,7 +60,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
     private final DependencyCompilationDomainService compilation;
     private final TypeDefinitionMapper typeDefinitionMapper;
     private final OperationPermissionMapper operationPermissionMapper;
-    private final PermQueryEngine engine;
+    private final QueryGate queryGate;
     private final ResourceTypeOwnershipGuard resourceTypeOwnershipGuard;
     private final ResourceEntityDomainService resourceEntityDomainService;
     private final LocalProjectionDomainService localProjectionDomainService;
@@ -90,7 +90,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
      */
     public TypeDefinitionAppServiceImpl(TypeDefinitionMapper typeDefinitionMapper,
                                          OperationPermissionMapper operationPermissionMapper,
-                                         PermQueryEngine engine,
+                                         QueryGate queryGate,
                                          ResourceTypeOwnershipGuard resourceTypeOwnershipGuard,
                                          ResourceEntityDomainService resourceEntityDomainService,
                                          LocalProjectionDomainService localProjectionDomainService,
@@ -106,7 +106,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         this.compilation = compilation;
         this.typeDefinitionMapper = typeDefinitionMapper;
         this.operationPermissionMapper = operationPermissionMapper;
-        this.engine = engine;
+        this.queryGate = queryGate;
         this.resourceTypeOwnershipGuard = resourceTypeOwnershipGuard;
         this.resourceEntityDomainService = resourceEntityDomainService;
         this.localProjectionDomainService = localProjectionDomainService;
@@ -144,7 +144,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
     public TypeDefinitionResp createType(Long tenantId, TypeCreateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, null, OperationCode.CREATE)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, null, OperationCode.CREATE)) {
             throw new SecurityException("Permission denied: CREATE on TYPE_DEFINITION");
         }
 
@@ -353,7 +353,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
     public TypeDefinitionResp getType(Long tenantId, Long typeId) {
         Long operatorId = OperatorContext.getOperatorId();
         TypeDefinition type = typeDefinitionMapper.selectValidById(tenantId, typeId);
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION,
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION,
                 type != null ? instanceBusinessKey(type) : null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on TYPE_DEFINITION:" + typeId);
         }
@@ -418,7 +418,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
      * </p>
      */
     private void requireTypeViewPermission(Long tenantId, Long operatorId) {
-        if (engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION,
+        if (queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION,
                 null, OperationCode.VIEW)) {
             return;
         }
@@ -427,7 +427,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         Set<String> codes = typeDefinitionMapper.selectValidByTenant(tenantId).stream()
             .map(this::instanceBusinessKey)
             .collect(Collectors.toCollection(LinkedHashSet::new));
-        Set<String> denied = engine.getDeniedResourceCodes(tenantId, operatorId,
+        Set<String> denied = queryGate.getDeniedResourceCodes(tenantId, operatorId,
                 ResourceTypeCode.TYPE_DEFINITION, codes, OperationCode.VIEW);
         if (codes.isEmpty() || denied.size() >= codes.size()) {
             throw new SecurityException("Permission denied: VIEW on TYPE_DEFINITION");
@@ -478,7 +478,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
 
         // T-PERM-051：复合业务键需先载行（typeCode/typeKey 不可变，锁内重读不改变键）
         TypeDefinition type = typeDefinitionMapper.selectValidById(tenantId, req.typeId());
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION,
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION,
                 type != null ? instanceBusinessKey(type) : null, OperationCode.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on TYPE_DEFINITION:" + req.typeId());
         }
@@ -641,7 +641,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         // id 仍抛 SecurityException，保持既有 fail-closed 可观察行为
         List<TypeDefinition> entities = typeDefinitionMapper.selectValidByIds(tenantId, validInputIds);
         if (entities.isEmpty()) {
-            if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION,
+            if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION,
                     null, OperationCode.MANAGE)) {
                 throw new SecurityException("Permission denied: MANAGE on TYPE_DEFINITION:" + validInputIds);
             }
@@ -652,7 +652,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         Set<String> keys = entities.stream()
             .map(this::instanceBusinessKey)
             .collect(Collectors.toCollection(LinkedHashSet::new));
-        Set<String> deniedKeys = engine.getDeniedResourceCodes(
+        Set<String> deniedKeys = queryGate.getDeniedResourceCodes(
             tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, keys, OperationCode.MANAGE);
         if (!deniedKeys.isEmpty()) {
             throw new SecurityException("Permission denied: MANAGE on TYPE_DEFINITION:" + deniedKeys);

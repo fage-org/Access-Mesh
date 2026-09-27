@@ -167,6 +167,32 @@ class QueryBoundaryArchitectureTest {
             .check(classes);
     }
 
+    /**
+     * QueryGate 薄门面约束（T-PERM-089，设计 §9.4）：getDenied 等四方法可留作薄门面，
+     * 但门面仅依赖新执行器——禁止注入权限 Mapper、解析角色或调用条件/互斥服务
+     * （依赖蔓延即门面退化为第二执行体，违反唯一执行主体）。
+     */
+    @Test
+    @DisplayName("QueryGate 薄门面约束：仅依赖新执行器与基础设施工具，禁止 Mapper/DomainService 依赖")
+    void queryGateMustRemainThinFacadeOverQueryExecutionEngine() {
+        JavaClass gate = classes.stream()
+            .filter(clazz -> clazz.getFullName().equals(BASE + ".engine.query.QueryGate"))
+            .findFirst().orElseThrow(() -> new AssertionError("engine.query.QueryGate 未在主源码中找到"));
+        Set<String> violations = new java.util.TreeSet<>();
+        for (com.tngtech.archunit.core.domain.Dependency dep : gate.getDirectDependenciesFromSelf()) {
+            String target = dep.getTargetClass().getFullName();
+            if (target.startsWith("java.") || target.startsWith("org.springframework.")
+                || target.startsWith("cn.ac.fage.accessmesh.access.engine.query.")
+                || target.startsWith("cn.ac.fage.accessmesh.access.infrastructure.")) {
+                continue;
+            }
+            violations.add(target);
+        }
+        assertThat(violations)
+            .as("QueryGate 允许依赖面=engine.query 包 + JDK/Spring 基础设施；越界依赖（Mapper/DomainService/其他能力包）即门面增重（设计 §9.4）")
+            .isEmpty();
+    }
+
     // ------------------------------------------------------------------
     // 负向样例自证（§8.4：每条重建规则以负向样例证明仍能拒绝违规）
     // ------------------------------------------------------------------

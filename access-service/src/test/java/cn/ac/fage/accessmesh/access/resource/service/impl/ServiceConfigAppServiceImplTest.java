@@ -15,7 +15,7 @@ import cn.ac.fage.accessmesh.access.resource.service.ResourceManageAppService;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceSyncHandler;
 import cn.ac.fage.accessmesh.access.sync.guard.SyncTypeGuard;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import org.mockito.MockedStatic;
 import static org.mockito.Mockito.mockStatic;
@@ -47,7 +47,7 @@ import static org.mockito.Mockito.when;
 class ServiceConfigAppServiceImplTest {
 
     @Mock private ServiceConfigMapper serviceConfigMapper;
-    @Mock private PermQueryEngine engine;
+    @Mock private QueryGate engine;
     @Mock private ResourceApiMappingMapper resourceApiMappingMapper;
     @Mock private ResourceSyncHandler resourceSyncHandler;
     @Mock private TypeResolutionService typeResolutionService;

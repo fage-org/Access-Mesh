@@ -5,7 +5,7 @@ import cn.ac.fage.accessmesh.access.platform.dto.resp.SystemConfigResp;
 import cn.ac.fage.accessmesh.access.platform.entity.SystemConfig;
 import cn.ac.fage.accessmesh.access.platform.mapper.SystemConfigMapper;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,7 +24,7 @@ import static org.mockito.Mockito.*;
 class SystemConfigAppServiceImplTest {
 
     @Mock private SystemConfigMapper systemConfigMapper;
-    @Mock private PermQueryEngine engine;
+    @Mock private QueryGate engine;
 
     private SystemConfigAppServiceImpl service;
 

@@ -21,7 +21,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -56,7 +56,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
 
     private final PermissionConditionMapper conditionMapper;
     private final RoleResourcePermissionDomainService roleResourcePermissionDomainService;
-    private final PermQueryEngine engine;
+    private final QueryGate queryGate;
     private final LocalProjectionDomainService localProjectionDomainService;
     private final PermissionConditionDomainService conditionDomainService;
 
@@ -71,12 +71,12 @@ public class ConditionAppServiceImpl implements ConditionAppService {
      */
     public ConditionAppServiceImpl(PermissionConditionMapper conditionMapper,
                                        RoleResourcePermissionDomainService roleResourcePermissionDomainService,
-                                       PermQueryEngine engine,
+                                       QueryGate queryGate,
                                        LocalProjectionDomainService localProjectionDomainService,
                                        PermissionConditionDomainService conditionDomainService) {
         this.conditionMapper = conditionMapper;
         this.roleResourcePermissionDomainService = roleResourcePermissionDomainService;
-        this.engine = engine;
+        this.queryGate = queryGate;
         this.localProjectionDomainService = localProjectionDomainService;
         this.conditionDomainService = conditionDomainService;
     }
@@ -100,7 +100,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
     @OperationLog(module = "PERMISSION", action = "PERMISSION_CONDITION_CREATE", targetType = "permission_condition", targetId = "#result.id()", summary = "'create permission condition ' + #req.code()")
     public ConditionResp createCondition(Long tenantId, ConditionCreateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONDITION, null, OperationCode.CREATE)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONDITION, null, OperationCode.CREATE)) {
             throw new SecurityException("Permission denied: CREATE on CONDITION");
         }
 
@@ -185,7 +185,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         // 实例级门禁（T-PERM-048 定案④升级，业务编码轨同款）：CONDITION 投影 code=条件 code；
         // scope_all 授权 passesScopeAll 全放行（bootstrap 固定图与存量授权零破坏）
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONDITION, req.code(), OperationCode.UPDATE)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONDITION, req.code(), OperationCode.UPDATE)) {
             throw new SecurityException("Permission denied: UPDATE on CONDITION:" + req.code());
         }
 
@@ -292,7 +292,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
         Set<String> validCodes = entities.stream().map(PermissionCondition::getCode).collect(Collectors.toSet());
 
         // 实例级门禁（T-PERM-048 定案④升级，deleteUsers 批量先例）：T-PERM-042 引擎纯查询，拒绝由调用方显式抛出
-        Set<String> deniedCodes = engine.getDeniedResourceCodes(tenantId, operatorId,
+        Set<String> deniedCodes = queryGate.getDeniedResourceCodes(tenantId, operatorId,
             ResourceTypeCode.CONDITION, validCodes, OperationCode.DELETE);
         if (!deniedCodes.isEmpty()) {
             throw new SecurityException("Permission denied: DELETE on CONDITION: " + deniedCodes);

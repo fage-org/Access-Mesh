@@ -21,7 +21,7 @@ import cn.ac.fage.accessmesh.access.resource.service.ServiceConfigAppService;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceSyncHandler;
 import cn.ac.fage.accessmesh.access.sync.guard.SyncTypeGuard;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorUtil;
 import org.slf4j.Logger;
@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
  * 服务配置应用服务实现类
  * <p>
  * 提供服务配置的CRUD操作和服务接口同步。
- * 所有操作均通过PermQueryEngine进行权限校验。
+ * 所有操作均经QueryGate判定门禁。
  * </p>
  */
 @Service
@@ -49,7 +49,7 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
     private static final Logger log = LoggerFactory.getLogger(ServiceConfigAppServiceImpl.class);
 
     private final ServiceConfigMapper serviceConfigMapper;
-    private final PermQueryEngine engine;
+    private final QueryGate queryGate;
     private final ResourceApiMappingMapper resourceApiMappingMapper;
     private final SyncTypeGuard syncTypeGuard;
     private final ResourceSyncHandler resourceSyncHandler;
@@ -68,14 +68,14 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
      * @param resourceManageAppService 资源管理应用服务（apis 复用映射列表的门禁与资源字段补全）
      */
     public ServiceConfigAppServiceImpl(ServiceConfigMapper serviceConfigMapper,
-                                        PermQueryEngine engine,
+                                        QueryGate queryGate,
                                         ResourceApiMappingMapper resourceApiMappingMapper,
                                         SyncTypeGuard syncTypeGuard,
                                         ResourceSyncHandler resourceSyncHandler,
                                         TypeResolutionService typeResolutionService,
                                         ResourceManageAppService resourceManageAppService) {
         this.serviceConfigMapper = serviceConfigMapper;
-        this.engine = engine;
+        this.queryGate = queryGate;
         this.resourceApiMappingMapper = resourceApiMappingMapper;
         this.syncTypeGuard = syncTypeGuard;
         this.resourceSyncHandler = resourceSyncHandler;
@@ -103,7 +103,7 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
     public ServiceConfigResp saveServiceConfig(Long tenantId, ServiceConfigReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCode.MANAGE)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCode.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on SERVICE");
         }
 
@@ -203,7 +203,7 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
     @Transactional(readOnly = true)
     public ServiceConfigResp getServiceConfig(Long tenantId, String serviceCode) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, serviceCode, OperationCode.VIEW)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, serviceCode, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SERVICE:" + serviceCode);
         }
 
@@ -230,13 +230,13 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
     public List<ServiceConfigResp> listServiceConfigs(Long tenantId) {
         Long operatorId = OperatorContext.getOperatorId();
         List<ServiceConfig> all = serviceConfigMapper.selectByTenantId(tenantId);
-        if (engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCode.VIEW)) {
+        if (queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCode.VIEW)) {
             return all.stream().map(this::toServiceConfigResp).collect(Collectors.toList());
         }
         Set<String> allCodes = all.stream()
             .map(ServiceConfig::getServiceCode)
             .collect(Collectors.toCollection(LinkedHashSet::new));
-        Set<String> deniedCodes = engine.getDeniedResourceCodes(tenantId, operatorId, ResourceTypeCode.SERVICE, allCodes, OperationCode.VIEW);
+        Set<String> deniedCodes = queryGate.getDeniedResourceCodes(tenantId, operatorId, ResourceTypeCode.SERVICE, allCodes, OperationCode.VIEW);
         if (deniedCodes.size() == allCodes.size()) {
             throw new SecurityException("Permission denied: VIEW on SERVICE");
         }
@@ -269,7 +269,7 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
     public void deleteServiceConfigsByIds(Long tenantId, List<Long> ids, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCode.MANAGE)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCode.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on SERVICE");
         }
 

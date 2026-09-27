@@ -22,7 +22,7 @@ import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -69,7 +69,7 @@ class PermissionGrantAppServiceImplTest {
     @Mock private PermissionGrantPlanDomainService permissionGrantPlanDomainService;
     @Mock private AuditDomainService auditDomainService;
     @Mock private TypeResolutionService typeResolutionService;
-    @Mock private PermQueryEngine engine;
+    @Mock private QueryGate engine;
     @Mock private SubjectDomainService subjectDomainService;
     @Mock private ResourceEntityDomainService resourceEntityDomainService;
     @Mock private PermissionConditionDomainService conditionDomainService;

@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.infrastructure.credential.service.impl;
 
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.infrastructure.credential.dto.req.ServiceCredentialCreateReq;
 import cn.ac.fage.accessmesh.access.infrastructure.credential.dto.req.ServiceCredentialListReq;
 import cn.ac.fage.accessmesh.access.infrastructure.credential.dto.req.ServiceCredentialUpdateReq;
@@ -47,14 +47,14 @@ class ServiceCredentialAppServiceImplTest {
 
     private ServiceCredentialDomainService domainService;
     private ServiceConfigDomainService serviceConfigDomainService;
-    private PermQueryEngine engine;
+    private QueryGate engine;
     private ServiceCredentialAppServiceImpl appService;
 
     @BeforeEach
     void setUp() {
         domainService = mock(ServiceCredentialDomainService.class);
         serviceConfigDomainService = mock(ServiceConfigDomainService.class);
-        engine = mock(PermQueryEngine.class);
+        engine = mock(QueryGate.class);
         appService = new ServiceCredentialAppServiceImpl(domainService, serviceConfigDomainService, engine);
     }
 

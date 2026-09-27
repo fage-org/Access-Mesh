@@ -5,7 +5,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionOwner;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -27,9 +27,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * T-ACCESS-005 评审 P2 修复 + T-PERM-042 业务编码语义：
- * checkBatchInstanceLevel 走 engine.getDeniedResourceCodes 批量查询
- * （一次操作者解析 + 引擎内部 code→entity 批量解析 + 一次角色解析），不再循环单条 engine.query。
+ * T-ACCESS-005 评审 P2 修复 + T-PERM-042 业务编码语义（T-PERM-089 判定面换 QueryGate）：
+ * checkBatchInstanceLevel 走 queryGate.getDeniedResourceCodes 批量查询
+ * （一次操作者解析 + 引擎内部 code→entity 批量解析 + 一次角色解析），不循环单条门禁。
  */
 @ExtendWith(MockitoExtension.class)
 class AdminPermissionValidatorImplTest {
@@ -38,7 +38,7 @@ class AdminPermissionValidatorImplTest {
     private static final Long OPERATOR = 9L;
 
     @Mock private TypeResolutionService typeResolutionService;
-    @Mock private PermQueryEngine engine;
+    @Mock private QueryGate engine;
 
     private AdminPermissionValidatorImpl validator;
 
@@ -68,7 +68,7 @@ class AdminPermissionValidatorImplTest {
             .doesNotThrowAnyException();
 
         verify(engine).getDeniedResourceCodes(eq(TENANT), eq(501L), eq("ORG"), any(), eq("VIEW"));
-        verify(engine, never()).query(any());
+        verify(engine, never()).hasPermissionByCode(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -118,7 +118,7 @@ class AdminPermissionValidatorImplTest {
             .hasMessageContaining("操作者主体不存在");
     }
 
-    // ===== 单点门禁（T-PERM-042 评审 P2：checkAndThrow 收敛到 engine.hasPermissionByCode）=====
+    // ===== 单点门禁（T-PERM-042 评审 P2：checkAndThrow 收敛到 hasPermissionByCode）=====
 
     @Test
     @DisplayName("单点校验：checkInstanceLevel 走 hasPermissionByCode（业务编码语义），通过时不抛")
@@ -130,7 +130,7 @@ class AdminPermissionValidatorImplTest {
         assertThatCode(() -> validator.checkInstanceLevel("ORG", "1", "VIEW"))
             .doesNotThrowAnyException();
         verify(engine).hasPermissionByCode(TENANT, 501L, "ORG", "1", "VIEW");
-        verify(engine, never()).query(any());
+        verify(engine, never()).getDeniedResourceCodes(any(), any(), any(), any(), any());
     }
 
     @Test

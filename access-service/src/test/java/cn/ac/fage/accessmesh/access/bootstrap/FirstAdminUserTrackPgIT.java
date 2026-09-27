@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.bootstrap;
 
 import cn.ac.fage.accessmesh.access.it.ItInfra;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.access.user.dto.req.AbstractUserCreateReq;
@@ -65,7 +65,7 @@ class FirstAdminUserTrackPgIT {
     @Autowired
     private UserManageAppService userManageAppService;
     @Autowired
-    private PermQueryEngine permQueryEngine;
+    private QueryGate permQueryEngine;
     @Autowired
     private JdbcTemplate jdbc;
 

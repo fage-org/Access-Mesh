@@ -11,7 +11,7 @@ import cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionD
 import cn.ac.fage.accessmesh.access.domain.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,7 +48,7 @@ class ResourceDeletePermChangeRegistrationTest {
     @Mock private ResourceEntityDomainService resourceEntityDomainService;
     @Mock private TypeResolutionService typeResolutionService;
     @Mock private DomainClassifyService domainClassifyService;
-    @Mock private PermQueryEngine engine;
+    @Mock private QueryGate engine;
     @Mock private RoleResourcePermissionDomainService rolePermMapper;
     @Mock private cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService conditionDomainService;
     @Mock private cn.ac.fage.accessmesh.access.type.service.domain.ResourceTypeOwnershipGuard resourceTypeOwnershipGuard;

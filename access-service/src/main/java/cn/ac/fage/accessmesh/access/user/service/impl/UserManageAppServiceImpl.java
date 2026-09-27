@@ -8,7 +8,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.projection.PermConstants;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.perm.common.dto.req.UserAssignRoleReq;
 import cn.ac.fage.accessmesh.access.user.dto.req.AbstractUserCreateReq;
 import cn.ac.fage.accessmesh.access.role.dto.req.UserRoleBatchAssignReq;
@@ -59,7 +59,7 @@ import java.util.stream.Collectors;
  * 用户管理服务实现类
  * <p>
  * 提供用户同步、创建、更新、删除、角色分配、角色撤销等功能。
- * 所有操作均通过PermQueryEngine进行权限校验，确保操作安全。
+ * 所有操作均经QueryGate判定门禁，确保操作安全。
  * 批量操作采用批量查询和批量插入策略，避免N+1查询问题。
  * 缓存失效操作在事务提交后执行，防止缓存被回滚数据污染。
  * 注意：这里管理的是 permission 域（access-service）的 abstract_user 主体事实，
@@ -86,7 +86,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
     private final LocalProjectionGuard localProjectionGuard;
     private final LocalProjectionDomainService localProjectionDomainService;
     private final ObjectMapper objectMapper;
-    private final PermQueryEngine engine;
+    private final QueryGate queryGate;
     private final PermissionConflictDomainService permissionConflictDomainService;
 
     /**
@@ -115,7 +115,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
                                  LocalProjectionGuard localProjectionGuard,
                                  LocalProjectionDomainService localProjectionDomainService,
                                  ObjectMapper objectMapper,
-                                 PermQueryEngine engine,
+                                 QueryGate queryGate,
                                  PermissionConflictDomainService permissionConflictDomainService) {
         this.abstractUserMapper = abstractUserMapper;
         this.subjectDomainService = subjectDomainService;
@@ -125,7 +125,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         this.localProjectionGuard = localProjectionGuard;
         this.localProjectionDomainService = localProjectionDomainService;
         this.objectMapper = objectMapper;
-        this.engine = engine;
+        this.queryGate = queryGate;
         this.permissionConflictDomainService = permissionConflictDomainService;
     }
 
@@ -213,7 +213,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
     public AbstractUserResp createUser(Long tenantId, AbstractUserCreateReq req) {
         Long operatorId = OperatorContext.getOperatorId();
 
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.USER, null, OperationCode.CREATE)) {
+        if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.USER, null, OperationCode.CREATE)) {
             throw new SecurityException("No permission to create user");
         }
         localProjectionGuard.rejectReservedSubjectType(req.subjectTypeCode());
@@ -269,13 +269,13 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         // 先拒（登录主体必为 LOCAL_USER），自身分支为死分支语义统一——LOCAL_USER 语义
         // 变化时豁免不会静默重开。
         if (req.enabled() != null
-            && !engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.USER,
+            && !queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.USER,
                 String.valueOf(req.userId()), OperationCode.ENABLE)) {
             throw new SecurityException("Permission denied: ENABLE on USER:" + req.userId());
         }
         if (!operatorId.equals(req.userId())
             && (req.name() != null || req.extra() != null || Boolean.TRUE.equals(req.extraClear()))
-            && !engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.USER,
+            && !queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.USER,
                 String.valueOf(req.userId()), OperationCode.UPDATE)) {
             throw new SecurityException("Permission denied: UPDATE on USER:" + req.userId());
         }
@@ -354,7 +354,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         Set<String> targetUserCodes = existingUserIds.stream()
             .map(String::valueOf)
             .collect(Collectors.toSet());
-        Set<String> deniedCodes = engine.getDeniedResourceCodes(
+        Set<String> deniedCodes = queryGate.getDeniedResourceCodes(
             tenantId, operatorId, ResourceTypeCode.USER, targetUserCodes, OperationCode.DELETE);
         if (!deniedCodes.isEmpty()) {
             throw new SecurityException("No permission to delete users: " + deniedCodes);
@@ -452,7 +452,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         }
 
         // T-PERM-042：ROLE 实例门禁改业务编码语义（resource_entity(ROLE).code = roleId）
-        Set<String> deniedRoleCodes = engine.getDeniedResourceCodes(
+        Set<String> deniedRoleCodes = queryGate.getDeniedResourceCodes(
             tenantId, operatorId, ResourceTypeCode.ROLE,
             targetRoleIds.stream().map(String::valueOf).collect(Collectors.toSet()),
             OperationCode.MANAGE);
@@ -572,7 +572,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             throw new BizException(AccessErrorCode.ROLE_NOT_FOUND.getCode(), "Role not found: " + req.roleTypeCode() + "/" + req.roleExternalId());
         }
 
-        Set<String> deniedRoleCodes = engine.getDeniedResourceCodes(
+        Set<String> deniedRoleCodes = queryGate.getDeniedResourceCodes(
             tenantId, operatorId, ResourceTypeCode.ROLE,
             Set.of(String.valueOf(targetRoleId)), OperationCode.MANAGE);
         if (!deniedRoleCodes.isEmpty()) {
@@ -719,7 +719,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         }
 
         // T-PERM-042：ROLE 实例门禁改业务编码语义（resource_entity(ROLE).code = roleId）
-        Set<String> deniedRoleCodes = engine.getDeniedResourceCodes(
+        Set<String> deniedRoleCodes = queryGate.getDeniedResourceCodes(
             tenantId, operatorId, ResourceTypeCode.ROLE,
             targetRoleIds.stream().map(String::valueOf).collect(Collectors.toSet()),
             OperationCode.MANAGE);

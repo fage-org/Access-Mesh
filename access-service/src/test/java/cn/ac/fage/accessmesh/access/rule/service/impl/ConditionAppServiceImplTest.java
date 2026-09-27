@@ -15,7 +15,7 @@ import cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionD
 import cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService;
 import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService;
 import cn.ac.fage.accessmesh.access.rule.service.domain.impl.PermissionConditionDomainServiceImpl;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.ConstraintViolation;
@@ -72,7 +72,7 @@ class ConditionAppServiceImplTest {
 
     @Mock private PermissionConditionMapper conditionMapper;
     @Mock private RoleResourcePermissionDomainService rolePermMapper;
-    @Mock private PermQueryEngine engine;
+    @Mock private QueryGate engine;
     @Mock private LocalProjectionDomainService localProjectionDomainService;
     @Mock private CacheService cacheService;
 
