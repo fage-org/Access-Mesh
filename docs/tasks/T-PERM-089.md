@@ -34,7 +34,7 @@ last_updated: 2026-09-27
 
 ## 非目标 / 遗留
 
-- 范围四态与 LEGACY_API 集合在 T-PERM-090；旧快照/转授/视图在 T-PERM-091。
+- 范围四态与 LEGACY_API 集合在 T-PERM-090；旧快照/转授/视图原划 T-PERM-091——其中旧快照经 2026-09-27 边界勘正改随 T-PERM-090 交付，转授/视图仍在 T-PERM-091。
 
 ## 完成记录（2026-09-27）
 
@@ -47,7 +47,7 @@ last_updated: 2026-09-27
 - 指令面回写：`permission-coding-standards` rule（§2 铁律换 QueryGate）、`permission-query-pipeline`（v6.0.0）与 `accessmesh-patterns`（v1.2.0）双副本同步（diff 验证）、AGENTS.md 硬约束行+指针两行、OperationCode Javadoc 用法示例。
 - 测试：`QueryGateTest` 新增（请求形状/拒绝投影/空输入）；`PermissionCheckAppServiceImplTest` 重写（外部响应断言保留+适配形状锁：两档选择/inheritMode 映射/空白编码归一/保留键 500/原序重复项）；管理面单测 mock 面 33 文件换 QueryGate；characterization 三件门面链改写（MutexSemantics：getDenied*/hasPermission→QueryGate、queryBatch 对照极→batchCheck 服务面、D02→TargetSet 多 clause 单 item 直构、⑧ 审计锁改 ConflictEvidence 形态〔两目标同规则=两条 item 级证据行〕）；`R2BaselineFixture.insertUserWithRoles` external_id 对齐基线口径（=id 字符串，服务面主体解析所需）。
 
-**四项用户拍板（2026-09-27，正文见设计 §6.5 实施注）**：门面命名 QueryGate；本卡 metrics noop（094 接 Micrometer）；check/batchCheck 空白 resourceCode 归一 TYPE_LEVEL；外部 context 顶层保留键直接 500（clientIp 仍按 SDK 契约提取为受信 IP）。
+**四项用户拍板（2026-09-27，正文见设计 §6.5 实施注）**：门面命名 QueryGate；本卡 metrics noop（094 接 Micrometer）；check/batchCheck 空白 resourceCode 归一 TYPE_LEVEL；外部 context 顶层保留键直接 500（clientIp 仍按 SDK 契约提取为受信 IP）〔该 500 口径 2026-09-27 由 T-PERM-090 外评处置修订为 400 VALIDATION_FAILED，见 090 卡〕。
 
 **A.3 逐面差异记录**：「跨 item 冲突从全拒变各自判」经 T-PERM-095 已为现行生产行为，本卡迁移不引入新语义；A.3 全部 14 调用点（资源树可见性 :436、API 映射三处 :936/:984/:1001、删除门禁、角色候选写守卫×3、类型/条件/组织/服务配置可见性等）随门面切换等价承载，容器轨 characterization（InstanceGate/TargetModeClosure/PermissionCharacterization/MutexSemantics D01）对拍绿。
 

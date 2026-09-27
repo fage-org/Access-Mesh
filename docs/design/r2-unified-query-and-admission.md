@@ -567,7 +567,8 @@ T-PERM-087 的展示展开按保留事实源批量读取既有祖先/后代 CTE�
 > （§9.4 形态：仅依赖新执行器，方法形状沿旧四入口，评估口径=旧 forValidate 拉平）；③AdminPermissionValidatorImpl
 > 实现内部换门面（接口形状与 SecurityException/技术错误分界保留）。四项适配拍板（2026-09-27 用户）：
 > 空白 resourceCode 归一 TYPE_LEVEL；外部 context 顶层 `clientIp` 仍提取为受信 IP 而 `evaluatedAt`/`timestamp`
-> 保留键由 CallerContext 结构拒绝（500）；QueryEngineMetrics 维持 no-op（Micrometer 绑定随 T-PERM-094）；
+> 保留键由 CallerContext 结构拒绝（初判 500；2026-09-27 T-PERM-090 外评处置经 access-service 本地
+> advice 改 400 VALIDATION_FAILED，契约总册三处示例同步）；QueryEngineMetrics 维持 no-op（Micrometer 绑定随 T-PERM-094）；
 > 门面命名 QueryGate。X03 等价差分记录（已登记预期修复外的新增微差，均无证据消费面）：context 顶层
 > `timestamp` 键不再透传进条件评估；顶层 null 值键静默过滤（CallerContext 契约）；空白编码归一
 > TYPE_LEVEL 的角落差异（无父时仅 reason 变，有父命中且仅 depend_on 子 scopeAll 行时判定收紧）；

@@ -237,7 +237,7 @@ ResourceTypeCode.API               // API接口
 
 ## 禁止事项
 
-- ❌ 禁止使用 `ResourcePermissionValidator`（已删除）— 使用 `PermQueryEngine`
+- ❌ 禁止使用 `ResourcePermissionValidator`（已删除）— 使用 `QueryGate`
 - ❌ 禁止使用 `OperationType` 枚举（已删除）— 使用 `OperationCode`
 - ❌ 禁止使用 `ResourcePermissionStrategy`（已删除）— ID转换由 Engine 内部处理
 - ❌ 禁止直接调 `rolePermMapper.selectListByQuery()` 做权限判定 — 通过 Engine

@@ -6,7 +6,7 @@ description: >-
   (engine 子系统、role/grant/resource/type/domain/rule/sync 能力包、user/org 的主体与投影轨、projection 门面；
   原独立 permission-center 模块经 T-ACCESS-001~012 归并、又经 T-ACCESS-033 能力包融合，
   「permission 域」口径已随 T-ACCESS-041 重写为能力+引擎口径).
-  Covers: layered architecture, PermQueryEngine, naming conventions, transaction boundaries,
+  Covers: layered architecture, QueryGate/QueryExecutionEngine, naming conventions, transaction boundaries,
   batch loading, operation logging, domain classification, type resolution.
 origin: project
 metadata:
@@ -178,7 +178,7 @@ public class UserManageController { }
 
 ### Engine 层
 
-权限查询引擎统一使用 `PermQueryEngine`，位于 `engine.core` 包（引擎子系统独立于能力包，T-ACCESS-033 终态结构）。
+权限判定统一走 `engine.query.QueryGate`（T-PERM-089 起判定面唯一门面，内部经 `QueryExecutionEngine.execute`；引擎子系统独立于能力包，T-ACCESS-033 终态结构）；旧 `PermQueryEngine` 为迁移期存量（§2 铁律，091 迁移、092 删除，新代码禁止引用）。
 
 ## 4. 构造函数依赖
 
@@ -335,7 +335,7 @@ auditDomainService.asyncRecordLog(...); // 仅在非入口级场景
 public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
     private final ResourceManageAppService resourceManageAppService; // 同层 AppService 复用 OK
     private final SubjectDomainService subjectDomainService;         // DomainService OK
-    private final PermQueryEngine engine;                            // Engine OK
+    private final QueryGate queryGate;                               // Engine OK
     private final AbstractRoleMapper abstractRoleMapper;             // Mapper OK（AppService 注入 Mapper 本身合法）
 }
 
@@ -523,7 +523,7 @@ engine.hasPermissionByCode(tenantId, subjectId, "ROLE", String.valueOf(roleId), 
 | -------------------------------------------------- | ------------------------------------------------------------ |
 | `EntityBatchLoadDomainService`                    | 使用对应 Mapper 批量查询方法                                 |
 | `EntityBatchLoadDomainServiceImpl`                | 使用对应 Mapper 批量查询方法                                 |
-| `ResourcePermissionValidator`                     | 使用 `PermQueryEngine`                                       |
+| `ResourcePermissionValidator`                     | 使用 `QueryGate`                                             |
 | `OperationType` 枚举                              | 使用 `OperationCode`                                         |
 | `AdminOperationCode` / `OperationCodeConstants`   | 统一操作码册 `engine.constant.OperationCode`（T-ACCESS-034） |
 | `AdminErrorCode` / `PermissionErrorCode`          | 单册 `infrastructure.enums.AccessErrorCode`（T-ACCESS-038）  |
@@ -532,7 +532,7 @@ engine.hasPermissionByCode(tenantId, subjectId, "ROLE", String.valueOf(roleId), 
 | `ServicePermissionStrategy`                       | 无需替代                                                     |
 | `DomainPermissionStrategy`                        | 无需替代                                                     |
 | `TypeDefPermissionStrategy`                       | 直接查询实体检查                                             |
-| `PermissionCheckUtils`                            | 使用 `PermQueryEngine` 或 `PermResultUtils`                  |
+| `PermissionCheckUtils`                            | 使用 `QueryGate` 或 `PermResultUtils`                        |
 | `AuthorizationService`                            | 已删除（Phase 3），授权校验已合并到各 AppService             |
 | `ConfigManageController` / `ConfigManageService`  | 已拆分为 TypeDefinitionController + TypeDefinitionAppService |
 | `ConfigController` / `ConfigAppService(Impl)` / `ConfigUpdateReq` / `ConfigResp` | 已随 admin `/config` 入口退役删除（T-ACCESS-037，system_config 单入口 `/api/perm/system-config`） |
@@ -596,6 +596,6 @@ engine.hasPermissionByCode(tenantId, subjectId, "ROLE", String.valueOf(roleId), 
 |------|----------|
 | 过度抽象（多余接口/策略类） | 保持扁平，必要时才分层 |
 | 多层继承 | 优先接口 + 单实现 |
-| 过多策略类 | 统一入口替代（如 PermQueryEngine） |
+| 过多策略类 | 统一入口替代（如 QueryGate） |
 | 过度泛型 | 具体类型优先 |
 | DDD 重架构轻实效 | 渐进式重构，Revert 不合适的模块 |
