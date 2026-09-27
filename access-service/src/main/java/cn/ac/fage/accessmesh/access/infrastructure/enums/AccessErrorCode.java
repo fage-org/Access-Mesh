@@ -33,7 +33,8 @@ import lombok.Getter;
  *   <li>10801-10899：OAuth2客户端相关错误</li>
  *   <li>10901-10999：认证/外部服务相关错误</li>
  *   <li>11001-11099：组织树配置相关错误</li>
- *   <li>20001-29999：权限域（角色/授权/资源/类型/条件/域/同步投影等）错误</li>
+ *   <li>20001-29999：权限域（角色/授权/资源/类型/条件/域/同步投影等）错误；
+ *       20070-20079 操作准入协议 OPERATION_ADMISSION（契约总册 §25，T-ACCESS-056）</li>
  * </ul>
  */
 @Getter
@@ -750,7 +751,27 @@ public enum AccessErrorCode {
      * AUTHORITY_ROOT 基座行不算用户引用（按 T-PERM-062 既有同事务迁移/级联处理）。
      * 处置=先撤销相关授权（依赖来源须由所属服务重发 manifest 收缩）。
      */
-    OPERATION_REFERENCED_BY_GRANTS(20069, "操作被有效授权引用，不可变更位值或删除：请先撤销相关授权（类型授权根种子除外）");
+    OPERATION_REFERENCED_BY_GRANTS(20069, "操作被有效授权引用，不可变更位值或删除：请先撤销相关授权（类型授权根种子除外）"),
+
+    // ===== 操作准入协议 OPERATION_ADMISSION（20070-20079，T-ACCESS-056，契约总册 §25） =====
+
+    /**
+     * 操作准入路由要求歧义（T-ACCESS-056，契约总册 §25）：同一请求命中同服务多条已启用路由且
+     * requiredPermission 要求不同（如 {@code /reports/**→REPORT:VIEW} 与 {@code /reports/export→REPORT:EXPORT}
+     * 同时匹配）——配置故障阻断，不隐式 OR／AND，也不按用户权限挑较弱规则（设计 §8.2 AMBIGUOUS_REQUIREMENT）。
+     * 在线端点错误返回本码；网关本地检测命中时对终端按 fail-closed 技术错误（503）处理，不伪装普通用户无权限。
+     * 本码随 T-ACCESS-056 契约先行落账（暂无 throw 点，沿 T-PERM-082/083 契约先行先例），首个抛出点随
+     * T-ACCESS-057/059 落地。
+     */
+    ADMISSION_REQUIREMENT_AMBIGUOUS(20070, "接口路由映射要求歧义（多条启用路由对同一路径要求不同），请修正映射配置"),
+
+    /**
+     * 操作准入配置故障（T-ACCESS-056，契约总册 §25）：路由 requiredPermission 引用损坏（required_operation_id
+     * 悬空、操作定义缺失）、操作要求未知或损坏、准入快照 schemaVersion 未知等配置坏损——阻断且不猜默认操作
+     * （不回退 VIEW 或任意操作，设计 §7.4/§8.2）。在线端点错误返回本码；网关本地检测对终端按 fail-closed
+     * 技术错误（503）处理。落账形态同 20070（首个抛出点随 T-ACCESS-057/058/059 落地）。
+     */
+    ADMISSION_CONFIG_FAULT(20071, "接口准入配置故障（映射引用损坏或协议版本未知）");
 
     private final int code;
     private final String message;

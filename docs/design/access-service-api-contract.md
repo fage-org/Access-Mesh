@@ -6,7 +6,7 @@ domain: cross-service
 supersedes:
   - docs/design/permission-center/api-contract.md
   - docs/design/services/admin-service-api-contract.md
-last_reviewed: 2026-09-26
+last_reviewed: 2026-09-27
 ---
 
 # access-service API 契约总册
@@ -2855,6 +2855,7 @@ schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正�
 | `SERVICE_DISABLED`      | 服务停用                                 |
 | `NO_ROLE`               | 无有效角色                               |
 | `NO_PERMISSION`         | 无授权                                   |
+| `NO_CANDIDATE`          | 准入无覆盖候选（OPERATION_ADMISSION，§25.6；与 DECISION 的 NO_PERMISSION 区分——准入是候选资格判定非实例判定） |
 | `CONDITION_NOT_MET`     | 条件不满足                               |
 | `CONFLICT_DETECTED`     | 权限互斥导致失效                         |
 | `API_NOT_REGISTERED`    | 接口未注册                               |
@@ -2989,6 +2990,183 @@ schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正�
   - `perm.credential-id` + `perm.credential-secret`：成对必填（半配 fail-fast）；已显式声明凭证头的请求不覆盖；
   - `perm.allow-insecure`：**启动声明式 TLS 信任域护栏**（2026-09-20 拍板；外评处置收紧为二值白名单）——配置凭证必须显式声明且值域仅 `true`/`false`（大小写不敏感，非法值如拼写错拒启并提示合法值；true=单信任域明文 hop 可接受；false=跨边界期望 TLS；缺省拒启）。护栏为纯声明（服务发现形态下静态地址校验无落点，true/false 无运行时行为差异——值校验仅防声明拼写错静默通过），Gateway→access-service 内网 hop 不校验（同部署单元信任域）。
 - **上线序**（服务端先行向后兼容）：①先发布 access-service 仲裁器（无凭证头存量调用方行为零变化）；②后发布 Gateway 改动与新版 SDK——「凭证头+注入密钥并存」由仲裁器凭证优先规则消解，无同批发布要求。
+
+<a id="operation-admission-protocol"></a>
+
+## 25. 操作准入协议 OPERATION_ADMISSION（interface-admission 族，T-ACCESS-056 落账）
+
+> **章定位**：版本化新协议的契约登记面（沿 §24 服务凭证章先例——设计定稿后、实现任务前的协议落账；端点未实现，本章为实现目标契约）。设计权威=[r2-unified-query-and-admission.md](r2-unified-query-and-admission.md#operation-admission) §7/§8（adopted，实施期权威；计划完结回写后本章为该协议唯一权威落点）。方向定案链：2026-09-09「API 不单独授权、接口权限由操作权限关联派生」→ 2026-09-25 R2 方案 A 设计定案（[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日行，含 configGeneration 限定语义拍板）。本卡四项落账拍板（2026-09-27 用户确认）：①错误码随本卡进 `AccessErrorCode` 枚举（契约先行，暂无 throw 点沿 T-PERM-082/083 先例）；②配置故障两族占数值码 20070/20071、准入拒绝走响应 reason 词表；③「技术错误 503」=网关→终端层语义（access-service 端点错误维持现行 HTTP 200 + body 数值码信封）；④端点命名 interface-admission 族。实现归属：准入阶段=T-ACCESS-057、映射模型/schema=T-ACCESS-058、端点/快照/SDK/网关=T-ACCESS-059、失效与 TTL=T-ACCESS-060、逐服务切换=T-ACCESS-061、legacy 协议退役=T-ACCESS-062。
+
+### 25.1 模式与两层判定（方案 A）
+
+`service_config` 增加每服务鉴权模式 `api_auth_mode = LEGACY_API / OPERATION_ADMISSION`（随 T-ACCESS-058 落地，NOT NULL DEFAULT 'LEGACY_API'；由可信服务配置控制，**不接受客户端模式头**）。迁移期两模式按服务并存；LEGACY_API 沿用 §18.3/§18.4 旧协议（check-interface / interface-snapshot，API:ACCESS 资源语义），终态退役见 T-ACCESS-062。
+
+OPERATION_ADMISSION 模式下接口检查为两层判定，**不生成第二份 API 授权**：
+
+```text
+用户只有 REPORT_A / VIEW
+   请求 GET /reports/REPORT_B
+     网关：已注册路由要求 REPORT:VIEW → 存在覆盖 VIEW 的候选授权，MAY_ENTER
+     业务：本次实际目标 REPORT_B / VIEW → 完整实例鉴权 DENY，不读取／返回 B 数据
+```
+
+B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。角色只授业务资源；API 保留注册目录及接口元数据，新模式不要求再授 API:ACCESS，不把业务权限物化为一批 API AUTO_DEP。菜单、平面 permissions 字符串、API 操作准入和实例最终鉴权分别使用各自定义，不能相互替代。
+
+**对外 DTO 形态**：路由的准入要求使用 `requiredPermission`：
+
+```json
+{ "resourceTypeCode": "REPORT", "operationCode": "VIEW" }
+```
+
+- 只表达类型与操作，不要求 REPORT_A/B 实例；服务端内部解析为操作 ID（`resource_api_mapping.required_operation_id`，随 T-ACCESS-058 落地），避免两份类型真值。
+- `resourceTypeCode`/`operationCode` 大写裸值（§2 通用协议 raw 严格口径，`@Pattern("^[A-Z][A-Z0-9_]*$")`）。
+- **API:ACCESS 不得再作为 requiredPermission**；菜单的配置管理操作与菜单关联业务操作不能混用（接口→业务资源类型 REPORT→VIEW，不是「菜单 A→该菜单任意权限」）。
+
+### 25.2 端点契约 interface-admission / interface-admission-snapshot
+
+| 端点 | 用途 |
+|------|------|
+| `POST /api/access/auth/interface-admission` | 在线操作准入判定（网关回源／灰度强制在线用） |
+| `POST /api/access/auth/interface-admission-snapshot` | 按服务+主体拉取准入快照（网关本地判定用） |
+
+两端点为 M2M 调用，SDK `PermissionClient` 显式按可信服务模式调用；**其身份形态（per-service 凭证 vs 旧全局密钥）须与 [Q-040](../pending-problems.md)（两套服务身份统一）收敛方向对齐**，避免扩大旧密钥面（登记注记沿 T-ACCESS-059）。新模式失败**不回落**旧 API:ACCESS 路径。
+
+**interface-admission 请求**（沿 check-interface 形态）：
+
+```json
+{
+  "subjectTypeCode": "USER",
+  "subjectExternalId": "u-10001",
+  "serviceCode": "example-service",
+  "httpMethod": "POST",
+  "path": "/api/example/report/list",
+  "context": { "clientIp": "127.0.0.1" }
+}
+```
+
+**响应**（AdmissionResult 对外投影，`finalCheckRequired` 恒 `true`——准入永不表示最终许可）：
+
+```json
+{
+  "decision": "MAY_ENTER",
+  "reason": null,
+  "requiredPermission": { "resourceTypeCode": "REPORT", "operationCode": "VIEW" },
+  "finalCheckRequired": true
+}
+```
+
+- `decision = MAY_ENTER | DENY`；DENY 时 `reason` 见 §25.6；主体／租户取自可信认证链，不接受请求体自报。
+- 路由匹配命中配置故障（§25.5）时端点按错误返回（20070/20071），不返回伪装的 DENY。
+
+**interface-admission-snapshot 请求/响应**（`InterfaceAdmissionSnapshot`，设计 §8.4）：
+
+```json
+{
+  "schemaVersion": 1,
+  "tenantId": 1,
+  "subject": { "subjectTypeCode": "USER", "subjectExternalId": "u-10001" },
+  "serviceCode": "example-service",
+  "generatedAt": "2026-09-27T10:00:00",
+  "expiresAt": "2026-09-27T10:00:10",
+  "configGeneration": 42,
+  "routes": [
+    { "httpMethod": "POST", "pathPattern": "/api/example/report/list",
+      "requiredPermission": { "resourceTypeCode": "REPORT", "operationCode": "VIEW" } }
+  ],
+  "operationCandidates": [
+    { "resourceTypeCode": "REPORT", "operationCode": "VIEW",
+      "conditionBranches": [ { "conditionId": null }, { "conditionId": 5, "gatewayEvaluable": true } ],
+      "candidateKind": "ALL | INSTANCE | CONTEXT_DEFERRED" }
+  ],
+  "authorizationStage": "OPERATION_ADMISSION",
+  "finalCheckRequired": true
+}
+```
+
+- `routes[]` 携带该服务**完整启用路由**与各自要求；不按用户权限裁剪规则（§25.5 完整配置优先）。
+- `operationCandidates[]` 为按 type-operation＋条件身份＋候选类别归并的最终准入投影（原始 GrantFact 不去重合并）；仅上下文子行提供的候选保留 `CONTEXT_DEFERRED`，不伪装成主授权。
+- `configGeneration`＝构建期自一致校验（2026-09-25 拍板限定语义）：构建前后代次比对、变更即废弃重建，接收侧代次匹配检查；不承诺跨节点授权版本强一致。
+- 快照不携带用于绕过业务最终检查的「实例已授权」证明；客户端传入 `finalCheckRequired=false` 不能改变服务配置。
+
+**网关本地判定序**（固定顺序）：校验模式／版本／时效 → 完整路由匹配与歧义检测 → 取得唯一要求 → 评该要求的条件分支。存在无条件或条件通过分支即 MAY_ENTER；无通过分支但有需远端求值的候选则回源在线判定；其余拒绝。坏条件显式不可用（不能因空 rules 成为无条件）。新快照缺失、远端不可用、未知 schema 不得自动 OR 旧权限或 stale-allow，按现行失败关闭路径返回技术错误（§25.6）。
+
+### 25.3 准入候选与子行规则
+
+操作准入是「**存在候选资格**」，不是「存在已完整允许的实例」。给定有效角色集合 S 与要求 o=(类型,操作)，候选授权满足：同租户、属于 S、资源类型一致、授予位覆盖 o、授权及引用结构按既有生命周期规则有效。
+
+- 候选来源：ALL、任意实例上的原授权（准入无目标定位，不做闭包展开），或**结构有效的上下文子行**；不展开所有后代，不枚举每个实例做最终检查。
+- `PERM_MUTEX` 固定延后（本用途不做跨实例或同实例的最终冲突判定）——同实例真互斥时准入可 MAY_ENTER、由业务拒绝；审计不得将「未检查」写成「通过」。
+- `depend_on` 只核结构：批量确认父行同租户、同角色、存在、未按现有规则失效、为合法主行且无嵌套非法结构。**只证明结构，不评父条件、不猜父操作、不伪造父 matchedPermissionIds**。候选标 `CONTEXT_DEFERRED`，业务必须传真实父上下文。
+- 来源语义：MANUAL／AUTO_DEP／AUTHORITY_ROOT 等来源按真实覆盖参与，无来源特权；不同条件／角色／来源的授权保持独立，存在一条无条件来源不能被另一条失败条件覆盖（OR 分支独立保留）。
+- 条件类型（日期、时间、IP 白／黑名单）在线评估；`gatewayEvaluable=false` 表示需要远端评估，不表示通过；条件缺失／停用／非法是不可用分支，不能变成无条件。
+- 在相同事实版本、操作定义、时刻和可信环境下，最终同操作的合法访问不会仅因「没有类型级授权、不同实例冲突、网关没有父运行时上下文」被准入提前拒绝（时间边界和并发授撤另测，非跨进程一致性承诺）。
+
+### 25.4 读取来源与新快照安全边界
+
+新 OPERATION_ADMISSION 的操作要求与覆盖定义**固定用新鲜数据库类型目录**（在线判定与快照构建同一算法、同一来源）：解析 required operation 与 coveringMask 不消费旧 L1 60 分钟／L2 120 分钟操作掩码缓存，也不从旧 GRANT_LIST 评估结果或旧网关快照推导。事实中的授权／角色／条件仍按各自既有来源与失效边界（设计 §5.2 读取矩阵）。
+
+新准入把业务操作覆盖转换为快照候选，依赖关系已变——**不能沿用旧快照约 30 秒的配置安全结论**；新快照 TTL、上游安全目录寿命与回源截止时间按设计 §5.3 重新推导并纳入启动校验（T-ACCESS-060）。即便采用新鲜操作定义，广播＋TTL 仍不是零延迟强一致。专用短 TTL／版本化业务操作缓存为备选（须重做安全边界证明，非默认）。
+
+### 25.5 路由匹配与歧义规则
+
+匹配 `service＋method＋规范化路径` 时，**从该服务完整的已启用路由集取全部命中**（完整配置优先，不能按用户权限挑较弱规则）：
+
+| 匹配情况 | 行为 |
+|---|---|
+| 无注册匹配 | 拒绝；不能因用户有 ALL 而放行未注册路径（reason=`API_NOT_REGISTERED` 同 §18.3 语义） |
+| 多匹配但业务要求相同 | 去重为一个要求，记录实际路由来源 |
+| 多匹配要求不同 | **20070 `ADMISSION_REQUIREMENT_AMBIGUOUS` 配置故障阻断**（设计 token `AMBIGUOUS_REQUIREMENT`）：不隐式 OR／AND，不把 matchOrder 偷改为安全优先级 |
+| 引用损坏／未知新协议 | **20071 `ADMISSION_CONFIG_FAULT` 配置故障阻断**（required_operation_id 悬空、操作定义缺失、schemaVersion 未知等；网关→终端 503，不伪装普通用户无权限） |
+| 要求明确但无准入资格 | 正常准入拒绝（decision=DENY + reason，§25.6）；网关对终端沿现行 403 协议 |
+
+例：`/reports/** → VIEW` 与 `/reports/export → EXPORT` 同时匹配时，不能因为用户只有 VIEW 就从快照中漏掉 EXPORT 规则从而只看到较弱要求。已确定的公共／认证白名单维持独立；**没有 requiredPermission 绝不自动等于公共路由**。复合多权限最终 AND／OR 留在业务实现，本轮不建设通用接口策略语言。
+
+写侧守卫（随 T-ACCESS-058 落地）：保存映射时校验登记 API、服务维护权、租户、业务操作有效性（操作必须属于选定类型）；操作引用被使用时删除须有明确守卫，先改绑／删除映射再删操作；软删、同步缺失、类型删除等间接路径经同一引用处置；**异常死引用阻断（20071），不能回退 VIEW 或任意操作**；操作覆盖改变即使 ID 不变也必须重算准入投影并失效。
+
+### 25.6 错误码与 reason 词表
+
+| 载体 | 值 | 语义与出现面 |
+|---|---|---|
+| 数值码 20070 | `ADMISSION_REQUIREMENT_AMBIGUOUS` | 多条启用路由对同一路径要求不同——配置故障阻断；在线端点错误返回本码，网关本地检测对终端 503 |
+| 数值码 20071 | `ADMISSION_CONFIG_FAULT` | 路由引用损坏／操作要求未知或损坏／未知 schema——配置故障阻断；同上 503 语义，不猜默认操作 |
+| reason（DENY） | `NO_ROLE`（准入） | 主体无有效角色 |
+| reason（DENY） | `NO_CANDIDATE` | 无覆盖候选（新增词表 token，§20.2） |
+| reason（DENY） | `CONDITION_NOT_MET` | 有候选但条件均不通过；准入不能报告已计算实例冲突 |
+| 网关→终端 | 403 信封 | 准入拒绝（正常判定结果，沿现行网关 403 协议） |
+| 网关→终端 | 503 | 配置故障／快照不可用且回源失败（fail-closed 技术错误，沿现行失联兜底形态；不伪装用户无权限） |
+
+两层语义（本卡拍板③）：「技术错误 503」定义为**网关→终端层**；access-service 在线端点的错误（20070/20071）维持现行统一信封（HTTP 200 + body 数值码），网关按「响应非成功即 fail-closed」消费，不依赖 HTTP 状态码分流。两码已随本卡先行落 `AccessErrorCode`（20070/20071，Javadoc 指向本章），首个 throw 点随 T-ACCESS-057/058/059 落地。
+
+### 25.7 服务迁移门槛
+
+服务从 LEGACY_API 切到 OPERATION_ADMISSION 的**迁移资格 =「最终检查的代码位置＋反向拒绝测试」**，不是一个 `businessChecked=true` 配置：没有逐路由证明（业务服务内实际目标完整鉴权代码位置明确、且存在「无权限时确实拒绝」的反向测试）的服务不切新模式。
+
+业务入口最终检查口径（逐路由落地，example-service 先行，T-ACCESS-061）：
+
+| 业务入口 | 完整检查 |
+|---|---|
+| 查看／预览／下载／导出／签发链接 | 实际资源＋对应操作，允许后才返回数据或可访问地址 |
+| 独立批量 | 每个目标一个 DECISION 项；全拒还是返回允许子集由业务明确决定 |
+| 列表／搜索 | 权限范围或完整批量结果落实到返回数据；过滤／分页／total 同口径 |
+| CREATE | 最终 TYPE_LEVEL；实例准入不能授予类型创建权 |
+| 上下文子权限 | 提供真实父资源、父操作和环境，业务引擎验证父授权记录绑定；无父／错父拒绝 |
+| 异步作业 | 明确提交与实际执行／取数的鉴权时点；不永久复用准入结果绕过撤权 |
+| 直连／内部调用 | 同样验证可信身份并执行最终检查；不能依赖「只能从网关进入」的假设替代业务门禁 |
+
+主体／租户取自可信认证链，实际操作对象从业务请求及业务解析得到；不能检查 A 却按另一参数读取 B。权限服务自身的认证／内部调用链保持独立，不因新准入而递归调用自己的准入端点。首次迁移默认服务级暂停切换（暂停入口→确认逐路由最终检查→切模式→全节点确认并清旧缓存→恢复；runbook 与演练证据随 T-ACCESS-061）。
+
+### 25.8 验收用例分配（N01~N30，设计 §10.3）
+
+方案 A 补充矩阵 N01~N30 的验收面归属（与各卡 acceptance 一致，权威=设计 §10.3 归属列与各任务卡）：
+
+| 卡 | 用例 |
+|---|---|
+| T-ACCESS-057 | N02/N03/N06~N10/N13/N20（准入阶段）；N04/N05 准入半边（PERM_MUTEX 短路边界）；N12 本地×在线一致性移交 059 |
+| T-ACCESS-058 | N16/N17/N18 |
+| T-ACCESS-059 | N11/N12/N14/N15/N21/N22/N28 |
+| T-ACCESS-060 | N19/N21/N23 |
+| T-ACCESS-061 | N01/N04/N05/N24/N25/N26/N27（业务半边实测） |
+| T-ACCESS-062 | N29/N30 |
 
 ## 附录 A. 接口与前端 API 一一对照表（管理面家族）
 | 后端接口 | 前端 `user-manage.ts` 函数 | 状态 |
