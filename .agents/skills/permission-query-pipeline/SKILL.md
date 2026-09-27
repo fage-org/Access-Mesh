@@ -19,7 +19,8 @@ metadata:
 > checkInterface/interfaceSnapshot（含 SnapshotAssembler）已全部迁新 execute。
 > **T-PERM-091（2026-09-27）视图/转授迁移**：有效权限码/可见资源投影（PermissionViewAppServiceImpl/
 > PermViewAssembler/PermViewResult）与转授 checkCanGrant（PermissionGrantDomainServiceImpl）已迁
-> 新 execute——**旧 `PermQueryEngine` 生产消费者已清零**（仅剩自身与注释/Javadoc 提及，092 删除）；
+> 新 execute——**旧 `PermQueryEngine` 生产消费者已清零**（引擎仅剩自身与注释/Javadoc 提及，092 删除；
+> 旧 DTO `PermQuery` 的静态助手 `inheritClosureOf` 仍被 check 适配层消费，092 收编重定位）；
 > 新代码禁止再引用旧引擎。
 
 ## 核心组件
@@ -29,7 +30,7 @@ metadata:
 | `QueryGate` | 判定面薄门面：`hasPermissionByCode` / `hasPermissionByEntityId` / `getDeniedResourceCodes` / `getDeniedEntityIds`（T-PERM-089） | 管理面单点门禁与批量拒绝集合的唯一入口 |
 | `QueryExecutionEngine` | 新统一执行主体 `execute(QueryRequest)`（T-PERM-082~088：规范化→共享装载→分集合评估） | 唯一权限查询执行器（check/batchCheck 在 AppService 适配层直构请求） |
 | `PermQueryEngine` | 旧执行体（迁移期存量：生产消费者已清零〔T-PERM-091 迁毕〕，092 删除） | 无生产消费者；新代码禁止引用 |
-| `PermQuery` | 旧入参 DTO（迁移期存量） | 仅旧引擎消费者 |
+| `PermQuery` | 旧入参 DTO（迁移期存量） | 旧引擎与 check 适配层静态助手 `inheritClosureOf`（092 收编重定位） |
 | `PermResult` | 旧返回对象（迁移期存量） | 仅旧引擎消费者 |
 | `TargetMode` | 旧目标模式三态枚举：TYPE_LEVEL/INSTANCE/LIST（迁移期存量） | 旧引擎 targetMode 三态判别 |
 | `PermBatchQuery` / `PermBatchResult` | 旧批量入参/结果（迁移期存量，092 删除） | 无生产消费者（batchCheck 已迁新 execute） |

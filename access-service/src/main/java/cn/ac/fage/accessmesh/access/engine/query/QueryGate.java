@@ -1,6 +1,5 @@
 package cn.ac.fage.accessmesh.access.engine.query;
 
-import cn.ac.fage.accessmesh.access.infrastructure.util.HttpRequestUtils;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -182,7 +181,7 @@ public class QueryGate {
     }
 
     private static CallerContext callerContext() {
-        return CallerContext.of(HttpRequestUtils.getClientIp(HttpRequestUtils.currentRequest()));
+        return CallerContext.ofCurrentRequest();
     }
 
     private static TypeLevel typeLevel(String resourceTypeCode, String operationCode) {

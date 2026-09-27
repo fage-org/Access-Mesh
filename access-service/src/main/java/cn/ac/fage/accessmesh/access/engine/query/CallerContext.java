@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.engine.query;
 
+import cn.ac.fage.accessmesh.access.infrastructure.util.HttpRequestUtils;
+
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -45,6 +47,17 @@ public record CallerContext(String clientIp, Map<String, Object> attributes) {
     /** 无扩展属性的上下文。 */
     public static CallerContext of(String clientIp) {
         return new CallerContext(clientIp, Map.of());
+    }
+
+    /**
+     * 从当前 HTTP 请求装配可信 clientIp（无请求上下文时 IP 为空——IP 类条件 fail-closed）。
+     * <p>
+     * 服务内 EVALUATE 面共用的装配口径（T-PERM-091 外评处置收编：QueryGate 判定面与
+     * 视图权限串/菜单面统一，防逐点手写漏装——旧引擎入口对无上下文查询的自动装配等价物）。
+     * </p>
+     */
+    public static CallerContext ofCurrentRequest() {
+        return new CallerContext(HttpRequestUtils.getClientIp(HttpRequestUtils.currentRequest()), Map.of());
     }
 
     /** SDK 契约 {@code context.clientIp} 键提取为受信 IP，其余键归调用方属性（适配层唯一入口，

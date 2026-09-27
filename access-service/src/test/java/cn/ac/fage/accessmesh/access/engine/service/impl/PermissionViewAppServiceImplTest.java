@@ -26,6 +26,7 @@ import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.engine.util.PermViewAssembler;
+import cn.ac.fage.accessmesh.access.infrastructure.util.HttpRequestUtils;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -34,10 +35,12 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -187,6 +190,34 @@ class PermissionViewAppServiceImplTest {
 
         assertNotNull(resp);
         assertTrue(resp.permissions().isEmpty());
+    }
+
+    @Test
+    void buildEffectiveViewShouldAssembleCurrentRequestClientIpIntoEngineContext() {
+        // T-PERM-091 外评 P1 回归锁（claude+grok 双通道同根因）：视图面 EVALUATE 条件评估必须带
+        // 当前请求 clientIp（旧引擎入口对无上下文查询自动装配的等价物）——IP 白/黑名单条件按
+        // 真实请求 IP 评估，不得因空上下文被 fail-closed 摘除（否则权限码/菜单静默丢授权）
+        when(typeResolutionService.resolveUserId(1L, "LOCAL_USER", "1")).thenReturn(1L);
+        GrantFact entry = new GrantFact(501L, 20L, 1, 200L, 4L, false, false, null, false, null, "DIRECT");
+        GrantSetResult item = grantSetResult(List.of(entry), List.of());
+        when(queryEngine.execute(any(QueryRequest.class))).thenReturn(queryResult(item));
+        when(permViewAssembler.assemble(eq(1L), eq(item), any()))
+            .thenReturn(PermViewResult.builder().entries(List.of(entry)).build());
+
+        try (MockedStatic<HttpRequestUtils> http = mockStatic(HttpRequestUtils.class)) {
+            jakarta.servlet.http.HttpServletRequest request =
+                org.mockito.Mockito.mock(jakarta.servlet.http.HttpServletRequest.class);
+            http.when(HttpRequestUtils::currentRequest).thenReturn(request);
+            http.when(() -> HttpRequestUtils.getClientIp(request)).thenReturn("203.0.113.7");
+
+            assertNotNull(service.getEffectivePermissionCodes(
+                1L, new UserEffectivePermissionCodesReq("LOCAL_USER", "1", List.of("USER"))));
+
+            ArgumentCaptor<QueryRequest> captor = ArgumentCaptor.forClass(QueryRequest.class);
+            verify(queryEngine).execute(captor.capture());
+            assertEquals("203.0.113.7", captor.getValue().context().clientIp(),
+                "视图面引擎请求必须装配当前请求 clientIp（IP 条件评估依据）");
+        }
     }
 
     // ========== 夹具（新 execute 结果构造） ==========

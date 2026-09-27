@@ -177,27 +177,27 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
         }
 
         // 2. 新引擎 GRANT_LIST 全量事实＋有效操作投影（EVALUATE+ENFORCE 沿旧视图管线运行时面口径；
+        //    clientIp 从当前请求装配——旧引擎入口对无上下文查询的自动装配等价物，IP 类条件
+        //    按真实请求 IP 评估而非 fail-closed 摘除（T-PERM-091 外评 P1 修复）；
         //    无角色/零授权行/评估清空统一映射 null——与旧 !allowed() 早退等价）
         QueryItem viewItem = QueryItem.grantListFacts("view", null, Evaluation.full(),
             new OutputSpec(FactDetail.KEPT, false, true, true, PresentationExpansion.NONE, Set.of(), false));
         GrantSetResult result = (GrantSetResult) queryEngine.execute(new QueryRequest(tenantId, new User(userId),
-            CallerContext.of(null), ReadOptions.defaults(), List.of(viewItem))).orderedResults().get(0);
+            CallerContext.ofCurrentRequest(), ReadOptions.defaults(), List.of(viewItem))).orderedResults().get(0);
         if (result.collectionStatus() != GrantSetResult.CollectionStatus.PRESENT) {
             return null;
         }
 
-        // 3. 通过装配器过滤（仅按资源类型白名单 + 排除 API），关键差异：
-        //    - 不传 pageNum/pageSize（PermViewAssembler.paginate 注释明说「分页延迟到调用方聚合后执行」，
-        //      assemble 总是返回全量已过滤 entries，故此处天然不分页）
-        //    - 不需要 sourceRoles（权限码下发无需来源角色）
+        // 3. 通过装配器过滤（仅按资源类型白名单 + 排除 API）。分页键显式给 MAX_VALUE：
+        //    PermViewAssembler.paginate「分页延迟到调用方聚合后执行」，assemble 总是返回全量
+        //    已过滤 entries，此处天然不分页（权限码全量聚合，验收第 2 条）；不给 pageSize 会
+        //    走 "<= 0 用默认 20" 分支。sourceRoles 不需要（权限码下发无需来源角色）
         PermViewFilter filter = new PermViewFilter();
         filter.setResourceTypes(req.resourceTypeCodes() == null ? null : new LinkedHashSet<>(req.resourceTypeCodes()));
         filter.setExcludeApiResources(true);
         filter.setIncludeScopePermissions(true);
         filter.setIncludeSourceRoles(false);
         filter.setSourceRoleLimit(0);
-        // pageNum/pageSize 不影响 entries 内容（只影响聚合后截断），
-        // 此处显式设为 1 避免 PermViewAssembler.paginate 走 "<= 0 用默认 20" 分支
         filter.setPageNum(1);
         filter.setPageSize(Integer.MAX_VALUE);
 
