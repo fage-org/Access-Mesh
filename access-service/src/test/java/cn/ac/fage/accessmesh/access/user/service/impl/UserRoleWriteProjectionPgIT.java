@@ -96,7 +96,7 @@ class UserRoleWriteProjectionPgIT {
     @Autowired
     private cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService subjectDomainService;
     @Autowired
-    private QueryGate permQueryEngine;
+    private QueryGate queryGate;
     @Autowired
     private JdbcTemplate jdbc;
 
@@ -138,9 +138,9 @@ class UserRoleWriteProjectionPgIT {
             ((Number) grantedProjection.get("id")).longValue());
 
         bindOperator(manager);
-        assertThat(permQueryEngine.hasPermissionByCode(
+        assertThat(queryGate.hasPermissionByCode(
             TENANT, manager, "ROLE", String.valueOf(granted.id()), "MANAGE")).isTrue();
-        assertThat(permQueryEngine.hasPermissionByCode(
+        assertThat(queryGate.hasPermissionByCode(
             TENANT, manager, "ROLE", String.valueOf(ungranted.id()), "MANAGE")).isFalse();
 
         // updateRole 实例门禁经生产投影命中（非 scopeAll），status 镜像到投影
@@ -167,7 +167,7 @@ class UserRoleWriteProjectionPgIT {
         roleManageAppService.deleteRoles(TENANT, List.of(granted.id()), manager);
         assertThat(((Number) resourceRow(RESOURCE_TYPE_ROLE, String.valueOf(granted.id()))
             .get("delete_flag")).longValue()).isNotZero();
-        assertThat(permQueryEngine.hasPermissionByCode(
+        assertThat(queryGate.hasPermissionByCode(
             TENANT, manager, "ROLE", String.valueOf(granted.id()), "MANAGE")).isFalse();
     }
 
@@ -205,9 +205,9 @@ class UserRoleWriteProjectionPgIT {
         insertInstanceRolePerm(managerRole, RESOURCE_TYPE_USER, DELETE_BIT, targetEntityId);
 
         bindOperator(manager);
-        assertThat(permQueryEngine.hasPermissionByCode(
+        assertThat(queryGate.hasPermissionByCode(
             TENANT, manager, "USER", String.valueOf(target.id()), "UPDATE")).isTrue();
-        assertThat(permQueryEngine.hasPermissionByCode(
+        assertThat(queryGate.hasPermissionByCode(
             TENANT, manager, "USER", String.valueOf(other.id()), "UPDATE")).isFalse();
 
         // updateUser 实例级门禁经生产投影命中（无 UPDATE 实例授权的其他用户被拒）
@@ -234,7 +234,7 @@ class UserRoleWriteProjectionPgIT {
         userManageAppService.deleteUsers(TENANT, List.of(target.id()));
         assertThat(((Number) resourceRow(RESOURCE_TYPE_USER, String.valueOf(target.id()))
             .get("delete_flag")).longValue()).isNotZero();
-        assertThat(permQueryEngine.hasPermissionByCode(
+        assertThat(queryGate.hasPermissionByCode(
             TENANT, manager, "USER", String.valueOf(target.id()), "DELETE")).isFalse();
     }
 
@@ -346,7 +346,7 @@ class UserRoleWriteProjectionPgIT {
         Long targetRole = insertBasicRole("t019-holder-target", "目标主体角色");
         insertUserRole(target, targetRole);
         insertScopeAllRolePerm(targetRole, RESOURCE_TYPE_ROLE, CREATE_BIT);
-        assertThat(permQueryEngine.hasPermissionByCode(
+        assertThat(queryGate.hasPermissionByCode(
             TENANT, target, "ROLE", null, "CREATE")).isTrue();
 
         // 管理员实例 ENABLE 装配后禁用目标主体（T-ACCESS-034：enabled 变更查 USER:ENABLE）
@@ -359,7 +359,7 @@ class UserRoleWriteProjectionPgIT {
         userManageAppService.updateUser(TENANT, new AbstractUserUpdateReq(target, null, false, null, null));
 
         // DDL 语义 enabled=false 鉴权不通过：有效角色置空后门禁全拒
-        assertThat(permQueryEngine.hasPermissionByCode(
+        assertThat(queryGate.hasPermissionByCode(
             TENANT, target, "ROLE", null, "CREATE")).isFalse();
         // 禁用镜像到投影 status=0，name 保持兜底值
         Map<String, Object> disabledRow = resourceRow(RESOURCE_TYPE_USER, String.valueOf(target));
@@ -390,7 +390,7 @@ class UserRoleWriteProjectionPgIT {
         insertScopeAllRolePerm(basic.id(), RESOURCE_TYPE_ROLE, CREATE_BIT);
 
         // 预热成员 EFFECTIVE_ROLES：经组展开获得基础角色 → 放行
-        assertThat(permQueryEngine.hasPermissionByCode(
+        assertThat(queryGate.hasPermissionByCode(
             TENANT, member, "ROLE", null, "CREATE")).isTrue();
 
         // 禁用组角色：updateRole 已拒绝 GROUP_ROLE，JDBC 直改 status 后按生产同款入口
@@ -401,17 +401,17 @@ class UserRoleWriteProjectionPgIT {
         // 反查须覆盖 GROUP_ROLE 直绑成员（含预热缓存失效），禁用组展开为空 → 整体失权
         setRoleStatus(groupId, 0);
         subjectDomainService.invalidateRoleCacheByRoles(TENANT, java.util.Set.of(groupId));
-        assertThat(permQueryEngine.hasPermissionByCode(
+        assertThat(queryGate.hasPermissionByCode(
             TENANT, member, "ROLE", null, "CREATE")).isFalse();
 
         // 重新启用恢复授权；非启用值（如 2）fail-closed 视为禁用
         setRoleStatus(groupId, 1);
         subjectDomainService.invalidateRoleCacheByRoles(TENANT, java.util.Set.of(groupId));
-        assertThat(permQueryEngine.hasPermissionByCode(
+        assertThat(queryGate.hasPermissionByCode(
             TENANT, member, "ROLE", null, "CREATE")).isTrue();
         setRoleStatus(groupId, 2);
         subjectDomainService.invalidateRoleCacheByRoles(TENANT, java.util.Set.of(groupId));
-        assertThat(permQueryEngine.hasPermissionByCode(
+        assertThat(queryGate.hasPermissionByCode(
             TENANT, member, "ROLE", null, "CREATE")).isFalse();
 
         // 删除组角色（delete 保持可用，级联子孙基础角色）：预计算反查覆盖直绑成员，
@@ -449,20 +449,20 @@ class UserRoleWriteProjectionPgIT {
         insertScopeAllRolePerm(leaf.id(), RESOURCE_TYPE_ROLE, CREATE_BIT);
 
         // 外层→内层→基础角色全启用：展开包含叶子角色 → 放行
-        assertThat(permQueryEngine.hasPermissionByCode(
+        assertThat(queryGate.hasPermissionByCode(
             TENANT, member, "ROLE", null, "CREATE")).isTrue();
 
         // 停用内层组（外层仍启用，updateRole 已拒绝 GROUP_ROLE 改 JDBC 直改）：
         // 内层整棵子树剪枝 + 祖先反查失效外层组成员缓存 → 拒绝
         setRoleStatus(innerId, 0);
         subjectDomainService.invalidateRoleCacheByRoles(TENANT, java.util.Set.of(innerId));
-        assertThat(permQueryEngine.hasPermissionByCode(
+        assertThat(queryGate.hasPermissionByCode(
             TENANT, member, "ROLE", null, "CREATE")).isFalse();
 
         // 重新启用内层组：子树恢复参与展开 → 放行
         setRoleStatus(innerId, 1);
         subjectDomainService.invalidateRoleCacheByRoles(TENANT, java.util.Set.of(innerId));
-        assertThat(permQueryEngine.hasPermissionByCode(
+        assertThat(queryGate.hasPermissionByCode(
             TENANT, member, "ROLE", null, "CREATE")).isTrue();
     }
 

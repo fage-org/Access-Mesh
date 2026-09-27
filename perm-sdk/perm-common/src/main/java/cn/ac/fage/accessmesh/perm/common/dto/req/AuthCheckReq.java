@@ -56,7 +56,7 @@ public record AuthCheckReq(
      */
     String codeType,
     /**
-     * 继承模式（可选）：PARENT、CHILDREN、BOTH
+     * 继承模式（可选）：NONE、PARENT、BOTH（PARENT/BOTH=判定面继承开；其余含缺省=关，总册 §18.2）
      */
     String inheritMode,
     /**

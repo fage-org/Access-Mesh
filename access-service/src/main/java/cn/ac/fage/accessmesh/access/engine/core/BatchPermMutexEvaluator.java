@@ -16,10 +16,9 @@ import java.util.Set;
  *   <li><b>只共享装载，不共享计算</b>：PERM_MUTEX 规则请求级装载一次；操作索引按 distinct
  *       类型 O(K) 惰性扩——计算仍按传入条目集合作（集合语义：filterPermMutex 对子集整体算
  *       opIds、规则两端同场才冲突且两端全丢，合并评估必不等价）；</li>
- *   <li><b>计算不通知</b>：{@link #compute} 仅返回过滤结果与命中规则 ID，通知由调用方
- *       （引擎批量层）维护 {@code (组, ruleId) → 命中 originalIndex} ledger 聚合后经
- *       {@link #notifyHits} 显式触发——每 (组, ruleId) 一条审计行，detail 由实际命中规则
- *       （first/second 两端都在 opIds 的 AND 判定）构造并携 hitItemCount。</li>
+ *   <li><b>计算不通知</b>：{@link #compute} 仅返回过滤结果与命中规则 ID——互斥命中审计由
+ *       新引擎按 ConflictEvidence 受控提交（T-PERM-088，execution＋item＋stage＋ruleRef 聚合；
+ *       旧 (组, ruleId) ledger 聚合通知口随旧执行体 T-PERM-092 删除）。</li>
  * </ul>
  */
 public interface BatchPermMutexEvaluator {
@@ -54,18 +53,6 @@ public interface BatchPermMutexEvaluator {
     record MutexRuleRef(long ruleId, long firstOperationPermissionId, long secondOperationPermissionId) {}
 
     /**
-     * 聚合通知互斥命中（ledger flush；每 hit 一条审计行）。
-     * <p>
-     * detail 由请求级规则数据按 AND 命中构造（ruleId → first/second 操作），未触发规则
-     * 不出现。通知失败不抛出（对齐单条 notifyPermConflict 的容错边界）。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param hits     聚合后的命中条目（(组, ruleId) 去重 + hitItemCount）
-     */
-    void notifyHits(Long tenantId, List<MutexHit> hits);
-
-    /**
      * 互斥计算结果。
      *
      * @param filtered 剔除冲突条目后的列表
@@ -73,14 +60,4 @@ public interface BatchPermMutexEvaluator {
      */
     record PermMutexComputation(List<RolePermEntry> filtered, Set<Long> triggeredRuleIds) {}
 
-    /**
-     * 聚合后的互斥命中（ledger 条目）。
-     *
-     * @param groupKey 组标识（分组键可读串，如 {@code INSTANCE:MENU:VIEW:...}；getDenied* 轨
-     *                 为 {@code GET_DENIED:{type}:{op}}，T-PERM-095）
-     * @param ruleId   命中的互斥规则 ID
-     * @param hitItemCount 命中计数（queryBatch 轨=命中 item 数〔去重、段间合并〕；
-     *                     getDenied* 轨=命中目标数，T-PERM-095）
-     */
-    record MutexHit(String groupKey, Long ruleId, int hitItemCount) {}
 }

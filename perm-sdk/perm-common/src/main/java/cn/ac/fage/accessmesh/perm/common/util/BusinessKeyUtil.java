@@ -73,7 +73,7 @@ public final class BusinessKeyUtil {
 
     /**
      * 操作编码键（类型码轨）：{@code resourceTypeCode:operationCode}。
-     * <p>ResolveContext 解析缓存、AccessBootstrapInitializer 固定图 bits 映射等；不做大小写归一。</p>
+     * <p>类型解析缓存、AccessBootstrapInitializer 固定图 bits 映射等；不做大小写归一。</p>
      */
     public static String operationCodeKey(String resourceTypeCode, String operationCode) {
         return resourceTypeCode + ":" + operationCode;
@@ -256,26 +256,6 @@ public final class BusinessKeyUtil {
     // ---------------------------------------------------------------------
     // 竖线分隔族（历史 "|" 格式，golden 锁与冒号族同等效力；2026-09-08 codex 复评 P2-1 收编）
     // ---------------------------------------------------------------------
-
-    /**
-     * 权限条目生效来源键（六段竖线）：{@code permissionId|roleId|resourceEntityId|resourceType|bits|scopeAll}。
-     * <p>bits 位取 grantedBits 或 operationBinaryBit（调用侧语义决定）；PermQueryEngine /
-     * PermViewAssembler / PermissionViewAppServiceImpl 三处同构消费——此前逐字重复实现，
-     * 任一侧改段序即静默错配。resourceEntityId 为 null（scopeAll 行）拼字面 {@code "null"}。</p>
-     */
-    public static String permEntrySourceKey(Long permissionId, Long roleId, Long resourceEntityId,
-                                            Integer resourceType, Long bits, Boolean scopeAll) {
-        return permissionId + "|" + roleId + "|" + resourceEntityId + "|" + resourceType
-            + "|" + bits + "|" + scopeAll;
-    }
-
-    /**
-     * 继承展开条目去重键：{@code resourceEntityId|permissionId}。
-     * <p>PermQueryEngine 继承子代/祖先展开去重（entityId×permissionId 唯一）。</p>
-     */
-    public static String inheritedEntryKey(Long resourceEntityId, Long permissionId) {
-        return resourceEntityId + "|" + permissionId;
-    }
 
     /**
      * 角色投影索引键：{@code roleTypeCode|externalId}。

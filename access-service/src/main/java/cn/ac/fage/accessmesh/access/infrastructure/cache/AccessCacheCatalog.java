@@ -71,7 +71,8 @@ public final class AccessCacheCatalog {
      * Key: roleId
      * Value: List&lt;RolePermEntry&gt; 角色的原始权限记录（条件评估前、互斥过滤前）。
      * 空权限角色缓存空列表（List.of()，非 null）防穿透。
-     * T-PERM-018：engine forUserView 读路径激活（getBatch 批量查 roleIds，miss 集合 1 SQL，putBatch 回填）。
+     * T-PERM-018：GRANT_LIST 清单面读路径激活（QueryReadSupport getBatch 批量查
+     * roleIds，miss 集合 1 SQL，putBatch 回填）。
      * </p>
      */
     public static final CacheCatalogEntry<List<cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry>> ROLE_PERM_SNAPSHOT =

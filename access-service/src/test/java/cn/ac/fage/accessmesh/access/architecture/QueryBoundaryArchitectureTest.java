@@ -196,10 +196,9 @@ class QueryBoundaryArchitectureTest {
     /**
      * 旧执行体退役锁（T-PERM-092，设计 §9.4 X04）：旧执行体与四旧 DTO 自主源码退出后
      * 不得回潮——任何形态的复活（含改名同形）都意味着第二执行主体或绕过引擎判定面。
+     * 供负向自证（夹具占用退役 FQCN）与主扫描面复用同一规则。
      */
-    @Test
-    @DisplayName("旧执行体退役锁：PermQueryEngine/四旧 DTO/TargetMode/ResolveContext 不得存在于主源码（X04 双向锁）")
-    void retiredLegacyEngineClassesMustNotBeReintroduced() {
+    static void checkRetiredClassesAbsent(JavaClasses imported) {
         Set<String> retired = Set.of(
             BASE + ".engine.core.PermQueryEngine",
             BASE + ".engine.core.ResolveContext",
@@ -208,13 +207,19 @@ class QueryBoundaryArchitectureTest {
             BASE + ".engine.dto.PermBatchQuery",
             BASE + ".engine.dto.PermBatchResult",
             BASE + ".grant.enums.TargetMode");
-        Set<String> present = classes.stream()
+        Set<String> present = imported.stream()
             .map(JavaClass::getFullName)
             .filter(retired::contains)
             .collect(java.util.stream.Collectors.toCollection(java.util.TreeSet::new));
         assertThat(present)
             .as("旧执行体/四旧 DTO 已于 T-PERM-092 删除，主源码再现即退役回潮（设计 §9.4）")
             .isEmpty();
+    }
+
+    @Test
+    @DisplayName("旧执行体退役锁：PermQueryEngine/四旧 DTO/TargetMode/ResolveContext 不得存在于主源码（X04 双向锁）")
+    void retiredLegacyEngineClassesMustNotBeReintroduced() {
+        checkRetiredClassesAbsent(classes);
     }
 
     // ------------------------------------------------------------------
@@ -249,6 +254,21 @@ class QueryBoundaryArchitectureTest {
             .orShould().haveNameStartingWith("list")
             .check(classes))
             .isInstanceOf(AssertionError.class);
+    }
+
+    @Test
+    @DisplayName("负向自证：占用退役 FQCN 的夹具类必被退役锁拒绝（X04 锁有牙）")
+    void retiredClassLockRejectsFixtureOccupyingRetiredFqcn() {
+        // 测试源集夹具（engine.dto.PermResult，故意占用已退役 FQCN）经专用
+        // ClassFileImporter 单独导入——退役锁必须拒绝（DO_NOT_INCLUDE_TESTS 使其
+        // 永不进入主扫描面，双重不干扰；BoundaryViolationFixture 同款形态）。
+        JavaClasses fixture = new ClassFileImporter()
+            .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_JARS)
+            .importPackages(BASE + ".engine.dto");
+        assertThat(fixture.size()).as("夹具包必须被导入").isGreaterThan(0);
+        assertThatThrownBy(() -> checkRetiredClassesAbsent(fixture))
+            .isInstanceOf(AssertionError.class)
+            .hasMessageContaining("PermResult");
     }
 
     @Test

@@ -138,20 +138,6 @@ class BusinessKeyUtilParityTest {
     // -------------------- 竖线族（2026-09-08 codex 复评 P2-1 收编） --------------------
 
     @Test
-    void permEntrySourceKeyShouldLockSixSegmentPipeFormat() {
-        assertThat(BusinessKeyUtil.permEntrySourceKey(11L, 22L, 1001L, 6, 48L, false))
-            .isEqualTo("11|22|1001|6|48|false");
-        // scopeAll 行 resourceEntityId 为 null（拼字面 "null"，与原始实现一致）
-        assertThat(BusinessKeyUtil.permEntrySourceKey(11L, 22L, null, 6, 255L, true))
-            .isEqualTo("11|22|null|6|255|true");
-    }
-
-    @Test
-    void inheritedEntryKeyShouldLockEntityPermissionPair() {
-        assertThat(BusinessKeyUtil.inheritedEntryKey(1001L, 11L)).isEqualTo("1001|11");
-    }
-
-    @Test
     void roleProjectionIndexKeyShouldLockTypeExternalPair() {
         assertThat(BusinessKeyUtil.roleProjectionIndexKey("ORG", "2001")).isEqualTo("ORG|2001");
     }

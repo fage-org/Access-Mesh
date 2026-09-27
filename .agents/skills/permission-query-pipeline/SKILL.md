@@ -218,5 +218,5 @@ ResourceTypeCode.API               // API接口
 | `engine/constant/OperationCode.java` | 操作码常量 |
 | `type/enums/ResourceTypeCode.java` | 资源类型常量 |
 | `engine/util/OperationPermissionUtils.java` | 位运算 |
-| `engine/util/ConditionEvalUtils.java` | 条件评估 |
+| `perm-common` 的 `cn.ac.fage.accessmesh.perm.common.util.ConditionEvalUtils` | 条件评估 |
 | `engine/util/RolePermEntryMapper.java` | 实体→VO（ROLE_PERM_SNAPSHOT 缓存载荷例外保留对象） |

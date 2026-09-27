@@ -12,7 +12,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -33,9 +32,9 @@ import cn.ac.fage.accessmesh.access.rule.service.domain.impl.PermissionConflictD
 /**
  * {@link BatchPermMutexEvaluator}（T-PERM-061 请求级批量互斥评估器）单元测试。
  * <p>
- * 锁计算与通知解耦（compute 零通知——通知由 ledger flush 显式触发）、静态数据共享装载
- * （规则一次、操作索引按 distinct 类型一次）、集合语义（两端同场才冲突且两端全丢）与
- * notifyHits 聚合形态（每 (组, ruleId) 一条审计行、未触发规则不出现）。
+ * 锁计算零通知（互斥命中审计由新引擎按 ConflictEvidence 受控提交，T-PERM-088）、
+ * 静态数据共享装载（规则一次、操作索引按 distinct 类型一次）与集合语义
+ * （两端同场才冲突且两端全丢）。
  * </p>
  */
 @ExtendWith(MockitoExtension.class)
@@ -125,32 +124,6 @@ class BatchPermMutexEvaluatorTest {
             List.of(entry(UPDATE_BIT)));
         assertEquals(1, single.filtered().size(), "互斥单端在场不构成冲突");
         assertTrue(single.triggeredRuleIds().isEmpty());
-    }
-
-    @Test
-    void notifyHitsMustEmitOneAuditRowPerGroupRuleAndSkipUnknown() {
-        stubRule(1L, 200L, 400L);
-
-        BatchPermMutexEvaluator evaluator = service.openBatchMutexEvaluator(TENANT);
-        evaluator.notifyHits(TENANT, List.of(
-            new BatchPermMutexEvaluator.MutexHit("INSTANCE:MENU:VIEW:-:-:FLAT", 1L, 2),
-            new BatchPermMutexEvaluator.MutexHit("INSTANCE:MENU:VIEW:-:-:FLAT", 99L, 1)));
-
-        // 每 (组, ruleId) 一条审计行；未知 ruleId 跳过（不出现半条通知）
-        ArgumentCaptor<AuditDomainService.OperationLogEntry> captor =
-            ArgumentCaptor.forClass(AuditDomainService.OperationLogEntry.class);
-        verify(auditDomainService, times(1)).asyncRecordLog(captor.capture());
-        String summary = String.valueOf(captor.getValue().summary());
-        assertTrue(summary.contains("group=INSTANCE:MENU:VIEW:-:-:FLAT"), "summary 含组标识: " + summary);
-        assertTrue(summary.contains("hitItemCount=2"), "summary 含命中 item 数: " + summary);
-        assertTrue(summary.contains("rule[1]"), "summary 含实际命中规则 detail: " + summary);
-    }
-
-    @Test
-    void notifyHitsWithEmptyLedgerMustBeNoOp() {
-        BatchPermMutexEvaluator evaluator = service.openBatchMutexEvaluator(TENANT);
-        evaluator.notifyHits(TENANT, List.of());
-        verify(auditDomainService, never()).asyncRecordLog(any());
     }
 
     /**

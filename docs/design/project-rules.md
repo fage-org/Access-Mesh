@@ -63,7 +63,7 @@ last_reviewed: 2026-09-26
 
 > **禁止**直接将 `data` 设计为 `List`，必须包装为对象（如分页结构），保留扩展空间。
 
-响应信封 `R<T>` 与引擎内部查询结果 `PermResult` 职责不同，不合并类型；前者负责统一 HTTP 响应，后者承载鉴权结果。[来源](../archive/2026-09-26/decision-registry-before.md)（原第 46 行）。
+响应信封 `R<T>` 与引擎内部查询结果（`DecisionResult`/`GrantSetResult`）职责不同，不合并类型；前者负责统一 HTTP 响应，后者承载鉴权结果。[来源](../archive/2026-09-26/decision-registry-before.md)（原第 46 行）。
 
 ### 1.2 业务错误码规范
 

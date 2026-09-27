@@ -2,7 +2,8 @@ package cn.ac.fage.accessmesh.access.engine.query;
 
 import cn.ac.fage.accessmesh.access.engine.core.BatchConditionEvaluator;
 import cn.ac.fage.accessmesh.access.engine.core.BatchPermMutexEvaluator;
-import cn.ac.fage.accessmesh.access.engine.util.RolePermEntryMapper;import cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry;
+import cn.ac.fage.accessmesh.access.engine.util.RolePermEntryMapper;
+import cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry;
 import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService;
 import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService;
 import org.slf4j.Logger;

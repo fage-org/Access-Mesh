@@ -33,7 +33,7 @@ last_updated: 2026-09-26
 - **来源**：T-PERM-084 外部评审与同型调用链核对
 - **关联**：[T-PERM-084](tasks/T-PERM-084.md)；engine/implementation.md 业务键内存元组边界
 
-**现象与证据**：`TypeResolutionServiceImpl.batchResolveResourceIds` 的 resourceLookup 使用 `BusinessKeyUtil.resourceCodeTypeKey`（`resourceCode + ":" + codeType`）。同类型下 `("sys:user","default")` 与 `("sys","user:default")` 同为 `sys:user:default`，两编码同批查询时可互相覆盖。`ResourceManageAppServiceImpl.TripleKey` 已明确 code/codeType 可含冒号，采用字段元组。084 新 QueryReadSupport 已独立修正该形态；旧共享入口仍被 PermQueryEngine、PermissionGrantDomainServiceImpl、PermissionGrantPlanDomainServiceImpl、UserMenuQueryAppServiceImpl、ResourceEntitySyncAppServiceImpl 和 ResourceManageAppServiceImpl 的父资源解析消费。
+**现象与证据**：`TypeResolutionServiceImpl.batchResolveResourceIds` 的 resourceLookup 使用 `BusinessKeyUtil.resourceCodeTypeKey`（`resourceCode + ":" + codeType`）。同类型下 `("sys:user","default")` 与 `("sys","user:default")` 同为 `sys:user:default`，两编码同批查询时可互相覆盖。`ResourceManageAppServiceImpl.TripleKey` 已明确 code/codeType 可含冒号，采用字段元组。084 新 QueryReadSupport 已独立修正该形态；旧共享入口仍被 PermissionGrantDomainServiceImpl、PermissionGrantPlanDomainServiceImpl、UserMenuQueryAppServiceImpl、ResourceEntitySyncAppServiceImpl 和 ResourceManageAppServiceImpl 的父资源解析消费（原消费方 PermQueryEngine 已随 T-PERM-092 删除）。
 
 **影响**：命中上述同批数据形态时可能将资源键绑定到另一资源 ID，影响旧鉴权/转授/授权计划或父资源解析。R2 迁移只替换旧引擎消费面，不能据此认为共享解析服务的全部消费方已修复。未宣称已发生线上事故。
 

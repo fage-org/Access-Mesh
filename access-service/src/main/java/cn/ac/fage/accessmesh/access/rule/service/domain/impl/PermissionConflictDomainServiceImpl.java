@@ -422,8 +422,8 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
      * <p>
      * 规则惰性装载一次、操作索引按 distinct 类型惰性扩；剔除语义与
      * {@link #filterPermMutex}（内部 {@code computePermMutexInternal}）逐分支一致
-     * （同款精确查表与两端同场判定），但不通知——通知由调用方 ledger 聚合后
-     * 经 {@link #notifyHits} 触发（b2 定案）。
+     * （同款精确查表与两端同场判定），但不通知——互斥命中审计由新引擎按
+     * ConflictEvidence 受控提交（T-PERM-088）。
      * </p>
      */
     private final class BatchPermMutexEvaluatorImpl implements BatchPermMutexEvaluator {
@@ -497,36 +497,6 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
                 .map(rule -> new MutexRuleRef(rule.getId(),
                     rule.getFirstOperationPermissionId(), rule.getSecondOperationPermissionId()))
                 .toList();
-        }
-
-        @Override
-        public void notifyHits(Long tenantId, List<MutexHit> hits) {
-            if (hits == null || hits.isEmpty()) {
-                return;
-            }
-            ensureRulesLoaded();
-            for (MutexHit hit : hits) {
-                // detail 由实际命中规则（AND 两端在场）构造——未触发规则不出现（内容锁口径）
-                PermissionConflictRule rule = hit.ruleId() == null ? null : ruleById.get(hit.ruleId());
-                if (rule == null) {
-                    log.warn("Batch mutex hit references unknown rule, skipped: tenantId={}, group={}, ruleId={}",
-                        tenantId, hit.groupKey(), hit.ruleId());
-                    continue;
-                }
-                String detail = String.format("rule[%d]: op%d vs op%d", rule.getId(),
-                    rule.getFirstOperationPermissionId(), rule.getSecondOperationPermissionId());
-                try {
-                    auditDomainService.asyncRecordLog(new AuditDomainService.OperationLogEntry(
-                        tenantId, "PERMISSION", "CONFLICT_DETECTED", "permission_conflict_rule", null,
-                        String.format("Perm conflict blocked (batch): tenantId=%d, group=%s, hitItemCount=%d, detail=%s",
-                            tenantId, hit.groupKey(), hit.hitItemCount(), detail),
-                        null, null, null, OperatorContext.getRequestId(), null, null, null
-                    ));
-                } catch (Exception e) {
-                    log.error("Failed to record batch permission conflict notification: tenantId={}, group={}",
-                        tenantId, hit.groupKey(), e);
-                }
-            }
         }
 
         private void ensureRulesLoaded() {

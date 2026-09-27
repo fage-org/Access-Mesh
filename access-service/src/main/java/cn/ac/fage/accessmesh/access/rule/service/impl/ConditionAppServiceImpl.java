@@ -184,7 +184,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
         assertManageable(condition);
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         // 实例级门禁（T-PERM-048 定案④升级，业务编码轨同款）：CONDITION 投影 code=条件 code；
-        // scope_all 授权 passesScopeAll 全放行（bootstrap 固定图与存量授权零破坏）
+        // scope_all 授权类型级阶段全放行（bootstrap 固定图与存量授权零破坏）
         if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONDITION, req.code(), OperationCode.UPDATE)) {
             throw new SecurityException("Permission denied: UPDATE on CONDITION:" + req.code());
         }

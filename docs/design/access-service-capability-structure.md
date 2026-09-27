@@ -374,7 +374,7 @@ Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{
 | 源 | 目标 | 说明 |
 |---|---|---|
 | permission.service.domain.impl.PermQueryEngine | engine.core | 已随 T-PERM-092 删除（旧执行体；新执行主体=engine.query.QueryExecutionEngine） |
-| permission.service.domain：TypeResolutionService/Impl、ResolveContext、SubjectDomainService/Impl、BatchConditionEvaluator、BatchPermMutexEvaluator | engine.core | 类型解析/主体装载/批量评估器=引擎管线输入面与评估器 |
+| permission.service.domain：TypeResolutionService/Impl、ResolveContext、SubjectDomainService/Impl、BatchConditionEvaluator、BatchPermMutexEvaluator | engine.core | 类型解析/主体装载/批量评估器=引擎管线输入面与评估器；ResolveContext 已随 T-PERM-092 删除（新引擎解析记忆在 engine.query.QueryReadSupport） |
 | permission.service：PermissionCheckAppService/Impl、PermissionQueryAppService/Impl、PermissionViewAppService/Impl | engine.service | 引擎对外查询编排 |
 | permission.controller：PermAuthController、PermissionViewController | engine.controller | check/batch-check/check-interface/interface-snapshot/query-resources/query-scopes/effective-permission-codes |
 | admin.security.**AdminPermissionValidator** + application.security.**AdminPermissionValidatorImpl** | engine | 门禁门面（消费面横跨全部 admin 能力 Service、写编排与查询；Impl 委托 QueryGate〔T-PERM-089 起〕），裁决 7 |

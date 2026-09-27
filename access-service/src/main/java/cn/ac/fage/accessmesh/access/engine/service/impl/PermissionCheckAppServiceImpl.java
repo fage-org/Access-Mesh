@@ -228,7 +228,8 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
         return "PARENT".equalsIgnoreCase(inheritMode) || "BOTH".equalsIgnoreCase(inheritMode);
     }
 
-    /** 目标选择两档：无编码目标（含空白串归一 TYPE_LEVEL，2026-09-27 拍板）或单 clause TARGET_SET。 */    private static Selection selection(String resourceTypeCode, String resourceCode, String operationCode,
+    /** 目标选择两档：无编码目标（含空白串归一 TYPE_LEVEL，2026-09-27 拍板）或单 clause TARGET_SET。 */
+    private static Selection selection(String resourceTypeCode, String resourceCode, String operationCode,
                                         String codeType, String domainCode, boolean inheritClosure,
                                         ParentRequirement parent) {
         TypeOperation operation = new TypeOperation(resourceTypeCode, operationCode);
