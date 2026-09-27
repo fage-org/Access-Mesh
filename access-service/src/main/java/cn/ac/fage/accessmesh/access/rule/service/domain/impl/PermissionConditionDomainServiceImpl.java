@@ -211,6 +211,22 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
                 .collect(Collectors.toList());
         }
 
+        @Override
+        public RuleStatus ruleStatus(Long conditionId) {
+            LoadedRules loaded = snapshot.get(conditionId);
+            if (loaded == null) throw new IllegalStateException("条件状态必须在 preload 后读取");
+            RuleStatus status = RuleStatus.valueOf(loaded.status());
+            if (status != RuleStatus.OK) return status;
+            JsonNode rules = loaded.rules();
+            // 只检验已有规则结构约束，不用当前环境求值（空 AND 沿现有语义有效）。
+            if (rules == null || !rules.isObject() || !rules.path("items").isArray()
+                || !ConditionEvalUtils.VALID_LOGIC.contains(rules.has("logic")
+                    ? rules.get("logic").asText() : PermConstants.ConditionLogic.AND)) {
+                return RuleStatus.INVALID;
+            }
+            return RuleStatus.OK;
+        }
+
         /** 快照评估：非 OK 一律 fail-close 拒绝（与单条 loadRules 语义一致）。 */
         private boolean passesSnapshot(RolePermEntry entry, Map<String, Object> context) {
             if (entry.conditionId() == null || !entry.hasCondition()) {

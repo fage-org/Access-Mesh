@@ -301,6 +301,29 @@ final class QueryReadSupport {
         return targetGrants(run, roleIds, Set.of(), masks, true);
     }
 
+    /** 独立准入读取；完整分块装载后才评估，不读写角色快照或普通操作掩码缓存。 */
+    List<GrantFact> admissionGrants(RunState run, Map<Integer, Long> masks) {
+        if (run.roles().isEmpty() || masks.isEmpty()) return List.of();
+        Map<Long, GrantFact> loaded = new LinkedHashMap<>();
+        List<BitMaskEntry> bits = masks.entrySet().stream()
+            .filter(e -> e.getKey() != null && e.getValue() != null && e.getValue() != 0)
+            .map(e -> new BitMaskEntry(e.getKey(), e.getValue())).toList();
+        SqlBatches.forEach(List.copyOf(run.roles()), roleBatch -> SqlBatches.forEach(bits, maskBatch ->
+            grants.selectAdmissionCandidatesByTypeMasks(run.request().tenantId(), new LinkedHashSet<>(roleBatch), maskBatch)
+                .forEach(row -> loaded.putIfAbsent(row.getId(), databaseFact(run.readMemory(), row)))));
+        return List.copyOf(loaded.values());
+    }
+
+    Map<Long, GrantFact> admissionParents(RunState run, Set<Long> ids) {
+        Memory memory = run.readMemory();
+        Set<Long> missing = missing(ids, memory.admissionParents);
+        SqlBatches.forEach(List.copyOf(missing), batch -> grants.selectAdmissionParentsByIds(
+            run.request().tenantId(), new LinkedHashSet<>(batch)).forEach(row ->
+                memory.admissionParents.put(row.getId(), Optional.of(databaseFact(memory, row)))));
+        missing.forEach(id -> memory.admissionParents.putIfAbsent(id, Optional.empty()));
+        return present(memory.admissionParents, ids);
+    }
+
     /** 只为请求继承的目标合批查闭包；空查询结果仍保留自身且记忆，SELF 不消费此桶。 */
     Map<Long, Set<Long>> ancestorClosures(RunState run,
         cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper mapper, Set<Long> targets) {
@@ -418,6 +441,7 @@ final class QueryReadSupport {
         final Map<Long, Optional<AbstractRole>> roleDescriptions = new LinkedHashMap<>();
         final Map<Long, List<GrantFact>> listByRole = new LinkedHashMap<>();
         final Map<Long, GrantFact> databaseFacts = new LinkedHashMap<>();
+        final Map<Long, Optional<GrantFact>> admissionParents = new LinkedHashMap<>();
         final Map<GrantLoad, List<GrantFact>> targetLoads = new LinkedHashMap<>();
         final Map<Long, Set<Long>> ancestorClosures = new LinkedHashMap<>();
         final Map<Long, Set<Long>> descendantClosures = new LinkedHashMap<>();

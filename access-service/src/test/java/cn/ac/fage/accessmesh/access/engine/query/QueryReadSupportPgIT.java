@@ -42,7 +42,7 @@ import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 真 PG/Redis 验证 SQL 合批、租户/类型/目标实参、缓存载荷；不消费新 execute 的未实现阶段。 */
+/** 真 PG/Redis 验证读取部件的 SQL 合批、租户/类型/目标实参与缓存载荷。 */
 @Tag("testcontainers")
 @SpringBootTest
 @ActiveProfiles("test")

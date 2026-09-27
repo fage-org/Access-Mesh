@@ -17,11 +17,13 @@ final class CandidateSelector {
     static List<GrantFact> select(List<GrantFact> loaded, List<Clause> clauses, Stage stage) {
         Map<Long, GrantFact> selected = new LinkedHashMap<>();
         for (GrantFact fact : loaded) {
-            if ((stage == Stage.TYPE_GRANT) != Boolean.TRUE.equals(fact.scopeAll())) continue;
+            if (stage != Stage.ADMISSION_CANDIDATES
+                && (stage == Stage.TYPE_GRANT) != Boolean.TRUE.equals(fact.scopeAll())) continue;
             for (Clause clause : clauses) {
                 if (Objects.equals(fact.resourceType(), clause.type()) && fact.grantedBits() != null
                     && (fact.grantedBits() & clause.mask()) != 0
-                    && (stage == Stage.TYPE_GRANT || clause.closure().contains(fact.resourceEntityId()))) {
+                    && (stage == Stage.TYPE_GRANT || stage == Stage.ADMISSION_CANDIDATES
+                        || clause.closure().contains(fact.resourceEntityId()))) {
                     selected.putIfAbsent(fact.permissionId(), fact);
                     break;
                 }

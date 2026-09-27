@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.LinkedHashMap;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -33,11 +34,12 @@ final class CandidateEvaluator {
                 .map(OperationDefinition::toCacheRow).toList());
     }
 
-    /** 对本阶段真正需要求值的上下文后候选合批预载，PRESERVE 不读取条件规则。 */
+    /** 合批预载本行条件；普通 PRESERVE 不读规则，准入 FACTS 需核规则状态但不求值。 */
     void preload(Map<QueryItem, List<GrantFact>> rawByItem) {
         Set<Long> ids = new LinkedHashSet<>();
         rawByItem.forEach((item, raw) -> {
-            if (item.evaluation().conditionMode() == ConditionMode.EVALUATE) {
+            if (item.evaluation().conditionMode() == ConditionMode.EVALUATE
+                || item.selection() instanceof OperationAdmission) {
                 raw.stream().filter(f -> f.hasCondition() && f.conditionId() != null)
                     .map(GrantFact::conditionId).forEach(ids::add);
             }
@@ -49,11 +51,41 @@ final class CandidateEvaluator {
                        Set<Long> parentPermissionIds) {
         // 完整 selection 包含继承和绑定要求；阶段、配对、真实候选、策略均参与，输出不参与判定。
         Key key = new Key(item.selection(), stage, List.copyOf(clauses), raw, item.evaluation(), Set.copyOf(parentPermissionIds));
-        return results.computeIfAbsent(key, ignored -> compute(item.evaluation(), raw));
+        return results.computeIfAbsent(key, ignored -> item.selection() instanceof OperationAdmission
+            ? computeAdmission(item, raw) : compute(item.evaluation(), raw));
+    }
+
+    /** 准入没有 PERM_MUTEX，在线才可存在性短路；FACTS 保留全部可用规则身份而不求值。 */
+    private Evaluated computeAdmission(QueryItem item, List<GrantFact> raw) {
+        List<GrantFact> retained = new ArrayList<>();
+        for (int index = 0; index < raw.size(); index++) {
+            GrantFact fact = raw.get(index);
+            if (fact.hasCondition() != (fact.conditionId() != null)) {
+                log.error("Admission invalid condition reference: tenantId={}, permissionId={}",
+                    run.request().tenantId(), fact.permissionId());
+                continue;
+            }
+            if (fact.hasCondition()) {
+                var status = conditions.ruleStatus(fact.conditionId());
+                if (status != BatchConditionEvaluator.RuleStatus.OK) {
+                    log.warn("Admission unavailable condition: tenantId={}, permissionId={}, conditionId={}, status={}",
+                        run.request().tenantId(), fact.permissionId(), fact.conditionId(), status);
+                    continue;
+                }
+            }
+            if (item.resultForm() == ResultForm.FACTS
+                || !conditions.evaluate(run.request().tenantId(), List.of(entries.toEntry(fact)), run.evalContext()).isEmpty()) {
+                retained.add(fact);
+                if (item.resultForm() == ResultForm.ADMISSION) {
+                    return new Evaluated(List.copyOf(retained), Set.of(), List.of(), false, index == raw.size() - 1);
+                }
+            }
+        }
+        return new Evaluated(List.copyOf(retained), Set.of(), List.of(), false, true);
     }
 
     private Evaluated compute(Evaluation evaluation, List<GrantFact> raw) {
-        if (raw.isEmpty()) return new Evaluated(List.of(), Set.of(), List.of(), false);
+        if (raw.isEmpty()) return new Evaluated(List.of(), Set.of(), List.of(), false, true);
         raw.stream().filter(f -> f.hasCondition() != (f.conditionId() != null)).forEach(f ->
             log.error("Inconsistent condition reference: tenantId={}, permissionId={}",
                 run.request().tenantId(), f.permissionId()));
@@ -78,11 +110,12 @@ final class CandidateEvaluator {
         Set<Long> retainedIds = new LinkedHashSet<>();
         adapted.forEach(e -> retainedIds.add(e.permissionId()));
         return new Evaluated(raw.stream().filter(f -> retainedIds.contains(f.permissionId())).toList(),
-            hits, triggeredRules, mutexCandidate);
+            hits, triggeredRules, mutexCandidate, true);
     }
 
     record Evaluated(List<GrantFact> retained, Set<Long> triggeredRuleIds,
-                     List<BatchPermMutexEvaluator.MutexRuleRef> triggeredRules, boolean mutexCandidate) {}
+                     List<BatchPermMutexEvaluator.MutexRuleRef> triggeredRules, boolean mutexCandidate,
+                     boolean complete) {}
     private record Key(Selection selection, Stage stage, List<CandidateSelector.Clause> clauses,
                        List<GrantFact> raw, Evaluation evaluation, Set<Long> parentPermissionIds) {}
 }

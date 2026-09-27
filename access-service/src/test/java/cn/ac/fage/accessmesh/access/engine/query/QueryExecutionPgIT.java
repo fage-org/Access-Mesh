@@ -21,6 +21,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -234,6 +236,105 @@ class QueryExecutionPgIT {
             subjects, conditions, conflicts, resourceMapper,
             new QueryAuditCollector(org.mockito.Mockito.mock(AuditDomainService.class), QueryEngineMetrics.noop()),
             QueryEngineMetrics.noop());
+    }
+
+    @Test
+    void should_readAdmissionAllAndInstanceWithStrictBoundaries_whenSqlInputsAreEmptyOrForeign() {
+        long role = fixture.insertRoleRow(TENANT, "admission-sql");
+        long entity = fixture.insertResourceRow(TYPE_T1, "admission-sql");
+        long view = fixture.insertPermRow(role, TYPE_T1, entity, 2, false, null);
+        long update = fixture.insertPermRow(role, TYPE_T1, entity, 4, false, null);
+        long scope = fixture.insertPermRow(role, TYPE_T2, null, 2, true, null);
+        fixture.insertPermRow(role, TYPE_T1, entity, 8, false, null);
+        long deleted = fixture.insertPermRow(role, TYPE_T1, null, 2, true, null);
+        jdbc.update("UPDATE role_resource_permission SET delete_flag=id WHERE id=?", deleted);
+        var mask = List.of(new RoleResourcePermissionMapper.BitMaskEntry(TYPE_T1, 6L),
+            new RoleResourcePermissionMapper.BitMaskEntry(TYPE_T2, 2L));
+        assertThat(grants.selectAdmissionCandidatesByTypeMasks(TENANT, Set.of(role), mask))
+            .extracting(RoleResourcePermission::getId)
+            .containsExactly(view, update, scope);
+        assertThat(grants.selectAdmissionCandidatesByTypeMasks(TENANT, Set.of(), mask)).isEmpty();
+        assertThat(grants.selectAdmissionCandidatesByTypeMasks(TENANT, Set.of(role), List.of())).isEmpty();
+        assertThat(grants.selectAdmissionCandidatesByTypeMasks(TENANT + 1, Set.of(role), mask)).isEmpty();
+        assertThat(grants.selectAdmissionParentsByIds(TENANT, Set.of())).isEmpty();
+        assertThat(grants.selectAdmissionParentsByIds(TENANT + 1, Set.of(PERM_R1_VIEW))).isEmpty();
+        var item = QueryItem.admission("view", new TypeOperation(TYPE_T1_CODE, "VIEW"), OutputSpec.kept());
+        var noApiFallback = (AdmissionResult) execute(new Roles(Set.of(ROLE_S)), item).orderedResults().getFirst();
+        assertThat(noApiFallback.reason()).isEqualTo(AdmissionResult.Reason.NO_CANDIDATE);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"missing", "foreignTenant", "foreignRole", "nested", "deleted"})
+    void should_rejectChildStructure_whenRealParentIsInvalid(String invalid) {
+        long role = fixture.insertRoleRow(TENANT, "admission-child-" + invalid);
+        long parent = fixture.insertPermRow(role, TYPE_T2, null, 2, true, null);
+        long entity = fixture.insertResourceRow(TYPE_T1, "admission-child-" + invalid);
+        long child = fixture.insertPermRow(role, TYPE_T1, entity, 2, false, null);
+        jdbc.update("UPDATE role_resource_permission SET depend_on=? WHERE id=?", parent, child);
+        switch (invalid) {
+            case "missing" -> jdbc.update("UPDATE role_resource_permission SET depend_on=? WHERE id=?", Long.MAX_VALUE, child);
+            case "foreignTenant" -> jdbc.update("UPDATE role_resource_permission SET tenant_id=? WHERE id=?", TENANT + 1, parent);
+            case "foreignRole" -> jdbc.update("UPDATE role_resource_permission SET abstract_role_id=? WHERE id=?",
+                fixture.insertRoleRow(TENANT, "foreign-parent"), parent);
+            case "nested" -> jdbc.update("UPDATE role_resource_permission SET depend_on=? WHERE id=?", PERM_T2_SCOPE_ALL, parent);
+            case "deleted" -> jdbc.update("UPDATE role_resource_permission SET delete_flag=id WHERE id=?", parent);
+        }
+        var result = (AdmissionResult) execute(new Roles(Set.of(role)), QueryItem.admission("child",
+            new TypeOperation(TYPE_T1_CODE, "VIEW"), OutputSpec.kept())).orderedResults().getFirst();
+        assertThat(result.reason()).isEqualTo(AdmissionResult.Reason.NO_CANDIDATE);
+    }
+
+    @Test
+    void should_deferRealParentBindingUntilFinalCheck_whenOnlyContextChildCoversRequirement() {
+        long role = fixture.insertRoleRow(TENANT, "admission-parent");
+        long parentId = fixture.insertPermRow(role, TYPE_T2, RES_S1, 2, false, null);
+        long childEntity = fixture.insertResourceRow(TYPE_T1, "admission-final-child");
+        long childId = fixture.insertPermRow(role, TYPE_T1, childEntity, 2, false, null);
+        jdbc.update("UPDATE role_resource_permission SET depend_on=? WHERE id=?", parentId, childId);
+        var subject = new Roles(Set.of(role));
+        TypeOperation view = new TypeOperation(TYPE_T1_CODE, "VIEW");
+        var admission = (AdmissionResult) execute(subject, QueryItem.admission("candidate", view, OutputSpec.kept()))
+            .orderedResults().getFirst();
+        assertThat(admission.outcome()).isEqualTo(AdmissionResult.Admission.MAY_ENTER);
+        assertThat(admission.coverage().parentCheck()).isEqualTo(EvaluationCoverage.ParentCheckCoverage.RUNTIME_DEFERRED);
+        ParentRequirement parent = new ParentRequirement(TYPE_T2_CODE, new ByEntityId(RES_S1), Set.of("VIEW"));
+        var finalSelection = new TargetSet(List.of(new TargetClause(view, new ByEntityId(childEntity))),
+            Inheritance.SELF, TypeFallback.DISALLOW, parent);
+        assertThat(result(execute(subject, QueryItem.decision("final", finalSelection, OutputSpec.minimal())), 0).outcome())
+            .isEqualTo(DecisionResult.Decision.ALLOW);
+        assertThat(result(execute(subject, decision("no-parent", Inheritance.SELF, TypeFallback.DISALLOW,
+            new TargetClause(view, new ByEntityId(childEntity)))), 0).outcome()).isEqualTo(DecisionResult.Decision.DENY);
+        ParentRequirement wrongParent = new ParentRequirement(TYPE_T2_CODE, new ByEntityId(RES_R1), Set.of("VIEW"));
+        assertThat(result(execute(subject, QueryItem.decision("wrong", new TargetSet(finalSelection.clauses(),
+            Inheritance.SELF, TypeFallback.DISALLOW, wrongParent), OutputSpec.minimal())), 0).outcome())
+            .isEqualTo(DecisionResult.Decision.DENY);
+        jdbc.update("UPDATE role_resource_permission SET condition_id=? WHERE id=?", COND_UNSAT, parentId);
+        assertThat(((AdmissionResult) execute(subject, QueryItem.admission("candidate", view, OutputSpec.minimal()))
+            .orderedResults().getFirst()).outcome()).isEqualTo(AdmissionResult.Admission.MAY_ENTER);
+        assertThat(result(execute(subject, QueryItem.decision("failed-parent", finalSelection, OutputSpec.minimal())), 0).outcome())
+            .isEqualTo(DecisionResult.Decision.DENY);
+    }
+
+    @Test
+    void should_recomputeFreshAdmissionMasks_whenLongTtlCacheStillHasOldCoverage() {
+        long role = fixture.insertRoleRow(TENANT, "admission-fresh");
+        fixture.newType(956, "ADMISSION_FRESH");
+        fixture.insertOperation(956, "VIEW", 2, 0);
+        long update = fixture.insertOperation(956, "UPDATE", 4, 0);
+        fixture.insertPermRow(role, 956, null, 4, true, null);
+        var stale = QueryStagesTest.op(update, 956, "UPDATE", 4, 2);
+        cache.put(AccessCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, TENANT,
+            AccessCacheCatalog.operationPermissionsByTypeKey(956), java.util.Map.of(update, stale));
+        var subject = new Roles(Set.of(role));
+        var view = new TypeOperation("ADMISSION_FRESH", "VIEW");
+        var admission = QueryItem.admission("online", view, OutputSpec.minimal());
+        assertThat(((AdmissionResult) execute(subject, admission).orderedResults().getFirst()).reason())
+            .isEqualTo(AdmissionResult.Reason.NO_CANDIDATE);
+        assertThat(((GrantSetResult) execute(subject, QueryItem.admissionFacts("facts", view, OutputSpec.kept()))
+            .orderedResults().getFirst()).collectionStatus()).isEqualTo(GrantSetResult.CollectionStatus.NO_MATCH);
+        jdbc.update("UPDATE operation_permission SET inherit_mask=2 WHERE id=?", update);
+        assertThat(((AdmissionResult) execute(subject, admission).orderedResults().getFirst()).outcome())
+            .isEqualTo(AdmissionResult.Admission.MAY_ENTER);
     }
 
     static TargetClause clause(String type, String code) {

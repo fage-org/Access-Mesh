@@ -154,11 +154,17 @@ QueryExecutionEngine.execute(QueryRequest)
     │      ├─ depend_on 父绑定（bind，先于评估——互斥在绑定后集合上判定）──► 条件评估＋PERM_MUTEX 共同集合语义
     │      └─ 投影 ──► 描述块/操作覆盖/展示面展开（查询后克隆，不改变判定）
     │
-    └─ GRANT_LIST（清单/事实面，读来源 ROLE_SNAPSHOT 或 DATABASE）
-           ├─ ReadSupport 装载全量角色权限事实（ROLE_PERM_SNAPSHOT 读缓存 / 直查）
-           ├─ ParentRequirement 给出 ──► 父阶段独立判定 + depend_on 子权限过滤
-           ├─ 评估（EVALUATE/PRESERVE）──► raw/retained 分阶段事实
-           └─ 投影回传（presentation/effectiveOperations/descriptions——四态组装事实源）
+    ├─ GRANT_LIST（清单/事实面，读来源 ROLE_SNAPSHOT 或 DATABASE）
+    │      ├─ ReadSupport 装载全量角色权限事实（ROLE_PERM_SNAPSHOT 读缓存 / 直查）
+    │      ├─ ParentRequirement 给出 ──► 父阶段独立判定 + depend_on 子权限过滤
+    │      ├─ 评估（EVALUATE/PRESERVE）──► raw/retained 分阶段事实
+    │      └─ 投影回传（presentation/effectiveOperations/descriptions——四态组装事实源）
+    │
+    └─ ADMISSION_CANDIDATES（操作准入，独立请求）
+           ├─ 新鲜完整操作目录核查要求（配置故障优先于 NO_ROLE）＋合并类型覆盖掩码
+           ├─ ALL/实例候选合批读＋子行父结构批量核查（不评父条件）
+           └─ 在线评本行条件、可存在性短路；FACTS 核条件可用状态并完整保留分支
+              PERM_MUTEX 延后业务；AdmissionResult 恒要求最终检查
 ```
 
 **评估口径**：管理面写门禁条件评估拉平为评估（门面自动装配当前请求 clientIp，`PermEvalContext` 多层条件上下文）；条目互斥（PERM_MUTEX）按 Evaluation/MutexMode 入参化；**角色互斥（ROLE_MUTEX）经 `resolveJudgementRoleIds` 进全部判定入口**（User 主体内部等价解析，T-PERM-075）——引擎主体解析/QueryGate 入口/菜单权限串/接口快照消费互斥过滤后角色集，双删命中记 ConflictEvidence（T-PERM-063/088）；授权时校验沿 T-PERM-063 落地：`user-role/assign`、`batch-assign`、sync/full-sync BIND 写路径守卫（候选=未过期原始持有候选，U002 口径）20062/ROLE_MUTEX_CONFLICT + 规则 create/update 存量守卫 20063（详见 implementation §2.4，[历史定案原文](../../archive/2026-09-26/decision-registry-before.md) 2026-09-22 行）。

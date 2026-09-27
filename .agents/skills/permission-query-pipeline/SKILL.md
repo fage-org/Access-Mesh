@@ -144,11 +144,13 @@ Map<String, PermissionGrantDomainService.GrantCheckResult> results =
 ```
 execute(QueryRequest)
   主体解析（User→互斥过滤后角色集 / Roles 直供）
-  → TYPE_GRANT / INSTANCE / GRANT_LIST 分阶段评估（scopeAll 先行、候选按 clause 精确切分、
+  → TYPE_GRANT / INSTANCE / GRANT_LIST / ADMISSION_CANDIDATES 分阶段评估（scopeAll 先行、候选按 clause 精确切分、
     条件评估、互斥 ENFORCE 与证据受控提交〔ConflictEvidence：execution＋item＋stage＋ruleRef 聚合〕）
   → 事实（GrantFact 保留/raw）与展示投影（描述块/操作覆盖/父子展开）
 （完整设计：docs/design/r2-unified-query-and-admission.md §4；实现：docs/design/engine/implementation.md）
 ```
+
+操作准入用 `QueryItem.admission/admissionFacts` 构造独立请求（T-ACCESS-057）：新鲜完整操作目录先核查要求，再按合并 type-mask 批量读 ALL/实例候选；配置故障优先于 NO_ROLE。子行只批量核父结构，标 CONTEXT_DEFERRED，不评父条件；PERM_MUTEX 固定延后业务。在线评本行条件并可存在性短路，FACTS 核条件可用状态、排除坏条件、完整保留有效条件身份而不按当前环境过滤。禁止从旧 GRANT_LIST 结果或普通长 TTL 操作掩码推导；AdmissionResult 恒要求最终检查。端点/快照接线在 T-ACCESS-059。
 
 **判定/展示两语义拆分**：判定面继承（`Inheritance.SELF_AND_ANCESTORS`，查询前目标∪同类型祖先链，
 改变 allowed/denied）≠ 展示面展开（`PresentationExpansion`，查询后克隆 `grantSource=INHERITED`，

@@ -38,6 +38,11 @@ public interface BatchConditionEvaluator {
      */
     void preload(Long tenantId, Set<Long> conditionIds);
 
+    /** 已预载规则的可用状态，零 I/O、不评当前环境；准入 FACTS 用于排除坏条件。 */
+    RuleStatus ruleStatus(Long conditionId);
+
+    enum RuleStatus { OK, NOT_FOUND, DISABLED, INVALID }
+
     /**
      * 评估权限条目的条件（消费请求级快照，fail-close）。
      * <p>

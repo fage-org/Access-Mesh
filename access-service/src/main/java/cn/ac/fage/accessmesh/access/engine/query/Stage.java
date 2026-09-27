@@ -3,9 +3,8 @@ package cn.ac.fage.accessmesh.access.engine.query;
 /**
  * 执行阶段（T-PERM-082，设计 §4.2）。
  * <p>
- * TYPE_GRANT/INSTANCE/GRANT_LIST/ADMISSION_CANDIDATES 四个固定阶段；
- * TYPE_GRANT/INSTANCE/GRANT_LIST 已接入执行器；ADMISSION_CANDIDATES 随 T-ACCESS-057
- * （ADM-T02）落地，本枚举为覆盖信息与阶段调度的共享词汇。
+ * TYPE_GRANT/INSTANCE/GRANT_LIST/ADMISSION_CANDIDATES 均由唯一执行器调度，
+ * 本枚举为覆盖信息与阶段调度的共享词汇。
  * </p>
  */
 public enum Stage {

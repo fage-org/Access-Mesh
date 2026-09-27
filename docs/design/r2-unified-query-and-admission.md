@@ -458,6 +458,8 @@ effectiveRoles = S - D
 
 本版默认：准入在线与构建快照均从新鲜数据库目录解析 required operation 和 coveringMask；事实中的授权／角色／条件仍按各自来源标注。新增缓存目录、路由来源、父结构以及本地 TTL 必须纳入边界校验，回填保留读前令牌／剩余 TTL，不在投影完成后重新起算寿命。
 
+T-ACCESS-057 的准入阶段已通过 `QueryReadSupport.resolveOperations/freshOperations` 读取完整数据库目录；在线与 FACTS 共用该来源，覆盖变化不消费普通掩码桶。N20 由 `AdmissionStagesTest` 与 `QueryExecutionPgIT` 锁定，新快照生命周期与 TTL 仍由 T-ACCESS-059/060 验收。
+
 备选是业务操作专用的短 TTL／版本化安全缓存，可降低构建成本，但要同批改写覆盖变化、删除、读前令牌、跨节点失效和启动校验。**它不是本版默认，也不能只换一个 TTL 数字就宣称安全已证明。**即便采用新鲜操作定义，广播＋TTL 仍不是零延迟强一致；旧普通目标查询的操作缓存边界也不会被此次改造自动消除。
 
 ### 5.4 事务、时间与缓存载荷迁移
@@ -505,6 +507,8 @@ ConflictEvidence
 **旧单条通知的接受边界**：旧单条 PERM_MUTEX 的 summary 拼入规则明细后可能被 512 长度截断，现阶段维持该行为；批量路径每行单规则不在本项接受范围。T-PERM-088 按规则生成 ConflictEvidence 并受控提交实际落地后复核，出现范围外新影响也须复核。T-PERM-095 已把 getDenied* 改为批量 (组,ruleId) 聚合，不能再按旧单条形态扩大本例外。[来源](../archive/2026-09-26/decision-registry-before.md)（原第 206、208 行）。
 
 TRACE 不用另一个时刻重新评条件，不为显示完整过程补跑短路阶段；敏感角色／授权 ID、IP 规则只向经门禁的诊断开放。指标按选择／阶段／结果聚合，不使用任意 resourceCode、permissionId、itemKey 等高基数标签。
+
+准入审计沿现有冲突事件范围：仅对实际产生的冲突证据标注 `OPERATION_ADMISSION`，不新增每次准入成功／拒绝的结果日志；结果与 TRACE 如实表达权限互斥未执行。该范围由 T-ACCESS-057 于 2026-09-27 确认。
 
 > **就地实施注（2026-09-26，T-PERM-088）**：ConflictEvidence 已按本节形状落地（executionId／ruleRef〔PermRuleId|RolePair〕／evaluationItemId／affectedRootItemKeys／stage／actualConflictingOperationIds／completion），按 execution＋实际内部 item＋stage＋ruleRef 聚合；根 execute 在 finally 一次受控提交（先于 RunState 释放，幂等闸），每条证据一行 CONFLICT_DETECTED 经 `asyncRecordLog` 异步落库，提交失败仅技术日志＋指标、不覆盖主异常。纯计算与父项不发日志：共享父=一条 `parent#N` 证据关联全部受影响根项；主体解析角色对证据 stage=null、evaluationItemId=subject，NO_ROLE 全删早退仍提交。**512 截断复核结论**：新核心单行单规则（结构化摘要；固定字段前移、变长 affected 殿后——极端长 key 列表被 512 尾截时只损失 key 尾部，completion 等关键标记不先丢，key 列表不按条数折叠），多规则拼接截断形态不进入新核心；旧单条路径维持既有接受边界至 T-PERM-092 退出，无范围外新影响。跨请求去重口径（2026-09-26 用户拍板沿旧）：角色对证据按「租户×用户×命中对」1h JVM 去重（提交期同步失败回滚标记允许窗口内重试），PERM 规则证据不去重（旧批量 (组,ruleId) 轨亦无跨请求去重）。指标以枚举端口 `QueryEngineMetrics` 交付——参数类型仅枚举与布尔（选择类型／阶段／阶段终态／执行终态／证据类别），高基数标签在类型上无进入通道；Micrometer 绑定随引擎 Bean 化（T-PERM-089+）与观测演练（T-PERM-094）接线，默认 no-op。TRACE 门禁暂缓（Q-045，见 §3.3 实施注）。
 
@@ -669,11 +673,15 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
 
 若为了“更严格”在准入把 A/VIEW 与 B/UPDATE 混成清单互斥，两个原本可分别访问的对象可能都被提前挡住。即使是同实例真互斥，准入也可以 MAY_ENTER、由业务拒绝；审计不得将“未检查”写成“通过”。普通 DECISION 的 ENFORCE 不因此变为可选。
 
+T-ACCESS-057 实现的 AdmissionResult 恒要求最终检查；准入 FACTS 的 GrantSetResult 同样标注 OPERATION_ADMISSION 来源，不能作为普通最终许可消费。
+
 ### 7.3 来源、子授权与条件分支
 
 沿现有使用权限语义处理 MANUAL、AUTO_DEP、AUTHORITY_ROOT 等来源；不能为了简化仅查 MANUAL，也不给 AUTHORITY_ROOT 额外准入特权。不同条件／角色／来源的授权保持独立，存在一条无条件来源不能被另一条失败条件覆盖。
 
 上下文子行作为候选时，至少批量确认 depend_on 对应父行同租户、同角色、存在、未按现有规则失效、为合法主行且无嵌套非法结构。**只证明结构，不评父条件、不猜父操作、不伪造父 matchedPermissionIds。**候选标 `CONTEXT_DEFERRED`，业务必须传真实父上下文。若首版选择全排除子行，必须作为缩小范围的备选定案，未迁入的上下文接口继续受原路径保护；不能一边排除一边宣称方案 A 无误拒支持完整。
+
+T-ACCESS-057 保留结构合法子行；父结构按候选 depend_on 并集分块读取，跨租户／跨角色、父软删、缺失与嵌套均排除并诊断。候选类别从原始 GrantFact 推导，父运行时覆盖状态为 RUNTIME_DEFERRED；没有父匹配授权 ID 的伪造输出。
 
 当前条件类型包括日期、时间和 IP 白／黑名单 [C12]。在线准入、最终鉴权与本地可下发分支使用共同规则算法和明确的评估时刻语义（时区拍板：不做时区处理，§2.2）／可信 IP。gateway_evaluable=false 表示需要远端评估，不表示通过；缺失、禁用、非法条件是不可用分支，不能变成无条件。未来增加对象属性条件时需补准入处理设计；不得默认未知属性为空即放行。
 
@@ -683,7 +691,7 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
 
 本阶段仍由第 4 节唯一 execute 调度，复用原始事实结构、角色与条件能力。
 
-1. 从已匹配路由要求取得 type-operation；读取本次需要的**新鲜完整操作定义**，计算精确覆盖掩码。要求未知或损坏由接口层报告配置错误，不回退任意操作。
+1. 从已匹配路由要求取得 type-operation；读取本次需要的**新鲜完整操作定义**，计算精确覆盖掩码。要求未知或损坏由接口层报告配置错误，不回退任意操作。准入配置错误优先于 NO_ROLE：空角色集仍核查操作目录，有效要求才返回 NO_ROLE；普通鉴权保持主体短路（T-ACCESS-057，2026-09-27 确认）。
 2. 为同批要求合并 type-mask，一次或按预算分块读取有效角色的类型／位候选；既包括 ALL，也包括实例。使用明确的 `selectAdmissionCandidatesByTypeMasks` 类方法，不把空 entityIds 当作无限实例。
 3. 切回每个要求的候选；对存在的子候选集中读取父结构，非法结构排除并记录诊断；不执行资源树闭包或依赖图。
 4. 在线 ADMISSION：批量预载本行条件，求候选存在性；某项已有充分候选可结束，**仅因本用途没有 PERM_MUTEX，才允许这种存在性短路**。拒绝则必须穷尽该项候选。
@@ -691,6 +699,10 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
 6. 生成独立 AdmissionResult，或声明准入来源与条件未评估的 GrantSetResult；不从旧 LIST／旧网关快照推导。
 
 首版可先完整批量读候选再做逻辑短路，减少 SQL 分页与早停复杂性。后续流式 EXISTS 优化必须保留类型覆盖、子行结构、条件回源、稳定读取／计数和审计含义；不能仅 SQL LIMIT 1 后由一条条件失败判无资格。
+
+准入 FACTS 对坏条件采用显式排除：批量读取本行条件状态，缺失／禁用／非法规则行不进入保留事实，并记录诊断；有效规则不按当前 IP／时间求值，仍完整保留独立分支。普通 GRANT_LIST 的 PRESERVE 行为不变。该取舍由 T-ACCESS-057 于 2026-09-27 确认。
+
+实施入口为 `QueryExecutionEngine` 的 ADMISSION_CANDIDATES 阶段：`QueryReadSupport.admissionGrants/admissionParents` 经独立 Mapper 方法分块读取后合并，`CandidateEvaluator` 复用批量条件能力；子行类型通过 `GrantFact.admissionCandidateKind()` 保留。FACTS 与在线均标记 OPERATION_ADMISSION，互斥 SKIPPED；在线候选未穷尽时不声明完整收集。实现设计见 [engine/implementation §3.3/§3.5](engine/implementation.md#permission-query)，协议见[契约总册 §25](access-service-api-contract.md#operation-admission-protocol)；端点与快照装配仍由 T-ACCESS-059 接线。
 
 多个路由要求相同 type-operation 可以共享候选和计算，但输入项关系仍保留。准入与业务实例检查是两次执行，不共享跨 HTTP 的 RunState、固定时刻或最终布尔缓存。
 

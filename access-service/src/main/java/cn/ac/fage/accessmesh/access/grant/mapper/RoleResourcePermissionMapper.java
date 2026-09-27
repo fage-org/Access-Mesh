@@ -368,6 +368,15 @@ public interface RoleResourcePermissionMapper extends BaseMapper<RoleResourcePer
         @Param("resourceEntityIds") Set<Long> resourceEntityIds,
         @Param("bitMasks") List<BitMaskEntry> bitMasks);
 
+    /** 准入专用：类型与掩码均必填，同时读取 ALL 和实例原行，不展开资源树。 */
+    List<RoleResourcePermission> selectAdmissionCandidatesByTypeMasks(
+        @Param("tenantId") Long tenantId, @Param("roleIds") Set<Long> roleIds,
+        @Param("bitMasks") List<BitMaskEntry> bitMasks);
+
+    /** 准入子行的父结构批量读取；不评父条件、不按子操作过滤父行。 */
+    List<RoleResourcePermission> selectAdmissionParentsByIds(
+        @Param("tenantId") Long tenantId, @Param("permissionIds") Set<Long> permissionIds);
+
     /**
      * 位掩码条目（用于批量位操作查询）
      */

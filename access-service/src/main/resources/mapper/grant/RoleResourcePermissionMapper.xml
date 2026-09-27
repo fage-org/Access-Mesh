@@ -245,6 +245,36 @@
           AND delete_flag = 0
     </select>
 
+    <select id="selectAdmissionCandidatesByTypeMasks" resultType="cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission">
+        SELECT * FROM role_resource_permission
+        WHERE tenant_id = #{tenantId} AND delete_flag = 0
+        <choose>
+            <when test="roleIds != null and !roleIds.isEmpty() and bitMasks != null and !bitMasks.isEmpty()">
+                AND abstract_role_id IN
+                <foreach collection="roleIds" item="rid" open="(" separator="," close=")">#{rid}</foreach>
+                AND (
+                <foreach collection="bitMasks" item="entry" separator=" OR ">
+                    (resource_type = #{entry.resourceType} AND (granted_bits &amp; #{entry.bitMask}) != 0)
+                </foreach>
+                )
+            </when>
+            <otherwise>AND 1 = 0</otherwise>
+        </choose>
+        ORDER BY id
+    </select>
+
+    <select id="selectAdmissionParentsByIds" resultType="cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission">
+        SELECT * FROM role_resource_permission
+        WHERE tenant_id = #{tenantId} AND delete_flag = 0
+        <choose>
+            <when test="permissionIds != null and !permissionIds.isEmpty()">
+                AND id IN
+                <foreach collection="permissionIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+            </when>
+            <otherwise>AND 1 = 0</otherwise>
+        </choose>
+    </select>
+
     <select id="selectScopeAllPermsByBitsBatch" resultType="cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission">
         SELECT * FROM role_resource_permission
         WHERE tenant_id = #{tenantId}

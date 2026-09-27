@@ -7,6 +7,14 @@ public record GrantFact(Long permissionId, Long roleId, Integer resourceType, Lo
                         Long grantedBits, Boolean scopeAll, Boolean canGrant, Long conditionId,
                         boolean hasCondition, Long dependOn, String grantSource) {
 
+    /** 仅供准入投影使用；子行类别优先于 ALL/实例，不代表父运行时已经通过。 */
+    public AdmissionCandidateKind admissionCandidateKind() {
+        return dependOn != null ? AdmissionCandidateKind.CONTEXT_DEFERRED
+            : Boolean.TRUE.equals(scopeAll) ? AdmissionCandidateKind.ALL : AdmissionCandidateKind.INSTANCE;
+    }
+
+    public enum AdmissionCandidateKind { ALL, INSTANCE, CONTEXT_DEFERRED }
+
     static GrantFact from(RolePermEntry entry) {
         return new GrantFact(entry.permissionId(), entry.roleId(), entry.resourceType(), entry.resourceEntityId(),
             entry.grantedBits(), entry.scopeAll(), entry.canGrant(), entry.conditionId(), entry.hasCondition(),

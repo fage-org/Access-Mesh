@@ -435,6 +435,11 @@ QueryExecutionEngine.execute(QueryRequest)
     │     ├─ ParentRequirement 给出时父阶段独立判定（不缺不补：父 scopeAll/INSTANCE 各读一次）
     │     └─ 评估（EVALUATE/PRESERVE）→ raw/retained 分阶段事实（四态组装=ScopeCoverageProjector 纯投影）
     │
+    ├─ ADMISSION_CANDIDATES 阶段（OPERATION_ADMISSION 独占用途，不与普通项混批）
+    │     ├─ 新鲜完整操作目录解析精确 coveringMask（先于 NO_ROLE 返回核查配置）
+    │     ├─ selectAdmissionCandidatesByTypeMasks 合批读取 ALL/实例原行；子候选批量核父结构
+    │     └─ ADMISSION 评本行条件、存在性短路；FACTS 只核规则状态，完整保留有效条件身份
+    │
     └─ 投影与收尾（QueryProjector：描述块/操作覆盖/展示父子展开克隆 grantSource=INHERITED；
           根 execute finally 一次受控提交 ConflictEvidence——幂等闸、提交期异常不覆盖主异常 A04；
           TRACE=已完成计算快照复用，零新增 I/O 零重评 A05）
@@ -493,6 +498,8 @@ scopeAll 条目不参与展开；query-resources 的树扩展（原 `expandResou
   多规则拼接截断形态未进入）；角色对证据沿旧 1h 去重、PERM 规则不去重；指标走
   `QueryEngineMetrics` 端口（低基数结构性锁定；Micrometer 绑定随 T-PERM-094）。
 
+**操作准入（T-ACCESS-057）**：准入固定跳过 PERM_MUTEX，父行只核同租户、同角色、未软删和单层主行结构；不评父条件、不执行父目标检查。`GrantFact.admissionCandidateKind()` 区分 ALL、INSTANCE 与 CONTEXT_DEFERRED，父运行时判断延后业务。在线与 FACTS 共用新鲜操作目录和候选查询，不读普通长 TTL 掩码或 GRANT_LIST 结果。准入 FACTS 批量核条件四态及顶层逻辑/结构，坏条件排除并记诊断，不按当前环境筛除有效规则。在线成功可逻辑短路，拒绝必须穷尽；`requestedSelectionComplete` 如实反映是否穷尽，FACTS 完整收集。条件参数的实际求值仍复用既有领域算法；读取故障整体抛技术异常。协议与审计范围见[契约总册 §25.3](../access-service-api-contract.md#operation-admission-protocol)。
+
 ### 3.6 结果模型与外部响应转换
 
 - **`DecisionResult`**（判定形态）：outcome（ALLOW/DENY）＋ reason 四词表
@@ -503,6 +510,7 @@ scopeAll 条目不参与展开；query-resources 的树扩展（原 `expandResou
   stageFacts（rawAfterContext/retainedAfterEvaluation 分阶段事实——四态组装区分 DENIED（raw 无覆盖
   条目）与 EMPTY（有覆盖但评估后清空）的事实源）＋ presentation/effectiveOperations/descriptions
   展示投影。
+- **`AdmissionResult`**：MAY_ENTER/DENY，恒 `finalCheckRequired=true`；准入 FACTS 的 `GrantSetResult` 同样标注 `authorizationStage=OPERATION_ADMISSION`、条件 PRESERVED、权限互斥 SKIPPED。要求未知或操作目录损坏抛 `AdmissionConfigurationException`，接口层映射 HTTP 200＋20071；准入配置错误优先于 NO_ROLE，普通查询主体短路不变。
 - **`GrantFact`**：保留/原始授权事实（permissionId/roleId/resourceEntityId/grantedBits/conditionId/
   scopeAll/grantSource）；视图装配按源授权行主键关联投影行
   （GrantFact.permissionId ↔ EffectiveOperationEntry.sourcePermissionId）。

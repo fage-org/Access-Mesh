@@ -99,6 +99,9 @@ final class QueryRequestValidator {
             } else if (item.selection() instanceof TargetSet targetSet && targetSet.parent() != null) {
                 collectParent(at, targetSet.parent(), parents);
             } else if (item.selection() instanceof OperationAdmission) {
+                if (item.output().presentationExpansion() != PresentationExpansion.NONE) {
+                    throw new QueryValidationException(at + " OPERATION_ADMISSION 不支持资源树展示展开");
+                }
                 hasAdmission = true;
                 admissionForms.add(item.resultForm());
             }

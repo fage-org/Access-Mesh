@@ -110,6 +110,7 @@ final class RunState {
         boolean mutexCandidate;
         boolean shortCircuited;
         boolean parentDenied;
+        boolean candidateEvaluationComplete = true;
         ParentExecution parent;
 
         boolean retained() { return stages.values().stream().anyMatch(s -> !s.retainedAfterEvaluation().isEmpty()); }

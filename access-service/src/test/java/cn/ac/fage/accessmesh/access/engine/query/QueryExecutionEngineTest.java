@@ -106,22 +106,6 @@ class QueryExecutionEngineTest {
         }
 
         @Test
-        void should_returnAdmissionNoRole_whenRolesSubjectEmptyAndAdmissionForm() {
-            QueryResult result = engine.execute(request(new Roles(Set.of()),
-                QueryItem.admission("k1", REPORT_VIEW, OutputSpec.minimal())));
-
-            assertThat(result.orderedResults().get(0)).isInstanceOf(AdmissionResult.class);
-            AdmissionResult admission = (AdmissionResult) result.orderedResults().get(0);
-            assertThat(admission.outcome()).isEqualTo(AdmissionResult.Admission.DENY);
-            assertThat(admission.reason()).isEqualTo(AdmissionResult.Reason.NO_ROLE);
-            assertThat(admission.finalCheckRequired()).isTrue();
-            assertThat(admission.coverage().authorizationStage()).isEqualTo(AuthorizationStage.OPERATION_ADMISSION);
-            assertThat(admission.coverage().skippedStages())
-                .containsOnlyKeys(Stage.ADMISSION_CANDIDATES)
-                .containsValue(SkipReason.NO_ROLE);
-        }
-
-        @Test
         void should_markParentNotTriggered_whenNoRoleShortCircuitsParentCarryingItem() {
             ParentRequirement parent = new ParentRequirement("FOLDER",
                 new ByCode("F1", null, null), Set.of("VIEW"));
@@ -203,14 +187,7 @@ class QueryExecutionEngineTest {
     }
 
     @Nested
-    class FailClosedUnimplementedRegion {
-
-        @Test
-        void should_throwUnsupported_whenAdmissionStageNotImplemented() {
-            assertThatThrownBy(() -> engine.execute(request(new Roles(Set.of(1L)),
-                QueryItem.admission("admission", REPORT_VIEW, OutputSpec.minimal()))))
-                .isInstanceOf(UnsupportedOperationException.class).hasMessageContaining("T-ACCESS-057");
-        }
+    class InvalidCombination {
 
         @Test
         void should_rejectBeforeExecution_whenStructuralErrorOnValidSubjectPath() {

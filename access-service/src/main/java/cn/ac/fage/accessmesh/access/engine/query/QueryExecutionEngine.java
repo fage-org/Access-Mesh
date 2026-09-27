@@ -92,13 +92,19 @@ public final class QueryExecutionEngine {
         try {
             request.items().forEach(item -> run.items().put(item, new RunState.ItemExecution()));
             resolveSubject(run);
+            boolean admission = request.items().getFirst().selection() instanceof OperationAdmission;
+            // 准入配置故障优先于 NO_ROLE；普通查询保持主体短路。
+            Map<QueryItem, List<CandidateSelector.Clause>> admissionClauses = admission ? prepareAdmissionClauses(run) : Map.of();
             if (run.roles().isEmpty()) return noRoleResults(run, QueryProjector.project(run, reads, resourceMapper));
-            requireImplemented(request.items());
             run.evaluator(new CandidateEvaluator(run, reads, conditions, conflicts));
-            Map<TypeOperation, ResolvedOperation> operations = prepareOperations(run, request.items());
-            processTypeGrantStage(run, operations, run.items());
-            processInstanceStage(run, operations, run.items());
-            processGrantListStage(run);
+            if (admission) {
+                processAdmissionStage(run, admissionClauses);
+            } else {
+                Map<TypeOperation, ResolvedOperation> operations = prepareOperations(run, request.items());
+                processTypeGrantStage(run, operations, run.items());
+                processInstanceStage(run, operations, run.items());
+                processGrantListStage(run);
+            }
             Map<QueryItem, ResultDetails> details = QueryProjector.project(run, reads, resourceMapper);
             return new QueryResult(run.executionId(), run.evaluatedAt(), request.items().stream()
                 .map(item -> complete(item, run, details.get(item))).toList());
@@ -114,10 +120,9 @@ public final class QueryExecutionEngine {
         }
     }
 
-    /** 运行中技术故障统一包装（X01/X02）；结构错误与未实现区域不是技术故障，原样抛出。 */
+    /** 运行中技术故障统一包装（X01/X02）；结构错误及已分类的配置故障保留具体类型。 */
     private static RuntimeException technicalFailure(RuntimeException error) {
-        if (error instanceof QueryValidationException || error instanceof UnsupportedOperationException
-            || error instanceof QueryExecutionException) {
+        if (error instanceof QueryValidationException || error instanceof QueryExecutionException) {
             return error;
         }
         return new QueryExecutionException("权限查询执行技术故障: " + error.getMessage(), error);
@@ -144,12 +149,62 @@ public final class QueryExecutionEngine {
         return new ResolvedSubject(roles.roleIds(), SubjectResolution.EXPLICIT_ROLES);
     }
 
-    private static void requireImplemented(List<QueryItem> items) {
-        for (QueryItem item : items) {
-            if (item.selection() instanceof OperationAdmission) {
-                throw new UnsupportedOperationException("ADMISSION_CANDIDATES 随 T-ACCESS-057 落地");
+    private Map<QueryItem, List<CandidateSelector.Clause>> prepareAdmissionClauses(RunState run) {
+        Set<TypeOperation> requested = new LinkedHashSet<>();
+        run.items().keySet().forEach(item -> requested.add(((OperationAdmission) item.selection()).requirement()));
+        Map<TypeOperation, OperationDefinition> targets = reads.resolveOperations(run, requested);
+        Set<Integer> types = new LinkedHashSet<>();
+        targets.values().forEach(op -> types.add(op.resourceType()));
+        Map<Integer, List<OperationDefinition>> catalogs = reads.freshOperations(run, types);
+        Map<QueryItem, List<CandidateSelector.Clause>> clauses = new LinkedHashMap<>();
+        for (QueryItem item : run.items().keySet()) {
+            TypeOperation requirement = ((OperationAdmission) item.selection()).requirement();
+            OperationDefinition target = targets.get(requirement);
+            if (target == null || !validOperationBit(target.binaryBit())) {
+                throw new AdmissionConfigurationException("准入要求不存在或损坏: " + requirement);
             }
+            List<OperationDefinition> catalog = catalogs.get(target.resourceType());
+            if (catalog.stream().anyMatch(op -> !validOperationBit(op.binaryBit())
+                || op.inheritMask() == null || op.inheritMask() < 0)) {
+                throw new AdmissionConfigurationException("准入操作目录损坏: " + requirement.resourceTypeCode());
+            }
+            long mask = OperationPermissionUtils.computeCoveringBitMask(
+                catalog.stream().map(OperationDefinition::toCacheRow).toList(), target.binaryBit());
+            clauses.put(item, List.of(new CandidateSelector.Clause(target.resourceType(), mask, Set.of())));
         }
+        return clauses;
+    }
+
+    private void processAdmissionStage(RunState run, Map<QueryItem, List<CandidateSelector.Clause>> clauses) {
+        List<GrantFact> loaded = reads.admissionGrants(run, masks(clauses));
+        Set<Long> parentIds = new LinkedHashSet<>();
+        loaded.stream().map(GrantFact::dependOn).filter(Objects::nonNull).forEach(parentIds::add);
+        Map<Long, GrantFact> parents = reads.admissionParents(run, parentIds);
+        List<GrantFact> structured = loaded.stream().filter(fact -> {
+            GrantFact parent = parents.get(fact.dependOn());
+            boolean valid = validScope(fact) && (fact.dependOn() == null
+                || (parent != null && parent.dependOn() == null && validScope(parent)
+                    && Objects.equals(parent.roleId(), fact.roleId())
+                    && fact.conditionId() == null && !Boolean.TRUE.equals(fact.canGrant())));
+            if (!valid) log.warn("Admission invalid grant structure: tenantId={}, permissionId={}, dependOn={}",
+                run.request().tenantId(), fact.permissionId(), fact.dependOn());
+            return valid;
+        }).toList();
+        Map<QueryItem, List<GrantFact>> rawByItem = new LinkedHashMap<>();
+        clauses.forEach((item, paired) -> rawByItem.put(item,
+            CandidateSelector.select(structured, paired, Stage.ADMISSION_CANDIDATES)));
+        run.evaluator().preload(rawByItem);
+        rawByItem.forEach((item, raw) -> recordEvaluation(run, item, run.items().get(item),
+            Stage.ADMISSION_CANDIDATES, clauses.get(item), raw));
+    }
+
+    private static boolean validOperationBit(Long bit) {
+        return bit != null && bit > 0 && (bit & (bit - 1)) == 0;
+    }
+
+    private static boolean validScope(GrantFact fact) {
+        return Boolean.TRUE.equals(fact.scopeAll()) ? fact.resourceEntityId() == null
+            : Boolean.FALSE.equals(fact.scopeAll()) && fact.resourceEntityId() != null;
     }
 
     private Map<TypeOperation, ResolvedOperation> prepareOperations(RunState run, List<QueryItem> items) {
@@ -331,6 +386,7 @@ public final class QueryExecutionEngine {
         state.stages.put(stage, new StageFacts(stage, raw, evaluated.retained(), status));
         state.mutexHits.put(stage, evaluated.triggeredRules());
         state.mutexCandidate |= evaluated.mutexCandidate();
+        state.candidateEvaluationComplete &= evaluated.complete();
     }
 
     private ItemResult complete(QueryItem item, RunState run, ResultDetails details) {
@@ -340,18 +396,27 @@ public final class QueryExecutionEngine {
         emitStageMetrics(item, skipped);
         ConditionCoverage condition = !state.hadRaw() ? ConditionCoverage.NO_CANDIDATE
             : item.evaluation().conditionMode() == ConditionMode.EVALUATE ? ConditionCoverage.EVALUATED : ConditionCoverage.PRESERVED;
-        MutexCoverage mutex = !state.mutexCandidate ? MutexCoverage.NO_CANDIDATE
+        boolean admission = item.selection() instanceof OperationAdmission;
+        MutexCoverage mutex = admission ? MutexCoverage.SKIPPED : !state.mutexCandidate ? MutexCoverage.NO_CANDIDATE
             : item.evaluation().mutexMode() == MutexMode.ENFORCE ? MutexCoverage.EVALUATED : MutexCoverage.SKIPPED;
-        ParentCheckCoverage parentCheck = state.parent != null
+        ParentCheckCoverage parentCheck = admission && state.stages.values().stream()
+            .flatMap(s -> s.rawAfterContext().stream()).anyMatch(f -> f.dependOn() != null)
+            ? ParentCheckCoverage.RUNTIME_DEFERRED : state.parent != null
             ? state.parent.execution.retained() ? ParentCheckCoverage.PASSED : ParentCheckCoverage.FAILED
             : parentRequirement(item.selection()) == null ? ParentCheckCoverage.NOT_REQUIRED : ParentCheckCoverage.NOT_TRIGGERED;
         EvaluationCoverage coverage = new EvaluationCoverage(run.subjectResolution(), condition, mutex,
-            parentCheck, state.stages.keySet(), skipped, !state.shortCircuited && !state.parentDenied, authorizationStage(item.resultForm()));
+            parentCheck, state.stages.keySet(), skipped,
+            !state.shortCircuited && !state.parentDenied && state.candidateEvaluationComplete, authorizationStage(item));
         if (item.resultForm() == ResultForm.FACTS) {
             GrantSetResult.CollectionStatus status = state.parentDenied ? GrantSetResult.CollectionStatus.PARENT_DENIED
                 : state.retained() ? GrantSetResult.CollectionStatus.PRESENT
                 : state.hadRaw() ? GrantSetResult.CollectionStatus.FILTERED_EMPTY : GrantSetResult.CollectionStatus.NO_MATCH;
             return new GrantSetResult(item.key(), status, coverage, details);
+        }
+        if (admission) {
+            return state.retained() ? AdmissionResult.mayEnter(item.key(), coverage, details)
+                : AdmissionResult.deny(item.key(), state.hadRaw() ? AdmissionResult.Reason.CONDITION_NOT_MET
+                    : AdmissionResult.Reason.NO_CANDIDATE, coverage, details);
         }
         if (state.retained()) return DecisionResult.allow(item.key(), coverage, details);
         DecisionResult.Reason reason = state.hadRaw() ? DecisionResult.Reason.CONDITION_NOT_MET_OR_CONFLICT
@@ -368,7 +433,7 @@ public final class QueryExecutionEngine {
                 || item.selection() instanceof GrantList g && g.requiredParent() != null;
             EvaluationCoverage coverage = new EvaluationCoverage(run.subjectResolution(), ConditionCoverage.NO_CANDIDATE,
                 MutexCoverage.NO_CANDIDATE, parentRequired ? ParentCheckCoverage.NOT_TRIGGERED : ParentCheckCoverage.NOT_REQUIRED,
-                Set.of(), skipped, false, authorizationStage(item.resultForm()));
+                Set.of(), skipped, false, authorizationStage(item));
             ResultDetails details = projected.get(item);
             return switch (item.resultForm()) {
                 case DECISION -> (ItemResult) DecisionResult.deny(item.key(), DecisionResult.Reason.NO_ROLE, coverage, details);
@@ -414,8 +479,9 @@ public final class QueryExecutionEngine {
         };
     }
 
-    private static AuthorizationStage authorizationStage(ResultForm form) {
-        return switch (form) {
+    private static AuthorizationStage authorizationStage(QueryItem item) {
+        if (item.selection() instanceof OperationAdmission) return AuthorizationStage.OPERATION_ADMISSION;
+        return switch (item.resultForm()) {
             case DECISION -> AuthorizationStage.FINAL_DECISION;
             case FACTS -> AuthorizationStage.FACT_COLLECTION;
             case ADMISSION -> AuthorizationStage.OPERATION_ADMISSION;
