@@ -596,6 +596,21 @@ T-PERM-087 的展示展开按保留事实源批量读取既有祖先/后代 CTE�
 > 公开予包外结果消费方复用 OperationPermissionUtils 位运算族。旧引擎生产消费者现仅剩 091 目标
 > （PermissionViewAppServiceImpl/PermViewAssembler、PermissionGrantDomainServiceImpl）。
 
+> **就地实施注（2026-09-27，T-PERM-091）**：本矩阵剩余两行（视图/转授）已切新 execute，旧引擎
+> 生产消费者清零——①PermissionGrantDomainServiceImpl.checkCanGrant＝GRANT_LIST＋PRESERVE+SKIP＋
+> FACTS＋读来源 DATABASE（§9.1 bypassPermSnapshot 映射；OutputSpec 仅 KEPT，无展示展开）；同条
+> 真实授权的同行资格、授权根诊断（refineGrantOriginMissing）与写保护留领域层零改动；②
+> PermissionViewAppServiceImpl（有效权限码/可见资源投影）＋PermViewAssembler/PermViewResult＝
+> GRANT_LIST＋EVALUATE/ENFORCE＋KEPT＋descriptions＋effectiveOperations（User 主体沿 090 先例，
+> 引擎内完成互斥双删；过滤管线六段与「分页延迟到调用方」语义原样）。执行时用户拍板（2026-09-27）：
+> ①checkCanGrant 操作定义装载留领域侧（目标操作与授予目录均域内自查——引擎 extraOperationKeys
+> ＋descriptions 字面形态会连带装载转授用不上的资源/角色描述，写路径多 2 条 SQL；本卡验收措辞已按
+> 「领域侧装载（现状延续）」勘正）；②「配置、解释」行按真实用途核实＝零迁移对象——角色配置清单
+> （listPermissions）为 Mapper 直查管理查询不经引擎，Roles+SELF+DISALLOW 为防误迁的防御性口径
+> （解释端点已随 T-PERM-059 删除）；诊断用户真实访问的 User＋DECISION＋TRACE 无现存消费面
+> （TRACE 门禁暂缓 Q-045）。X03 基线扩至 23 用例全绿（＋视图族 2＋转授族 4——T01 快照预热后撤销
+> 仍拒/T02 不拼接两行/T04 祖先不自动扩大/互斥双删整批 NO_ROLE）。
+
 ### 6.6 LEGACY_API 兼容边界不能误写成终态
 
 迁移期旧接口仍先检查注册，再对全部匹配 API 资源组成一个共同 TARGET_SET，SELF、ALLOW、FULL；不拆项 OR。旧快照仍从 GRANT_LIST PRESERVE＋ENFORCE 结果投影，仅**有效位覆盖 ACCESS 的操作位集合**（ACCESS 位 ∪ inheritMask 覆盖 ACCESS 的自定义位，与现行 SnapshotAssembler 口径一致）才放行；dependent 条目按旧装配顺序排除；API 的 ALL 展开为**目标服务已注册且启用的路由**，不产生任意路径通配；无条件与各 conditionId 分支保留。

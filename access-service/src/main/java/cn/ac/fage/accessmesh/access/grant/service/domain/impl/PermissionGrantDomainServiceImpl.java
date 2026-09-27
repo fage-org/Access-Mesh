@@ -4,8 +4,19 @@ import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtil;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceResolveKey;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceResolveRequest;
-import cn.ac.fage.accessmesh.access.engine.dto.PermQuery;
-import cn.ac.fage.accessmesh.access.engine.dto.PermResult;
+import cn.ac.fage.accessmesh.access.engine.query.CallerContext;
+import cn.ac.fage.accessmesh.access.engine.query.Evaluation;
+import cn.ac.fage.accessmesh.access.engine.query.FactDetail;
+import cn.ac.fage.accessmesh.access.engine.query.GrantFact;
+import cn.ac.fage.accessmesh.access.engine.query.GrantSetResult;
+import cn.ac.fage.accessmesh.access.engine.query.ListGrantRead;
+import cn.ac.fage.accessmesh.access.engine.query.OutputSpec;
+import cn.ac.fage.accessmesh.access.engine.query.PresentationExpansion;
+import cn.ac.fage.accessmesh.access.engine.query.QueryExecutionEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryItem;
+import cn.ac.fage.accessmesh.access.engine.query.QueryRequest;
+import cn.ac.fage.accessmesh.access.engine.query.ReadOptions;
+import cn.ac.fage.accessmesh.access.engine.query.User;
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.access.type.entity.TypeDefinition;
@@ -17,7 +28,6 @@ import cn.ac.fage.accessmesh.access.type.service.domain.TypeDefinitionDomainServ
 import cn.ac.fage.accessmesh.access.grant.service.domain.PermissionGrantDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.engine.util.OperationPermissionUtils;
-import cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -34,7 +44,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
 
 /**
  * 权限授予领域服务实现类
@@ -42,8 +51,9 @@ import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
  * 实现权限授予相关的核心领域逻辑：
  * - 授权传递检查（canGrant验证）：操作者必须拥有该权限且canGrant=true才能授权给他人
  *   （T-PERM-057 第五套形态收编：授权事实经统一引擎 LIST 管线获取，不再直查
- *   role_resource_permission；本服务只保留 canGrant 转授资格的领域判定——
- *   canGrant=true 且无条件挂载（20041 条件权限不可转授同源））
+ *   role_resource_permission；T-PERM-091 起切新 execute：GRANT_LIST＋PRESERVE+SKIP＋FACTS、
+ *   读来源 DATABASE（bypassPermSnapshot 直查不回填语义保持）；本服务只保留 canGrant
+ *   转授资格的领域判定——canGrant=true 且无条件挂载（20041 条件权限不可转授同源））
  * - 权限撤销：批量软删除权限并级联删除子权限
  * TODO: 自动授权解析（resolveAutoGrants）——依赖资源的自动授权尚未实现，当前仅使用 GrantSource.MANUAL
  * 采用批量处理策略避免N+1查询问题。
@@ -55,7 +65,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
     private static final Logger log = LoggerFactory.getLogger(PermissionGrantDomainServiceImpl.class);
 
     private final TypeResolutionService typeResolutionService;
-    private final PermQueryEngine permQueryEngine;
+    private final QueryExecutionEngine queryEngine;
     private final OperationPermissionDomainService operationPermissionDomainService;
     private final RoleResourcePermissionMapper roleResourcePermissionMapper;
     private final TypeDefinitionDomainService typeDefinitionDomainService;
@@ -64,19 +74,19 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
      * 构造函数注入依赖服务
      *
      * @param typeResolutionService     类型解析服务
-     * @param permQueryEngine           统一权限查询引擎（授权事实唯一来源）
-     * @param operationPermissionDomainService 操作定义事实领域服务（目标操作定义加载，非权限判定；Q-009 收敛注入）
+     * @param queryEngine               统一查询执行器（授权事实唯一来源，T-PERM-091 起走新 execute）
+     * @param operationPermissionDomainService 操作定义事实领域服务（目标操作与授予目录装载，非权限判定；Q-009 收敛注入）
      * @param roleResourcePermissionMapper 授权数据访问层（20040 reason 细分的租户级可转授行
      *                                     存在性查询，T-PERM-062；失败路径专用，不参与委托判定本身）
      * @param typeDefinitionDomainService 类型定义事实领域服务（reason 细分的自定义类型过滤，T-PERM-062；Q-009 收敛注入）
      */
     public PermissionGrantDomainServiceImpl(TypeResolutionService typeResolutionService,
-                                            PermQueryEngine permQueryEngine,
+                                            QueryExecutionEngine queryEngine,
                                             OperationPermissionDomainService operationPermissionDomainService,
                                             RoleResourcePermissionMapper roleResourcePermissionMapper,
                                             TypeDefinitionDomainService typeDefinitionDomainService) {
         this.typeResolutionService = typeResolutionService;
-        this.permQueryEngine = permQueryEngine;
+        this.queryEngine = queryEngine;
         this.operationPermissionDomainService = operationPermissionDomainService;
         this.roleResourcePermissionMapper = roleResourcePermissionMapper;
         this.typeDefinitionDomainService = typeDefinitionDomainService;
@@ -116,10 +126,10 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
     /**
      * 批量检查授权权限（canGrant验证）
      * <p>
-     * 授权事实一次经统一引擎 LIST 管线拉取（T-PERM-057 收编；配置面口径：不评估条件与
-     * 条目互斥——转授资格看原始授权行），本方法内存完成 canGrant 领域判定：
-     * 批量解析资源实体ID → 逐键匹配授权条目（位覆盖 covers）→ canGrant=true 且
-     * conditionId=null（20041 同源：条件权限不可转授）。
+     * 授权事实一次经新引擎 GRANT_LIST 管线拉取（T-PERM-091 迁新 execute；配置面口径
+     * PRESERVE+SKIP：不评估条件与条目互斥——转授资格看原始授权行），本方法内存完成
+     * canGrant 领域判定：批量解析资源实体ID → 逐键匹配授权条目（位覆盖 covers）→
+     * canGrant=true 且 conditionId=null（20041 同源：条件权限不可转授）。
      * 主体必须是权限域投影主体（{@code abstract_user.id}），禁止直接传 admin 域
      * （T-ORG-001 统一后操作者 ID 即主体 ID，无转换层）。
      * </p>
@@ -153,24 +163,23 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
             return results;
         }
 
-        // 1. 授权事实：引擎 LIST 全量（配置面口径——不评估条件/互斥；评估与否不影响
-        //    canGrant 判定：转授资格只认 canGrant=true 且无条件挂载的原始行）
-        PermQuery query = PermQuery.forUserView(tenantId, subjectId);
-        query.setEvaluateConditions(false);
-        query.setEvaluateConflicts(false);
-        query.setEvaluateMatchesBit(false);
-        query.setIncludeResources(false);
-        query.setIncludeOperations(true);
-        query.setIncludeRoles(false);
-        // 写校验面绕过 ROLE_PERM_SNAPSHOT（codex 四轮 P1）：直查恢复收编前新鲜度——
-        // 撤权后 TTL 陈旧/旧读回填竞态可放行已撤销的转授资格（权限提升）
-        query.setBypassPermSnapshot(true);
-        PermResult permResult = permQueryEngine.query(query);
-        List<RolePermEntry> operatorEntries = permResult.allowed()
-            ? permResult.instanceEntries() : List.of();
+        // 1. 授权事实：新引擎 GRANT_LIST 全量（T-PERM-091 迁新 execute；配置面口径=PRESERVE+SKIP
+        //    ——不评估条件/互斥，评估与否不影响 canGrant 判定：转授资格只认 canGrant=true 且
+        //    无条件挂载的原始行）。读来源 DATABASE：写校验面绕过 ROLE_PERM_SNAPSHOT（codex 四轮
+        //    P1）——直查恢复收编前新鲜度，撤权后 TTL 陈旧/旧读回填竞态可放行已撤销的转授资格（权限提升）
+        QueryItem grantItem = QueryItem.grantListFacts("canGrant", null, Evaluation.preserveSkip(),
+            new OutputSpec(FactDetail.KEPT, false, false, false, PresentationExpansion.NONE, Set.of(), false));
+        GrantSetResult permResult = (GrantSetResult) queryEngine.execute(new QueryRequest(tenantId,
+            new User(subjectId), CallerContext.of(null), new ReadOptions(ListGrantRead.DATABASE),
+            List.of(grantItem))).orderedResults().get(0);
+        List<GrantFact> operatorEntries = permResult.collectionStatus() == GrantSetResult.CollectionStatus.PRESENT
+            ? permResult.details().stageFacts().stream()
+                .flatMap(stage -> stage.retainedAfterEvaluation().stream()).toList()
+            : List.of();
         if (operatorEntries.isEmpty()) {
             // reason 区分（异常消息运维归因通道）：无角色=NO_ROLE、有角色零授权行=NO_PERMISSION
-            String noEntryReason = "NO_ROLE".equals(permResult.reason()) ? "NO_ROLE" : "NO_PERMISSION";
+            String noEntryReason = permResult.collectionStatus() == GrantSetResult.CollectionStatus.NO_ROLE
+                ? "NO_ROLE" : "NO_PERMISSION";
             for (GrantCheckKey key : validPermissions) {
                 results.put(grantCheckKeyText(key), new GrantCheckResult(false, noEntryReason));
             }
@@ -195,8 +204,8 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
             return results;
         }
 
-        // 目标操作索引（键=类型值+操作码）。目标操作独立于引擎辅助 map 加载——
-        // 操作者无该类型授权行时该类型不进引擎 operationMap，目标操作仍须可解析（→NO_PERMISSION 而非误报 INVALID_OPERATION）
+        // 目标操作索引（键=类型值+操作码）。目标操作与操作者持有面独立装载——
+        // 操作者无该类型任何授权行时目标操作仍须可解析（→NO_PERMISSION 而非误报 INVALID_OPERATION，T03）
         Map<String, OperationPermission> targetOpByKey = new HashMap<>();
         Map<String, Set<String>> opCodesByTypeCode = new HashMap<>();
         for (GrantCheckKey key : validPermissions) {
@@ -230,12 +239,17 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
         }
 
         // 4. 授权条目按（类型值×操作码）与（类型值×操作码×实体）索引（位覆盖语义：授予操作覆盖目标操作即匹配）
+        //    授予目录领域自查（T-PERM-091 拍板 B：引擎仅回事实，操作定义装载留领域侧——目标操作与
+        //    授予目录都不经引擎描述块，写路径 I/O 与旧形态持平）
+        Set<Integer> operatorEntryTypes = operatorEntries.stream()
+            .map(GrantFact::resourceType).filter(Objects::nonNull)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
         Map<String, OperationPermission> grantedOpIndex = OperationPermissionUtils
-            .indexByResourceTypeAndBinaryBit(permResult.operationMap() != null
-                ? permResult.operationMap().values() : List.of());
-        Map<String, List<RolePermEntry>> entriesByOpKey = new HashMap<>();
-        Map<String, List<RolePermEntry>> entriesByOpAndEntity = new HashMap<>();
-        for (RolePermEntry perm : operatorEntries) {
+            .indexByResourceTypeAndBinaryBit(operationPermissionDomainService
+                .selectByTenantAndResourceTypes(tenantId, operatorEntryTypes));
+        Map<String, List<GrantFact>> entriesByOpKey = new HashMap<>();
+        Map<String, List<GrantFact>> entriesByOpAndEntity = new HashMap<>();
+        for (GrantFact perm : operatorEntries) {
             if (perm.resourceType() == null || perm.grantedBits() == null) {
                 continue;
             }
@@ -324,7 +338,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
     // ===== 私有辅助方法 =====
 
     /**
-     * 评估单个权限的授权资格（T-PERM-057 收编后基于引擎 RolePermEntry 条目）
+     * 评估单个权限的授权资格（T-PERM-057 收编后基于引擎 GrantFact 事实；T-PERM-091 迁新 execute）
      * <p>
      * 根据预加载的数据评估操作者是否有canGrant权限。
      * 检查步骤：
@@ -339,8 +353,8 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
                                                       Map<String, Integer> resourceTypeByCode,
                                                       Map<String, OperationPermission> opPermByKey,
                                                       Map<String, Long> resourceEntityIdByKey,
-                                                      Map<String, List<RolePermEntry>> permsBySpecificResource,
-                                                      Map<String, List<RolePermEntry>> permsByScopeAll) {
+                                                      Map<String, List<GrantFact>> permsBySpecificResource,
+                                                      Map<String, List<GrantFact>> permsByScopeAll) {
         Integer resourceTypeValue = resourceTypeByCode.get(key.resourceTypeCode());
         if (resourceTypeValue == null) {
             return new GrantCheckResult(false, "INVALID_RESOURCE_TYPE");
@@ -362,7 +376,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
         }
 
         String baseKey = BusinessKeyUtil.operationCodeKey(resourceTypeValue, key.operationCode());
-        List<RolePermEntry> matchingPerms = new ArrayList<>();
+        List<GrantFact> matchingPerms = new ArrayList<>();
 
         if (key.scopeAll()) {
             matchingPerms.addAll(permsByScopeAll.getOrDefault(baseKey, List.of()));
@@ -376,7 +390,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
             return new GrantCheckResult(false, "NO_PERMISSION");
         }
 
-        for (RolePermEntry perm : matchingPerms) {
+        for (GrantFact perm : matchingPerms) {
             if (Boolean.TRUE.equals(perm.canGrant()) && perm.conditionId() == null) {
                 if (key.scopeAll() && !Boolean.TRUE.equals(perm.scopeAll())) {
                     continue;

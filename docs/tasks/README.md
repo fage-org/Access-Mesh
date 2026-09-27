@@ -43,7 +43,7 @@
 | [T-PERM-088](T-PERM-088.md) | （R2-T09）根审计、TRACE 与故障证据 | ✅（2026-09-26 收口：门禁暂缓登记 Q-045） | T-PERM-083, T-PERM-086 |
 | [T-PERM-089](T-PERM-089.md) | （R2-T10）迁移 check/batch/管理门禁/getDenied | ✅ | T-PERM-085, T-PERM-088 |
 | [T-PERM-090](T-PERM-090.md) | （R2-T11）迁移范围与 LEGACY_API 接口集合 | ✅ | T-PERM-086, T-PERM-087, T-PERM-089 |
-| [T-PERM-091](T-PERM-091.md) | （R2-T12）迁移旧快照、转授、视图与配置 | ⚙️ | T-PERM-087, T-PERM-088, T-PERM-090 |
+| [T-PERM-091](T-PERM-091.md) | （R2-T12）迁移旧快照、转授、视图与配置 | ✅（2026-09-27 收口：旧引擎生产消费者清零；操作定义装载留领域侧/角色配置面零改动两拍板见任务卡） | T-PERM-087, T-PERM-088, T-PERM-090 |
 | [T-PERM-092](T-PERM-092.md) | （R2-T13）删除旧执行体与四旧 DTO | ⚙️ | T-PERM-089, T-PERM-090, T-PERM-091 |
 | [T-PERM-093](T-PERM-093.md) | （R2-T14）候选/规则索引与性能测量 | ⚙️ | T-PERM-091 |
 | [T-PERM-094](T-PERM-094.md) | （R2-T15）灰度、故障、缓存与发布演练 | ⚙️ | T-PERM-092, T-PERM-093 |

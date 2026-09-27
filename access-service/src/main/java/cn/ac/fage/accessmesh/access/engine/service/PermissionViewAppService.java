@@ -52,9 +52,10 @@ public interface PermissionViewAppService {
     /**
      * 获取用户在指定资源类型上的有效资源实例访问事实（T-ACCESS-006 菜单派生公式用）。
      * <p>
-     * 与 {@link #getEffectivePermissionCodes} 共享同一 forUserView 管线（相同门禁与过滤），
-     * 但返回资源实例粒度：用户在哪些资源类型上有全范围（scopeAll）授权、以及有任意有效
-     * 操作码的资源实例 ID 集合。调用方（如菜单可见性派生）据此判定「用户对该资源有任意 op」。
+     * 与 {@link #getEffectivePermissionCodes} 共享同一 GRANT_LIST 视图管线（T-PERM-091 起
+     * 走新 execute；相同门禁与过滤），但返回资源实例粒度：用户在哪些资源类型上有全范围
+     * （scopeAll）授权、以及有任意有效操作码的资源实例 ID 集合。调用方（如菜单可见性派生）
+     * 据此判定「用户对该资源有任意 op」。
      * </p>
      *
      * @param tenantId 租户ID

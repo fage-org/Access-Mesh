@@ -2,11 +2,14 @@ package cn.ac.fage.accessmesh.access.characterization;
 
 import cn.ac.fage.accessmesh.access.engine.service.PermissionCheckAppService;
 import cn.ac.fage.accessmesh.access.engine.service.PermissionQueryAppService;
+import cn.ac.fage.accessmesh.access.engine.service.PermissionViewAppService;
+import cn.ac.fage.accessmesh.access.grant.service.domain.PermissionGrantDomainService;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
 import cn.ac.fage.accessmesh.perm.common.dto.req.AuthCheckReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.InterfaceSnapshotReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.QueryScopesReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.UserEffectivePermissionCodesReq;
 import cn.ac.fage.accessmesh.access.engine.dto.AuthCheckResp;
 import cn.ac.fage.accessmesh.access.engine.dto.BatchAuthCheckResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
@@ -27,21 +30,23 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * 查询语义正常基线（T-PERM-081，真实 PostgreSQL + Redis）——X03 差分锚。
  * <p>
- * 固定事实集（{@link R2BaselineFixture} 固定 seed）上，把四族消费面
- * （check／batch-check／范围四态／快照投影）的正常语义输出钉成 golden：
- * T-PERM-089/090 X03 新旧等价差分在同一事实集上重放，逐字段对拍本类期望——
- * 已知错误（PQ-01/06 形态）按新正确预期比较，其余语义必须与本基线一致（设计 §10.2 X03）。
+ * 固定事实集（{@link R2BaselineFixture} 固定 seed）上，把六族消费面
+ * （check／batch-check／范围四态／快照投影／视图权限串与资源访问事实／转授资格）的
+ * 正常语义输出钉成 golden：T-PERM-089/090/091 X03 新旧等价差分在同一事实集上重放，
+ * 逐字段对拍本类期望——已知错误（PQ-01/06 形态）按新正确预期比较，其余语义必须与
+ * 本基线一致（设计 §10.2 X03）。
  * </p>
  * <p>
- * 固定口径：全部经 AppService 契约入口（消费面真实线格式）；条件仅 COND_UNSAT（恒不满足，
- * 与运行时钟无关）；ROLE_MUTEX 运行时双删（u_mutex）与范围四态、scopeAll 短路、闭包继承、
- * 快照 scopeAll 展开／实例映射各占独立主体，互不串扰。
+ * 固定口径：全部经 AppService/DomainService 契约入口（消费面真实线格式）；条件仅 COND_UNSAT
+ * （恒不满足，与运行时钟无关）；ROLE_MUTEX 运行时双删（u_mutex）与范围四态、scopeAll 短路、
+ * 闭包继承、快照 scopeAll 展开／实例映射各占独立主体，互不串扰。
  * </p>
  */
 @Tag("testcontainers")
@@ -69,6 +74,8 @@ class QuerySemanticsBaselinePgIT {
 
     @Autowired private PermissionCheckAppService checkAppService;
     @Autowired private PermissionQueryAppService queryAppService;
+    @Autowired private PermissionViewAppService permissionViewAppService;
+    @Autowired private PermissionGrantDomainService grantDomainService;
     @Autowired private JdbcTemplate jdbc;
 
     // ===== check 族：单条权限校验（allowed/reason/matched 三维 golden）=====
@@ -364,7 +371,180 @@ class QuerySemanticsBaselinePgIT {
             .as("u_mutex 双角色被 ROLE_MUTEX 双删 → 有效角色空 → 空快照").isEmpty();
     }
 
+    // ===== 视图族（T-PERM-091）：登录权限串 + 菜单派生资源访问事实 golden =====
+
+    @Test
+    @DisplayName("视图：权限码全量聚合——位覆盖展开进码、条件摘除不进码、白名单按类型过滤")
+    void viewShouldAggregateEffectivePermissionCodesWithCoverageAndConditionSemantics() {
+        seedBaseline();
+
+        assertThat(permissionViewAppService.getEffectivePermissionCodes(TENANT, viewReq(
+                R2BaselineFixture.USER_INST, List.of(R2BaselineFixture.TYPE_T1_CODE))).permissions())
+            .as("golden：r1 VIEW 行 + r1 UPDATE 行（覆盖 VIEW）+ r2 VIEW 行 → VIEW/UPDATE 两码；"
+                + "r4 DELETE 行挂 COND_UNSAT 被评估摘除 → DELETE 不进码；CREATE 无授权不进码")
+            .containsExactlyInAnyOrder(R2BaselineFixture.TYPE_T1_CODE + ":VIEW",
+                R2BaselineFixture.TYPE_T1_CODE + ":UPDATE");
+
+        assertThat(permissionViewAppService.getEffectivePermissionCodes(TENANT, viewReq(
+                R2BaselineFixture.USER_ALL, List.of(R2BaselineFixture.TYPE_T1_CODE))).permissions())
+            .as("白名单外类型（T2 scopeAll 行）不进权限码").isEmpty();
+
+        assertThat(permissionViewAppService.getEffectivePermissionCodes(TENANT, viewReq(
+                R2BaselineFixture.USER_ALL, List.of(R2BaselineFixture.TYPE_T2_CODE))).permissions())
+            .containsExactly(R2BaselineFixture.TYPE_T2_CODE + ":VIEW");
+
+        assertThat(permissionViewAppService.getEffectivePermissionCodes(TENANT, viewReq(
+                R2BaselineFixture.USER_NONE, List.of(R2BaselineFixture.TYPE_T1_CODE))).permissions())
+            .as("无角色主体 → 空权限串").isEmpty();
+
+        assertThat(permissionViewAppService.getEffectivePermissionCodes(TENANT, viewReq(
+                R2BaselineFixture.USER_MUTEX, List.of(R2BaselineFixture.TYPE_T1_CODE))).permissions())
+            .as("互斥双删主体 → 空权限串").isEmpty();
+    }
+
+    @Test
+    @DisplayName("视图：资源访问事实——instanceIdsByType 不含子孙扩展、可见集经子孙扩展、条件摘除行不进实例集")
+    void viewShouldProjectResourceAccessWithUnexpandedInstanceIdsAndExpandedVisibility() {
+        seedBaseline();
+
+        PermissionViewAppService.EffectiveResourceAccess access = permissionViewAppService
+            .getEffectiveResourceAccess(TENANT, viewReq(
+                R2BaselineFixture.USER_INST, List.of(R2BaselineFixture.TYPE_T1_CODE, R2BaselineFixture.TYPE_T2_CODE)));
+
+        assertThat(access.allScopeTypes()).as("role-a 无 scopeAll 行").isEmpty();
+        assertThat(access.instanceIdsByType())
+            .as("golden：直接实例授权行按类型分组且不含子孙扩展——r1/r2 两实例（r4 条件行被评估摘除），"
+                + "r3 是 r1 的子资源但不出现（类型页「任意有效操作」语义，验收第 2 条）")
+            .containsOnlyKeys(R2BaselineFixture.TYPE_T1);
+        assertThat(access.instanceIdsByType().get(R2BaselineFixture.TYPE_T1))
+            .containsExactlyInAnyOrder(R2BaselineFixture.RES_R1, R2BaselineFixture.RES_R2);
+        assertThat(access.resourceEntityIds())
+            .as("可见集=实例集∪子孙扩展：r1 的后代 {r2, r3} 并入（读过滤面继承，r4 条件行不在场）")
+            .containsExactlyInAnyOrder(R2BaselineFixture.RES_R1, R2BaselineFixture.RES_R2, R2BaselineFixture.RES_R3);
+
+        PermissionViewAppService.EffectiveResourceAccess allAccess = permissionViewAppService
+            .getEffectiveResourceAccess(TENANT, viewReq(
+                R2BaselineFixture.USER_ALL, List.of(R2BaselineFixture.TYPE_T2_CODE)));
+        assertThat(allAccess.allScopeTypes()).containsExactly(R2BaselineFixture.TYPE_T2);
+        assertThat(allAccess.resourceEntityIds()).as("scopeAll 不展开业务实例").isEmpty();
+        assertThat(allAccess.instanceIdsByType()).isEmpty();
+    }
+
+    // ===== 转授族（T-PERM-091）：checkCanGrant 迁新 execute 后的 DB 直查/同行资格/不自动扩大 =====
+    // 每用例独立自定义类型（951+ 段）＋显式授权根行（异角色 scopeAll 可转授覆盖行）——
+    // 既是 T-PERM-062 reason 细分的触发面隔离（自定义类型零授权根会改判
+    // TYPE_GRANT_ORIGIN_MISSING），也消除类库共享下用例间顺序耦合。
+
+    @Test
+    @DisplayName("转授 T01：授权撤销后清单 DB 直查——快照缓存被预热仍必须看到撤销（DATABASE 读来源）")
+    void canGrantShouldReadRevokedRowFromDatabaseDespiteWarmRoleSnapshot() {
+        seedBaseline();
+        R2BaselineFixture fixture = new R2BaselineFixture(jdbc);
+        String typeCode = "R2BDLG1";
+        fixture.newType(951, typeCode);
+        fixture.insertOperation(951, "VIEW", 2L, 0L);
+        long resource = fixture.insertResourceRow(951, "dlg1-r");
+        long originRole = fixture.insertRoleRow(TENANT, "dlg1-origin");
+        long role = fixture.insertRoleRow(TENANT, "dlg1-op");
+        long user = fixture.insertUserWithRoles(TENANT, "dlg1-op", role);
+        // 授权根行（异角色 scopeAll 可转授 VIEW）：保持 reason=NO_PERMISSION 不被 T-PERM-062 细分改判
+        fixture.insertGrantablePermRow(originRole, 951, null, 2L, true);
+        long perm = fixture.insertGrantablePermRow(role, 951, resource, 2L, false);
+
+        // 预热 ROLE_PERM_SNAPSHOT（视图面走 ROLE_SNAPSHOT 来源，把含该行的角色快照写入缓存）
+        assertThat(permissionViewAppService.getEffectivePermissionCodes(TENANT, viewReq(
+                user, List.of(typeCode))).permissions())
+            .contains(typeCode + ":VIEW");
+        // 直接软删（不经写入口=@PermissionChange 不触发失效，模拟 TTL 陈旧窗口）
+        jdbc.update("UPDATE role_resource_permission SET delete_flag = id, deleted_at = now() WHERE id = ?", perm);
+
+        Map<String, PermissionGrantDomainService.GrantCheckResult> results = grantDomainService.checkCanGrant(
+            TENANT, user, Set.of(new PermissionGrantDomainService.GrantCheckKey(
+                typeCode, "dlg1-r", null, "VIEW", false)), null);
+
+        assertThat(results.values().iterator().next().canGrant())
+            .as("DATABASE 读来源直查不读不回填快照：撤销行不得经预热缓存放行转授资格").isFalse();
+        assertThat(results.values().iterator().next().reason()).isEqualTo("NO_PERMISSION");
+    }
+
+    @Test
+    @DisplayName("转授 T02：可覆盖行不可转授＋另行可转授不覆盖——不拼接两行资格（同行验证）")
+    void canGrantShouldNotCombineCoverageRowWithGrantRightRow() {
+        seedBaseline();
+        R2BaselineFixture fixture = new R2BaselineFixture(jdbc);
+        String typeCode = "R2BDLG2";
+        fixture.newType(952, typeCode);
+        fixture.insertOperation(952, "VIEW", 2L, 0L);
+        fixture.insertOperation(952, "UPDATE", 4L, 2L);
+        fixture.insertOperation(952, "CREATE", 1L, 0L);
+        long resource = fixture.insertResourceRow(952, "dlg2-r");
+        long originRole = fixture.insertRoleRow(TENANT, "dlg2-origin");
+        long role = fixture.insertRoleRow(TENANT, "dlg2-op");
+        long user = fixture.insertUserWithRoles(TENANT, "dlg2-op", role);
+        fixture.insertGrantablePermRow(originRole, 952, null, 2L, true);
+        // 行 A：UPDATE（inheritMask 覆盖 VIEW）canGrant=false；行 B：CREATE（不覆盖 VIEW）canGrant=true
+        jdbc.update("INSERT INTO role_resource_permission "
+            + "(tenant_id, abstract_role_id, resource_entity_id, granted_bits, resource_type, scope_all, can_grant, grant_source) "
+            + "VALUES (?, ?, ?, ?, ?, false, false, 'MANUAL')",
+            TENANT, role, resource, 4L, 952);
+        fixture.insertGrantablePermRow(role, 952, resource, 1L, false);
+
+        Map<String, PermissionGrantDomainService.GrantCheckResult> results = grantDomainService.checkCanGrant(
+            TENANT, user, Set.of(new PermissionGrantDomainService.GrantCheckKey(
+                typeCode, "dlg2-r", null, "VIEW", false)), null);
+
+        assertThat(results.values().iterator().next().reason())
+            .as("目标 VIEW 的转授资格只认同一真实授权行：覆盖行 canGrant=false、canGrant 行不覆盖 → NO_GRANT_RIGHT")
+            .isEqualTo("NO_GRANT_RIGHT");
+    }
+
+    @Test
+    @DisplayName("转授 T04：运行时祖先可用（判定面闭包可放行子目标）但转授不自动扩大")
+    void canGrantShouldNotExtendDelegationThroughRuntimeAncestor() {
+        seedBaseline();
+        R2BaselineFixture fixture = new R2BaselineFixture(jdbc);
+        String typeCode = "R2BDLG3";
+        fixture.newType(953, typeCode);
+        fixture.insertOperation(953, "VIEW", 2L, 0L);
+        long parent = fixture.insertResourceRow(953, "dlg3-parent");
+        long child = fixture.insertResourceRow(953, "dlg3-child");
+        jdbc.update("UPDATE resource_entity SET parent_id = ? WHERE id = ?", parent, child);
+        long originRole = fixture.insertRoleRow(TENANT, "dlg3-origin");
+        long role = fixture.insertRoleRow(TENANT, "dlg3-op");
+        long user = fixture.insertUserWithRoles(TENANT, "dlg3-op", role);
+        fixture.insertGrantablePermRow(originRole, 953, null, 2L, true);
+        // 父资源上可转授 VIEW 行；目标为子资源（运行时 INSTANCE 判定可经闭包放行）
+        fixture.insertGrantablePermRow(role, 953, parent, 2L, false);
+        assertThat(checkAppService.check(TENANT, new AuthCheckReq(
+            "USER", String.valueOf(user), typeCode, "dlg3-child",
+            "VIEW", null, null, "PARENT", null, null, null, null, Map.of())).allowed())
+            .as("前置事实核：判定面继承（PARENT）下父授权覆盖子目标——运行时祖先可用成立").isTrue();
+
+        Map<String, PermissionGrantDomainService.GrantCheckResult> results = grantDomainService.checkCanGrant(
+            TENANT, user, Set.of(new PermissionGrantDomainService.GrantCheckKey(
+                typeCode, "dlg3-child", null, "VIEW", false)), null);
+
+        assertThat(results.values().iterator().next().reason())
+            .as("转授按精确实例键判定，不消费祖先闭包——父资源可转授不扩大到子资源").isEqualTo("NO_PERMISSION");
+    }
+
+    @Test
+    @DisplayName("转授：互斥双删主体整批 NO_ROLE（无有效角色不产生转授资格）")
+    void canGrantShouldReturnNoRoleWhenAllRolesMutexDropped() {
+        seedBaseline();
+        Map<String, PermissionGrantDomainService.GrantCheckResult> results = grantDomainService.checkCanGrant(
+            TENANT, R2BaselineFixture.USER_MUTEX, Set.of(new PermissionGrantDomainService.GrantCheckKey(
+                R2BaselineFixture.TYPE_T1_CODE, R2BaselineFixture.CODE_R2, null, "VIEW", false)), null);
+
+        assertThat(results.values().iterator().next().reason())
+            .as("u_mutex 双角色被 ROLE_MUTEX 双删 → 引擎 User 主体解析为空 → NO_ROLE").isEqualTo("NO_ROLE");
+    }
+
     // ===== 辅助 =====
+
+    private UserEffectivePermissionCodesReq viewReq(long userId, List<String> typeCodes) {
+        return new UserEffectivePermissionCodesReq("USER", String.valueOf(userId), typeCodes);
+    }
 
     private void seedBaseline() {
         new R2BaselineFixture(jdbc).seedBaselineGraph();

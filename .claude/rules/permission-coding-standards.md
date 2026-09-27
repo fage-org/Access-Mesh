@@ -65,7 +65,7 @@ public R<RoleResp> create(@RequestBody RoleCreateReq req) {
 - 实体 ID 轨（仅已完成解析的调用方：资源树、API 映射等 resource_entity 管理链路）：`queryGate.hasPermissionByEntityId(...)`、`queryGate.getDeniedEntityIds(...)`。
 - check/batchCheck 外部端点在 `PermissionCheckAppServiceImpl` 适配层直构 `QueryRequest`（不经门面四方法）。
 
-旧 `PermQueryEngine`（`engine.query`/`queryBatch`/旧四入口）为迁移期存量（仅剩视图 PermissionViewAppServiceImpl/PermViewAssembler 与转授 PermissionGrantDomainServiceImpl 消费者，T-PERM-091 迁移、092 删除；范围/LEGACY_API 四面已随 T-PERM-090 迁新 execute）——**新代码禁止引用**。
+旧 `PermQueryEngine`（`engine.query`/`queryBatch`/旧四入口）为迁移期存量（**生产消费者已清零**——T-PERM-089 判定面/管理门禁/getDenied、T-PERM-090 范围与 LEGACY_API 四面、T-PERM-091 视图与转授均已迁新 execute；092 删除）——**新代码禁止引用**。
 
 **仅**管理查询/日志查询可直查 Mapper（如 `listResources`, `listRoles`, `listChangeLogs`）。
 
@@ -92,7 +92,7 @@ rolePermMapper.selectListByQuery(QueryWrapper.create().where(ROLE_RESOURCE_PERMI
 engine.hasPermissionByCode(...)   // T-PERM-089 起改 queryGate
 ```
 
-### Domain 层 API（check 族与范围/LEGACY_API 已迁；forUserView 仅剩 091 目标）
+### Domain 层 API（check 族/范围/LEGACY_API/视图/转授均已迁新 execute）
 
 ```java
 // ✅ check 族（T-PERM-089 已迁）— PermissionCheckAppServiceImpl 适配层直构 QueryRequest
@@ -109,8 +109,10 @@ return PermResultUtils.toAuthCheckResp((DecisionResult) result.orderedResults().
 // RAW_AND_KEPT（ScopeCoverageProjector 四态投影）；queryResources/interfaceSnapshot=GRANT_LIST＋FACTS
 // （interfaceSnapshot 用 Evaluation.preserveEnforce()，快照装配消费 List<GrantFact>）
 
-// ✅ 迁移期存量（091 迁移前仍在用：视图/转授）
-PermQuery view = PermQuery.forUserView(tenantId, userId);   // PermissionViewAppServiceImpl/PermissionGrantDomainServiceImpl
+// 视图/转授（T-PERM-091 已迁）：视图=GRANT_LIST＋EVALUATE/ENFORCE＋KEPT＋descriptions＋
+// effectiveOperations（PermissionViewAppServiceImpl/PermViewAssembler/PermViewResult 消费
+// 保留事实＋有效操作投影）；转授 checkCanGrant=GRANT_LIST＋PRESERVE+SKIP＋FACTS＋
+// ReadOptions(ListGrantRead.DATABASE)（写校验面新鲜度；操作定义装载留领域侧，2026-09-27 拍板）
 ```
 
 ### 异常边界（权限面）

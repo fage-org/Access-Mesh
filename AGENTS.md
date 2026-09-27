@@ -64,7 +64,7 @@ Gateway (8080) -> access-service (9100)    能力包单体：管理面（用户/
 - 循环内禁止单条数据库查询，必须批量（禁 N+1，§8.4.8）。
 - DTO 优先 Java 21 Record；禁止 `@Data`/`@Value` 等隐式生成过多逻辑的 Lombok 注解。
 - 日期统一 `java.time.LocalDateTime`（禁 `java.util.Date`），时间语义全链路 UTC（TypeHandler 显式换算，§7.4）。
-- 权限校验必须走 `QueryGate`（T-PERM-089 起判定面唯一门面；check/batchCheck 经新 `QueryExecutionEngine.execute`），禁止绕过引擎直查 `rolePermMapper`；旧 `PermQueryEngine` 为迁移期存量（T-PERM-090 已迁范围与 LEGACY_API 四面，剩视图/转授 T-PERM-091 迁移、092 删除）。
+- 权限校验必须走 `QueryGate`（T-PERM-089 起判定面唯一门面；check/batchCheck 经新 `QueryExecutionEngine.execute`），禁止绕过引擎直查 `rolePermMapper`；旧 `PermQueryEngine` 生产消费者已清零（T-PERM-090 迁范围与 LEGACY_API 四面、T-PERM-091 迁视图/转授，仅剩 092 删除动作）。
 - 后端业务键构造/解析唯一入口 `perm-common` 的 `BusinessKeyUtil`（格式 golden 锁），禁止裸拼；sync API 契约键（percent-encoded）仍走 `SyncKeyCodecUtil`。
 
 统一响应体、错误码分段、路径格式、Lombok 细则、同层横向调用边界、实体类约束等以 `project-rules.md` 为准。

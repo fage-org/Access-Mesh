@@ -1,10 +1,11 @@
 package cn.ac.fage.accessmesh.access.engine.dto;
 
-import cn.ac.fage.accessmesh.access.role.entity.AbstractRole;
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
-import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
-import cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry;
-import cn.ac.fage.accessmesh.access.engine.dto.PermResult.EffectiveOperationEntry;
+import cn.ac.fage.accessmesh.access.engine.query.GrantFact;
+import cn.ac.fage.accessmesh.access.engine.query.ResultDetails;
+import cn.ac.fage.accessmesh.access.engine.query.ResultDetails.EffectiveOperationEntry;
+import cn.ac.fage.accessmesh.access.engine.query.ResultDetails.ResourceDescription;
+import cn.ac.fage.accessmesh.access.engine.query.ResultDetails.RoleDescription;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -14,9 +15,9 @@ import java.util.Map;
 /**
  * 权限视图查询结果
  * <p>
- * 承载用户视图的权限数据，独立于 {@link PermResult}。
- * 包含权限条目列表及关联的资源、操作、角色映射。
- * 通过 Builder 模式构造，确保不可变（防御性拷贝）。
+ * 承载用户视图的权限数据，独立于引擎结果对象（T-PERM-091 起消费新 execute 投影：
+ * 条目=GrantFact 保留事实、有效操作投影=ResultDetails.EffectiveOperationEntry、
+ * 描述映射=引擎描述块快照）。通过 Builder 模式构造，确保不可变（防御性拷贝）。
  * </p>
  */
 @Getter
@@ -25,7 +26,7 @@ public class PermViewResult {
     /**
      * 权限条目列表（经过过滤和分页，防御性拷贝）
      */
-    private final List<RolePermEntry> entries;
+    private final List<GrantFact> entries;
 
     /**
      * 有效操作权限投影列表（与 entries 经过相同来源条目过滤）
@@ -33,9 +34,9 @@ public class PermViewResult {
     private final List<EffectiveOperationEntry> effectiveOperationEntries;
 
     /**
-     * 资源实体映射（key: resourceEntityId，防御性拷贝）
+     * 资源描述映射（key: resourceEntityId，防御性拷贝）
      */
-    private final Map<Long, ResourceEntity> resourceMap;
+    private final Map<Long, ResourceDescription> resourceMap;
 
     /**
      * 操作权限映射（key: operationPermissionId，防御性拷贝）
@@ -43,9 +44,9 @@ public class PermViewResult {
     private final Map<Long, OperationPermission> operationMap;
 
     /**
-     * 角色映射（key: roleId，防御性拷贝）
+     * 角色描述映射（key: roleId，防御性拷贝）
      */
-    private final Map<Long, AbstractRole> roleMap;
+    private final Map<Long, RoleDescription> roleMap;
 
     /**
      * 总记录数（分页前）
@@ -89,11 +90,11 @@ public class PermViewResult {
 
     @Builder
     private PermViewResult(
-        List<RolePermEntry> entries,
+        List<GrantFact> entries,
         List<EffectiveOperationEntry> effectiveOperationEntries,
-        Map<Long, ResourceEntity> resourceMap,
+        Map<Long, ResourceDescription> resourceMap,
         Map<Long, OperationPermission> operationMap,
-        Map<Long, AbstractRole> roleMap,
+        Map<Long, RoleDescription> roleMap,
         long totalCount,
         int pageNum,
         int pageSize,

@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.engine.dto;
 
-import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
-import cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry;
+import cn.ac.fage.accessmesh.access.engine.query.GrantFact;
+import cn.ac.fage.accessmesh.access.engine.query.ResultDetails.ResourceDescription;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -17,15 +17,15 @@ class PermViewResultTest {
 
     @Test
     void shouldDefensivelyCopyCollections_whenBuildingPermViewResult() {
-        RolePermEntry entry = new RolePermEntry(1L, 2L, 3L, "resource:a", 4, 1L, "VIEW", 1L, "MANUAL", false, null, false, null, false);
-        List<RolePermEntry> entries = new ArrayList<>();
+        GrantFact entry = new GrantFact(1L, 2L, 4, 3L, 1L, false, false, null, false, null, "MANUAL");
+        List<GrantFact> entries = new ArrayList<>();
         entries.add(entry);
 
-        ResourceEntity resource = new ResourceEntity();
-        resource.setId(3L);
+        ResourceDescription resource = new ResourceDescription(3L, 4, "resource:a", "default",
+            null, null, null, null, null, null, null);
 
-        Map<Long, ResourceEntity> resourceMap = new LinkedHashMap<>();
-        resourceMap.put(resource.getId(), resource);
+        Map<Long, ResourceDescription> resourceMap = new LinkedHashMap<>();
+        resourceMap.put(resource.id(), resource);
 
         PermViewResult result = PermViewResult.builder()
             .entries(entries)

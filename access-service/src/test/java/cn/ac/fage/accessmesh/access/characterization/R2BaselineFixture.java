@@ -294,9 +294,19 @@ public final class R2BaselineFixture {
     public long insertPermRow(Long roleId, int typeValue, Long entityId, long bit, boolean scopeAll, Long conditionId) {
         return jdbc.queryForObject(
             "INSERT INTO role_resource_permission "
-                + "(tenant_id, abstract_role_id, resource_entity_id, granted_bits, resource_type, scope_all, condition_id, grant_source) "
-                + "VALUES (?, ?, ?, ?, ?, ?, ?, 'MANUAL') RETURNING id",
+            + "(tenant_id, abstract_role_id, resource_entity_id, granted_bits, resource_type, scope_all, condition_id, grant_source) "
+            + "VALUES (?, ?, ?, ?, ?, ?, ?, 'MANUAL') RETURNING id",
             Long.class, TENANT, roleId, entityId, bit, typeValue, scopeAll, conditionId);
+    }
+
+    /** 新建可转授授权行（can_grant=true，转授族 T01~T04 专用；ck 约束要求 condition_id 为空）。 */
+    public long insertGrantablePermRow(Long roleId, int typeValue, Long entityId, long bit, boolean scopeAll) {
+        return jdbc.queryForObject(
+            "INSERT INTO role_resource_permission "
+            + "(tenant_id, abstract_role_id, resource_entity_id, granted_bits, resource_type, scope_all, "
+            + "can_grant, condition_id, grant_source) "
+            + "VALUES (?, ?, ?, ?, ?, ?, true, NULL, 'MANUAL') RETURNING id",
+            Long.class, TENANT, roleId, entityId, bit, typeValue, scopeAll);
     }
 
     /** 新建 PERM_MUTEX 规则（两个操作位端点，RETURNING id）。 */

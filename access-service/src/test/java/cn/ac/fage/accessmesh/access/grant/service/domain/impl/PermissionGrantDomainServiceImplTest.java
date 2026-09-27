@@ -5,19 +5,34 @@ import cn.ac.fage.accessmesh.access.projection.PermConstants;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceResolveKey;
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
-import cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry;
+import cn.ac.fage.accessmesh.access.engine.query.Evaluation;
+import cn.ac.fage.accessmesh.access.engine.query.EvaluationCoverage;
+import cn.ac.fage.accessmesh.access.engine.query.FactDetail;
+import cn.ac.fage.accessmesh.access.engine.query.GrantFact;
+import cn.ac.fage.accessmesh.access.engine.query.GrantSetResult;
+import cn.ac.fage.accessmesh.access.engine.query.ListGrantRead;
+import cn.ac.fage.accessmesh.access.engine.query.OutputSpec;
+import cn.ac.fage.accessmesh.access.engine.query.PresentationExpansion;
+import cn.ac.fage.accessmesh.access.engine.query.QueryExecutionEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryItem;
+import cn.ac.fage.accessmesh.access.engine.query.QueryRequest;
+import cn.ac.fage.accessmesh.access.engine.query.QueryResult;
+import cn.ac.fage.accessmesh.access.engine.query.ReadOptions;
+import cn.ac.fage.accessmesh.access.engine.query.ResultDetails;
+import cn.ac.fage.accessmesh.access.engine.query.Stage;
+import cn.ac.fage.accessmesh.access.engine.query.StageFacts;
 import cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomainService;
-import cn.ac.fage.accessmesh.access.engine.dto.PermQuery;
-import cn.ac.fage.accessmesh.access.engine.dto.PermResult;
 import cn.ac.fage.accessmesh.access.grant.service.domain.PermissionGrantDomainService;
 import cn.ac.fage.accessmesh.access.grant.service.domain.PermissionGrantDomainService.GrantCheckKey;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -33,7 +48,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
 
 @ExtendWith(MockitoExtension.class)
 class PermissionGrantDomainServiceImplTest {
@@ -43,7 +57,7 @@ class PermissionGrantDomainServiceImplTest {
     @Mock
     private OperationPermissionDomainService operationPermissionMapper;
     @Mock
-    private PermQueryEngine permQueryEngine;
+    private QueryExecutionEngine queryEngine;
     @Mock
     private cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper roleResourcePermissionMapper;
     @Mock
@@ -55,7 +69,7 @@ class PermissionGrantDomainServiceImplTest {
     void setUp() {
         service = new PermissionGrantDomainServiceImpl(
             typeResolutionService,
-            permQueryEngine,
+            queryEngine,
             operationPermissionMapper,
             roleResourcePermissionMapper,
             typeDefinitionMapper
@@ -75,14 +89,12 @@ class PermissionGrantDomainServiceImplTest {
         when(typeResolutionService.batchResolveResourceIds(any(), any()))
             .thenReturn(Map.of(new ResourceResolveKey("MENU", "sys:user", PermConstants.CodeType.DEFAULT, null), 100L));
 
-        // T-PERM-057 收编：授权事实来自引擎 LIST 管线（MANAGE 授予行 canGrant=true，
-        // 经 inheritMask 覆盖 VIEW 目标操作）
-        RolePermEntry grantedEntry = new RolePermEntry(
-            500L, 20L, 100L, "sys:user", 1, 8L, "MANAGE", 9L, "MANUAL", true, null, false, null, false);
-        when(permQueryEngine.query(any(PermQuery.class))).thenReturn(PermResult.builder(true, null)
-            .instanceEntries(List.of(grantedEntry))
-            .operationMap(Map.of(viewOp.getId(), viewOp, manageOp.getId(), manageOp))
-            .build());
+        // T-PERM-091 迁新 execute：授权事实来自引擎 GRANT_LIST（PRESERVE+SKIP）保留事实
+        // （MANAGE 授予行 canGrant=true，经 inheritMask 覆盖 VIEW 目标操作）；授予目录领域自查
+        GrantFact grantedEntry = fact(500L, 20L, 1, 100L, 8L, false, true, null, false, null, "MANUAL");
+        when(queryEngine.execute(any(QueryRequest.class))).thenReturn(grantResult(grantedEntry));
+        when(operationPermissionMapper.selectByTenantAndResourceTypes(1L, Set.of(1)))
+            .thenReturn(List.of(viewOp, manageOp));
 
         boolean allowed = service.canGrantPermission(1L, 10L, "MENU", "sys:user", PermConstants.CodeType.DEFAULT, "VIEW", false, null);
 
@@ -101,12 +113,10 @@ class PermissionGrantDomainServiceImplTest {
         when(typeResolutionService.batchResolveResourceIds(any(), any()))
             .thenReturn(Map.of(new ResourceResolveKey("MENU", "sys:user", "ID", null), 200L));
 
-        RolePermEntry grantedEntry = new RolePermEntry(
-            500L, 20L, 100L, "sys:user", 1, 1L, "VIEW", 1L, "MANUAL", true, null, false, null, false);
-        when(permQueryEngine.query(any(PermQuery.class))).thenReturn(PermResult.builder(true, null)
-            .instanceEntries(List.of(grantedEntry))
-            .operationMap(Map.of(viewOp.getId(), viewOp))
-            .build());
+        GrantFact grantedEntry = fact(500L, 20L, 1, 100L, 1L, false, true, null, false, null, "MANUAL");
+        when(queryEngine.execute(any(QueryRequest.class))).thenReturn(grantResult(grantedEntry));
+        when(operationPermissionMapper.selectByTenantAndResourceTypes(1L, Set.of(1)))
+            .thenReturn(List.of(viewOp));
 
         boolean allowed = service.canGrantPermission(1L, 10L, "MENU", "sys:user", "ID", "VIEW", false, null);
 
@@ -179,7 +189,125 @@ class PermissionGrantDomainServiceImplTest {
             service.checkCanGrant(1L, 10L, Set.of(invalid), null);
 
         assertEquals("INVALID_PERMISSION_KEY", results.values().iterator().next().reason());
-        verify(permQueryEngine, never()).query(any(PermQuery.class));
+        verify(queryEngine, never()).execute(any(QueryRequest.class));
+    }
+
+    // ========== T-PERM-091 转授四例（设计 §10.2 T01~T04，迁新 execute 回归锁） ==========
+
+    /**
+     * T01 转授授权撤销后清单 DB 读取：checkCanGrant 的引擎请求必须钉 DATABASE 读来源
+     * （不读不回填 ROLE_PERM_SNAPSHOT——撤权后 TTL 陈旧/旧读回填竞态可放行已撤销的
+     * 转授资格，权限提升），且评估口径=PRESERVE+SKIP（转授资格看原始行，不评估条件/互斥）。
+     */
+    @Test
+    void t01CanGrantShouldReadGrantsFromDatabaseWithPreserveSkipEvaluation() {
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("MENU")))
+            .thenReturn(Map.of("MENU", 1));
+        OperationPermission viewOp = operation(101L, 1, "VIEW", 1L, 0L);
+        when(operationPermissionMapper.selectByTenantResourceTypesAndOpCodes(1L, Set.of(1), Set.of("VIEW")))
+            .thenReturn(List.of(viewOp));
+        when(typeResolutionService.batchResolveResourceIds(any(), any()))
+            .thenReturn(Map.of(new ResourceResolveKey("MENU", "sys:user", PermConstants.CodeType.DEFAULT, null), 100L));
+        GrantFact grantedEntry = fact(500L, 20L, 1, 100L, 1L, false, true, null, false, null, "MANUAL");
+        when(queryEngine.execute(any(QueryRequest.class))).thenReturn(grantResult(grantedEntry));
+        when(operationPermissionMapper.selectByTenantAndResourceTypes(1L, Set.of(1)))
+            .thenReturn(List.of(viewOp));
+
+        service.canGrantPermission(1L, 10L, "MENU", "sys:user", PermConstants.CodeType.DEFAULT, "VIEW", false, null);
+
+        ArgumentCaptor<QueryRequest> captor = ArgumentCaptor.forClass(QueryRequest.class);
+        verify(queryEngine).execute(captor.capture());
+        QueryRequest request = captor.getValue();
+        assertEquals(ListGrantRead.DATABASE, request.reads().listGrantRead());
+        QueryItem item = request.items().get(0);
+        assertEquals(Evaluation.preserveSkip(), item.evaluation());
+        assertEquals(FactDetail.KEPT, item.output().factDetail());
+        assertFalse(item.output().descriptions());
+        assertFalse(item.output().effectiveOperations());
+        assertEquals(PresentationExpansion.NONE, item.output().presentationExpansion());
+    }
+
+    /**
+     * T02 可覆盖行不可转授，另行 canGrant 不覆盖：不得拼接两行资格——
+     * MANAGE 覆盖 VIEW 但 canGrant=false 的行与 canGrant=true 但不覆盖 VIEW 的行
+     * 同场时，目标 VIEW 的转授资格必须判 NO_GRANT_RIGHT（同一条真实授权同行验证）。
+     */
+    @Test
+    void t02CanGrantShouldNotCombineCoverageRowWithUnrelatedGrantRightRow() {
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("MENU")))
+            .thenReturn(Map.of("MENU", 1));
+        OperationPermission viewOp = operation(101L, 1, "VIEW", 1L, 0L);
+        OperationPermission manageOp = operation(102L, 1, "MANAGE", 8L, 1L);
+        OperationPermission syncOp = operation(103L, 1, "SYNC", 4L, 0L);
+        when(operationPermissionMapper.selectByTenantResourceTypesAndOpCodes(1L, Set.of(1), Set.of("VIEW")))
+            .thenReturn(List.of(viewOp));
+        when(typeResolutionService.batchResolveResourceIds(any(), any()))
+            .thenReturn(Map.of(new ResourceResolveKey("MENU", "sys:user", PermConstants.CodeType.DEFAULT, null), 100L));
+        // 行 A：MANAGE（覆盖 VIEW）但 canGrant=false；行 B：SYNC（不覆盖 VIEW）canGrant=true
+        GrantFact coveringRow = fact(500L, 20L, 1, 100L, 8L, false, false, null, false, null, "MANUAL");
+        GrantFact grantRightRow = fact(501L, 21L, 1, 100L, 4L, false, true, null, false, null, "MANUAL");
+        when(queryEngine.execute(any(QueryRequest.class))).thenReturn(grantResult(coveringRow, grantRightRow));
+        when(operationPermissionMapper.selectByTenantAndResourceTypes(1L, Set.of(1)))
+            .thenReturn(List.of(viewOp, manageOp, syncOp));
+
+        Map<String, PermissionGrantDomainService.GrantCheckResult> results = service.checkCanGrant(
+            1L, 10L, Set.of(new GrantCheckKey("MENU", "sys:user", PermConstants.CodeType.DEFAULT, "VIEW", false)), null);
+
+        assertEquals("NO_GRANT_RIGHT", results.values().iterator().next().reason());
+    }
+
+    /**
+     * T03 操作者无目标类型授权、目标操作实际存在：reason 必须是 NO_PERMISSION 而非
+     * INVALID_OPERATION——目标操作解析独立于操作者持有面（T-PERM-062 起领域自查装载）。
+     */
+    @Test
+    void t03CanGrantShouldReturnNoPermissionNotInvalidOperationWhenTargetOpExists() {
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("MENU")))
+            .thenReturn(Map.of("MENU", 1));
+        // 目标操作存在（类型 1 的 VIEW 定义可解析）
+        OperationPermission viewOp = operation(101L, 1, "VIEW", 1L, 0L);
+        when(operationPermissionMapper.selectByTenantResourceTypesAndOpCodes(1L, Set.of(1), Set.of("VIEW")))
+            .thenReturn(List.of(viewOp));
+        when(typeResolutionService.batchResolveResourceIds(any(), any()))
+            .thenReturn(Map.of(new ResourceResolveKey("MENU", "sys:user", PermConstants.CodeType.DEFAULT, null), 100L));
+        // 操作者仅持类型 5 的授权行（无类型 1 任何行）——有角色有授权行，对目标类型零覆盖
+        OperationPermission otherView = operation(202L, 5, "VIEW", 1L, 0L);
+        GrantFact otherEntry = fact(500L, 20L, 5, null, 1L, true, false, null, false, null, "MANUAL");
+        when(queryEngine.execute(any(QueryRequest.class))).thenReturn(grantResult(otherEntry));
+        when(operationPermissionMapper.selectByTenantAndResourceTypes(1L, Set.of(5)))
+            .thenReturn(List.of(otherView));
+
+        Map<String, PermissionGrantDomainService.GrantCheckResult> results = service.checkCanGrant(
+            1L, 10L, Set.of(new GrantCheckKey("MENU", "sys:user", PermConstants.CodeType.DEFAULT, "VIEW", false)), null);
+
+        assertEquals("NO_PERMISSION", results.values().iterator().next().reason());
+    }
+
+    /**
+     * T04 运行时祖先可用但转授未授权该继承：转授不自动扩大——操作者仅在父资源（实体 300）
+     * 持有覆盖授权，目标为子资源（实体 200）时运行时 INSTANCE 判定可经判定面闭包放行，
+     * 但转授资格必须按精确实例键判 NO_PERMISSION（不消费祖先闭包）。
+     */
+    @Test
+    void t04CanGrantShouldNotExtendDelegationThroughRuntimeAncestor() {
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("MENU")))
+            .thenReturn(Map.of("MENU", 1));
+        OperationPermission viewOp = operation(101L, 1, "VIEW", 1L, 0L);
+        OperationPermission manageOp = operation(102L, 1, "MANAGE", 8L, 1L);
+        when(operationPermissionMapper.selectByTenantResourceTypesAndOpCodes(1L, Set.of(1), Set.of("VIEW")))
+            .thenReturn(List.of(viewOp));
+        // 目标解析为子资源 200；操作者授权行在父资源 300（类型一致、canGrant=true、覆盖 VIEW）
+        when(typeResolutionService.batchResolveResourceIds(any(), any()))
+            .thenReturn(Map.of(new ResourceResolveKey("MENU", "child", PermConstants.CodeType.DEFAULT, null), 200L));
+        GrantFact parentRow = fact(500L, 20L, 1, 300L, 8L, false, true, null, false, null, "MANUAL");
+        when(queryEngine.execute(any(QueryRequest.class))).thenReturn(grantResult(parentRow));
+        when(operationPermissionMapper.selectByTenantAndResourceTypes(1L, Set.of(1)))
+            .thenReturn(List.of(viewOp, manageOp));
+
+        Map<String, PermissionGrantDomainService.GrantCheckResult> results = service.checkCanGrant(
+            1L, 10L, Set.of(new GrantCheckKey("MENU", "child", PermConstants.CodeType.DEFAULT, "VIEW", false)), null);
+
+        assertEquals("NO_PERMISSION", results.values().iterator().next().reason());
     }
 
     // ========== T-PERM-062：20040 reason 细分（TYPE_GRANT_ORIGIN_MISSING，仅自定义类型） ==========
@@ -195,12 +323,10 @@ class PermissionGrantDomainServiceImplTest {
             .thenReturn(List.of(orderView));
         // 操作者持有另一类型（typeValue=5）的条目：有角色有授权行，但对目标类型零覆盖 → 主路径 NO_PERMISSION
         OperationPermission otherView = operation(202L, 5, "VIEW", 1L, 0L);
-        RolePermEntry otherEntry = new RolePermEntry(
-            500L, 20L, null, null, 5, 1L, "VIEW", 1L, "MANUAL", false, null, true, null, false);
-        when(permQueryEngine.query(any(PermQuery.class))).thenReturn(PermResult.builder(true, null)
-            .instanceEntries(List.of(otherEntry))
-            .operationMap(Map.of(otherView.getId(), otherView))
-            .build());
+        GrantFact otherEntry = fact(500L, 20L, 5, null, 1L, true, false, null, false, null, "MANUAL");
+        when(queryEngine.execute(any(QueryRequest.class))).thenReturn(grantResult(otherEntry));
+        when(operationPermissionMapper.selectByTenantAndResourceTypes(1L, Set.of(5)))
+            .thenReturn(List.of(otherView));
         when(typeDefinitionMapper.selectValidByTenant(1L)).thenReturn(List.of(customTypeRow(12)));
         when(roleResourcePermissionMapper.selectGrantableCoveringCandidates(eq(1L), eq(Set.of(12)), any()))
             .thenReturn(List.of());
@@ -223,12 +349,10 @@ class PermissionGrantDomainServiceImplTest {
         when(operationPermissionMapper.selectByTenantResourceTypesAndOpCodes(1L, Set.of(12), Set.of("VIEW")))
             .thenReturn(List.of(orderView));
         OperationPermission otherView = operation(202L, 5, "VIEW", 1L, 0L);
-        RolePermEntry otherEntry = new RolePermEntry(
-            500L, 20L, null, null, 5, 1L, "VIEW", 1L, "MANUAL", false, null, true, null, false);
-        when(permQueryEngine.query(any(PermQuery.class))).thenReturn(PermResult.builder(true, null)
-            .instanceEntries(List.of(otherEntry))
-            .operationMap(Map.of(otherView.getId(), otherView))
-            .build());
+        GrantFact otherEntry = fact(500L, 20L, 5, null, 1L, true, false, null, false, null, "MANUAL");
+        when(queryEngine.execute(any(QueryRequest.class))).thenReturn(grantResult(otherEntry));
+        when(operationPermissionMapper.selectByTenantAndResourceTypes(1L, Set.of(5)))
+            .thenReturn(List.of(otherView));
         when(typeDefinitionMapper.selectValidByTenant(1L)).thenReturn(List.of(customTypeRow(12)));
         RoleResourcePermission originRow = permission(900L, "AUTHORITY_ROOT", null, 2L);
         originRow.setResourceType(12);
@@ -255,12 +379,10 @@ class PermissionGrantDomainServiceImplTest {
         when(operationPermissionMapper.selectByTenantResourceTypesAndOpCodes(1L, Set.of(4), Set.of("VIEW")))
             .thenReturn(List.of(serviceView));
         OperationPermission otherView = operation(202L, 5, "VIEW", 1L, 0L);
-        RolePermEntry otherEntry = new RolePermEntry(
-            500L, 20L, null, null, 5, 1L, "VIEW", 1L, "MANUAL", false, null, true, null, false);
-        when(permQueryEngine.query(any(PermQuery.class))).thenReturn(PermResult.builder(true, null)
-            .instanceEntries(List.of(otherEntry))
-            .operationMap(Map.of(otherView.getId(), otherView))
-            .build());
+        GrantFact otherEntry = fact(500L, 20L, 5, null, 1L, true, false, null, false, null, "MANUAL");
+        when(queryEngine.execute(any(QueryRequest.class))).thenReturn(grantResult(otherEntry));
+        when(operationPermissionMapper.selectByTenantAndResourceTypes(1L, Set.of(5)))
+            .thenReturn(List.of(otherView));
         cn.ac.fage.accessmesh.access.type.entity.TypeDefinition builtin = customTypeRow(4);
         builtin.setIsSystem(true);
         when(typeDefinitionMapper.selectValidByTenant(1L)).thenReturn(List.of(builtin));
@@ -270,6 +392,30 @@ class PermissionGrantDomainServiceImplTest {
 
         assertEquals("NO_PERMISSION", results.values().iterator().next().reason());
         verify(roleResourcePermissionMapper, never()).selectGrantableCoveringCandidates(any(), any(), any());
+    }
+
+    // ========== 夹具 ==========
+
+    /** PRESERVE+SKIP 单阶段保留事实结果（PRESERVE 下 raw=retained），包装为 execute 返回形态。 */
+    private QueryResult grantResult(GrantFact... facts) {
+        GrantSetResult.CollectionStatus status = facts.length == 0
+            ? GrantSetResult.CollectionStatus.NO_MATCH : GrantSetResult.CollectionStatus.PRESENT;
+        List<StageFacts> stages = facts.length == 0 ? List.of()
+            : List.of(new StageFacts(Stage.GRANT_LIST, List.of(facts), List.of(facts), StageFacts.Status.PRESENT));
+        GrantSetResult item = new GrantSetResult("canGrant", status,
+            new EvaluationCoverage(EvaluationCoverage.SubjectResolution.USER_EFFECTIVE_WITH_MUTEX,
+                EvaluationCoverage.ConditionCoverage.PRESERVED, EvaluationCoverage.MutexCoverage.SKIPPED,
+                EvaluationCoverage.ParentCheckCoverage.NOT_REQUIRED,
+                Set.of(Stage.GRANT_LIST), Map.of(), true, EvaluationCoverage.AuthorizationStage.FACT_COLLECTION),
+            new ResultDetails(Set.of(), List.of(), List.of(), stages));
+        return new QueryResult("canGrant-exec", LocalDateTime.now(), List.of(item));
+    }
+
+    private GrantFact fact(Long permissionId, Long roleId, Integer resourceType, Long resourceEntityId,
+                           Long grantedBits, boolean scopeAll, boolean canGrant, Long conditionId,
+                           boolean hasCondition, Long dependOn, String grantSource) {
+        return new GrantFact(permissionId, roleId, resourceType, resourceEntityId, grantedBits,
+            scopeAll, canGrant, conditionId, hasCondition, dependOn, grantSource);
     }
 
     private cn.ac.fage.accessmesh.access.type.entity.TypeDefinition customTypeRow(int typeValue) {
