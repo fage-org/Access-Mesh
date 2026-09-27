@@ -164,8 +164,10 @@ public final class QueryExecutionEngine {
                 throw new AdmissionConfigurationException("准入要求不存在或损坏: " + requirement);
             }
             List<OperationDefinition> catalog = catalogs.get(target.resourceType());
-            if (catalog.stream().anyMatch(op -> !validOperationBit(op.binaryBit())
-                || op.inheritMask() == null || op.inheritMask() < 0)) {
+            // 掩码只看位、不看正负；不覆盖当前要求的坏行不能阻断该要求。
+            if (catalog.stream().filter(op -> (OperationPermissionUtils.effectiveBits(
+                    op.binaryBit(), op.inheritMask()) & target.binaryBit()) != 0)
+                .anyMatch(op -> !validOperationBit(op.binaryBit()) || op.inheritMask() == null)) {
                 throw new AdmissionConfigurationException("准入操作目录损坏: " + requirement.resourceTypeCode());
             }
             long mask = OperationPermissionUtils.computeCoveringBitMask(

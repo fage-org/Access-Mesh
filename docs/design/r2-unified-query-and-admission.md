@@ -266,7 +266,7 @@ TRACE 解释真实执行，不是全面配置扫描；scopeAll 短路的 INSTANC
 
 TARGET_SET 实例未解析时，仍保留之前 TYPE_GRANT 曾被条件／冲突清空的原因，不一律覆盖为 NO_PERMISSION。损坏条件规则按既有四态失败关闭；数据库读取失败则是技术故障，两者分别记录。新内部原因不未经版本化直接扩散到普通 SDK。
 
-**（T-PERM-088 就地实施注，2026-09-26）**：运行态内技术故障（DB／缓存回源／规则装载／描述读取）统一包装 `QueryExecutionException`（cause 保留原异常）；`QueryValidationException` 与未实现区域的 `UnsupportedOperationException` 不是技术故障、原样抛出。执行中途失败只提交此前已确认阶段的证据并标 `EXECUTION_ERROR_AFTER_CONFIRMED_STAGE`，不返回半份 FACTS 或未经完整评估的 ALLOW（X01/X02）。EngineLimits（预算／deadline 配置本体）按计划附录 A.9 归 T-PERM-093，届时超限抛出走同一整体失败边界。
+**（T-PERM-088 就地实施注，2026-09-26）**：运行态内技术故障（DB／缓存回源／规则装载／描述读取）统一包装 `QueryExecutionException`（cause 保留原异常）；`QueryValidationException` 为结构错误、原样抛出；已分类的 `QueryExecutionException`（含 `AdmissionConfigurationException`）保留具体类型。选择阶段已全部接入，不再保留未实现阶段的特殊异常分支。执行中途失败只提交此前已确认阶段的证据并标 `EXECUTION_ERROR_AFTER_CONFIRMED_STAGE`，不返回半份 FACTS 或未经完整评估的 ALLOW（X01/X02）。EngineLimits（预算／deadline 配置本体）按计划附录 A.9 归 T-PERM-093，届时超限抛出走同一整体失败边界。
 
 **类型级子授权的原因口径（2026-09-26 用户确认）**：TYPE_LEVEL 没有父资源上下文，depend_on 子行不属于其有效候选；仅有此类行时返回 `NO_PERMISSION`，沿用旧单条/批量类型级门禁口径。有主授权候选但被条件/互斥清空时仍返回 `CONDITION_NOT_MET_OR_CONFLICT`。`DEPENDENT_NOT_IN_PARENT_CONTEXT` 适用于 TARGET_SET 的父上下文排除，不因类型级选择排除子行而产生。
 
@@ -286,7 +286,7 @@ TARGET_SET 实例未解析时，仍保留之前 TYPE_GRANT 曾被条件／冲突
 | QueryProjector | 组装事实、覆盖操作、描述和展示派生 | 重新鉴权、反向修改候选或 ALLOW |
 | QueryAuditCollector | 收集真实规则／角色对和项关系；根级一次提交 | 用端点猜规则、把准入记为业务成功 |
 
-**迁移期适用边界**：T-PERM-085/086 已接入 User 有效角色＋纯 ROLE_MUTEX、TYPE_GRANT/INSTANCE、父要求与 GRANT_LIST，T-PERM-087 接入完整输出投影；C06 同序等长判定、R03 显式角色完整清单由执行链测试覆盖。新类仍不注册 Spring bean、无生产消费者，旧执行器保持现役。ADMISSION_CANDIDATES 由 T-ACCESS-057 承接；非空角色触发尚未实现的选择时抛 `UnsupportedOperationException`，不伪装普通 DENY 或空事实。NO_ROLE 终态继续适用于全部结果形式，并可按输出要求装载额外操作定义；不因此装载授权。TRACE 已随 T-PERM-088 落地（`ResultDetails.ExecutionTrace`，敏感字段门禁暂缓登记 Q-045）；根级受控证据提交与 `QueryExecutionException` 技术故障边界同批接入（§6.1/§3.4 实施注）。[骨架边界来源](../archive/2026-09-26/decision-registry-before.md)（原第 201 行）；输出范围见 §3.3，父与清单实现见 §4.5/§4.6 及 [T-PERM-086](../tasks/T-PERM-086.md)。
+**迁移期适用边界**：T-PERM-085/086 已接入 User 有效角色＋纯 ROLE_MUTEX、TYPE_GRANT/INSTANCE、父要求与 GRANT_LIST，T-PERM-087 接入完整输出投影；C06 同序等长判定、R03 显式角色完整清单由执行链测试覆盖。T-PERM-089~092 已将生产消费者迁入唯一 execute 并删除旧执行器；ADMISSION_CANDIDATES 随 T-ACCESS-057 接入，准入端点与快照接线归 T-ACCESS-059。NO_ROLE 终态继续适用于全部结果形式，并可按输出要求装载额外操作定义；不因此装载授权。TRACE 已随 T-PERM-088 落地（`ResultDetails.ExecutionTrace`，敏感字段门禁暂缓登记 Q-045）；根级受控证据提交与 `QueryExecutionException` 技术故障边界同批接入（§6.1/§3.4 实施注）。[骨架边界来源](../archive/2026-09-26/decision-registry-before.md)（原第 201 行）；输出范围见 §3.3，父与清单实现见 §4.5/§4.6 及 [T-PERM-086](../tasks/T-PERM-086.md)。
 
 不要求每行新增独立 Spring Bean，包内 helper 也可；依赖方向是应用→引擎→既有读／领域能力→Mapper。转授服务可调用引擎，引擎不能反注入授权计划／物化服务。
 
@@ -691,7 +691,7 @@ T-ACCESS-057 保留结构合法子行；父结构按候选 depend_on 并集分�
 
 本阶段仍由第 4 节唯一 execute 调度，复用原始事实结构、角色与条件能力。
 
-1. 从已匹配路由要求取得 type-operation；读取本次需要的**新鲜完整操作定义**，计算精确覆盖掩码。要求未知或损坏由接口层报告配置错误，不回退任意操作。准入配置错误优先于 NO_ROLE：空角色集仍核查操作目录，有效要求才返回 NO_ROLE；普通鉴权保持主体短路（T-ACCESS-057，2026-09-27 确认）。
+1. 从已匹配路由要求取得 type-operation；读取本次需要的**新鲜完整操作定义**，计算精确覆盖掩码。要求未知或损坏由接口层报告配置错误，不回退任意操作。继承掩码按位解释、不做符号校验；仅校验当前要求及有效位覆盖该要求的操作，覆盖相关行的操作位损坏仍报配置错误，无关坏行不阻断当前要求（T-ACCESS-057，2026-09-27 确认）。准入配置错误优先于 NO_ROLE：空角色集仍核查操作目录，有效要求才返回 NO_ROLE；普通鉴权保持主体短路（T-ACCESS-057，2026-09-27 确认）。
 2. 为同批要求合并 type-mask，一次或按预算分块读取有效角色的类型／位候选；既包括 ALL，也包括实例。使用明确的 `selectAdmissionCandidatesByTypeMasks` 类方法，不把空 entityIds 当作无限实例。
 3. 切回每个要求的候选；对存在的子候选集中读取父结构，非法结构排除并记录诊断；不执行资源树闭包或依赖图。
 4. 在线 ADMISSION：批量预载本行条件，求候选存在性；某项已有充分候选可结束，**仅因本用途没有 PERM_MUTEX，才允许这种存在性短路**。拒绝则必须穷尽该项候选。

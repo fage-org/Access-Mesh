@@ -43,11 +43,11 @@ last_updated: 2026-09-27
 
 - 准入经唯一 execute 的 ADMISSION_CANDIDATES 阶段执行；操作定义固定新鲜数据库目录，候选与父结构分别合批读取。
 - 审计范围、坏条件排除和配置错误优先级见[协议契约 §25.3/§25.4/§25.6](../design/access-service-api-contract.md#operation-admission-protocol)；实施落点见[引擎实现 §3.3/§3.5/§3.6](../design/engine/implementation.md#permission-query)。
-- 本卡收口采用组合验证证据（2026-09-27 确认）：复用全量中已通过的其他单测、容器组与 heavy；仅修正测试夹具隔离后，完整复跑 QueryExecutionPgIT，并通过 reactor 补跑被模块失败阻断的 E2E。生产代码保持全量验证版本，不跳过任何验收轨道。
+- 初次实现采用组合验证证据（2026-09-27 确认）：复用全量中已通过的其他单测、容器组与 heavy，仅修正夹具后完整复跑 QueryExecutionPgIT 并通过 reactor 补齐 E2E。操作目录校验修正后已另跑完整 `mvn test -T 1C`，最新验收为 2259 项全通过，含 E2E 与 heavy。
 
 ## 验收对照
 
-- `AdmissionStagesTest`：N02/N03/N04/N05/N06/N07/N08/N09/N10/N13/N20 的准入行为、来源与条件分支；在线短路/拒绝穷尽、FACTS 完整性、混批与树展开拒绝、角色冲突审计、SQL 分块、配置故障优先级。
+- `AdmissionStagesTest`：N02/N03/N04/N05/N06/N07/N08/N09/N10/N13/N20 的准入行为、来源与条件分支、负继承掩码按位覆盖、无关坏行隔离与覆盖相关坏行拒绝；在线短路/拒绝穷尽、FACTS 完整性、混批与树展开拒绝、角色冲突审计、SQL 分块、配置故障优先级。
 - `QueryExecutionPgIT`：准入候选 SQL 的 ALL/实例与租户/角色/类型/掩码过滤、空集守卫；真实父结构损坏排除、准入与业务父绑定对照、新鲜操作目录覆盖变更。
 - `AdmissionConfigurationExceptionHandlerTest`：配置故障按 HTTP 200＋20071 返回服务端信封。
 
@@ -60,8 +60,10 @@ last_updated: 2026-09-27
 - 2026-09-27：ADMISSION_CANDIDATES 接入唯一 execute；新鲜操作目录、独立候选 SQL、批量父结构核查、本行条件求值/FACTS 保留、候选类别、配置故障接口映射与审计用途标注落地。设计引用章节及查询技能双副本已同步。
 - 本地代码轨核对通过：租户/角色/类型掩码隔离、SQL 空集守卫与分块、父结构与运行时校验边界、条件 OR 分支、操作缓存隔离、异常与审计。测试夹具使用独立角色/资源，避免污染既有基线；无未处理缺陷或可裁剪项。
 - 本地文档轨核对通过：契约 §25、设计 §5/§7、任务验收与实现范围一致；HTTP 200＋20071 服务端信封与网关 503 分层明确，端点/快照仍归 059；关键词扫描、链接锚点、技能双副本及任务/计划状态一致。存疑项均已按当前口径归位。
-- 验证日期均为 2026-09-27，采用上文确认的组合证据：
+- 初次实现验证日期为 2026-09-27，采用上文确认的组合证据：
   - `mvn test -T 1C`：执行 2237 项，2235 通过、2 项夹具污染失败、0 错误、0 跳过；heavy 用例执行并通过。E2E 被 access-service 模块失败阻断，未将该命令记为 BUILD SUCCESS。准入单测 `AdmissionStagesTest` 25 项及配置故障 HTTP 测试 1 项已通过。
   - `mvn test -pl access-service '-Dtest=QueryExecutionPgIT#should_readAdmissionAllAndInstanceWithStrictBoundaries_whenSqlInputsAreEmptyOrForeign+should_keepPerItemClosureAndSameTypeBoundary_whenTargetsMixInheritance'`：失败项隔离复跑 2 项通过，确认组合夹具污染；随后仅修测试数据，生产代码冻结。
   - `mvn test -pl access-service '-Dtest=QueryExecutionPgIT'`：修正后完整数据库类 24 项通过，0 失败/错误/跳过，BUILD SUCCESS。
   - `mvn test -pl e2e -am -T 1C '-Dtest=BasicRoleGrantVerticalSliceE2EIT,ExampleProtectedApiE2EIT' '-Dsurefire.failIfNoSpecifiedTests=false'`：跨服务 E2E 16 项通过，0 失败/错误/跳过，reactor BUILD SUCCESS。与前述有效证据合并覆盖全部收口轨道。
+- 2026-09-27：准入继承掩码正负均按位解释，目录校验限定当前要求及覆盖相关操作；无关坏行不阻断当前要求，相关损坏仍报配置故障。20071 信封文案涵盖操作要求损坏，阶段与错误码说明同步现行实现；代码及文档核对通过。
+- 2026-09-27：新增行为用例在原实现下复现 4 项错误，修正后 `mvn test -pl access-service -DskipTestcontainers=true '-Dtest=Admission*Test,Query*Test'` 216 项通过。完整 `mvn test -T 1C` 2259 项通过，0 失败/错误/跳过，所有 reactor 模块 SUCCESS；含 access-service 单测 1585 项、容器组 399 项（heavy 已执行）、跨服务 E2E 16 项。日志 `.tmp-t-access-057-review-unit.log` / `.tmp-t-access-057-review-full.log`，后者耗时 15 分 37 秒。

@@ -510,7 +510,7 @@ scopeAll 条目不参与展开；query-resources 的树扩展（原 `expandResou
   stageFacts（rawAfterContext/retainedAfterEvaluation 分阶段事实——四态组装区分 DENIED（raw 无覆盖
   条目）与 EMPTY（有覆盖但评估后清空）的事实源）＋ presentation/effectiveOperations/descriptions
   展示投影。
-- **`AdmissionResult`**：MAY_ENTER/DENY，恒 `finalCheckRequired=true`；准入 FACTS 的 `GrantSetResult` 同样标注 `authorizationStage=OPERATION_ADMISSION`、条件 PRESERVED、权限互斥 SKIPPED。要求未知或操作目录损坏抛 `AdmissionConfigurationException`，接口层映射 HTTP 200＋20071；准入配置错误优先于 NO_ROLE，普通查询主体短路不变。
+- **`AdmissionResult`**：MAY_ENTER/DENY，恒 `finalCheckRequired=true`；准入 FACTS 的 `GrantSetResult` 同样标注 `authorizationStage=OPERATION_ADMISSION`、条件 PRESERVED、权限互斥 SKIPPED。要求未知或覆盖相关操作定义损坏抛 `AdmissionConfigurationException`（无关坏行不阻断当前要求、inheritMask 不做符号校验，范围见契约 §25.4），接口层映射 HTTP 200＋20071；准入配置错误优先于 NO_ROLE，普通查询主体短路不变。
 - **`GrantFact`**：保留/原始授权事实（permissionId/roleId/resourceEntityId/grantedBits/conditionId/
   scopeAll/grantSource）；视图装配按源授权行主键关联投影行
   （GrantFact.permissionId ↔ EffectiveOperationEntry.sourcePermissionId）。

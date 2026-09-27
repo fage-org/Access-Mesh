@@ -258,6 +258,42 @@ class AdmissionStagesTest {
         verifyNoInteractions(grants);
     }
 
+    @ParameterizedTest
+    @ValueSource(longs = {-1L, Long.MIN_VALUE})
+    void should_useBitsWithoutSignRestriction_whenInheritanceMaskIsNegative(long mask) {
+        when(operations.selectByTenantAndResourceTypes(eq(1L), anySet())).thenReturn(List.of(
+            QueryStagesTest.op(11, 1, "VIEW", 2, 0), QueryStagesTest.op(12, 1, "UPDATE", 4, mask)));
+        candidates.add(row(101, 100L, 4));
+        boolean coversView = (mask & 2L) != 0;
+        assertThat(admission().outcome()).isEqualTo(coversView
+            ? AdmissionResult.Admission.MAY_ENTER : AdmissionResult.Admission.DENY);
+        assertThat(kept(facts())).hasSize(coversView ? 1 : 0);
+        verify(grants, times(2)).selectAdmissionCandidatesByTypeMasks(eq(1L), eq(Set.of(10L)),
+            eq(List.of(new RoleResourcePermissionMapper.BitMaskEntry(1, coversView ? 6L : 2L))));
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {0L, 12L})
+    void should_ignoreUnrelatedDamagedOperation_whenItCannotCoverRequirement(long bit) {
+        when(operations.selectByTenantAndResourceTypes(eq(1L), anySet())).thenReturn(List.of(
+            QueryStagesTest.op(11, 1, "VIEW", 2, 0), QueryStagesTest.op(12, 1, "UPDATE", bit, 0)));
+        candidates.add(row(101, 100L, 2));
+        assertThat(admission().outcome()).isEqualTo(AdmissionResult.Admission.MAY_ENTER);
+        assertThat(kept(facts())).extracting(GrantFact::permissionId).containsExactly(101L);
+        verify(grants, times(2)).selectAdmissionCandidatesByTypeMasks(eq(1L), eq(Set.of(10L)),
+            eq(List.of(new RoleResourcePermissionMapper.BitMaskEntry(1, 2L))));
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {0L, 3L})
+    void should_raiseConfigurationFault_whenDamagedOperationCoversRequirement(long bit) {
+        when(operations.selectByTenantAndResourceTypes(eq(1L), anySet())).thenReturn(List.of(
+            QueryStagesTest.op(11, 1, "VIEW", 2, 0), QueryStagesTest.op(12, 1, "UPDATE", bit, 2)));
+        assertThatThrownBy(this::admission).isInstanceOf(AdmissionConfigurationException.class);
+        assertThatThrownBy(this::facts).isInstanceOf(AdmissionConfigurationException.class);
+        verifyNoInteractions(grants);
+    }
+
     @Test
     void should_rejectMixedRequestsAndTreeExpansionBeforeReads_whenAdmissionSelectionIsUsed() {
         assertThatThrownBy(() -> execute(QueryItem.admission("a", VIEW, OutputSpec.minimal()),
