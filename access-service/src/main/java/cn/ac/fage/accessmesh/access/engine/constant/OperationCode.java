@@ -130,8 +130,8 @@ public final class OperationCode {
      * <p>
      * API:ACCESS 为网关接口鉴权专用操作码（mask=0，不继承 VIEW）：Gateway 层实例级
      * {@code API:ACCESS@接口资源} + 类型级可转授条目（T-API-001 鸡生蛋解法）。
-     * 消费方：PermissionCheckAppServiceImpl（forInterfaceCheck）、SnapshotAssembler
-     * （快照装配）、BootstrapGraphDefinition（固定图类型级 + 实例派生）。
+     * 消费方：PermissionCheckAppServiceImpl（checkInterface 共同集合，T-PERM-090 起经新
+     * execute）、SnapshotAssembler（快照装配）、BootstrapGraphDefinition（固定图类型级 + 实例派生）。
      * </p>
      */
     public static final String ACCESS = "ACCESS";

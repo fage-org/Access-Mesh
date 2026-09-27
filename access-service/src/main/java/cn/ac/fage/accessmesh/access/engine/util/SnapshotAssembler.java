@@ -3,7 +3,7 @@ package cn.ac.fage.accessmesh.access.engine.util;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
 import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import cn.ac.fage.accessmesh.perm.common.util.ConditionEvalUtils;
-import cn.ac.fage.accessmesh.access.engine.dto.PermResult;
+import cn.ac.fage.accessmesh.access.engine.query.GrantFact;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.rule.entity.PermissionCondition;
@@ -11,7 +11,6 @@ import cn.ac.fage.accessmesh.access.resource.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper;
-import cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -92,7 +91,7 @@ public class SnapshotAssembler {
     }
 
     /**
-     * 从 {@link PermResult} 构建接口权限快照条目列表。
+     * 从授权事实集合构建接口权限快照条目列表（T-PERM-090 起消费新引擎 {@link GrantFact}）。
      * <p>
      * 提取所有 API 类型资源的权限条目，查询对应的 API 映射，组装为快照条目。
      * API 类型的 scopeAll 条目<b>不</b>输出通配（ALL）条目，而是展开为该 serviceCode 全部
@@ -106,28 +105,27 @@ public class SnapshotAssembler {
      * </p>
      *
      * @param tenantId    租户ID
-     * @param result      权限查询结果（应来自 {@code markConditionsOnly=true} 的查询，保留所有条件条目）
+     * @param entries     保留授权事实（应来自 PRESERVE＋ENFORCE 的 GRANT_LIST 查询，保留所有条件条目）
      * @param serviceCode 服务编码
      * @param apiType     API 资源类型值
      * @return API 权限快照条目列表
      */
     public List<InterfaceSnapshotResp.ApiPermissionEntry> buildSnapshot(
-            Long tenantId, PermResult result, String serviceCode, Integer apiType) {
-        List<RolePermEntry> entries = result.allEntries();
+            Long tenantId, List<GrantFact> entries, String serviceCode, Integer apiType) {
         if (apiType == null || entries.isEmpty()) {
             return List.of();
         }
 
         // 筛选 API 类型的权限条目。接口快照语义与 fallback 的 check-interface 对齐：
-        // 仅 ACCESS 操作位构成 Gateway 放行依据（fallback 路径 PermQuery.forInterfaceCheck
-        // 亦按 "ACCESS" 操作码匹配有效位）——API 资源的非 ACCESS 操作授权（VIEW/UPDATE 等）是
+        // 仅 ACCESS 操作位构成 Gateway 放行依据（fallback 路径 T-PERM-090 起经新 execute
+        // 的 API:ACCESS TARGET_SET，同按 ACCESS 有效位匹配）——API 资源的非 ACCESS 操作授权（VIEW/UPDATE 等）是
         // 资源管理语义，不得被网关当作接口放行。快照条目的 operationCode 为 null
-        // （RolePermEntryMapper.toEntry 不填），须按位判断；位掩码取「有效位覆盖 ACCESS 的
+        // （GrantFact 无操作码字段），须按位判断；位掩码取「有效位覆盖 ACCESS 的
         // 全部操作位」（binaryBit | inheritMask 与引擎一致——自定义操作经 inheritMask 继承
         // ACCESS 时同样放行）。快照条目的 conditionId 为条件装配必需，不能改用
         // PermResult.effectiveOperationEntries（无 conditionId 投影）。
         long accessCoverageMask = resolveAccessCoverageMask(tenantId, apiType);
-        List<RolePermEntry> apiEntries = entries.stream()
+        List<GrantFact> apiEntries = entries.stream()
             .filter(e -> e.resourceType() != null && e.resourceType().equals(apiType))
             .filter(e -> e.grantedBits() != null && (e.grantedBits() & accessCoverageMask) != 0)
             // T-PERM-058：接口快照无主资源上下文——depend_on 子权限行不下发 Gateway
@@ -141,7 +139,7 @@ public class SnapshotAssembler {
 
         // T-PERM-017 C3：批量加载用到的条件规则
         Set<Long> conditionIds = apiEntries.stream()
-            .map(RolePermEntry::conditionId)
+            .map(GrantFact::conditionId)
             .filter(Objects::nonNull)
             .collect(Collectors.toSet());
         Map<Long, String> pushableRulesById = loadPushableRules(tenantId, conditionIds);
@@ -160,17 +158,17 @@ public class SnapshotAssembler {
         // 新增映射经 Gateway 快照 TTL/广播窗口后生效）。T-PERM-017 C4 修 P1-② 的多分支语义
         // 保留：不同 conditionId 的 scopeAll 授权各自独立成条，Gateway 用 OR 语义合并——
         // 任一分支放行即允许，避免条件评估失败误拒绝持有无条件授权的请求。
-        List<RolePermEntry> scopeAllEntries = apiEntries.stream()
+        List<GrantFact> scopeAllEntries = apiEntries.stream()
             .filter(e -> Boolean.TRUE.equals(e.scopeAll()) && e.resourceEntityId() == null)
             .toList();
         // 按 conditionId 去重：同一条件配置下多角色合并（对 Gateway 匹配无区别）；
         // 无条件授权用 0L 占位 key 与含条件授权区分
-        Map<Long, RolePermEntry> scopeAllVariants = new LinkedHashMap<>();
-        for (RolePermEntry e : scopeAllEntries) {
+        Map<Long, GrantFact> scopeAllVariants = new LinkedHashMap<>();
+        for (GrantFact e : scopeAllEntries) {
             Long condKey = e.hasCondition() && e.conditionId() != null ? e.conditionId() : 0L;
             scopeAllVariants.putIfAbsent(condKey, e);
         }
-        for (RolePermEntry perm : scopeAllVariants.values()) {
+        for (GrantFact perm : scopeAllVariants.values()) {
             String rulesJson = perm.hasCondition() && perm.conditionId() != null
                 ? pushableRulesById.get(perm.conditionId())
                 : null;
@@ -192,20 +190,20 @@ public class SnapshotAssembler {
         // 导致多授权场景被折叠为单条带条件 entry，Gateway 评条件失败就整体拒绝丢失无条件分支。
         // 改为对每个 (resource, conditionId) 组合各产出一条 entry × 每个 API 映射，
         // Gateway Matcher 用 OR 语义合并 → 任一分支放行即允许。
-        List<RolePermEntry> instanceEntries = apiEntries.stream()
+        List<GrantFact> instanceEntries = apiEntries.stream()
             .filter(e -> e.resourceEntityId() != null && !Boolean.TRUE.equals(e.scopeAll()))
             .toList();
 
         if (!instanceEntries.isEmpty()) {
             Set<Long> instanceResourceIds = instanceEntries.stream()
-                .map(RolePermEntry::resourceEntityId)
+                .map(GrantFact::resourceEntityId)
                 .collect(Collectors.toSet());
 
             // 按 resourceEntityId 分组 + 组内按 conditionId 去重
             // 同一资源、同一条件配置下多角色合并为一条（对 Gateway 匹配来说重复无区别）；
             // 无条件授权用 0L 占位 key 与含条件授权区分，避免同资源混合场景被折叠。
-            Map<Long, Map<Long, RolePermEntry>> permsByResource = new LinkedHashMap<>();
-            for (RolePermEntry e : instanceEntries) {
+            Map<Long, Map<Long, GrantFact>> permsByResource = new LinkedHashMap<>();
+            for (GrantFact e : instanceEntries) {
                 Long resourceId = e.resourceEntityId();
                 Long condKey = e.hasCondition() && e.conditionId() != null ? e.conditionId() : 0L;
                 permsByResource
@@ -215,11 +213,11 @@ public class SnapshotAssembler {
 
             for (ResourceApiMapping mapping : apiMappings) {
                 if (!instanceResourceIds.contains(mapping.getResourceEntityId())) continue;
-                Map<Long, RolePermEntry> permsForResource = permsByResource.getOrDefault(
+                Map<Long, GrantFact> permsForResource = permsByResource.getOrDefault(
                     mapping.getResourceEntityId(), Map.of());
                 if (permsForResource.isEmpty()) continue;
 
-                for (RolePermEntry perm : permsForResource.values()) {
+                for (GrantFact perm : permsForResource.values()) {
                     String rulesJson = perm.hasCondition() && perm.conditionId() != null
                         ? pushableRulesById.get(perm.conditionId())
                         : null;

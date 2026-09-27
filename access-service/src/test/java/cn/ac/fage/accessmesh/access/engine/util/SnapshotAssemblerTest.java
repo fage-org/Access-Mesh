@@ -2,12 +2,11 @@ package cn.ac.fage.accessmesh.access.engine.util;
 
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp.ApiPermissionEntry;
 import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
-import cn.ac.fage.accessmesh.access.engine.dto.PermResult;
+import cn.ac.fage.accessmesh.access.engine.query.GrantFact;
 import cn.ac.fage.accessmesh.access.rule.entity.PermissionCondition;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper;
-import cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,7 +15,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
-import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -27,6 +25,7 @@ import static org.mockito.Mockito.when;
  * {@link SnapshotAssembler} 单元测试
  * <p>
  * T-PERM-017 C3：聚焦条件规则内联逻辑——gateway_evaluable 标志 + isGatewayPushable 防御性过滤。
+ * T-PERM-090：入参改消费新引擎保留事实 {@link GrantFact}（S01~S04 快照回归锁不变）。
  * </p>
  */
 @ExtendWith(MockitoExtension.class)
@@ -67,9 +66,8 @@ class SnapshotAssemblerTest {
         when(apiMappingMapper.selectEnabledByServiceCode(eq(TENANT_ID), eq(SERVICE_CODE)))
             .thenReturn(List.of(apiMapping("POST", "/api/order")));
 
-        PermResult result = resultWith(entryWithCondition(RESOURCE_ID, CONDITION_ID));
-
-        List<ApiPermissionEntry> entries = assembler.buildSnapshot(TENANT_ID, result, SERVICE_CODE, API_TYPE);
+        List<ApiPermissionEntry> entries = assembler.buildSnapshot(TENANT_ID,
+            List.of(entryWithCondition(RESOURCE_ID, CONDITION_ID)), SERVICE_CODE, API_TYPE);
 
         assertThat(entries).hasSize(1);
         assertThat(entries.get(0).hasCondition()).isTrue();
@@ -86,9 +84,8 @@ class SnapshotAssemblerTest {
         when(apiMappingMapper.selectEnabledByServiceCode(eq(TENANT_ID), eq(SERVICE_CODE)))
             .thenReturn(List.of(apiMapping("POST", "/api/order")));
 
-        PermResult result = resultWith(entryWithCondition(RESOURCE_ID, CONDITION_ID));
-
-        List<ApiPermissionEntry> entries = assembler.buildSnapshot(TENANT_ID, result, SERVICE_CODE, API_TYPE);
+        List<ApiPermissionEntry> entries = assembler.buildSnapshot(TENANT_ID,
+            List.of(entryWithCondition(RESOURCE_ID, CONDITION_ID)), SERVICE_CODE, API_TYPE);
 
         assertThat(entries).hasSize(1);
         assertThat(entries.get(0).hasCondition()).isTrue();
@@ -105,9 +102,8 @@ class SnapshotAssemblerTest {
         when(apiMappingMapper.selectEnabledByServiceCode(eq(TENANT_ID), eq(SERVICE_CODE)))
             .thenReturn(List.of(apiMapping("POST", "/api/order")));
 
-        PermResult result = resultWith(entryWithCondition(RESOURCE_ID, CONDITION_ID));
-
-        List<ApiPermissionEntry> entries = assembler.buildSnapshot(TENANT_ID, result, SERVICE_CODE, API_TYPE);
+        List<ApiPermissionEntry> entries = assembler.buildSnapshot(TENANT_ID,
+            List.of(entryWithCondition(RESOURCE_ID, CONDITION_ID)), SERVICE_CODE, API_TYPE);
 
         assertThat(entries).hasSize(1);
         assertThat(entries.get(0).hasCondition()).isTrue();
@@ -128,13 +124,12 @@ class SnapshotAssemblerTest {
             .thenReturn(List.of(apiMapping("POST", "/api/order")));
 
         // 角色A：无条件授权；角色B：含条件授权（IP 白名单）
-        RolePermEntry unconditional = new RolePermEntry(
-            1L, 10L, RESOURCE_ID, "res-code", API_TYPE, 1L, "ACCESS", 1L,
-            "DIRECT", true, null, false, null, false);
-        RolePermEntry conditional = entryWithCondition(RESOURCE_ID, CONDITION_ID);
-        PermResult result = resultWith(unconditional, conditional);
+        GrantFact unconditional = new GrantFact(
+            1L, 10L, API_TYPE, RESOURCE_ID, 1L, false, true, null, false, null, "DIRECT");
+        GrantFact conditional = entryWithCondition(RESOURCE_ID, CONDITION_ID);
 
-        List<ApiPermissionEntry> entries = assembler.buildSnapshot(TENANT_ID, result, SERVICE_CODE, API_TYPE);
+        List<ApiPermissionEntry> entries = assembler.buildSnapshot(TENANT_ID,
+            List.of(unconditional, conditional), SERVICE_CODE, API_TYPE);
 
         assertThat(entries).hasSize(2);
         ApiPermissionEntry unconditionalEntry = entries.stream()
@@ -158,15 +153,13 @@ class SnapshotAssemblerTest {
         when(apiMappingMapper.selectEnabledByServiceCode(eq(TENANT_ID), eq(SERVICE_CODE)))
             .thenReturn(List.of(apiMapping("POST", "/api/order")));
 
-        RolePermEntry roleA = new RolePermEntry(
-            1L, 10L, RESOURCE_ID, "res-code", API_TYPE, 1L, "ACCESS", 1L,
-            "DIRECT", true, CONDITION_ID, true, null, false);
-        RolePermEntry roleB = new RolePermEntry(
-            2L, 20L, RESOURCE_ID, "res-code", API_TYPE, 1L, "ACCESS", 1L,
-            "DIRECT", true, CONDITION_ID, true, null, false);
-        PermResult result = resultWith(roleA, roleB);
+        GrantFact roleA = new GrantFact(
+            1L, 10L, API_TYPE, RESOURCE_ID, 1L, false, true, CONDITION_ID, true, null, "DIRECT");
+        GrantFact roleB = new GrantFact(
+            2L, 20L, API_TYPE, RESOURCE_ID, 1L, false, true, CONDITION_ID, true, null, "DIRECT");
 
-        List<ApiPermissionEntry> entries = assembler.buildSnapshot(TENANT_ID, result, SERVICE_CODE, API_TYPE);
+        List<ApiPermissionEntry> entries = assembler.buildSnapshot(TENANT_ID, List.of(roleA, roleB),
+            SERVICE_CODE, API_TYPE);
 
         assertThat(entries).hasSize(1);
         assertThat(entries.get(0).conditionId()).isEqualTo(CONDITION_ID);
@@ -179,21 +172,15 @@ class SnapshotAssemblerTest {
         when(apiMappingMapper.selectEnabledByServiceCode(eq(TENANT_ID), eq(SERVICE_CODE)))
             .thenReturn(List.of(apiMapping("POST", "/api/order")));
 
-        RolePermEntry viewOnly = new RolePermEntry(
-            1L, 10L, RESOURCE_ID, "res-code", API_TYPE, 2L, "VIEW", 2L,
-            "DIRECT", true, null, false, null, false);
-        RolePermEntry viewScopeAll = new RolePermEntry(
-            2L, 20L, null, null, API_TYPE, 2L, "VIEW", 2L,
-            "DIRECT", true, null, false, null, true);
-        RolePermEntry accessEntry = new RolePermEntry(
-            3L, 30L, RESOURCE_ID, "res-code", API_TYPE, 1L, "ACCESS", 1L,
-            "DIRECT", true, null, false, null, false);
-        PermResult result = PermResult.builder(true, "ok")
-            .instanceEntries(List.of(viewOnly, accessEntry))
-            .scopeAllEntries(List.of(viewScopeAll))
-            .build();
+        GrantFact viewOnly = new GrantFact(
+            1L, 10L, API_TYPE, RESOURCE_ID, 2L, false, true, null, false, null, "DIRECT");
+        GrantFact viewScopeAll = new GrantFact(
+            2L, 20L, API_TYPE, null, 2L, true, true, null, false, null, "DIRECT");
+        GrantFact accessEntry = new GrantFact(
+            3L, 30L, API_TYPE, RESOURCE_ID, 1L, false, true, null, false, null, "DIRECT");
 
-        List<ApiPermissionEntry> entries = assembler.buildSnapshot(TENANT_ID, result, SERVICE_CODE, API_TYPE);
+        List<ApiPermissionEntry> entries = assembler.buildSnapshot(TENANT_ID,
+            List.of(viewOnly, accessEntry, viewScopeAll), SERVICE_CODE, API_TYPE);
 
         // 仅 ACCESS 实例条目进入快照；VIEW 实例与 VIEW scopeAll 均被排除
         assertThat(entries).hasSize(1);
@@ -210,14 +197,11 @@ class SnapshotAssemblerTest {
                 apiMapping("POST", "/api/order"),
                 apiMapping("GET", "/api/order")));
 
-        RolePermEntry scopeAll = new RolePermEntry(
-            1L, 10L, null, null, API_TYPE, 1L, null, null,
-            "DIRECT", true, null, false, null, true);
-        PermResult result = PermResult.builder(true, "ok")
-            .scopeAllEntries(List.of(scopeAll))
-            .build();
+        GrantFact scopeAll = new GrantFact(
+            1L, 10L, API_TYPE, null, 1L, true, true, null, false, null, "DIRECT");
 
-        List<ApiPermissionEntry> entries = assembler.buildSnapshot(TENANT_ID, result, SERVICE_CODE, API_TYPE);
+        List<ApiPermissionEntry> entries = assembler.buildSnapshot(TENANT_ID, List.of(scopeAll),
+            SERVICE_CODE, API_TYPE);
 
         assertThat(entries).hasSize(2);
         assertThat(entries).allMatch(e -> e.scopeMode() == ScopeMode.INSTANCE);
@@ -235,14 +219,11 @@ class SnapshotAssemblerTest {
         when(apiMappingMapper.selectEnabledByServiceCode(eq(TENANT_ID), eq(SERVICE_CODE)))
             .thenReturn(List.of(apiMapping("POST", "/api/order"), apiMapping("GET", "/api/order")));
 
-        RolePermEntry scopeAll = new RolePermEntry(
-            1L, 10L, null, null, API_TYPE, 1L, null, null,
-            "DIRECT", true, CONDITION_ID, true, null, true);
-        PermResult result = PermResult.builder(true, "ok")
-            .scopeAllEntries(List.of(scopeAll))
-            .build();
+        GrantFact scopeAll = new GrantFact(
+            1L, 10L, API_TYPE, null, 1L, true, true, CONDITION_ID, true, null, "DIRECT");
 
-        List<ApiPermissionEntry> entries = assembler.buildSnapshot(TENANT_ID, result, SERVICE_CODE, API_TYPE);
+        List<ApiPermissionEntry> entries = assembler.buildSnapshot(TENANT_ID, List.of(scopeAll),
+            SERVICE_CODE, API_TYPE);
 
         assertThat(entries).hasSize(2);
         assertThat(entries).allMatch(e -> e.hasCondition() && CONDITION_ID.equals(e.conditionId())
@@ -269,14 +250,33 @@ class SnapshotAssemblerTest {
         when(apiMappingMapper.selectEnabledByServiceCode(eq(TENANT_ID), eq(SERVICE_CODE)))
             .thenReturn(List.of(apiMapping("POST", "/api/order")));
 
-        RolePermEntry inheritedOnly = new RolePermEntry(
-            1L, 10L, RESOURCE_ID, "res-code", API_TYPE, 4L, "MANAGE_API", 4L,
-            "DIRECT", true, null, false, null, false);
-        PermResult result = resultWith(inheritedOnly);
+        GrantFact inheritedOnly = new GrantFact(
+            1L, 10L, API_TYPE, RESOURCE_ID, 4L, false, true, null, false, null, "DIRECT");
 
-        List<ApiPermissionEntry> entries = assembler.buildSnapshot(TENANT_ID, result, SERVICE_CODE, API_TYPE);
+        List<ApiPermissionEntry> entries = assembler.buildSnapshot(TENANT_ID, List.of(inheritedOnly),
+            SERVICE_CODE, API_TYPE);
 
         assertThat(entries).as("经 inheritMask 继承 ACCESS 的操作必须进入快照").hasSize(1);
+    }
+
+    @Test
+    void shouldExcludeDependentEntriesFromSnapshot() {
+        // T-PERM-058：接口快照无主资源上下文——depend_on 子权限行不下发 Gateway
+        // （子权限授权只在 query-scopes 主资源上下文内生效，接口鉴权面不消费）
+        when(apiMappingMapper.selectEnabledByServiceCode(eq(TENANT_ID), eq(SERVICE_CODE)))
+            .thenReturn(List.of(apiMapping("POST", "/api/order")));
+
+        GrantFact dependent = new GrantFact(
+            1L, 10L, API_TYPE, RESOURCE_ID, 1L, false, false, null, false, 501L, "DIRECT");
+        // 仅子行授权：快照为空（旧实现子行照常下发=接口鉴权绕过父绑定）
+        assertThat(assembler.buildSnapshot(TENANT_ID, List.of(dependent), SERVICE_CODE, API_TYPE))
+            .isEmpty();
+
+        // 主行照常下发：排除不误伤
+        GrantFact main = new GrantFact(
+            2L, 10L, API_TYPE, RESOURCE_ID, 1L, false, false, null, false, null, "DIRECT");
+        assertThat(assembler.buildSnapshot(TENANT_ID, List.of(main, dependent), SERVICE_CODE, API_TYPE))
+            .hasSize(1);
     }
 
     // ===== helpers =====
@@ -292,45 +292,20 @@ class SnapshotAssemblerTest {
         return c;
     }
 
-    private RolePermEntry entryWithCondition(Long resourceEntityId, Long conditionId) {
-        return new RolePermEntry(
+    private GrantFact entryWithCondition(Long resourceEntityId, Long conditionId) {
+        return new GrantFact(
             1L,            // permissionId
             10L,           // roleId
-            resourceEntityId,
-            "res-code",    // resourceCode
             API_TYPE,      // resourceType
-            1L,            // grantedBits
-            "ACCESS",      // operationCode
-            1L,            // effectiveBits
-            "DIRECT",      // grantSource
+            resourceEntityId,
+            1L,            // grantedBits（ACCESS 位）
+            false,         // scopeAll
             true,          // canGrant
             conditionId,
             true,          // hasCondition
             null,          // dependOn
-            false          // scopeAll
+            "DIRECT"       // grantSource
         );
-    }
-
-    @Test
-    void shouldExcludeDependentEntriesFromSnapshot() {
-        // T-PERM-058：接口快照无主资源上下文——depend_on 子权限行不下发 Gateway
-        // （子权限授权只在 query-scopes 主资源上下文内生效，接口鉴权面不消费）
-        when(apiMappingMapper.selectEnabledByServiceCode(eq(TENANT_ID), eq(SERVICE_CODE)))
-            .thenReturn(List.of(apiMapping("POST", "/api/order")));
-
-        RolePermEntry dependent = new RolePermEntry(
-            1L, 10L, RESOURCE_ID, "res-code", API_TYPE, 1L, "ACCESS", 1L,
-            "DIRECT", false, null, false, 501L, false);
-        // 仅子行授权：快照为空（旧实现子行照常下发=接口鉴权绕过父绑定）
-        assertThat(assembler.buildSnapshot(TENANT_ID, resultWith(dependent), SERVICE_CODE, API_TYPE))
-            .isEmpty();
-
-        // 主行照常下发：排除不误伤
-        RolePermEntry main = new RolePermEntry(
-            2L, 10L, RESOURCE_ID, "res-code", API_TYPE, 1L, "ACCESS", 1L,
-            "DIRECT", false, null, false, null, false);
-        assertThat(assembler.buildSnapshot(TENANT_ID, resultWith(main, dependent), SERVICE_CODE, API_TYPE))
-            .hasSize(1);
     }
 
     private ResourceApiMapping apiMapping(String httpMethod, String pathPattern) {
@@ -341,12 +316,5 @@ class SnapshotAssemblerTest {
         m.setHttpMethod(httpMethod);
         m.setPathPattern(pathPattern);
         return m;
-    }
-
-    private PermResult resultWith(RolePermEntry... entries) {
-        // PermResult.allEntries() = scopeAllEntries + instanceEntries；测试用实例级条目
-        return PermResult.builder(true, "ok")
-            .instanceEntries(List.of(entries))
-            .build();
     }
 }

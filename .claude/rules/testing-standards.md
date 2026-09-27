@@ -169,14 +169,14 @@ class RoleManageAppServiceTest {
     private AbstractRoleMapper abstractRoleMapper;
 
     @Mock
-    private PermQueryEngine permQueryEngine;
+    private QueryGate queryGate;  // 判定面门面（T-PERM-089 起唯一入口，内部走新 execute）
 
     @InjectMocks
     private RoleManageAppServiceImpl roleManageAppService;  // 被测单元（不 Mock）
 
     @Test
     void shouldCreateRole() {
-        when(permQueryEngine.hasPermissionByCode(any(), any(), any(), any(), any()))
+        when(queryGate.hasPermissionByCode(any(), any(), any(), any(), any()))
             .thenReturn(true);
 
         RoleResp result = roleManageAppService.createRole(TENANT_ID, req, OPERATOR_ID);
@@ -210,7 +210,7 @@ when(service.createRole(any())).thenReturn(response);  // 测试的不是真实�
 void shouldThrowException_whenViewPermissionDenied() {
     // 安全拒绝（VIEW 门禁不过）断言 SecurityException；getRole 未命中返回 null 是
     // 另一分支（T-PERM-022 同口径），须拆独立用例（授权通过 + 查询为空 → assertNull）
-    when(permQueryEngine.hasPermissionByCode(any(), any(), eq(ROLE), any(), eq(VIEW)))
+    when(queryGate.hasPermissionByCode(any(), any(), eq(ROLE), any(), eq(VIEW)))
         .thenReturn(false);
 
     assertThatThrownBy(() -> roleService.getRole(TENANT_ID, "role-custom", "ext-1"))
@@ -219,7 +219,7 @@ void shouldThrowException_whenViewPermissionDenied() {
 
 @Test
 void shouldReturnRole_whenUserHasViewPermission() {
-    when(permQueryEngine.hasPermissionByCode(any(), any(), eq(ROLE), eq(String.valueOf(roleId)), eq(VIEW)))
+    when(queryGate.hasPermissionByCode(any(), any(), eq(ROLE), eq(String.valueOf(roleId)), eq(VIEW)))
         .thenReturn(true);
 
     RoleResp result = roleService.getRole(TENANT_ID, "role-custom", "ext-1");

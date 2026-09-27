@@ -14,8 +14,9 @@ public record OperationDefinition(Long id, Integer resourceType, String code, St
             row.getDeletedBy(), row.getCreatedAt(), row.getUpdatedAt(), row.getDeletedAt(), row.getDeleteFlag());
     }
 
-    /** 保持既有操作缓存载荷的全部字段，回填创建新对象，不暴露请求内状态给缓存。 */
-    OperationPermission toCacheRow() {
+    /** 保持既有操作缓存载荷的全部字段，回填创建新对象，不暴露请求内状态给缓存。
+     *  公开予包外结果消费方（PermResultUtils/适配层）复用 OperationPermissionUtils 位运算族。 */
+    public OperationPermission toCacheRow() {
         OperationPermission row = new OperationPermission();
         row.setId(id); row.setResourceType(resourceType); row.setCode(code); row.setName(name);
         row.setBinaryBit(binaryBit); row.setInheritMask(inheritMask); row.setTenantId(tenantId);

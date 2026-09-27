@@ -577,6 +577,24 @@ T-PERM-087 的展示展开按保留事实源批量读取既有祖先/后代 CTE�
 > 旧引擎 `query`/`queryBatch` 生产消费者仅剩 T-PERM-090/091 目标（queryResources/queryScopes/
 > checkInterface/interfaceSnapshot/视图/转授）。
 
+> **就地实施注（2026-09-27，T-PERM-090）**：本矩阵范围与 LEGACY_API 四行已切新 execute——
+> ①queryScopes=GRANT_LIST＋父要求＋EVALUATE/ENFORCE＋RAW_AND_KEPT（ScopeCoverageProjector
+> 四态纯投影；父对象存在性预检查在外层返回 OBJECT_KEY_NOT_FOUND；NO_ROLE/PARENT_DENIED 映射
+> NO_PERMISSION＋全 DENIED 分组；matchedParentOperations=ResultDetails.parentCheck 摘要直取，
+> X03 基线 QuerySemanticsBaselinePgIT 17 用例全绿对拍）；②queryResources=GRANT_LIST＋EVALUATE/
+> ENFORCE＋FACTS（includeChildren/includeInherited 映射 OutputSpec 展示展开 CHILDREN/PARENTS/BOTH，
+> depend_on 行仍装配后隐藏）；③checkInterface=一个 API:ACCESS TARGET_SET 共同集合（注册门禁在先、
+> 全部匹配 API 组成一个单 item、SELF、TypeFallback.ALLOW＝旧 INSTANCE 的 scopeAll 回退形态；全部
+> 映射无实体引用退 TYPE_LEVEL）；④interfaceSnapshot=GRANT_LIST＋PRESERVE/ENFORCE＋FACTS（角色
+> 解析含互斥双删由 User 主体内部完成；SnapshotAssembler 改消费 List<GrantFact>，S01~S04 回归锁
+> 不变）。执行时边界拍板（用户，2026-09-27）：090/091 两卡范围文本交叠勘正——快照面（interfaceSnapshot/
+> SnapshotAssembler）归 090、有效权限码/可见资源投影（PermissionViewAppServiceImpl）归 091，两卡
+> 范围行已同批勘正。CallerContext 提取公共化（fromCallerMap 工厂，089/090 消费面共用）；适配层退化
+> 归一沿 089 口径：queryScopes 父操作集过滤 null 后空＝NO_PERMISSION 整表拒、范围类型/操作 null
+> 元素组合直接 DENIED 分组（旧引擎解析落空同形），不进引擎结构拒绝。OperationDefinition.toCacheRow
+> 公开予包外结果消费方复用 OperationPermissionUtils 位运算族。旧引擎生产消费者现仅剩 091 目标
+> （PermissionViewAppServiceImpl/PermViewAssembler、PermissionGrantDomainServiceImpl）。
+
 ### 6.6 LEGACY_API 兼容边界不能误写成终态
 
 迁移期旧接口仍先检查注册，再对全部匹配 API 资源组成一个共同 TARGET_SET，SELF、ALLOW、FULL；不拆项 OR。旧快照仍从 GRANT_LIST PRESERVE＋ENFORCE 结果投影，仅**有效位覆盖 ACCESS 的操作位集合**（ACCESS 位 ∪ inheritMask 覆盖 ACCESS 的自定义位，与现行 SnapshotAssembler 口径一致）才放行；dependent 条目按旧装配顺序排除；API 的 ALL 展开为**目标服务已注册且启用的路由**，不产生任意路径通配；无条件与各 conditionId 分支保留。

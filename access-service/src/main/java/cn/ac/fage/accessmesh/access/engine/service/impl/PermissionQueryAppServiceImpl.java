@@ -10,29 +10,36 @@ import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryResourcesResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryScopesResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryScopesResp.ScopeGroup;
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
-import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.engine.service.PermissionQueryAppService;
-import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.access.domain.enums.DomainQueryMode;
 import cn.ac.fage.accessmesh.access.domain.service.domain.DomainClassifyService;
-import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
-import cn.ac.fage.accessmesh.access.engine.dto.PermEvalContext;
-import cn.ac.fage.accessmesh.access.engine.dto.PermQuery;
-import cn.ac.fage.accessmesh.access.engine.dto.PermResult;
+import cn.ac.fage.accessmesh.access.engine.query.ByCode;
+import cn.ac.fage.accessmesh.access.engine.query.CallerContext;
+import cn.ac.fage.accessmesh.access.engine.query.Evaluation;
+import cn.ac.fage.accessmesh.access.engine.query.FactDetail;
+import cn.ac.fage.accessmesh.access.engine.query.GrantFact;
+import cn.ac.fage.accessmesh.access.engine.query.GrantSetResult;
+import cn.ac.fage.accessmesh.access.engine.query.OutputSpec;
+import cn.ac.fage.accessmesh.access.engine.query.ParentRequirement;
+import cn.ac.fage.accessmesh.access.engine.query.PresentationEntry;
+import cn.ac.fage.accessmesh.access.engine.query.PresentationExpansion;
+import cn.ac.fage.accessmesh.access.engine.query.QueryExecutionEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryItem;
+import cn.ac.fage.accessmesh.access.engine.query.QueryRequest;
+import cn.ac.fage.accessmesh.access.engine.query.ReadOptions;
+import cn.ac.fage.accessmesh.access.engine.query.ResultDetails;
+import cn.ac.fage.accessmesh.access.engine.query.ScopeCoverageProjector;
+import cn.ac.fage.accessmesh.access.engine.query.TypeOperation;
+import cn.ac.fage.accessmesh.access.engine.query.User;
 import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import cn.ac.fage.accessmesh.access.engine.util.OperationPermissionUtils;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
-import cn.ac.fage.accessmesh.access.engine.util.PermResultUtils;
 import cn.ac.fage.accessmesh.access.engine.util.SnapshotAssembler;
-import cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -46,50 +53,52 @@ import java.util.stream.Collectors;
  * 权限查询应用服务实现
  * <p>
  * 提供高级查询功能：资源查询、范围查询、接口快照。
- * 从 PermissionServiceImpl 提取。
+ * T-PERM-090 起三入口全部经新 {@link QueryExecutionEngine#execute} 表达
+ * （设计 §6.2/§6.4/§6.6）：queryResources=GRANT_LIST＋EVALUATE/ENFORCE＋FACTS
+ * （展示树扩展走 OutputSpec 展示展开，判定与展示分离）；queryScopes=GRANT_LIST＋
+ * 父要求＋EVALUATE/ENFORCE＋RAW_AND_KEPT（四态组装交给 {@link ScopeCoverageProjector}
+ * 纯投影）；interfaceSnapshot=GRANT_LIST＋PRESERVE/ENFORCE＋FACTS（LEGACY_API
+ * 旧快照口径）。本类不再引用旧执行体。
  * </p>
  */
 @Service
 public class PermissionQueryAppServiceImpl implements PermissionQueryAppService {
 
-    private static final Logger log = LoggerFactory.getLogger(PermissionQueryAppServiceImpl.class);
+    /** 展示派生行的 grantSource（沿旧引擎 expandByPresentMode 克隆口径）。 */
+    private static final String GRANT_SOURCE_INHERITED = "INHERITED";
 
-    private final PermissionConflictDomainService permissionConflictDomainService;
     private final TypeResolutionService typeResolutionService;
-    private final CacheService cacheService;
     private final DomainClassifyService domainClassifyService;
-    private final PermQueryEngine engine;
+    private final QueryExecutionEngine queryEngine;
     private final SnapshotAssembler snapshotAssembler;
 
     /**
      * 构造函数注入依赖
      *
-     * @param permissionConflictDomainService  权限冲突领域服务（T-PERM-075：快照链经共同判定语义入口消费互斥过滤）
-     * @param typeResolutionService            类型解析服务
-     * @param cacheService                     缓存服务
-     * @param domainClassifyService            域分类服务
-     * @param engine                           权限查询引擎
-     * @param snapshotAssembler                快照装配器
+     * @param typeResolutionService  类型解析服务（主体/父对象预检查与类型码解析）
+     * @param domainClassifyService  域分类服务（queryResources 的 domainCode 过滤）
+     * @param queryEngine            新查询执行器（T-PERM-090 起三入口统一）
+     * @param snapshotAssembler      LEGACY_API 快照装配器
      */
-    public PermissionQueryAppServiceImpl(PermissionConflictDomainService permissionConflictDomainService,
-                                          TypeResolutionService typeResolutionService,
-                                          CacheService cacheService,
-                                          DomainClassifyService domainClassifyService,
-                                          PermQueryEngine engine,
-                                          SnapshotAssembler snapshotAssembler) {
-        this.permissionConflictDomainService = permissionConflictDomainService;
+    public PermissionQueryAppServiceImpl(TypeResolutionService typeResolutionService,
+                                         DomainClassifyService domainClassifyService,
+                                         QueryExecutionEngine queryEngine,
+                                         SnapshotAssembler snapshotAssembler) {
         this.typeResolutionService = typeResolutionService;
-        this.cacheService = cacheService;
         this.domainClassifyService = domainClassifyService;
-        this.engine = engine;
+        this.queryEngine = queryEngine;
         this.snapshotAssembler = snapshotAssembler;
     }
+
+    // ===== queryResources（GRANT_LIST＋EVALUATE/ENFORCE＋FACTS；展示面树扩展归展示展开） =====
 
     /**
      * 查询用户有权限的资源列表
      * <p>
-     * 使用 forUserView 查询管线获取用户的所有权限（scopeAll 和实例级）。
-     * 支持按资源类型、操作码过滤，支持继承权限和子资源展开。
+     * 使用 GRANT_LIST 完整事实获取用户的所有权限（scopeAll 和实例级）；
+     * includeChildren/includeInherited 树扩展经 OutputSpec 展示展开
+     * （T-PERM-057 第三套形态收编口径延续：清单面树扩展归口展示面展开，
+     * 判定与展示分离，契约字段语义不变）。
      * 返回用户可访问的资源列表与缓存有效期（T-PERM-018 后不再返回 permissionVersion）。
      * </p>
      *
@@ -97,47 +106,56 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
      * @param req      资源查询请求
      * @return 资源查询响应，包含资源列表和缓存有效期
      */
-    // ===== queryResources =====
-
     @Override
     @Transactional(readOnly = true)
     public QueryResourcesResp queryResources(Long tenantId, QueryResourcesReq req) {
         Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
         if (userId == null) return new QueryResourcesResp(List.of(), 60);
 
-        // LIST 全量权限（scopeAll 和实例级）；includeChildren/includeInherited 树扩展
-        // 经引擎展示面展开轨道（T-PERM-057 第三套形态收编：清单面树扩展归口展示面展开，
-        // 契约字段语义不变）
-        PermQuery q = PermQuery.forUserView(tenantId, userId);
-        q.setEvalContext(PermEvalContext.fromCallerMap(req.context()));
-        if (Boolean.TRUE.equals(req.includeChildren())) {
-            q.setInheritChildren(true);
-        }
-        if (Boolean.TRUE.equals(req.includeInherited())) {
-            q.setInheritParents(true);
-        }
-        PermResult r = engine.query(q);
-        return buildQueryResourcesResponse(r, req, tenantId);
+        PresentationExpansion expansion = presentationExpansion(req.includeChildren(), req.includeInherited());
+        OutputSpec output = new OutputSpec(FactDetail.KEPT, false, true, false, expansion, Set.of(), false);
+        QueryItem item = QueryItem.grantListFacts("resources", null, Evaluation.full(), output);
+        GrantSetResult result = (GrantSetResult) queryEngine.execute(new QueryRequest(tenantId, new User(userId),
+            CallerContext.fromCallerMap(req.context()), ReadOptions.defaults(), List.of(item))).orderedResults().get(0);
+        return buildQueryResourcesResponse(result, req, tenantId);
     }
 
-    private QueryResourcesResp buildQueryResourcesResponse(PermResult r, QueryResourcesReq req, Long tenantId) {
+    /** 展示展开方向：includeChildren→CHILDREN、includeInherited→PARENTS、两者→BOTH（判定不受影响）。 */
+    private static PresentationExpansion presentationExpansion(Boolean includeChildren, Boolean includeInherited) {
+        boolean children = Boolean.TRUE.equals(includeChildren);
+        boolean parents = Boolean.TRUE.equals(includeInherited);
+        if (children && parents) return PresentationExpansion.BOTH;
+        if (children) return PresentationExpansion.CHILDREN;
+        if (parents) return PresentationExpansion.PARENTS;
+        return PresentationExpansion.NONE;
+    }
+
+    /**
+     * 响应组装（消费新结果：保留事实＋展示展开投影＋描述块）。
+     * <p>
+     * 展开行=PresentationEntry 按源授权关联（PARENT/CHILD 派生行 grantSource=INHERITED，
+     * 沿旧 allEntries 克隆口径）；T-PERM-058：子权限行不进清单面——其授权只在
+     * query-scopes 主资源上下文内生效/可见，独立 INSTANCE 条目呈现会误导调用方。
+     * </p>
+     */
+    private QueryResourcesResp buildQueryResourcesResponse(GrantSetResult result, QueryResourcesReq req, Long tenantId) {
         Set<String> resourceTypeCodes = new HashSet<>(req.resourceTypeCodes());
         Set<String> operationCodes = new HashSet<>(req.operationCodes());
         String codeType = req.codeType();
         String domainCode = req.domainCode();
-        Map<Long, ResourceEntity> resMap = r.resourceMap() != null
-            ? new LinkedHashMap<>(r.resourceMap()) : new LinkedHashMap<>();
-        Map<Long, OperationPermission> opMap = r.operationMap() != null ? r.operationMap() : Map.of();
+        ResultDetails details = result.details();
 
-        // 展开条目已由引擎展示面轨道并入 allEntries（grantSource=INHERITED）
-        List<RolePermEntry> allEntries = r.allEntries();
-        // T-PERM-058：子权限行不进清单面——其授权只在 query-scopes 主资源上下文内生效/可见，
-        // 独立 INSTANCE 条目呈现会误导调用方（子行实例 ≠ 独立可访问）
-        allEntries = allEntries.stream().filter(e -> e.dependOn() == null).toList();
+        List<GrantFact> rows = responseRows(details);
+        // T-PERM-058：depend_on 子行不进清单面（子行实例 ≠ 独立可访问）
+        rows = rows.stream().filter(e -> e.dependOn() == null).toList();
+
+        Map<Long, ResultDetails.ResourceDescription> resMap = details.descriptions().resources();
+        Map<Long, OperationPermission> opMap = new LinkedHashMap<>();
+        details.descriptions().operations().values().forEach(op -> opMap.put(op.id(), op.toCacheRow()));
 
         // Collect all resource types for batch resolution
         Set<Integer> resourceTypesNeeded = new HashSet<>();
-        for (RolePermEntry e : allEntries) {
+        for (GrantFact e : rows) {
             if (e.resourceType() != null) {
                 resourceTypesNeeded.add(e.resourceType());
             }
@@ -154,7 +172,7 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
                 o -> o, (a, b) -> a));
 
         // 使用引擎的 covers() 覆盖判定：MANAGE 覆盖 VIEW 等
-        java.util.function.Predicate<RolePermEntry> opMatch = entry -> {
+        java.util.function.Predicate<GrantFact> opMatch = entry -> {
             if (entry.grantedBits() == null || entry.resourceType() == null) return false;
             if (operationCodes.isEmpty()) return true;
             OperationPermission granted = OperationPermissionUtils.findByResourceTypeAndBinaryBit(
@@ -172,7 +190,7 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
         Set<String> domainCoveredTypeCodes = domainCode == null || domainCode.isBlank()
             ? null
             : domainClassifyService.preloadCoveredTypeCodes(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode);
-        java.util.function.Predicate<RolePermEntry> domainMatch = entry -> {
+        java.util.function.Predicate<GrantFact> domainMatch = entry -> {
             if (domainCoveredTypeCodes == null) return true;
             if (entry.resourceType() == null) return false;
             String rtCode = resourceTypeCodeMap.get(entry.resourceType());
@@ -180,27 +198,27 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
         };
 
         // 按 codeType 过滤
-        java.util.function.Predicate<RolePermEntry> codeTypeMatch = entry -> {
+        java.util.function.Predicate<GrantFact> codeTypeMatch = entry -> {
             if (codeType == null || codeType.isBlank()) return true;
             if (entry.resourceEntityId() == null) return true; // scopeAll 不限 codeType
-            ResourceEntity res = resMap.get(entry.resourceEntityId());
-            return res == null || res.getCodeType() == null
-                || codeType.equalsIgnoreCase(res.getCodeType());
+            ResultDetails.ResourceDescription res = resMap.get(entry.resourceEntityId());
+            return res == null || res.codeType() == null
+                || codeType.equalsIgnoreCase(res.codeType());
         };
 
         List<QueryResourcesResp.ResourceEntry> entries = new ArrayList<>();
 
         // 1. scopeAll entries — filter by operationCodes, domainCode, codeType
-        Map<Integer, List<RolePermEntry>> scopeAllByType = allEntries.stream()
+        Map<Integer, List<GrantFact>> scopeAllByType = rows.stream()
             .filter(e -> Boolean.TRUE.equals(e.scopeAll()) && e.resourceEntityId() == null)
-            .collect(Collectors.groupingBy(RolePermEntry::resourceType, LinkedHashMap::new, Collectors.toList()));
-        for (Map.Entry<Integer, List<RolePermEntry>> e : scopeAllByType.entrySet()) {
+            .collect(Collectors.groupingBy(GrantFact::resourceType, LinkedHashMap::new, Collectors.toList()));
+        for (Map.Entry<Integer, List<GrantFact>> e : scopeAllByType.entrySet()) {
             String rtCode = resourceTypeCodeMap.get(e.getKey());
             if (rtCode == null || (!resourceTypeCodes.isEmpty() && !resourceTypeCodes.contains(rtCode))) {
                 continue;
             }
             // 先按 operationCodes / domainCode / codeType 过滤条目
-            List<RolePermEntry> matchedPerms = e.getValue().stream()
+            List<GrantFact> matchedPerms = e.getValue().stream()
                 .filter(opMatch).filter(domainMatch).filter(codeTypeMatch).toList();
             if (matchedPerms.isEmpty()) continue;
 
@@ -211,25 +229,25 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
                 .collect(Collectors.toCollection(LinkedHashSet::new));
             if (ops.isEmpty() && !operationCodes.isEmpty()) continue;
 
-            List<String> sources = matchedPerms.stream().map(RolePermEntry::grantSource).filter(Objects::nonNull).distinct().toList();
+            List<String> sources = matchedPerms.stream().map(GrantFact::grantSource).filter(Objects::nonNull).distinct().toList();
             entries.add(new QueryResourcesResp.ResourceEntry(
                 rtCode, null, null, null, false, ScopeMode.ALL,
                 new ArrayList<>(ops), sources));
         }
 
         // 2. Instance-level entries — filter by resourceType, operationCodes, domainCode, codeType
-        Map<Long, List<RolePermEntry>> byResource = allEntries.stream()
+        Map<Long, List<GrantFact>> byResource = rows.stream()
             .filter(e -> e.resourceEntityId() != null)
-            .collect(Collectors.groupingBy(RolePermEntry::resourceEntityId, LinkedHashMap::new, Collectors.toList()));
-        for (Map.Entry<Long, List<RolePermEntry>> e : byResource.entrySet()) {
-            ResourceEntity res = resMap.get(e.getKey());
+            .collect(Collectors.groupingBy(GrantFact::resourceEntityId, LinkedHashMap::new, Collectors.toList()));
+        for (Map.Entry<Long, List<GrantFact>> e : byResource.entrySet()) {
+            ResultDetails.ResourceDescription res = resMap.get(e.getKey());
             if (res == null) continue;
-            String rtCode = resourceTypeCodeMap.get(res.getResourceType());
+            String rtCode = resourceTypeCodeMap.get(res.resourceType());
             if (rtCode == null || (!resourceTypeCodes.isEmpty() && !resourceTypeCodes.contains(rtCode))) {
                 continue;
             }
             // 先按 operationCodes / domainCode / codeType 过滤条目
-            List<RolePermEntry> matchedPerms = e.getValue().stream()
+            List<GrantFact> matchedPerms = e.getValue().stream()
                 .filter(opMatch).filter(domainMatch).filter(codeTypeMatch).toList();
             if (matchedPerms.isEmpty()) continue;
 
@@ -240,10 +258,10 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
                 .collect(Collectors.toCollection(LinkedHashSet::new));
             if (ops.isEmpty() && !operationCodes.isEmpty()) continue;
 
-            List<String> sources = matchedPerms.stream().map(RolePermEntry::grantSource).filter(Objects::nonNull).distinct().toList();
+            List<String> sources = matchedPerms.stream().map(GrantFact::grantSource).filter(Objects::nonNull).distinct().toList();
             boolean canGrant = matchedPerms.stream().anyMatch(p -> Boolean.TRUE.equals(p.canGrant()));
             entries.add(new QueryResourcesResp.ResourceEntry(
-                rtCode, res.getCode(), res.getCodeType(), res.getName(),
+                rtCode, res.code(), res.codeType(), res.name(),
                 canGrant, ScopeMode.INSTANCE,
                 new ArrayList<>(ops), sources));
         }
@@ -251,15 +269,51 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
         return new QueryResourcesResp(entries, 60);
     }
 
-    // ===== queryScopes（评估已收编统一引擎，四态组装见上） =====
+    /**
+     * 响应行集合＝旧 allEntries 等价物。
+     * <p>
+     * 无展示展开：保留事实本身（grantSource 为存储值）；有展示展开：按
+     * PresentationEntry 驱动——ORIGINAL 行取源事实，PARENT/CHILD 行以展示实体
+     * 克隆源事实（grantSource=INHERITED，沿旧 expandByPresentMode 口径）。
+     * </p>
+     */
+    private List<GrantFact> responseRows(ResultDetails details) {
+        List<GrantFact> kept = details.stageFacts().stream()
+            .flatMap(stage -> stage.retainedAfterEvaluation().stream()).toList();
+        List<PresentationEntry> presentation = details.presentation();
+        if (presentation.isEmpty()) {
+            return kept;
+        }
+        Map<Long, GrantFact> factsById = new LinkedHashMap<>();
+        kept.forEach(f -> factsById.putIfAbsent(f.permissionId(), f));
+        List<GrantFact> rows = new ArrayList<>(presentation.size());
+        for (PresentationEntry entry : presentation) {
+            GrantFact fact = factsById.get(entry.sourcePermissionId());
+            if (fact == null) {
+                continue;
+            }
+            if (entry.derivation() == PresentationEntry.Derivation.ORIGINAL) {
+                rows.add(fact);
+            } else {
+                rows.add(new GrantFact(fact.permissionId(), fact.roleId(), fact.resourceType(),
+                    entry.displayedEntityId(), fact.grantedBits(), fact.scopeAll(), fact.canGrant(),
+                    fact.conditionId(), fact.hasCondition(), fact.dependOn(), GRANT_SOURCE_INHERITED));
+            }
+        }
+        return rows;
+    }
+
+    // ===== queryScopes（GRANT_LIST＋父要求＋EVALUATE/ENFORCE＋RAW_AND_KEPT；四态组装=纯投影） =====
 
     /**
-     * 数据范围查询（T-PERM-057 第六套形态收编：评估全进引擎，AppService 只留四态线格式组装）。
+     * 数据范围查询（T-PERM-057 第六套形态收编口径延续：评估全进引擎，AppService 只留四态线格式组装）。
      * <p>
-     * 条件评估、条目互斥、depend_on 子权限过滤（主资源上下文一等入参）全部由统一引擎
-     * LIST 管线执行；位覆盖语义由本方法复用引擎同一 covers 判定做 (type×op) 线格分桶
-     * （分桶即线格式组装，不归引擎）。四态分组——raw 无覆盖条目 DENIED、有覆盖但评估后
-     * 清空 EMPTY、过滤后含 scopeAll ALL、仅实例 INSTANCE（T-PERM-009 契约维持）。
+     * 条件评估、条目互斥、depend_on 子权限过滤（主资源上下文一等入参）全部由新引擎
+     * GRANT_LIST 管线执行；四态分组交给 {@link ScopeCoverageProjector} 纯投影（只消费
+     * 完整 raw/kept 结果与描述，不重跑判定）。父对象存在性由外层预检查返回
+     * OBJECT_KEY_NOT_FOUND（设计 §6.2）；NO_ROLE/父整集合门禁失败映射既有整体原因
+     * NO_PERMISSION 与全 DENIED 分组形状；matchedParentOperations 取
+     * ResultDetails.parentCheck.matchedOperationCodes（已执行父判断的命中摘要，不重跑）。
      * </p>
      */
     @Override
@@ -276,28 +330,57 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
             return new QueryScopesResp("OBJECT_KEY_NOT_FOUND", List.of(), List.of(), 60);
         }
 
-        PermQuery q = PermQuery.forScopeQuery(tenantId, userId,
-            new HashSet<>(req.scopeResourceTypeCodes()), new HashSet<>(req.scopeOperationCodes()));
-        q.setParentResource(req.parentResourceTypeCode(), req.parentResourceCode(),
-            req.parentCodeType(), new HashSet<>(req.parentOperationCodes()));
-        q.setEvalContext(PermEvalContext.fromCallerMap(req.context()));
+        // 退化元素归一（沿 T-PERM-089 适配层归一口径）：父操作集过滤 null 元素后为空＝
+        // 父判定必不命中，语义等价旧引擎空父操作集下的 PARENT_NO_PERMISSION 整表拒绝，
+        // 不进引擎（避免新引擎父操作集空集的结构拒绝放大为 500）
+        Set<String> parentOperations = req.parentOperationCodes() == null ? Set.of()
+            : Set.copyOf(req.parentOperationCodes().stream().filter(Objects::nonNull).collect(Collectors.toSet()));
+        if (parentOperations.isEmpty()) {
+            return new QueryScopesResp("NO_PERMISSION", List.of(), buildDeniedGroups(req), 60);
+        }
 
-        PermResult result = engine.query(q);
-        if (!result.allowed()
-            && ("PARENT_NO_PERMISSION".equals(result.reason()) || "NO_ROLE".equals(result.reason()))) {
+        // 范围要求＝类型×操作全组合（保持请求序）；null 元素组合不进引擎（旧引擎解析必落空=DENIED 同形）
+        List<TypeOperation> requirements = new ArrayList<>();
+        List<TypeOperation> degeneratePairs = new ArrayList<>();
+        for (String typeCode : req.scopeResourceTypeCodes()) {
+            for (String opCode : req.scopeOperationCodes()) {
+                if (typeCode == null || typeCode.isBlank() || opCode == null || opCode.isBlank()) {
+                    degeneratePairs.add(new TypeOperation(typeCode, opCode));
+                } else {
+                    requirements.add(new TypeOperation(typeCode, opCode));
+                }
+            }
+        }
+        if (requirements.isEmpty()) {
+            return new QueryScopesResp(null, List.of(), degeneratePairs.stream()
+                .map(key -> new ScopeGroup(key.resourceTypeCode(), key.operationCode(), ScopeMode.DENIED, List.of()))
+                .toList(), 60);
+        }
+
+        OutputSpec output = new OutputSpec(FactDetail.RAW_AND_KEPT, true, true, false,
+            PresentationExpansion.NONE, Set.copyOf(requirements), false);
+        ParentRequirement parent = new ParentRequirement(req.parentResourceTypeCode(),
+            new ByCode(req.parentResourceCode(), req.parentCodeType(), null), parentOperations);
+        QueryItem item = QueryItem.grantListFacts("scopes", parent, Evaluation.full(), output);
+        GrantSetResult result = (GrantSetResult) queryEngine.execute(new QueryRequest(tenantId, new User(userId),
+            CallerContext.fromCallerMap(req.context()), ReadOptions.defaults(), List.of(item))).orderedResults().get(0);
+
+        if (result.collectionStatus() == GrantSetResult.CollectionStatus.NO_ROLE
+            || result.collectionStatus() == GrantSetResult.CollectionStatus.PARENT_DENIED) {
             // 仅「父资源无任何匹配权限 / 无角色」整表拒绝；条件评估清空与 depend_on 清空
-            // 不属此列——rawEntries 事实源仍可四态分态（有覆盖→EMPTY），勿压成 DENIED
+            // 不属此列——raw 事实源仍可四态分态（有覆盖→EMPTY），勿压成 DENIED
             // （grok 外评 P1：评估摘光范围类型时整表拒绝会让业务方把 EMPTY 误当 403）
             List<ScopeGroup> deniedGroups = buildDeniedGroups(req);
             return new QueryScopesResp("NO_PERMISSION", List.of(), deniedGroups, 60);
         }
 
-        List<ScopeGroup> scopeGroups = buildScopeGroups(tenantId, req, result);
+        List<ScopeGroup> scopeGroups = mergeDegenerateGroups(
+            ScopeCoverageProjector.project(result, requirements), degeneratePairs, req);
 
         // T-API-002：父权限 id 集合仅内部用于 DEPENDENT 子权限过滤，不再进线格式
         return new QueryScopesResp(
             null,
-            new ArrayList<>(result.parentMatchedOperationCodes()),
+            new ArrayList<>(result.details().parentCheck().matchedOperationCodes()),
             scopeGroups,
             60
         );
@@ -319,139 +402,73 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
         return groups;
     }
 
+    /** 退化（null/空白元素）组合按请求序回插 DENIED 分组——旧引擎对这些组合解析必落空出 DENIED。 */
+    private List<ScopeGroup> mergeDegenerateGroups(List<ScopeGroup> projected, List<TypeOperation> degeneratePairs,
+                                                   QueryScopesReq req) {
+        if (degeneratePairs.isEmpty()) {
+            return projected;
+        }
+        Map<TypeOperation, ScopeGroup> projectedByKey = new LinkedHashMap<>();
+        projected.forEach(group -> projectedByKey.putIfAbsent(
+            new TypeOperation(group.resourceTypeCode(), group.operationCode()), group));
+        Map<TypeOperation, ScopeGroup> degenerateByKey = new LinkedHashMap<>();
+        degeneratePairs.forEach(key -> degenerateByKey.put(key,
+            new ScopeGroup(key.resourceTypeCode(), key.operationCode(), ScopeMode.DENIED, List.of())));
+        List<ScopeGroup> merged = new ArrayList<>();
+        for (String typeCode : req.scopeResourceTypeCodes()) {
+            for (String opCode : req.scopeOperationCodes()) {
+                TypeOperation key = new TypeOperation(typeCode, opCode);
+                ScopeGroup group = degenerateByKey.containsKey(key)
+                    ? degenerateByKey.get(key) : projectedByKey.get(key);
+                if (group != null) {
+                    merged.add(group);
+                }
+            }
+        }
+        return merged;
+    }
+
+    // ===== interfaceSnapshot（GRANT_LIST＋PRESERVE/ENFORCE＋FACTS；LEGACY_API 旧快照口径） =====
+
     /**
-     * 四态线格式组装（评估事实来自引擎：rawEntries 为 depend_on 过滤后评估前条目，
-     * instanceEntries 为条件/互斥评估后条目）。
+     * LEGACY_API 接口权限快照（Gateway 消费，迁移期形态，T-ACCESS-062 退役）。
+     * <p>
+     * T-PERM-018：缓存下沉——access-service 侧不缓存 INTERFACE_SNAPSHOT(L2) 与 permissionVersion。
+     * 每次实时调引擎构建全量快照（ROLE_PERM_SNAPSHOT 兜住角色权限记录读路径），交 Gateway 本地缓存匹配。
+     * T-PERM-017 C3：PRESERVE 条件——条件评估应在 Gateway 用真实请求 context 完成（IP/clientIp），
+     * access-service 此处空 context 评估会误丢弃 IP 类条件条目；条件身份经保留事实下发。
+     * 互斥仍 ENFORCE（沿旧 markConditionsOnly＋evaluateConflicts 形态，设计 §6.6）；
+     * 主体角色解析（含互斥双删）由新引擎 User 主体内部完成，等价旧 resolveJudgementRoleIds 入口。
+     * </p>
      */
-    private List<ScopeGroup> buildScopeGroups(Long tenantId, QueryScopesReq req, PermResult result) {
-        List<RolePermEntry> rawEntries = result.rawEntries();
-        List<RolePermEntry> filteredEntries = result.instanceEntries();
-        Map<Integer, List<RolePermEntry>> rawByType = rawEntries.stream()
-            .filter(e -> e.resourceType() != null)
-            .collect(Collectors.groupingBy(RolePermEntry::resourceType));
-        Map<Integer, List<RolePermEntry>> filteredByType = filteredEntries.stream()
-            .filter(e -> e.resourceType() != null)
-            .collect(Collectors.groupingBy(RolePermEntry::resourceType));
-        Map<Long, ResourceEntity> resourceMap = result.resourceMap() != null ? result.resourceMap() : Map.of();
-        Map<Long, OperationPermission> operationMap = result.operationMap() != null ? result.operationMap() : Map.of();
-        Map<String, OperationPermission> grantedOpIndex = OperationPermissionUtils.indexByResourceTypeAndBinaryBit(operationMap.values());
-
-        Map<String, Integer> scopeTypeValueMap = typeResolutionService.batchResolveTypeValues(
-            tenantId, "resource_type", new HashSet<>(req.scopeResourceTypeCodes()));
-
-        List<ScopeGroup> groups = new ArrayList<>();
-        for (String scopeTypeCode : req.scopeResourceTypeCodes()) {
-            Integer scopeType = scopeTypeValueMap.get(scopeTypeCode);
-            if (scopeType == null) {
-                // 类型未解析 → 该类型下所有操作 DENIED
-                for (String scopeOpCode : req.scopeOperationCodes()) {
-                    groups.add(new ScopeGroup(scopeTypeCode, scopeOpCode, ScopeMode.DENIED, List.of()));
-                }
-                continue;
-            }
-            List<RolePermEntry> typeRaw = rawByType.getOrDefault(scopeType, List.of());
-            List<RolePermEntry> typeFiltered = filteredByType.getOrDefault(scopeType, List.of());
-            Map<String, Long> scopeOpIdMap = typeResolutionService.batchResolveOperationIds(
-                tenantId, scopeTypeCode, new HashSet<>(req.scopeOperationCodes()));
-
-            for (String scopeOpCode : req.scopeOperationCodes()) {
-                Long scopeOpId = scopeOpIdMap.get(scopeOpCode);
-                if (scopeOpId == null) {
-                    groups.add(new ScopeGroup(scopeTypeCode, scopeOpCode, ScopeMode.DENIED, List.of()));
-                    continue;
-                }
-                OperationPermission targetOp = operationMap.get(scopeOpId);
-                // raw：覆盖目标操作的条目（depend_on 过滤后、条件/互斥评估前）
-                List<RolePermEntry> rawCovered = typeRaw.stream()
-                    .filter(entry -> coversEntry(grantedOpIndex, entry, targetOp))
-                    .toList();
-                if (rawCovered.isEmpty()) {
-                    groups.add(new ScopeGroup(scopeTypeCode, scopeOpCode, ScopeMode.DENIED, List.of()));
-                    continue;
-                }
-                List<RolePermEntry> filteredCovered = typeFiltered.stream()
-                    .filter(entry -> coversEntry(grantedOpIndex, entry, targetOp))
-                    .toList();
-                if (filteredCovered.isEmpty()) {
-                    // 有操作权限但条件/互斥过滤后无数据
-                    groups.add(new ScopeGroup(scopeTypeCode, scopeOpCode, ScopeMode.EMPTY, List.of()));
-                    continue;
-                }
-                // ALL 优先：任一 scopeAll 条目存在 → 全量授权
-                boolean hasScopeAll = filteredCovered.stream().anyMatch(e -> e.resourceEntityId() == null);
-                if (hasScopeAll) {
-                    groups.add(new ScopeGroup(scopeTypeCode, scopeOpCode, ScopeMode.ALL, List.of()));
-                    continue;
-                }
-                // INSTANCE：收集有效具体实例（去重，跳过已删除资源）
-                Map<String, QueryScopesResp.ScopeItem> items = new LinkedHashMap<>();
-                for (RolePermEntry entry : filteredCovered) {
-                    if (entry.resourceEntityId() == null) continue;
-                    ResourceEntity resource = resourceMap.get(entry.resourceEntityId());
-                    if (resource == null || resource.getDeleteFlag() != 0L) continue;
-                    String itemKey = BusinessKeyUtil.scopeItemKey(resource.getCodeType(), resource.getCode());
-                    items.putIfAbsent(itemKey, new QueryScopesResp.ScopeItem(
-                        resource.getCode(), resource.getCodeType(), resource.getName()));
-                }
-                // T-PERM-009 契约：INSTANCE 要求 items 非空；过滤后实例全失效（资源删除/不存在）→ EMPTY
-                if (items.isEmpty()) {
-                    groups.add(new ScopeGroup(scopeTypeCode, scopeOpCode, ScopeMode.EMPTY, List.of()));
-                    continue;
-                }
-                groups.add(new ScopeGroup(scopeTypeCode, scopeOpCode, ScopeMode.INSTANCE,
-                    new ArrayList<>(items.values())));
-            }
-        }
-        return groups;
-    }
-
-    /** 条目授予操作是否覆盖目标操作（引擎位覆盖语义的组装层只读复用）。 */
-    private boolean coversEntry(Map<String, OperationPermission> grantedOpIndex,
-                                 RolePermEntry entry, OperationPermission targetOp) {
-        if (targetOp == null || entry.grantedBits() == null || entry.resourceType() == null) {
-            return false;
-        }
-        OperationPermission granted = OperationPermissionUtils.findIndexedByResourceTypeAndBinaryBit(
-            grantedOpIndex, entry.resourceType(), entry.grantedBits());
-        return granted != null && OperationPermissionUtils.covers(granted, targetOp);
-    }
-
-    // ===== interfaceSnapshot =====
-
     @Override
     @Transactional(readOnly = true)
     public InterfaceSnapshotResp interfaceSnapshot(Long tenantId, InterfaceSnapshotReq req) {
         Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
         if (userId == null) return new InterfaceSnapshotResp(List.of());
 
-        // T-PERM-075：快照链改走共同判定语义入口（互斥过滤并入 resolveJudgementRoleIds，
-        // 与 check/batch/validate/scope/菜单视图同一入口）——快照不再专有过滤
-        Set<Long> validRoleIds = permissionConflictDomainService.resolveJudgementRoleIds(tenantId, userId);
-
-        if (validRoleIds.isEmpty()) {
+        QueryItem item = QueryItem.grantListFacts("snapshot", null, Evaluation.preserveEnforce(),
+            new OutputSpec(FactDetail.KEPT, false, false, false, PresentationExpansion.NONE, Set.of(), false));
+        GrantSetResult result = (GrantSetResult) queryEngine.execute(new QueryRequest(tenantId, new User(userId),
+            CallerContext.of(null), ReadOptions.defaults(), List.of(item))).orderedResults().get(0);
+        if (result.collectionStatus() == GrantSetResult.CollectionStatus.NO_ROLE) {
             // 无有效角色 → 空快照。Gateway 缓存空快照，靠 TTL + 广播最终一致。
             return new InterfaceSnapshotResp(List.of());
         }
 
-        // T-PERM-018：缓存下沉——access-service 侧不再缓存 INTERFACE_SNAPSHOT(L2) 与 permissionVersion。
-        // 每次实时调引擎构建全量快照（ROLE_PERM_SNAPSHOT 兜住角色权限记录读路径），交 Gateway 本地缓存匹配。
-        // T-PERM-017 C3：标记不过滤——条件评估应在 Gateway 用真实请求 context 完成（IP/clientIp），
-        // access-service 此处空 context 评估会误丢弃 IP 类条件条目；故标记为 markConditionsOnly。
-        PermQuery query = PermQuery.forUserView(tenantId, userId);
-        query.setRoleIds(validRoleIds); // 使用已过滤互斥的角色
-        query.setMarkConditionsOnly(true);
-        PermResult result = engine.query(query);
-        Integer apiType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", "API");
-        List<ApiPermissionEntry> entries = snapshotAssembler.buildSnapshot(tenantId, result, req.serviceCode(), apiType);
+        List<GrantFact> facts = result.details().stageFacts().stream()
+            .flatMap(stage -> stage.retainedAfterEvaluation().stream()).toList();
+        Integer apiType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", ResourceTypeCode.API);
+        List<ApiPermissionEntry> entries = snapshotAssembler.buildSnapshot(tenantId, facts, req.serviceCode(), apiType);
 
         List<ApiPermissionEntry> dedupedEntries = entries.stream()
             .collect(Collectors.toMap(
                 // T-PERM-017 C4 修 P1-②：去重 key 加 conditionId，避免同 API 多授权（无条件+含条件）
                 // 被折叠成单条。Gateway InterfaceSnapshotMatcher 用 OR 语义合并多条 entry。
                 // conditionId=null（无条件）参与 key，使无条件分支与任何条件分支独立保留。
-                item -> BusinessKeyUtil.apiEntryDedupKey(
-                    item.serviceCode(), item.httpMethod(), item.pathPattern(), item.conditionId()),
-                item -> item,
+                apiEntry -> BusinessKeyUtil.apiEntryDedupKey(
+                    apiEntry.serviceCode(), apiEntry.httpMethod(), apiEntry.pathPattern(), apiEntry.conditionId()),
+                apiEntry -> apiEntry,
                 (left, right) -> left,
                 LinkedHashMap::new
             ))

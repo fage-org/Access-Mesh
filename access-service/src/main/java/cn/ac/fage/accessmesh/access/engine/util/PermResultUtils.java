@@ -1,13 +1,13 @@
 package cn.ac.fage.accessmesh.access.engine.util;
 
-import cn.ac.fage.accessmesh.access.engine.dto.PermResult;
 import cn.ac.fage.accessmesh.access.engine.dto.AuthCheckResp;
 import cn.ac.fage.accessmesh.access.engine.dto.CheckInterfaceResp;
 import cn.ac.fage.accessmesh.access.engine.query.DecisionResult;
 import cn.ac.fage.accessmesh.access.engine.query.GrantFact;
+import cn.ac.fage.accessmesh.access.engine.query.OperationDefinition;
+import cn.ac.fage.accessmesh.access.engine.query.ResultDetails.ResourceDescription;
+import cn.ac.fage.accessmesh.access.engine.query.StageFacts;
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
-import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
-import cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry;
 
 import java.util.*;
 
@@ -15,9 +15,8 @@ import java.util.*;
  * 权限结果转换工具类
  * <p>
  * 提供权限查询结果转换为各种响应DTO的静态方法。
- * toAuthCheckResp 已随 T-PERM-089 改为新 {@link DecisionResult} → 既有外部响应的
- * 纯转换（不重建旧 PermResult 再转换，设计 §9.1）；toCheckInterfaceResp 仍消费旧
- * PermResult（LEGACY_API checkInterface，T-PERM-090 迁移）。
+ * toAuthCheckResp（T-PERM-089）与 toCheckInterfaceResp（T-PERM-090）均为新
+ * {@link DecisionResult} → 既有外部响应的纯转换（不重建旧 PermResult 再转换，设计 §9.1）。
  * </p>
  * <p>
  * T-API-002（2026-09-06）check 族响应内部 id 字段族裁剪已被 T-API-003（2026-09-09）
@@ -78,47 +77,51 @@ public final class PermResultUtils {
     }
 
     /**
-     * 转换PermResult为CheckInterfaceResp
+     * 转换新 DecisionResult 为 CheckInterfaceResp
      * <p>
-     * 将权限查询结果转换为接口校验响应DTO。
-     * 包含匹配的资源业务键信息与操作码。
-     * 用于Gateway接口权限校验场景。
+     * 将 LEGACY_API 共同集合判定（T-PERM-090 迁新 execute）转换为接口校验响应
+     * DTO（纯转换，设计 §9.1——不重建旧 PermResult 再转换）。拒绝原因词表 1:1
+     * （枚举 name 与旧 reason 字符串一致）；matched 资源按保留事实的 resourceEntityId
+     * 分组组装——scopeAll 类型级放行时实例阶段短路，保留事实无实例行，matched 为空
+     * （与旧 INSTANCE 提前返回形态一致）；operationCode 取组内首行授予位对应操作码
+     * （沿用旧口径，消费方 Gateway 只读 allowed/reason/matchedResources.size()）。
      * </p>
      *
-     * @param r              权限查询结果
+     * @param r              新引擎单项最终判定结果（OutputSpec 需带描述块）
      * @param cacheTtlSeconds 缓存有效期（秒）
      * @return 接口校验响应
      */
-    public static CheckInterfaceResp toCheckInterfaceResp(PermResult r, int cacheTtlSeconds) {
-        Map<Long, ResourceEntity> resMap = r.resourceMap();
-        Map<Long, OperationPermission> opMap = r.operationMap();
-
-        List<CheckInterfaceResp.MatchedResource> matched = new ArrayList<>();
-        if (resMap != null && opMap != null) {
-            Map<Long, List<RolePermEntry>> byResource = new LinkedHashMap<>();
-            for (RolePermEntry e : r.allEntries()) {
-                if (e.resourceEntityId() != null) {
-                    byResource.computeIfAbsent(e.resourceEntityId(), k -> new ArrayList<>()).add(e);
+    public static CheckInterfaceResp toCheckInterfaceResp(DecisionResult r, int cacheTtlSeconds) {
+        Map<Long, List<GrantFact>> byResource = new LinkedHashMap<>();
+        for (StageFacts facts : r.details().stageFacts()) {
+            for (GrantFact f : facts.retainedAfterEvaluation()) {
+                if (f.resourceEntityId() != null) {
+                    byResource.computeIfAbsent(f.resourceEntityId(), k -> new ArrayList<>()).add(f);
                 }
             }
+        }
+
+        List<CheckInterfaceResp.MatchedResource> matched = new ArrayList<>();
+        if (!byResource.isEmpty()) {
+            Map<Long, OperationPermission> opMap = new LinkedHashMap<>();
+            r.details().descriptions().operations().values().stream()
+                .map(OperationDefinition::toCacheRow).forEach(op -> opMap.put(op.getId(), op));
             for (var entry : byResource.entrySet()) {
-                ResourceEntity res = resMap.get(entry.getKey());
-                List<RolePermEntry> perms = entry.getValue();
-                if (perms.isEmpty()) continue;
-                boolean allowed = true;
+                List<GrantFact> perms = entry.getValue();
+                ResourceDescription res = r.details().descriptions().resources().get(entry.getKey());
                 OperationPermission op = findOpByBinaryBit(opMap, perms.get(0).resourceType(), perms.get(0).grantedBits());
                 String opCode = op != null ? op.getCode() : null;
-                List<Long> roleIds = perms.stream().map(RolePermEntry::roleId).filter(Objects::nonNull).distinct().toList();
-                List<Long> permIds = perms.stream().map(RolePermEntry::permissionId).filter(Objects::nonNull).distinct().toList();
+                List<Long> roleIds = perms.stream().map(GrantFact::roleId).filter(Objects::nonNull).distinct().toList();
+                List<Long> permIds = perms.stream().map(GrantFact::permissionId).filter(Objects::nonNull).distinct().toList();
                 matched.add(new CheckInterfaceResp.MatchedResource(
-                    res != null ? res.getId() : entry.getKey(),
+                    entry.getKey(),
                     null,  // resourceTypeCode 历史上未填充；消费方 Gateway 只读 allowed/reason/matchedResources.size()
-                    res != null ? res.getCode() : null,
-                    opCode, allowed, roleIds, permIds));
+                    res != null ? res.code() : null,
+                    opCode, true, roleIds, permIds));
             }
         }
-        return r.allowed()
+        return r.outcome() == DecisionResult.Decision.ALLOW
             ? CheckInterfaceResp.allow(matched, cacheTtlSeconds)
-            : CheckInterfaceResp.deny(r.reason() != null ? r.reason() : "DENIED", matched, cacheTtlSeconds);
+            : CheckInterfaceResp.deny(r.reason() != null ? r.reason().name() : "DENIED", matched, cacheTtlSeconds);
     }
 }

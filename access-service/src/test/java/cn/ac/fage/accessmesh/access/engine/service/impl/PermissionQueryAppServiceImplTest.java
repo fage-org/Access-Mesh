@@ -1,43 +1,55 @@
 package cn.ac.fage.accessmesh.access.engine.service.impl;
 
-import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.perm.common.dto.req.InterfaceSnapshotReq;
-import cn.ac.fage.accessmesh.access.engine.dto.PermQuery;
-import cn.ac.fage.accessmesh.access.engine.dto.PermResult;
 import cn.ac.fage.accessmesh.perm.common.dto.req.QueryResourcesReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.QueryScopesReq;
 import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryResourcesResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryScopesResp;
-import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
-import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
-import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
-import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.domain.service.domain.DomainClassifyService;
-import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
-import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.query.ByCode;
+import cn.ac.fage.accessmesh.access.engine.query.Evaluation;
+import cn.ac.fage.accessmesh.access.engine.query.EvaluationCoverage;
+import cn.ac.fage.accessmesh.access.engine.query.FactDetail;
+import cn.ac.fage.accessmesh.access.engine.query.GrantFact;
+import cn.ac.fage.accessmesh.access.engine.query.GrantList;
+import cn.ac.fage.accessmesh.access.engine.query.GrantSetResult;
+import cn.ac.fage.accessmesh.access.engine.query.OperationDefinition;
+import cn.ac.fage.accessmesh.access.engine.query.OutputSpec;
+import cn.ac.fage.accessmesh.access.engine.query.ParentRequirement;
+import cn.ac.fage.accessmesh.access.engine.query.PresentationExpansion;
+import cn.ac.fage.accessmesh.access.engine.query.QueryExecutionEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryItem;
+import cn.ac.fage.accessmesh.access.engine.query.QueryRequest;
+import cn.ac.fage.accessmesh.access.engine.query.QueryResult;
+import cn.ac.fage.accessmesh.access.engine.query.ResultDetails;
+import cn.ac.fage.accessmesh.access.engine.query.Stage;
+import cn.ac.fage.accessmesh.access.engine.query.StageFacts;
+import cn.ac.fage.accessmesh.access.engine.query.TypeOperation;
 import cn.ac.fage.accessmesh.access.engine.util.SnapshotAssembler;
-import cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
@@ -46,15 +58,19 @@ import static org.mockito.Mockito.when;
 
 /**
  * 权限查询应用服务测试类
+ * <p>
+ * T-PERM-090：queryResources/queryScopes/interfaceSnapshot 全部迁新 execute。
+ * 外部响应断言保留作回归锁（X03 等价），另锁适配层请求形状（GRANT_LIST＋父要求＋
+ * RAW_AND_KEPT＋extraOperationKeys、展示展开方向映射、快照 PRESERVE/ENFORCE）。
+ * 引擎批量语义由容器轨（QuerySemanticsBaselinePgIT）钉死，本类 stub 新入口不作等价证据。
+ * </p>
  */
 @ExtendWith(MockitoExtension.class)
 class PermissionQueryAppServiceImplTest {
 
-    @Mock private PermissionConflictDomainService permissionConflictDomainService;
     @Mock private TypeResolutionService typeResolutionService;
-    @Mock private CacheService cacheService;
     @Mock private DomainClassifyService domainClassifyService;
-    @Mock private PermQueryEngine engine;
+    @Mock private QueryExecutionEngine queryEngine;
     @Mock private SnapshotAssembler snapshotAssembler;
 
     private PermissionQueryAppServiceImpl service;
@@ -62,11 +78,7 @@ class PermissionQueryAppServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new PermissionQueryAppServiceImpl(
-            permissionConflictDomainService,
-            typeResolutionService, cacheService,
-            domainClassifyService,
-            engine, snapshotAssembler
-        );
+            typeResolutionService, domainClassifyService, queryEngine, snapshotAssembler);
     }
 
     // ===== queryScopes tests =====
@@ -80,44 +92,22 @@ class PermissionQueryAppServiceImplTest {
 
         when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
         when(typeResolutionService.resolveResourceId(1L, "MENU", "sys:user", "default", null)).thenReturn(100L);
-        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("DEPT")))
-            .thenReturn(Map.of("DEPT", 2));
-        when(typeResolutionService.batchResolveOperationIds(1L, "DEPT", Set.of("VIEW")))
-            .thenReturn(Map.of("VIEW", 601L));
 
-        RolePermEntry parentEntry = new RolePermEntry(
-            401L, 200L, 100L, "sys:user", 1, 1L, "VIEW", 1L, "MANUAL", false, null, false, null, null);
-
-        RolePermEntry scopeEntry = new RolePermEntry(
-            501L, 200L, 300L, "dept-a", 2, 8L, "MANAGE", 9L, "MANUAL", true, null, false, null, null);
-
-        ResourceEntity scopeResource = new ResourceEntity();
-        scopeResource.setId(300L); scopeResource.setCode("dept-a"); scopeResource.setCodeType("default");
-        scopeResource.setName("部门A"); scopeResource.setResourceType(2); scopeResource.setDeleteFlag(0L);
-
-        OperationPermission viewOp = new OperationPermission();
-        viewOp.setId(601L); viewOp.setResourceType(2);
-        viewOp.setCode("VIEW"); viewOp.setBinaryBit(1L); viewOp.setInheritMask(0L);
-
-        OperationPermission manageOp = new OperationPermission();
-        manageOp.setId(602L); manageOp.setResourceType(2);
-        manageOp.setCode("MANAGE"); manageOp.setBinaryBit(8L); manageOp.setInheritMask(1L);
-
-        // T-PERM-057 收编：一次引擎调用（LIST 管线完成父判定 + dependOn 过滤 + 条件/互斥评估；
-        // parentMatched/rawEntries/instanceEntries 回传供四态组装）
-        PermResult scopeResult = PermResult.builder(true, null)
-            .instanceEntries(List.of(scopeEntry))
-            .rawEntries(List.of(scopeEntry))
-            .parentMatchedOperationCodes(Set.of("VIEW"))
-            .parentMatchedPermissionIds(Set.of(401L))
-            .resourceMap(Map.of(300L, scopeResource))
-            .operationMap(Map.of(601L, viewOp, 602L, manageOp)).build();
-        when(engine.query(any(PermQuery.class))).thenReturn(scopeResult);
+        // MANAGE(bit8, inheritMask 覆盖 bit1) 覆盖 VIEW → INSTANCE{dept-a}
+        GrantFact scopeEntry = new GrantFact(501L, 200L, 2, 300L, 8L, false, null, null, false, null, "MANUAL");
+        TypeOperation deptView = new TypeOperation("DEPT", "VIEW");
+        when(queryEngine.execute(any(QueryRequest.class))).thenReturn(result(presentResult(
+            List.of(scopeEntry), List.of(scopeEntry),
+            Map.of(300L, resource(300L, 2, "dept-a", "default", "部门A")),
+            Map.of(601L, operation(601L, 2, "VIEW", 1L, 0L), 602L, operation(602L, 2, "MANAGE", 8L, 1L)),
+            Map.of(deptView, operation(601L, 2, "VIEW", 1L, 0L)),
+            List.of("VIEW"))));
 
         QueryScopesResp resp = service.queryScopes(1L, req);
 
         // 分类模型：(DEPT, VIEW) 应为 INSTANCE，items 含 dept-a
         assertNull(resp.reason());
+        assertEquals(List.of("VIEW"), resp.matchedParentOperations());
         assertEquals(1, resp.scopeGroups().size());
         QueryScopesResp.ScopeGroup group = resp.scopeGroups().get(0);
         assertEquals("DEPT", group.resourceTypeCode());
@@ -125,6 +115,20 @@ class PermissionQueryAppServiceImplTest {
         assertEquals(ScopeMode.INSTANCE, group.scopeMode());
         assertEquals(1, group.items().size());
         assertEquals("dept-a", group.items().get(0).resourceCode());
+
+        // 适配层请求形状锁：GRANT_LIST＋父要求（编码轨）＋EVALUATE/ENFORCE＋RAW_AND_KEPT，
+        // extraOperationKeys=范围类型×操作全组合（四态投影与 covers 消费）
+        QueryRequest request = capturedRequest();
+        assertEquals(1, request.items().size());
+        QueryItem item = request.items().get(0);
+        assertEquals(Evaluation.full(), item.evaluation());
+        assertEquals(FactDetail.RAW_AND_KEPT, item.output().factDetail());
+        ParentRequirement parent = ((GrantList) item.selection()).requiredParent();
+        assertEquals("MENU", parent.resourceTypeCode());
+        assertEquals(new ByCode("sys:user", "default", null), parent.resource());
+        assertEquals(Set.of("VIEW"), parent.operationCodes());
+        assertEquals(Set.of(deptView), item.output().extraOperationKeys());
+        assertTrue(item.output().descriptions());
     }
 
     @Test
@@ -137,31 +141,16 @@ class PermissionQueryAppServiceImplTest {
 
         when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
         when(typeResolutionService.resolveResourceId(1L, "MENU", "sys:user", "default", null)).thenReturn(100L);
-        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("DEPT")))
-            .thenReturn(Map.of("DEPT", 2));
-        when(typeResolutionService.batchResolveOperationIds(1L, "DEPT", Set.of("VIEW")))
-            .thenReturn(Map.of("VIEW", 601L));
 
-        RolePermEntry parentEntry = new RolePermEntry(
-            401L, 200L, 100L, "sys:user", 1, 1L, "VIEW", 1L, "MANUAL", false, null, false, null, null);
-
-        // scope 条目指向 resourceEntityId=300，但 resourceMap 不含 300（资源缺失）→ items 收集为空
-        RolePermEntry scopeEntry = new RolePermEntry(
-            501L, 200L, 300L, "dept-a", 2, 1L, "VIEW", 1L, "MANUAL", false, null, false, null, null);
-
-        OperationPermission viewOp = new OperationPermission();
-        viewOp.setId(601L); viewOp.setResourceType(2);
-        viewOp.setCode("VIEW"); viewOp.setBinaryBit(1L); viewOp.setInheritMask(0L);
-
-        // T-PERM-057 收编：一次引擎调用；resourceMap 为空 → scopeEntry 的资源缺失
-        PermResult scopeResult = PermResult.builder(true, null)
-            .instanceEntries(List.of(scopeEntry))
-            .rawEntries(List.of(scopeEntry))
-            .parentMatchedOperationCodes(Set.of("VIEW"))
-            .parentMatchedPermissionIds(Set.of(401L))
-            .resourceMap(Map.of())
-            .operationMap(Map.of(601L, viewOp)).build();
-        when(engine.query(any(PermQuery.class))).thenReturn(scopeResult);
+        // scope 条目指向 resourceEntityId=300，但描述块无 300（资源缺失）→ items 收集为空
+        GrantFact scopeEntry = new GrantFact(501L, 200L, 2, 300L, 1L, false, null, null, false, null, "MANUAL");
+        TypeOperation deptView = new TypeOperation("DEPT", "VIEW");
+        when(queryEngine.execute(any(QueryRequest.class))).thenReturn(result(presentResult(
+            List.of(scopeEntry), List.of(scopeEntry),
+            Map.of(),
+            Map.of(601L, operation(601L, 2, "VIEW", 1L, 0L)),
+            Map.of(deptView, operation(601L, 2, "VIEW", 1L, 0L)),
+            List.of("VIEW"))));
 
         QueryScopesResp resp = service.queryScopes(1L, req);
 
@@ -171,8 +160,8 @@ class PermissionQueryAppServiceImplTest {
         assertTrue(group.items().isEmpty());
     }
 
-    /** grok 外评 P1 修复锁：条件评估清空（allowed=false, CONDITION_NOT_MET_OR_CONFLICT）
-     * 不得整表拒绝——rawEntries 有覆盖即 EMPTY、matchedParentOperations 照常回传
+    /** grok 外评 P1 修复锁：条件评估清空（FILTERED_EMPTY）
+     * 不得整表拒绝——raw 有覆盖即 EMPTY、matchedParentOperations 照常回传
      * （旧实现一律压成 NO_PERMISSION + 全格 DENIED，业务方把 EMPTY 误当 403）。 */
     @Test
     void shouldClassifyEmptyNotDeniedWhenConditionClearsScopeEntries() {
@@ -183,25 +172,16 @@ class PermissionQueryAppServiceImplTest {
 
         when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
         when(typeResolutionService.resolveResourceId(1L, "REPORT", "report:sales", "default", null)).thenReturn(100L);
-        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("DATA")))
-            .thenReturn(Map.of("DATA", 2));
-        when(typeResolutionService.batchResolveOperationIds(1L, "DATA", Set.of("READ")))
-            .thenReturn(Map.of("READ", 601L));
 
-        // DATA 授权行挂时间条件当前不满足：评估后清空（引擎 deny CONDITION_NOT_MET_OR_CONFLICT），
-        // 但 rawEntries 含该行 + 操作定义已装载（装载源=rawEntries 超集）+ 父判定命中
-        RolePermEntry dataEntry = new RolePermEntry(
-            501L, 200L, 300L, "data-1", 2, 1L, "READ", 1L, "MANUAL", false, 301L, true, null, false);
-        OperationPermission readOp = new OperationPermission();
-        readOp.setId(601L); readOp.setResourceType(2);
-        readOp.setCode("READ"); readOp.setBinaryBit(1L); readOp.setInheritMask(0L);
-        PermResult result = PermResult.builder(false, "CONDITION_NOT_MET_OR_CONFLICT")
-            .rawEntries(List.of(dataEntry))
-            .parentMatchedOperationCodes(Set.of("VIEW"))
-            .parentMatchedPermissionIds(Set.of(401L))
-            .operationMap(Map.of(601L, readOp))
-            .build();
-        when(engine.query(any(PermQuery.class))).thenReturn(result);
+        // DATA 授权行挂时间条件当前不满足：评估后清空（raw 有行、retained 空），
+        // 操作定义已装载（描述块）+ 父判定命中
+        GrantFact dataEntry = new GrantFact(501L, 200L, 2, 300L, 1L, false, null, 301L, true, null, "MANUAL");
+        TypeOperation dataRead = new TypeOperation("DATA", "READ");
+        when(queryEngine.execute(any(QueryRequest.class))).thenReturn(result(
+            new GrantSetResult("scopes", GrantSetResult.CollectionStatus.FILTERED_EMPTY, coverage(true),
+                details(List.of(dataEntry), List.of(),
+                    Map.of(), Map.of(601L, operation(601L, 2, "READ", 1L, 0L)),
+                    Map.of(dataRead, operation(601L, 2, "READ", 1L, 0L)), List.of("VIEW")))));
 
         QueryScopesResp resp = service.queryScopes(1L, req);
 
@@ -212,26 +192,58 @@ class PermissionQueryAppServiceImplTest {
             "有覆盖但评估清空 = EMPTY（勿压 DENIED）");
     }
 
+    @Test
+    void queryScopesMustKeepPrecheckOrderAndDegeneratePairsAsDenied() {
+        when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
+
+        // 外层预检查保持：主体未解析 → USER_NOT_FOUND；父对象不存在 → OBJECT_KEY_NOT_FOUND
+        when(typeResolutionService.resolveResourceId(1L, "MENU", "ghost", "default", null)).thenReturn(null);
+        QueryScopesResp notFound = service.queryScopes(1L, new QueryScopesReq(
+            "USER", "u-1", "MENU", "ghost", "default",
+            List.of("VIEW"), List.of("DEPT"), List.of("VIEW"), "default", null, Map.of()));
+        assertEquals("OBJECT_KEY_NOT_FOUND", notFound.reason());
+
+        // 退化元素（null 类型/操作）不得进引擎结构拒绝：直接 DENIED 分组（旧引擎解析落空同形）
+        when(typeResolutionService.resolveResourceId(1L, "MENU", "sys:user", "default", null)).thenReturn(100L);
+        TypeOperation deptView = new TypeOperation("DEPT", "VIEW");
+        GrantFact anyFact = new GrantFact(501L, 200L, 2, 300L, 1L, false, null, null, false, null, "MANUAL");
+        when(queryEngine.execute(any(QueryRequest.class))).thenReturn(result(presentResult(
+            List.of(anyFact), List.of(anyFact),
+            Map.of(300L, resource(300L, 2, "dept-a", "default", "部门A")),
+            Map.of(601L, operation(601L, 2, "VIEW", 1L, 0L)),
+            Map.of(deptView, operation(601L, 2, "VIEW", 1L, 0L)),
+            List.of("VIEW"))));
+
+        QueryScopesResp degenerate = service.queryScopes(1L, new QueryScopesReq(
+            "USER", "u-1", "MENU", "sys:user", "default",
+            List.of("VIEW"), java.util.Arrays.asList("DEPT", null), java.util.Arrays.asList("VIEW", null),
+            "default", null, Map.of()));
+
+        assertNull(degenerate.reason());
+        assertEquals(4, degenerate.scopeGroups().size());
+        assertEquals(ScopeMode.INSTANCE, degenerate.scopeGroups().get(0).scopeMode());
+        assertEquals(ScopeMode.DENIED, degenerate.scopeGroups().get(1).scopeMode());
+        assertEquals(ScopeMode.DENIED, degenerate.scopeGroups().get(2).scopeMode());
+        assertEquals(ScopeMode.DENIED, degenerate.scopeGroups().get(3).scopeMode());
+        // 退化组合不进 extraOperationKeys（避免结构拒绝）
+        assertEquals(Set.of(deptView), capturedRequest().items().get(0).output().extraOperationKeys());
+    }
+
     // ===== interfaceSnapshot tests (T-PERM-018：缓存下沉，移除令牌/notModified) =====
 
     @Nested
     @MockitoSettings(strictness = Strictness.LENIENT)
     class InterfaceSnapshotTests {
 
-        private PermResult buildPermResult() {
-            return PermResult.builder(true, null)
-                .instanceEntries(List.of())
-                .build();
-        }
-
         @Test
         void shouldBuildSnapshotFromEngineEveryCallWithoutToken() {
             // T-PERM-018：access-service 每次实时构建全量快照，不再有 permissionVersion/notModified
+            GrantFact fact = new GrantFact(401L, 200L, 2, 101L, 1L, false, null, null, false, null, "MANUAL");
             when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
-            when(permissionConflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of(200L));
             when(typeResolutionService.resolveTypeValue(1L, "resource_type", "API")).thenReturn(2);
-            when(engine.query(any(PermQuery.class))).thenReturn(buildPermResult());
-            when(snapshotAssembler.buildSnapshot(eq(1L), any(PermResult.class), eq("example-service"), eq(2)))
+            when(queryEngine.execute(any(QueryRequest.class)))
+                .thenReturn(result(presentResult(List.of(), List.of(fact), Map.of(), Map.of(), Map.of(), List.of())));
+            when(snapshotAssembler.buildSnapshot(eq(1L), anyList(), eq("example-service"), eq(2)))
                 .thenReturn(List.of(
                     new InterfaceSnapshotResp.ApiPermissionEntry("example-service", "POST", "/api/user/list", false, null, null, ScopeMode.INSTANCE)
                 ));
@@ -244,21 +256,26 @@ class PermissionQueryAppServiceImplTest {
             // 每次都返回全量 entries（无 notModified 短路）
             assertEquals(1, first.allowedApis().size());
             assertEquals(1, second.allowedApis().size());
-            verify(snapshotAssembler, times(2)).buildSnapshot(eq(1L), any(PermResult.class), eq("example-service"), eq(2));
+            verify(snapshotAssembler, times(2)).buildSnapshot(eq(1L), anyList(), eq("example-service"), eq(2));
+
+            // 适配层请求形状锁：GRANT_LIST＋PRESERVE/ENFORCE（LEGACY_API 旧快照口径，设计 §6.6）
+            QueryItem item = capturedRequest().items().get(0);
+            assertEquals(Evaluation.preserveEnforce(), item.evaluation());
+            assertNull(((GrantList) item.selection()).requiredParent());
         }
 
         @Test
         void shouldReturnEmptySnapshotWhenNoEffectiveRoles() {
             when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
-            when(permissionConflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of());
+            when(queryEngine.execute(any(QueryRequest.class))).thenReturn(result(
+                new GrantSetResult("snapshot", GrantSetResult.CollectionStatus.NO_ROLE, coverage(false), ResultDetails.empty())));
 
             InterfaceSnapshotResp resp = service.interfaceSnapshot(1L, new InterfaceSnapshotReq(
                 "USER", "u-1", "example-service"));
 
             assertTrue(resp.allowedApis().isEmpty());
-            // 无有效角色短路，不调引擎
-            verify(engine, times(0)).query(any(PermQuery.class));
-            verify(snapshotAssembler, times(0)).buildSnapshot(any(), any(), any(), any());
+            // 无有效角色（新引擎 User 主体内部等价解析）→ 空快照，不进装配器
+            verify(snapshotAssembler, times(0)).buildSnapshot(any(), anyList(), any(), any());
         }
     }
 
@@ -274,19 +291,11 @@ class PermissionQueryAppServiceImplTest {
             lenient().when(typeResolutionService.batchResolveTypeCodes(1L, "resource_type", Set.of(1)))
                 .thenReturn(Map.of(1, "REPORT"));
 
-            RolePermEntry scopeAllEntry = new RolePermEntry(
-                401L, 20L, null, null, 1, 1L, "VIEW", 1L,
-                "MANUAL", false, null, false, null, true);
+            GrantFact scopeAllEntry = new GrantFact(401L, 20L, 1, null, 1L, true, null, null, false, null, "MANUAL");
 
-            OperationPermission viewOp = new OperationPermission();
-            viewOp.setId(101L); viewOp.setResourceType(1);
-            viewOp.setCode("VIEW"); viewOp.setBinaryBit(1L);
-
-            PermResult r = PermResult.builder(true, null)
-                .instanceEntries(List.of(scopeAllEntry))
-                .operationMap(Map.of(101L, viewOp)).build();
-
-            lenient().when(engine.query(any(PermQuery.class))).thenReturn(r);
+            when(queryEngine.execute(any(QueryRequest.class))).thenReturn(result(presentResult(
+                List.of(scopeAllEntry), List.of(scopeAllEntry),
+                Map.of(), Map.of(101L, operation(101L, 1, "VIEW", 1L, 0L)), Map.of(), List.of())));
 
             var req = new QueryResourcesReq(
                 "USER", "u-1", List.of("REPORT"), List.of("VIEW"),
@@ -296,6 +305,9 @@ class PermissionQueryAppServiceImplTest {
             assertEquals(1, resp.items().size());
             assertEquals(ScopeMode.ALL, resp.items().get(0).scopeMode());
             assertEquals("REPORT", resp.items().get(0).resourceTypeCode());
+
+            // 适配层请求形状锁：无树扩展开关 → 展示展开 NONE（判定与展示分离）
+            assertEquals(PresentationExpansion.NONE, capturedRequest().items().get(0).output().presentationExpansion());
         }
 
         @Test
@@ -307,30 +319,14 @@ class PermissionQueryAppServiceImplTest {
                 .thenReturn(Map.of(1, "REPORT"));
 
             // 主行实例 200（dependOn=null）+ 子行实例 300（dependOn=501）
-            RolePermEntry mainEntry = new RolePermEntry(
-                401L, 20L, 200L, "report:1", 1, 1L, "VIEW", 1L,
-                "MANUAL", false, null, false, null, false);
-            RolePermEntry dependentEntry = new RolePermEntry(
-                402L, 20L, 300L, "city:gd", 1, 1L, "VIEW", 1L,
-                "MANUAL", false, null, false, 501L, false);
+            GrantFact mainEntry = new GrantFact(401L, 20L, 1, 200L, 1L, false, null, null, false, null, "MANUAL");
+            GrantFact dependentEntry = new GrantFact(402L, 20L, 1, 300L, 1L, false, null, null, false, 501L, "MANUAL");
 
-            OperationPermission viewOp = new OperationPermission();
-            viewOp.setId(101L); viewOp.setResourceType(1);
-            viewOp.setCode("VIEW"); viewOp.setBinaryBit(1L);
-
-            ResourceEntity mainRes = new ResourceEntity();
-            mainRes.setId(200L); mainRes.setResourceType(1);
-            mainRes.setCode("report:1"); mainRes.setCodeType("default");
-            ResourceEntity childRes = new ResourceEntity();
-            childRes.setId(300L); childRes.setResourceType(1);
-            childRes.setCode("city:gd"); childRes.setCodeType("default");
-
-            PermResult r = PermResult.builder(true, null)
-                .instanceEntries(List.of(mainEntry, dependentEntry))
-                .resourceMap(Map.of(200L, mainRes, 300L, childRes))
-                .operationMap(Map.of(101L, viewOp)).build();
-
-            lenient().when(engine.query(any(PermQuery.class))).thenReturn(r);
+            when(queryEngine.execute(any(QueryRequest.class))).thenReturn(result(presentResult(
+                List.of(mainEntry, dependentEntry), List.of(mainEntry, dependentEntry),
+                Map.of(200L, resource(200L, 1, "report:1", "default", "报表1"),
+                    300L, resource(300L, 1, "city:gd", "default", "城市广东")),
+                Map.of(101L, operation(101L, 1, "VIEW", 1L, 0L)), Map.of(), List.of())));
 
             var req = new QueryResourcesReq(
                 "USER", "u-1", List.of("REPORT"), List.of("VIEW"),
@@ -341,5 +337,83 @@ class PermissionQueryAppServiceImplTest {
             assertEquals(1, resp.items().size(), "子权限行不得进清单面（旧实现独立 INSTANCE 条目误报）");
             assertEquals("report:1", resp.items().get(0).resourceCode());
         }
+
+        @Test
+        void queryResourcesMustMapTreeSwitchesToPresentationExpansion() {
+            // includeChildren/includeInherited → CHILDREN/PARENTS/BOTH（展示面展开，判定不受影响）
+            lenient().when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
+            lenient().when(typeResolutionService.batchResolveTypeCodes(any(), any(), any())).thenReturn(Map.of(1, "REPORT"));
+            GrantFact fact = new GrantFact(401L, 20L, 1, 200L, 1L, false, null, null, false, null, "MANUAL");
+            when(queryEngine.execute(any(QueryRequest.class))).thenReturn(result(presentResult(
+                List.of(fact), List.of(fact), Map.of(), Map.of(), Map.of(), List.of())));
+
+            service.queryResources(1L, new QueryResourcesReq(
+                "USER", "u-1", List.of("REPORT"), List.of("VIEW"), null, null, null, true, null));
+            assertEquals(PresentationExpansion.CHILDREN, capturedRequest().items().get(0).output().presentationExpansion());
+
+            service.queryResources(1L, new QueryResourcesReq(
+                "USER", "u-1", List.of("REPORT"), List.of("VIEW"), null, null, true, null, null));
+            assertEquals(PresentationExpansion.PARENTS, capturedRequest().items().get(0).output().presentationExpansion());
+
+            service.queryResources(1L, new QueryResourcesReq(
+                "USER", "u-1", List.of("REPORT"), List.of("VIEW"), null, null, true, true, null));
+            assertEquals(PresentationExpansion.BOTH, capturedRequest().items().get(0).output().presentationExpansion());
+        }
     }
+
+    // ===== helpers =====
+
+    private QueryRequest capturedRequest() {
+        ArgumentCaptor<QueryRequest> captor = ArgumentCaptor.forClass(QueryRequest.class);
+        verify(queryEngine, org.mockito.Mockito.atLeastOnce()).execute(captor.capture());
+        return captor.getValue();
+    }
+
+    private static QueryResult result(GrantSetResult grantSet) {
+        return new QueryResult("exec", LocalDateTime.now(), List.of(grantSet));
+    }
+
+    /** PRESENT 形态 GrantSetResult：raw/retained 双轨＋描述块（资源/操作/请求操作）＋父摘要。 */
+    private static GrantSetResult presentResult(List<GrantFact> raw, List<GrantFact> retained,
+                                                Map<Long, ResultDetails.ResourceDescription> resources,
+                                                Map<Long, OperationDefinition> operations,
+                                                Map<TypeOperation, OperationDefinition> requested,
+                                                List<String> parentMatchedOperations) {
+        return new GrantSetResult("scopes", GrantSetResult.CollectionStatus.PRESENT, coverage(true),
+            details(raw, retained, resources, operations, requested, parentMatchedOperations));
+    }
+
+    private static ResultDetails details(List<GrantFact> raw, List<GrantFact> retained,
+                                         Map<Long, ResultDetails.ResourceDescription> resources,
+                                         Map<Long, OperationDefinition> operations,
+                                         Map<TypeOperation, OperationDefinition> requested,
+                                         List<String> parentMatchedOperations) {
+        return new ResultDetails(
+            Set.of(ResultDetails.DetailSection.FACTS_KEPT, ResultDetails.DetailSection.FACTS_RAW,
+                ResultDetails.DetailSection.DESCRIPTIONS, ResultDetails.DetailSection.PARENT_CHECK),
+            List.of(), List.of(),
+            List.of(new StageFacts(Stage.GRANT_LIST, raw, retained,
+                retained.isEmpty() ? StageFacts.Status.FILTERED_EMPTY : StageFacts.Status.PRESENT)),
+            new ResultDetails.Descriptions(resources, Map.of(), operations, requested),
+            List.of(), List.of(),
+            new ResultDetails.ParentCheckSummary(parentMatchedOperations), null);
+    }
+
+    /** 完整 EVALUATE/ENFORCE＋FACT_COLLECTION 覆盖（ScopeCoverageProjector 前置校验要求）。 */
+    private static EvaluationCoverage coverage(boolean complete) {
+        return new EvaluationCoverage(EvaluationCoverage.SubjectResolution.USER_EFFECTIVE_WITH_MUTEX,
+            EvaluationCoverage.ConditionCoverage.EVALUATED, EvaluationCoverage.MutexCoverage.EVALUATED,
+            EvaluationCoverage.ParentCheckCoverage.PASSED, Set.of(Stage.GRANT_LIST), Map.of(),
+            complete, EvaluationCoverage.AuthorizationStage.FACT_COLLECTION);
+    }
+
+    private static ResultDetails.ResourceDescription resource(Long id, Integer type, String code,
+                                                              String codeType, String name) {
+        return new ResultDetails.ResourceDescription(id, type, code, codeType, name, null, null, 0, null, null, null);
+    }
+
+    private static OperationDefinition operation(Long id, Integer type, String code, Long bit, Long inheritMask) {
+        return new OperationDefinition(id, type, code, null, bit, inheritMask, 1L, null, null, null, null, null, null, 0L);
+    }
+
 }

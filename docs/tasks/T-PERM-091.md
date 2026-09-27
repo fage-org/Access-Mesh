@@ -20,7 +20,7 @@ acceptance:
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-09-26
+last_updated: 2026-09-27
 ---
 
 # T-PERM-091 （R2-T12）迁移旧快照、转授、视图与配置
@@ -31,7 +31,8 @@ last_updated: 2026-09-26
 
 ## 范围
 
-- SnapshotAssembler legacy 投影、PermissionGrantDomainServiceImpl、PermissionViewAppServiceImpl、配置/解释/PermViewAssembler（按真实用途选 FACTS 或 DECISION+TRACE，删除旧结果依赖，不机械套 GRANT_LIST）。
+- PermissionGrantDomainServiceImpl（转授）、PermissionViewAppServiceImpl（有效权限码/可见资源投影）、配置/解释/PermViewAssembler（按真实用途选 FACTS 或 DECISION+TRACE，删除旧结果依赖，不机械套 GRANT_LIST）。
+  （勘正 2026-09-27，T-PERM-090 执行时用户拍板：原范围行「SnapshotAssembler legacy 投影」与 090 卡范围/design_refs §6.6/验收 S01~S04 交叠——interfaceSnapshot/SnapshotAssembler 归 T-PERM-090，本卡不再含快照面。）
 
 ## 非目标 / 遗留
 

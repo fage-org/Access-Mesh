@@ -65,7 +65,7 @@ public R<RoleResp> create(@RequestBody RoleCreateReq req) {
 - 实体 ID 轨（仅已完成解析的调用方：资源树、API 映射等 resource_entity 管理链路）：`queryGate.hasPermissionByEntityId(...)`、`queryGate.getDeniedEntityIds(...)`。
 - check/batchCheck 外部端点在 `PermissionCheckAppServiceImpl` 适配层直构 `QueryRequest`（不经门面四方法）。
 
-旧 `PermQueryEngine`（`engine.query`/`queryBatch`/旧四入口）为迁移期存量（LEGACY_API/范围/视图/转授消费者，T-PERM-090/091 迁移、092 删除）——**新代码禁止引用**。
+旧 `PermQueryEngine`（`engine.query`/`queryBatch`/旧四入口）为迁移期存量（仅剩视图 PermissionViewAppServiceImpl/PermViewAssembler 与转授 PermissionGrantDomainServiceImpl 消费者，T-PERM-091 迁移、092 删除；范围/LEGACY_API 四面已随 T-PERM-090 迁新 execute）——**新代码禁止引用**。
 
 **仅**管理查询/日志查询可直查 Mapper（如 `listResources`, `listRoles`, `listChangeLogs`）。
 
@@ -92,7 +92,7 @@ rolePermMapper.selectListByQuery(QueryWrapper.create().where(ROLE_RESOURCE_PERMI
 engine.hasPermissionByCode(...)   // T-PERM-089 起改 queryGate
 ```
 
-### Domain 层 API（迁移期存量，T-PERM-090/091 目标）
+### Domain 层 API（check 族与范围/LEGACY_API 已迁；forUserView 仅剩 091 目标）
 
 ```java
 // ✅ check 族（T-PERM-089 已迁）— PermissionCheckAppServiceImpl 适配层直构 QueryRequest
@@ -104,10 +104,13 @@ return PermResultUtils.toAuthCheckResp((DecisionResult) result.orderedResults().
 // batchCheck（T-PERM-089 已迁）：多个独立 DECISION item 一次 execute（item key=输入下标，
 // 原序/重复项天然对齐；禁循环 N 次公开 execute）
 
-// ✅ 迁移期存量（090/091 迁移前仍在用）
-PermQuery q = PermQuery.forInterfaceCheck(tenantId, userId, Set.of("API"), entityIds, OperationCode.ACCESS);
-PermQuery view = PermQuery.forUserView(tenantId, userId);   // queryResources/视图
-PermQuery scopes = PermQuery.forScopeQuery(tenantId, userId, resourceTypeCodes, operationCodes);  // query-scopes
+// checkInterface（T-PERM-090 已迁）：LEGACY_API 共同集合——全部匹配 API 一个 TARGET_SET 单 item
+// （SELF＋TypeFallback.ALLOW；空实体引用退 TYPE_LEVEL）；queryScopes=GRANT_LIST＋父要求＋
+// RAW_AND_KEPT（ScopeCoverageProjector 四态投影）；queryResources/interfaceSnapshot=GRANT_LIST＋FACTS
+// （interfaceSnapshot 用 Evaluation.preserveEnforce()，快照装配消费 List<GrantFact>）
+
+// ✅ 迁移期存量（091 迁移前仍在用：视图/转授）
+PermQuery view = PermQuery.forUserView(tenantId, userId);   // PermissionViewAppServiceImpl/PermissionGrantDomainServiceImpl
 ```
 
 ### 异常边界（权限面）

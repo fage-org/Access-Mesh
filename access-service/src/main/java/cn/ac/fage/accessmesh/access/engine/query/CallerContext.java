@@ -47,6 +47,24 @@ public record CallerContext(String clientIp, Map<String, Object> attributes) {
         return new CallerContext(clientIp, Map.of());
     }
 
+    /** SDK 契约 {@code context.clientIp} 键提取为受信 IP，其余键归调用方属性（适配层唯一入口，
+     *  T-PERM-089/090 消费面共用；保留键由结构拒绝的行为同构造器）。 */
+    public static CallerContext fromCallerMap(Map<String, Object> context) {
+        if (context == null || context.isEmpty()) {
+            return of(null);
+        }
+        String clientIp = null;
+        Map<String, Object> rest = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : context.entrySet()) {
+            if (KEY_CLIENT_IP.equals(entry.getKey())) {
+                clientIp = entry.getValue() == null ? null : String.valueOf(entry.getValue());
+            } else {
+                rest.put(entry.getKey(), entry.getValue());
+            }
+        }
+        return new CallerContext(clientIp, rest);
+    }
+
     private static Map<String, Object> copyAttributes(Map<String, Object> source) {
         if (source == null || source.isEmpty()) {
             return Map.of();

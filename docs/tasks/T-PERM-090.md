@@ -2,7 +2,7 @@
 doc_type: task
 id: T-PERM-090
 title: （R2-T11）迁移范围与 LEGACY_API 接口集合
-status: proposed
+status: done
 plan: docs/plans/r2-query-engine-and-admission-plan.md
 domain: access-service
 design_refs:
@@ -18,8 +18,8 @@ acceptance:
   - "S01~S04：快照 API:VIEW 不覆盖 ACCESS 不下发为放行依据；API scopeAll 只展开目标服务 enabled 注册路由（不产生任意通配）；无条件与各 conditionId 分支保留；坏条件维持有条件与回源 fail-closed 不变无条件"
 design_writeback:
   required: true
-  status: pending
-last_updated: 2026-09-26
+  status: done
+last_updated: 2026-09-27
 ---
 
 # T-PERM-090 （R2-T11）迁移范围与 LEGACY_API 接口集合
@@ -30,9 +30,22 @@ last_updated: 2026-09-26
 
 ## 范围
 
-- queryScopes/queryResources/有效权限码/可见资源投影迁移；物理子孙展开在授权集合评估之后（不把展示后代提前加入互斥候选）。
+- queryScopes/queryResources 迁移；物理子孙展开在授权集合评估之后（不把展示后代提前加入互斥候选）。
 - checkInterface 与 interfaceSnapshot/SnapshotAssembler 的 legacy 适配（API:ACCESS 覆盖位=ACCESS 位 ∪ inheritMask 覆盖位，设计 §6.6 精确口径）。
+  （边界勘正 2026-09-27 执行时用户拍板：原范围行「有效权限码/可见资源投影」与 091 卡验收第 2/3 条交叠——PermissionViewAppServiceImpl 归 T-PERM-091；快照面归本卡，与 A.1 #3/4/5/6 消费点一致。）
 
 ## 非目标 / 遗留
 
 - 新在线 interface-admission 与新快照在 T-ACCESS-059；旧协议退役在 T-ACCESS-062。
+
+## 完成记录（2026-09-27）
+
+- **迁移面（A.1 #3/4/5/6 全部切新 execute）**：
+  - queryScopes（`PermissionQueryAppServiceImpl:267`）＝GRANT_LIST＋父要求（ByCode）＋EVALUATE/ENFORCE＋RAW_AND_KEPT；四态组装交 `ScopeCoverageProjector` 纯投影；父对象存在性外层预检查保持（OBJECT_KEY_NOT_FOUND）；NO_ROLE/PARENT_DENIED → NO_PERMISSION＋全 DENIED 分组；matchedParentOperations 直取 `ResultDetails.parentCheck.matchedOperationCodes`（不重跑父判断）。
+  - queryResources（`:104`）＝GRANT_LIST＋EVALUATE/ENFORCE＋FACTS；includeChildren/includeInherited → OutputSpec 展示展开 CHILDREN/PARENTS/BOTH（判定与展示分离）；depend_on 行仍装配后隐藏（T-PERM-058）；展开行=PresentationEntry 按源授权关联、grantSource=INHERITED（沿旧克隆口径）。
+  - checkInterface（`PermissionCheckAppServiceImpl:181`）＝一个 API:ACCESS TARGET_SET 共同集合（注册门禁在先、全部匹配 API 组成单 item、SELF、TypeFallback.ALLOW=旧 INSTANCE 的 scopeAll 回退形态；全部映射无实体引用退 TYPE_LEVEL）；`toCheckInterfaceResp` 改新 DecisionResult 纯转换。
+  - interfaceSnapshot（`:423`）＝GRANT_LIST＋PRESERVE/ENFORCE＋FACTS（沿旧 markConditionsOnly＋evaluateConflicts 形态，设计 §6.6）；角色解析含互斥双删由 User 主体内部完成；`SnapshotAssembler.buildSnapshot` 改消费 `List<GrantFact>`（S01~S04 断言不变）。
+- **验收证据**：X03 基线 `QuerySemanticsBaselinePgIT` 17 用例全绿（范围四态族 3＋快照投影族 3＋check 族 11，真服务真库对拍）；单测轨道 1587 绿；收口全量 `mvn test -T 1C` 11 模块 BUILD SUCCESS（含 E2E 与 heavy）。
+- **适配层退化归一（沿 089 口径）**：queryScopes 父操作集过滤 null 后空＝NO_PERMISSION 整表拒（旧引擎空父操作集同形）；范围类型/操作 null 元素组合直接 DENIED 分组不进引擎（旧解析落空同形）；空白元素由 DTO @Pattern 400 拦截。`CallerContext.fromCallerMap` 公共工厂收编 089/090 两处私有副本。
+- **X03 差异记录（均无证据消费面）**：① matchedParentOperations 多元素时顺序由旧 Set 迭代序变 ParentCheckSummary 排序序；② queryResources 树展开行序由「原始集中+克隆追加」变按源事实交错（分组聚合后 items 顺序可能不同，响应为集合语义）；③ context 顶层 evaluatedAt/timestamp 键旧 PermEvalContext 静默收入 attributes、新 CallerContext 结构拒绝（500，沿 089 拍板口径扩展到三面）；④ interfaceSnapshot 无角色短路由适配层预解析变引擎内解析（execute 必发生一次，响应等价）。
+- **连带回写**：`OperationDefinition.toCacheRow` 公开予包外结果消费方复用 OperationPermissionUtils 位运算族；permission-query-pipeline skill 双副本、permission-coding-standards rule、AGENTS.md 硬约束行同批更新；090/091 两卡范围行按用户拍板勘正（快照面归 090、视图归 091）；设计 §6.5 就地实施注补记。

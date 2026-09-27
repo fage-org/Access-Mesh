@@ -15,8 +15,10 @@ metadata:
 > **T-PERM-089（2026-09-27）判定面切换**：管理面门禁与批量拒绝集合的唯一入口已是
 > `QueryGate`（`engine.query` 包，内部走新 `QueryExecutionEngine.execute`）——
 > check/batchCheck 经 `PermissionCheckAppServiceImpl` 直构 `QueryRequest`。
-> 旧 `PermQueryEngine` 仅剩迁移期消费者（queryResources/queryScopes/checkInterface/
-> interfaceSnapshot/视图/转授，T-PERM-090/091 迁移、092 删除）；新代码禁止再引用旧引擎。
+> **T-PERM-090（2026-09-27）范围与 LEGACY_API 迁移**：queryResources/queryScopes/
+> checkInterface/interfaceSnapshot（含 SnapshotAssembler）已全部迁新 execute。
+> 旧 `PermQueryEngine` 仅剩迁移期消费者（视图 PermissionViewAppServiceImpl/PermViewAssembler、
+> 转授 PermissionGrantDomainServiceImpl，T-PERM-091 迁移、092 删除）；新代码禁止再引用旧引擎。
 
 ## 核心组件
 
@@ -24,7 +26,7 @@ metadata:
 |------|------|---------|
 | `QueryGate` | 判定面薄门面：`hasPermissionByCode` / `hasPermissionByEntityId` / `getDeniedResourceCodes` / `getDeniedEntityIds`（T-PERM-089） | 管理面单点门禁与批量拒绝集合的唯一入口 |
 | `QueryExecutionEngine` | 新统一执行主体 `execute(QueryRequest)`（T-PERM-082~088：规范化→共享装载→分集合评估） | 唯一权限查询执行器（check/batchCheck 在 AppService 适配层直构请求） |
-| `PermQueryEngine` | 旧执行体（迁移期存量：query/queryBatch 供 090/091 目标使用，092 删除） | 仅存量消费者；新代码禁止引用 |
+| `PermQueryEngine` | 旧执行体（迁移期存量：query 供 091 目标〔视图/转授〕使用，092 删除） | 仅存量消费者；新代码禁止引用 |
 | `PermQuery` | 旧入参 DTO（迁移期存量） | 仅旧引擎消费者 |
 | `PermResult` | 旧返回对象（迁移期存量） | 仅旧引擎消费者 |
 | `TargetMode` | 旧目标模式三态枚举：TYPE_LEVEL/INSTANCE/LIST（迁移期存量） | 旧引擎 targetMode 三态判别 |
@@ -96,31 +98,45 @@ return PermResultUtils.toAuthCheckResp((DecisionResult) result.orderedResults().
 退化输入定案（2026-09-27 用户拍板）：resourceCode 空白串归一 TYPE_LEVEL；
 context 顶层 evaluatedAt/timestamp 保留键由 CallerContext 结构拒绝（500），clientIp 提取不受影响。
 
-## Domain 层 API（迁移期存量，T-PERM-090/091 目标）
+## Domain 层 API（T-PERM-090 已迁新 execute；forUserView 仅剩 091 目标）
 
-复杂查询使用旧 `PermQuery`（迁移期存量），授权传递校验使用 `PermissionGrantDomainService`。
+四个查询面已直构 `QueryRequest`；授权传递校验使用 `PermissionGrantDomainService`。
 
-> **主体契约**：Domain 层 API（forInterfaceCheck/forScopeQuery/forUserView）与
-> canGrant 委托链的 `userId`/`subjectId` 均指权限面投影主体（`abstract_user.id`）——T-ORG-001 统一后
+> **主体契约**：各面 `userId`/`subjectId` 均指权限面投影主体（`abstract_user.id`）——T-ORG-001 统一后
 > `sys_user.id` 与之同值，操作者 ID 直接传入即可（与业务层 API 节同口径，无运行时 ID 空间转换层）。
 
 ```java
-// checkInterface — 接口权限（LEGACY_API，T-PERM-090 迁移）
-Set<Long> entityIds = matchApiPaths(tenantId, path, method);
-PermQuery q = PermQuery.forInterfaceCheck(tenantId, userId, Set.of("API"), entityIds, "ACCESS");
-return PermResultUtils.toCheckInterfaceResp(engine.query(q), cacheTtl);
+// checkInterface — LEGACY_API 共同集合（T-PERM-090）：全部匹配 API 组成一个 TARGET_SET 单 item
+// （注册门禁在先、不拆项 OR、SELF、TypeFallback.ALLOW；全部映射无实体引用退 TYPE_LEVEL）
+TypeOperation access = new TypeOperation(ResourceTypeCode.API, OperationCode.ACCESS);
+Selection selection = entityIds.isEmpty()
+    ? new TypeLevel(List.of(access))
+    : new TargetSet(entityIds.stream().map(id -> new TargetClause(access, new ByEntityId(id))).toList(),
+        Inheritance.SELF, TypeFallback.ALLOW, null);
+QueryResult r = queryEngine.execute(new QueryRequest(tenantId, new User(userId),
+    CallerContext.fromCallerMap(context), ReadOptions.defaults(),
+    List.of(QueryItem.decision("checkInterface", selection, interfaceOutput()))));
+return PermResultUtils.toCheckInterfaceResp((DecisionResult) r.orderedResults().get(0), 30);
 
-// queryResources — 资源筛选（实现走 forUserView 取全量权限事实；T-PERM-090 迁移）
-PermQuery q = PermQuery.forUserView(tenantId, userId);
-return buildQueryResourcesResponse(engine.query(q), req, tenantId);
+// queryResources — GRANT_LIST＋EVALUATE/ENFORCE＋FACTS（树扩展=OutputSpec 展示展开，判定与展示分离）
+PresentationExpansion expansion = /* includeChildren/includeInherited → CHILDREN/PARENTS/BOTH/NONE */;
+QueryItem item = QueryItem.grantListFacts("resources", null, Evaluation.full(),
+    new OutputSpec(FactDetail.KEPT, false, true, false, expansion, Set.of(), false));
 
-// scopeQuery — 范围查询（LIST；T-PERM-090 迁移）
-PermQuery q = PermQuery.forScopeQuery(tenantId, userId, resourceTypeCodes, operationCodes);
-q.setParentResource(parentResourceTypeCode, parentResourceCode, parentCodeType, parentOperationCodes);
-q.setEvalContext(PermEvalContext.fromCallerMap(callerContextMap));
-PermResult r = engine.query(q);
+// scopeQuery — GRANT_LIST＋父要求＋EVALUATE/ENFORCE＋RAW_AND_KEPT；四态组装=ScopeCoverageProjector 纯投影
+// （父对象存在性预检查在外层：resolveResourceId 落空 → OBJECT_KEY_NOT_FOUND；matchedParentOperations
+//  取 result.details().parentCheck().matchedOperationCodes，不重跑父判断；NO_ROLE/PARENT_DENIED → NO_PERMISSION）
+OutputSpec output = new OutputSpec(FactDetail.RAW_AND_KEPT, true, true, false,
+    PresentationExpansion.NONE, Set.copyOf(requirements), false); // requirements=类型×操作全组合
+QueryItem item = QueryItem.grantListFacts("scopes", parent, Evaluation.full(), output);
+List<ScopeGroup> groups = ScopeCoverageProjector.project((GrantSetResult) result, requirements);
 
-// grant check — 授权传递检查（canGrant 校验；T-PERM-091 迁移）
+// interfaceSnapshot — LEGACY_API 旧快照（T-PERM-090）：GRANT_LIST＋PRESERVE/ENFORCE＋FACTS
+// （条件身份保留、互斥仍清；角色解析含互斥双删由 User 主体内部完成；SnapshotAssembler 消费 List<GrantFact>）
+QueryItem item = QueryItem.grantListFacts("snapshot", null, Evaluation.preserveEnforce(),
+    new OutputSpec(FactDetail.KEPT, false, false, false, PresentationExpansion.NONE, Set.of(), false));
+
+// grant check — 授权传递检查（canGrant 校验；T-PERM-091 迁移，仍走 forUserView 旧管线）
 boolean canGrant = permissionGrantDomainService.canGrantPermission(
   tenantId, subjectId, resourceTypeCode, resourceCode, codeType, operationCode, scopeAll, domainCode
 );
@@ -129,25 +145,26 @@ Map<String, PermissionGrantDomainService.GrantCheckResult> results =
   permissionGrantDomainService.checkCanGrant(tenantId, subjectId, permissions, domainCode);
 ```
 
-## 工厂方法预设（迁移期存量：T-PERM-090/091 目标仍在用；forAuthCheck/forValidate/forValidateByEntityId 已无生产消费者）
+## 工厂方法预设（迁移期存量：仅 forUserView 剩 091 目标〔视图/转授〕；forAuthCheck/forValidate/forValidateByEntityId/forInterfaceCheck/forScopeQuery 已无生产消费者）
 
 | 工厂方法 | targetMode | 评估条件 | 条目互斥 | 判定面继承 | 附属信息 |
 |---------|-----------|---------|---------|-----------|---------|
 | forAuthCheck | ~~code=null→TYPE_LEVEL / 有 code→INSTANCE~~ | ✅ | ✅ | 关 + `setInheritMode("PARENT"/"BOTH")` 显式开 | ~~已迁新 execute（T-PERM-089）~~ |
-| forInterfaceCheck | INSTANCE | ✅ | ✅ | 关（API 扁平） | 全部（T-PERM-090 迁移） |
+| forInterfaceCheck | INSTANCE | ✅ | ✅ | 关（API 扁平） | ~~已迁新 execute（T-PERM-090，TARGET_SET 共同集合）~~ |
 | forValidate / forValidateByEntityId | ~~两档~~ | ✅（拉平，入口自动装配 clientIp） | ✅ | **开**（管理面写门禁矩阵） | ~~已迁 QueryGate（T-PERM-089）~~ |
-| forScopeQuery | LIST | ✅ | ✅ | 不适用 | resource+op+role；主资源上下文 `setParentResource`（T-PERM-090 迁移） |
-| forUserView | LIST | ✅（标记态 `setMarkConditionsOnly`，快照构建） | ✅ | 不适用 | resource+op+role（用户全量视图，快照读缓存）；树扩展 `setInheritChildren/setInheritParents`（展示面展开）（T-PERM-090/091 迁移） |
+| forScopeQuery | LIST | ✅ | ✅ | 不适用 | ~~已迁新 execute（T-PERM-090，GRANT_LIST＋RAW_AND_KEPT）~~ |
+| forUserView | LIST | ✅（标记态 `setMarkConditionsOnly`，快照构建） | ✅ | 不适用 | resource+op+role（用户全量视图，快照读缓存）；树扩展 `setInheritChildren/setInheritParents`（展示面展开）（视图/转授消费，T-PERM-091 迁移） |
 
 **三态互不串义**：TYPE_LEVEL 只消费 scopeAll（零实例查询，实例授权不得放行类型级门禁）；INSTANCE 目标下推+判定面闭包；LIST 按角色全量。**两语义拆分**：判定面继承（`inheritClosure`，查询前目标∪同类型祖先链，改变 allowed/denied）≠ 展示面展开（`inheritParents/inheritChildren`，查询后克隆 `grantSource=INHERITED`，不改变判定）。**角色互斥经 resolveJudgementRoleIds 进全部判定入口**（T-PERM-075，2026-09-22——取代 2026-09-09「不归引擎」定案）：引擎解析分支/getDenied* 便捷入口/菜单权限串/接口快照消费互斥过滤后角色集（写守卫看原始持有窗口不经此入口）；授予时校验沿 T-PERM-063 落地（[历史定案原文](../../../docs/archive/2026-09-26/decision-registry-before.md) 2026-09-22 行）。
 
 > 使用政策：`forValidateByEntityId` 仅限已完成解析的调用方（资源树、API 映射），禁止用于 USER/ROLE 等业务对象门禁（entityId 轨改走 `queryGate.hasPermissionByEntityId`）。`forResourceQuery` / `forResourceCheck` 已删除（2026-08-28，零生产调用；资源类查询语义由 `forUserView` / `forValidateByEntityId` 覆盖，勿重新引入）。
 
-## Engine 内部流程（迁移期存量管线，T-PERM-090/091 目标仍在用；092 删除）
+## Engine 内部流程（迁移期存量管线，仅剩 091 目标〔视图/转授〕；092 删除）
 
-> check/batchCheck/管理门禁/getDenied 已不走本管线（T-PERM-089 起新 execute：
+> check/batchCheck/管理门禁/getDenied（T-PERM-089）与范围/LEGACY_API 接口集合（T-PERM-090）
+> 已不走本管线（新 execute：
 > 主体解析 → TYPE_GRANT/INSTANCE/GRANT_LIST 分阶段 → 事实与展示投影，设计
-> `r2-unified-query-and-admission.md` §4；下述仅剩 LEGACY_API/范围/视图/转授消费者）。
+> `r2-unified-query-and-admission.md` §4；下述仅剩视图/转授消费者）。
 
 ```
 query(PermQuery)
@@ -183,7 +200,7 @@ queryBatch(PermBatchQuery) — 批量判定 A+ 形态（T-PERM-061，语义与�
 | 工具类 | 方法 | 用途 |
 |--------|------|------|
 | `PermResultUtils` | `toAuthCheckResp(DecisionResult)` | 新单项判定→AuthCheckResp（纯转换，T-PERM-089） |
-| `PermResultUtils` | `toCheckInterfaceResp()` | PermResult→CheckInterfaceResp（迁移期存量，T-PERM-090 迁移） |
+| `PermResultUtils` | `toCheckInterfaceResp(DecisionResult, ttl)` | 新单项判定→CheckInterfaceResp（纯转换，T-PERM-090） |
 | `OperationPermissionUtils` | `effectiveBits()` | 有效位计算 |
 | `OperationPermissionUtils` | `covers(granted,target)` | 操作覆盖检查 |
 | `OperationPermissionUtils` | `coveredOperations()` | 按位掩码取覆盖操作集 |
