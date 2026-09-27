@@ -86,7 +86,7 @@ Gateway (8080) -> access-service (9100)    能力包单体：管理面（用户/
 | 技能                          | 定位                                                                                                        |
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | `dual-layer-cache-framework`  | 统一缓存框架规范：涉及 CacheService/缓存目录/L1+L2 存储/失效广播/TTL/evictAfterCommit 等缓存代码时读 skill   |
-| `permission-query-pipeline`   | 权限查询引擎规范：涉及 QueryGate/QueryExecutionEngine/权限校验/批量检查/OperationCode 时读 skill；禁止绕过引擎直查 rolePermMapper（旧 PermQueryEngine 仅剩视图/转授存量消费者，091 迁移、092 删除） |
+| `permission-query-pipeline`   | 权限查询引擎规范：涉及 QueryGate/QueryExecutionEngine/权限校验/批量检查/OperationCode 时读 skill；禁止绕过引擎直查 rolePermMapper（旧 PermQueryEngine 生产消费者已清零，092 删除；PermQuery 静态助手 092 收编） |
 | `accessmesh-patterns`         | 仓库级开发模式速查：分层边界/API 路径/DTO 命名/审计字段/N+1/禁止依赖/提交规范                                  |
 | `dual-track-local-review`     | 任务本地双轨评审与收口 checklist（收口默认动作；不自动串联外部评审）                                           |
 | `external-review`             | 外部 AI 评审执行规范：claude/grok/codex 三通道、全程禁止子代理（仅用户显式触发）                              |

@@ -21,6 +21,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static cn.ac.fage.accessmesh.access.engine.query.PresentationEntry.Derivation.CHILD;
+import static cn.ac.fage.accessmesh.access.engine.query.PresentationEntry.Derivation.OPERATION_COVERAGE;
+import static cn.ac.fage.accessmesh.access.engine.query.PresentationEntry.Derivation.ORIGINAL;
+import static cn.ac.fage.accessmesh.access.engine.query.PresentationEntry.Derivation.PARENT;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -97,13 +102,89 @@ class PermViewAssemblerTest {
         assertEquals(Map.of(200L, "OPS"), view.getDomainCodeMap());
     }
 
+    /**
+     * T-PERM-091 复评回归锁（设计 §6.4 方向优先）：资源 100 授 UPDATE（覆盖 VIEW）展开到
+     * 父 90/子 110 后，父/子投影行不得被事实过滤丢弃——事实↔投影按源授权行
+     * （sourcePermissionId↔permissionId）关联，displayedEntityId 是展示资源不作关联键。
+     * 旧实现把 displayedEntityId 拼进来源键，展开行与事实 resourceEntityId 错配被整批
+     * 删除，本用例必失败。
+     */
+    @Test
+    void shouldKeepParentAndChildExpansionEntriesJoinedBySourcePermission() {
+        GrantFact source = new GrantFact(401L, 20L, 1, 100L, 2L,
+            false, false, null, false, null, "MANUAL");
+        GrantSetResult result = grantResult(List.of(source), Map.of(), List.of(
+            eff(401L, 100L, ORIGINAL, "UPDATE", "UPDATE", 2L),
+            eff(401L, 100L, OPERATION_COVERAGE, "UPDATE", "VIEW", 1L),
+            eff(401L, 90L, PARENT, "UPDATE", "UPDATE", 2L),
+            eff(401L, 90L, PARENT, "UPDATE", "VIEW", 1L),
+            eff(401L, 110L, CHILD, "UPDATE", "UPDATE", 2L),
+            eff(401L, 110L, CHILD, "UPDATE", "VIEW", 1L)));
+        when(typeResolutionService.batchResolveTypeCodes(1L, "resource_type", Set.of(1)))
+            .thenReturn(Map.of(1, "MENU"));
+
+        cn.ac.fage.accessmesh.access.engine.dto.PermViewResult view = assembler.assemble(1L, result, null);
+
+        // 六行投影全部保留：源资源 2 行（ORIGINAL＋OPERATION_COVERAGE）＋父 2 行＋子 2 行
+        assertEquals(6, view.getEffectiveOperationEntries().size());
+        // 方向优先：父/子行保持 PARENT/CHILD，不因操作覆盖被改标或筛掉
+        Map<Long, List<String>> derivationsByEntity = view.getEffectiveOperationEntries().stream()
+            .collect(java.util.stream.Collectors.groupingBy(
+                cn.ac.fage.accessmesh.access.engine.query.ResultDetails.EffectiveOperationEntry::displayedEntityId,
+                java.util.stream.Collectors.mapping(
+                    e -> e.derivation() + ":" + e.operationCode(),
+                    java.util.stream.Collectors.toList())));
+        assertEquals(Map.of(
+            100L, List.of("ORIGINAL:UPDATE", "OPERATION_COVERAGE:VIEW"),
+            90L, List.of("PARENT:UPDATE", "PARENT:VIEW"),
+            110L, List.of("CHILD:UPDATE", "CHILD:VIEW")), derivationsByEntity);
+    }
+
+    /**
+     * 方向优先下的操作码过滤：筛 VIEW 时三个展示资源上的 VIEW 行都保留（OPERATION_COVERAGE
+     * ＋PARENT＋CHILD），不以 derivation==OPERATION_COVERAGE 作唯一筛选（设计 §6.4）。
+     */
+    @Test
+    void shouldMatchOperationCodeAcrossAllDerivationsWhenFilteringByOperation() {
+        GrantFact source = new GrantFact(401L, 20L, 1, 100L, 2L,
+            false, false, null, false, null, "MANUAL");
+        GrantSetResult result = grantResult(List.of(source), Map.of(), List.of(
+            eff(401L, 100L, ORIGINAL, "UPDATE", "UPDATE", 2L),
+            eff(401L, 100L, OPERATION_COVERAGE, "UPDATE", "VIEW", 1L),
+            eff(401L, 90L, PARENT, "UPDATE", "UPDATE", 2L),
+            eff(401L, 90L, PARENT, "UPDATE", "VIEW", 1L),
+            eff(401L, 110L, CHILD, "UPDATE", "UPDATE", 2L),
+            eff(401L, 110L, CHILD, "UPDATE", "VIEW", 1L)));
+        when(typeResolutionService.batchResolveTypeCodes(1L, "resource_type", Set.of(1)))
+            .thenReturn(Map.of(1, "MENU"));
+        cn.ac.fage.accessmesh.access.engine.dto.PermViewFilter filter =
+            new cn.ac.fage.accessmesh.access.engine.dto.PermViewFilter();
+        filter.setOperationCodes(Set.of("VIEW"));
+
+        cn.ac.fage.accessmesh.access.engine.dto.PermViewResult view = assembler.assemble(1L, result, filter);
+
+        // 覆盖出的 VIEW 在全部三个派生来源上被识别（旧实现仅剩源资源 OPERATION_COVERAGE 一行）
+        assertEquals(3, view.getEffectiveOperationEntries().size());
+        assertEquals(List.of("OPERATION_COVERAGE", "PARENT", "CHILD"),
+            view.getEffectiveOperationEntries().stream()
+                .map(e -> e.derivation().name())
+                .toList());
+        // 事实经 VIEW 投影命中，不被操作码过滤删掉
+        assertEquals(1, view.getEntries().size());
+    }
+
     // ========== 夹具（新 execute 结果构造） ==========
 
     private GrantSetResult grantResult(List<GrantFact> facts, Map<Long, ResourceDescription> resources) {
+        return grantResult(facts, resources, List.of());
+    }
+
+    private GrantSetResult grantResult(List<GrantFact> facts, Map<Long, ResourceDescription> resources,
+                                       List<cn.ac.fage.accessmesh.access.engine.query.ResultDetails.EffectiveOperationEntry> effectiveOperations) {
         StageFacts stage = new StageFacts(Stage.GRANT_LIST, facts, facts, StageFacts.Status.PRESENT);
         ResultDetails details = new ResultDetails(Set.of(), List.of(), List.of(), List.of(stage),
             new ResultDetails.Descriptions(resources, Map.of(), Map.of(), Map.of()),
-            List.of(), List.of(), new ResultDetails.ParentCheckSummary(List.of()),
+            effectiveOperations, List.of(), new ResultDetails.ParentCheckSummary(List.of()),
             new ResultDetails.ExecutionTrace(List.of(), List.of(), List.of(), List.of()));
         return new GrantSetResult("view", GrantSetResult.CollectionStatus.PRESENT,
             new EvaluationCoverage(EvaluationCoverage.SubjectResolution.USER_EFFECTIVE_WITH_MUTEX,
@@ -116,6 +197,16 @@ class PermViewAssemblerTest {
     private static GrantFact entry(Long permissionId, Long resourceEntityId, Integer resourceType) {
         return new GrantFact(permissionId, 20L, resourceType, resourceEntityId, 1L,
             false, false, null, false, null, "MANUAL");
+    }
+
+    /** 有效操作投影行：授予位 2=UPDATE（覆盖位 1=VIEW），effectiveBits=3。 */
+    private static cn.ac.fage.accessmesh.access.engine.query.ResultDetails.EffectiveOperationEntry eff(
+            Long sourcePermissionId, Long displayedEntityId,
+            cn.ac.fage.accessmesh.access.engine.query.PresentationEntry.Derivation derivation,
+            String grantedOperationCode, String operationCode, Long operationBinaryBit) {
+        return new cn.ac.fage.accessmesh.access.engine.query.ResultDetails.EffectiveOperationEntry(
+            sourcePermissionId, 20L, displayedEntityId, derivation, 1, 2L,
+            grantedOperationCode, 3L, operationCode, operationBinaryBit);
     }
 
     private static ResourceDescription resource(Long id, Integer resourceType, String code) {

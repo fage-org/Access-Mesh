@@ -19,7 +19,7 @@ acceptance:
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-09-25
+last_updated: 2026-09-27
 ---
 
 # T-PERM-092 （R2-T13）删除旧执行体与四旧 DTO
@@ -31,6 +31,7 @@ last_updated: 2026-09-25
 ## 范围
 
 - 删除与全仓残留清扫（含 mock 层与文档现在时残留）；回写时把 R2 引擎终态章节按现行规范并入 engine/implementation.md（设计稿对应章节标注已并入；设计稿整体转 superseded 在计划完结归档时，准入面回写由 ADM 系列卡承担）。
+- 文档治理清扫（2026-09-27 用户拍板挂本卡）：T-PERM-089/090 任务卡完成记录与计划「当前进度」区对应条目的过程叙事（用户拍板选项清单、外评通道处置流水、复评轮次定位）按 project-rules §文档治理改写为终态事实（091 卡已于 2026-09-27 同型清扫，先例形态见该卡完成记录）。
 
 ## 非目标 / 遗留
 

@@ -1,6 +1,5 @@
 package cn.ac.fage.accessmesh.access.engine.util;
 
-import cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtil;
 import cn.ac.fage.accessmesh.access.engine.dto.PermViewFilter;
 import cn.ac.fage.accessmesh.access.engine.dto.PermViewResult;
 import cn.ac.fage.accessmesh.access.engine.dto.PermViewResult.RoleInfo;
@@ -136,12 +135,12 @@ public class PermViewAssembler {
         }
         Set<String> codes = filter.getOperationCodes();
         if (!effectiveOperationEntries.isEmpty()) {
-            Set<String> matchedEntryKeys = effectiveOperationEntries.stream()
+            Set<Long> matchedSourcePermissionIds = effectiveOperationEntries.stream()
                 .filter(e -> e.operationCode() != null && codes.contains(e.operationCode()))
-                .map(PermViewAssembler::effectiveSourceKey)
+                .map(EffectiveOperationEntry::sourcePermissionId)
                 .collect(Collectors.toSet());
             return entries.stream()
-                .filter(e -> matchedEntryKeys.contains(effectiveSourceKey(e)))
+                .filter(e -> matchedSourcePermissionIds.contains(e.permissionId()))
                 .collect(Collectors.toList());
         }
         return entries.stream()
@@ -163,27 +162,22 @@ public class PermViewAssembler {
         if (effectiveOperationEntries == null || effectiveOperationEntries.isEmpty()) {
             return List.of();
         }
-        Set<String> allowedEntryKeys = entries.stream()
-            .map(PermViewAssembler::effectiveSourceKey)
+        Set<Long> allowedSourcePermissionIds = entries.stream()
+            .map(GrantFact::permissionId)
             .collect(Collectors.toSet());
         Set<String> operationCodes = filter.getOperationCodes();
         return effectiveOperationEntries.stream()
-            .filter(e -> allowedEntryKeys.contains(effectiveSourceKey(e)))
+            .filter(e -> allowedSourcePermissionIds.contains(e.sourcePermissionId()))
             .filter(e -> operationCodes == null || operationCodes.isEmpty()
                 || (e.operationCode() != null && operationCodes.contains(e.operationCode())))
             .collect(Collectors.toList());
     }
 
-    /** 来源条目身份键：视图面无展示展开，displayedEntityId==null 即 scopeAll 行（与事实侧键同形）。 */
-    private static String effectiveSourceKey(GrantFact entry) {
-        return BusinessKeyUtil.permEntrySourceKey(entry.permissionId(), entry.roleId(), entry.resourceEntityId(),
-            entry.resourceType(), entry.grantedBits(), entry.scopeAll());
-    }
-
-    private static String effectiveSourceKey(EffectiveOperationEntry entry) {
-        return BusinessKeyUtil.permEntrySourceKey(entry.sourcePermissionId(), entry.sourceRoleId(),
-            entry.displayedEntityId(), entry.resourceType(), entry.grantedBits(), entry.displayedEntityId() == null);
-    }
+    /**
+     * 事实↔投影按源授权行主键关联（GrantFact.permissionId ↔ EffectiveOperationEntry.sourcePermissionId）。
+     * displayedEntityId 是展示资源——展示展开（PARENT/CHILD）下不等于源授权资源，不作关联键
+     * （设计 §6.4 方向优先：父/子投影行保留自身派生来源，不得被来源过滤丢弃）。
+     */
 
     private List<GrantFact> filterByResourceTypes(List<GrantFact> entries, PermViewFilter filter,
                                                   Map<Long, ResourceDescription> resourceMap,
