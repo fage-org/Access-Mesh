@@ -40,7 +40,6 @@ import cn.ac.fage.accessmesh.access.resource.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.access.engine.service.PermissionCheckAppService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
-import cn.ac.fage.accessmesh.access.engine.dto.PermQuery;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.engine.util.PermResultUtils;
 import org.springframework.stereotype.Service;
@@ -54,10 +53,9 @@ import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
  * 权限检查应用服务实现
  * <p>
  * 提供纯校验功能：单次校验、批量校验、接口级校验。
- * check/batchCheck 已随 T-PERM-089 迁移新 execute（X03 等价迁移：外层职责保留——
- * 主体业务键解析、USER_NOT_FOUND 缺省、原序/重复项（按下标 item key）、请求级父上下文
- * 与请求级单一评估时刻〔RunState 单时钟〕）；checkInterface 已随 T-PERM-090 迁移
- * 新 execute（LEGACY_API 共同集合语义，设计 §6.6）——本类不再引用旧执行体。
+ * check/batchCheck（T-PERM-089）、checkInterface（T-PERM-090）全部直构 QueryRequest
+ * 经新 execute；外层职责保留——主体业务键解析、USER_NOT_FOUND 缺省、原序/重复项
+ * （按下标 item key）、请求级父上下文与请求级单一评估时刻〔RunState 单时钟〕。
  * </p>
  */
 @Service
@@ -105,7 +103,7 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
         if (userId == null) return AuthCheckResp.deny("USER_NOT_FOUND");
 
         QueryItem item = QueryItem.decision("check", selection(req.resourceTypeCode(), req.resourceCode(),
-            req.operationCode(), req.codeType(), req.domainCode(), PermQuery.inheritClosureOf(req.inheritMode()),
+            req.operationCode(), req.codeType(), req.domainCode(), inheritClosureOf(req.inheritMode()),
             parentRequirement(req.parentResourceTypeCode(), req.parentResourceCode(),
                 req.parentCodeType(), req.parentOperationCodes())), checkOutput());
         QueryResult result = queryEngine.execute(new QueryRequest(tenantId, new User(userId),
@@ -145,7 +143,7 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
             BatchAuthCheckReq.AuthCheckItem item = req.items().get(i);
             items.add(QueryItem.decision(String.valueOf(i), selection(item.resourceTypeCode(),
                 item.resourceCode(), item.operationCode(), item.codeType(), item.domainCode(),
-                PermQuery.inheritClosureOf(item.inheritMode()), parent), checkOutput()));
+                inheritClosureOf(item.inheritMode()), parent), checkOutput()));
         }
         QueryResult result = queryEngine.execute(new QueryRequest(tenantId, new User(userId), caller,
             ReadOptions.defaults(), items));
@@ -219,8 +217,18 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
         return new OutputSpec(FactDetail.KEPT, true, true, false, PresentationExpansion.NONE, Set.of(), false);
     }
 
-    /** 目标选择两档：无编码目标（含空白串归一 TYPE_LEVEL，2026-09-27 拍板）或单 clause TARGET_SET。 */
-    private static Selection selection(String resourceTypeCode, String resourceCode, String operationCode,
+    /**
+     * {@code inheritMode} SDK 线格式参数解析（check 族契约口径，T-PERM-092 收编）：
+     * "PARENT"/"BOTH" → 判定面继承开；"CHILD"/"NONE"/其他含缺省 → 关。
+     *
+     * @param inheritMode 继承模式（可 null）
+     * @return 判定面继承开关
+     */
+    private static boolean inheritClosureOf(String inheritMode) {
+        return "PARENT".equalsIgnoreCase(inheritMode) || "BOTH".equalsIgnoreCase(inheritMode);
+    }
+
+    /** 目标选择两档：无编码目标（含空白串归一 TYPE_LEVEL，2026-09-27 拍板）或单 clause TARGET_SET。 */    private static Selection selection(String resourceTypeCode, String resourceCode, String operationCode,
                                         String codeType, String domainCode, boolean inheritClosure,
                                         ParentRequirement parent) {
         TypeOperation operation = new TypeOperation(resourceTypeCode, operationCode);

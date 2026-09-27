@@ -8,8 +8,8 @@ import cn.ac.fage.accessmesh.access.menu.dto.resp.UserMenuResp;
  * <p>
  * 聚合 admin 域（sys_user_org、sys_menu）与 permission 域（角色、有效权限码、
  * 菜单可见性判定）数据，供 /auth/user-menu、/user/user-menus、/role/my-info 使用。
- * 权限判定经 PermQueryEngine，不直查权限表做判定；所有读取走 query 包专用 Mapper，
- * 只读事务执行，不产生任何写 SQL。
+ * 权限判定经判定面门面 QueryGate（T-PERM-089 起唯一入口），不直查权限表做判定；
+ * 所有读取走 query 包专用 Mapper，只读事务执行，不产生任何写 SQL。
  * </p>
  */
 public interface UserMenuQueryAppService {

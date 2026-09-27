@@ -49,9 +49,9 @@ v3.5 范围外的后续增量（L3 字段维度、`sys_menu_ref` 跨业务线复
 
 ## §1. 设计原则与单源权威声明
 
-### 1.1 IR-1.1 PermQueryEngine 唯一鉴权入口（铁律）
+### 1.1 IR-1.1 唯一鉴权入口（铁律）
 
-> 所有授权决策必须经过 `PermQueryEngine` 显式 API 与 `query()`（2026-08-27 对齐 T-PERM-042 引擎终态：旧 `hasPermission()` / `validateBatch()` / `getDeniedIds()` 已从引擎删除）——业务编码轨 `hasPermissionByCode()` / `getDeniedResourceCodes()`；实体轨 `hasPermissionByEntityId()` / `getDeniedEntityIds()`（仅引擎内部或已完成解析的调用方）。admin / 业务服务 / 前端不得旁路或封装权限语义，禁止绕过引擎直查 `rolePermMapper` 做权限判定。仅管理查询（list resources / list logs）可直查 Mapper。
+> 所有授权决策必须经过判定面门面 `QueryGate` 与统一执行引擎 `QueryExecutionEngine.execute`（T-PERM-089 判定面唯一门面；T-PERM-092 旧 `PermQueryEngine` 已删除）——业务编码轨 `queryGate.hasPermissionByCode()` / `getDeniedResourceCodes()`；实体轨 `queryGate.hasPermissionByEntityId()` / `getDeniedEntityIds()`（仅已完成解析的调用方）；复杂查询面由对应 AppService/DomainService 直构 `QueryRequest` 经 `execute`。admin / 业务服务 / 前端不得旁路或封装权限语义，禁止绕过引擎直查 `rolePermMapper` 做权限判定。仅管理查询（list resources / list logs）可直查 Mapper。
 
 ### 1.2 IR-1.2 菜单 = UI 元素，不是权限对象
 

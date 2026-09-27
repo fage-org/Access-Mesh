@@ -49,7 +49,7 @@ API 与操作关联派生仍归 T-PERM-054，不通过依赖图授 API 绕过启
               → resource_dependency（已解析图，单写者）
               → 角色种子 + 共享推导函数
               → role_resource_permission（AUTO_DEP，事务内 diff）
-              → PermQueryEngine（消费授权行）
+              → 权限查询引擎（消费授权行）
 
 来源解释 / 对账 → 一致的种子、图与实际授权
                → 同一推导函数 → 共享推导图 / desired 与 actual 比较
@@ -206,7 +206,7 @@ effectiveBits=binaryBit|inheritMask 复用 OperationPermissionUtils。触发至�
 
 互斥继续沿现有引擎的 canonical 操作与入口评估集合语义。UPDATE 覆盖 VIEW 且两者均被推导时，两行均参与各入口既有过滤；若满足条件后的同一互斥评估集合包含规则两端，按既有规则两端剔除，不能先删除 VIEW 来规避冲突。此选择是自动授权的行为定案，不宣称与旧覆盖压缩方案等价；操作覆盖仍用于触发匹配和运行时权限匹配，不用于压缩物化结果。
 
-`AutoGrantEngineContractPgIT` 已用真实 PostgreSQL 与 PermQueryEngine 验证候选 AUTO_DEP 结果行：不同操作的无条件/有条件身份不串义、NULL 与多个条件变体并存及 OR、独立 MANUAL 存续、非传递/相互覆盖、单查/批查/LIST 的互斥集合差异。例如 UPDATE 覆盖 VIEW 且两行存在时，VIEW 查询两端同场而拒绝，UPDATE 查询只收集 UPDATE 而允许，LIST 两端被剔除；不能将此简化为两个操作都必然拒绝。该测试直接装配候选结果；依赖推导、共享来源撤销与传播的真实写链路验收已由 072 的 AutoGrantMaterializationPgIT 补齐（真实写入口 + 真实 PG/Redis）。
+`AutoGrantEngineContractPgIT` 已用真实 PostgreSQL 与权限查询引擎（check/batchCheck/视图服务面，T-PERM-092 起生产消费面驱动）验证候选 AUTO_DEP 结果行：不同操作的无条件/有条件身份不串义、NULL 与多个条件变体并存及 OR、独立 MANUAL 存续、非传递/相互覆盖、单查/批查/LIST 的互斥集合差异。例如 UPDATE 覆盖 VIEW 且两行存在时，VIEW 查询两端同场而拒绝，UPDATE 查询只收集 UPDATE 而允许，LIST 两端被剔除；不能将此简化为两个操作都必然拒绝。该测试直接装配候选结果；依赖推导、共享来源撤销与传播的真实写链路验收已由 072 的 AutoGrantMaterializationPgIT 补齐（真实写入口 + 真实 PG/Redis）。
 
 上述场景已由 072 真实引擎验证（不同操作 NULL、不同行条件 OR、无条件与窄条件来源、共享来源撤销、非传递/相互覆盖；PERM_MUTEX 单查/批查/LIST 由 078 AutoGrantEngineContractPgIT 校准）。中间事实均继续传播，不因另一操作覆盖而停止。小图和互斥组件测试只能说明局部性质，不能替代上述验证。
 
@@ -321,7 +321,7 @@ manifest 不需要用户 API 快照/固定图授权行；管理 explain 需注�
 
 完整路径按需展开，可分页/截断且标识；不得截断物化事实计算。窄条件、无条件来源及无物理授权行的中间节点均可解释。它不证明用户当前角色有效、条件成立、互斥通过或 Gateway 缓存刷新。
 
-解释与预览的事实读取使用 AppService 的 REPEATABLE_READ、readOnly 事务，在单次请求中通过无缓存的领域读取端口批量装载角色种子、图、操作、条件身份与实际 AUTO_DEP。管理门禁继续走现有 PermQueryEngine，不绕过引擎查授权表；推导输入不用可能分别过期的运行时快照缓存。事务只覆盖本次读取，结束后不保留跨请求快照。返回 viewedAt 与截断标记，不将多次请求拼成原子快照。
+解释与预览的事实读取使用 AppService 的 REPEATABLE_READ、readOnly 事务，在单次请求中通过无缓存的领域读取端口批量装载角色种子、图、操作、条件身份与实际 AUTO_DEP。管理门禁继续走现有判定面门面（QueryGate），不绕过引擎查授权表；推导输入不用可能分别过期的运行时快照缓存。事务只覆盖本次读取，结束后不保留跨请求快照。返回 viewedAt 与截断标记，不将多次请求拼成原子快照。
 
 explain/preview 的条件装载必须带租户；apply 响应同事务新鲜读取继续使用既有 NoTenant 读取版本，不能把不同事务与隔离前提下的方法机械互换。[来源](../archive/2026-09-26/decision-registry-before.md)（原第 156 行）。
 

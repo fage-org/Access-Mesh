@@ -4,8 +4,15 @@ import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
 import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
-import cn.ac.fage.accessmesh.access.engine.dto.PermQuery;
-import cn.ac.fage.accessmesh.access.engine.dto.PermResult;
+import cn.ac.fage.accessmesh.access.engine.query.CallerContext;
+import cn.ac.fage.accessmesh.access.engine.query.Evaluation;
+import cn.ac.fage.accessmesh.access.engine.query.GrantSetResult;
+import cn.ac.fage.accessmesh.access.engine.query.OutputSpec;
+import cn.ac.fage.accessmesh.access.engine.query.QueryExecutionEngine;
+import cn.ac.fage.accessmesh.access.engine.query.QueryItem;
+import cn.ac.fage.accessmesh.access.engine.query.QueryRequest;
+import cn.ac.fage.accessmesh.access.engine.query.ReadOptions;
+import cn.ac.fage.accessmesh.access.engine.query.User;
 import cn.ac.fage.accessmesh.access.grant.dto.req.ApplyGrantPlanReq;
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.grant.service.PermissionGrantAppService;
@@ -82,7 +89,7 @@ class AuthorizationChangeInvalidationPgIT {
     @Autowired
     private SubjectDomainService subjectDomainService;
     @Autowired
-    private cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine permQueryEngine;
+    private QueryExecutionEngine queryEngine;
     @Autowired
     private CacheService cacheService;
     @Autowired
@@ -102,7 +109,7 @@ class AuthorizationChangeInvalidationPgIT {
         Long affectedUser = insertAbstractUser("920002", "特征测试-受影响用户");
         Long targetRole = insertAbstractRole("target-role-920201", "特征测试-目标角色");
         insertUserRole(affectedUser, "ROLE", targetRole);
-        // 被撤销的授权行 P + 保留的授权行 P2（revoke 后角色仍有权限，forUserView 可断言新状态）
+        // 被撤销的授权行 P + 保留的授权行 P2（revoke 后角色仍有权限，视图断言新状态）
         Long revokedPermId = insertRolePerm(targetRole, RESOURCE_TYPE_SERVICE, SERVICE_VIEW_BIT, false, 929001L);
         Long keptPermId = insertRolePerm(targetRole, RESOURCE_TYPE_SERVICE, SERVICE_VIEW_BIT, false, 929002L);
 
@@ -147,10 +154,13 @@ class AuthorizationChangeInvalidationPgIT {
         assertThat(cacheService.getBatch(AccessCacheCatalog.EFFECTIVE_ROLES, TENANT, Set.of(affectedUser)))
             .containsKey(affectedUser);
 
-        PermResult afterRevoke = permQueryEngine.query(PermQuery.forUserView(TENANT, affectedUser));
-        assertThat(afterRevoke.allowed()).isTrue();
-        assertThat(afterRevoke.allEntries())
-            .extracting(RolePermEntry::permissionId)
+        // 引擎视角＝GRANT_LIST＋EVALUATE/ENFORCE＋保留事实（视图面口径，T-PERM-091；
+        // T-PERM-092 起旧 forUserView 退役，直构 execute 重查回源后的新状态）
+        GrantSetResult afterRevoke = (GrantSetResult) queryEngine.execute(new QueryRequest(
+            TENANT, new User(affectedUser), CallerContext.of(null), ReadOptions.defaults(),
+            List.of(QueryItem.grantListFacts("view", null, Evaluation.full(), OutputSpec.kept()))))
+            .orderedResults().get(0);
+        assertThat(afterRevoke.details().matchedPermissionIds())
             .containsExactlyInAnyOrder(keptPermId)
             .doesNotContain(revokedPermId);
     }

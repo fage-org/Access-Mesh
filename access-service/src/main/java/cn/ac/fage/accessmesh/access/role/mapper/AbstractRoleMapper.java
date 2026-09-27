@@ -111,8 +111,8 @@ public interface AbstractRoleMapper extends BaseMapper<AbstractRole> {
     /**
      * 查询租户全部有效角色 ID（轻量 id 查询，不限 status）。
      * <p>
-     * T-ACCESS-052 目录实例准入：先取全集 id（ROLE 业务码=roleId），再经引擎
-     * getDeniedResourceCodes 按 VIEW 批量判定得到可见子集。
+     * T-ACCESS-052 目录实例准入：先取全集 id（ROLE 业务码=roleId），再经判定面门面
+     * QueryGate.getDeniedResourceCodes 按 VIEW 批量判定得到可见子集。
      * </p>
      *
      * @param tenantId 租户ID

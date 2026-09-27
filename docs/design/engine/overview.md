@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 概念模型
 status: adopted
 domain: access-service
-last_reviewed: 2026-09-15 domain 改 access-service；同批修正分层架构节 TableDef 表述与仓库规则相反的存量错误）；此前 2026-09-13（T-ACCESS-039：缓存目录册引用改挂合一后 AccessCacheCatalog）；此前 2026-09-13（T-ACCESS-034：操作码常量类引用改挂合一后 OperationCode）；此前 2026-09-13（T-ACCESS-040 迁位 docs/design/engine/，内容原样；api-contract 引用重挂总册）；此前 2026-09-10   # 2026-09-10 T-PERM-059 收口：运行时接口列表与「权限排查与变更日志」节（改「变更日志与审计」）更新删除口径；此前 2026-09-09   # 2026-09-09 T-PERM-057 统一引擎落地：鉴权与查询入口节改 targetMode 三态工厂表 + 两语义拆分注记；此前 2026-08-28 复杂查询工厂表收敛（forResourceQuery/forResourceCheck 删除、补 forValidateByEntityId）；此前：2026-08-27 缓存 TTL 口径修正（Gateway L1 ≤15s、30s=10+5+15 总预算）
+last_reviewed: 2026-09-27（T-PERM-092 旧执行体删除：鉴权与查询入口节改 QueryGate/execute 终态口径；引擎组件口径更新）；此前 2026-09-15 domain 改 access-service；同批修正分层架构节 TableDef 表述与仓库规则相反的存量错误）；此前 2026-09-13（T-ACCESS-039：缓存目录册引用改挂合一后 AccessCacheCatalog）；此前 2026-09-13（T-ACCESS-034：操作码常量类引用改挂合一后 OperationCode）；此前 2026-09-13（T-ACCESS-040 迁位 docs/design/engine/，内容原样；api-contract 引用重挂总册）；此前 2026-09-10   # 2026-09-10 T-PERM-059 收口：运行时接口列表与「权限排查与变更日志」节（改「变更日志与审计」）更新删除口径；此前 2026-09-09   # 2026-09-09 T-PERM-057 统一引擎落地：鉴权与查询入口节改 targetMode 三态工厂表 + 两语义拆分注记；此前 2026-08-28 复杂查询工厂表收敛（forResourceQuery/forResourceCheck 删除、补 forValidateByEntityId）；此前：2026-08-27 缓存 TTL 口径修正（Gateway L1 ≤15s、30s=10+5+15 总预算）
 ---
 
 # Permission Center 概念模型
@@ -32,7 +32,7 @@ last_reviewed: 2026-09-15 domain 改 access-service；同批修正分层架构�
 | **Grant（授权）**                  | `role_resource_permission`                                      | 角色对资源操作的授权事实（granted 位掩码），支持条件绑定（conditionId）、子权限挂载（dependOn）、全量范围标记（scopeAll）、授权来源追踪（grantSource）。                                                                                                  |
 | **ServiceIntegration（服务集成）** | `service_config`, `resource_api_mapping`, `resource_dependency` | 接入服务的注册信息和接口清单；接口与 Gateway 路径的映射储存在 `resource_api_mapping`；资源依赖规则表 `resource_dependency` 表达"授权源资源时自动补全目标资源权限"。API 类型资源由同步自动创建，标记 `ownerServiceCode` 和 `maintainSource=SERVICE_SYNC`。 |
 | **DomainConfig（域配置）**         | `biz_domain`, `domain_config`, `type_definition`                | 业务域是管理分区而非子租户；仅用于角色、资源、操作和子权限的分类与后台管理视角隔离；域配置约束域内允许的角色、资源、操作和子权限；类型定义（type_definition）完成 code-to-value 的稳定映射。                                                              |
-| **PermissionRule（权限规则）**     | `permission_condition`, `permission_conflict_rule`              | 可复用权限条件（时间范围/IP 白名单/黑名单）和冲突规则（角色互斥/权限互斥），在 PermQueryEngine 查询管线中统一评估。                                                                                                                                       |
+| **PermissionRule（权限规则）**     | `permission_condition`, `permission_conflict_rule`              | 可复用权限条件（时间范围/IP 白名单/黑名单）和冲突规则（角色互斥/权限互斥），在权限查询引擎管线中统一评估。                                                                                                                                       |
 | **Audit（审计）**                  | `permission_change_log`, `operation_log`  | 权限变更日志（diff 快照）和操作日志（入口写操作记录）。入口日志由 `@OperationLog` AOP 自动记录；内部动态日志（diff 快照、冲突通知）由 `AuditDomainService` 显式调用。> **2026-06-20 审计 S-001**：`permission_version` 表与机制已决策完全删除（design-review §A'-3 + v3.5 §9.2），缓存失效改由 Redis pub/sub 主动广播 + TTL 兜底，详见 core-flows.md「缓存与一致性」。
 | **SystemConfig（系统配置）**       | `system_config`                                                 | 租户级配置（角色唯一性、默认策略等）。                                                                                                                                                                                                                    |
 
@@ -40,13 +40,13 @@ last_reviewed: 2026-09-15 domain 改 access-service；同批修正分层架构�
 
 ```
 Controller ──► AppService（调度层） ──► DomainService（领域层） ──► Mapper（数据访问）
-                                         ├── PermQueryEngine（统一鉴权引擎）
+                                         ├── QueryGate / QueryExecutionEngine（判定面门面＋统一执行引擎）
                                          └── AOP（@OperationLog 自动记录入口日志）
 ```
 
 - **Controller**：接收请求、解析 Header 中的 tenant/operator、将业务键（code）转换为内部 ID。
 - **AppService**（实现类，个数不在此维护）：调度/编排层，组合多个 DomainService 完成业务流程。每个 Service 按单一职责拆分（如 PermissionCheck/PermissionGrant 等）。
-- **DomainService**（领域服务接口 + `ResolveContext` + `PermQueryEngine`，个数不在此维护）：领域逻辑层，封装可复用的业务规则（角色解析、条件评估、冲突过滤、类型解析、域分类、同步元数据、授权传递等）。`PermQueryEngine` 是统一权限查询引擎的唯一入口。
+- **DomainService**（领域服务接口，个数不在此维护）：领域逻辑层，封装可复用的业务规则（角色解析、条件评估、冲突过滤、类型解析、域分类、同步元数据、授权传递等）。统一权限查询引擎（`engine.query` 包，`QueryGate` 判定面门面 + `QueryExecutionEngine` 执行主体）是权限判定的唯一入口。
 - **Mapper**（MyBatis-Flex 数据访问，个数不在此维护）：使用普通导入的 `*TableDef` 类名引用（禁止静态导入 APT 生成的 `*TableDef` 类；聚合 `Tables` 类本仓未生成，勿引用）。`RolePermEntryMapper` 是工具类（位于 `util` 包），负责 `RoleResourcePermission→RolePermEntry` 的转换。
 - **AOP**：`@OperationLog` 注解 + `OperationLogAspect` 切面自动拦截 AppService 写方法并记录入口级操作日志。`OperationLogRuntimeContext` 允许方法体内通过 `markSkip()`/`setSummary()`/`setTargetType()`/`setTargetId()` 覆盖注解值。
 
@@ -115,38 +115,37 @@ effectiveScopes = DIRECT 直接范围权限 ∪ DEPENDENT 子权限范围权限
 
 ## 鉴权与查询入口
 
-所有权限查询统一通过 `PermQueryEngine.query(PermQuery)` 执行。引擎提供两种粒度的 API：
+所有权限查询统一经 `QueryExecutionEngine.execute(QueryRequest)` 执行（R2 终态，T-PERM-082~092；旧 `PermQueryEngine`/四旧 DTO 已删除 T-PERM-092）。引擎提供两层入口：
 
-**AppService 层 API（单目标/批量校验）：**
+**判定面门面 `QueryGate`（T-PERM-089 起业务层唯一入口，单目标/批量校验）：**
 
 ```java
-// —— 业务编码轨（对外；USER/ROLE 等业务对象门禁统一使用，T-PERM-042 终态）——
+// —— 业务编码轨（对外；USER/ROLE 等业务对象门禁统一使用）——
 // resource_entity(USER).code = subjectId、resource_entity(ROLE).code = roleId（architecture §12.3）
 
-// 单目标鉴权（code 传 null = 类型级）
-boolean allowed = engine.hasPermissionByCode(tenantId, subjectId,
+// 单目标鉴权（code 传 null/空白 = 类型级）
+boolean allowed = queryGate.hasPermissionByCode(tenantId, subjectId,
     ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCode.MANAGE);
-// 批量获取拒绝的业务编码集合（引擎纯查询不抛异常，拒绝时调用方显式 throw）
-Set<String> denied = engine.getDeniedResourceCodes(tenantId, subjectId,
+// 批量获取拒绝的业务编码集合（门面纯查询不抛异常，拒绝时调用方显式 throw）
+Set<String> denied = queryGate.getDeniedResourceCodes(tenantId, subjectId,
     ResourceTypeCode.ROLE, roleCodes, OperationCode.MANAGE);
 
-// —— entityId 轨（仅引擎内部或已完成解析的调用方：资源树、API 映射、资源依赖、权限树等）——
-boolean ok = engine.hasPermissionByEntityId(tenantId, subjectId,
+// —— entityId 轨（仅已完成解析的调用方：资源树、API 映射、资源依赖、权限树等）——
+boolean ok = queryGate.hasPermissionByEntityId(tenantId, subjectId,
     ResourceTypeCode.RESOURCE, resourceEntityId, OperationCode.MANAGE);
-Set<Long> deniedEntityIds = engine.getDeniedEntityIds(tenantId, subjectId,
+Set<Long> deniedEntityIds = queryGate.getDeniedEntityIds(tenantId, subjectId,
     ResourceTypeCode.RESOURCE, resourceEntityIds, OperationCode.DELETE);
 ```
 
-**复杂查询 API（`PermQuery` 工厂方法 + `engine.query()`；T-PERM-057 统一引擎——targetMode 三态：TYPE_LEVEL 只消费 scopeAll / INSTANCE 目标下推+判定面闭包 / LIST 按角色全量）：**
+**复杂查询面（各 AppService/DomainService 适配层直构 `QueryRequest` 经 `execute`；目标选择封闭变体——TypeLevel 只消费 scopeAll / TargetSet 目标下推+判定面继承 / GRANT_LIST 按角色全量）：**
 
-| 工厂方法                      | targetMode | 说明                                            |
+| 消费面 | 目标选择 | 说明                                            |
 | ----------------------------- | ---------- | ----------------------------------------------- |
-| `PermQuery.forAuthCheck`      | 无目标 TYPE_LEVEL / 有目标 INSTANCE | 运行时鉴权；判定面继承关 + `setInheritMode("PARENT"/"BOTH")` 显式开（契约参数接通为闭包真实语义） |
-| `PermQuery.forInterfaceCheck` | INSTANCE   | 接口鉴权，完整评估，返回所有辅助信息；API 扁平无树天然关 |
-| `PermQuery.forValidate`       | 无目标 TYPE_LEVEL / 有目标 INSTANCE | 管理面写门禁：条件评估拉平（自动装配 clientIp）+ 条目互斥 + 判定面继承开 |
-| `PermQuery.forValidateByEntityId` | 同上（entityId 轨） | 仅限引擎内部/已完成解析的调用方 |
-| `PermQuery.forScopeQuery`     | LIST       | 数据范围查询：主资源上下文（`setParentResource`）经引擎执行 depend_on 过滤，条件/互斥评估在引擎 |
-| `PermQuery.forUserView`       | LIST       | 用户视图/清单面：全量角色权限记录 + effectiveBits 操作投影；树扩展经展示面展开轨道 |
+| check/batchCheck（T-PERM-089） | 无编码目标 TypeLevel / 有编码单 clause TargetSet | 运行时鉴权；判定面继承关 + `inheritMode("PARENT"/"BOTH")` 显式开（适配层 `inheritClosureOf` 解析） |
+| checkInterface（T-PERM-090） | TargetSet（共同集合） | 接口鉴权，全部匹配 API 一个 item；API 扁平无树天然关 |
+| QueryGate 判定面（T-PERM-089） | TypeLevel / TargetSet | 管理面写门禁：条件评估拉平（自动装配 clientIp）+ 条目互斥 + 判定面继承开 |
+| queryScopes（T-PERM-090） | GRANT_LIST | 数据范围查询：`ParentRequirement` 主资源上下文经引擎执行 depend_on 过滤，条件/互斥评估在引擎；四态组装=ScopeCoverageProjector |
+| queryResources/快照/视图/转授（T-PERM-090/091） | GRANT_LIST | 用户视图/清单面：全量角色权限事实 + effectiveOperations 操作投影；树扩展经展示面展开 |
 
 **两语义拆分（T-PERM-057）**：判定面继承（目标∪同类型祖先链入查询，改变 allowed/denied，管理面写门禁/读过滤面默认开）与展示面展开（查询后条目克隆 `grantSource=INHERITED`，不改变判定，清单面 `includeChildren`/`includeInherited` 归口）互不混用；条目互斥（PERM_MUTEX）引擎入参开关、角色互斥（ROLE_MUTEX）经 resolveJudgementRoleIds 在角色解析阶段统一过滤（T-PERM-075，2026-09-22——取代「不归引擎」旧定案；授权时校验沿 T-PERM-063）。
 
@@ -171,7 +170,7 @@ Set<Long> deniedEntityIds = engine.getDeniedEntityIds(tenantId, subjectId,
 
 ## 缓存与一致性
 
-- 权限运行时计算应复用统一的 `PermQueryEngine` 角色解析、条件评估、冲突处理、租户过滤和缓存逻辑。
+- 权限运行时计算应复用统一引擎的角色解析、条件评估、冲突处理、租户过滤和缓存逻辑（`QueryGate`/`QueryExecutionEngine`）。
 - **缓存失效采用 Redis pub/sub 主动广播 + TTL 兜底**（2026-06-27 T-PERM-007 核对）：写操作通过 `@PermissionChange` 绑定 `PermissionChangeContext`，业务侧只调用 `markRoles/markUsers/markConditions/markRoleSnapshots/markServiceCodes` 登记影响范围；事务提交后由 `PermissionChangeAspect` 统一 evict `EFFECTIVE_ROLES` / `ROLE_PERM_SNAPSHOT` / `CONDITION_RULES` 并通过 `StringRedisTemplate.convertAndSend("perm:invalidate", PermInvalidateEvent JSON)` 广播。Gateway 订阅后 evict 本地接口快照；广播丢失由 TTL（30-60s）自然过期兜底。**已删除 `permission_version` 机制**（原“递增 version 驱动失效”的设计已废弃，Gateway 不读 version）。
 - Gateway 本地 L1 缓存（Caffeine，TTL ≤15s，catalog `gw:interface-snapshot`；30 秒是串行授权安全总预算 = 授权 L2 ≤10s + 回源全链路截止 ≤5s + 快照 L1 ≤15s，见 access-service-architecture §7.2），L2 缓存由权限中心内部维护（Redis，通过 `CacheService` + `AccessCacheCatalog` 统一管理）。权限中心侧不再缓存 `INTERFACE_SNAPSHOT(L2)`，接口快照每次实时调 engine 构建，依赖 `ROLE_PERM_SNAPSHOT` 兜住角色权限记录读路径。
 - 缓存失效在事务提交后由 `PermissionChangeAspect.afterCommit` 执行；业务侧（AppService / DomainService 方法体）禁止手写 `TransactionSynchronizationManager`。

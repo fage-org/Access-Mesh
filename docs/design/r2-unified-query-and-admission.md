@@ -71,6 +71,8 @@ R2 可重做内部 Java 接口、DTO、运行态、编排及输出适配；普�
 
 ## 2. 请求契约：把主体、目标和评估责任表达完整
 
+> **已并入**：本章终态已按现行规范并入 `engine/implementation.md` §3.2（请求与结果模型，T-PERM-092 回写；本稿保留设计论证原文，供追溯）。
+
 ### 2.1 顶层模型
 
 以下名称用于设计沟通，正式实现按项目包结构和编译级别落位。
@@ -188,6 +190,8 @@ ROLE_MUTEX 是主体阶段职责，不受 MutexMode 影响。PRESERVE 不等于�
 
 ## 3. 结果、事实、输出与错误边界
 
+> **已并入**：本章终态已并入 `engine/implementation.md` §3.2/§3.6（T-PERM-092 回写）。
+
 ### 3.1 三种结果不能只剩一个 allowed
 
 ```text
@@ -267,6 +271,8 @@ TARGET_SET 实例未解析时，仍保留之前 TYPE_GRANT 曾被条件／冲突
 **类型级子授权的原因口径（2026-09-26 用户确认）**：TYPE_LEVEL 没有父资源上下文，depend_on 子行不属于其有效候选；仅有此类行时返回 `NO_PERMISSION`，沿用旧单条/批量类型级门禁口径。有主授权候选但被条件/互斥清空时仍返回 `CONDITION_NOT_MET_OR_CONFLICT`。`DEPENDENT_NOT_IN_PARENT_CONTEXT` 适用于 TARGET_SET 的父上下文排除，不因类型级选择排除子行而产生。
 
 ## 4. 唯一执行器：阶段算法与父上下文
+
+> **已并入**：本章终态已并入 `engine/implementation.md` §3.3（执行管线，T-PERM-092 回写）。
 
 ### 4.1 职责划分和一次执行的生命周期
 
@@ -394,6 +400,8 @@ T-PERM-086 实现中，沿 `ParentRequirement` 已有构造前归一约定按完
 T-PERM-086 已接通完整清单评估与最小 StageFacts 输出，保留绑定后 raw 供 T-PERM-087 的描述/范围投影消费；不提前下推展示过滤。父门禁拒绝时返回 `PARENT_DENIED`，不伪装成成功的空清单。按 §3.3 的实际执行覆盖约束，此时 `parentCheck=FAILED`、`GRANT_LIST` 以 `PARENT_DENIED` 标为跳过、`requestedSelectionComplete=false`，不输出未执行阶段的事实。源为空则不判父，完成空清单并返回 `NO_MATCH`。这些是内部执行说明，外部响应仍由对应迁移卡保持原契约。[实施证据](../tasks/T-PERM-086.md)
 
 ## 5. 共享规则、读取来源、缓存与资源控制
+
+> **已并入**：本章终态已并入 `engine/implementation.md` §3.3/§3.5/§3.9（T-PERM-092 回写）。
 
 ### 5.1 条件和互斥只有一份计算能力
 
@@ -575,8 +583,8 @@ T-PERM-087 的展示展开按保留事实源批量读取既有祖先/后代 CTE�
 > 空白父编码归一无父的同向收紧。外评处置（2026-09-27 claude+grok 双通道同根因）：空白业务码
 > （目标码/父编码/门面入参/getDenied 集合元素）一律适配层归一（目标与门面空白码→类型级等价形态、
 > 父编码→无父、getDenied 空白元素→逐个 fail-closed 拒绝），不得进 ByCode 触发整单结构拒绝 500。
-> 旧引擎 `query`/`queryBatch` 生产消费者仅剩 T-PERM-090/091 目标（queryResources/queryScopes/
-> checkInterface/interfaceSnapshot/视图/转授）。
+> 旧引擎 `query`/`queryBatch` 生产消费者已全部迁移（T-PERM-090/091 完成），旧执行体与四旧 DTO
+> 已随 T-PERM-092 删除。
 
 > **就地实施注（2026-09-27，T-PERM-090）**：本矩阵范围与 LEGACY_API 四行已切新 execute——
 > ①queryScopes=GRANT_LIST＋父要求＋EVALUATE/ENFORCE＋RAW_AND_KEPT（ScopeCoverageProjector

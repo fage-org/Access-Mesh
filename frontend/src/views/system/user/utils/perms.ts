@@ -9,7 +9,7 @@
  * ## v1.4「双轨并行」命名空间统一
  * 前后端统一使用 `资源类型:操作码` 词法（access-service 的乙层模型），
  * 不再经 `sys_menu.perm_code` 中转，也无 `system:模块:动作` 翻译层：
- * - 前端 `hasPerms("ORG:CREATE_POSITION")` 与后端 `engine.hasPermissionByCode(... ORG, CREATE_POSITION)` 同源
+ * - 前端 `hasPerms("ORG:CREATE_POSITION")` 与后端 `queryGate.hasPermissionByCode(... ORG, CREATE_POSITION)` 同源
  * - 管理员只在权限中心一处配权，前端按钮即时跟随
  *
  * 双轨：

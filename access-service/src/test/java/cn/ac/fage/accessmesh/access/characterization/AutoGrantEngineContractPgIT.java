@@ -1,11 +1,12 @@
 package cn.ac.fage.accessmesh.access.characterization;
 
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
-import cn.ac.fage.accessmesh.access.engine.dto.PermBatchQuery;
-import cn.ac.fage.accessmesh.access.engine.dto.PermEvalContext;
-import cn.ac.fage.accessmesh.access.engine.dto.PermQuery;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
+import cn.ac.fage.accessmesh.access.engine.service.PermissionCheckAppService;
+import cn.ac.fage.accessmesh.access.engine.service.PermissionViewAppService;
+import cn.ac.fage.accessmesh.perm.common.dto.req.AuthCheckReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.UserEffectivePermissionCodesReq;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,7 +20,6 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -30,7 +30,14 @@ import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-/** 078 校准物化结果的引擎消费契约；直接装配候选结果，不冒充 072 推导/撤销实现。 */
+/**
+ * 078 校准物化结果的引擎消费契约；直接装配候选结果，不冒充 072 推导/撤销实现。
+ * <p>
+ * T-PERM-092 起驱动面全部为生产消费面：check/batchCheck 经
+ * {@code PermissionCheckAppService}（/auth/check 契约入口）、视图经
+ * {@code PermissionViewAppService}（GRANT_LIST＋EVALUATE/ENFORCE）。
+ * </p>
+ */
 @Tag("testcontainers")
 @SpringBootTest
 @ActiveProfiles("test")
@@ -44,7 +51,6 @@ import static org.mockito.Mockito.verify;
 })
 class AutoGrantEngineContractPgIT {
     private static final long TENANT = 1L;
-    private static final LocalDateTime AT = LocalDateTime.of(2026, 9, 21, 12, 0);
     /** type_definition 终值分配表（schema 头部）：role_type BASIC_ROLE=6。 */
     private static final int ROLE_TYPE_BASIC_ROLE = 6;
     /** type_definition 终值分配表（schema 头部）：user_type USER=1。 */
@@ -67,7 +73,8 @@ class AutoGrantEngineContractPgIT {
         ItInfra.register(registry, AutoGrantEngineContractPgIT.class);
     }
 
-    @Autowired private PermQueryEngine engine;
+    @Autowired private PermissionCheckAppService appService;
+    @Autowired private PermissionViewAppService viewAppService;
     @Autowired private JdbcTemplate jdbc;
     // 审计持久化异步实现另测；本类只锁定引擎发出的通知，避免异步 target spy 校验竞态。
     @MockBean private AuditDomainService audit;
@@ -126,9 +133,9 @@ class AutoGrantEngineContractPgIT {
         assertThat(batch(f, "VIEW", "UPDATE")).containsExactly(false, true);
         verify(audit, times(1)).asyncRecordLog(any(AuditDomainService.OperationLogEntry.class));
         clearInvocations(audit);
-        PermQuery list = PermQuery.forUserView(TENANT, f.user());
-        list.setEvalContext(context());
-        assertThat(engine.query(list).instanceEntries()).isEmpty();
+        assertThat(viewAppService.getEffectiveResourceAccess(TENANT, viewReq(f)).instanceIdsByType())
+            .as("视图面 GRANT_LIST＋ENFORCE：互斥两端同场双丢，无实例事实")
+            .isEmpty();
         verify(audit, times(1)).asyncRecordLog(any(AuditDomainService.OperationLogEntry.class));
         assertThat(jdbc.queryForObject("SELECT count(*) FROM role_resource_permission WHERE abstract_role_id=? AND delete_flag=0",
                 Integer.class, f.role())).as("互斥不改变已保留的物化事实").isEqualTo(2);
@@ -140,9 +147,8 @@ class AutoGrantEngineContractPgIT {
         operation(f, "VIEW", BIT_VIEW, 0);
         long first = grant(f, BIT_VIEW, condition(true), "AUTO_DEP");
         long second = grant(f, BIT_VIEW, condition(true), "AUTO_DEP");
-        PermQuery q = PermQuery.forAuthCheck(TENANT, f.user(), f.typeCode(), "target", "VIEW");
-        q.setEvalContext(context());
-        assertThat(engine.query(q).matchedPermissionIds()).containsExactlyInAnyOrder(first, second);
+        assertThat(checkResp(f, "VIEW").matchedPermissionIds())
+            .containsExactlyInAnyOrder(first, second);
     }
 
     @Test
@@ -166,27 +172,33 @@ class AutoGrantEngineContractPgIT {
         long view = grant(f, BIT_VIEW, null, "AUTO_DEP");
         long update = grant(f, BIT_UPDATE, null, "AUTO_DEP");
         assertThat(batch(f, "VIEW", "UPDATE")).containsExactly(true, true);
-        PermQuery q = PermQuery.forAuthCheck(TENANT, f.user(), f.typeCode(), "target", "VIEW");
-        q.setEvalContext(context());
-        assertThat(engine.query(q).matchedPermissionIds()).containsExactlyInAnyOrder(view, update);
+        assertThat(checkResp(f, "VIEW").matchedPermissionIds())
+            .containsExactlyInAnyOrder(view, update);
+    }
+
+    /** check 服务面（/auth/check 契约入口）。 */
+    private cn.ac.fage.accessmesh.access.engine.dto.AuthCheckResp checkResp(Fixture f, String operation) {
+        return appService.check(TENANT, new AuthCheckReq(
+            "USER", f.userExternalId(), f.typeCode(), "target", operation,
+            null, null, null, null, null, null, null, Map.of()));
     }
 
     private boolean check(Fixture f, String operation) {
-        PermQuery query = PermQuery.forAuthCheck(TENANT, f.user(), f.typeCode(), "target", operation);
-        query.setEvalContext(context());
-        return engine.query(query).allowed();
+        return checkResp(f, operation).allowed();
     }
 
     private List<Boolean> batch(Fixture f, String... operations) {
-        PermBatchQuery query = PermBatchQuery.forAuthCheckBatch(TENANT, f.user(),
-                List.of(operations).stream().map(op -> new PermBatchQuery.Item(
-                        f.typeCode(), "target", op, null, null, false)).toList());
-        query.setEvalContext(context());
-        return engine.queryBatch(query).outcomes().stream().map(item -> item.allowed()).toList();
+        List<BatchAuthCheckReq.AuthCheckItem> items = List.of(operations).stream()
+            .map(op -> new BatchAuthCheckReq.AuthCheckItem(f.typeCode(), "target", op, null, null, null))
+            .toList();
+        return appService.batchCheck(TENANT, new BatchAuthCheckReq(
+            "USER", f.userExternalId(), items, null, null, null, null, Map.of()))
+            .items().stream().map(cn.ac.fage.accessmesh.access.engine.dto.BatchAuthCheckResp.AuthCheckItemResult::allowed)
+            .toList();
     }
 
-    private static PermEvalContext context() {
-        return new PermEvalContext(null, AT, Map.of());
+    private static UserEffectivePermissionCodesReq viewReq(Fixture f) {
+        return new UserEffectivePermissionCodesReq("USER", f.userExternalId(), List.of(f.typeCode()));
     }
 
     private Fixture fixture() {
@@ -202,7 +214,7 @@ class AutoGrantEngineContractPgIT {
         jdbc.update("INSERT INTO user_role(tenant_id,abstract_user_id,target_type,target_id) VALUES (?,?,'ROLE',?)", TENANT, user, role);
         long resource = jdbc.queryForObject("INSERT INTO resource_entity(tenant_id,resource_type,code,code_type,name) VALUES (?,?,'target','default','target') RETURNING id",
                 Long.class, TENANT, type);
-        return new Fixture(type, typeCode, role, user, resource);
+        return new Fixture(type, typeCode, role, user, resource, key);
     }
 
     private long operation(Fixture f, String code, long bit, long mask) {
@@ -229,5 +241,5 @@ class AutoGrantEngineContractPgIT {
         jdbc.update("UPDATE role_resource_permission SET delete_flag=id,deleted_at=now() WHERE id=?", id);
     }
 
-    private record Fixture(int type, String typeCode, long role, long user, long resource) {}
+    private record Fixture(int type, String typeCode, long role, long user, long resource, String userExternalId) {}
 }

@@ -123,7 +123,7 @@ public class SnapshotAssembler {
         // （GrantFact 无操作码字段），须按位判断；位掩码取「有效位覆盖 ACCESS 的
         // 全部操作位」（binaryBit | inheritMask 与引擎一致——自定义操作经 inheritMask 继承
         // ACCESS 时同样放行）。快照条目的 conditionId 为条件装配必需，不能改用
-        // PermResult.effectiveOperationEntries（无 conditionId 投影）。
+        // 有效操作投影（无 conditionId 字段）。
         long accessCoverageMask = resolveAccessCoverageMask(tenantId, apiType);
         List<GrantFact> apiEntries = entries.stream()
             .filter(e -> e.resourceType() != null && e.resourceType().equals(apiType))

@@ -334,7 +334,7 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
      * 验签 → 必填 claim（loginId/jti/client_id）→ 撤销黑名单 → 客户端启用动态校验
      * （sys_oauth2_client 唯一索引点查，不经缓存，禁用立即失效）→ 路径门禁
      * （clientIds 限定 / requiredScopes 子集校验 / audience 匹配，独立映射模型，
-     * 不接入 PermQueryEngine）→ 绑定委托用户上下文（USER + delegatedClientId）。
+     * 不接入权限判定面）→ 绑定委托用户上下文（USER + delegatedClientId）。
      * 认证失败（验签/黑名单/客户端禁用）→ 401；授权不足（scope/audience/clientIds）→ 403。
      */
     private boolean authenticateOAuth2Jwt(HttpServletRequest request, HttpServletResponse response,

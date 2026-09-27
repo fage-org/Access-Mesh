@@ -65,7 +65,11 @@ public R<RoleResp> create(@RequestBody RoleCreateReq req) {
 - 实体 ID 轨（仅已完成解析的调用方：资源树、API 映射等 resource_entity 管理链路）：`queryGate.hasPermissionByEntityId(...)`、`queryGate.getDeniedEntityIds(...)`。
 - check/batchCheck 外部端点在 `PermissionCheckAppServiceImpl` 适配层直构 `QueryRequest`（不经门面四方法）。
 
-旧 `PermQueryEngine`（`engine.query`/`queryBatch`/旧四入口）为迁移期存量（**生产消费者已清零**——T-PERM-089 判定面/管理门禁/getDenied、T-PERM-090 范围与 LEGACY_API 四面、T-PERM-091 视图与转授均已迁新 execute；092 删除）——**新代码禁止引用**。
+旧 `PermQueryEngine` 与四旧 DTO（`PermQuery`/`PermResult`/`PermBatchQuery`/`PermBatchResult`）、
+`TargetMode`、`ResolveContext` 已删除（T-PERM-092：判定面/管理门禁/getDenied〔089〕、范围与
+LEGACY_API 四面〔090〕、视图/转授〔091〕全部迁新 execute 后整删；X04 退役锁=
+`QueryBoundaryArchitectureTest` 断言主源码不得再现）——**禁止引用或恢复**；
+check 族 `inheritMode` 线格式解析收编于 `PermissionCheckAppServiceImpl.inheritClosureOf`。
 
 **仅**管理查询/日志查询可直查 Mapper（如 `listResources`, `listRoles`, `listChangeLogs`）。
 
@@ -88,8 +92,8 @@ List<PermissionChangeLog> logs = permissionChangeLogMapper.selectPageByCondition
 // ❌ 禁止 — 直接查 DB 做权限判定
 rolePermMapper.selectListByQuery(QueryWrapper.create().where(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.in(roleIds))...)
 
-// ❌ 禁止 — 新代码引用旧引擎（迁移期存量，092 删除）
-engine.hasPermissionByCode(...)   // T-PERM-089 起改 queryGate
+// ❌ 禁止 — 引用已删除的旧引擎/四旧 DTO（T-PERM-092 删除，X04 退役锁）
+engine.hasPermissionByCode(...)   // T-PERM-089 起改 queryGate；PermQueryEngine 已不存在
 ```
 
 ### Domain 层 API（check 族/范围/LEGACY_API/视图/转授均已迁新 execute）
@@ -180,7 +184,7 @@ public class UserManageController { }
 
 ### Engine 层
 
-权限判定统一走 `engine.query.QueryGate`（T-PERM-089 起判定面唯一门面，内部经 `QueryExecutionEngine.execute`；引擎子系统独立于能力包，T-ACCESS-033 终态结构）；旧 `PermQueryEngine` 为迁移期存量（§2 铁律，091 迁移、092 删除，新代码禁止引用）。
+权限判定统一走 `engine.query.QueryGate`（T-PERM-089 起判定面唯一门面，内部经 `QueryExecutionEngine.execute`；引擎子系统独立于能力包，T-ACCESS-033 终态结构）；旧 `PermQueryEngine` 已删除（§2 铁律，T-PERM-092，禁止引用或恢复）。
 
 ## 4. 构造函数依赖
 
@@ -536,6 +540,9 @@ engine.hasPermissionByCode(tenantId, subjectId, "ROLE", String.valueOf(roleId), 
 | `TypeDefPermissionStrategy`                       | 直接查询实体检查                                             |
 | `PermissionCheckUtils`                            | 使用 `QueryGate` 或 `PermResultUtils`                        |
 | `AuthorizationService`                            | 已删除（Phase 3），授权校验已合并到各 AppService             |
+| `PermQueryEngine` / `ResolveContext`              | 使用 `QueryGate` / `QueryExecutionEngine.execute`（T-PERM-092 删除） |
+| `PermQuery` / `PermResult` / `PermBatchQuery` / `PermBatchResult` | 新请求/结果模型（`QueryRequest`/`QueryItem`/`DecisionResult`/`GrantSetResult`）；`inheritMode` 解析收编 `PermissionCheckAppServiceImpl.inheritClosureOf`（T-PERM-092 删除） |
+| `TargetMode` 枚举                                 | `Selection` 封闭变体（TypeLevel/TargetSet；T-PERM-092 删除） |
 | `ConfigManageController` / `ConfigManageService`  | 已拆分为 TypeDefinitionController + TypeDefinitionAppService |
 | `ConfigController` / `ConfigAppService(Impl)` / `ConfigUpdateReq` / `ConfigResp` | 已随 admin `/config` 入口退役删除（T-ACCESS-037，system_config 单入口 `/api/perm/system-config`） |
 | `*ManageService` / `*ManageServiceImpl`（旧命名） | 已重命名为 `*AppService` / `*AppServiceImpl`                 |

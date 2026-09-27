@@ -7,8 +7,8 @@ import java.util.Set;
  * 组织可见性查询服务（跨域只读，T-ACCESS-006）。
  * <p>
  * 聚合 admin 域（sys_org_tree_config、sys_org 子树）与 permission 域（操作者主体解析、
- * ORG:VIEW 批量判定）数据。权限判定经 PermQueryEngine；数据读取走 query 包
- * 专用 Mapper；只读事务执行，不产生任何写 SQL。
+ * ORG:VIEW 批量判定）数据。权限判定经判定面门面 QueryGate（T-PERM-089 起唯一入口）；
+ * 数据读取走 query 包专用 Mapper；只读事务执行，不产生任何写 SQL。
  * </p>
  */
 public interface OrgVisibilityQueryAppService {

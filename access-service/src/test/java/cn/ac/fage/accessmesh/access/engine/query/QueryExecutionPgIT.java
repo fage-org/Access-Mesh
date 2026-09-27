@@ -2,12 +2,8 @@ package cn.ac.fage.accessmesh.access.engine.query;
 
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.characterization.R2BaselineFixture;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
-import cn.ac.fage.accessmesh.access.engine.dto.PermQuery;
-import cn.ac.fage.accessmesh.access.engine.dto.PermBatchQuery;
-import cn.ac.fage.accessmesh.access.engine.dto.PermEvalContext;
 import cn.ac.fage.accessmesh.access.engine.util.RolePermEntryMapper;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
@@ -74,7 +70,7 @@ class QueryExecutionPgIT {
     @Autowired SubjectDomainService subjects;
     @Autowired PermissionConditionDomainService conditions;
     @Autowired PermissionConflictDomainService conflicts;
-    @Autowired PermQueryEngine legacy;
+    @Autowired QueryGate gate;
     @Autowired CacheService cache;
     @Autowired JdbcTemplate jdbc;
     @Autowired SqlSessionFactory sessions;
@@ -90,19 +86,15 @@ class QueryExecutionPgIT {
     }
 
     @Test
-    void should_matchLegacyParentOperationSummary_whenScopeAdapterUsesNewResult() {
+    void should_reportParentOperationSummary_whenScopeAdapterUsesNewResult() {
         var key = new TypeOperation(TYPE_T1_CODE, "VIEW");
         var output = new OutputSpec(FactDetail.RAW_AND_KEPT, true, true, false,
             PresentationExpansion.NONE, Set.of(key), false);
         var parent = new ParentRequirement(TYPE_T1_CODE, new ByCode(CODE_R1, null, null), Set.of("VIEW"));
         var fresh = (GrantSetResult) execute(new User(USER_INST),
             QueryItem.grantListFacts("scopes", parent, Evaluation.full(), output)).orderedResults().getFirst();
-        var oldRequest = PermQuery.forScopeQuery(TENANT, USER_INST, Set.of(TYPE_T1_CODE), Set.of("VIEW"));
-        oldRequest.setParentResource(TYPE_T1_CODE, CODE_R1, null, Set.of("VIEW"));
-        oldRequest.setEvalContext(new PermEvalContext(null, java.time.LocalDateTime.of(2026, 9, 26, 2, 0), java.util.Map.of()));
-        var old = legacy.query(oldRequest);
         assertThat(fresh.details().parentCheck().matchedOperationCodes())
-            .containsExactly("VIEW").containsExactlyInAnyOrderElementsOf(old.parentMatchedOperationCodes());
+            .containsExactly("VIEW");
         assertThat(fresh.details().loadedSections()).contains(ResultDetails.DetailSection.PARENT_CHECK);
         assertThat(ScopeCoverageProjector.project(fresh, List.of(key)).getFirst().scopeMode()).isEqualTo(ScopeMode.INSTANCE);
     }
@@ -273,8 +265,9 @@ class QueryExecutionPgIT {
         assertThat(result(results, 0).outcome()).isEqualTo(DecisionResult.Decision.ALLOW);
         assertThat(result(results, 1).outcome()).isEqualTo(DecisionResult.Decision.ALLOW);
         assertThat(result(results, 2).reason()).isEqualTo(DecisionResult.Reason.CONDITION_NOT_MET_OR_CONFLICT);
-        assertThat(legacy.getDeniedEntityIds(TENANT, user, "R2STAGE", Set.of(x, y), "VIEW")).isEmpty();
-        assertThat(legacy.getDeniedResourceCodes(TENANT, user, "R2STAGE", Set.of("x", "y"), "VIEW")).isEmpty();
+        // 判定面门面（getDenied* 薄门面，T-PERM-089）与引擎契约同语义：独立目标各自放行
+        assertThat(gate.getDeniedEntityIds(TENANT, user, "R2STAGE", Set.of(x, y), "VIEW")).isEmpty();
+        assertThat(gate.getDeniedResourceCodes(TENANT, user, "R2STAGE", Set.of("x", "y"), "VIEW")).isEmpty();
     }
 
     @Test
@@ -373,7 +366,7 @@ class QueryExecutionPgIT {
     }
 
     @Test
-    void should_matchLegacyTypeLevelReason_withoutChangingTargetParentExclusion() {
+    void should_keepTypeLevelDependentExclusion_withoutTargetParentExclusion() {
         long role = fixture.insertRoleRow(TENANT, "type-dependent");
         long user = fixture.insertUserWithRoles(TENANT, "type-dependent", role);
         long parent = fixture.insertPermRow(role, TYPE_T2, null, 2, true, null);
@@ -384,11 +377,5 @@ class QueryExecutionPgIT {
             decision("target", Inheritance.SELF, TypeFallback.ALLOW, clause(TYPE_T1_CODE, CODE_R3)));
         assertThat(result(results, 0).reason()).isEqualTo(DecisionResult.Reason.NO_PERMISSION);
         assertThat(result(results, 1).reason()).isEqualTo(DecisionResult.Reason.DEPENDENT_NOT_IN_PARENT_CONTEXT);
-        assertThat(legacy.query(PermQuery.forAuthCheck(TENANT, user, TYPE_T1_CODE, null, "VIEW")).reason())
-            .isEqualTo(result(results, 0).reason().name());
-        PermBatchQuery batch = PermBatchQuery.forAuthCheckBatch(TENANT, user,
-            List.of(new PermBatchQuery.Item(TYPE_T1_CODE, null, "VIEW", null, null, false)));
-        batch.setEvalContext(new PermEvalContext(null, results.evaluatedAt(), java.util.Map.of()));
-        assertThat(legacy.queryBatch(batch).outcomes().getFirst().reason()).isEqualTo(result(results, 0).reason().name());
     }
 }

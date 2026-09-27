@@ -15,7 +15,7 @@ last_reviewed: 2026-09-13   # 2026-09-13 T-ACCESS-040 契约深合一：本册�
 >
 > **目标架构（T-ACCESS-005，2026-08-15）**：§3、§4 各写接口的投影动作以及 §6/§7 的内部一致性契约已改为同事务本地权限投影。HTTP 路径、DTO 与错误码继续有效。access 内部不再写 `sys_sync_task`、不再 Feign 自调用。
 >
-> **术语（T-ACCESS-012）**：本文中「admin / admin-service 层」指 access-service admin 域入口，「permission-center」指同服务 permission 域（本地 `PermQueryEngine`/AppService 调用，无跨服务 HTTP）；历史决策表中的旧服务名表述按此映射阅读，不改变契约本身。
+> **术语（T-ACCESS-012）**：本文中「admin / admin-service 层」指 access-service admin 域入口，「permission-center」指同服务 permission 域（本地 QueryGate/查询引擎与 AppService 调用，无跨服务 HTTP）；历史决策表中的旧服务名表述按此映射阅读，不改变契约本身。
 >
 > **文件模块补记（T-ADMIN-023，2026-08-25）**：§4.7 文件管理（`/file/*`）为安全加固时从实现反向登记的契约（模块先于本契约存在），含 VIEW 门禁、统一路径安全函数、删除顺序反转与单实例本地存储约束语义。
 >
@@ -49,7 +49,7 @@ last_reviewed: 2026-09-13   # 2026-09-13 T-ACCESS-040 契约深合一：本册�
 
 ## 2. 门禁规范
 
-admin 门禁通过 `AdminPermissionValidator` 本地调用 `PermQueryEngine` 完成，不再 Feign 自调用。接口形态:
+admin 门禁通过 `AdminPermissionValidator` 本地调用 `QueryGate`（判定面门面，T-PERM-089 起）完成，不再 Feign 自调用。接口形态:
 
 ```java
 void checkTypeLevel(String resourceTypeCode, String operationCode);
@@ -949,7 +949,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 后端实现本契约接口（原历史计数「19 个」不维护, 现状以 `HttpApiPathSnapshotTest` 快照为准; Phase 2 已于 2026-08-31 完成）后, 必须满足:
 
 1. **字段对齐**: 前端 `frontend/src/api/user-manage.ts` 中所有类型与本契约 record 字段名/类型一一对齐, 不允许不一致.
-2. **门禁**: 所有写操作经 `AdminPermissionValidator` 本地调用 `PermQueryEngine`; 实现不短路判断 (除自我修改豁免).
+2. **门禁**: 所有写操作经 `AdminPermissionValidator` 本地调用 `QueryGate`; 实现不短路判断 (除自我修改豁免).
 3. **本地投影**: 所有写操作 (除 /user/reset-password, /user-org/set-primary) 在主事务内维护对应权限投影与 `permission_change_log`。
 4. **错误码段**: admin-service 业务错误使用 10001-19999 段, 系统错误使用 90001-99999 段; `XxxErrorCode` 枚举类不重复定义系统段.
 5. **响应壳统一**: 所有接口返回 `R<T>`, 列表不直接返回数组 (由 `RResponseAdvice` 强制); ~~现有违反此规则的接口 (例如 `/org/tree` 直接返回 `List<OrgResp>`)~~ 已清零（`/org/tree` 已由 T-ADMIN-021 切 `R<ItemsResp<OrgResp>>`；台账见 §5）.
@@ -1029,7 +1029,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重门禁控制（**默认拒绝**）：
 
 - 配置：`access.oauth2.resource-paths`（application.yml；默认仅 `/auth/oauth2/userinfo`；Ant 通配允许；显式配置为全量替换；启动防护禁止覆盖 `/auth/**` 会话端点与 `/api/perm/**` 内部凭证空间（静态前缀保守判定，`/api/**/sync` 等绕过形态均拦截），且**业务开放路径必须声明 requiredScopes 与 audience**——缺失启动失败，防配置遗漏静默放行）。
-- 每条规则：`path` + `requiredScopes`（令牌 scope 子集校验，独立映射模型——不接入 PermQueryEngine）+ `audience`（业务路径强制；userinfo 豁免）+ `clientIds`（可选客户端限定）。
+- 每条规则：`path` + `requiredScopes`（令牌 scope 子集校验，独立映射模型——不接入权限判定面）+ `audience`（业务路径强制；userinfo 豁免）+ `clientIds`（可选客户端限定）。
 - 恒定校验（无需配置）：验签 + 必填 claim（loginId/jti/client_id）+ 撤销黑名单 + 客户端启用动态校验（禁用立即失效 → 401）。门禁不满足 → 403。
 - 委托调用绑定 `USER + delegatedClientId` 上下文（审计可区分第三方委托）。
 - Gateway 侧配套 `gateway.oauth2.passthrough-paths`（外部路径口径，默认空；**仅对 Bearer 三段式 JWT 启用透传**，平台 uuid 会话仍走 Gateway 正常鉴权）透传 Authorization；双侧路径口径差异与部署约束见架构文档 §6。

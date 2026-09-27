@@ -200,13 +200,13 @@ interface MatrixContext {
 
 > **实现注记（T-FE-038，2026-08-07；全局操作退役后修订 2026-08-30）**：页面层操作数据源 = `operation-permission/list` 按类型查询的响应（全局操作概念已退役，无合并语义）；`computeSourceChain` 输入（records/resources/operations）全部为**当前类型**数据（基线/树/操作均按类型加载），操作列集 = 该类型专属定义；授权弹窗子权限配置器与只读详情层保留**全量**资源树/操作定义依赖（子权限可跨类型，2026-08-07 评审确认）。
 
-算法（对齐 `PermQueryEngine` / `OperationPermissionUtils`）：
+算法（对齐权限查询引擎 / `OperationPermissionUtils`）：
 
 ```
 1. 直接：list 记录本身（grantSource=MANUAL/AUTO_DEP，T-PERM-034 暴露后区分）
 2. **组合闭包（一次完成）**：对每条直接记录（资源 r, 操作 A），展示集合 =
    节点集 descendants(r) ∪ {r} × 操作集 coveredOperations(A)
-   —— 资源继承（对齐 PermQueryEngine.java:765-850 collectDescendants）与操作继承
+   —— 资源继承（对齐引擎展示面子孙展开语义 selectDescendantsBatch）与操作继承
    （对齐 OperationPermissionUtils.covers: (effectiveBits(A) & B.binaryBit) != 0）
    以笛卡尔积一次展开，等价于"先资源展开、再对每个展开结果做操作覆盖"的迭代闭包。
    例：父资源 P 上 MANAGE → P 及其子孙节点 × {MANAGE, VIEW, ...}（被 MANAGE 的 inheritMask
@@ -217,7 +217,7 @@ interface MatrixContext {
 5. **ALL 虚拟行**：`scopeMode=ALL` 记录（含 AUTO_DEP 只读）聚合到对应资源类型的「全部资源（ALL）」虚拟行；**同样执行操作继承展开**（节点集 = 该类型的单元素虚拟节点，操作集 = `coveredOperations(A)`，来源标注操作段照常、节点段为空），展开结果仍聚合到 ALL 虚拟行（P1-2）——ALL/MANAGE 记录同时命中 ALL/VIEW 列并标注操作继承
 ```
 
-- 本计算为**展示口径**，不代表运行时判定（运行时以 PermQueryEngine 为准）。
+- 本计算为**展示口径**，不代表运行时判定（运行时以权限查询引擎为准）。
 - **位运算全部走 BigInt（P1-3）**：`binaryBit`/`inheritMask`/`grantedBits` 均为十进制字符串（T-PERM-028 线格式修订），覆盖判定 `(BigInt(effectiveBits) & BigInt(target.binaryBit)) !== 0n`；禁止 number 运算（63 位 bigint 超 2^53 丢精度，事后转换无法恢复）。
 - **组合位按位拆解（P1-4）**：`operationCode=null` 的记录按 `grantedBits` 与各操作列 `binaryBit` 逐位比对，命中多列则多列同时点亮（来源标注"组合位"）；无法匹配任何定义位的余位归入详情层"未定义位"展示。
 

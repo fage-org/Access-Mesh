@@ -13,8 +13,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
  *       授权行 9_645_000+；条件 9_646_000+；冲突规则 9_647_000+；操作位 9_649_000+；</li>
  *   <li>基线图全部显式 id + {@code ON CONFLICT (id) DO NOTHING} 幂等，跨用例重复种安全；</li>
  *   <li>唯一条件 COND_UNSAT 为恒不满足 DATE_RANGE（2000-01-01~2001-01-01），
- *       全家族期望输出不依赖运行时钟漂移；查询面时钟由各测试按入口能力钉住
- *       （queryBatch 钉 PermEvalContext；AppService 入口 evaluatedAt 由引擎入口统一钉一次）。</li>
+ *       全家族期望输出不依赖运行时钟漂移；查询面评估时刻由引擎入口统一钉一次
+ *       （RunState 单时钟，批内单一评估时刻）。</li>
  * </ul>
  * <p>
  * 消费方：{@code QuerySemanticsBaselinePgIT}（正常语义基线——check/batch-check/范围四态/快照投影

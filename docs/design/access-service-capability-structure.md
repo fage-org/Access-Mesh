@@ -55,7 +55,7 @@ last_reviewed: 2026-09-26
 
 ### 2.3 引擎子系统与 infrastructure
 
-权限引擎（PermQueryEngine + 快照/装配管线 + 引擎专属缓存）为独立子系统包（`engine`），不塞入任何能力包；infrastructure 底座（请求上下文、拦截器、TypeHandler、跨能力通用实体等）照旧。
+权限引擎（QueryExecutionEngine/QueryGate + 事实/投影管线 + 引擎专属缓存）为独立子系统包（`engine`），不塞入任何能力包；infrastructure 底座（请求上下文、拦截器、TypeHandler、跨能力通用实体等）照旧。
 
 **032 裁决扩充（终态顶层包 +2，见 §8.0 裁决 6/8 与 §8.2）**：另设 `bootstrap`（空库自举编排 + BootstrapSeedWriter）与 `projection`（内部事实投影统一门面 LocalProjectionDomainService + PermConstants）两个顶层包——终态顶层包合计 17 个（12 能力包 + sync + engine + projection + bootstrap + infrastructure）。
 
@@ -249,7 +249,7 @@ Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{
 | permission.service.PermissionGrantAppService/Impl | grant.service | |
 | permission.service.domain：PermissionGrantDomainService、PermissionGrantPlanDomainService、GrantOriginDomainService（各含 Impl） | grant.service.domain | AUTHORITY_ROOT 种子（seedGrants）同链 |
 | permission.entity.RoleResourcePermission + Mapper | grant | |
-| permission.enums：GrantSource、TargetMode | grant.enums | |
+| permission.enums：GrantSource、TargetMode | grant.enums | TargetMode 已随 T-PERM-092 旧执行体删除 |
 | permission.util.DatabaseExceptionSupport | grant.util | 唯一消费方 GrantPlanDomainServiceImpl |
 
 表：`role_resource_permission`。
@@ -373,17 +373,17 @@ Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{
 
 | 源 | 目标 | 说明 |
 |---|---|---|
-| permission.service.domain.impl.PermQueryEngine | engine.core | |
+| permission.service.domain.impl.PermQueryEngine | engine.core | 已随 T-PERM-092 删除（旧执行体；新执行主体=engine.query.QueryExecutionEngine） |
 | permission.service.domain：TypeResolutionService/Impl、ResolveContext、SubjectDomainService/Impl、BatchConditionEvaluator、BatchPermMutexEvaluator | engine.core | 类型解析/主体装载/批量评估器=引擎管线输入面与评估器 |
 | permission.service：PermissionCheckAppService/Impl、PermissionQueryAppService/Impl、PermissionViewAppService/Impl | engine.service | 引擎对外查询编排 |
 | permission.controller：PermAuthController、PermissionViewController | engine.controller | check/batch-check/check-interface/interface-snapshot/query-resources/query-scopes/effective-permission-codes |
-| admin.security.**AdminPermissionValidator** + application.security.**AdminPermissionValidatorImpl** | engine | 门禁门面（消费面横跨全部 admin 能力 Service、写编排与查询；Impl 委托 PermQueryEngine），裁决 7 |
+| admin.security.**AdminPermissionValidator** + application.security.**AdminPermissionValidatorImpl** | engine | 门禁门面（消费面横跨全部 admin 能力 Service、写编排与查询；Impl 委托 QueryGate〔T-PERM-089 起〕），裁决 7 |
 | admin.security.**AdminOperationCode** + permission.constant.**OperationCodeConstants** + admin.security.**OrgOperationCodeMapper** | engine.constant | 033 两册先随迁，034 合一为单册按资源类型分节（裁决 7） |
 | permission.util：PermResultUtils、SnapshotAssembler、PermViewAssembler、ScopeModeSupport、OperationPermissionUtils、RolePermEntryMapper；permission.vo.RolePermEntry | engine.util / engine.vo | |
-| permission.dto.query：PermBatchQuery、PermBatchResult、PermEvalContext、PermQuery、PermResult、PermViewFilter、PermViewResult；permission.dto.resp：AuthCheckResp、BatchAuthCheckResp、CheckInterfaceResp | engine.dto | 查询模型 + check 族响应（消费面全在 engine：PermAuthController/PermissionCheckAppService/PermResultUtils） |
+| permission.dto.query：PermBatchQuery、PermBatchResult、PermEvalContext、PermQuery、PermResult、PermViewFilter、PermViewResult；permission.dto.resp：AuthCheckResp、BatchAuthCheckResp、CheckInterfaceResp | engine.dto | 查询模型 + check 族响应；四旧 DTO（PermQuery/PermResult/PermBatchQuery/PermBatchResult）已随 T-PERM-092 删除，新请求/结果模型在 engine.query |
 | permission.dto.req.**PermissionCheckReq** | —（**删除**） | 实测零消费方（僵尸 DTO，按「无消费即删」政策随 033 清除） |
 
-引擎无自有 mapper；其直读投影/映射表 mapper（PermissionView/QueryAppServiceImpl→ResourceEntityMapper、PermissionCheckAppServiceImpl→ResourceApiMappingMapper 等既有输入面装载形态）属 §8.4 断言显式豁免。`engine.service` 对外查询编排与能力包 DomainService 同层互调为既有形态（`PermissionQueryAppServiceImpl`→`DomainClassifyService`/`PermissionConflictDomainService`）；`engine.core` 对能力包 Service/DomainService 的依赖仅限 rule 域条件/冲突评估 DomainService（PermQueryEngine 条件四态与互斥评估的既有形态，拆包前同包直调、随本归属清单拆包显式化为 engine.core→rule.service.domain）；其余能力包的 Service/DomainService 不依赖（对实体/DTO/枚举的跨包 import 与 mapper 直读为既有输入面形态，见 §8.4 豁免 1——非断言对象）。
+引擎无自有 mapper；其直读投影/映射表 mapper（PermissionView/QueryAppServiceImpl→ResourceEntityMapper、PermissionCheckAppServiceImpl→ResourceApiMappingMapper 等既有输入面装载形态）属 §8.4 断言显式豁免。`engine.service` 对外查询编排与能力包 DomainService 同层互调为既有形态（`PermissionQueryAppServiceImpl`→`DomainClassifyService`/`PermissionConflictDomainService`）；`engine.core` 对能力包 Service/DomainService 的依赖仅限 rule 域条件/冲突评估 DomainService（批量评估器条件四态与互斥评估的既有形态，拆包前同包直调、随本归属清单拆包显式化为 engine.core→rule.service.domain；评估器现由 engine.query 新执行主体消费）；其余能力包的 Service/DomainService 不依赖（对实体/DTO/枚举的跨包 import 与 mapper 直读为既有输入面形态，见 §8.4 豁免 1——非断言对象）。
 
 #### projection（裁决 8）
 

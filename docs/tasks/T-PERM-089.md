@@ -47,7 +47,7 @@ last_updated: 2026-09-27
 - 指令面回写：`permission-coding-standards` rule（§2 铁律换 QueryGate）、`permission-query-pipeline`（v6.0.0）与 `accessmesh-patterns`（v1.2.0）双副本同步（diff 验证）、AGENTS.md 硬约束行+指针两行、OperationCode Javadoc 用法示例。
 - 测试：`QueryGateTest` 新增（请求形状/拒绝投影/空输入）；`PermissionCheckAppServiceImplTest` 重写（外部响应断言保留+适配形状锁：两档选择/inheritMode 映射/空白编码归一/保留键 500/原序重复项）；管理面单测 mock 面 33 文件换 QueryGate；characterization 三件门面链改写（MutexSemantics：getDenied*/hasPermission→QueryGate、queryBatch 对照极→batchCheck 服务面、D02→TargetSet 多 clause 单 item 直构、⑧ 审计锁改 ConflictEvidence 形态〔两目标同规则=两条 item 级证据行〕）；`R2BaselineFixture.insertUserWithRoles` external_id 对齐基线口径（=id 字符串，服务面主体解析所需）。
 
-**四项用户拍板（2026-09-27，正文见设计 §6.5 实施注）**：门面命名 QueryGate；本卡 metrics noop（094 接 Micrometer）；check/batchCheck 空白 resourceCode 归一 TYPE_LEVEL；外部 context 顶层保留键直接 500（clientIp 仍按 SDK 契约提取为受信 IP）〔该 500 口径 2026-09-27 由 T-PERM-090 外评处置修订为 400 VALIDATION_FAILED，见 090 卡〕。
+**定案口径（正文见设计 §6.5 实施注）**：门面命名 QueryGate；本卡 metrics=noop（Micrometer 绑定随 T-PERM-094）；check/batchCheck 空白 resourceCode 归一 TYPE_LEVEL；外部 context 顶层保留键结构拒绝（现行 400 VALIDATION_FAILED——T-PERM-090 处置修订，见 090 卡；clientIp 仍按 SDK 契约提取为受信 IP）。
 
 **A.3 逐面差异记录**：「跨 item 冲突从全拒变各自判」经 T-PERM-095 已为现行生产行为，本卡迁移不引入新语义；A.3 全部 14 调用点（资源树可见性 :436、API 映射三处 :936/:984/:1001、删除门禁、角色候选写守卫×3、类型/条件/组织/服务配置可见性等）随门面切换等价承载，容器轨 characterization（InstanceGate/TargetModeClosure/PermissionCharacterization/MutexSemantics D01）对拍绿。
 
@@ -59,11 +59,8 @@ last_updated: 2026-09-27
 
 **双轨本地评审**：代码轨/文档轨主代理直跑；P2×1（spy 打桩反模式，已修）；过度设计可裁剪项=0；存疑上报=0。
 
-**外部评审（2026-09-27，用户点名 claude+grok 双通道，全程无子代理）**：claude P2×1+P3×2+可裁剪×1；grok P2×1（与 claude 同根因、面更宽）+存量观察×2。双通道结论由主代理逐条代码级核实后统一处置（同根因合并）：
-- **P2 成立（双通道同根因：空白业务码进 ByCode 触发整单结构拒绝 500）**——四个入口面：①check/batchCheck 父编码空白（DTO 对 `parentResourceCode` 无约束，`ServiceConfigGetReq.serviceCode` 仅 `@NotNull` 同理可达门面）；②门面 `hasPermissionByCode` 空白码；③`getDeniedResourceCodes` 集合含空白元素拖垮整批；④对照面：空白目标码拍板已归一但父编码/门面未对称处理。修法按既有拍板模式统一收口（事实性最小修正，未新增用户决策）：父编码/父类型空白→归一无父；门面空白码→归一类型级（门面无父上下文，与旧 INSTANCE 不可解析形态可观测等价）；getDenied 空白元素→逐个 fail-closed 拒绝不进引擎；回归锁三条（QueryGateTest×2+PermissionCheckAppServiceImplTest×1）。
-- **P3 成立（X03 记录③不完整）**：空白编码+父上下文命中+仅 depend_on 子 scopeAll 行=判定结论收紧（旧 ALLOW→新 DENY），非仅 reason 变化——差异记录③已改写、新增④（空白父编码同向收紧）。
-- **P3 成立（3 个 PgIT 字段名 `permQueryEngine` 类型已换 QueryGate）**：改名 `queryGate`（InstanceGate/PermissionCharacterization/FirstAdminUserTrack）。
-- **可裁剪项成立**：`checkOutput()` 与 `OutputSpec.kept()` 同形——改用公共工厂。
-- **存量观察采纳**：`QueryExecutionEngine` 类注释「暂不注册 Bean」过时——已更新；TargetModeClosure/BatchAuthCheck 旧引擎直连面维持（090/091/092 范围，不扩围）。
-- 处置后验证：单测轨 1584 绿；改名 PgIT+三件基线资产定向绿；收口全量复跑结果见回归行（末轮）。
-- 双通道矛盾项：无。
+**外部评审处置结果（claude+grok 双通道，结论经代码级核实采纳）**：
+- **空白业务码适配层归一**（目标码/父编码/门面入参/getDenied 集合元素四个入口面，不进 ByCode 触发整单结构拒绝）：父编码/父类型空白→归一无父；门面空白码→归一类型级（门面无父上下文，与旧 INSTANCE 不可解析形态可观测等价）；getDenied 空白元素→逐个 fail-closed 拒绝不进引擎；回归锁三条（QueryGateTest×2＋PermissionCheckAppServiceImplTest×1）。
+- **X03 记录③改写并新增④**：空白编码+父上下文命中+仅 depend_on 子 scopeAll 行=判定结论收紧（非仅 reason 变化）；空白父编码同向收紧。
+- **三个 PgIT 字段改名** `permQueryEngine`→`queryGate`（InstanceGate/PermissionCharacterization/FirstAdminUserTrack）。
+- `checkOutput()` 改用 `OutputSpec.kept()` 公共工厂；`QueryExecutionEngine` 类注释 Bean 注册口径更新。

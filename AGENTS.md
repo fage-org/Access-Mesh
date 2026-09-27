@@ -64,7 +64,7 @@ Gateway (8080) -> access-service (9100)    能力包单体：管理面（用户/
 - 循环内禁止单条数据库查询，必须批量（禁 N+1，§8.4.8）。
 - DTO 优先 Java 21 Record；禁止 `@Data`/`@Value` 等隐式生成过多逻辑的 Lombok 注解。
 - 日期统一 `java.time.LocalDateTime`（禁 `java.util.Date`），时间语义全链路 UTC（TypeHandler 显式换算，§7.4）。
-- 权限校验必须走 `QueryGate`（T-PERM-089 起判定面唯一门面；check/batchCheck 经新 `QueryExecutionEngine.execute`），禁止绕过引擎直查 `rolePermMapper`；旧 `PermQueryEngine` 生产消费者已清零（T-PERM-090 迁范围与 LEGACY_API 四面、T-PERM-091 迁视图/转授，仅剩 092 删除动作）。
+- 权限校验必须走 `QueryGate`（T-PERM-089 起判定面唯一门面；check/batchCheck 经新 `QueryExecutionEngine.execute`），禁止绕过引擎直查 `rolePermMapper`；旧 `PermQueryEngine` 与四旧 DTO 已删除（T-PERM-092，X04 退役锁=架构测试断言主源码不得再现）。
 - 后端业务键构造/解析唯一入口 `perm-common` 的 `BusinessKeyUtil`（格式 golden 锁），禁止裸拼；sync API 契约键（percent-encoded）仍走 `SyncKeyCodecUtil`。
 
 统一响应体、错误码分段、路径格式、Lombok 细则、同层横向调用边界、实体类约束等以 `project-rules.md` 为准。
@@ -86,7 +86,7 @@ Gateway (8080) -> access-service (9100)    能力包单体：管理面（用户/
 | 技能                          | 定位                                                                                                        |
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | `dual-layer-cache-framework`  | 统一缓存框架规范：涉及 CacheService/缓存目录/L1+L2 存储/失效广播/TTL/evictAfterCommit 等缓存代码时读 skill   |
-| `permission-query-pipeline`   | 权限查询引擎规范：涉及 QueryGate/QueryExecutionEngine/权限校验/批量检查/OperationCode 时读 skill；禁止绕过引擎直查 rolePermMapper（旧 PermQueryEngine 生产消费者已清零，092 删除；PermQuery 静态助手 092 收编） |
+| `permission-query-pipeline`   | 权限查询引擎规范：涉及 QueryGate/QueryExecutionEngine/权限校验/批量检查/OperationCode 时读 skill；禁止绕过引擎直查 rolePermMapper（旧 PermQueryEngine 与四旧 DTO 已删，T-PERM-092，退役锁在架构测试） |
 | `accessmesh-patterns`         | 仓库级开发模式速查：分层边界/API 路径/DTO 命名/审计字段/N+1/禁止依赖/提交规范                                  |
 | `dual-track-local-review`     | 任务本地双轨评审与收口 checklist（收口默认动作；不自动串联外部评审）                                           |
 | `external-review`             | 外部 AI 评审执行规范：claude/grok/codex 三通道、全程禁止子代理（仅用户显式触发）                              |

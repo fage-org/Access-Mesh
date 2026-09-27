@@ -61,7 +61,7 @@ cn.ac.fage.accessmesh.access
 ├── AccessServiceApplication
 ├── auth user org menu role grant resource type domain rule audit platform   # 12 能力包
 ├── sync          # sync 通道包（4 组 sync/full-sync Controller + 守卫 + 记账 + 策略）
-├── engine        # 权限引擎子系统（PermQueryEngine + 管线 + 对外查询编排 + 门禁门面/操作码册）
+├── engine        # 权限引擎子系统（QueryExecutionEngine + 管线 + 对外查询编排 + QueryGate 门禁门面/操作码册）
 ├── projection    # 内部事实投影统一门面（LocalProjectionDomainService）
 ├── bootstrap     # 空库自举（固定图种子，BootstrapSeedWriter 断言锁定）
 └── infrastructure # 底座（请求上下文/拦截器/TypeHandler/任务租约/横切 AOP/共享 DTO/错误码册）
@@ -74,7 +74,7 @@ cn.ac.fage.accessmesh.access
 - `application` 包解散：写编排随主实体归位各能力包 AppService；原跨域组合查询按主实体归位（UserMenuQuery→menu、UserRoleQuery→role、OrgVisibilityQuery→org，改名 `XxxQueryAppService`）。
 - **能力包之间不互读 Mapper**（数据边界断言面=mapper 包；`QueryBoundaryArchitectureTest` 以能力为对象重建，豁免面=engine 输入面装载、projection 投影写路径、sync 记账、bootstrap 种子写入器，逐条声明见 capability-structure §8.4；存量 19 类 30 边冻结白名单已随 Q-009 收敛退役为零容忍绝对禁断，T-ACCESS-043~046，2026-09-15）。
 - AppService/DomainService 同层横向跨能力调用允许（2026-08-22 放开口径延续；仅限同层、禁循环依赖、复用优先于重实现，project-rules §8.2）。
-- 引擎核心（`engine.core`：PermQueryEngine/类型解析/主体装载/批量评估器）对能力包 **Service/DomainService** 的依赖仅限 rule 域条件/冲突评估 DomainService（引擎管线内条件四态与互斥评估的既有形态，拆包前同包直调）；其余能力包的 Service/DomainService 不依赖（对实体/DTO/枚举的跨包 import 与 mapper 直读为既有输入面形态，capability-structure §8.4 豁免 1，非断言对象）；`engine.service` 对外查询编排与能力包 DomainService 同层互调为既有形态（query-resources 域分类过滤→`DomainClassifyService`、互斥检测→`PermissionConflictDomainService`）。能力包 → engine（门禁查码/校验）为既有依赖方向。
+- 引擎核心（`engine.core`：类型解析/主体装载/批量评估器；执行主体在 `engine.query`）对能力包 **Service/DomainService** 的依赖仅限 rule 域条件/冲突评估 DomainService（引擎管线内条件四态与互斥评估的既有形态，拆包前同包直调）；其余能力包的 Service/DomainService 不依赖（对实体/DTO/枚举的跨包 import 与 mapper 直读为既有输入面形态，capability-structure §8.4 豁免 1，非断言对象）；`engine.service` 对外查询编排与能力包 DomainService 同层互调为既有形态（query-resources 域分类过滤→`DomainClassifyService`、互斥检测→`PermissionConflictDomainService`）。能力包 → engine（门禁查码/校验）为既有依赖方向。
 - QueryMapper 归位各能力包（XML 随迁 `resources/mapper/{org,menu,role}/`）；只读前缀、显式租户条件、禁写 SQL 契约不变（`QueryMapperXmlContractTest`）。
 - URL 维持两风格（admin 裸路径 + perm `/api/access/**`）——已知问题登记 [docs/pending-problems.md](../pending-problems.md) Q-001，后续单独改。
 - 架构测试将上述边界固化（五测试能力口径重建设计见 capability-structure §8.4）。
@@ -85,7 +85,7 @@ cn.ac.fage.accessmesh.access
   - `UserMenuQueryAppService`（menu.service）：`/api/access/auth/user-menu`、`/api/access/user/user-menus`、`/api/access/role/my-info` 聚合（sys_menu 树 + 角色/权限码 + 菜单可见性判定）。
   - `UserRoleQueryAppService`（role.service）：`/api/access/user-role/view` 聚合查询（POSITION 补所属组织名）；原 `/role/list` 功能角色候选已随 T-FE-058 退役（迁 `/abstract-role/list` keyword+分页，2026-09-23）。
   - `OrgVisibilityQueryAppService`（org.service）：组织可见性过滤（含 ORG_VISIBILITY 缓存，租户级失效由 PermissionChangeAspect 统一执行）。
-- 专用 QueryMapper（`{menu,role,org}.mapper`，XML 在 `resources/mapper/{org,menu,role}/`）：只 SELECT、显式 `tenant_id` 条件、返回 `dto/projection` 包 Projection record，不暴露或修改领域实体；权限判定一律经 `PermQueryEngine`/`TypeResolutionService`，不直查权限表判定。
+- 专用 QueryMapper（`{menu,role,org}.mapper`，XML 在 `resources/mapper/{org,menu,role}/`）：只 SELECT、显式 `tenant_id` 条件、返回 `dto/projection` 包 Projection record，不暴露或修改领域实体；权限判定一律经 `QueryGate`/`TypeResolutionService`，不直查权限表判定。
 - 数据访问白名单（架构测试固化，能力口径见 capability-structure §8.4）：能力包互不使用对方 **Mapper**（实体 import 不禁，断言面=mapper 包）；QueryMapper 归位各能力包后只读前缀契约不变；组合查询的跨能力表读取经 QueryMapper XML 直读（非 Java 类依赖）；引擎输入面装载、projection 投影写路径、sync 记账封装、bootstrap 种子写入器为显式豁免。（Service 层横向依赖不限白名单，2026-08-22 同层调用全局放开。）
 
 菜单可见性判定（v3.5 §4.1 派生公式）：
@@ -206,7 +206,7 @@ OAuth2 资源服务器与开放路径清单（T-ACCESS-013 落地，2026-08-22 �
 
 - **开放路径白名单配置化**（`access.oauth2.resource-paths`，application.yml 静态配置、全量替换语义）：默认仅 `/api/access/auth/oauth2/userinfo`；每条规则 = path（Ant 通配允许）+ `requiredScopes` + `audience` + `clientIds`。未配置路径上 OAuth2 JWT 默认拒绝（落到会话分支 → 401）。启动防护 fail-fast（`OAuth2ResourcePathProperties.afterPropertiesSet`）：① 模式不得覆盖 `/api/access/auth/**` 会话端点（userinfo/user-menu/oauth2/authorize——有限端点集逐样本匹配即完备，宽通配/URI 模板覆盖保留端点同样拦截），不得以 `/api/access/auth/oauth2/**` 通配放开；② 原「内部凭证空间重叠」防护（静态前缀判定 /api/perm 空间）已随 T-ACCESS-042 单命名空间退役——合法流量恒经 Gateway 携带密钥、OAuth2 JWT 验证在密钥拦截器之后独立执行，双凭证并存不构成机制冲突；③ **业务开放路径（非 userinfo 豁免路径）必须声明 `requiredScopes` 与 `audience`**——空值在运行时直接跳过两项授权门禁，属配置遗漏放行面（fail-fast 拒绝启动）。
 - **授权链**（`RequestContextInterceptor.authenticateOAuth2Jwt`）：验签 → 必填 claim（loginId/jti/client_id）→ 撤销黑名单（对全部开放路径生效，路径限定不产生绕过）→ 客户端启用动态校验（`OAuth2ClientDomainService.findActiveByClientId` 唯一索引点查，不经缓存保证禁用立即失效；客户端禁用/删除 → 401）→ 路径门禁三重校验（`clientIds` 限定 / `requiredScopes` 令牌 scope 子集校验 / `audience` 令牌 aud 匹配；不满足 → 403 授权不足）→ 绑定委托用户上下文。
-- **scope → 权限映射采用独立映射模型**（设计定案，不接入 PermQueryEngine）：scope 保持 OAuth2 标准委托范围语义（签发时空格分隔、授权时校验 ⊆ 客户端注册 scopes），授权判定即"开放路径声明所需 scope、令牌 scope 必须全部包含"；委托主体是客户端而非用户，与平台权限正交互不冲突。
+- **scope → 权限映射采用独立映射模型**（设计定案，不接入权限判定面）：scope 保持 OAuth2 标准委托范围语义（签发时空格分隔、授权时校验 ⊆ 客户端注册 scopes），授权判定即"开放路径声明所需 scope、令牌 scope 必须全部包含"；委托主体是客户端而非用户，与平台权限正交互不冲突。
 - **audience**（设计定案：客户端注册配置加列）：`sys_oauth2_client.audiences`（逗号分隔资源服务器标识）非空时签发写入 JWT `aud` claim（List 形态）；`/api/access/auth/oauth2/userinfo` 默认豁免 audience 校验（旧令牌无 aud 兼容）；其他开放路径**强制** audience 匹配（令牌 aud 缺失或不含路径声明的受众 → 403）。种子客户端 audiences=`access-service`。
 - **委托上下文第五要素**：`RequestContext` 增加 `delegatedClientId`（仅 OAuth2 JWT 分支非 null，callerType 维持 USER——operatorId=JWT loginId 委托用户身份）；审计/日志经 `AccessRequestContext.getDelegatedClientId()` 区分第三方委托调用与用户直调。
 - **Gateway 透传**（设计定案：同步支持；评审 P1 修复：仅委托 JWT 启用）：`gateway.oauth2.passthrough-paths`（外部路径口径，默认为空 = 无业务路径默认开放）命中**且 Authorization 为 Bearer 三段式 JWT**（形态识别与下游 JWT 分支同口径，不验签——伪造 JWT 透传后下游验签 401）时 `OAuth2PassthroughFilter`（order -79）设 skipAuth=true——跳过会话校验（否则 OAuth2 JWT 被 uuid 会话校验 401）、权限校验与身份头注入/签名，Authorization 头原样透传下游验签。**平台用户 uuid 会话令牌与无 Authorization 头的请求不启用透传**（skipAuth 不设置）：走正常 AuthTokenFilter 会话校验 + PermissionFilter 接口鉴权，平台会话认证路径不变——否则透传路径上 uuid 会话会被下游共享 Redis 会话分支接受，绕过 Gateway 接口权限（评审 P1）。`/api/access/auth/**` 已由白名单覆盖（userinfo 无需重复配置）。**双侧路径口径（T-ACCESS-042 起同形）**：无 StripPrefix，Gateway 与下游匹配同一路径，开放业务路径双侧配置天然同形；`InternalSecretFilter` 会向透传请求注入 X-Internal-Secret——原「启动防护禁止开放路径位于 `/api/access/**`」已随单命名空间退役（双凭证并存不构成机制冲突），该头经 Gateway 恒存在、直连开放路径不校验（密钥拦截器豁免 oauth2/**）。

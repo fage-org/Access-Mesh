@@ -1,9 +1,9 @@
 package cn.ac.fage.accessmesh.access.characterization;
 
 import cn.ac.fage.accessmesh.access.it.ItInfra;
-import cn.ac.fage.accessmesh.access.engine.dto.PermQuery;
-import cn.ac.fage.accessmesh.access.engine.dto.PermResult;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.perm.common.dto.req.AuthCheckReq;
+import cn.ac.fage.accessmesh.access.engine.dto.AuthCheckResp;
+import cn.ac.fage.accessmesh.access.engine.service.PermissionCheckAppService;
 import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -17,6 +17,8 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.junit.jupiter.Testcontainers;
+
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -53,6 +55,8 @@ class TargetModeClosurePgIT {
     private static final Long TENANT = 1L;
 
     private static final int USER_TYPE_ADMIN = 3;
+    /** 服务面 check 入口主体解析（subjectTypeCode="USER"）要求 user_type=1（type_value 终值分配表）。 */
+    private static final int USER_TYPE_EXTERNAL = 1;
     private static final int ROLE_TYPE_BASIC = 6;
 
     /** 显式 ID 基数（避开 DDL/运行时种子自增段，GoldenFixturePgIT 同款口径） */
@@ -66,7 +70,7 @@ class TargetModeClosurePgIT {
     }
 
     @Autowired
-    private PermQueryEngine permQueryEngine;
+    private PermissionCheckAppService checkAppService;
     @Autowired
     private QueryGate queryGate;
     @Autowired
@@ -175,21 +179,17 @@ class TargetModeClosurePgIT {
         Integer type = ensureResourceType("TMCL_E");
         ensureOperation(type, "VIEW", 1L, 0L);
         long subjectId = nextSubjectId++;
-        long roleId = insertRoleAndBind(subjectId, "tmcl-e");
+        long roleId = insertResolvableRoleAndBind(subjectId, "tmcl-e");
         long parentId = insertResource(type, "tmcl-e-parent", null);
         long child = insertResource(type, "tmcl-e-child", parentId);
         insertPerm(roleId, type, parentId, 1L, false);
 
         // NONE（缺省）：判定面继承关——「对单点判定结论无效」的旧形态已被接通为真实语义
-        PermQuery none = PermQuery.forAuthCheck(TENANT, subjectId, "TMCL_E", "tmcl-e-child", "VIEW");
-        assertThat(permQueryEngine.query(none).allowed())
+        assertThat(checkOf(subjectId, "TMCL_E", "tmcl-e-child", "VIEW", null).allowed())
             .as("inheritMode 缺省（关）：授父不覆盖子判定").isFalse();
 
         // PARENT：闭包开
-        PermQuery parent = PermQuery.forAuthCheck(TENANT, subjectId, "TMCL_E", "tmcl-e-child", "VIEW");
-        parent.setInheritMode("PARENT");
-        PermResult parentResult = permQueryEngine.query(parent);
-        assertThat(parentResult.allowed())
+        assertThat(checkOf(subjectId, "TMCL_E", "tmcl-e-child", "VIEW", "PARENT").allowed())
             .as("inheritMode=PARENT：目标闭包接通，授父覆盖子判定").isTrue();
     }
 
@@ -201,7 +201,7 @@ class TargetModeClosurePgIT {
         ensureOperation(parentType, "VIEW", 1L, 0L);
         ensureOperation(childType, "VIEW", 1L, 0L);
         long subjectId = nextSubjectId++;
-        long roleId = insertRoleAndBind(subjectId, "tmcl-f");
+        long roleId = insertResolvableRoleAndBind(subjectId, "tmcl-f");
         long parentRes = insertResource(parentType, "tmcl-f-parent", null);
         long childRes = insertResource(childType, "tmcl-f-child", null);
 
@@ -214,15 +214,15 @@ class TargetModeClosurePgIT {
         insertPermWithDependOn(roleId, childType, childRes, 1L, false, parentPermId);
 
         // 1. 单点无父上下文：子行不参与判定（fail-closed，拒绝原因区分）
-        PermResult bare = permQueryEngine.query(
-            PermQuery.forAuthCheck(TENANT, subjectId, "TMCL_F2", "tmcl-f-child", "VIEW"));
+        AuthCheckResp bare = checkOf(subjectId, "TMCL_F2", "tmcl-f-child", "VIEW", null);
         assertThat(bare.allowed()).as("无主资源上下文时子权限行不得放行").isFalse();
         assertThat(bare.reason()).isEqualTo("DEPENDENT_NOT_IN_PARENT_CONTEXT");
 
-        // 2. 给出父上下文且父判定命中：子行计入放行
-        PermQuery withParent = PermQuery.forAuthCheck(TENANT, subjectId, "TMCL_F2", "tmcl-f-child", "VIEW");
-        withParent.setParentResource("TMCL_F1", "tmcl-f-parent", "default", java.util.Set.of("VIEW"));
-        assertThat(permQueryEngine.query(withParent).allowed())
+        // 2. 给出父上下文且父判定命中：子行计入放行（服务面＝check 契约入口的父上下文四字段）
+        assertThat(checkAppService.check(TENANT, new AuthCheckReq(
+            "USER", String.valueOf(subjectId), "TMCL_F2", "tmcl-f-child", "VIEW",
+            null, null, null, "TMCL_F1", "tmcl-f-parent", "default",
+            java.util.List.of("VIEW"), Map.of())).allowed())
             .as("父判定命中且 dependOn ∈ 父命中集 → 子行计入放行").isTrue();
 
         // 3. scopeAll 子行（depend_on 非空 + scope_all=true，写侧可造形态）不放行类型级门禁
@@ -235,11 +235,27 @@ class TargetModeClosurePgIT {
 
     // ===== 种子方法（GoldenFixturePgIT 同款口径） =====
 
+    /** check 服务面（/auth/check 契约形态，T-PERM-092 起旧引擎级入口退役）。 */
+    private AuthCheckResp checkOf(long subjectId, String typeCode, String code, String op, String inheritMode) {
+        return checkAppService.check(TENANT, new AuthCheckReq(
+            "USER", String.valueOf(subjectId), typeCode, code, op,
+            null, null, inheritMode, null, null, null, null, Map.of()));
+    }
+
+    /** 服务面主体（user_type=1 经 "USER" 类型解析；角色绑定同 {@link #insertRoleAndBind}）。 */
+    private long insertResolvableRoleAndBind(long subjectId, String caseName) {
+        return insertRoleAndBind(subjectId, caseName, USER_TYPE_EXTERNAL);
+    }
+
     private long insertRoleAndBind(long subjectId, String caseName) {
+        return insertRoleAndBind(subjectId, caseName, USER_TYPE_ADMIN);
+    }
+
+    private long insertRoleAndBind(long subjectId, String caseName, int userType) {
         jdbc.update(
             "INSERT INTO abstract_user (id, tenant_id, user_type, external_id, name, enabled, extra, owner_service_code) "
                 + "VALUES (?, ?, ?, ?, ?, true, '{}', NULL)",
-            subjectId, TENANT, USER_TYPE_ADMIN, String.valueOf(subjectId), "tmcl-" + caseName);
+            subjectId, TENANT, userType, String.valueOf(subjectId), "tmcl-" + caseName);
         Long roleId = jdbc.queryForObject(
             "INSERT INTO abstract_role (tenant_id, role_type, external_id, name, status, extra) "
                 + "VALUES (?, ?, ?, ?, 1, '{}') RETURNING id",

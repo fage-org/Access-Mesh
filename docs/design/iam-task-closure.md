@@ -19,7 +19,7 @@ last_reviewed: 2026-09-26
 - 默认身份目录、有效角色、资源身份、同步事实与事件版本在所有适用入口保持一致。
 - 有限管理员以职责内权限完成发现、选取、修改、撤销和恢复，不通过增加全租户权限绕过流程。
 - 常用管理页支持生命周期；开发者沿一条明确的默认接入路径完成真实访问与撤销。
-- 优先复用既有 DomainService、PermQueryEngine、BusinessKeyUtil、分页、清空协议与 useListLoad。不引入新的权限引擎、通用策略框架、消息补偿平台或微服务。
+- 优先复用既有 DomainService、QueryGate/查询引擎、BusinessKeyUtil、分页、清空协议与 useListLoad。不引入新的权限引擎、通用策略框架、消息补偿平台或微服务。
 - 事务、权限门禁、审计、afterCommit 失效按 project-rules 的适用性清单逐入口核对；不因“统一”而把异常日志或非权限配置强行纳入同一种事务。
 - 数据恢复仅针对经证据确认的受影响记录；不全库重置同步版本、不自动重新授予旧权限、不以自动修复 bootstrap 掩盖合法写入口破坏不变量。
 
@@ -63,7 +63,7 @@ A的scope=read、audience=aud-a，B的scope=other、audience=aud-b：A的合法�
 <a id="mutex"></a>
 ### 2.4 互斥后的有效角色成为共同判定语义（F004／D002，T-PERM-075；拍板见 [历史定案原文](../archive/2026-09-26/decision-registry-before.md) 2026-09-22 行）
 
-**实施口径**：全部运行时判定经 `PermissionConflictDomainService.resolveJudgementRoleIds`（=有效角色解析 + 互斥双删）消费同一角色集——引擎 query/queryBatch 解析分支、getDenied* 两便捷入口、菜单/权限串 `buildEffectiveView`、接口快照（快照专有两步过滤消除）。显式 roleIds 分支不过滤（调用方语义=按指定角色判定，写校验面模拟角色视角）。`EFFECTIVE_ROLES` 缓存语义维持「过滤前集合」：互斥过滤判定时叠加（规则经 ROLE_MUTEX_RULE 缓存），规则变更沿既有 10s TTL 收敛，零缓存迁移；写守卫（DB 直查）不受缓存窗口影响。空规则集也回填缓存防判定路径打 DB。取代 2026-09-09「ROLE_MUTEX 不归引擎」定案（取代关系登记 [历史定案原文](../archive/2026-09-26/decision-registry-before.md) superseded 表）。
+**实施口径**：全部运行时判定经 `PermissionConflictDomainService.resolveJudgementRoleIds`（=有效角色解析 + 互斥双删）消费同一角色集——引擎 User 主体内部解析、QueryGate 判定面入口、菜单/权限串 `buildEffectiveView`、接口快照（快照专有两步过滤消除）。显式 roleIds 分支不过滤（调用方语义=按指定角色判定，写校验面模拟角色视角）。`EFFECTIVE_ROLES` 缓存语义维持「过滤前集合」：互斥过滤判定时叠加（规则经 ROLE_MUTEX_RULE 缓存），规则变更沿既有 10s TTL 收敛，零缓存迁移；写守卫（DB 直查）不受缓存窗口影响。空规则集也回填缓存防判定路径打 DB。取代 2026-09-09「ROLE_MUTEX 不归引擎」定案（取代关系登记 [历史定案原文](../archive/2026-09-26/decision-registry-before.md) superseded 表）。
 
 写守卫看**原始持有候选**（`SubjectDomainService.batchResolveRawHoldings`：未过期原始行 ∪ 组展开含禁用子树，不缓存 DB 新鲜读），不做运行时过滤——不能先过滤再断言无冲突；full-sync 批内一次预载消 N+1（批内写入由 appliedThisBatch 补偿）。
 

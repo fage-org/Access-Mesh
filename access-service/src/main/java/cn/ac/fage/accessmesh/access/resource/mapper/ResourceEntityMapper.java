@@ -70,8 +70,8 @@ public interface ResourceEntityMapper extends BaseMapper<ResourceEntity> {
     /**
      * 查询租户全部有效资源实体 ID（轻量 id 查询，不限 status）。
      * <p>
-     * T-ACCESS-052 目录实例准入：先取全集 id，再经引擎 getDeniedEntityIds 按 VIEW
-     * 批量判定得到可见子集（过滤先于分页/计数下推）。租户资源量为管理面规模（数百到数千），
+     * T-ACCESS-052 目录实例准入：先取全集 id，再经判定面门面 QueryGate.getDeniedEntityIds
+     * 按 VIEW 批量判定得到可见子集（过滤先于分页/计数下推）。租户资源量为管理面规模（数百到数千），
      * 单次 IN 批量判定可接受。
      * </p>
      *

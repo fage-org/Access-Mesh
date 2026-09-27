@@ -1,19 +1,15 @@
 package cn.ac.fage.accessmesh.access.characterization;
 
 import cn.ac.fage.accessmesh.access.it.ItInfra;
-import cn.ac.fage.accessmesh.access.engine.dto.PermBatchQuery;
-import cn.ac.fage.accessmesh.access.engine.dto.PermBatchResult;
-import cn.ac.fage.accessmesh.access.engine.dto.PermEvalContext;
-import cn.ac.fage.accessmesh.access.engine.dto.PermQuery;
-import cn.ac.fage.accessmesh.access.engine.dto.PermResult;
+import cn.ac.fage.accessmesh.perm.common.dto.req.AuthCheckReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq;
+import cn.ac.fage.accessmesh.access.engine.dto.AuthCheckResp;
 import cn.ac.fage.accessmesh.access.engine.dto.BatchAuthCheckResp;
 import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.engine.service.PermissionCheckAppService;
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
-import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -36,7 +32,6 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -49,15 +44,16 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 /**
- * batchCheck 批量化（T-PERM-061 A+ 形态）容器轨回归锁 ①-⑪。
+ * batchCheck 批量化容器轨回归锁 ①-⑪（T-PERM-092 起驱动面＝batchCheck 服务面生产消费者）。
  * <p>
- * 设计定稿 v4 验收面：等价差分（query()×N vs queryBatch 逐 item 对拍 allowed/reason/matched
+ * 设计定稿 v4 验收面：等价差分（check×N vs batchCheck 逐 item 对拍 allowed/reason/matched
  * 按集合比较）、共享计数（N=10/100 下 mapper 调用次数不变）、投影谓词否定（分档闭包/
  * TYPE_LEVEL 无条件丢子行/跨类型位泄漏）、空目标集守卫（1000 项上限形态禁 500）、
  * 互斥真锁（逐 item 评估）、reason 边界（DEPENDENT_NOT_IN_PARENT_CONTEXT）、时间窗
- * （批内单一评估时刻）、通知次数/内容、禁用条件 fail-close 两轨、条件-互斥顺序、
- * 条件增量快照次数。种子全部经 jdbc 直插（独立类型段避开 OPERATION_PERMISSIONS_BY_TYPE
- * 陈旧缓存），GoldenFixturePgIT/TargetModeClosurePgIT 先例形态。
+ * （批内单一评估时刻）、通知次数/内容（T-PERM-088 起按 ConflictEvidence 形态：
+ * execution＋item＋stage＋ruleRef 聚合，单行单规则结构化摘要）、禁用条件 fail-close 两轨、
+ * 条件-互斥顺序、条件增量快照次数。种子全部经 jdbc 直插（独立类型段避开
+ * OPERATION_PERMISSIONS_BY_TYPE 陈旧缓存），GoldenFixturePgIT/TargetModeClosurePgIT 先例形态。
  * </p>
  */
 @Tag("testcontainers")
@@ -93,7 +89,6 @@ class BatchAuthCheckPgIT {
         ItInfra.register(registry, BatchAuthCheckPgIT.class);
     }
 
-    @Autowired private PermQueryEngine engine;
     @Autowired private PermissionCheckAppService appService;
     @Autowired private JdbcTemplate jdbc;
 
@@ -114,7 +109,7 @@ class BatchAuthCheckPgIT {
         int value = nextTypeValue++;
         jdbc.update(
             "INSERT INTO type_definition (tenant_id, type_key, type_code, type_value, name, is_system, sort_order) "
-                + "VALUES (?, 'resource_type', ?, ?, ?, false, 99)",
+            + "VALUES (?, 'resource_type', ?, ?, ?, false, 99)",
             TENANT, typeCodeOf(value), value, "b61-" + typeCodeOf(value));
         return value;
     }
@@ -126,7 +121,7 @@ class BatchAuthCheckPgIT {
     private long ensureOperation(int typeValue, String code, long bit, long inheritMask) {
         return jdbc.queryForObject(
             "INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask, delete_flag) "
-                + "VALUES (?, ?, ?, ?, ?, ?, 0) RETURNING id",
+            + "VALUES (?, ?, ?, ?, ?, ?, 0) RETURNING id",
             Long.class, TENANT, typeValue, code, "b61-" + code, bit, inheritMask);
     }
 
@@ -134,11 +129,11 @@ class BatchAuthCheckPgIT {
         long subjectId = nextSubjectId++;
         Long roleId = jdbc.queryForObject(
             "INSERT INTO abstract_role (tenant_id, role_type, external_id, name, status, extra) "
-                + "VALUES (?, ?, ?, ?, 1, '{}') RETURNING id",
+            + "VALUES (?, ?, ?, ?, 1, '{}') RETURNING id",
             Long.class, TENANT, ROLE_TYPE_BASIC, "b61-role-" + tag, "b61-" + tag);
         jdbc.update(
             "INSERT INTO abstract_user (id, tenant_id, user_type, external_id, name, enabled, extra, owner_service_code) "
-                + "VALUES (?, ?, ?, ?, ?, true, '{}', NULL)",
+            + "VALUES (?, ?, ?, ?, ?, true, '{}', NULL)",
             subjectId, TENANT, USER_TYPE_EXTERNAL, String.valueOf(subjectId), "b61-" + tag);
         jdbc.update(
             "INSERT INTO user_role (tenant_id, abstract_user_id, target_type, target_id) VALUES (?, ?, 'ROLE', ?)",
@@ -156,7 +151,7 @@ class BatchAuthCheckPgIT {
         long entityId = nextResourceId++;
         jdbc.update(
             "INSERT INTO resource_entity (id, tenant_id, parent_id, resource_type, code, code_type, name, status) "
-                + "VALUES (?, ?, ?, ?, ?, 'default', ?, 1)",
+            + "VALUES (?, ?, ?, ?, ?, 'default', ?, 1)",
             entityId, TENANT, parentId, typeValue, code, "b61-" + code);
         return entityId;
     }
@@ -165,22 +160,22 @@ class BatchAuthCheckPgIT {
                             boolean scopeAll, Long conditionId, Long dependOn) {
         return jdbc.queryForObject(
             "INSERT INTO role_resource_permission "
-                + "(tenant_id, abstract_role_id, resource_entity_id, granted_bits, resource_type, scope_all, condition_id, depend_on, grant_source) "
-                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'MANUAL') RETURNING id",
+            + "(tenant_id, abstract_role_id, resource_entity_id, granted_bits, resource_type, scope_all, condition_id, depend_on, grant_source) "
+            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'MANUAL') RETURNING id",
             Long.class, TENANT, roleId, entityId, bits, typeValue, scopeAll, conditionId, dependOn);
     }
 
     private long insertCondition(boolean enabled, String rules) {
         return jdbc.queryForObject(
             "INSERT INTO permission_condition (tenant_id, code, name, condition_rules, enabled, gateway_evaluable, source, created_at, updated_at) "
-                + "VALUES (?, ?, ?, ?, ?, false, 'MANAGED', now(), now()) RETURNING id",
+            + "VALUES (?, ?, ?, ?, ?, false, 'MANAGED', now(), now()) RETURNING id",
             Long.class, TENANT, "b61-c" + System.nanoTime(), "b61-cond", rules, enabled);
     }
 
     private long insertMutexRule(long firstOpId, long secondOpId) {
         return jdbc.queryForObject(
             "INSERT INTO permission_conflict_rule (tenant_id, conflict_type, first_operation_permission_id, second_operation_permission_id, description) "
-                + "VALUES (?, 'PERM_MUTEX', ?, ?, 'b61') RETURNING id",
+            + "VALUES (?, 'PERM_MUTEX', ?, ?, 'b61') RETURNING id",
             Long.class, TENANT, firstOpId, secondOpId);
     }
 
@@ -191,30 +186,48 @@ class BatchAuthCheckPgIT {
 
     private static final String ALWAYS_TRUE_RULES = "{\"logic\":\"AND\",\"items\":[]}";
 
-    private PermEvalContext pinnedContext(LocalDateTime at) {
-        return new PermEvalContext(null, at, Map.of());
+    // ===== 驱动面（T-PERM-092 起＝batchCheck 服务面生产消费者）=====
+
+    private static BatchAuthCheckReq.AuthCheckItem item(String typeCode, String code, String op) {
+        return new BatchAuthCheckReq.AuthCheckItem(typeCode, code, op, null, null, null);
     }
 
-    private PermBatchResult.ItemOutcome runSingleItemBatch(long subjectId, PermBatchQuery.Item item) {
-        PermBatchQuery batch = PermBatchQuery.forAuthCheckBatch(TENANT, subjectId, List.of(item));
-        batch.setEvalContext(pinnedContext(LocalDateTime.now()));
-        return engine.queryBatch(batch).outcomes().get(0);
+    private static BatchAuthCheckReq.AuthCheckItem inheritItem(String typeCode, String code, String op) {
+        return new BatchAuthCheckReq.AuthCheckItem(typeCode, code, op, null, null, "PARENT");
     }
 
-    private List<PermBatchResult.ItemOutcome> runBatch(long subjectId, List<PermBatchQuery.Item> items) {
-        PermBatchQuery batch = PermBatchQuery.forAuthCheckBatch(TENANT, subjectId, items);
-        batch.setEvalContext(pinnedContext(LocalDateTime.now()));
-        return engine.queryBatch(batch).outcomes();
+    private BatchAuthCheckResp.AuthCheckItemResult runSingleItemBatch(long subjectId,
+                                                                      BatchAuthCheckReq.AuthCheckItem item) {
+        return runBatch(subjectId, List.of(item)).get(0);
+    }
+
+    private List<BatchAuthCheckResp.AuthCheckItemResult> runBatch(long subjectId,
+                                                                  List<BatchAuthCheckReq.AuthCheckItem> items) {
+        return appService.batchCheck(TENANT, new BatchAuthCheckReq(
+            "USER", String.valueOf(subjectId), items, null, null, null, null, Map.of())).items();
+    }
+
+    private BatchAuthCheckResp runBatchWithParent(long subjectId, List<BatchAuthCheckReq.AuthCheckItem> items,
+                                                  String parentType, String parentCode, String parentOp) {
+        return appService.batchCheck(TENANT, new BatchAuthCheckReq(
+            "USER", String.valueOf(subjectId), items, parentType, parentCode, null,
+            List.of(parentOp), Map.of()));
+    }
+
+    private AuthCheckResp runSingle(long subjectId, BatchAuthCheckReq.AuthCheckItem item) {
+        return appService.check(TENANT, new AuthCheckReq(
+            "USER", String.valueOf(subjectId), item.resourceTypeCode(), item.resourceCode(),
+            item.operationCode(), null, null, item.inheritMode(),
+            null, null, null, null, Map.of()));
     }
 
     // ===== ① 等价差分 + ⑥ reason 边界 =====
 
     @Test
-    @DisplayName("① 等价差分：同一数据上 query()×N vs queryBatch 逐 item 对拍 allowed/reason/matched（按集合比较）")
-    void queryBatchMustMatchPerItemQueryAcrossShapes() {
+    @DisplayName("① 等价差分：同一数据上 check()×N vs batchCheck 逐 item 对拍 allowed/reason/matched（按集合比较）")
+    void batchCheckMustMatchPerItemCheckAcrossShapes() {
         long subjectId = newSubject("eq");
         long roleId = roleIdOf(subjectId);
-        LocalDateTime pinnedAt = LocalDateTime.now();
 
         int t1 = newType(); // scopeAll 放行（TYPE_LEVEL 与 INSTANCE 短路）
         ensureOperation(t1, "VIEW", VIEW_BIT, 0L);
@@ -251,29 +264,25 @@ class BatchAuthCheckPgIT {
         insertPerm(roleId, t5, mutexEntity, VIEW_BIT, false, null, null);
         insertPerm(roleId, t5, mutexEntity, UPDATE_BIT, false, null, null);
 
-        List<PermBatchQuery.Item> items = List.of(
-            new PermBatchQuery.Item(typeCodeOf(t1), null, "VIEW", null, null, false),           // TYPE_LEVEL allow
-            new PermBatchQuery.Item(typeCodeOf(t1), "b61-eq-ghost-any", "VIEW", null, null, false), // INSTANCE scopeAll 短路（幽灵 code 也放行）
-            new PermBatchQuery.Item(typeCodeOf(t2), "b61-eq-hit", "VIEW", null, null, false),   // 实例命中
-            new PermBatchQuery.Item(typeCodeOf(t2), "b61-eq-cond", "VIEW", null, null, false),  // 实例条件拒绝
-            new PermBatchQuery.Item(typeCodeOf(t2), "b61-eq-ghost", "VIEW", null, null, false), // 幽灵 code
-            new PermBatchQuery.Item(typeCodeOf(t3), "b61-eq-child", "VIEW", null, null, false), // 默认授父查子 deny
-            new PermBatchQuery.Item(typeCodeOf(t3), "b61-eq-child", "VIEW", null, null, true),  // PARENT allow
-            new PermBatchQuery.Item(typeCodeOf(t4), "b61-eq-dep", "VIEW", null, null, false),   // depend_on 子行 deny
-            new PermBatchQuery.Item(typeCodeOf(t4), "b61-eq-ghost2", "VIEW", null, null, false),// 幽灵 + 仅子行 scopeAll（⑥）
-            new PermBatchQuery.Item(typeCodeOf(t5), "b61-eq-mutex", "VIEW", null, null, false), // 互斥双丢
-            new PermBatchQuery.Item("B61GHOST-TYPE", null, "VIEW", null, null, false));         // 幽灵类型 TYPE_LEVEL
+        List<BatchAuthCheckReq.AuthCheckItem> items = List.of(
+            item(typeCodeOf(t1), null, "VIEW"),                            // TYPE_LEVEL allow
+            item(typeCodeOf(t1), "b61-eq-ghost-any", "VIEW"),              // INSTANCE scopeAll 短路（幽灵 code 也放行）
+            item(typeCodeOf(t2), "b61-eq-hit", "VIEW"),                    // 实例命中
+            item(typeCodeOf(t2), "b61-eq-cond", "VIEW"),                   // 实例条件拒绝
+            item(typeCodeOf(t2), "b61-eq-ghost", "VIEW"),                  // 幽灵 code
+            item(typeCodeOf(t3), "b61-eq-child", "VIEW"),                  // 默认授父查子 deny
+            inheritItem(typeCodeOf(t3), "b61-eq-child", "VIEW"),           // PARENT allow
+            item(typeCodeOf(t4), "b61-eq-dep", "VIEW"),                    // depend_on 子行 deny
+            item(typeCodeOf(t4), "b61-eq-ghost2", "VIEW"),                 // 幽灵 + 仅子行 scopeAll（⑥）
+            item(typeCodeOf(t5), "b61-eq-mutex", "VIEW"),                  // 互斥双丢
+            item("B61GHOST-TYPE", null, "VIEW"));                          // 幽灵类型 TYPE_LEVEL
 
-        List<PermBatchResult.ItemOutcome> outcomes = runBatch(subjectId, items);
+        List<BatchAuthCheckResp.AuthCheckItemResult> outcomes = runBatch(subjectId, items);
 
         assertThat(outcomes).hasSameSizeAs(items);
         for (int i = 0; i < items.size(); i++) {
-            PermBatchQuery.Item item = items.get(i);
-            PermQuery q = PermQuery.forAuthCheck(TENANT, subjectId,
-                item.resourceTypeCode(), item.resourceCode(), item.operationCode());
-            q.setInheritMode(item.inheritClosure() ? "PARENT" : "NONE");
-            q.setEvalContext(pinnedContext(pinnedAt));
-            PermResult single = engine.query(q);
+            BatchAuthCheckReq.AuthCheckItem item = items.get(i);
+            AuthCheckResp single = runSingle(subjectId, item);
 
             assertThat(outcomes.get(i).allowed())
                 .as("item[%d] %s:%s allowed 等价", i, item.resourceTypeCode(), item.resourceCode())
@@ -307,7 +316,7 @@ class BatchAuthCheckPgIT {
     // ===== ② 共享计数锁 =====
 
     @Test
-    @DisplayName("② 共享计数锁：N=10 与 N=100 下 scopeAll/实例/闭包 mapper 调用次数不变（防批量入口内部循环 query()）")
+    @DisplayName("② 共享计数锁：N=10 与 N=100 下 scopeAll/实例/闭包 mapper 调用次数不变（防批量入口内部循环单查）")
     void sharedLoadCountsMustNotGrowWithBatchSize() {
         int type = newType();
         ensureOperation(type, "VIEW", VIEW_BIT, 0L);
@@ -330,11 +339,11 @@ class BatchAuthCheckPgIT {
     }
 
     private void runBatchOf(long subjectId, int type, int n) {
-        List<PermBatchQuery.Item> items = new ArrayList<>(n);
+        List<BatchAuthCheckReq.AuthCheckItem> items = new ArrayList<>(n);
         for (int i = 0; i < n; i++) {
-            items.add(new PermBatchQuery.Item(typeCodeOf(type), "b61-cnt-" + i, "VIEW", null, null, false));
+            items.add(item(typeCodeOf(type), "b61-cnt-" + i, "VIEW"));
         }
-        List<PermBatchResult.ItemOutcome> outcomes = runBatch(subjectId, items);
+        List<BatchAuthCheckResp.AuthCheckItemResult> outcomes = runBatch(subjectId, items);
         assertThat(outcomes).hasSize(n);
         assertThat(outcomes).allSatisfy(outcome -> assertThat(outcome.allowed()).isTrue());
     }
@@ -344,7 +353,7 @@ class BatchAuthCheckPgIT {
     @Test
     @DisplayName("③ 投影谓词否定：默认模式授父查子 deny / TYPE_LEVEL+depend_on scopeAll+父上下文 deny / 跨类型位泄漏 deny")
     void projectionPredicatesMustNotLeakAcrossModesOrTypes() {
-        // (a) 默认模式（不传 inheritMode）授父查子 deny——false 档闭包集恒 {自身}
+        // (a) 默认模式（不传 inheritMode）授父查子 deny——SELF 档不消费祖先闭包
         int tParent = newType();
         ensureOperation(tParent, "VIEW", VIEW_BIT, 0L);
         long subjectA = newSubject("proj");
@@ -352,10 +361,10 @@ class BatchAuthCheckPgIT {
         insertResource(tParent, "b61-proj-child", parentEntity);
         insertPerm(roleIdOf(subjectA), tParent, parentEntity, VIEW_BIT, false, null, null);
 
-        List<PermBatchResult.ItemOutcome> byDefault = runBatch(subjectA, List.of(new PermBatchQuery.Item(
-            typeCodeOf(tParent), "b61-proj-child", "VIEW", null, null, false)));
+        List<BatchAuthCheckResp.AuthCheckItemResult> byDefault = runBatch(subjectA, List.of(
+            item(typeCodeOf(tParent), "b61-proj-child", "VIEW")));
         assertThat(byDefault.get(0).allowed())
-            .as("默认模式授父查子必须 deny（false 档不得消费祖先闭包）").isFalse();
+            .as("默认模式授父查子必须 deny（SELF 档不得消费祖先闭包）").isFalse();
 
         // (b) TYPE_LEVEL + 仅 depend_on scopeAll + 请求级父上下文 deny——TYPE_LEVEL 无条件丢子行
         int tDeps = newType();
@@ -365,11 +374,8 @@ class BatchAuthCheckPgIT {
         long parentPermId = insertPerm(roleIdOf(subjectB), tDeps, depEntity, VIEW_BIT, false, null, null);
         insertPerm(roleIdOf(subjectB), tDeps, null, VIEW_BIT, true, null, parentPermId); // 仅 depend_on scopeAll
 
-        PermBatchQuery withParent = PermBatchQuery.forAuthCheckBatch(TENANT, subjectB, List.of(
-            new PermBatchQuery.Item(typeCodeOf(tDeps), null, "VIEW", null, null, false)));
-        withParent.setParentResource(typeCodeOf(tDeps), "b61-projdep-res", null, Set.of("VIEW"));
-        withParent.setEvalContext(pinnedContext(LocalDateTime.now()));
-        List<PermBatchResult.ItemOutcome> typeLevel = engine.queryBatch(withParent).outcomes();
+        List<BatchAuthCheckResp.AuthCheckItemResult> typeLevel = runBatchWithParent(subjectB,
+            List.of(item(typeCodeOf(tDeps), null, "VIEW")), typeCodeOf(tDeps), "b61-projdep-res", "VIEW").items();
         assertThat(typeLevel.get(0).allowed())
             .as("TYPE_LEVEL 组无条件丢 depend_on 子行（不走父上下文过滤）").isFalse();
         assertThat(typeLevel.get(0).reason()).isEqualTo("NO_PERMISSION");
@@ -384,9 +390,9 @@ class BatchAuthCheckPgIT {
         insertResource(tMenu, "b61-proj-menu", null);
         insertPerm(roleIdOf(subjectC), tUser, null, VIEW_BIT, true, null, null); // USER scopeAll VIEW
 
-        List<PermBatchResult.ItemOutcome> mixed = runBatch(subjectC, List.of(
-            new PermBatchQuery.Item(typeCodeOf(tUser), "b61-proj-user", "VIEW", null, null, false),
-            new PermBatchQuery.Item(typeCodeOf(tMenu), "b61-proj-menu", "VIEW", null, null, false)));
+        List<BatchAuthCheckResp.AuthCheckItemResult> mixed = runBatch(subjectC, List.of(
+            item(typeCodeOf(tUser), "b61-proj-user", "VIEW"),
+            item(typeCodeOf(tMenu), "b61-proj-menu", "VIEW")));
         assertThat(mixed.get(0).allowed()).as("USER scopeAll 放行本类型").isTrue();
         assertThat(mixed.get(1).allowed())
             .as("跨类型位泄漏否定：MENU item 不得消费 USER 组 scopeAll 行").isFalse();
@@ -428,8 +434,7 @@ class BatchAuthCheckPgIT {
     private List<BatchAuthCheckReq.AuthCheckItem> ghostItems(String typeCode, String codePrefix, int n) {
         List<BatchAuthCheckReq.AuthCheckItem> items = new ArrayList<>(n);
         for (int i = 0; i < n; i++) {
-            items.add(new BatchAuthCheckReq.AuthCheckItem(typeCode,
-                codePrefix == null ? null : codePrefix + i, "VIEW", null, null, null));
+            items.add(item(typeCode, codePrefix == null ? null : codePrefix + i, "VIEW"));
         }
         return items;
     }
@@ -450,9 +455,9 @@ class BatchAuthCheckPgIT {
         insertPerm(roleId, type, entityA, VIEW_BIT, false, null, null);   // item1 子集 = 仅 VIEW 行
         insertPerm(roleId, type, entityB, UPDATE_BIT, false, null, null); // item2 子集 = 仅 UPDATE 行
 
-        List<PermBatchResult.ItemOutcome> outcomes = runBatch(subjectId, List.of(
-            new PermBatchQuery.Item(typeCodeOf(type), "b61-mx-a", "VIEW", null, null, false),
-            new PermBatchQuery.Item(typeCodeOf(type), "b61-mx-b", "VIEW", null, null, false)));
+        List<BatchAuthCheckResp.AuthCheckItemResult> outcomes = runBatch(subjectId, List.of(
+            item(typeCodeOf(type), "b61-mx-a", "VIEW"),
+            item(typeCodeOf(type), "b61-mx-b", "VIEW")));
 
         // 逐 item 评估：各子集单端在场不构成冲突（合并评估=两端同场双丢=false deny）
         assertThat(outcomes.get(0).allowed()).as("item1 仅 VIEW 行：单端不冲突").isTrue();
@@ -462,7 +467,7 @@ class BatchAuthCheckPgIT {
     // ===== ⑦ 时间窗边界锁 =====
 
     @Test
-    @DisplayName("⑦ 时间窗边界锁：mockStatic now() 依次 t1/t2 → 批内全部按 t1 评估一致（旧逐 item 路径下红）")
+    @DisplayName("⑦ 时间窗边界锁：mockStatic now() 依次 t1/t2 → 批内全部按 t1 评估一致（逐 item 路径下红）")
     void batchMustPinSingleEvaluationMomentAcrossItems() {
         int type = newType();
         ensureOperation(type, "VIEW", VIEW_BIT, 0L);
@@ -479,20 +484,20 @@ class BatchAuthCheckPgIT {
         try (var mocked = mockStatic(LocalDateTime.class, Mockito.CALLS_REAL_METHODS)) {
             mocked.when(LocalDateTime::now).thenReturn(t1, t2);
             BatchAuthCheckResp resp = appService.batchCheck(TENANT, batchReqOf(subjectId, List.of(
-                new BatchAuthCheckReq.AuthCheckItem(typeCodeOf(type), "b61-time-res", "VIEW", null, null, null),
-                new BatchAuthCheckReq.AuthCheckItem(typeCodeOf(type), "b61-time-res", "VIEW", null, null, null))));
-            // 批内单一评估时刻（a2）：第一个 now()=t1 钉住全链，第二个起不参与评估——
-            // 旧逐 item 路径各 item 各自 now()（item2 拿 t2 越界 deny）会破坏一致性
+                item(typeCodeOf(type), "b61-time-res", "VIEW"),
+                item(typeCodeOf(type), "b61-time-res", "VIEW"))));
+            // 批内单一评估时刻（RunState 单时钟）：第一个 now()=t1 钉住全链，第二个起不参与评估——
+            // 逐 item 路径各 item 各自 now()（item2 拿 t2 越界 deny）会破坏一致性
             assertThat(resp.items()).hasSize(2);
             assertThat(resp.items()).allSatisfy(item -> assertThat(item.allowed()).isTrue());
         }
     }
 
-    // ===== ⑧ 通知次数 + 内容锁 =====
+    // ===== ⑧ 通知次数 + 内容锁（T-PERM-088 ConflictEvidence 形态） =====
 
     @Test
-    @DisplayName("⑧ 通知次数/内容锁：同组两 item 冲突同一规则 → 1 条审计行（hitItemCount=2）；未触发规则不出现在 detail")
-    void mutexNotificationMustAggregatePerGroupRuleAndSkipUntriggered() {
+    @DisplayName("⑧ 通知次数/内容锁：同规则两 item 各自两端同场 → 两条 item 级 CONFLICT_DETECTED 证据行；未触发规则不出现")
+    void mutexNotificationMustEmitPerItemEvidenceAndSkipUntriggered() {
         int type = newType();
         long viewOp = ensureOperation(type, "VIEW", VIEW_BIT, 0L);
         long updateOp = ensureOperation(type, "UPDATE", UPDATE_BIT, VIEW_BIT);
@@ -512,16 +517,27 @@ class BatchAuthCheckPgIT {
         insertPerm(roleId, type, entityB, UPDATE_BIT, false, null, null);
 
         runBatch(subjectId, List.of(
-            new PermBatchQuery.Item(typeCodeOf(type), "b61-nt-a", "VIEW", null, null, false),
-            new PermBatchQuery.Item(typeCodeOf(type), "b61-nt-b", "VIEW", null, null, false)));
+            item(typeCodeOf(type), "b61-nt-a", "VIEW"),
+            item(typeCodeOf(type), "b61-nt-b", "VIEW")));
 
+        // 新引擎受控提交（T-PERM-088）：按 execution＋item＋stage＋ruleRef 聚合——
+        // 两 item 同规则各自两端同场 = 两条证据行（单行单规则结构化摘要；
+        // 旧 (组,ruleId) 合并单行 hitItemCount=2 形态随旧执行体退场）。
         ArgumentCaptor<AuditDomainService.OperationLogEntry> captor =
             ArgumentCaptor.forClass(AuditDomainService.OperationLogEntry.class);
-        verify(auditDomainService, times(1)).asyncRecordLog(captor.capture());
-        String summary = String.valueOf(captor.getValue().summary());
-        assertThat(summary).contains("hitItemCount=2");
-        assertThat(summary).contains("rule[" + triggeredRuleId + "]");
-        assertThat(summary).doesNotContain("rule[" + untriggeredRuleId + "]");
+        verify(auditDomainService, times(2)).asyncRecordLog(captor.capture());
+        List<String> summaries = captor.getAllValues().stream()
+            .map(entry -> String.valueOf(entry.summary())).toList();
+        assertThat(summaries)
+            .allSatisfy(summary -> assertThat(summary)
+                .contains("rule=" + triggeredRuleId)
+                .contains("stage=INSTANCE")
+                .contains("completion=COMPLETE"));
+        // 两条行各自 item 键（batchCheck item key=输入下标）
+        assertThat(summaries).anySatisfy(summary -> assertThat(summary).contains("item=0"));
+        assertThat(summaries).anySatisfy(summary -> assertThat(summary).contains("item=1"));
+        // 未触发规则端点不出现
+        assertThat(summaries).noneSatisfy(summary -> assertThat(summary).contains("rule=" + untriggeredRuleId));
     }
 
     // ===== ⑨ 禁用条件 fail-close 两轨 =====
@@ -538,8 +554,8 @@ class BatchAuthCheckPgIT {
         insertPerm(roleIdOf(subjectA), t1, null, VIEW_BIT, true, condId, null);
         insertResource(t1, "b61-ds-a", null);
 
-        PermBatchResult.ItemOutcome scopeAllTrack = runSingleItemBatch(subjectA,
-            new PermBatchQuery.Item(typeCodeOf(t1), "b61-ds-a", "VIEW", null, null, false));
+        BatchAuthCheckResp.AuthCheckItemResult scopeAllTrack = runSingleItemBatch(subjectA,
+            item(typeCodeOf(t1), "b61-ds-a", "VIEW"));
         assertThat(scopeAllTrack.allowed())
             .as("scopeAll 轨：禁用条件必须 fail-close（朴素批量当有效规则=绕过方向）").isFalse();
         assertThat(scopeAllTrack.reason()).isEqualTo("CONDITION_NOT_MET_OR_CONFLICT");
@@ -551,8 +567,8 @@ class BatchAuthCheckPgIT {
         long entityB = insertResource(t2, "b61-ds-b", null);
         insertPerm(roleIdOf(subjectB), t2, entityB, VIEW_BIT, false, condId, null);
 
-        PermBatchResult.ItemOutcome instanceTrack = runSingleItemBatch(subjectB,
-            new PermBatchQuery.Item(typeCodeOf(t2), "b61-ds-b", "VIEW", null, null, false));
+        BatchAuthCheckResp.AuthCheckItemResult instanceTrack = runSingleItemBatch(subjectB,
+            item(typeCodeOf(t2), "b61-ds-b", "VIEW"));
         assertThat(instanceTrack.allowed()).as("实例轨：禁用条件必须 fail-close").isFalse();
         assertThat(instanceTrack.reason()).isEqualTo("CONDITION_NOT_MET_OR_CONFLICT");
     }
@@ -572,8 +588,8 @@ class BatchAuthCheckPgIT {
         insertPerm(roleIdOf(subjectId), type, entity, VIEW_BIT, false, condFalseId, null); // VIEW 挂不满足条件
         insertPerm(roleIdOf(subjectId), type, entity, UPDATE_BIT, false, null, null);      // UPDATE 无条件
 
-        PermBatchResult.ItemOutcome outcome = runSingleItemBatch(subjectId,
-            new PermBatchQuery.Item(typeCodeOf(type), "b61-ord-res", "VIEW", null, null, false));
+        BatchAuthCheckResp.AuthCheckItemResult outcome = runSingleItemBatch(subjectId,
+            item(typeCodeOf(type), "b61-ord-res", "VIEW"));
 
         // 条件先摘 VIEW → 互斥两端不齐 → UPDATE 保留放行（若互斥先算：两端同场全丢 = false deny + 虚假审计）
         assertThat(outcome.allowed()).as("条件先摘 VIEW 一端后互斥不成立，UPDATE 仍放行").isTrue();
@@ -592,20 +608,20 @@ class BatchAuthCheckPgIT {
         long condId = insertCondition(true, dateRangeRules("2000-01-01", "2001-01-01")); // 恒不满足
 
         // scopeAll 主行挂条件（评估清空不走短路）+ 实例行挂同一条件：
-        // scopeAll 段 preload 回源 1 次，实例段 preload 命中请求级快照零回源
+        // 请求级条件装载回源 1 次，跨段命中请求级快照零回源
         long entity = insertResource(type, "b61-snap-res", null);
         insertPerm(roleId, type, null, VIEW_BIT, true, condId, null);
         insertPerm(roleId, type, entity, VIEW_BIT, false, condId, null);
 
-        PermBatchResult.ItemOutcome outcome = runSingleItemBatch(subjectId,
-            new PermBatchQuery.Item(typeCodeOf(type), "b61-snap-res", "VIEW", null, null, false));
+        BatchAuthCheckResp.AuthCheckItemResult outcome = runSingleItemBatch(subjectId,
+            item(typeCodeOf(type), "b61-snap-res", "VIEW"));
 
         assertThat(outcome.allowed()).isFalse();
         assertThat(outcome.reason()).isEqualTo("CONDITION_NOT_MET_OR_CONFLICT");
         verify(conditionMapper, times(1)).selectValidByIds(eq(TENANT), anySet());
     }
 
-    // ===== 补：批量父判定装配分支（外评发现——请求级父上下文 + 实例 depend_on 子行） =====
+    // ===== 补：批量父判定装配分支（请求级父上下文 + 实例 depend_on 子行） =====
 
     @Test
     @DisplayName("父判定装配：请求级父上下文 + 实例 depend_on 子行 → 父命中放行 / 父操作不覆盖 DEPENDENT")
@@ -621,22 +637,18 @@ class BatchAuthCheckPgIT {
         long childPermId = insertPerm(roleId, type, childEntity, VIEW_BIT, false, null, parentPermId); // 子行
 
         // (a) 父操作覆盖（VIEW）：父判定命中集含 parentPermId ⊇ 子行 depend_on → 子行保留放行
-        //     （覆盖 carrier 装配三线：setRoleIds 不重复解析、setEvalContext 时刻透传、父字段装配）
-        PermBatchQuery hit = PermBatchQuery.forAuthCheckBatch(TENANT, subjectId, List.of(
-            new PermBatchQuery.Item(typeCodeOf(type), "b61-pt-child", "VIEW", null, null, false)));
-        hit.setParentResource(typeCodeOf(type), "b61-pt-parent", null, Set.of("VIEW"));
-        hit.setEvalContext(pinnedContext(LocalDateTime.now()));
-        List<PermBatchResult.ItemOutcome> allowed = engine.queryBatch(hit).outcomes();
+        //     （请求级父上下文挂全批 item，惰性判定一次）
+        List<BatchAuthCheckResp.AuthCheckItemResult> allowed = runBatchWithParent(subjectId,
+            List.of(item(typeCodeOf(type), "b61-pt-child", "VIEW")),
+            typeCodeOf(type), "b61-pt-parent", "VIEW").items();
         assertThat(allowed.get(0).allowed())
             .as("批量父判定命中：子行 depend_on ∈ 父命中集 → 放行").isTrue();
         assertThat(allowed.get(0).matchedPermissionIds()).containsExactly(childPermId);
 
         // (b) 父操作不覆盖（UPDATE：父实体只挂 VIEW 行）：父判定不命中 → 子行剥除 → DEPENDENT
-        PermBatchQuery miss = PermBatchQuery.forAuthCheckBatch(TENANT, subjectId, List.of(
-            new PermBatchQuery.Item(typeCodeOf(type), "b61-pt-child", "VIEW", null, null, false)));
-        miss.setParentResource(typeCodeOf(type), "b61-pt-parent", null, Set.of("UPDATE"));
-        miss.setEvalContext(pinnedContext(LocalDateTime.now()));
-        List<PermBatchResult.ItemOutcome> dependent = engine.queryBatch(miss).outcomes();
+        List<BatchAuthCheckResp.AuthCheckItemResult> dependent = runBatchWithParent(subjectId,
+            List.of(item(typeCodeOf(type), "b61-pt-child", "VIEW")),
+            typeCodeOf(type), "b61-pt-parent", "UPDATE").items();
         assertThat(dependent.get(0).allowed()).isFalse();
         assertThat(dependent.get(0).reason()).isEqualTo("DEPENDENT_NOT_IN_PARENT_CONTEXT");
     }

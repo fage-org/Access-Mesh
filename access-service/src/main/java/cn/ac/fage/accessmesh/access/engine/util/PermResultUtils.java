@@ -16,7 +16,7 @@ import java.util.*;
  * <p>
  * 提供权限查询结果转换为各种响应DTO的静态方法。
  * toAuthCheckResp（T-PERM-089）与 toCheckInterfaceResp（T-PERM-090）均为新
- * {@link DecisionResult} → 既有外部响应的纯转换（不重建旧 PermResult 再转换，设计 §9.1）。
+ * {@link DecisionResult} → 既有外部响应的纯转换（不经中间结果对象，设计 §9.1）。
  * </p>
  * <p>
  * T-API-002（2026-09-06）check 族响应内部 id 字段族裁剪已被 T-API-003（2026-09-09）
@@ -80,7 +80,7 @@ public final class PermResultUtils {
      * 转换新 DecisionResult 为 CheckInterfaceResp
      * <p>
      * 将 LEGACY_API 共同集合判定（T-PERM-090 迁新 execute）转换为接口校验响应
-     * DTO（纯转换，设计 §9.1——不重建旧 PermResult 再转换）。拒绝原因词表 1:1
+     * DTO（纯转换，设计 §9.1）。拒绝原因词表 1:1
      * （枚举 name 与旧 reason 字符串一致）；matched 资源按保留事实的 resourceEntityId
      * 分组组装——scopeAll 类型级放行时实例阶段短路，保留事实无实例行，matched 为空
      * （与旧 INSTANCE 提前返回形态一致）；operationCode 取组内首行授予位对应操作码

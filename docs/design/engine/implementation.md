@@ -20,7 +20,7 @@ last_reviewed: 2026-09-26
 
 1. [整体分层与类清单](#1-整体分层与类清单)
 2. [公共 Domain Service 设计](#2-公共-domain-service-设计)
-3. [鉴权查询模块（PermQueryEngine）](#3-鉴权查询模块permqueryengine)
+3. [鉴权查询模块（统一执行引擎 QueryExecutionEngine）](#3-鉴权查询模块统一执行引擎-queryexecutionengine)
 4. [权限授权管理模块](#4-权限授权管理模块)
 5. [缓存设计](#5-缓存设计)
 6. [操作日志 AOP 机制](#6-操作日志-aop-机制)
@@ -34,7 +34,7 @@ last_reviewed: 2026-09-26
 
 ```
 Controller ──► AppService（调度层） ──► DomainService（领域层） ──► Mapper（数据访问）
-                                         ├── PermQueryEngine（统一鉴权引擎）
+                                         ├── QueryGate / QueryExecutionEngine（统一鉴权引擎）
                                          └── AOP（@OperationLog 自动记录入口日志）
 ```
 
@@ -96,20 +96,18 @@ cn.ac.fage.accessmesh.permission
 │   │   ├── TypeDefinitionAppServiceImpl
 │   │   ├── UserManageAppServiceImpl
 │   │   └── UserRoleSyncAppServiceImpl
-│   └── domain（领域服务接口 + 实现，另含同步策略、守卫、ResolveContext 与 PermQueryEngine；个数不在此维护）
+│   └── domain（领域服务接口 + 实现，另含同步策略、守卫与批量评估器；个数不在此维护）
 │       ├── AuditDomainService / *Impl
 │       ├── DomainClassifyService / *Impl
 │       ├── MappingSyncHandler / *Impl
 │       ├── PermissionConditionDomainService / *Impl
 │       ├── PermissionConflictDomainService / *Impl
 │       ├── PermissionGrantDomainService / *Impl
-│       ├── ResolveContext                            ← 类型预解析上下文
 │       ├── ResourceEntityDomainService / *Impl
 │       ├── ResourceSyncHandler / *Impl
 │       ├── SubjectDomainService / *Impl              ← 角色解析+用户查询合并
 │       ├── SyncMetadataDomainService / *Impl
 │       ├── TypeResolutionService / *Impl
-│       └── impl/PermQueryEngine                      ← 统一鉴权引擎
 ├── mapper (18)
 │   ├── AbstractRoleMapper
 │   ├── AbstractUserMapper
@@ -136,7 +134,7 @@ cn.ac.fage.accessmesh.permission
 │   ├── OperatorContext / OperatorUtil
 │   ├── PageUtil
 │   ├── PermissionConstants
-│   ├── PermQuery / PermResult / PermViewFilter / PermViewResult
+│   ├── PermViewFilter / PermViewResult
 │   ├── PermResultUtils
 │   ├── PermViewAssembler（登录权限串管线专用，T-PERM-059 后排查视图面已删）
 │   ├── RolePermEntryMapper                         ← 在 util 包（非 domain）
@@ -324,224 +322,262 @@ public interface PermissionGrantDomainService {
 
 ---
 
-### 2.10 `ResolveContext` — 类型预解析上下文
-
-在 PermQueryEngine 查询管线中批量预解析 `resourceTypeCode→typeValue` 和 `(resourceTypeCode, operationCode)→operationId`，避免管线中重复调用 TypeResolutionService。
+### 2.10 ~~`ResolveContext`~~ — 类型预解析上下文（**已删除 2026-09-27 T-PERM-092**：旧执行体附属类，随旧引擎整删；新引擎的解析记忆在 `engine.query.QueryReadSupport` 请求级 RunState 内）
 
 ---
 
 <a id="permission-query"></a>
 
-## 3. 鉴权查询模块（PermQueryEngine）
+## 3. 鉴权查询模块（统一执行引擎 QueryExecutionEngine）
 
-> **统一引擎已落地（T-PERM-057，2026-09-09 定案 → 本日实施）**：一个引擎、一套入参、一个结果模型；多入口 = 参数预设的封装。原六套执行形态（query() 六工厂形态分叉 / getDenied\* 手写管线 / query-resources 的 expandResourceScope / deleteRoles 局部级联 / canGrant 直查 / query-scopes AppService 自评管线）全部收编。三条实施定案（2026-09-09 用户拍板）：①**角色互斥不归引擎**——快照/权限树的 `filterRoleMutex` 由调用方自理，引擎只做条目互斥（入参开关）【**已被 2026-09-22 T-PERM-075 部分取代**：引擎自此经 `resolveJudgementRoleIds` 消费互斥过滤后角色集（见 §2.4），`filterRoleMutex` 仍是过滤原语】；授权时校验已随 T-PERM-063 落地（写路径守卫 20062/20063 + 双删日志，见 §2.4，2026-09-12）；②**条件上下文为多层对象** `PermEvalContext`（用户环境 clientIp + 服务器环境 evaluatedAt + 调用方上下文）；③**判定面闭包止步同类型**（跨类型祖先不参与闭包；sync 通道跨类型父边已随 T-PERM-068 于 2026-09-17 收紧为同类型拒绝，闭包止步语义保留作 DB 直写脏数据防线）。OAuth2 委托用户链路维持不接入引擎（2026-08-22 用户决策，见 §3.9）。
+> **R2 终态（T-PERM-082~088 建核，089~091 迁消费者，092 删旧）**：唯一执行主体为
+> `engine.query.QueryExecutionEngine.execute(QueryRequest)`；判定面薄门面 `QueryGate`（T-PERM-089）。
+> 旧 `PermQueryEngine` 与四旧 DTO（`PermQuery`/`PermResult`/`PermBatchQuery`/`PermBatchResult`）、
+> `TargetMode`、`ResolveContext` 已删除（T-PERM-092；X04 退役锁=`QueryBoundaryArchitectureTest`
+> 断言主源码不得再现）。设计稿 `r2-unified-query-and-admission.md` 的模型（§3）、执行单位与
+> 生命周期（§4）、阶段算法（§9~10）、投影与审计（§12~13）已按现行规范并入本节——设计稿对应
+> 章节已标注「已并入」，整体转 superseded 随计划完结归档（准入面回写由 ADM 系列卡承担）。
+> 保留的旧语义锚：角色互斥经 `resolveJudgementRoleIds` 共同判定语义进全部判定入口（T-PERM-075）；
+> 条件上下文多层对象 `PermEvalContext`（T-PERM-057，`RunState` 消费）；判定面闭包止步同类型
+> （跨类型父边写通道已拦，语义保留作 DB 直写脏数据防线，T-PERM-068）。OAuth2 委托用户链路
+> 维持不接入权限判定面（2026-08-22 用户决策，见 §3.9）。
 
-### 3.1 统一入口
+### 3.1 两层入口：判定面门面与执行主体
 
-所有权限查询和校验统一通过 `PermQueryEngine` 执行。引擎提供两层 API：
-
-**引擎便捷 API（T-ACCESS-016 定稿终态，2026-08-23；T-PERM-042 落地；T-PERM-057 拉平口径）**——显式资源语义，`code` 与 `entityId` 两轨不得混用：
+**业务层唯一门面 `QueryGate`**（T-PERM-089；方法形状沿旧四入口，X03 等价迁移）——显式资源语义，
+`code` 与 `entityId` 两轨不得混用：
 
 ```java
 // —— 对外：业务编码语义（USER/ROLE 等业务对象门禁与跨服务 SDK 统一使用）——
 
-// 单目标鉴权（boolean）
-boolean ok = engine.hasPermissionByCode(tenantId, subjectId,
+// 单目标鉴权（boolean；code 传 null/空白 = 类型级校验）
+boolean ok = queryGate.hasPermissionByCode(tenantId, subjectId,
     ResourceTypeCode.ROLE, roleId.toString(), OperationCode.MANAGE);
 
-// 批量获取被拒绝的业务编码集合（纯查询，不抛异常）
-Set<String> denied = engine.getDeniedResourceCodes(tenantId, subjectId,
+// 批量获取被拒绝的业务编码集合（纯查询，不抛异常；异常由调用方显式抛出）
+Set<String> denied = queryGate.getDeniedResourceCodes(tenantId, subjectId,
     ResourceTypeCode.ROLE, roleCodes, OperationCode.MANAGE);
 
 // —— 内部 / 已完成解析的调用方：resource_entity.id 语义 ——
-// （仅限引擎内部与直接管理资源实体的后台链路：资源树、API 映射、资源依赖、权限树等，
-//   这些入口手里的 id 本就是 resource_entity.id）
+// （仅限直接管理资源实体的后台链路：资源树、API 映射、资源依赖、权限树等）
 
-boolean okEntity = engine.hasPermissionByEntityId(tenantId, subjectId,
+boolean okEntity = queryGate.hasPermissionByEntityId(tenantId, subjectId,
     ResourceTypeCode.RESOURCE, resourceEntityId, OperationCode.MANAGE);
 
-Set<Long> deniedEntityIds = engine.getDeniedEntityIds(tenantId, subjectId,
+Set<Long> deniedEntityIds = queryGate.getDeniedEntityIds(tenantId, subjectId,
     ResourceTypeCode.RESOURCE, resourceEntityIds, OperationCode.DELETE);
 ```
 
-**拉平后四便捷入口预设（T-PERM-057，Q12/Q13 定案）**：
+**门面评估口径（沿旧 forValidate 拉平语义）**：EVALUATE+ENFORCE+DECISION、判定面继承开
+（SELF_AND_ANCESTORS——授父覆盖子）、类型级回退放行（TypeFallback.ALLOW，scopeAll 先行）；
+clientIp 从当前请求自动装配（无请求上下文时 IP 类条件 fail-closed）。抛异常语义在调用方
+（管理轨 AppService 经引擎门面 `AdminPermissionValidator` 抛出、权限轨 AppService if-throw）；
+主体参数即主体 ID（T-ORG-001）；未知类型/未知操作/未解析到投影实体的编码 fail-closed 拒绝；
+空白码直接拒绝且不拖垮同批其他目标。**架构约束（设计 §9.4）**：门面仅依赖执行器，禁止注入
+权限 Mapper、解析角色或调用条件/互斥服务（`QueryBoundaryArchitectureTest` 锁定）。
 
-- **管理面写门禁**（forValidate / forValidateByEntityId 内部构造）：条件评估**开**（入口自动装配当前请求 clientIp——explain 先例 `HttpRequestUtils.getClientIp(currentRequest())`；无请求上下文的内部调用 IP 类条件按 `ConditionEvalUtils.evalIpList` 既有 fail-closed 拒绝）、条目互斥**开**、判定面继承**开**（授权在父资源、查子资源判定通过）。
-- **`getDenied*` 批量轨**：同上拉平口径 + **判定面闭包回映射**——目标集扩为 {目标}∪同类型祖先链，条目挂祖先实体经「目标闭包集 ∩ 条目实体集 ≠ ∅」回映射判允许（实现成败点：条目挂祖先、请求目标不在条目实体集不得误判 DENIED）。
-- 抛异常语义仍在调用方（管理面能力 AppService 经引擎门面 `AdminPermissionValidator` 抛出、权限面 AppService if-throw）；主体参数即主体 ID（T-ORG-001）；未知类型/未知操作 fail-closed 全量拒绝——三项均为 T-PERM-042 既有终态，不变。
+**执行主体直构面**：check/batchCheck（`PermissionCheckAppServiceImpl` 适配层，T-PERM-089）、
+范围/LEGACY_API 四面（`PermissionQueryAppServiceImpl`/`SnapshotAssembler`，T-PERM-090）、
+视图/转授（`PermissionViewAppServiceImpl`/`PermissionGrantDomainServiceImpl`，T-PERM-091）——
+适配层直构 `QueryRequest` 经 `execute`，`inheritMode` 线格式解析收编于适配层私有
+`inheritClosureOf`（T-PERM-092）。
 
-**`getDeniedResourceCodes` 优化策略**（与 `getDeniedEntityIds` 相同管线）：
+### 3.2 请求与结果模型（engine.query 包）
 
-1. 一次查询解析用户角色（`SubjectDomainService.resolveEffectiveRoles`）
-2. 一次查询类型级权限（`selectScopeAllPermsByBitsBatch`，含条件+条目互斥评估）-- scopeAll 匹配则全部允许
-3. 否则，一次批量 `code → resource_entity.id` 解析 + 一次闭包 CTE + 一次批量查询实例级权限（`selectInstancePermsByBitsBatch`，含条件+条目互斥评估）
-4. 内存按闭包回映射计算拒绝 code 集合
+| 类别 | 类 | 说明 |
+| --- | --- | --- |
+| 请求 | `QueryRequest` / `QueryItem` / `QueryRequestValidator` | 不可变请求＋一次 `RunState`；混批/结构非法在执行前拒绝（C02/C03/C05） |
+| 主体 | `Subject` / `User` / `Roles` | 封闭变体；User 内部经共同判定语义解析互斥过滤后角色集（T-PERM-075），空 Roles 不回退 User（C04） |
+| 目标选择 | `Selection` / `TypeLevel` / `TargetSet` / `TargetClause` / `TypeOperation` / `ByCode` / `ByEntityId` / `ResourceRef` | 旧 targetMode 三态的封闭变体表达（TypeLevel=类型级、TargetSet=实例目标集） |
+| 继承/回退 | `Inheritance`（SELF / SELF_AND_ANCESTORS） / `TypeFallback`（ALLOW / DISALLOW） | 判定面继承与 exactInstanceOnly 两独立轴（设计 §9.1 字段迁移） |
+| 父要求 | `ParentRequirement` | depend_on 主资源上下文（按选择固定父语义） |
+| 读选项 | `ReadOptions` / `ListGrantRead`（ROLE_SNAPSHOT / DATABASE） | LIST 授权来源分桶；转授写校验面用 DATABASE 直查不回填 |
+| 评估 | `Evaluation` / `ConditionMode` / `MutexMode` | EVALUATE / PRESERVE / PRESERVE+SKIP；DECISION 不可 SKIP 互斥 |
+| 输出 | `OutputSpec` / `FactDetail` / `PresentationExpansion` | 事实粒度（KEPT/RAW_AND_KEPT）、描述块、展示父子展开（不参与判定） |
+| 调用方 | `CallerContext` / `CallerContext.fromCallerMap` | SDK context Map 的受信解析（clientIp 键提取；顶层 evaluatedAt/timestamp 结构拒绝 400） |
+| 执行 | `QueryExecutionEngine` / `RunState` / `QueryReadSupport` / `CandidateSelector` / `CandidateEvaluator` / `QueryProjector` | 规范化→共享装载→分集合评估→投影；读来源记忆与空集守卫在 ReadSupport |
+| 结果 | `QueryResult` / `ItemResult` / `DecisionResult` / `GrantSetResult` / `GrantFact` / `StageFacts` / `ResultDetails` / `PresentationEntry` / `EvaluationCoverage` / `ResultForm` | 三结果形态（判定/授权集合/准入）；raw/retained 分阶段事实 |
+| 故障/审计 | `QueryExecutionException` / `QueryValidationException` / `QueryAuditCollector` / `ConflictEvidence` / `QueryEngineMetrics` | X01/X02 统一包装；根 execute finally 一次受控提交（execution＋item＋stage＋ruleRef 聚合，单行单规则结构化摘要） |
+| 装配 | `QueryEngineConfiguration` / `ScopeCoverageProjector` / `OperationDefinition` | Bean 装配（构造器包私有）；范围四态纯投影 |
 
-> **T-PERM-058 depend_on 口径**：批量便捷入口（步骤 2/3 的两处查询结果）与单点面同口径排除 depend_on 非空行——便捷入口无主资源上下文概念，fail-closed；步骤 2 的排除同时覆盖 hasPermissionByCode/ByEntityId 的 TYPE_LEVEL 分支（scopeAll 子行不放行类型级门禁）。forUserView 的 LIST 全量（query-resources/快照/视图/登录串）**不在引擎层排除**——组装面各自处置：query-resources 组装与 SnapshotAssembler 排除子行（无父上下文的消费面不呈现），permission-view 系已随七端点删除（T-PERM-059，2026-09-10），登录权限串为该管线唯一存续消费面；canGrant 委托链零行为差（子行 canGrant 恒 false，DDL CHECK 保证其在转授资格判定中本就不贡献资格）。
+`RolePermEntry`（`engine.vo`）为 `ROLE_PERM_SNAPSHOT` 缓存载荷的**边界例外保留对象**
+（`List<RolePermEntry>`，`RolePermEntryMapper.toEntry` 构造，禁止裸 new）；新引擎 GRANT_LIST 读路径
+经 `QueryReadSupport` 消费/回填。
 
-**复杂查询 API**（`PermQuery` 工厂方法 + `engine.query(PermQuery)`；T-PERM-057 后工厂预设）：
-
-| 工厂方法                      | targetMode（目标三态）                | 评估口径                                           | 判定面继承 |
-| ----------------------------- | ------------------------------------- | -------------------------------------------------- | ---------- |
-| `PermQuery.forAuthCheck`      | code=null→TYPE_LEVEL；有 code→INSTANCE | 条件评估开、条目互斥开（运行时面）                 | 关 + `setInheritMode("PARENT"/"BOTH")` 显式开（SDK 契约参数接通为闭包真实语义） |
-| `PermQuery.forInterfaceCheck` | INSTANCE（entityId 目标集合）          | 完整评估，全部辅助信息；API 扁平无树天然关          | 关         |
-| `PermQuery.forValidate`       | code=null→TYPE_LEVEL；有 code→INSTANCE | 条件评估开（拉平）、条目互斥开、条件上下文自动装配  | **开**     |
-| `PermQuery.forValidateByEntityId` | id=null→TYPE_LEVEL；有 id→INSTANCE | 同 forValidate（entityId 轨）                       | **开**     |
-| `PermQuery.forScopeQuery`     | LIST                                   | 条件评估开、条目互斥开；主资源上下文（`setParentResource`）由引擎执行 depend_on 过滤 | 不适用 |
-| `PermQuery.forUserView`       | LIST                                   | 条件评估开（标记态经 `setMarkConditionsOnly(true)`，快照构建消费）、条目互斥开 | 不适用 |
-
-### 3.2 引擎核心类
-
-| 类                              | 包路径                | 职责                    |
-| ------------------------------- | --------------------- | ----------------------- |
-| `PermQuery.java`                | `dto.query`           | 统一入参 DTO + 6 个工厂方法（参数预设封装） |
-| `PermResult.java`               | `dto.query`           | 统一返回对象（双轨 + 主资源上下文回传）  |
-| `TargetMode.java`               | `enums`               | 目标模式三态枚举（TYPE_LEVEL/INSTANCE/LIST，T-PERM-057） |
-| `PermEvalContext.java`          | `dto.query`           | 条件评估多层上下文（用户环境 clientIp + 服务器环境 evaluatedAt + 调用方上下文 attributes，T-PERM-057） |
-| `PermQueryEngine.java`          | `service.domain.impl` | 核心引擎 `query()` 三态管线 |
-| `OperationPermissionUtils.java` | `util`                | 位运算/批量过滤工具     |
-| `ConditionEvalUtils.java`       | `perm-common util`    | 条件子项静态评估（时间类优先消费 `evaluatedAt` 服务器环境键，缺省回退本机时钟） |
-| `PermResultUtils.java`          | `util`                | DTO 转换工具            |
-
-### 3.3 targetMode 三态与引擎管线
-
-**目标模式三态判别**（「无实例目标」不是二义输入，三态互不串义，回归锁 `TargetModeClosurePgIT` + `PermQueryEngineTest` 三态锁各钉一例）：
-
-- **TYPE_LEVEL**（类型级门禁）：无实例目标、只消费 scopeAll，**不做实例查询**（实例级授权不得放行类型级门禁=越权）；**只认主授权**——scopeAll 子权限行（depend_on 非空 + scope_all=true，写侧可造形态）不参与（T-PERM-058 读侧排除，DB 直写脏数据同受防护；该形态生效面为 LIST 父上下文与带主资源上下文的 INSTANCE）。
-- **INSTANCE**（实例判定）：带编码/实体 id 目标；scopeAll 类型级命中（评估通过）优先放行；实例查询按目标下推（判定面继承开启时目标集扩为 {目标}∪同类型祖先链）；**depend_on 子权限行按主资源上下文过滤（T-PERM-058）**——无 `parentResource` 上下文一律不计入（fail-closed），给出上下文时惰性父判定（仅当命中集确含子行才触发查询，主行命中的常规路径零额外成本），子行要求 dependOn ∈ 父命中权限 id 集（父判定经 forAuthCheck 递归本引擎、自身无父上下文=只认父的主授权，单层语义）；因「子行被排除致空」的拒绝原因 `DEPENDENT_NOT_IN_PARENT_CONTEXT` 与「无任何授权」区分。
-- **LIST**（全量清单）：无目标、按角色全量拉取（`selectValidByRoleIds` + ROLE_PERM_SNAPSHOT 读缓存）；主资源上下文给出时执行 depend_on 子权限过滤。
-
-**统一管线**（角色解析分支经 `resolveJudgementRoleIds` 统一互斥过滤——T-PERM-075，2026-09-22）：
+### 3.3 执行管线（分阶段）
 
 ```
-PermQueryEngine.query(PermQuery q)
+QueryExecutionEngine.execute(QueryRequest)
     │
-    ├─ 0. 入口封装：resolveRoleIds（显式 roleIds 直用；解析分支= resolveJudgementRoleIds
-    │     ——EFFECTIVE_ROLES 缓存 + 互斥双删叠加，T-PERM-075 共同判定语义）+ 条件上下文装配（四便捷入口）
+    ├─ 规范化与校验（QueryRequestValidator：重复 key/空 type/空 op/无实例 clause/结构非法 → 执行前拒绝）
+    ├─ RunState 单时钟（请求级单一 evaluatedAt；防御性复制输入集合/嵌套 context——C07/C08）
+    ├─ 主体解析（User → resolveJudgementRoleIds 互斥过滤后角色集；Roles 直供不回退）
     │
-    ├─ TYPE_LEVEL → queryTypeLevel：
-    │     prepareResolveContext → resolveBitMasks → queryScopeAll(1 SQL)
-    │     → evaluateIfNeeded（条件三态+条目互斥开关）→ allowed
+    ├─ TYPE_GRANT 阶段（scopeAll 先行，1 SQL：selectScopeAllPermsByBitsBatch 分角色批合并）
+    │     ├─ depend_on 非空行读侧排除（T-PERM-058：只认主授权，TYPE_LEVEL 与无父上下文 INSTANCE 同口径）
+    │     ├─ 条件评估（CandidateEvaluator：请求级条件四态增量快照，禁用/缺失/解析失败 fail-close）
+    │     └─ DECISION 且类型级放行 → 跳过 INSTANCE 阶段（EvaluationCoverage.SkipReason.SUFFICIENT_DECISION）
     │
-    ├─ INSTANCE → queryInstanceMode：
-    │     ├─ queryScopeAll(1 SQL) → filterDependentEntries（depend_on 上下文过滤，惰性父判定）
-    │     │     → 评估通过 → 提前返回 allowed（scopeAll 覆盖任意实例）
-    │     │     └─ 命中但评估清空 → 回退实例查询（授权行各自评估：类型级挂条件拒绝 +
-    │     │        无条件实例授权并存时由 deny 变 allow——Q13 拉平的授权行独立评估语义）
-    │     ├─ resolveEntityIds（code→id 批量解析）
-    │     ├─ inheritClosure=true → selectSelfAndAncestorClosureBatch（闭包 CTE，查询前扩大目标集）
-    │     ├─ queryInstance(1 SQL，目标下推含闭包集) → filterDependentEntries（同上，两阶段共享一次父判定）
-    │     ├─ evaluateIfNeeded → 展示面展开（expandByPresentMode，查询后克隆）
-    │     └─ loadAncillary → allowed（任一条目命中）
+    ├─ INSTANCE 阶段（目标下推：selectInstancePermsByBitsBatch 按类型+掩码+实体批合并，SqlBatches 分块）
+    │     ├─ Inheritance.SELF_AND_ANCESTORS → selectSelfAndAncestorClosureBatch 闭包 CTE
+    │     │     （查询前扩大目标集；止步同类型/软删截断/防环——§3.4）
+    │     ├─ PERM_MUTEX 集合语义（共同候选集合两端同场双丢；候选按 clause 精确切分不串配——D01/D13）
+    │     └─ depend_on 子行按 ParentRequirement 过滤（无父上下文一律不计入，fail-closed；
+    │          拒绝原因 DEPENDENT_NOT_IN_PARENT_CONTEXT 与无授权区分）
     │
-    └─ LIST → queryList：
-          ├─ loadRolePermEntriesWithCache（ROLE_PERM_SNAPSHOT 读缓存，全量角色权限行）
-          ├─ parentResource 给出 → checkParentResource（内部 INSTANCE 判定，1 次查询覆盖全部父操作）
-          │     → depend_on 过滤（条目 dependOn ∈ 父命中权限 id 集）
-          ├─ 记录 rawEntries（评估前）→ evaluateIfNeeded（评估后条目）
-          ├─ 展示面展开 → loadAncillaryForView
-          └─ 回传 parentMatchedOperationCodes / parentMatchedPermissionIds / rawEntries（四态组装事实源）
+    ├─ GRANT_LIST 阶段（清单/事实面：ReadOptions 读来源=ROLE_SNAPSHOT 缓存或 DATABASE 直查）
+    │     ├─ ParentRequirement 给出时父阶段独立判定（不缺不补：父 scopeAll/INSTANCE 各读一次）
+    │     └─ 评估（EVALUATE/PRESERVE）→ raw/retained 分阶段事实（四态组装=ScopeCoverageProjector 纯投影）
+    │
+    └─ 投影与收尾（QueryProjector：描述块/操作覆盖/展示父子展开克隆 grantSource=INHERITED；
+          根 execute finally 一次受控提交 ConflictEvidence——幂等闸、提交期异常不覆盖主异常 A04；
+          TRACE=已完成计算快照复用，零新增 I/O 零重评 A05）
 ```
 
-**修复注记**：旧 `forScopeQuery` 形态 `queryInstance=true` 却无实例目标，实例条目永不返回（query-scopes INSTANCE 四态不可达，单测 mock 引擎返回掩盖）；LIST 化后实例条目自然可达。
+**共享装载不变量**：同请求多 item 的类型/操作解析、scopeAll/实例 SQL、闭包 CTE、条件装载全部
+请求级合并（N 增大 mapper 调用次数不变——`BatchAuthCheckPgIT` ②计数锁）；空目标集守卫——
+可解析 entityId 并集为空（纯 TYPE_LEVEL 批/全幽灵 code）不调闭包 CTE 与实例 SQL（空 foreach
+`IN ()`=500 / `<if>` 空集无界装载）；分块 SQL 在互斥计算前合并实际行（>500 clause 目标集按
+SqlBatches 分块后汇总，`QueryExecutionPgIT` 501 目标锁）。
 
 ### 3.4 判定面继承（目标闭包）与展示面展开（两语义拆分）
 
-**判定面继承**：作用在**查询前**扩大目标集——查目标 X 时把 X∪同类型祖先链作为查询目标集（改变 allowed/denied）。
+**判定面继承**（`Inheritance.SELF_AND_ANCESTORS`）：作用在**查询前**扩大目标集——查目标 X 时把
+X∪同类型祖先链作为查询目标集（改变 allowed/denied）。
 
-- **闭包实现**：`ResourceEntityMapper.selectSelfAndAncestorClosureBatch` 递归 CTE 上溯（UNION 组合去重防环，T-PERM-044 先例；`delete_flag=0` 软删截断；`resource_type` 同类型过滤**止步同类型**）。不走 `selectAllValid` 全量图（管理 API 每调用 1-3 门禁，逐次加载全租户资源不可接受）。
-- **默认值矩阵**（Q12）：管理面写门禁（code/entityId 两轨）**开**；读过滤面（组织可见/菜单可见/日志过滤）**开**；`/api/access/auth/check`、batch-check **关** + `inheritMode` 参数显式开（PARENT/BOTH）；网关快照天然关（API 扁平无树）；清单/视图面不适用（无目标集）。
-- **批量拒绝回映射**：`computeInstanceDenied` 按闭包成员命中映射回请求目标（§3.1）。
-- **deleteRoles 等价性**：级联根的门禁判定按闭包评估；任一子孙祖先链必含级联根，其判定结论与级联根一致（「级联根有权=整棵可删」为闭包语义的自然结果，RoleManageAppServiceImpl 注释锚定）。
-- **读过滤面落位**：组织可见性走 `getDeniedResourceCodes` 批量轨自动获得闭包；菜单可见性（`getEffectiveResourceAccess`）对授权实例集做一次子孙扩展（`selectDescendantIdsBatch`，语义=判定面继承）后逐目标 contains。
+- **闭包实现**：`ResourceEntityMapper.selectSelfAndAncestorClosureBatch` 递归 CTE 上溯（UNION 组合
+  去重防环，T-PERM-044 先例；`delete_flag=0` 软删截断；`resource_type` 同类型过滤**止步同类型**）。
+  不走全量图（管理 API 每调用 1-3 门禁，逐次加载全租户资源不可接受）。
+- **默认值矩阵**（Q12 口径延续）：管理面写门禁（QueryGate 两轨）**开**；读过滤面（组织可见/菜单
+  可见/日志过滤）**开**；`/api/access/auth/check`、batch-check **关** + `inheritMode` 参数显式开
+  （PARENT/BOTH）；网关快照天然关（API 扁平无树）；清单/视图面不适用（无目标集）。
+- **批量拒绝回映射**：`QueryGate.getDenied*` 逐目标独立 item 判定后回映射输入键（T-PERM-095 起
+  逐目标语义——独立目标各自 PERM_MUTEX，不再跨 item 合并评估）；条目挂祖先实体经闭包命中映射回
+  请求目标（条目挂祖先、请求目标不在条目实体集不得误判 DENIED，`TargetModeClosurePgIT` 锁）。
+- **deleteRoles 等价性**：级联根的门禁判定按闭包评估；任一子孙祖先链必含级联根（「级联根有权=
+  整棵可删」为闭包语义的自然结果）。
+- **读过滤面落位**：组织可见性走 `getDeniedResourceCodes` 批量轨自动获得闭包；菜单可见性
+  （`getEffectiveResourceAccess`）对授权实例集做一次子孙扩展（`selectDescendantIdsBatch`）后逐目标
+  contains。
 
-**展示面展开**：作用在**查询后**克隆结果行（`grantSource=INHERITED`）——不改变判定，只改变返回集合内容。
+**展示面展开**（`OutputSpec.PresentationExpansion`，CHILDREN/PARENTS/BOTH/NONE）：作用在**查询后**
+克隆结果行（`PresentationEntry`，`grantSource=INHERITED`）——不改变判定，只改变返回集合内容。
+scopeAll 条目不参与展开；query-resources 的树扩展（原 `expandResourceScope` AppService 重复实现）
+已收编本轨道（includeChildren/includeInherited → CHILDREN/PARENTS/BOTH/NONE，判定与展示分离）。
 
-- `PermQuery.setInheritParents(true)` / `setInheritChildren(true)`（清单面 `includeInherited`/`includeChildren` 契约字段收编，语义不变）；scopeAll 条目不参与展开。
-- 实现 `expandByPresentMode`：上溯经闭包 CTE（排除自身）、下溯经 `selectDescendantIdsBatch`，均目标下推批量，不走全量图；query-resources 的树扩展（原 `expandResourceScope` AppService 重复实现）已收编本轨道。
-- `/api/access/auth/check` 的 `inheritMode` 契约参数（总册 §18.2）从「对单点判定结论无效」接通为目标闭包真实语义：PARENT/BOTH → `inheritClosure=true`；NONE/CHILD 对判定面不适用（子授权不覆盖父判定）。
+### 3.5 条件评估、互斥与审计证据
 
-### 3.5 条件评估三态、条目互斥与条件上下文
+- **条件评估模式**（`Evaluation`）：EVALUATE（运行时/门禁面默认，含拉平后的管理面写门禁）/
+  PRESERVE（配置/转授资格面看原始授权行——条件身份保留、不下发评估结论）/ PRESERVE+SKIP
+  （转授写校验面：不评估不互斥，纯事实直查）；接口快照用 PRESERVE+ENFORCE（条件身份保留进快照、
+  互斥仍清——网关用真实请求上下文重评，T-PERM-017 C3 语义）。DECISION 结构上不可 SKIP 互斥（C02）。
+- **条目互斥（PERM_MUTEX）**：MutexMode.ENFORCE 按共同候选集合判定——一个目标集合项内两端同场
+  按共同集合拒绝（D02）、同目标挂两端必须拒绝（D03）、独立目标各自判定（D01，T-PERM-095）、
+  条件先摘互斥一端后不产生虚假冲突（D04——条件→互斥固定序）。
+- **角色互斥（ROLE_MUTEX）进主体解析**（T-PERM-075）：User 主体内部经 `resolveJudgementRoleIds`
+  等价解析（EFFECTIVE_ROLES 缓存 + 互斥双删叠加）；判定面外部消费角色集时经同一入口；写守卫看
+  原始持有窗口经 `SubjectDomainService.batchResolveRawHoldings` 不经此入口；授权时校验沿
+  T-PERM-063 落地（§2.4 守卫族）。
+- **条件上下文**：`CallerContext`（调用方层：clientIp 受信提取 + attributes）＋ `RunState` 单时钟
+  （请求级唯一 evaluatedAt）→ `PermEvalContext` 展平为评估输入 Map（clientIp/evaluatedAt/attributes
+  三层；时间类条件优先消费 evaluatedAt，缺省回退本机时钟——网关快照重评维持既有行为）。
+- **审计证据（T-PERM-088）**：`ConflictEvidence` 按 execution＋item＋stage＋ruleRef 聚合，根 execute
+  finally 一次受控提交（`QueryAuditCollector`：非阻塞、幂等闸、提交/聚合期异常不覆盖主异常、
+  A04 标 EXECUTION_ERROR_AFTER_CONFIRMED_STAGE）；单行单规则结构化摘要（远低于列上限；旧单条
+  多规则拼接截断形态未进入）；角色对证据沿旧 1h 去重、PERM 规则不去重；指标走
+  `QueryEngineMetrics` 端口（低基数结构性锁定；Micrometer 绑定随 T-PERM-094）。
 
-- **条件评估三态**：评估（运行时/门禁面默认，含拉平后的管理面写门禁）/ 不评估（配置视图面——canGrant 转授资格看原始授权行）/ 标记下发（快照专用 `markConditionsOnly`，条件在网关用真实请求上下文评，T-PERM-017 C3）。
-- **条目互斥（PERM_MUTEX）入参化**：`evaluateConflicts` 开关，默认按入口（运行时面开、配置面关）。**角色互斥（ROLE_MUTEX）进引擎角色解析**（T-PERM-075，2026-09-22——取代 2026-09-09「不归引擎」）：引擎 query/queryBatch 解析分支与 getDenied\* 便捷入口、菜单/权限串 `buildEffectiveView`、接口快照全部经 `resolveJudgementRoleIds` 消费互斥过滤后角色集（快照专有过滤消除；显式 roleIds 分支不过滤=调用方语义「按指定角色判定」）；授权时校验沿 T-PERM-063 落地（§2.4 守卫族 + U002 候选口径）；写守卫看原始持有候选不经本入口。
-- **条件上下文 `PermEvalContext`**（多层对象）：`clientIp`（用户环境，入口封装层从当前请求装配）/ `evaluatedAt`（服务器环境，展平时补当前时钟）/ `attributes`（调用方上下文，SDK `context` Map 经 `fromCallerMap` 转换——clientIp 键提取、其余归 attributes）。展平 Map 键：`clientIp`（既有契约）、`evaluatedAt`（ISO-8601，`ConditionEvalUtils` 时间类条件优先消费、缺省回退本机时钟——Gateway 快照重评等无服务器环境上下文的调用方维持既有行为）。原 explain 判定与明细评估共用同一 `PermEvalContext`（同一时钟；该端点已随 T-PERM-059 删除，2026-09-10）。
+### 3.6 结果模型与外部响应转换
 
-### 3.6 PermResult 双轨与回传字段
-
-`engine.query()` 返回 `PermResult` 对象（双轨 + 辅助 + 判定结论 + 主资源上下文回传）：
-
-- `allowed` / `reason`
-- `scopeAllMatched` / `scopeAllEntries` / `instanceEntries`
-- `rawEntries`：LIST 模式回传评估前条目（depend_on 过滤后、条件/互斥评估前）——query-scopes 四态组装区分 DENIED（raw 无覆盖条目）与 EMPTY（有覆盖但评估后清空）的事实源；**操作定义装载源同为 rawEntries 超集且评估清空的 deny 路径仍装载**（条件摘光的类型其操作定义必须在场，否则组装层 covers 缺目标操作定义会把 EMPTY 误判 DENIED；grok 外评 P1，2026-09-10 修复）
-- `effectiveOperationEntries`：基于已命中的原始授权条目和 `OperationPermission.effectiveBits` 展开的最终可用操作投影（覆盖投影轨，权限串/用户视图消费）；canGrant 字段在 `RolePermEntry` 上（吸收原 canGrant 直查管线的授权传递校验面，`PermissionGrantDomainServiceImpl` 转授资格判定消费）
-- `resourceMap` / `operationMap` / `roleMap`（按 `includeXxx` 标志选择性加载）
-- `parentMatchedOperationCodes` / `parentMatchedPermissionIds`：LIST 模式主资源上下文（parentResource\*）判定回传——query-scopes 线格式 `matchedParentOps` 与 depend_on 过滤事实
-
-`PermResultUtils` 提供转换方法将 `PermResult` 转为对外响应（`toAuthCheckResp` / `toCheckInterfaceResp`；validate 模式 AppService 显式 if-throw）。
+- **`DecisionResult`**（判定形态）：outcome（ALLOW/DENY）＋ reason 四词表
+  （NO_ROLE/NO_PERMISSION/CONDITION_NOT_MET_OR_CONFLICT/DEPENDENT_NOT_IN_PARENT_CONTEXT——外部
+  响应 reason 字符串与枚举 name 1:1）＋ details（matchedRoleIds/matchedPermissionIds 按 OutputSpec、
+  stageFacts、coverage 完成与跳过阶段、parentCheck 摘要）。
+- **`GrantSetResult`**（授权集合形态）：collectionStatus（含 PARENT_DENIED/FILTERED_EMPTY 等）＋
+  stageFacts（rawAfterContext/retainedAfterEvaluation 分阶段事实——四态组装区分 DENIED（raw 无覆盖
+  条目）与 EMPTY（有覆盖但评估后清空）的事实源）＋ presentation/effectiveOperations/descriptions
+  展示投影。
+- **`GrantFact`**：保留/原始授权事实（permissionId/roleId/resourceEntityId/grantedBits/conditionId/
+  scopeAll/grantSource）；视图装配按源授权行主键关联投影行
+  （GrantFact.permissionId ↔ EffectiveOperationEntry.sourcePermissionId）。
+- **`PermResultUtils`**：新结果→既有外部响应的**纯转换**（toAuthCheckResp / toCheckInterfaceResp；
+  不经中间结果对象，设计 §9.1）。需要 matched id 集合的内部场景直接消费引擎结果。
 
 ### 3.7 内部 scopeAll 与对外 scopeMode 映射
 
-`scopeAll` 是 `RolePermEntry` / `role_resource_permission.scope_all` 的内部一等维度，引擎查询管线中作为类型级权限单独查询；对外协议统一由装配器映射为 `scopeMode`。
+`scopeAll` 是 `RolePermEntry` / `role_resource_permission.scope_all` 的内部一等维度，引擎分阶段
+单独消费；对外协议统一由装配器映射为 `scopeMode`。
 
 | 装配器              | 映射方式 |
 | ------------------- | -------- |
 | `SnapshotAssembler` | 内部 `scopeAll=true` 条目不展开，直接返回 `ApiPermissionEntry(scopeMode=ALL, httpMethod=null, pathPattern=null)`；实例级条目返回 `scopeMode=INSTANCE` |
-| `PermViewAssembler` | 按 `resourceType` 分组输出全量范围视图项，对外使用 `scopeMode=ALL`（如 `DATA_EDIT + DEPT + scopeMode=ALL` 表示可编辑全部部门范围） |
+| `PermViewAssembler` | 按 `resourceType` 分组输出全量范围视图项，对外使用 `scopeMode=ALL` |
 
-query-scopes 四态分组（T-PERM-009 契约维持）：AppService 只留线格式组装——raw 无覆盖条目 DENIED、有覆盖但条件/互斥评估后清空 EMPTY、过滤后含 scopeAll ALL、仅实例 INSTANCE（评估与 depend_on 过滤已全部在引擎 LIST 管线）。
+query-scopes 四态分组（T-PERM-009 契约维持）：AppService 只留线格式组装——raw 无覆盖条目 DENIED、
+有覆盖但条件/互斥评估后清空 EMPTY、过滤后含 scopeAll ALL、仅实例 INSTANCE（评估与 depend_on
+过滤全在引擎 GRANT_LIST 阶段；`ScopeCoverageProjector.project` 纯投影，requirements=类型×操作全组合）。
 
 ### 3.8 对外接口
 
-| 接口         | 路径                                     | 引擎入口                                                      |
-| ------------ | ---------------------------------------- | ------------------------------------------------------------- |
-| 单次鉴权     | `POST /api/access/auth/check`              | `engine.query(PermQuery.forAuthCheck())`；`inheritMode` 接通闭包（§3.4） |
-| 批量鉴权     | `POST /api/access/auth/batch-check`        | `engine.queryBatch(PermBatchQuery.forAuthCheckBatch)` A+ 批量化（T-PERM-061，2026-09-11 实施落地，见 §3.10） |
-| 资源权限查询 | `POST /api/access/auth/query-resources`    | `engine.query(PermQuery.forUserView())`；树扩展经引擎展示面展开轨道（`inheritChildren`/`inheritParents`） |
-| 范围权限查询 | `POST /api/access/auth/query-scopes`       | 一次 `engine.query(forScopeQuery + setParentResource)`——父判定 + depend_on 过滤 + 条件/互斥评估全在引擎，AppService 只留四态线格式组装（T-PERM-057 第六套形态收编）；整表拒绝仅限父判定失败/无角色，条件评估清空走四态分态（EMPTY） |
-| 接口级判定   | `POST /api/access/auth/check-interface`    | `engine.query(PermQuery.forInterfaceCheck())`                 |
-| 接口快照     | `POST /api/access/auth/interface-snapshot` | `engine.query(forUserView + markConditionsOnly)` + `SnapshotAssembler`；角色集经 `resolveJudgementRoleIds` 共同判定入口（T-PERM-075，快照专有过滤消除，§3.5） |
+| 接口         | 路径                                     | 引擎消费形态 |
+| ------------ | ---------------------------------------- | ------------- |
+| 单次鉴权     | `POST /api/access/auth/check`              | 适配层直构单 DECISION item（无编码目标→TypeLevel；有编码→单 clause TargetSet；inheritMode 显式开闭包） |
+| 批量鉴权     | `POST /api/access/auth/batch-check`        | 多个独立 DECISION item 一次 execute（item key=输入下标，原序/重复项对齐；见 §3.10） |
+| 资源权限查询 | `POST /api/access/auth/query-resources`    | GRANT_LIST＋EVALUATE/ENFORCE＋FACTS；树扩展=OutputSpec 展示展开 |
+| 范围权限查询 | `POST /api/access/auth/query-scopes`       | GRANT_LIST＋ParentRequirement＋RAW_AND_KEPT；四态组装=ScopeCoverageProjector |
+| 接口级判定   | `POST /api/access/auth/check-interface`    | LEGACY_API 共同集合：全部匹配 API 一个 TARGET_SET 单 item（SELF＋TypeFallback.ALLOW；空实体引用退 TYPE_LEVEL） |
+| 接口快照     | `POST /api/access/auth/interface-snapshot` | GRANT_LIST＋PRESERVE/ENFORCE＋KEPT；`SnapshotAssembler` 消费 `List<GrantFact>` |
+| 视图/权限串  | `POST /api/access/permission-view/**`      | GRANT_LIST＋EVALUATE/ENFORCE＋KEPT＋descriptions＋effectiveOperations（T-PERM-091） |
+| 转授校验     | `PermissionGrantDomainService.checkCanGrant` | GRANT_LIST＋PRESERVE+SKIP＋FACTS＋ListGrantRead.DATABASE（写校验面新鲜度；操作定义装载留领域侧） |
 
-### 3.9 收编清单与边界声明
+### 3.9 边界声明与回归面
 
-- **收编清零**（全仓无引擎外权限查询独立管线）：getDenied\* 手写管线（共享引擎步骤+闭包回映射）、query-resources 的 `expandResourceScope`（展示面展开轨道）、deleteRoles 局部级联（闭包语义等价，注释锚定）、`PermissionGrantDomainServiceImpl` canGrant 直查（引擎 LIST 授权事实 + 内存转授资格判定）、query-scopes AppService 自评管线（条件/互斥/depend_on 过滤全进引擎；位覆盖语义由组装层复用引擎同一 covers 判定做 (type×op) 线格分桶——分桶即线格式组装的一部分，不归引擎，亦非引擎外自评）。
-- **缓存键不变**（§5.2 核对）：ROLE_PERM_SNAPSHOT / OPERATION_PERMISSIONS_BY_TYPE / EFFECTIVE_ROLES / 网关 gw:interface-snapshot 均不因闭包下推改变键与失效；ORG_VISIBILITY 已由 PermissionChangeAspect 租户级 evictAll 覆盖（继承后可见闭包语义确变但失效机制已闭合）。
-- **OAuth2 委托链路显式排除**（2026-08-22 用户决策维持）：OAuth2 资源服务器链路（access.oauth2.resource-paths 显式开放路径 + delegatedClientId 独立映射，T-ACCESS-013）不接入统一引擎——重构不得误接入。
-- **回归面**：四个门禁入口族（管理面门面 / 权限面 code 轨 / 资源树 entityId 轨 / SDK auth-check 族）语义回归 + targetMode 三态互不串义锁 + 判定面闭包锁（`TargetModeClosurePgIT`：TYPE_LEVEL 串义拒绝 / 单点闭包 / 批量回映射 / 止步同类型 / 软删截断 / inheritMode 接通）+ golden fixtures（`GoldenFixturePgIT` 单点判定收敛，nodeClosure 语义=引擎原生闭包）。
-- **遗留**：~~角色互斥授权时校验 → 另行立项~~（已由 T-PERM-063 落地，2026-09-12）；（原列两项已收口 2026-09-10：check 族全量回传 → T-API-003 done；权限视图/排查删除 → T-PERM-059 done，新形态另立任务）；~~「后续禁止资源节点树跨类型」（sync 通道跨类型边治理）~~（已由 T-PERM-068 落地 2026-09-17：sync/full-sync 与管理面 create/batch-create 全通道同类型父边收紧，定案见 [历史定案原文](../../archive/2026-09-26/decision-registry-before.md) 同日行）。
+- **旧执行体退役（T-PERM-092）**：旧 `PermQueryEngine`/四旧 DTO/`TargetMode`/`ResolveContext` 删除，
+  X04 退役锁=`QueryBoundaryArchitectureTest`（主源码再现即红）；`QueryGate` 薄门面约束同测试锁定
+  （仅依赖执行器，禁止注入权限 Mapper/解析角色/条件互斥服务）。回退口径（设计 §9.4）：索引问题
+  回退到**同一新核心**的扫描；投影问题只回退投影；代码级故障退到最小正确性修复基线
+  （本地 tag `r2-baseline-correctness`，T-PERM-083+095）；禁用安全检查不是回退方案。
+- **缓存边界**：ROLE_PERM_SNAPSHOT（=List\<RolePermEntry\>，L2_ONLY）/ OPERATION_PERMISSIONS_BY_TYPE /
+  EFFECTIVE_ROLES / 网关 gw:interface-snapshot 键与失效不因引擎切换改变；四旧 DTO 不进任何缓存载荷
+  （全仓核实零序列化点，随删除无需兼容动作）；ORG_VISIBILITY 由 PermissionChangeAspect 租户级
+  evictAll 覆盖。
+- **OAuth2 委托链路显式排除**（2026-08-22 用户决策维持）：OAuth2 资源服务器链路
+  （access.oauth2.resource-paths 显式开放路径 + delegatedClientId 独立映射，T-ACCESS-013）不接入
+  权限判定面——重构不得误接入。
+- **回归面**：`QuerySemanticsBaselinePgIT`（六族消费面 golden，固定事实集 R2BaselineFixture）＋
+  `MutexSemanticsCharacterizationPgIT`（PQ-01/06 反例锚终态）＋ `TargetModeClosurePgIT`（三态互不
+  串义/闭包/软删截断/inheritMode 接通/depend_on 上下文——T-PERM-092 起服务面驱动）＋
+  `BatchAuthCheckPgIT`（批量化①-⑪）＋ `AuthorizationChangeInvalidationPgIT`/`AutoGrantEngineContractPgIT`
+  （失效链/自动授权契约，T-PERM-092 起服务面驱动）＋ `QueryExecutionPgIT`/`QueryReadSupportPgIT`
+  （引擎核心验收）＋ `QueryGate` 单测族＋ 架构测试（mapper 边界/薄门面/退役锁）。
+- **遗留衔接**：`docs/tasks/T-PERM-036.md`（proposed）验收叙述仍含旧引擎链路——该卡推进时须按
+  新 execute 口径改写验收（计划 A.8 登记）。
 
-### 3.10 batchCheck 批量化（queryBatch 入口）——A+ 形态（T-PERM-061 设计定稿 2026-09-11，同日实施落地）
+### 3.10 批量判定（batchCheck 一次 execute 多 item）
 
-`batch-check` 原状逐 item 走完整管线（每 item ≈ 2-3× Redis + 6+K 条无缓存 SQL，主体级数据重复装载 N 次）。实施形态 = **分组 + 请求级共享装载（A+）**：装载共享收敛为常数、判定全部内存化、契约零变化（请求/响应 JSON、1000 上限、reason 词表、matched 字段族不变；总册 §18.2 的 a2 批量口径注记已回写）。
+`batch-check` 语义=多个独立 DECISION item 一次 `execute` 批量表达（禁循环 N 次公开 execute；
+T-PERM-089 起，替代旧 queryBatch A+ 形态——wire 契约零变化：请求/响应 JSON、1000 上限、reason
+词表、matched 字段族不变）。`PermissionCheckAppServiceImpl.batchCheck` 只做参数组装与结果拆分
+（item key=输入下标，原序/重复项天然对齐）。
 
-**共享装载（BatchEvalContext）**——per-request 实例经方法参数传递，**禁止落引擎字段**（@Component 单例并发串数据）；全部 DB 新鲜读，**不引入 ROLE_PERM_SNAPSHOT**（L2_ONLY 10s 陈旧窗口不进运行时鉴权面，T-ACCESS-008 边界）：角色 ×1（空=整批 NO_ROLE 前置）＋「已尝试解析」显式状态（resolveRoleIds/resolveEntityIds/resolveOperationIds 三处空集哨兵）；全类型与全 (type,op) 对一次解析；scopeAll 行全组 BitMaskEntry 合并一次；**分段化**——实例装载仅对 scopeAll 段未放行的组（短路是既有优化，两阶段保持）；entity 预解析合并一次按 Map 键取（resolveEntityIds 现状 values() 合并丢 key 不可复用）；闭包 CTE 仅对 inheritClosure=true 档目标发一次；共享父判定 ×1（惰性保留，只经既有 roleIds+evalContext 注入面，父类型/操作解析不并入共享上下文）；PERM_MUTEX 静态数据 ×1（规则一次+操作索引 O(distinct types)，只共享装载不共享计算）；**唯一非空 PermEvalContext(ip, now(), attrs) 强制注入全链**（item/父递归/条件评估共用，a2 定案——禁各 item 重钉禁 now() 回退）；批量路径不调 loadAncillary（matched 字段族由条目派生）；**空目标集守卫**——可解析 entityId 并集为空（纯 TYPE_LEVEL 批/全幽灵 code）禁调闭包 CTE（空 foreach `IN ()`=500）与实例 SQL（`<if>` 空集丢实体过滤=无界装载），queryInstance 空 entityIds 直接 List.of()。
-
-**条件快照 = 请求级增量、四态建模**（设计定稿口径；批量条件快照接口已随实施落地——`PermissionConditionDomainService.openBatchEvaluator`，§2.5 摘录已同步）：快照形态 `conditionId → LoadedRules 四态（OK/NOT_FOUND/DISABLED/INVALID）`，仅 enabled=true 且解析成功作为 OK 写 CONDITION_RULES 正缓存（putBatch 带 beginRead 剩余 TTL）；失败态请求级记忆、评估 fail-close（与单条 loadRules 语义一致——selectValidByIds 不滤 enabled，朴素批量把禁用条件当有效规则入缓存=权限绕过）。**增量装载**：scopeAll/实例/父判定各阶段只批量加载新出现的 conditionId（每阶段至多一批次、同 ID 请求内至多回源一次——分段化与预取严格 ×1 存在数据依赖环，弃 ×1 口径）。
-
-**分组键**：`(targetMode, resourceTypeCode, operationCode, codeType, domainCode, inheritMode)`；parentResource 请求级共享不进键。
-
-**合并 SQL 切回投影谓词不变量**（预置操作 CROSS JOIN 各类型同四位，位值跨类型数值相同——缺类型谓词即跨组泄漏）：
-
-| 段 | 投影谓词（全部满足） |
-| --- | --- |
-| 组 scopeAll 子集 | `resourceType == 组类型` AND `(granted_bits & 组 coveringMask) != 0`；TYPE_LEVEL 组再 `dependOn == null`（**无条件**丢子行，queryTypeLevel 现状）；INSTANCE 组再 filterDependentEntries |
-| item 实例子集 | 同类型+掩码谓词；`entityId ∈ (inheritClosure ? cteClosure[target] ∪ {target} : {target})`（**false 档含缺省恒 {自身}——不分档=默认模式获得祖先继承=越权**）；再 filterDependentEntries |
-
-**评估粒度与顺序不变量**：scopeAll 段组内一次（子集与 item 无关）；实例段逐 item（PERM_MUTEX 集合语义：filterPermMutex 对子集整体算 opIds、两端同场才冲突且两端全丢——合并评估必不等价；computeInstanceDenied 的并集互斥回映射不可复用于 check 族）；每个投影子集固定 `depend_on 过滤 → 条件评估 → PERM_MUTEX 计算`（现状序：depend_on 过滤在调用方——TYPE_LEVEL 组 queryTypeLevel 无条件丢子行、INSTANCE 组 filterDependentEntries；条件→互斥在 evaluateIfNeeded；重排致条件摘掉互斥一端前两端同场全丢=false deny+虚假审计）。
-
-**数据时点（登记）**：READ COMMITTED 下批量化把「逐 item 各语句各看各的」变为「批内一次装载同源」——与 a2 同向的行为变化，随定案接受（非缺陷）。
-
-**reason 双轨**：TYPE_LEVEL 组二值（scopeAllMatchedBeforeEval ? CONDITION_NOT_MET_OR_CONFLICT : NO_PERMISSION，无 DEPENDENT 支无目标不可解析支）；INSTANCE 组两段各三支——目标空：scopeAllEvaluatedEmpty→CONDITION ＞ dependentOnlyExcluded→DEPENDENT ＞ NO_PERMISSION；评估清空：(评估前有行||scopeAllEvaluatedEmpty)→CONDITION ＞ dependentOnlyExcluded→DEPENDENT ＞ NO_PERMISSION。组 scopeAll 评估通过→组内全 allowed（code 可不可解析都放行，短路优先）。NO_ROLE/USER_NOT_FOUND 整批前置；ResultSlot 按原始输入序输出；拒绝项 matched 字段族恒空列表。
-
-**互斥通知（b2 定案）**：计算与通知解耦；批量层维护 `(组, ruleId) → 命中 originalIndex 列表` ledger，scopeAll 段与实例段分桶写入、scopeAll 短路 return 前 flush；每 (组, ruleId) 一条审计行，detail 由实际命中规则集（AND 两端）构造 + hitItemCount（item 去重段间合并）；**父判定审计桶**——共享父判定每请求 ≤1 次触发，其内部互斥通知维持现有形态不入 ledger（无去重需求；纳入需穿透递归 query 与既有注入面决策冲突）。
-
-**旧执行体迁移边界**：父判定仍经既有 roleIds + evalContext 递归注入，不穿透递归统一批量条件装载；父段最多增加父私有冷条件数次单查，父审计维持前述独立桶。旧 ledger 组键以 `-` 作空位标记的碰撞边界暂时接受。两者随 [R2 执行器和根审计](../r2-unified-query-and-admission.md#41-职责划分和一次执行的生命周期) 实际替换时复核，不能由“后续任务 done”自动判定解除。[来源](../../archive/2026-09-26/decision-registry-history.md)（原第 16 行）。
-
-旧引擎内部闭包与展开的 500–1000 分片优化待真实负载证据后推进，不因通用批量原则直接判为必须立即改造；外部请求已有上限仍须遵守。实际负载、参数上限或执行器替换时复核。[来源](../../archive/2026-09-26/decision-registry-history.md)（原第 12 行）。
-
-**回归锁（容器轨，GoldenFixturePgIT/TargetModeClosurePgIT 先例）**：等价差分（query()×N vs queryBatch 逐 item 对拍 allowed/reason/matched 按集合比较）＋共享计数锁（N=10/100 mapper 调用次数不变）＋投影谓词否定锁（默认模式授父查子 deny / TYPE_LEVEL+depend_on+父上下文 deny / 跨类型位泄漏 deny）＋空目标集批（1000 项上限形态）200 全 deny 禁 500 ＋互斥真锁（VIEW 行+UPDATE 行（inherit_mask 覆盖）+互斥规则→逐 item 双 allowed）＋reason 边界（幽灵 code+仅子行 scopeAll→DEPENDENT_NOT_IN_PARENT_CONTEXT）＋时间窗边界＋通知次数/内容锁＋禁用条件 fail-close 两轨锁＋条件-互斥顺序锁＋条件增量快照次数锁。现有 PermissionCheckAppServiceImplTest mock 了引擎——改 stub 到新入口，不作等价证据。
-
-**实施落点（2026-09-11 落地）**：引擎 `PermQueryEngine.queryBatch(PermBatchQuery)`（分组键/共享装载/分段评估/reason 双轨全部在引擎内，`BatchEvalContext` 为 per-request 对象经方法参数传递）；入参 `PermBatchQuery.forAuthCheckBatch`（item 粒度参数与 forAuthCheck 对齐 + 请求级 parentResource + 唯一非空 `PermEvalContext`）与结果 `PermBatchResult`（outcomes 与 items 下标对齐，拒绝项 matched 恒空）；编排 `PermissionCheckAppServiceImpl.batchCheck` 只做参数组装 + 时刻钉住 + 结果拆分。条件快照 = `PermissionConditionDomainService.openBatchEvaluator`（`BatchConditionEvaluator`：四态/增量/fail-close/评估记忆封装在请求级 evaluator）；互斥 = `openBatchMutexEvaluator`（`BatchPermMutexEvaluator`：规则/操作索引请求级共享、`compute` 不通知、`notifyHits` 消费引擎 ledger）；`queryInstance` 补空 entityIds 守卫。回归锁容器轨落位 `BatchAuthCheckPgIT`（characterization 包，①-⑪ 全量），evaluator 四态/增量另有单测轨行为锁。
+- **请求级单一评估时刻（a2 定案延续）**：`RunState` 单时钟钉住全链（全部 item 评估、父判定、
+  条件评估共用同一 evaluatedAt）——时间类条件观测粒度为**批**而非 item，跨时间边界的大批量不出现
+  「前一半放行、后一半拒绝」的批内漂移（`BatchAuthCheckPgIT` ⑦时间窗锁）。
+- **请求级父上下文**：同值 `ParentRequirement` 挂全批 item（首版混批约束下单父共享，惰性判定一次；
+  父类型/父编码空白归一为无父——父判定必不命中语义等价）。
+- **共享装载**：类型/操作解析、scopeAll/实例 SQL、条件装载全部请求级合并（②计数锁：N=10/100 下
+  mapper 调用次数不变）；条件快照=请求级增量四态（同 conditionId 跨段至多回源一次，⑪锁；
+  仅 OK 入正缓存、失败态 fail-close，⑨锁）。
+- **逐 item 互斥语义**：各 item 候选集合独立评估（⑤真锁）；审计证据按 item 独立成行
+  （⑧锁：两 item 同规则冲突=两条 CONFLICT_DETECTED 证据行，单行单规则结构化摘要——旧 (组,ruleId)
+  合并单行 hitItemCount=2 形态随旧执行体退场）。
+- **reason 双轨**：无目标 TYPE_LEVEL 二值（scopeAll 评估清空→CONDITION_NOT_MET_OR_CONFLICT /
+  NO_PERMISSION）；有目标 INSTANCE 三支（CONDITION ＞ DEPENDENT_NOT_IN_PARENT_CONTEXT ＞
+  NO_PERMISSION）；scopeAll 评估通过即组内放行（幽灵 code 同放行，短路优先）；NO_ROLE/USER_NOT_FOUND
+  整批前置；拒绝项 matched 字段族恒空列表。
+- **空目标集守卫**：纯 TYPE_LEVEL 批/全幽灵 code 不下推实例 SQL 与闭包 CTE（1000 项上限形态禁
+  500，④锁）。
+- **等价差分**：check()×N vs batchCheck 逐 item 对拍 allowed/reason/matched（按集合比较，①锁）。
 
 ---
 
@@ -600,7 +636,7 @@ sequenceDiagram
     participant C as PermissionGrantController
     participant PS as PermissionGrantAppService
     participant TR as TypeResolutionService
-    participant ENG as PermQueryEngine
+    participant ENG as QueryGate/QueryExecutionEngine
     participant PGD as PermissionGrantPlanDomainService
     participant Mapper as RoleResourcePermissionMapper
     participant PUB as RedisPublisher (perm:invalidate)
@@ -693,7 +729,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
 | 缓存内容                    | Catalog / Key 模式                                                                 | 模式      | L1 TTL    | L2 TTL   |
 | --------------------------- | ---------------------------------------------------------------------------------- | --------- | --------- | -------- |
 | 用户有效角色集合            | `AccessCacheCatalog.EFFECTIVE_ROLES` / `{tenantId}:perm:effective-roles:{userId}`    | `L2_ONLY` | —         | 10 秒（快照链路安全边界，T-ACCESS-008） |
-| 角色权限快照（资源+操作位） | `AccessCacheCatalog.ROLE_PERM_SNAPSHOT` / `{tenantId}:perm:role-perm-snapshot:{roleId}` | `L2_ONLY` | — | 10 秒（仅 LIST 管线消费；forAuthCheck 鉴权面不经快照，见 §3.10） |
+| 角色权限快照（资源+操作位） | `AccessCacheCatalog.ROLE_PERM_SNAPSHOT` / `{tenantId}:perm:role-perm-snapshot:{roleId}` | `L2_ONLY` | — | 10 秒（仅 GRANT_LIST 清单面消费；DECISION 判定面不经快照） |
 | 条件规则                    | `AccessCacheCatalog.CONDITION_RULES` / `{tenantId}:perm:condition-rules:{conditionId}` | `L2_ONLY` | —       | 10 秒（快照链路安全边界） |
 | 角色互斥规则                | `AccessCacheCatalog.ROLE_MUTEX_RULE` / `{tenantId}:perm:role-mutex-rule:all`         | `L2_ONLY`   | —       | 10 秒（快照链路安全边界） |
 | 操作权限按资源类型索引      | `AccessCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE` / `{tenantId}:perm:operation-permissions-by-type:op_perm:{resourceType}` | `L1_L2` | 60 分钟   | 120 分钟 |
@@ -766,10 +802,10 @@ Gateway 本地接口快照未命中时：
   4. POST /api/access/auth/interface-snapshot → 权限中心
      入参：{ subjectTypeCode, subjectExternalId, serviceCode }
   5. 权限中心内部：
-     a. SubjectDomainService.resolveEffectiveRoles 读取 EFFECTIVE_ROLES（CacheService L1/L2）
-     b. 过滤角色互斥
-     c. PermQueryEngine 通过 ROLE_PERM_SNAPSHOT getBatch 批量读取角色权限
-     d. 条件实时评估，API mapping 组装为 InterfaceSnapshotResp.allowedApis
+     a. 引擎 User 主体内部解析有效角色（EFFECTIVE_ROLES 缓存 + 互斥双删，T-PERM-075 共同判定语义）
+     b. GRANT_LIST（读来源 ROLE_SNAPSHOT）经 ROLE_PERM_SNAPSHOT getBatch 批量读取角色权限
+     c. PRESERVE/ENFORCE 评估（条件身份保留进快照、互斥仍清）
+     d. API mapping 组装为 InterfaceSnapshotResp.allowedApis（SnapshotAssembler 消费 List<GrantFact>）
   6. Gateway 写入本地 Caffeine 快照（默认 TTL 30s）
   7. Gateway 使用 InterfaceSnapshotMatcher 本地匹配 serviceCode + httpMethod + path，放行或返回 403
 
@@ -878,50 +914,46 @@ record RolePermBitmap(Map<Long, Long> resourceEffectiveBits) {}
 
 ### 7.2 统一权限检查入口
 
-#### 内部入口 `PermQueryEngine`
+#### 内部入口 `QueryGate`
 
-permission-center 内部各 Service 的常规鉴权统一通过 `PermQueryEngine` 完成（终态 API 见 §3.1，T-ACCESS-016 定稿）。对单目标使用 `hasPermissionByCode`，对批量目标使用 `getDeniedResourceCodes`（抛异常语义走 `AdminPermissionValidator` 门面）；涉及资源实体管理链路（id 即 `resource_entity.id`）使用 `hasPermissionByEntityId`/`getDeniedEntityIds`；复杂查询继续走 `query(PermQuery)`。
+access-service 内部各 Service 的常规鉴权统一通过 `QueryGate` 完成（终态 API 见 §3.1，T-PERM-089 起判定面唯一门面）。对单目标使用 `hasPermissionByCode`，对批量目标使用 `getDeniedResourceCodes`（抛异常语义走 `AdminPermissionValidator` 门面）；涉及资源实体管理链路（id 即 `resource_entity.id`）使用 `hasPermissionByEntityId`/`getDeniedEntityIds`；复杂查询/范围/快照面由对应 AppService/DomainService 直构 `QueryRequest` 经 `QueryExecutionEngine.execute`（入口形态见 §3.8）。
 
 ```java
 // 单目标鉴权（业务编码语义）
-if (!engine.hasPermissionByCode(tenantId, subjectId, ResourceTypeCode.ROLE,
+if (!queryGate.hasPermissionByCode(tenantId, subjectId, ResourceTypeCode.ROLE,
         roleId.toString(), OperationCode.MANAGE)) {
     throw new SecurityException("Permission denied");
 }
 
 // 批量获取拒绝集合（业务编码语义，纯查询）
-Set<String> deniedRoleCodes = engine.getDeniedResourceCodes(
+Set<String> deniedRoleCodes = queryGate.getDeniedResourceCodes(
     tenantId, subjectId, ResourceTypeCode.ROLE, roleCodes, OperationCode.MANAGE
 );
 
 // 资源实体管理链路（req.id() 本就是 resource_entity.id）
-if (!engine.hasPermissionByEntityId(tenantId, subjectId, ResourceTypeCode.RESOURCE,
+if (!queryGate.hasPermissionByEntityId(tenantId, subjectId, ResourceTypeCode.RESOURCE,
         req.id(), OperationCode.MANAGE)) {
     throw new SecurityException("Permission denied");
 }
-
-// 复杂查询
-PermQuery q = PermQuery.forAuthCheck(tenantId, subjectId, resourceTypeCode, resourceCode, operationCode);
-PermResult r = engine.query(q);
 ```
 
-**适用边界（T-ACCESS-016 定稿）**：
+**适用边界（T-ACCESS-016 定稿口径，T-PERM-089 起入口=QueryGate）**：
 | 场景 | 入口 |
 |------|------|
-| 业务对象单目标鉴权（USER/ROLE 等，业务编码） | `engine.hasPermissionByCode` |
-| 业务对象批量校验（业务编码） | `engine.getDeniedResourceCodes`（抛异常由门面/调用方封装） |
-| 资源实体管理链路单目标/批量（`resource_entity.id`） | `engine.hasPermissionByEntityId` / `engine.getDeniedEntityIds` |
-| 资源编码、接口路径、范围查询 | `engine.query(PermQuery)` |
-| 授权流程中的 `canGrant` 校验 | `PermissionGrantDomainService.checkCanGrant()`（直查 Mapper 批量匹配位运算） |
+| 业务对象单目标鉴权（USER/ROLE 等，业务编码） | `queryGate.hasPermissionByCode` |
+| 业务对象批量校验（业务编码） | `queryGate.getDeniedResourceCodes`（抛异常由门面/调用方封装） |
+| 资源实体管理链路单目标/批量（`resource_entity.id`） | `queryGate.hasPermissionByEntityId` / `queryGate.getDeniedEntityIds` |
+| 资源编码、接口路径、范围查询 | 适配层直构 `QueryRequest` 经 `execute`（§3.8） |
+| 授权流程中的 `canGrant` 校验 | `PermissionGrantDomainService.checkCanGrant()`（GRANT_LIST＋PRESERVE+SKIP＋DATABASE，§3.8） |
 
 ---
 
 ### 7.3 批量权限检查建议
 
-批量操作禁止循环调用单目标鉴权，必须复用 `PermQueryEngine` 的批量 API，避免 N+1 查询。
+批量操作禁止循环调用单目标鉴权，必须复用 `QueryGate` 的批量 API（内部一次 execute 多 item），避免 N+1 查询。
 
 ```java
-Set<String> deniedRoleCodes = engine.getDeniedResourceCodes(
+Set<String> deniedRoleCodes = queryGate.getDeniedResourceCodes(
     tenantId, subjectId, ResourceTypeCode.ROLE, roleCodes, OperationCode.MANAGE
 );
 if (!deniedRoleCodes.isEmpty()) {
@@ -943,7 +975,8 @@ if (!deniedRoleCodes.isEmpty()) {
 
 ```java
 // operator 需拥有目标权限且 canGrant=true 才能授予他人
-// 在 PermissionGrantAppServiceImpl 中通过 PermQueryEngine 查询 operator 的 role_resource_permission 记录，
+// PermissionGrantDomainServiceImpl.checkCanGrant 内部经引擎 GRANT_LIST＋PRESERVE+SKIP＋读来源 DATABASE
+// 直查 operator 的 role_resource_permission 保留事实（写校验面新鲜度），
 // 检查 operator 是否拥有相同的 (resourceType, resourceCode 或内部 scopeAll, operationCode) 授权且 canGrant=true
 ```
 
@@ -955,8 +988,8 @@ if (!deniedRoleCodes.isEmpty()) {
 **适用边界**：
 | 场景 | 入口 |
 |------|------|
-| 判断是否有普通管理权限 | `PermQueryEngine` |
-| 判断是否可以把某权限授予他人 | `PermissionGrantDomainService.checkCanGrant()`（批量查询 operator 权限，位运算匹配目标操作） |
+| 判断是否有普通管理权限 | `QueryGate` |
+| 判断是否可以把某权限授予他人 | `PermissionGrantDomainService.checkCanGrant()`（GRANT_LIST＋PRESERVE+SKIP＋DATABASE，同行资格验证） |
 
 ---
 

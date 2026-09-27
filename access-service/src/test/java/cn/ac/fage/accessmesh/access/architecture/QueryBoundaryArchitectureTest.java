@@ -193,6 +193,30 @@ class QueryBoundaryArchitectureTest {
             .isEmpty();
     }
 
+    /**
+     * 旧执行体退役锁（T-PERM-092，设计 §9.4 X04）：旧执行体与四旧 DTO 自主源码退出后
+     * 不得回潮——任何形态的复活（含改名同形）都意味着第二执行主体或绕过引擎判定面。
+     */
+    @Test
+    @DisplayName("旧执行体退役锁：PermQueryEngine/四旧 DTO/TargetMode/ResolveContext 不得存在于主源码（X04 双向锁）")
+    void retiredLegacyEngineClassesMustNotBeReintroduced() {
+        Set<String> retired = Set.of(
+            BASE + ".engine.core.PermQueryEngine",
+            BASE + ".engine.core.ResolveContext",
+            BASE + ".engine.dto.PermQuery",
+            BASE + ".engine.dto.PermResult",
+            BASE + ".engine.dto.PermBatchQuery",
+            BASE + ".engine.dto.PermBatchResult",
+            BASE + ".grant.enums.TargetMode");
+        Set<String> present = classes.stream()
+            .map(JavaClass::getFullName)
+            .filter(retired::contains)
+            .collect(java.util.stream.Collectors.toCollection(java.util.TreeSet::new));
+        assertThat(present)
+            .as("旧执行体/四旧 DTO 已于 T-PERM-092 删除，主源码再现即退役回潮（设计 §9.4）")
+            .isEmpty();
+    }
+
     // ------------------------------------------------------------------
     // 负向样例自证（§8.4：每条重建规则以负向样例证明仍能拒绝违规）
     // ------------------------------------------------------------------

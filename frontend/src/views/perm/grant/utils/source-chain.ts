@@ -2,7 +2,7 @@
  * 来源链计算（前端纯函数，对齐引擎语义，设计文档 permission-grant.md §3.5）。
  *
  * 对齐目标：
- * - 资源继承：PermQueryEngine.collectDescendants（父节点授权作用于全部子孙；
+ * - 资源继承：引擎展示面子孙展开（selectDescendantsBatch，父节点授权作用于全部子孙；
  *   后端 collectDescendants 不含源节点本身，本模块显式并入 {r}，与 §3.5 节点集一致）；
  * - 操作继承：OperationPermissionUtils.covers（effectiveBits = binaryBit | inheritMask，
  *   覆盖判定 (effectiveBits(A) & B.binaryBit) != 0）；
@@ -13,7 +13,7 @@
  *   grantedBits 与各操作列 binaryBit 逐位比对，命中多列则多列同时点亮（标注"组合位"），
  *   无法匹配任何定义位的余位归入 undefinedBitsByRecord（详情层"未定义位"展示）。
  *
- * 本计算为展示口径，不代表运行时判定（运行时以 PermQueryEngine 为准）。
+ * 本计算为展示口径，不代表运行时判定（运行时以权限查询引擎为准）。
  * 引擎双写消除（方案三）：本模块与后端 GoldenFixturePgIT 同用例集比对，
  * fixtures 见 source-chain.fixtures.json（5 用例：组合位/ALL/资源继承/操作继承/两段组合来源）。
  */
@@ -238,7 +238,7 @@ function flattenResources(resources: ResourceNodeInput[]): FlatResource[] {
   return flat;
 }
 
-/** 收集子孙（对齐 PermQueryEngine.collectDescendants：不含源节点本身；Set 防环） */
+/** 收集子孙（对齐引擎展示面子孙展开语义：不含源节点本身；Set 防环） */
 function collectDescendants(
   sourceId: number,
   childrenByParent: Map<number, FlatResource[]>

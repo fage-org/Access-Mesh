@@ -18,7 +18,7 @@ import java.util.Set;
  * </p>
  * <ul>
  *   <li>{@code requiredScopes}：令牌 scope（空格分隔委托范围）必须全部包含，独立映射模型
- *       （不接入 PermQueryEngine，2026-08-22 用户决策）</li>
+ *       （不接入权限判定面，2026-08-22 用户决策）</li>
  *   <li>{@code audience}：令牌 aud claim 必须包含该受众（业务开放路径强制；userinfo 默认豁免）</li>
  *   <li>{@code clientIds}：可选客户端限定；无论是否配置，验签时均按 client_id 动态校验客户端启用状态</li>
  * </ul>

@@ -54,9 +54,9 @@ import static org.mockito.Mockito.verify;
  * PQ-01／PQ-06 反例复现与留证（设计 §1.2、§10.2 D01~D03／R01~R02；断言口径=锁当前行为，
  * 2026-09-25 拍板——缺陷断言今天绿，修复任务落地当天变红强制翻转）。
  * T-PERM-089 门面链改写：getDenied*／hasPermission* 断言改经 QueryGate（新 execute，
- * 断言与事实集保留）；queryBatch 对照极改经 batchCheck 服务面（生产消费者）；
- * D02 共同集合锚改直构 TargetSet 多 clause 单 item（旧 forAuthCheck 多编码形态的
- * 新核心对应——checkInterface 共同集合语义〔T-PERM-090〕的引擎契约先锚）；
+ * 断言与事实集保留）；批量对照极经 batchCheck 服务面（生产消费者）；
+ * D02 共同集合锚直构 TargetSet 多 clause 单 item（check 族多编码目标的
+ * 共同集合形态——checkInterface 共同集合语义〔T-PERM-090〕的引擎契约先锚）；
  * ⑧ 审计锁按新引擎 ConflictEvidence 形态改写（按 execution＋item＋stage＋ruleRef 聚合，
  * 独立目标分别计影响——不再合并为旧 (组,ruleId) 单行）。
  * </p>
@@ -186,9 +186,9 @@ class MutexSemanticsCharacterizationPgIT {
         fx.insertPermRow(roleX, TYPE_D02, entityX, VIEW_BIT, false, null);
         fx.insertPermRow(roleY, TYPE_D02, entityY, UPDATE_BIT, false, null);
 
-        // 新核心对应形态：单 item 的 TARGET_SET 多 clause＝一个共同候选集合（设计 §2.4——
-        // 旧 forAuthCheck+setResourceCodes 多编码形态的语义等价物；checkInterface〔T-PERM-090〕
-        // 的共同集合语义在引擎契约层先行锚定）。判定面继承关（旧 forAuthCheck 默认）。
+        // 新核心形态：单 item 的 TARGET_SET 多 clause＝一个共同候选集合（设计 §2.4——
+        // check 族多编码目标的共同集合语义；checkInterface〔T-PERM-090〕
+        // 的共同集合语义在引擎契约层先行锚定）。判定面继承关（check 族缺省）。
         TypeOperation view = new TypeOperation(CODE_D02, "VIEW");
         QueryItem item = QueryItem.decision("d02", new TargetSet(List.of(
             new TargetClause(view, new ByCode("r2b-mx-x", null, null)),

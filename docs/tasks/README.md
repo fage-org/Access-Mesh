@@ -44,7 +44,7 @@
 | [T-PERM-089](T-PERM-089.md) | （R2-T10）迁移 check/batch/管理门禁/getDenied | ✅ | T-PERM-085, T-PERM-088 |
 | [T-PERM-090](T-PERM-090.md) | （R2-T11）迁移范围与 LEGACY_API 接口集合 | ✅ | T-PERM-086, T-PERM-087, T-PERM-089 |
 | [T-PERM-091](T-PERM-091.md) | （R2-T12）迁移旧快照、转授、视图与配置 | ✅（2026-09-27 收口：旧引擎生产消费者清零；操作定义装载留领域侧/角色配置面零改动两拍板见任务卡） | T-PERM-087, T-PERM-088, T-PERM-090 |
-| [T-PERM-092](T-PERM-092.md) | （R2-T13）删除旧执行体与四旧 DTO | ⚙️ | T-PERM-089, T-PERM-090, T-PERM-091 |
+| [T-PERM-092](T-PERM-092.md) | （R2-T13）删除旧执行体与四旧 DTO | ✅（2026-09-27 收口：旧执行体/四旧 DTO/TargetMode/ResolveContext 删除，X04 退役锁入架构测试；R2 入口统一完成条件闭合） | T-PERM-089, T-PERM-090, T-PERM-091 |
 | [T-PERM-093](T-PERM-093.md) | （R2-T14）候选/规则索引与性能测量 | ⚙️ | T-PERM-091 |
 | [T-PERM-094](T-PERM-094.md) | （R2-T15）灰度、故障、缓存与发布演练 | ⚙️ | T-PERM-092, T-PERM-093 |
 | [T-PERM-095](T-PERM-095.md) | （基线补卡）getDenied* 跨 item 互斥最小修复——与 T-PERM-083 构成回退基线 | ✅（2026-09-26 收口：与 083 构成最小正确性修复基线=本地 tag r2-baseline-correctness〔用户拍板 tag 形态〕；全量含 E2E/heavy BUILD SUCCESS 0 失败；双轨评审 P3×2 全核实成立直修、可裁剪=0；定案见 [历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日行） | T-PERM-081 |

@@ -905,7 +905,7 @@ INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_b
 ON CONFLICT (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND delete_flag = 0 DO NOTHING;
 
 -- 权限中心运行时必需操作码：代码实际校验但 CRUD/Admin 扩展码未覆盖；
--- 缺失时 TypeResolutionServiceImpl 解析返回 null → PermQueryEngine fail-closed 全量拒绝。
+-- 缺失时 TypeResolutionServiceImpl 解析返回 null → 判定面 fail-closed 全量拒绝。
 -- bit 16 起按类型避让，写类 mask=2（继承 VIEW），API:ACCESS 为接口鉴权专用（mask=0）。
 INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask, created_by, updated_by, delete_flag) VALUES
     -- ROLE(5)：分组角色分配/撤销（MANAGE 已占 16）
@@ -923,7 +923,7 @@ INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_b
     (1, 11, 'MANAGE',             '管理系统配置',     16, 2, 0, 0, 0),
     -- OPERATION(12)：更新/删除操作权限门禁
     (1, 12, 'MANAGE',             '管理操作权限',     16, 2, 0, 0, 0),
-    -- API(3)：网关接口鉴权专用（PermissionCheckAppServiceImpl forInterfaceCheck）
+    -- API(3)：网关接口鉴权专用（check-interface 入口，TARGET_SET 共同集合）
     (1, 3,  'ACCESS',             '访问接口',         16, 0, 0, 0, 0)
 ON CONFLICT (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND delete_flag = 0 DO NOTHING;
 

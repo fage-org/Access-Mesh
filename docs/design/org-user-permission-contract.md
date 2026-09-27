@@ -41,7 +41,7 @@ last_reviewed: 2026-09-26
 access-service（甲层后端门禁）
    │  AdminPermissionValidator.check{Type|Instance|BatchInstance}Level(
    │      ResourceTypeCode, [resourceCode], OperationCode)
-   │  └─ 本地 PermQueryEngine（同库同进程，不再经 Feign /checkAuth）
+   │  └─ 本地 QueryGate/查询引擎（同库同进程，不再经 Feign /checkAuth）
    ▼
 permission-center 域（被管理的权限模型，同库）
    按 资源类型 × 操作码 判定；
@@ -50,13 +50,13 @@ permission-center 域（被管理的权限模型，同库）
    组织/岗位 → ORG resource_entity + abstract_role(ORG/POSITION)（业务键，不回填内部 ID）
 ```
 
-> 实证：`AdminPermissionValidatorImpl` 调用本地 `PermQueryEngine`（同库，T-ACCESS-005 起不再经 Feign）；各 `*WriteAppService` 在写操作前调用 `permissionValidator.check*Level(...)`，并在同一事务内维护投影与 `permission_change_log`。
+> 实证：`AdminPermissionValidatorImpl` 调用本地判定面门面 `QueryGate`（同库，T-ACCESS-005 起不再经 Feign；T-PERM-089 起入口=QueryGate）；各 `*WriteAppService` 在写操作前调用 `permissionValidator.check*Level(...)`，并在同一事务内维护投影与 `permission_change_log`。
 
 ### 两层「权限」定义（全文沿用）
 
 | 层 | 含义 | 本页落点 |
 |----|------|----------|
-| **甲层** | 操作本页所需的权限 | 前端按钮门控（`hasPerms`）+ `AdminPermissionValidator`（`ResourceTypeCode × OperationCode`，本地 `PermQueryEngine` 鉴权） |
+| **甲层** | 操作本页所需的权限 | 前端按钮门控（`hasPerms`）+ `AdminPermissionValidator`（`ResourceTypeCode × OperationCode`，本地 `QueryGate` 鉴权） |
 | **乙层** | AccessMesh 被管理的权限模型本身 | permission-center 注册的资源类型（`ORG/USER/ROLE` 等，T-ACCESS-018 收敛后单一常量源 ResourceTypeCode）、操作码、业务域、角色定义；组织/岗位同步为内部角色 |
 
 ### v1.4「双轨并行」下发机制（命名空间统一）

@@ -5,7 +5,8 @@ package cn.ac.fage.accessmesh.access.engine.vo;
  * <p>
  * 表示单个权限配置的详细信息，包含资源、操作、条件、授权来源等完整信息。
  * 作为 {@code ROLE_PERM_SNAPSHOT} 缓存值 {@code List<RolePermEntry>} 的元素（条件评估前、
- * 互斥过滤前的原始权限记录），由 {@code PermQueryEngine} LIST 模式读路径（loadRolePermEntriesWithCache）消费。
+ * 互斥过滤前的原始权限记录），由新引擎 GRANT_LIST 读路径（QueryReadSupport 角色清单装载）消费
+ * ——R2 缓存边界例外保留对象（设计 §5/§9.1）。
  * </p>
  * <p>
  * grantedBits 存储 OperationPermission.binaryBit 值，

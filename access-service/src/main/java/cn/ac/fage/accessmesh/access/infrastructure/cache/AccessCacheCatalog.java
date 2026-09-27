@@ -166,8 +166,9 @@ public final class AccessCacheCatalog {
 
     /**
      * OPERATION_PERMISSIONS_BY_TYPE 的缓存键构造（T-PERM-047）。
-     * 读路径（PermQueryEngine.resolveBitMasks）与写路径失效（create/update/deleteOperation、
-     * resource_type 预置）共用同一键格式，禁止散落手拼 "op_perm:" 前缀。
+     * 读路径（引擎操作定义装载 QueryReadSupport/转授授予目录）与写路径失效
+     * （create/update/deleteOperation、resource_type 预置）共用同一键格式，
+     * 禁止散落手拼 "op_perm:" 前缀。
      *
      * @param resourceType 资源类型内部值（type_definition.type_value）
      * @return 缓存 identifier

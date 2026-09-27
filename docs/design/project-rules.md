@@ -640,7 +640,7 @@ cn.ac.fage.accessmesh.{service}
 
 调度层 ResourceManageAppServiceImpl
   └→ 调用 ResourceEntityDomainService.batchGetDescendantIds()（层级遍历）
-  └→ 权限判定统一走 PermQueryEngine（hasPermissionByCode / hasPermissionByEntityId / getDeniedEntityIds / getDeniedResourceCodes）
+  └→ 权限判定统一走 QueryGate（hasPermissionByCode / hasPermissionByEntityId / getDeniedEntityIds / getDeniedResourceCodes，T-PERM-089 判定面唯一门面）
 ```
 
 **违反此规范的代码评审时必须打回修改**。
@@ -704,10 +704,10 @@ Map<Long, AbstractRole> roleMap = roles.stream()
 
 | 场景             | 批量方法                                                             |
 | ---------------- | -------------------------------------------------------------------- |
-| 权限批量检查     | `PermQueryEngine.getDeniedResourceCodes()` / `PermQueryEngine.getDeniedEntityIds()`（T-PERM-042 终态，旧 validateBatch/getDeniedIds 已删除） |
+| 权限批量检查     | `QueryGate.getDeniedResourceCodes()` / `QueryGate.getDeniedEntityIds()`（T-PERM-089 判定面门面；旧 validateBatch/getDeniedIds 已删除） |
 | 授权批量校验     | `PermissionGrantDomainService.checkCanGrant()`                       |
-| 角色批量加载     | `PermQueryEngine.batchLoadRoles(Long tenantId, Set<Long> ids)`（引擎内部私有方法；外部批量加载走 `abstractRoleMapper.selectValidByIds(tenantId, ids)`） |
-| 操作权限批量加载 | `PermQueryEngine.batchLoadOperations(Long tenantId, Set<Long> ids)`（引擎内部私有方法；外部批量加载走 `operationPermissionMapper.selectValidByIds(tenantId, ids)`） |
+| 角色批量加载     | `abstractRoleMapper.selectValidByIds(tenantId, ids)` |
+| 操作权限批量加载 | `operationPermissionMapper.selectValidByIds(tenantId, ids)` |
 
 存量 N+1 整改进度以任务板（`docs/tasks/README.md`）为准，本规范不维护逐方法状态表（避免随代码演进腐化）；规范本体只保留上表的批量约束与批量模式。
 
