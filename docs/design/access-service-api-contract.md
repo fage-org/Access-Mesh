@@ -2995,7 +2995,7 @@ schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正�
 
 ## 25. 操作准入协议 OPERATION_ADMISSION（interface-admission 族，T-ACCESS-056 落账）
 
-> **章定位**：版本化新协议的契约登记面（沿 §24 服务凭证章先例——设计定稿后、实现任务前的协议落账；端点未实现，本章为实现目标契约）。设计权威=[r2-unified-query-and-admission.md](r2-unified-query-and-admission.md#operation-admission) §7/§8（adopted，实施期权威；计划完结回写后本章为该协议唯一权威落点）。方向定案链：2026-09-09「API 不单独授权、接口权限由操作权限关联派生」→ 2026-09-25 R2 方案 A 设计定案（[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日行，含 configGeneration 限定语义拍板）。本卡四项落账拍板（2026-09-27 用户确认）：①错误码随本卡进 `AccessErrorCode` 枚举（契约先行，暂无 throw 点沿 T-PERM-082/083 先例）；②配置故障两族占数值码 20070/20071、准入拒绝走响应 reason 词表；③「技术错误 503」=网关→终端层语义（access-service 端点错误维持现行 HTTP 200 + body 数值码信封）；④端点命名 interface-admission 族。实现归属：准入阶段=T-ACCESS-057、映射模型/schema=T-ACCESS-058、端点/快照/SDK/网关=T-ACCESS-059、失效与 TTL=T-ACCESS-060、逐服务切换=T-ACCESS-061、legacy 协议退役=T-ACCESS-062。
+> **章定位**：版本化新协议的契约登记面（沿 §24 服务凭证章先例——设计定稿后、实现任务前的协议落账；端点未实现，本章为实现目标契约）。设计权威=[r2-unified-query-and-admission.md](r2-unified-query-and-admission.md#operation-admission) §7/§8（adopted，实施期权威；计划完结回写后本章为该协议唯一权威落点）。方向定案链：2026-09-09「API 不单独授权、接口权限由操作权限关联派生」→ 2026-09-25 R2 方案 A 设计定案（[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日行，含 configGeneration 限定语义拍板）。本卡五项落账拍板（2026-09-27 用户确认；⑤为外评处置补拍）：①错误码随本卡进 `AccessErrorCode` 枚举（契约先行，暂无 throw 点沿 T-PERM-082/083 先例）；②配置故障两族占数值码 20070/20071、准入拒绝走响应 reason 词表；③「技术错误 503」=网关→终端层语义（access-service 端点错误维持现行 HTTP 200 + body 数值码信封）；④端点命名 interface-admission 族；⑤（外评处置补拍，同日）快照条件候选内联 `conditionRules` 传输（§25.2，沿旧快照同构——缺失/解析失败＝不可用分支回源）。实现归属：准入阶段=T-ACCESS-057、映射模型/schema=T-ACCESS-058、端点/快照/SDK/网关=T-ACCESS-059、失效与 TTL=T-ACCESS-060、逐服务切换=T-ACCESS-061、legacy 协议退役=T-ACCESS-062。
 
 ### 25.1 模式与两层判定（方案 A）
 
@@ -3088,7 +3088,8 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
     { "resourceTypeCode": "REPORT", "operationCode": "VIEW",
       "conditionId": null, "gatewayEvaluable": true, "candidateKind": "ALL" },
     { "resourceTypeCode": "REPORT", "operationCode": "VIEW",
-      "conditionId": 5, "gatewayEvaluable": true, "candidateKind": "INSTANCE" },
+      "conditionId": 5, "gatewayEvaluable": true, "candidateKind": "INSTANCE",
+      "conditionRules": "{\"logic\":\"AND\",\"items\":[{\"type\":\"TIME_RANGE\",\"params\":{\"start\":\"09:00:00\",\"end\":\"18:00:00\"}}]}" },
     { "resourceTypeCode": "REPORT", "operationCode": "VIEW",
       "conditionId": null, "gatewayEvaluable": false, "candidateKind": "CONTEXT_DEFERRED" }
   ],
@@ -3098,7 +3099,7 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
 ```
 
 - `routes[]` 携带该服务**完整启用路由**与各自要求；不按用户权限裁剪规则（§25.5 完整配置优先）。
-- `operationCandidates[]` 为最终准入投影（原始 GrantFact 不去重合并）：**每个元素承载一个条件身份（无条件用 `conditionId: null`）＋一个具体 `candidateKind`（`ALL`/`INSTANCE`/`CONTEXT_DEFERRED` 三选一）**，同一 type-operation 的不同条件身份或候选类别分列多个元素（设计 §8.4 归并键：type-operation＋conditionId／无条件身份＋候选类别）；仅上下文子行提供的候选保留 `CONTEXT_DEFERRED`，不伪装成主授权。`gatewayEvaluable` 表示该分支条件可否本地评估（false＝需回源，不表示通过）。
+- `operationCandidates[]` 为最终准入投影（原始 GrantFact 不去重合并）：**每个元素承载一个条件身份（无条件用 `conditionId: null`）＋一个具体 `candidateKind`（`ALL`/`INSTANCE`/`CONTEXT_DEFERRED` 三选一）**，同一 type-operation 的不同条件身份或候选类别分列多个元素（设计 §8.4 归并键：type-operation＋conditionId／无条件身份＋候选类别）；仅上下文子行提供的候选保留 `CONTEXT_DEFERRED`，不伪装成主授权。`gatewayEvaluable` 表示该分支条件可否本地评估（false＝需回源，不表示通过）。**条件候选（`conditionId` 非 null）在 `gatewayEvaluable=true` 且规则类型全在四类型白名单（DATE_RANGE/TIME_RANGE/IP_WHITELIST/IP_BLACKLIST）内时内联 `conditionRules`——String 规则原文，同 §15 `ConditionResp.conditionRules` 的 `{logic, items[]}` 形态，沿旧快照 `ApiPermissionEntry.conditionRules` 同构传输（§18.4）；其余情况省略该字段，网关按需回源分支处理**。`gatewayEvaluable=true` 但 `conditionRules` 缺失或解析失败＝不可用分支（不通过、不转为无条件），无其他通过分支时回源在线判定（N11，同旧快照 FALLBACK 形态）。
 - `configGeneration`＝构建期自一致校验（2026-09-25 拍板限定语义）：构建前后代次比对、变更即废弃重建，接收侧代次匹配检查；不承诺跨节点授权版本强一致。
 - 快照不携带用于绕过业务最终检查的「实例已授权」证明；客户端传入 `finalCheckRequired=false` 不能改变服务配置。
 

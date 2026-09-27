@@ -749,7 +749,9 @@ InterfaceAdmissionSnapshot
   schemaVersion, tenantId, subject, serviceCode
   generatedAt, expiresAt, configGeneration
   routes[]              // 完整的启用路由与 required type-operation
-  operationCandidates[] // 对上述要求的独立条件分支与候选类别
+  operationCandidates[] // 对上述要求的独立条件分支与候选类别；
+                        // 条件候选内联规则原文 conditionRules（gateway_evaluable=true
+                        // 且四类型白名单内才内联，其余省略——网关按需回源分支）
   authorizationStage = OPERATION_ADMISSION
   finalCheckRequired = true
 ```
@@ -758,7 +760,7 @@ configGeneration 表示本次路由／模式配置代次。**（2026-09-25 拍�
 
 候选从新 OPERATION_ADMISSION＋FACTS 构建，绝不经过旧 GRANT_LIST 的全集合 PERM_MUTEX。原始 GrantFact 不去重合并；最终准入投影可按 type-operation＋conditionId／无条件身份＋候选类别归并。仅上下文子行提供的候选保留 CONTEXT_DEFERRED，不伪装成主授权。
 
-本地判定顺序：**校验模式／版本／时效→完整路由匹配与歧义检测→取得唯一要求→评该要求的条件分支**。存在无条件或条件通过分支就 MAY_ENTER；无通过分支但有需远端求值的候选则回源；其余拒绝。坏条件显式不可用，不能因空 rules 成为无条件。完整 branches 保留不同 conditionId，另一分支失败不能覆盖已成立来源。
+本地判定顺序：**校验模式／版本／时效→完整路由匹配与歧义检测→取得唯一要求→评该要求的条件分支**。存在无条件或条件通过分支就 MAY_ENTER；无通过分支但有需远端求值的候选则回源；其余拒绝。坏条件显式不可用，不能因空 rules 成为无条件。完整 branches 保留不同 conditionId，另一分支失败不能覆盖已成立来源。条件候选内联规则原文 `conditionRules`（String，同旧快照 `ApiPermissionEntry.conditionRules` 传输形态）供网关本地求值——`gateway_evaluable=true` 且规则类型在四类型白名单内才内联，其余省略、网关按需回源；内联缺失或解析失败＝不可用分支，不转为无条件（2026-09-27 拍板：内联形态，候选只带 conditionId 不带规则不足以本地评）。
 
 本地与在线使用同一类型／操作／条件／候选定义及同事实同环境测试。准入快照不携带用于绕过业务的“实例已授权”证明；客户端传入 finalCheckRequired=false 不能改变服务配置。
 
