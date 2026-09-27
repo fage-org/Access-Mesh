@@ -2,7 +2,6 @@ package cn.ac.fage.accessmesh.access.rule.service.domain.impl;
 
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
-import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.rule.entity.PermissionConflictRule;
 import cn.ac.fage.accessmesh.access.rule.enums.ConflictType;
 import cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomainService;
@@ -10,7 +9,6 @@ import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConflictRuleMapper;
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
-import cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -38,11 +36,12 @@ import static org.mockito.Mockito.when;
 /**
  * {@link PermissionConflictDomainServiceImpl} 互斥域测试。
  * <p>
- * filterPermMutex（引擎运行时过滤）：规则命中两侧同丢、单侧在场不生效、无规则全保留、
- * 冲突触发异步通知（原明细用例族已随 explain 端点删除，T-PERM-059）。
- * T-PERM-063 补：filterRoleMutex 双删 + CONFLICT_DETECTED 日志去重限流（旧实现双删
- * 静默无痕，日志断言在旧实现下必红）、授予前冲突检测（DB 直查）、存量双持查询
- * （有效角色集收敛）。
+ * PERM_MUTEX 剔除语义（两端同场双丢/I01 空规则短路/真实 triggeredRuleIds）由
+ * {@code BatchPermMutexEvaluatorTest} 经批量评估器路径锁定——单条通知支线
+ * filterPermMutex/computePermMutex 已随 T-PERM-092 裁剪删除。
+ * 本类锁：T-PERM-063 filterRoleMutex 双删 + CONFLICT_DETECTED 日志去重限流
+ * （旧实现双删静默无痕，日志断言在旧实现下必红）、授予前冲突检测（DB 直查）、
+ * 存量双持查询（有效角色集收敛）。
  * </p>
  */
 @ExtendWith(MockitoExtension.class)
@@ -70,82 +69,6 @@ class PermissionConflictDomainServiceImplTest {
         return new cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.RawHolding(roleId,
             from == null ? null : java.time.LocalDateTime.parse(from),
             to == null ? null : java.time.LocalDateTime.parse(to));
-    }
-
-    private OperationPermission op(Long id, Integer resourceType, long bit, String code) {
-        OperationPermission operation = new OperationPermission();
-        operation.setId(id);
-        operation.setResourceType(resourceType);
-        operation.setBinaryBit(bit);
-        operation.setCode(code);
-        return operation;
-    }
-
-    private RolePermEntry entry(Long permissionId, Long roleId, long grantedBits) {
-        return new RolePermEntry(permissionId, roleId, 200L, "sys:user", 1, grantedBits,
-            "VIEW", grantedBits, "DIRECT", true, null, false, null, false);
-    }
-
-    private PermissionConflictRule rule(Long id, Long firstOpId, Long secondOpId) {
-        PermissionConflictRule conflictRule = new PermissionConflictRule();
-        conflictRule.setId(id);
-        conflictRule.setConflictType(ConflictType.PERM_MUTEX.getValue());
-        conflictRule.setFirstOperationPermissionId(firstOpId);
-        conflictRule.setSecondOperationPermissionId(secondOpId);
-        return conflictRule;
-    }
-
-    /** 互斥规则命中：两侧条目都被丢弃、无关条目保留、触发异步冲突通知 */
-    @Test
-    void shouldDropBothSidesAndNotifyWhenRuleFires() {
-        when(conflictRuleMapper.selectByConflictType(TENANT, ConflictType.PERM_MUTEX.getValue()))
-            .thenReturn(List.of(rule(9L, 11L, 12L)));
-        when(operationPermissionMapper.selectByTenantAndResourceTypes(TENANT, java.util.Set.of(1)))
-            .thenReturn(List.of(
-                op(11L, 1, 1L, "VIEW"),
-                op(12L, 1, 2L, "MANAGE"),
-                op(13L, 1, 4L, "SYNC")));
-
-        // 条目 A 授 VIEW(bit=1)、条目 B 授 MANAGE(bit=2) —— 规则两侧同时命中 → 双双丢弃；
-        // 条目 C 授 SYNC(bit=4) —— 不参与冲突 → 保留
-        List<RolePermEntry> survivors = service.filterPermMutex(TENANT, List.of(
-            entry(501L, 20L, 1L),
-            entry(502L, 21L, 2L),
-            entry(503L, 22L, 4L)));
-
-        assertEquals(1, survivors.size(), "互斥两侧条目须全部丢弃");
-        assertEquals(503L, survivors.get(0).permissionId());
-        // 运行时路径检测到冲突须触发异步通知（区别于已删的只读排查路径）
-        verify(auditDomainService).asyncRecordLog(org.mockito.ArgumentMatchers.any(AuditDomainService.OperationLogEntry.class));
-    }
-
-    /** 无命中规则：全部保留、不触发通知（I01 空规则短路后操作目录零装载，无需 stub） */
-    @Test
-    void shouldKeepAllEntriesWhenNoRuleFires() {
-        when(conflictRuleMapper.selectByConflictType(TENANT, ConflictType.PERM_MUTEX.getValue()))
-            .thenReturn(List.of());
-
-        List<RolePermEntry> survivors = service.filterPermMutex(TENANT, List.of(entry(501L, 20L, 1L)));
-
-        assertEquals(1, survivors.size());
-        verifyNoInteractions(auditDomainService);
-    }
-
-    /** 单侧命中（另一侧操作无条目覆盖）：规则不生效，条目保留 */
-    @Test
-    void shouldKeepEntriesWhenOnlyOneSidePresent() {
-        when(conflictRuleMapper.selectByConflictType(TENANT, ConflictType.PERM_MUTEX.getValue()))
-            .thenReturn(List.of(rule(9L, 11L, 12L)));
-        when(operationPermissionMapper.selectByTenantAndResourceTypes(TENANT, java.util.Set.of(1)))
-            .thenReturn(List.of(
-                op(11L, 1, 1L, "VIEW"),
-                op(12L, 1, 2L, "MANAGE")));
-
-        // 仅 VIEW 在场（无 MANAGE 条目）→ 冲突不成立 → 保留
-        List<RolePermEntry> survivors = service.filterPermMutex(TENANT, List.of(entry(501L, 20L, 1L)));
-
-        assertEquals(1, survivors.size());
-        verifyNoInteractions(auditDomainService);
     }
 
     @Nested
@@ -442,69 +365,6 @@ class PermissionConflictDomainServiceImplTest {
 
             assertThrows(UnsupportedOperationException.class,
                 () -> computation.keptRoleIds().add(400L));
-        }
-    }
-
-    @Nested
-    class PermMutexShortCircuitAndRealTriggeredRules {
-
-        /** I01：空互斥规则短路——互斥专用操作目录装载零调用（旧实现空规则仍装载，
-         *  本用例必红）+ 全保留 + 不通知 */
-        @Test
-        void shouldSkipOperationDirectoryLoadWhenNoPermMutexRules() {
-            when(conflictRuleMapper.selectByConflictType(TENANT, ConflictType.PERM_MUTEX.getValue()))
-                .thenReturn(List.of());
-
-            List<RolePermEntry> survivors = service.filterPermMutex(TENANT, List.of(entry(501L, 20L, 1L)));
-
-            assertEquals(1, survivors.size());
-            verify(operationPermissionMapper, never()).selectByTenantAndResourceTypes(anyLong(), any());
-            verifyNoInteractions(auditDomainService);
-        }
-
-        /** 通知明细只含真实触发规则（AND 两端在场）：rule 9（op11⊥op12）触发、rule 10（op12⊥op13）
-         *  因 op13 不在场未触发——明细不得按冲突端点 OR 反推把 rule 10 列入（旧实现反推必红） */
-        @Test
-        void shouldNotifyDetailWithRealTriggeredRulesOnly() {
-            when(conflictRuleMapper.selectByConflictType(TENANT, ConflictType.PERM_MUTEX.getValue()))
-                .thenReturn(List.of(rule(9L, 11L, 12L), rule(10L, 12L, 13L)));
-            when(operationPermissionMapper.selectByTenantAndResourceTypes(TENANT, Set.of(1)))
-                .thenReturn(List.of(
-                    op(11L, 1, 1L, "VIEW"),
-                    op(12L, 1, 2L, "MANAGE"),
-                    op(13L, 1, 4L, "SYNC")));
-
-            // 条目仅持 VIEW(11) 与 MANAGE(12)：两端同场 → 双删
-            List<RolePermEntry> survivors = service.filterPermMutex(TENANT, List.of(
-                entry(501L, 20L, 1L), entry(502L, 21L, 2L)));
-
-            assertEquals(0, survivors.size());
-            org.mockito.ArgumentCaptor<AuditDomainService.OperationLogEntry> captor =
-                org.mockito.ArgumentCaptor.forClass(AuditDomainService.OperationLogEntry.class);
-            verify(auditDomainService).asyncRecordLog(captor.capture());
-            assertTrue(captor.getValue().summary().contains("rule[9]"), "通知明细含真实触发规则 rule[9]");
-            assertTrue(!captor.getValue().summary().contains("rule[10]"),
-                "未触发规则 rule[10] 不进明细（旧按冲突端点 OR 反推在此必红）");
-        }
-
-        /** 纯计算不通知 + 真实 triggeredRuleIds 直返（T-PERM-083 设计 §5.1）：
-         *  AND 命中集恰含触发规则，未触发规则（单端在场）不混入 */
-        @Test
-        void computePermMutexShouldReturnRealTriggeredRuleIdsWithoutNotifying() {
-            when(conflictRuleMapper.selectByConflictType(TENANT, ConflictType.PERM_MUTEX.getValue()))
-                .thenReturn(List.of(rule(9L, 11L, 12L), rule(10L, 12L, 13L)));
-            when(operationPermissionMapper.selectByTenantAndResourceTypes(TENANT, Set.of(1)))
-                .thenReturn(List.of(
-                    op(11L, 1, 1L, "VIEW"),
-                    op(12L, 1, 2L, "MANAGE"),
-                    op(13L, 1, 4L, "SYNC")));
-
-            var computation = service.computePermMutex(TENANT, List.of(
-                entry(501L, 20L, 1L), entry(502L, 21L, 2L)));
-
-            assertEquals(0, computation.filtered().size());
-            assertEquals(Set.of(9L), computation.triggeredRuleIds());
-            verifyNoInteractions(auditDomainService);
         }
     }
 }

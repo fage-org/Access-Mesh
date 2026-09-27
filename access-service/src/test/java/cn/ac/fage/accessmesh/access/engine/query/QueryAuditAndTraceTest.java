@@ -50,8 +50,9 @@ import static org.mockito.Mockito.when;
  * 根级受控证据提交、技术故障边界与 TRACE 输出（T-PERM-088，A01~A05/X01/X02）。
  * <p>
  * 真实 execute + 读取/条件/互斥部件（域服务真实现），只有存储边界与审计落库被替换：
- * 旧通知入口（filterRoleMutex/filterPermMutex/notifyHits）零调用——所有
- * CONFLICT_DETECTED 行均来自新核心受控提交（A03 不重复通知的判定基础）。
+ * 旧通知入口零调用（引擎直用 computeRoleMutex 纯计算；filterPermMutex/notifyHits 已随
+ * T-PERM-092 裁剪删除）——所有 CONFLICT_DETECTED 行均来自新核心受控提交
+ * （A03 不重复通知的判定基础）。
  * </p>
  */
 class QueryAuditAndTraceTest {

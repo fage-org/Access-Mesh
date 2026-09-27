@@ -1,7 +1,6 @@
 package cn.ac.fage.accessmesh.access.rule.service.domain;
 
 import cn.ac.fage.accessmesh.access.rule.entity.PermissionConflictRule;
-import cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry;
 
 import java.util.List;
 import java.util.Map;
@@ -161,37 +160,6 @@ public interface PermissionConflictDomainService {
      * @param secondRoleId 互斥角色二
      */
     record RolePairRef(Long firstRoleId, Long secondRoleId) {}
-
-    /**
-     * 过滤权限互斥冲突
-     * <p>
-     * 根据权限互斥规则过滤权限条目列表。
-     * 如果用户同时拥有互斥的两个操作权限，则同时移除这两个权限。
-     * 检测到冲突时异步发出通知——明细由真实命中规则（AND 两端在场）构造，
-     * 不按冲突端点反推（T-PERM-083）。内部与公开入口 {@link #computePermMutex}
-     * 共用同一计算体（私有 {@code computePermMutexInternal}）。
-     * </p>
-     *
-     * @param tenantId     租户ID
-     * @param passedEntries 通过初步检查的权限条目列表
-     * @return 过滤后的权限条目列表（移除互斥权限）
-     */
-    List<RolePermEntry> filterPermMutex(Long tenantId, List<RolePermEntry> passedEntries);
-
-    /**
-     * PERM_MUTEX 单路径纯计算（T-PERM-083，不通知；空规则短路零装载）
-     * <p>
-     * 与批量评估器 {@link BatchPermMutexEvaluator#compute} 同剔除语义、共用结果形状
-     * {@link BatchPermMutexEvaluator.PermMutexComputation}：真实 triggeredRuleIds 由
-     * AND 两端在场判定直返。新核心消费本方法后自管通知（设计 §6.1）；旧入口
-     * {@link #filterPermMutex} 内部复用本计算叠加通知。
-     * </p>
-     *
-     * @param tenantId     租户ID
-     * @param passedEntries 通过初步检查的权限条目列表
-     * @return 过滤后的权限条目列表 + 命中的互斥规则 ID 集合（空集 = 无冲突）
-     */
-    BatchPermMutexEvaluator.PermMutexComputation computePermMutex(Long tenantId, List<RolePermEntry> passedEntries);
 
     /**
      * 创建请求级批量互斥评估器（T-PERM-061 A+ 形态：计算与通知解耦 + 静态数据共享装载）。

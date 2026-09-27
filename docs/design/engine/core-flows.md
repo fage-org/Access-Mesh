@@ -141,7 +141,9 @@ QueryExecutionEngine.execute(QueryRequest)
     │
     ├─ TYPE_GRANT（类型级目标）
     │      ├─ 共享装载：类型/操作解析＋位掩码（位覆盖常开）
-    │      ├─ selectScopeAllPermsByBitsBatch (1 SQL；depend_on 非空行读侧排除)
+    │      ├─ selectScopeAllPermsByBitsBatch (1 SQL；depend_on 子行随装载进入，读侧不排除)
+    │      ├─ depend_on 父绑定（bind，先于评估：dependOn=null 或 ∈ 父判定命中权限集——
+    │      │     TYPE_LEVEL/无父上下文＝纯排除；带父上下文 TargetSet 保留匹配父权限的子行)
     │      └─ 条件评估（请求级四态增量快照）──► allowed（DECISION 类型级放行可跳过 INSTANCE 阶段）
     │
     ├─ INSTANCE（实例目标集 TargetSet）
@@ -149,7 +151,7 @@ QueryExecutionEngine.execute(QueryRequest)
     │      ├─ Inheritance.SELF_AND_ANCESTORS ──► selectSelfAndAncestorClosureBatch（判定面闭包 CTE，
     │      │     查询前扩大目标集：{目标}∪同类型祖先链，止步同类型/软删截断/防环）
     │      ├─ selectInstancePermsByBitsBatch (1 SQL，目标下推含闭包集；分块 SQL 互斥前合并)
-    │      ├─ 条件评估＋PERM_MUTEX 共同集合语义＋ParentRequirement depend_on 过滤
+    │      ├─ depend_on 父绑定（bind，先于评估——互斥在绑定后集合上判定）──► 条件评估＋PERM_MUTEX 共同集合语义
     │      └─ 投影 ──► 描述块/操作覆盖/展示面展开（查询后克隆，不改变判定）
     │
     └─ GRANT_LIST（清单/事实面，读来源 ROLE_SNAPSHOT 或 DATABASE）

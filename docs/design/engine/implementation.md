@@ -219,8 +219,8 @@ public interface PermissionConflictDomainService {
     // EFFECTIVE_ROLES 缓存维持「过滤前集合」（互斥判定时叠加，规则变更沿 10s TTL 收敛）；
     // 写守卫不得使用本方法（写时看原始持有候选 SubjectDomainService.batchResolveRawHoldings）
     Set<Long> resolveJudgementRoleIds(Long tenantId, Long userId);
-    List<RolePermEntry> filterPermMutex(Long tenantId, List<RolePermEntry> passedEntries);
-    // T-PERM-061 批量判定：请求级互斥评估器（静态数据共享 + 计算通知解耦，见 §3.10）
+    // T-PERM-061 批量判定：请求级互斥评估器（静态数据共享 + 计算通知解耦，见 §3.10；
+    // PERM_MUTEX 剔除语义唯一入口——单条通知支线 filterPermMutex/computePermMutex 已随 T-PERM-092 裁剪删除）
     BatchPermMutexEvaluator openBatchMutexEvaluator(Long tenantId);
     // T-PERM-063 授予前校验：规则 DB 直查（不经 ROLE_MUTEX_RULE 缓存，新规则即刻生效），
     // 调用方组装「原始持有候选 ∪ 本批未过期新增」（含未来窗口与禁用，T-PERM-075 U002 口径），
@@ -413,17 +413,23 @@ QueryExecutionEngine.execute(QueryRequest)
     ├─ RunState 单时钟（请求级单一 evaluatedAt；防御性复制输入集合/嵌套 context——C07/C08）
     ├─ 主体解析（User → resolveJudgementRoleIds 互斥过滤后角色集；Roles 直供不回退）
     │
-    ├─ TYPE_GRANT 阶段（scopeAll 先行，1 SQL：selectScopeAllPermsByBitsBatch 分角色批合并）
-    │     ├─ depend_on 非空行读侧排除（T-PERM-058：只认主授权，TYPE_LEVEL 与无父上下文 INSTANCE 同口径）
+    ├─ TYPE_GRANT 阶段（scopeAll 先行，1 SQL：selectScopeAllPermsByBitsBatch 分角色批合并；
+    │     depend_on 子行随装载进入，读侧不排除）
+    │     ├─ depend_on 父绑定先于评估（bind：dependOn=null 或 ∈ 父判定命中权限集——TYPE_LEVEL 与
+    │     │     无父上下文目标集即纯排除，T-PERM-058 只认主授权同口径；带父上下文 TargetSet 保留
+    │     │     匹配父权限的 scopeAll 子行，排除仅对目标项解释为父上下文不匹配
+    │     │     〔DEPENDENT_NOT_IN_PARENT_CONTEXT〕）
     │     ├─ 条件评估（CandidateEvaluator：请求级条件四态增量快照，禁用/缺失/解析失败 fail-close）
     │     └─ DECISION 且类型级放行 → 跳过 INSTANCE 阶段（EvaluationCoverage.SkipReason.SUFFICIENT_DECISION）
     │
     ├─ INSTANCE 阶段（目标下推：selectInstancePermsByBitsBatch 按类型+掩码+实体批合并，SqlBatches 分块）
     │     ├─ Inheritance.SELF_AND_ANCESTORS → selectSelfAndAncestorClosureBatch 闭包 CTE
     │     │     （查询前扩大目标集；止步同类型/软删截断/防环——§3.4）
-    │     ├─ PERM_MUTEX 集合语义（共同候选集合两端同场双丢；候选按 clause 精确切分不串配——D01/D13）
-    │     └─ depend_on 子行按 ParentRequirement 过滤（无父上下文一律不计入，fail-closed；
-    │          拒绝原因 DEPENDENT_NOT_IN_PARENT_CONTEXT 与无授权区分）
+    │     ├─ depend_on 父绑定先于评估（bind 口径同 TYPE_GRANT——互斥在绑定后集合上判定，
+    │     │     被剔除子行不参与两端同场判定）
+    │     └─ 条件评估＋PERM_MUTEX 集合语义（共同候选集合两端同场双丢；候选按 clause 精确切分
+    │          不串配——D01/D13；无父上下文子行一律不计入，fail-closed，拒绝原因
+    │          DEPENDENT_NOT_IN_PARENT_CONTEXT 与无授权区分）
     │
     ├─ GRANT_LIST 阶段（清单/事实面：ReadOptions 读来源=ROLE_SNAPSHOT 缓存或 DATABASE 直查）
     │     ├─ ParentRequirement 给出时父阶段独立判定（不缺不补：父 scopeAll/INSTANCE 各读一次）

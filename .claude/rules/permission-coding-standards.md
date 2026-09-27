@@ -576,7 +576,7 @@ engine.hasPermissionByCode(tenantId, subjectId, "ROLE", String.valueOf(roleId), 
 | 3 | 是否引用了已删除的类？ | §17 已删除的类 |
 | 4 | 是否引用了已删除的实体字段（如 `bizDomainId`）？ | §18 已删除的实体字段 |
 | 5 | 批量操作是否使用 Mapper 批量方法（禁止循环单条）？ | §6 批量实体加载、§10 类型解析 |
-| 6 | 权限判定是否走 `engine.query()` / 四个显式入口（`hasPermissionByCode`/`getDeniedResourceCodes`/`hasPermissionByEntityId`/`getDeniedEntityIds`）？ | §2 权限查询铁律 |
+| 6 | 权限判定是否走判定面门面 `QueryGate`（四个显式入口 `hasPermissionByCode`/`getDeniedResourceCodes`/`hasPermissionByEntityId`/`getDeniedEntityIds`；复杂查询直构 `QueryRequest` 经 `QueryExecutionEngine.execute`）？ | §2 权限查询铁律 |
 
 ### 编码后检查
 
