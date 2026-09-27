@@ -75,7 +75,7 @@ class PermissionCharacterizationPgIT {
     @Autowired
     private SubjectDomainService subjectDomainService;
     @Autowired
-    private QueryGate permQueryEngine;
+    private QueryGate queryGate;
     @Autowired
     private CacheService cacheService;
     @Autowired
@@ -134,14 +134,14 @@ class PermissionCharacterizationPgIT {
         insertRolePerm(role, RESOURCE_TYPE_SERVICE, SERVICE_VIEW_BIT, true, null);
 
         // 类型级放行：任意实例业务编码（含不存在的 999）均通过 hasPermissionByCode
-        assertThat(permQueryEngine.hasPermissionByCode(TENANT, grantee, "SERVICE", "999", "VIEW")).isTrue();
+        assertThat(queryGate.hasPermissionByCode(TENANT, grantee, "SERVICE", "999", "VIEW")).isTrue();
         // 批量门禁：scopeAll 命中 → 空拒绝集
-        assertThat(permQueryEngine.getDeniedEntityIds(TENANT, grantee, "SERVICE", Set.of(1L, 2L, 3L), "VIEW")).isEmpty();
+        assertThat(queryGate.getDeniedEntityIds(TENANT, grantee, "SERVICE", Set.of(1L, 2L, 3L), "VIEW")).isEmpty();
 
         // 对照组：无授权用户 fail-closed
         Long outsider = insertAbstractUser("912002", "特征测试-无授权用户");
-        assertThat(permQueryEngine.hasPermissionByCode(TENANT, outsider, "SERVICE", "1", "VIEW")).isFalse();
-        assertThat(permQueryEngine.getDeniedEntityIds(TENANT, outsider, "SERVICE", Set.of(1L, 2L), "VIEW"))
+        assertThat(queryGate.hasPermissionByCode(TENANT, outsider, "SERVICE", "1", "VIEW")).isFalse();
+        assertThat(queryGate.getDeniedEntityIds(TENANT, outsider, "SERVICE", Set.of(1L, 2L), "VIEW"))
             .containsExactlyInAnyOrder(1L, 2L);
     }
 

@@ -65,7 +65,7 @@ class FirstAdminUserTrackPgIT {
     @Autowired
     private UserManageAppService userManageAppService;
     @Autowired
-    private QueryGate permQueryEngine;
+    private QueryGate queryGate;
     @Autowired
     private JdbcTemplate jdbc;
 
@@ -88,7 +88,7 @@ class FirstAdminUserTrackPgIT {
 
         // 反证锁：固定图对 USER:MANAGE 零持有（操作位种子已随 T-ACCESS-034 删除，
         // 引擎对该码 fail-closed 拒绝）——放行只能来自换绑后的细码门禁，而非 MANAGE 残留
-        assertThat(permQueryEngine.hasPermissionByCode(
+        assertThat(queryGate.hasPermissionByCode(
             TENANT, adminSubjectId, "USER", null, "MANAGE")).isFalse();
 
         bindOperator(adminSubjectId);

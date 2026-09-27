@@ -64,6 +64,32 @@ class QueryGateTest {
     }
 
     @Test
+    void blankCodeMustNormalizeToTypeLevelAndNotFailStructurally() {
+        // 外评 P2（2026-09-27 claude+grok）：空白码不得进 ByCode（结构校验会整单拒绝→500）；
+        // 归一类型级＝旧 INSTANCE 不可解析形态的可观测等价（门面无父上下文：scopeAll 放行/否则拒）
+        when(engine.execute(any(QueryRequest.class))).thenReturn(result(allowItem("gate")));
+
+        assertThat(gate().hasPermissionByCode(TENANT, SUBJECT, "SERVICE", " ", "VIEW")).isTrue();
+        assertThat(captured().items().get(0).selection())
+            .isEqualTo(new TypeLevel(List.of(new TypeOperation("SERVICE", "VIEW"))));
+    }
+
+    @Test
+    void getDeniedMustJudgeBlankCodesAsDeniedIndividuallyWithoutSinkingTheBatch() {
+        // 单个退化码不得拖垮同批其他目标（外评 P2）：空白码直接 fail-closed 拒绝，
+        // 非空白码照常进引擎；引擎只见非空白目标
+        when(engine.execute(any(QueryRequest.class))).thenReturn(result(
+            allowItem("r1"), denyItem("r2", DecisionResult.Reason.NO_PERMISSION)));
+
+        Set<String> denied = gate().getDeniedResourceCodes(TENANT, SUBJECT, "REPORT",
+            new LinkedHashSet<>(List.of("r1", " ", "r2", "")), "VIEW");
+
+        // 两种空白串（" " 与 ""）各按原键 fail-closed 拒绝、保持输入序；引擎只见非空白目标
+        assertThat(denied).containsExactly(" ", "", "r2");
+        assertThat(captured().items()).extracting(QueryItem::key).containsExactly("r1", "r2");
+    }
+
+    @Test
     void hasPermissionByEntityIdMustUseEntityIdClauseAndTypeLevelWhenNull() {
         when(engine.execute(any(QueryRequest.class))).thenReturn(result(allowItem("gate")));
 

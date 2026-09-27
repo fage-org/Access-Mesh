@@ -69,7 +69,7 @@ class InstanceGateBusinessCodePgIT {
     }
 
     @Autowired
-    private QueryGate permQueryEngine;
+    private QueryGate queryGate;
     @Autowired
     private JdbcTemplate jdbc;
 
@@ -87,18 +87,18 @@ class InstanceGateBusinessCodePgIT {
         insertRolePerm(role, RESOURCE_TYPE_USER, UPDATE_BIT, USER_ENTITY_OPERATOR);
 
         // 被授权编码（操作者自身）放行，未授权编码（目标用户）拒绝
-        assertThat(permQueryEngine.getDeniedResourceCodes(
+        assertThat(queryGate.getDeniedResourceCodes(
             TENANT, operator, "USER",
             Set.of(String.valueOf(operator), String.valueOf(targetUser)), "UPDATE"))
             .containsExactly(String.valueOf(targetUser));
-        assertThat(permQueryEngine.hasPermissionByCode(
+        assertThat(queryGate.hasPermissionByCode(
             TENANT, operator, "USER", String.valueOf(operator), "UPDATE")).isTrue();
-        assertThat(permQueryEngine.hasPermissionByCode(
+        assertThat(queryGate.hasPermissionByCode(
             TENANT, operator, "USER", String.valueOf(targetUser), "UPDATE")).isFalse();
 
         // 错参防线：修复前 abstract_user.id 被当 resource_entity.id 直查——显式高位投影 id 装配下，
         // 主体 id 落在 entity 空间必为未授权实体 → 全量拒绝（fail-closed，不再可能跨空间撞值误放行）
-        assertThat(permQueryEngine.getDeniedEntityIds(
+        assertThat(queryGate.getDeniedEntityIds(
             TENANT, operator, "USER", Set.of(operator, targetUser), "UPDATE"))
             .containsExactlyInAnyOrder(operator, targetUser);
     }
@@ -116,7 +116,7 @@ class InstanceGateBusinessCodePgIT {
         insertResourceEntity(ROLE_ENTITY_UNGRANTED, RESOURCE_TYPE_ROLE, String.valueOf(ungrantedRole), "门禁测试-未授权角色投影");
         insertRolePerm(grantedRole, RESOURCE_TYPE_ROLE, MANAGE_BIT, ROLE_ENTITY_GRANTED);
 
-        Set<String> denied = permQueryEngine.getDeniedResourceCodes(
+        Set<String> denied = queryGate.getDeniedResourceCodes(
             TENANT, operator, "ROLE",
             Set.of(String.valueOf(grantedRole), String.valueOf(ungrantedRole), String.valueOf(noProjectionRole)),
             "MANAGE");
@@ -124,7 +124,7 @@ class InstanceGateBusinessCodePgIT {
         // 未授权角色与无投影角色均 fail-closed 拒绝
         assertThat(denied).containsExactlyInAnyOrder(
             String.valueOf(ungrantedRole), String.valueOf(noProjectionRole));
-        assertThat(permQueryEngine.hasPermissionByCode(
+        assertThat(queryGate.hasPermissionByCode(
             TENANT, operator, "ROLE", String.valueOf(grantedRole), "MANAGE")).isTrue();
     }
 
@@ -134,10 +134,10 @@ class InstanceGateBusinessCodePgIT {
         Long outsider = insertAbstractUser("920004", "门禁测试-无角色用户");
         insertResourceEntity(900103L, RESOURCE_TYPE_USER, String.valueOf(outsider), "门禁测试-无角色用户投影");
 
-        assertThat(permQueryEngine.getDeniedResourceCodes(
+        assertThat(queryGate.getDeniedResourceCodes(
             TENANT, outsider, "USER", Set.of(String.valueOf(outsider)), "UPDATE"))
             .containsExactly(String.valueOf(outsider));
-        assertThat(permQueryEngine.hasPermissionByCode(
+        assertThat(queryGate.hasPermissionByCode(
             TENANT, outsider, "USER", String.valueOf(outsider), "UPDATE")).isFalse();
     }
 
@@ -153,10 +153,10 @@ class InstanceGateBusinessCodePgIT {
         insertResourceEntity(900104L, RESOURCE_TYPE_USER, String.valueOf(projected), "门禁测试-有投影用户投影");
 
         // 有投影 + 无投影编码混合：scopeAll 命中全部放行（投影缺失不得误拒）
-        assertThat(permQueryEngine.getDeniedResourceCodes(
+        assertThat(queryGate.getDeniedResourceCodes(
             TENANT, operator, "USER",
             Set.of(String.valueOf(projected), "920099"), "UPDATE")).isEmpty();
-        assertThat(permQueryEngine.hasPermissionByCode(
+        assertThat(queryGate.hasPermissionByCode(
             TENANT, operator, "USER", "920099", "UPDATE")).isTrue();
     }
 

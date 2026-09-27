@@ -45,6 +45,7 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
@@ -249,6 +250,23 @@ class PermissionCheckAppServiceImplTest {
         when(queryEngine.execute(any(QueryRequest.class))).thenReturn(allowResult(List.of(23L), List.of(404L), fact));
         assertTrue(service.check(1L, withClientIp).allowed());
         assertEquals("10.0.0.9", capturedRequest().context().clientIp());
+    }
+
+    @Test
+    void checkMustNormalizeBlankParentCodeToNoParentInsteadOfStructuralRejection() {
+        when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
+        GrantFact fact = new GrantFact(406L, 25L, 1, 200L, 2L, false, null, null, false, null, "MANUAL");
+        when(queryEngine.execute(any(QueryRequest.class))).thenReturn(allowResult(List.of(25L), List.of(406L), fact));
+
+        // 外评 P2（2026-09-27 claude+grok）：父编码空白串不得构造 ByCode（结构拒绝→500）；
+        // 归一无父＝旧链路空白父编码解析落空（父判定不命中、主行照常判定），depend_on 子行 fail-closed
+        var req = new AuthCheckReq("USER", "u-1", "REPORT", "report:1", "VIEW",
+            null, null, null, "REPORT", " ", "default", List.of("VIEW"), null);
+        var resp = service.check(1L, req);
+
+        assertTrue(resp.allowed());
+        TargetSet target = (TargetSet) capturedRequest().items().get(0).selection();
+        assertNull(target.parent());
     }
 
     @Test

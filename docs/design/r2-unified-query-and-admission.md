@@ -569,10 +569,13 @@ T-PERM-087 的展示展开按保留事实源批量读取既有祖先/后代 CTE�
 > 空白 resourceCode 归一 TYPE_LEVEL；外部 context 顶层 `clientIp` 仍提取为受信 IP 而 `evaluatedAt`/`timestamp`
 > 保留键由 CallerContext 结构拒绝（500）；QueryEngineMetrics 维持 no-op（Micrometer 绑定随 T-PERM-094）；
 > 门面命名 QueryGate。X03 等价差分记录（已登记预期修复外的新增微差，均无证据消费面）：context 顶层
-> `timestamp` 键不再透传进条件评估；顶层 null 值键静默过滤（CallerContext 契约）；空白编码且仅有
-> depend_on 子 scopeAll 行时拒绝原因 DEPENDENT_NOT_IN_PARENT_CONTEXT→NO_PERMISSION。旧引擎
-> `query`/`queryBatch` 生产消费者仅剩 T-PERM-090/091 目标（queryResources/queryScopes/checkInterface/
-> interfaceSnapshot/视图/转授）。
+> `timestamp` 键不再透传进条件评估；顶层 null 值键静默过滤（CallerContext 契约）；空白编码归一
+> TYPE_LEVEL 的角落差异（无父时仅 reason 变，有父命中且仅 depend_on 子 scopeAll 行时判定收紧）；
+> 空白父编码归一无父的同向收紧。外评处置（2026-09-27 claude+grok 双通道同根因）：空白业务码
+> （目标码/父编码/门面入参/getDenied 集合元素）一律适配层归一（目标与门面空白码→类型级等价形态、
+> 父编码→无父、getDenied 空白元素→逐个 fail-closed 拒绝），不得进 ByCode 触发整单结构拒绝 500。
+> 旧引擎 `query`/`queryBatch` 生产消费者仅剩 T-PERM-090/091 目标（queryResources/queryScopes/
+> checkInterface/interfaceSnapshot/视图/转授）。
 
 ### 6.6 LEGACY_API 兼容边界不能误写成终态
 

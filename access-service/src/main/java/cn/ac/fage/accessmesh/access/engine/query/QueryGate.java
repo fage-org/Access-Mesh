@@ -33,18 +33,20 @@ public class QueryGate {
     }
 
     /**
-     * 按业务编码检查是否有权限（code 传 null = 类型级校验）。
+     * 按业务编码检查是否有权限（code 传 null 或空白串 = 类型级校验——空白串归一与
+     * check/batchCheck 目标编码同口径，2026-09-27 拍板；门面无父上下文，旧 INSTANCE
+     * 不可解析形态的可观测结果与类型级等价〔scopeAll 放行/否则拒〕）。
      *
      * @param tenantId         租户ID
      * @param subjectId        权限域投影主体ID（abstract_user.id）
      * @param resourceTypeCode 资源类型码
-     * @param resourceCode     业务编码，null 表示类型级校验
+     * @param resourceCode     业务编码，null/空白 表示类型级校验
      * @param operationCode    操作码
      * @return 是否有权限
      */
     public boolean hasPermissionByCode(Long tenantId, Long subjectId, String resourceTypeCode,
                                         String resourceCode, String operationCode) {
-        if (resourceCode == null) {
+        if (isBlankCode(resourceCode)) {
             return decide(tenantId, subjectId, typeLevel(resourceTypeCode, operationCode));
         }
         return decide(tenantId, subjectId, target(new TargetClause(
@@ -95,15 +97,26 @@ public class QueryGate {
         if (resourceCodes == null || resourceCodes.isEmpty()) {
             return Set.of();
         }
-        Map<String, DecisionResult> results = decideAll(tenantId, subjectId,
-            new ArrayList<>(new LinkedHashSet<>(resourceCodes)), code -> new TargetClause(
-                operation(resourceTypeCode, operationCode), new ByCode(code, null, null)));
+        // 空白码不构造 ByCode（结构校验会整批拒绝）：旧链路空白码解析必落空=直接拒绝（fail-closed），
+        // 且单个退化输入不得拖垮同批其他目标（外评 P2，2026-09-27 claude+grok 双通道）
         Set<String> denied = new LinkedHashSet<>();
-        results.forEach((code, result) -> {
-            if (result.outcome() == DecisionResult.Decision.DENY) {
+        List<String> judgable = new ArrayList<>();
+        for (String code : new LinkedHashSet<>(resourceCodes)) {
+            if (isBlankCode(code)) {
                 denied.add(code);
+            } else {
+                judgable.add(code);
             }
-        });
+        }
+        if (!judgable.isEmpty()) {
+            decideAll(tenantId, subjectId, judgable, code -> new TargetClause(
+                operation(resourceTypeCode, operationCode), new ByCode(code, null, null)))
+                .forEach((code, result) -> {
+                    if (result.outcome() == DecisionResult.Decision.DENY) {
+                        denied.add(code);
+                    }
+                });
+        }
         return denied;
     }
 
@@ -174,6 +187,10 @@ public class QueryGate {
 
     private static TypeLevel typeLevel(String resourceTypeCode, String operationCode) {
         return new TypeLevel(List.of(operation(resourceTypeCode, operationCode)));
+    }
+
+    private static boolean isBlankCode(String code) {
+        return code == null || code.isBlank();
     }
 
     private static TargetSet target(TargetClause clause) {

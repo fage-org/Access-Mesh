@@ -17,11 +17,9 @@ import cn.ac.fage.accessmesh.access.engine.dto.CheckInterfaceResp;
 import cn.ac.fage.accessmesh.access.engine.query.ByCode;
 import cn.ac.fage.accessmesh.access.engine.query.CallerContext;
 import cn.ac.fage.accessmesh.access.engine.query.DecisionResult;
-import cn.ac.fage.accessmesh.access.engine.query.FactDetail;
 import cn.ac.fage.accessmesh.access.engine.query.Inheritance;
 import cn.ac.fage.accessmesh.access.engine.query.OutputSpec;
 import cn.ac.fage.accessmesh.access.engine.query.ParentRequirement;
-import cn.ac.fage.accessmesh.access.engine.query.PresentationExpansion;
 import cn.ac.fage.accessmesh.access.engine.query.QueryExecutionEngine;
 import cn.ac.fage.accessmesh.access.engine.query.QueryItem;
 import cn.ac.fage.accessmesh.access.engine.query.QueryRequest;
@@ -215,13 +213,16 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
     }
 
     /**
-     * 主资源操作码集合转换（null 元素防御过滤——SDK 请求经 JSON 反序列化
-     * 可含 null 值；过滤后空集＝父判定必不命中，语义等价于无父（depend_on 子行同被排除），
-     * 归一为无父构造，避免新引擎父要求空集结构拒绝）。
+     * 主资源上下文构造（null 元素防御过滤——SDK 请求经 JSON 反序列化可含 null 值）。
+     * 退化输入归一（外评 P2，2026-09-27 claude+grok 双通道，与空白目标编码拍板同口径）：
+     * 父类型/父编码任一为空白串时按无父处理（旧链路空白父编码解析必落空=父判定不命中、
+     * 主行照常判定；depend_on 子行 fail-closed），避免新引擎 ByCode 空白码结构拒绝放大为 500；
+     * 父操作集过滤后空集＝父判定必不命中，语义等价于无父，同归一。
      */
     private static ParentRequirement parentRequirement(String parentResourceTypeCode, String parentResourceCode,
                                                         String parentCodeType, List<String> operationCodes) {
-        if (parentResourceTypeCode == null || parentResourceCode == null) {
+        if (parentResourceTypeCode == null || parentResourceTypeCode.isBlank()
+            || parentResourceCode == null || parentResourceCode.isBlank()) {
             return null;
         }
         Set<String> filtered = operationCodes == null ? Set.of()
@@ -233,9 +234,10 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
             new ByCode(parentResourceCode, parentCodeType, null), filtered);
     }
 
-    /** check 族输出：命中 ID（T-API-003 回传）＋保留事实（conditionEvaluated 从保留事实派生，零额外 I/O）。 */
+    /** check 族输出：命中 ID（T-API-003 回传）＋保留事实（conditionEvaluated 从保留事实派生，零额外 I/O）——
+     *  即 OutputSpec.kept() 公共工厂形态（外评可裁剪项收口，勿再私有重造同形构造）。 */
     private static OutputSpec checkOutput() {
-        return new OutputSpec(FactDetail.KEPT, true, false, false, PresentationExpansion.NONE, Set.of(), false);
+        return OutputSpec.kept();
     }
 
     /** SDK 契约 {@code context.clientIp} 键提取为受信 IP，其余键归调用方属性；

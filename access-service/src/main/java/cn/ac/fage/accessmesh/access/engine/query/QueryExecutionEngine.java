@@ -26,7 +26,8 @@ import java.util.UUID;
 
 /**
  * 新查询唯一执行主体：主体解析→目标阶段或授权清单→事实与展示投影。
- * 暂不注册 Bean，消费者迁移从 T-PERM-089 开始，终名随 T-PERM-092 确定。
+ * 自 T-PERM-089 起经 {@link QueryEngineConfiguration} 注册 Bean（check/batchCheck/
+ * 管理门禁/getDenied 已切换），终名随 T-PERM-092 确定。
  * 父要求复用目标阶段；输出投影在全部评估后完成。根级受控证据提交与 TRACE
  * 输出已随 T-PERM-088 接入：运行中技术失败统一包装 {@link QueryExecutionException}
  * （不当 DENY/空清单/半批返回），证据在 finally 一次提交且不覆盖主异常。
