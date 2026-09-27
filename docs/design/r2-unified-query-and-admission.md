@@ -629,6 +629,8 @@ T-PERM-087 的展示展开按保留事实源批量读取既有祖先/后代 CTE�
 
 ## 7. T-PERM-054 方案 A：操作准入的精确定义和 R2 实现
 
+> 协议契约登记面＝[契约总册 §25](access-service-api-contract.md#operation-admission-protocol)（T-ACCESS-056 落账）；本章为实施期设计权威。
+
 ### 7.1 两层判定，不生成第二份 API 授权
 
 ```text

@@ -760,8 +760,8 @@ public enum AccessErrorCode {
      * requiredPermission 要求不同（如 {@code /reports/**→REPORT:VIEW} 与 {@code /reports/export→REPORT:EXPORT}
      * 同时匹配）——配置故障阻断，不隐式 OR／AND，也不按用户权限挑较弱规则（设计 §8.2 AMBIGUOUS_REQUIREMENT）。
      * 在线端点错误返回本码；网关本地检测命中时对终端按 fail-closed 技术错误（503）处理，不伪装普通用户无权限。
-     * 本码随 T-ACCESS-056 契约先行落账（暂无 throw 点，沿 T-PERM-082/083 契约先行先例），首个抛出点随
-     * T-ACCESS-057/059 落地。
+ * 本码随 T-ACCESS-056 契约先行落账（暂无 throw 点，沿 T-PERM-082/083 契约先行先例），首个抛出点随
+ * T-ACCESS-057/058/059 落地。
      */
     ADMISSION_REQUIREMENT_AMBIGUOUS(20070, "接口路由映射要求歧义（多条启用路由对同一路径要求不同），请修正映射配置"),
 

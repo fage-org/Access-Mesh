@@ -83,7 +83,7 @@ last_updated: 2026-09-27
 
 | ID | 标题（报告编号） | 状态 |
 |---|---|---|
-| [T-ACCESS-056](../tasks/T-ACCESS-056.md) | 准入定案回写与协议落账（ADM-T01） | 👀 |
+| [T-ACCESS-056](../tasks/T-ACCESS-056.md) | 准入定案回写与协议落账（ADM-T01） | ✅ |
 | [T-ACCESS-057](../tasks/T-ACCESS-057.md) | OPERATION_ADMISSION 阶段与新结果（ADM-T02） | ⚙️ |
 | [T-ACCESS-058](../tasks/T-ACCESS-058.md) | 映射模型、服务模式与同步/管理面（ADM-T03） | ⚙️ |
 | [T-ACCESS-059](../tasks/T-ACCESS-059.md) | 新端点、快照与 SDK/网关链路（ADM-T04） | ⚙️ |
@@ -115,7 +115,7 @@ last_updated: 2026-09-27
 - 2026-09-27 T-PERM-090 追加处置：advice 回归锁补强 HTTP 层（MockMvc standalone：400＋VALIDATION_FAILED 信封＋`@Order(0)` 优先级，双 advice 反序挂载使摘除即落 common 兜底 500）；rule/skill 旧引擎引导残留 6 处换 QueryGate（skill 双副本同步）；设计 §6.5 089 注与 089 卡定案口径行「保留键」补注已改 400；090 验收行删 091 归属两面、089 卡遗留行补记旧快照已随 090 交付。
 - 2026-09-27 T-PERM-091 完成：视图/转授两面切新 execute，旧引擎生产消费者清零（仅剩 092 删除动作；PermQuery 静态助手 inheritClosureOf 归 092 收编）。迁移形态、X03 差异、追加修正（视图面 clientIp 装配、装配器事实↔投影源关联）与回归证据见[任务卡](../tasks/T-PERM-091.md)。
 - 2026-09-27 T-PERM-092 完成：旧执行体与四旧 DTO＋TargetMode/ResolveContext 删除（X04 退役锁入 QueryBoundaryArchitectureTest；inheritClosureOf 收编 check 适配层私有）；characterization 五类清面改写（断言与事实集保留，服务面/直构 execute 驱动）；implementation.md §3 族整体重写为 R2 终态（设计稿 §2~§5 标注已并入）；指令面 rule/skill 双副本/AGENTS 与活文档现在时残留同批清扫；089/090 卡与进度区过程叙事按文档治理改终态事实。R2 入口统一完成条件闭合（计划第二完成条件=T-ACCESS-062）。迁移细节与验证证据见[任务卡](../tasks/T-PERM-092.md)。
-- 2026-09-27 T-ACCESS-056 执行：准入协议落契约总册 [§25](../design/access-service-api-contract.md#operation-admission-protocol)（OPERATION_ADMISSION／interface-admission 族——端点 DTO、requiredPermission 形态、四族规则、迁移门槛、N 系分配索引）；`AccessErrorCode` 增 20070 `ADMISSION_REQUIREMENT_AMBIGUOUS`／20071 `ADMISSION_CONFIG_FAULT`（契约先行，暂无 throw 点）；§20.2 词表增 `NO_CANDIDATE`（准入拒绝走 reason 不占数值码）；设计 §10.3 补验收归属列（N01~N30 全落位）、§8 章首补落账指针。四项落账拍板（错误码进枚举/故障占码拒绝走 reason/503=网关→终端层/interface-admission 命名）见任务卡当前口径。
+- 2026-09-27 T-ACCESS-056 完成：准入协议落契约总册 [§25](../design/access-service-api-contract.md#operation-admission-protocol)（OPERATION_ADMISSION／interface-admission 族——端点 DTO、requiredPermission 形态、四族规则、迁移门槛、N 系分配索引）；`AccessErrorCode` 增 20070 `ADMISSION_REQUIREMENT_AMBIGUOUS`／20071 `ADMISSION_CONFIG_FAULT`（契约先行，暂无 throw 点）；§20.2 词表增 `NO_CANDIDATE`（准入拒绝走 reason 不占数值码）；设计 §10.3 补验收归属列（N01~N30 全落位）、§7/§8 章首补落账指针。四项落账拍板（错误码进枚举/故障占码拒绝走 reason/503=网关→终端层/interface-admission 命名）与外评处置明细见任务卡；claude+grok 外评 P2×3/P3×5 全核实成立同批修正（快照请求/响应拆分、候选元素归并键对齐、§25.7 两禁令补回、057/061 卡验收面补记、20070 口径统一）。
 
 ## 附录 A：全仓旧执行体清点册（T-PERM-080 产出）
 

@@ -3055,10 +3055,21 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
 }
 ```
 
-- `decision = MAY_ENTER | DENY`；DENY 时 `reason` 见 §25.6；主体／租户取自可信认证链，不接受请求体自报。
+- `decision = MAY_ENTER | DENY`；DENY 时 `reason` 见 §25.6。
+- 租户与调用方服务身份取自可信认证链（M2M 凭证行派生 / Header），**不接受请求体自报**；被检查主体由可信调用方（Gateway／SDK 服务身份）在请求体以 `subjectTypeCode + subjectExternalId` 断言，服务端在该租户范围内解析（§2.4 主体入参口径，与 §18.3 同形）。
 - 路由匹配命中配置故障（§25.5）时端点按错误返回（20070/20071），不返回伪装的 DENY。
 
-**interface-admission-snapshot 请求/响应**（`InterfaceAdmissionSnapshot`，设计 §8.4）：
+**interface-admission-snapshot 请求**（与 §18.4 旧快照同形，租户取 Header／可信链）：
+
+```json
+{
+  "subjectTypeCode": "USER",
+  "subjectExternalId": "u-10001",
+  "serviceCode": "example-service"
+}
+```
+
+**interface-admission-snapshot 响应**（`InterfaceAdmissionSnapshot`，设计 §8.4）：
 
 ```json
 {
@@ -3075,8 +3086,11 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
   ],
   "operationCandidates": [
     { "resourceTypeCode": "REPORT", "operationCode": "VIEW",
-      "conditionBranches": [ { "conditionId": null }, { "conditionId": 5, "gatewayEvaluable": true } ],
-      "candidateKind": "ALL | INSTANCE | CONTEXT_DEFERRED" }
+      "conditionId": null, "gatewayEvaluable": true, "candidateKind": "ALL" },
+    { "resourceTypeCode": "REPORT", "operationCode": "VIEW",
+      "conditionId": 5, "gatewayEvaluable": true, "candidateKind": "INSTANCE" },
+    { "resourceTypeCode": "REPORT", "operationCode": "VIEW",
+      "conditionId": null, "gatewayEvaluable": false, "candidateKind": "CONTEXT_DEFERRED" }
   ],
   "authorizationStage": "OPERATION_ADMISSION",
   "finalCheckRequired": true
@@ -3084,7 +3098,7 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
 ```
 
 - `routes[]` 携带该服务**完整启用路由**与各自要求；不按用户权限裁剪规则（§25.5 完整配置优先）。
-- `operationCandidates[]` 为按 type-operation＋条件身份＋候选类别归并的最终准入投影（原始 GrantFact 不去重合并）；仅上下文子行提供的候选保留 `CONTEXT_DEFERRED`，不伪装成主授权。
+- `operationCandidates[]` 为最终准入投影（原始 GrantFact 不去重合并）：**每个元素承载一个条件身份（无条件用 `conditionId: null`）＋一个具体 `candidateKind`（`ALL`/`INSTANCE`/`CONTEXT_DEFERRED` 三选一）**，同一 type-operation 的不同条件身份或候选类别分列多个元素（设计 §8.4 归并键：type-operation＋conditionId／无条件身份＋候选类别）；仅上下文子行提供的候选保留 `CONTEXT_DEFERRED`，不伪装成主授权。`gatewayEvaluable` 表示该分支条件可否本地评估（false＝需回源，不表示通过）。
 - `configGeneration`＝构建期自一致校验（2026-09-25 拍板限定语义）：构建前后代次比对、变更即废弃重建，接收侧代次匹配检查；不承诺跨节点授权版本强一致。
 - 快照不携带用于绕过业务最终检查的「实例已授权」证明；客户端传入 `finalCheckRequired=false` 不能改变服务配置。
 
@@ -3146,14 +3160,14 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
 | 业务入口 | 完整检查 |
 |---|---|
 | 查看／预览／下载／导出／签发链接 | 实际资源＋对应操作，允许后才返回数据或可访问地址 |
-| 独立批量 | 每个目标一个 DECISION 项；全拒还是返回允许子集由业务明确决定 |
+| 独立批量 | 每个目标一个 DECISION 项；全拒还是返回允许子集由业务明确决定，**不能任一允许放行整批** |
 | 列表／搜索 | 权限范围或完整批量结果落实到返回数据；过滤／分页／total 同口径 |
 | CREATE | 最终 TYPE_LEVEL；实例准入不能授予类型创建权 |
 | 上下文子权限 | 提供真实父资源、父操作和环境，业务引擎验证父授权记录绑定；无父／错父拒绝 |
 | 异步作业 | 明确提交与实际执行／取数的鉴权时点；不永久复用准入结果绕过撤权 |
 | 直连／内部调用 | 同样验证可信身份并执行最终检查；不能依赖「只能从网关进入」的假设替代业务门禁 |
 
-主体／租户取自可信认证链，实际操作对象从业务请求及业务解析得到；不能检查 A 却按另一参数读取 B。权限服务自身的认证／内部调用链保持独立，不因新准入而递归调用自己的准入端点。首次迁移默认服务级暂停切换（暂停入口→确认逐路由最终检查→切模式→全节点确认并清旧缓存→恢复；runbook 与演练证据随 T-ACCESS-061）。
+主体／租户取自可信认证链，实际操作对象从业务请求及业务解析得到；不能检查 A 却按另一参数读取 B。继承模式与产品约定显式对齐：**菜单后代可见不能推导默认 SELF 的 check 已打开祖先**。权限服务自身的认证／内部调用链保持独立，不因新准入而递归调用自己的准入端点。首次迁移默认服务级暂停切换（暂停入口→确认逐路由最终检查→切模式→全节点确认并清旧缓存→恢复；runbook 与演练证据随 T-ACCESS-061）。
 
 ### 25.8 验收用例分配（N01~N30，设计 §10.3）
 
