@@ -36,6 +36,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -375,7 +376,8 @@ class PermissionCheckAppServiceImplTest {
         return DecisionResult.allow("checkInterface", coverage(), new ResultDetails(
             Set.of(ResultDetails.DetailSection.MATCHED_IDS, ResultDetails.DetailSection.FACTS_KEPT,
                 ResultDetails.DetailSection.DESCRIPTIONS),
-            List.of(20L), List.of(401L),
+            retained.stream().map(GrantFact::roleId).filter(Objects::nonNull).distinct().toList(),
+            retained.stream().map(GrantFact::permissionId).filter(Objects::nonNull).distinct().toList(),
             List.of(new StageFacts(Stage.INSTANCE, List.of(), retained, StageFacts.Status.PRESENT)),
             descriptions, List.of(), List.of(), new ResultDetails.ParentCheckSummary(List.of()), null));
     }

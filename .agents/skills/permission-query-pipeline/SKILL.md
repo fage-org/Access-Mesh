@@ -96,7 +96,7 @@ return PermResultUtils.toAuthCheckResp((DecisionResult) result.orderedResults().
 ```
 
 退化输入定案（2026-09-27 用户拍板）：resourceCode 空白串归一 TYPE_LEVEL；
-context 顶层 evaluatedAt/timestamp 保留键由 CallerContext 结构拒绝（500），clientIp 提取不受影响。
+context 顶层 evaluatedAt/timestamp 保留键由 CallerContext 结构拒绝（400 VALIDATION_FAILED，2026-09-27 外评处置修订），clientIp 提取不受影响。
 
 ## Domain 层 API（T-PERM-090 已迁新 execute；forUserView 仅剩 091 目标）
 

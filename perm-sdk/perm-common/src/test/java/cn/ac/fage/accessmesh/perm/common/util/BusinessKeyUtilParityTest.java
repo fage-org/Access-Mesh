@@ -168,11 +168,6 @@ class BusinessKeyUtilParityTest {
     }
 
     @Test
-    void scopeItemKeyShouldLockCodeTypeCodeOrder() {
-        assertThat(BusinessKeyUtil.scopeItemKey("BIZ", "res-1")).isEqualTo("BIZ|res-1");
-    }
-
-    @Test
     void apiEntryDedupKeyShouldLockFourSegmentAndNullCondition() {
         assertThat(BusinessKeyUtil.apiEntryDedupKey("demo-svc", "POST", "/api/x", 7L))
             .isEqualTo("demo-svc|POST|/api/x|7");

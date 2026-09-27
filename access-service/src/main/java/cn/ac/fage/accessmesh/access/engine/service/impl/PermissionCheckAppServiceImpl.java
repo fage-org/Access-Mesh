@@ -91,7 +91,7 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
      * 无编码目标（含空白串归一，2026-09-27 用户拍板）= TYPE_LEVEL；有编码目标 =
      * 单 clause TARGET_SET，判定面继承按 inheritMode 显式开（PARENT/BOTH）。
      * context.clientIp 提取为受信 IP（SDK 契约）；顶层 evaluatedAt/timestamp 键
-     * 不再静默处理——CallerContext 结构拒绝（500，2026-09-27 用户拍板）。
+     * 不再静默处理——CallerContext 结构拒绝（400 VALIDATION_FAILED，2026-09-27 外评处置修订）。
      * </p>
      *
      * @param tenantId 租户ID
@@ -175,8 +175,8 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
      * 判定面继承（SELF）、scopeAll 类型级放行（TypeFallback.ALLOW，等价旧
      * INSTANCE 先查 scopeAll 的回退形态）。全部映射无实体引用（数据异常）时退
      * TYPE_LEVEL——等价旧引擎空目标集下仅查 scopeAll 的行为。context.clientIp
-     * 提取为受信 IP；顶层 evaluatedAt/timestamp 由 CallerContext 结构拒绝（500，
-     * 沿 T-PERM-089 拍板口径）。
+     * 提取为受信 IP；顶层 evaluatedAt/timestamp 由 CallerContext 结构拒绝
+     * （400 VALIDATION_FAILED，2026-09-27 外评处置修订——原 089 拍板 500 形态经用户改判）。
      * </p>
      *
      * @param tenantId 租户ID
@@ -237,7 +237,7 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
      * 主资源上下文构造（null 元素防御过滤——SDK 请求经 JSON 反序列化可含 null 值）。
      * 退化输入归一（外评 P2，2026-09-27 claude+grok 双通道，与空白目标编码拍板同口径）：
      * 父类型/父编码任一为空白串时按无父处理（旧链路空白父编码解析必落空=父判定不命中、
-     * 主行照常判定；depend_on 子行 fail-closed），避免新引擎 ByCode 空白码结构拒绝放大为 500；
+     * 主行照常判定；depend_on 子行 fail-closed），避免新引擎 ByCode 空白码触发结构拒绝（400）；
      * 父操作集过滤后空集＝父判定必不命中，语义等价于无父，同归一。
      */
     private static ParentRequirement parentRequirement(String parentResourceTypeCode, String parentResourceCode,
@@ -262,8 +262,8 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
     }
 
     /** SDK 契约 {@code context.clientIp} 键提取为受信 IP，其余键归调用方属性；
-     *  顶层 evaluatedAt/timestamp 键由 CallerContext 结构拒绝（2026-09-27 用户拍板，直接 500；
-     *  T-PERM-090 起统一走 {@link CallerContext#fromCallerMap} 公共工厂）。 */
+     *  顶层 evaluatedAt/timestamp 键由 CallerContext 结构拒绝（400 VALIDATION_FAILED，
+     *  2026-09-27 外评处置修订；T-PERM-090 起统一走 {@link CallerContext#fromCallerMap} 公共工厂）。 */
     private static CallerContext callerContext(Map<String, Object> context) {
         return CallerContext.fromCallerMap(context);
     }

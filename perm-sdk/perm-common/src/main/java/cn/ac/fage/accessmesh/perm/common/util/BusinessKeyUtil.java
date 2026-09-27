@@ -303,14 +303,6 @@ public final class BusinessKeyUtil {
     }
 
     /**
-     * query-scopes 实例条目去重键：{@code codeType|code}。
-     * <p>PermissionQueryAppServiceImpl INSTANCE 桶内资源条目去重。</p>
-     */
-    public static String scopeItemKey(String codeType, String code) {
-        return codeType + "|" + code;
-    }
-
-    /**
      * API 快照条目去重键（四段竖线）：{@code serviceCode|method|pathPattern|conditionId}
      * （conditionId 为 null 拼字面 {@code "null"}——无条件分支与条件分支独立保留，T-PERM-017 C4）。
      * <p>PermissionQueryAppServiceImpl Gateway 快照装配去重。</p>

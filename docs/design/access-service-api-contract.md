@@ -1939,6 +1939,11 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
 | `POST /api/access/auth/check-interface`     | Gateway 接口级判定                                     |
 | `POST /api/access/auth/interface-snapshot`  | Gateway 接口权限快照，可选优化接口                     |
 
+> **context 保留键口径（2026-09-27 T-PERM-090 外评处置，用户拍板）**：`context` 顶层仅
+> `clientIp` 为文档化契约键（Gateway 重建、提取为受信评估 IP）；`evaluatedAt`/`timestamp`
+> 为服务器环境保留键，顶层出现即结构拒绝（400 `VALIDATION_FAILED`，评估时刻由服务端时钟
+> 决定，不接受客户端覆盖）。示例已按此口径修订（曾展示 `timestamp` 键的旧示例与实现冲突）。
+
 > **SDK 入口清单（T-API-002 收口 2026-09-06；T-API-003 check 族改写 2026-09-10）**：`check` / `batch-check` / `query-resources` / `query-scopes` 四件套已全部进入 perm-sdk `PermissionFeignClient`（Query* DTO 迁入 perm-common，接入方不再手写 HTTP + 自造 DTO 副本）；`check-interface` / `interface-snapshot` 为 Gateway 专用（经 starter/PermissionClient 消费），不开放业务服务 Feign 入口。**内部数据库 id 字段族口径分族**：check 族三端点（check/batch-check/check-interface）结果记录全量回传（`matchedRoleIds`/`matchedPermissionIds`/`matchedResources[].resourceId`，T-API-003 推翻 T-API-002 的 check 族裁剪——统一引擎消费方模型「调用方根据结果记录判定」需要记录在场，详见 §18.2/§18.3 注记）；Query\* 响应族（query-resources/query-scopes）六字段裁剪维持 T-API-002 终态（详见 §18.5/§18.6 各节注记）。
 
 ### 18.2 单次鉴权 check
@@ -1960,8 +1965,7 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
   "parentCodeType": "default",
   "parentOperationCodes": ["VIEW"],
   "context": {
-    "clientIp": "127.0.0.1",
-    "timestamp": "2026-04-26T18:00:00"
+    "clientIp": "127.0.0.1"
   }
 }
 ```
@@ -2103,8 +2107,7 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
   "includeInherited": true,
   "includeChildren": false,
   "context": {
-    "clientIp": "127.0.0.1",
-    "timestamp": "2026-04-26T18:00:00"
+    "clientIp": "127.0.0.1"
   }
 }
 ```
@@ -2184,8 +2187,7 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
   "scopeOperationCodes": ["DATA_READ", "DATA_EDIT"],
   "scopeCodeType": "default",
   "context": {
-    "clientIp": "127.0.0.1",
-    "timestamp": "2026-04-26T18:00:00"
+    "clientIp": "127.0.0.1"
   }
 }
 ```
