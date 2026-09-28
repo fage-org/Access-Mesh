@@ -32,7 +32,7 @@ import java.util.Map;
  *     catalogs:
  *       "[perm:effective-roles]":
  *         l2-ttl: 10s
- *       "[gw:interface-snapshot]":
+ *       "[gw:interface-admission-snapshot]":
  *         l1-ttl: 15s
  *         l1-maximum-size: 50000
  * </pre>

@@ -51,9 +51,10 @@ import java.util.Set;
  * 在线判定与快照构建共用路由匹配与要求解析（本地投影与在线一致，N12）：
  * service＋method＋规范化路径从完整启用路由集取全部命中，多匹配同要求去重、
  * 异要求 20070；引用悬空 20071。快照构建带配置代次自一致校验（构建前后复读比对，
- * 变更即废弃重建）；代次复读走独立 {@code selectConfigGeneration} 语句，绕开
- * MyBatis 会话缓存同语句二次查询返回同实例的假读面。要求解析按映射集一次批量完成
- * （操作行 + 类型反查各一条，禁止逐路由点查）。
+ * 变更即废弃重建）；代次复读走独立 {@code selectConfigGeneration} 语句且
+ * flushCache=true 强制落库——仅独立语句不够：同语句同参数二次调用仍会命中
+ * MyBatis SESSION 级一级缓存，自一致比对恒相等（2026-09-28 外评核实修正）。
+ * 要求解析按映射集一次批量完成（操作行 + 类型反查各一条，禁止逐路由点查）。
  * </p>
  */
 @Service
@@ -135,8 +136,11 @@ public class PermissionAdmissionAppServiceImpl implements cn.ac.fage.accessmesh.
         requireOwnedService(tenantId, req.serviceCode());
         ServiceConfig config = serviceConfigMapper.selectByTenantAndServiceCode(tenantId, req.serviceCode());
         if (config == null || config.getStatus() == null || config.getStatus() != 1) {
-            throw new BizException(AccessErrorCode.ADMISSION_CONFIG_FAULT.getCode(),
-                "服务未登记或已停用: " + req.serviceCode());
+            // 未登记/停用＝该服务无参与授权的路由：空路由成功快照，网关本地无命中按
+            // 无注册匹配拒绝（DENY→403），与在线端点 notRegistered 语义对称（2026-09-28
+            // 外评拍板：20071 仅保留给 LEGACY 模式异常与引用损坏——停用是例行管理操作，
+            // 抛 20071 会使网关对该服务全量 503 重试风暴）
+            return emptySnapshot(tenantId, req, config);
         }
         requireOperationAdmissionMode(config);
         Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
@@ -190,6 +194,15 @@ public class PermissionAdmissionAppServiceImpl implements cn.ac.fage.accessmesh.
         return snapshotAssembler.projectCandidates(tenantId, requirements.values(), factsByRequirement);
     }
 
+    /** 空路由快照（未登记/停用服务）：无参与授权的路由，网关本地恒无命中→DENY。 */
+    private InterfaceAdmissionSnapshotResp emptySnapshot(Long tenantId, InterfaceAdmissionSnapshotReq req,
+                                                         ServiceConfig config) {
+        LocalDateTime generatedAt = LocalDateTime.now();
+        long generation = config == null ? 0L : config.getConfigGeneration();
+        return snapshotAssembler.assemble(tenantId, req, generation, generatedAt,
+            generatedAt.plus(SNAPSHOT_TTL), List.of(), List.of());
+    }
+
     private boolean pathMatches(String pattern, String path) {
         if (pattern.equals(path)) return true;
         return PATH_MATCHER.match(pattern, path);
@@ -199,7 +212,10 @@ public class PermissionAdmissionAppServiceImpl implements cn.ac.fage.accessmesh.
         return requirement.resourceTypeCode() + ":" + requirement.operationCode();
     }
 
-    /** 独立语句复读配置代次：避开会话缓存同语句二次返回同实例的假读（自一致校验有效性前提）。 */
+    /**
+     * 复读配置代次：独立语句 + flushCache=true 强制清本会话一级缓存后落库
+     * （同语句二次调用走 SESSION 缓存会恒命中首次结果，自一致校验失效——外评修正）。
+     */
     private long readGeneration(Long tenantId, String serviceCode) {
         Long generation = serviceConfigMapper.selectConfigGeneration(tenantId, serviceCode);
         return generation == null ? -1L : generation;

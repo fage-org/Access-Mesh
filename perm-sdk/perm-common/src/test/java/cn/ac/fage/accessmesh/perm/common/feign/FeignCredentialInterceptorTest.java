@@ -25,15 +25,20 @@ class FeignCredentialInterceptorTest {
     }
 
     @Test
-    @DisplayName("配置齐全（allow-insecure=true）→ M2M 三端点注入双凭证头（清单镜像 common 单源）")
+    @DisplayName("配置齐全（allow-insecure=true）→ M2M 六端点注入双凭证头（清单镜像 common 单源）")
     void shouldInjectCredentialHeadersOnM2mPaths() {
         FeignCredentialInterceptor interceptor = interceptor("sc-a", "sk-b", "true");
         interceptor.validateConfiguration();
 
+        // 6 条与服务端 M2mCredentialEndpoints 单源一致（058 漏 sync-v2、059 漏两准入端点
+        // 的镜像漂移已修正——漂移时 SDK 凭证调用被服务端 403，两侧测试锁同清单防再漂移）
         for (String path : java.util.List.of(
             "/api/access/resource-entity/sync",
             "/api/access/resource-entity/full-sync",
-            "/api/access/integration/permission-manifest/full-sync")) {
+            "/api/access/service-config/sync-v2",
+            "/api/access/integration/permission-manifest/full-sync",
+            "/api/access/auth/interface-admission",
+            "/api/access/auth/interface-admission-snapshot")) {
             RequestTemplate template = new RequestTemplate();
             template.uri(path);
 

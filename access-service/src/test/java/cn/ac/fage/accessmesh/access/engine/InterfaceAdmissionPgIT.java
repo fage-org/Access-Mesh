@@ -1,13 +1,17 @@
 package cn.ac.fage.accessmesh.access.engine;
 
 import cn.ac.fage.accessmesh.access.engine.service.PermissionAdmissionAppService;
+import cn.ac.fage.accessmesh.access.engine.util.InterfaceAdmissionSnapshotAssembler;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
 import cn.ac.fage.accessmesh.access.resource.dto.RequiredPermission;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ApiMappingAddReq;
+import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigReq;
+import cn.ac.fage.accessmesh.access.resource.entity.ServiceConfig;
 import cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper;
 import cn.ac.fage.accessmesh.access.resource.service.ResourceManageAppService;
+import cn.ac.fage.accessmesh.access.resource.service.ServiceConfigAppService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
@@ -30,11 +34,15 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doReturn;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -45,8 +53,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>
  * 覆盖：快照全量路由与候选投影（ALL/条件内联/CONTEXT_DEFERRED）、在线判定四态与
  * reason 词表、20070 路由歧义 / 20071 配置故障（引用悬空/LEGACY 模式）、配置代次
- * 逐写入口递增回归锁、N21 构建期自一致（代次变更废弃重建）、凭证服务归属约束、
- * HTTP 契约冒烟（信封 + 旧密钥自报服务头拒绝）。
+ * 逐写入口递增回归锁、N21 构建期自一致（真库并发写路径——代次复读经 flushCache 落库，
+ * 非 SpyBean 喂数列）、停用/未登记空路由快照（外评拍板：网关 DENY 语义对称）、
+ * 保存不回写代次（整实体回写倒退锁）、凭证服务归属约束、HTTP 契约冒烟。
  * </p>
  */
 @SpringBootTest
@@ -76,10 +85,12 @@ class InterfaceAdmissionPgIT {
     @Autowired JdbcTemplate jdbc;
     @Autowired PermissionAdmissionAppService admission;
     @Autowired ResourceManageAppService resources;
+    @Autowired ServiceConfigAppService serviceConfigs;
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
     @MockBean cn.ac.fage.accessmesh.access.engine.query.QueryGate gate;
     @SpyBean ServiceConfigMapper serviceConfigMapper;
+    @SpyBean InterfaceAdmissionSnapshotAssembler snapshotAssembler;
 
     /** 用例序号（每用例唯一 subject/role ID 段内递增）。 */
     private static final java.util.concurrent.atomic.AtomicLong SEQ = new java.util.concurrent.atomic.AtomicLong();
@@ -261,15 +272,30 @@ class InterfaceAdmissionPgIT {
     }
 
     @Test
-    void snapshotShouldRejectNonAdmissionServiceAsConfigFault() {
+    void snapshotShouldRejectLegacyModeServiceAsConfigFault() {
+        // LEGACY_API（版本回退部署形态）按配置故障拒绝：准入端点不回落旧协议
         jdbc.update("UPDATE service_config SET api_auth_mode = 'LEGACY_API' WHERE service_code = ?", SERVICE);
         assertThatThrownBy(() -> admission.interfaceAdmissionSnapshot(TENANT, snapshotReq()))
             .isInstanceOfSatisfying(BizException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(20071));
+    }
+
+    @Test
+    void snapshotShouldReturnEmptySnapshotForDisabledOrUnregisteredService() {
+        // 外评拍板（2026-09-28）：停用/未登记＝该服务无参与授权的路由 → 空路由成功快照，
+        // 网关本地无命中按无注册匹配拒绝（DENY→403，与在线 notRegistered 语义对称）；
+        // 不抛 20071——停用是例行管理操作，抛配置故障会使网关对该服务全量 503 重试风暴
+        jdbc.update("UPDATE service_config SET status = 0 WHERE service_code = ?", SERVICE);
+        var disabled = admission.interfaceAdmissionSnapshot(TENANT, snapshotReq());
+        assertThat(disabled.routes()).isEmpty();
+        assertThat(disabled.operationCandidates()).isEmpty();
+        assertThat(disabled.authorizationStage()).isEqualTo("OPERATION_ADMISSION");
+        assertThat(disabled.expiresAt()).isAfter(disabled.generatedAt());
         jdbc.update("DELETE FROM service_config WHERE service_code = ?", SERVICE);
-        assertThatThrownBy(() -> admission.interfaceAdmissionSnapshot(TENANT, snapshotReq()))
-            .isInstanceOfSatisfying(BizException.class,
-                e -> assertThat(e.getErrorCode()).isEqualTo(20071));
+        var unregistered = admission.interfaceAdmissionSnapshot(TENANT, snapshotReq());
+        assertThat(unregistered.routes()).isEmpty();
+        assertThat(unregistered.operationCandidates()).isEmpty();
+        assertThat(unregistered.configGeneration()).isZero();
     }
 
     @Test
@@ -390,15 +416,68 @@ class InterfaceAdmissionPgIT {
     }
 
     @Test
-    void snapshotBuildShouldDiscardAndRebuildWhenGenerationChangesMidBuild() {
+    void snapshotBuildShouldDiscardAndRebuildWhenGenerationChangesMidBuild() throws Exception {
+        // N21 真库并发路径（2026-09-28 外评修正：SpyBean doReturn 喂代次序列不经 MyBatis
+        // 执行器，测不出 SESSION 级一级缓存吞掉同语句复读——自一致校验曾在生产恒失效）：
+        // 装配器首次解析挂起，另一线程独立连接真实提交「新增路由+代次递增」，
+        // 构建事务复读（flushCache 落库）必须看到新代次并废弃重建，不得发出混合快照
         Long api = registerApi("view");
         insertMapping(api, "POST", "/api/demo/view", viewOpId);
+        Long apiExport = registerApi("export");
         long current = generation();
-        // N21：首次构建期间代次被并发写改变（before=5 → after=6）→ 废弃重建；第二次稳定 → 以新代次返回
-        doReturn(current, current + 1, current + 1, current + 1)
-            .when(serviceConfigMapper).selectConfigGeneration(TENANT, SERVICE);
+        CountDownLatch buildStarted = new CountDownLatch(1);
+        CountDownLatch concurrentWriteDone = new CountDownLatch(1);
+        AtomicBoolean firstBuild = new AtomicBoolean();
+        doAnswer(invocation -> {
+            Object result = invocation.callRealMethod();
+            if (firstBuild.compareAndSet(false, true)) {
+                buildStarted.countDown();
+                // 超时防御：写线程异常也放行构建，失败留给断言而非悬挂
+                concurrentWriteDone.await(10, TimeUnit.SECONDS);
+            }
+            return result;
+        }).when(snapshotAssembler).resolveRouteRequirements(any(), anyList());
+
+        Thread concurrentWriter = new Thread(() -> {
+            try {
+                buildStarted.await(10, TimeUnit.SECONDS);
+                // 独立线程=独立连接自动提交，模拟并发事务提交（映射写路径同事务递增代次）
+                jdbc.update("INSERT INTO resource_api_mapping "
+                    + "(tenant_id, resource_entity_id, service_code, http_method, path_pattern, required_operation_id, maintain_source, enabled, match_order) "
+                    + "VALUES (1, ?, ?, 'POST', '/api/demo/export', ?, 'BOOTSTRAP', true, 0)",
+                    apiExport, SERVICE, exportOpId);
+                jdbc.update("UPDATE service_config SET config_generation = config_generation + 1 "
+                    + "WHERE tenant_id = 1 AND service_code = ?", SERVICE);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } finally {
+                concurrentWriteDone.countDown();
+            }
+        });
+        concurrentWriter.start();
+
         var snapshot = admission.interfaceAdmissionSnapshot(TENANT, snapshotReq());
+        concurrentWriter.join(10_000);
+
+        // 废弃重建生效：以新代次返回，且路由集含并发提交的新路由（无旧集混合）
         assertThat(snapshot.configGeneration()).isEqualTo(current + 1);
+        assertThat(snapshot.routes()).extracting("pathPattern").contains("/api/demo/export");
+    }
+
+    @Test
+    void serviceConfigSaveShouldNotRegressGenerationOnConcurrentBump() {
+        // 外评修正回归锁：保存服务配置不得把加载时的 config_generation 整实体写回库
+        // （并发递增后倒退，快照自一致校验依赖代次单调）。落库前在同事务连接先行 +1，
+        // 等价复现「写回旧值覆盖新值」的竞争窗口：旧实现 update(config) 提交后倒退为旧值
+        long base = generation();
+        doAnswer(invocation -> {
+            jdbc.update("UPDATE service_config SET config_generation = config_generation + 1 "
+                + "WHERE tenant_id = 1 AND service_code = ?", SERVICE);
+            return invocation.callRealMethod();
+        }).when(serviceConfigMapper).update(any(ServiceConfig.class));
+        serviceConfigs.saveServiceConfig(TENANT, new ServiceConfigReq(
+            SERVICE, "改名不触代次", null, null, null, null, null, null, null, null), 100L);
+        assertThat(generation()).isEqualTo(base + 1);
     }
 
     // ─── 身份约束与 HTTP 契约 ───

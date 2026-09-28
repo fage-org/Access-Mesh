@@ -158,7 +158,7 @@ Gateway 通过 Micrometer 暴露 Prometheus 指标。依赖 `spring-boot-starter
 
 #### 统一缓存框架指标
 
-快照缓存经统一 `CacheService`（L1_ONLY）自动接入框架指标：`cache.l1.hits` / `cache.l1.misses` / `cache.puts`（回源回填）等，tag `catalog=gw:interface-snapshot`；上游 access-service 侧另有 `cache.l2.hits`/`cache.l2.misses`/`cache.l2.errors`/`cache.invalidate.failures` 区分 L1/L2 命中、回源与失效失败。
+快照缓存经统一 `CacheService`（L1_ONLY）自动接入框架指标：`cache.l1.hits` / `cache.l1.misses` / `cache.puts`（回源回填）等，tag `catalog=gw:interface-admission-snapshot`（T-ACCESS-059 切链后目录名，旧 `gw:interface-snapshot` 已退役）；上游 access-service 侧另有 `cache.l2.hits`/`cache.l2.misses`/`cache.l2.errors`/`cache.invalidate.failures` 区分 L1/L2 命中、回源与失效失败。
 
 #### Prometheus 告警规则示例
 

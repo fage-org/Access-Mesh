@@ -50,12 +50,16 @@ public class FeignCredentialInterceptor implements RequestInterceptor {
 
     /**
      * M2M 通道端点精确清单（common.security.M2mCredentialEndpoints 的 SDK 侧镜像副本，
-     * 同步义务见类注释；method 恒 POST）。
+     * 同步义务见类注释；method 恒 POST）。当前 6 条与服务端单源一致
+     * （2026-09-28 外评修正：058 漏 sync-v2、059 漏两准入端点曾致 SDK 凭证调用 403）。
      */
     private static final java.util.Set<String> M2M_PATHS = java.util.Set.of(
         "/api/access/resource-entity/sync",
         "/api/access/resource-entity/full-sync",
-        "/api/access/integration/permission-manifest/full-sync");
+        "/api/access/service-config/sync-v2",
+        "/api/access/integration/permission-manifest/full-sync",
+        "/api/access/auth/interface-admission",
+        "/api/access/auth/interface-admission-snapshot");
 
     @Value("${perm.credential-id}")
     private String credentialId;

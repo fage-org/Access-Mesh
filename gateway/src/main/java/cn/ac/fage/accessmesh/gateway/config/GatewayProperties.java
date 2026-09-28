@@ -22,8 +22,8 @@ import java.util.List;
  * 注入点按类型（cn.ac.fage.accessmesh.gateway.config.GatewayProperties）查找不受影响。</p>
  *
  * <p>T-ACCESS-008（2026-08-21）：删除 {@code gateway.cache.l1.*}（快照 TTL/容量统一由
- * {@code GatewayCacheCatalog} 声明 + {@code accessmesh.cache.catalogs."gw:interface-snapshot".*}
- * 运维覆盖）与 {@code gateway.permission.fail-mode}（权限回源失败固定 fail-closed，
+ * {@code GatewayCacheCatalog} 声明 + {@code accessmesh.cache.catalogs."gw:interface-admission-snapshot".*}
+ * 运维覆盖，目录名随 T-ACCESS-059 切链更新）与 {@code gateway.permission.fail-mode}（权限回源失败固定 fail-closed，
  * 不可切换）；新增 {@code snapshot-load-deadline} 快照加载全链路墙钟硬截止时间。</p>
  */
 @Getter

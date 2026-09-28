@@ -96,7 +96,7 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-log4j2</artifactId>
         </dependency>
-        <!-- T-PERM-017 C4：补测试依赖（仅 test scope），用于 InterfaceSnapshotMatcher 单元测试 -->
+        <!-- T-PERM-017 C4：补测试依赖（仅 test scope）；现用于 InterfaceAdmissionMatcher/PermissionFilter 等网关单元测试 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

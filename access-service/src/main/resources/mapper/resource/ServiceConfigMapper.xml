@@ -46,8 +46,11 @@
           AND delete_flag = 0
     </update>
 
-    <!-- T-ACCESS-059：独立语句复读代次（快照构建自一致校验；避开会话缓存同语句假读） -->
-    <select id="selectConfigGeneration" resultType="java.lang.Long">
+    <!-- T-ACCESS-059：独立语句复读代次（快照构建自一致校验）。flushCache 强制清本会话一级缓存后
+         落库——同语句同参数二次调用若走 SESSION 级本地缓存会恒命中首次结果，自一致比对失效
+         （2026-09-28 外评 claude/grok 双通道核实成立；清空作用于整个会话本地缓存，本事务后续
+         查询重新落库，正确性优先） -->
+    <select id="selectConfigGeneration" resultType="java.lang.Long" flushCache="true">
         SELECT config_generation FROM service_config
         WHERE tenant_id = #{tenantId}
           AND service_code = #{serviceCode}

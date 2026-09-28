@@ -54,7 +54,7 @@ public class InterfaceSnapshotCacheInvalidator {
      * <p>
      * 仅用于失效事件枚举（用户级精确清理需要知道某用户有哪些 subjectType/service 快照），
      * 不承载业务读；键含租户前缀（identifier 不含租户，直接复用会跨租户串扰）。
-     * TTL/容量跟随 {@code gw:interface-snapshot} 的有效配置（经 accessmesh.cache 覆盖后的
+     * TTL/容量跟随 {@code gw:interface-admission-snapshot} 的有效配置（经 accessmesh.cache 覆盖后的
      * 最终值），与主缓存同步过期。索引缺失（定时器毫秒级偏差）的残留条目与广播丢失
      * 同等语义——由快照自身 ≤15s TTL 兜底，在 30s 安全预算内（复评 P2 用户决策：
      * TTL 兜底，不降级租户级清理）。PermissionFilter 回填成功后调用 {@link #track} 登记。

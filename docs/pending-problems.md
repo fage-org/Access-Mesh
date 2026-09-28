@@ -1,8 +1,8 @@
 ---
 doc_type: problems
 title: 待解决问题清单
-counter: Q-045           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-26
+counter: Q-046           # 已分配最大问题号；分配后冻结，不复用不重排
+last_updated: 2026-09-28
 ---
 
 # 待解决问题清单（pending problems）
@@ -12,6 +12,19 @@ last_updated: 2026-09-26
 **边界**：决定（含“不解决”拍板）当轮归所属权威规范或任务，本文件只更新问题状态与引用；不复制规则、例外正文或转出后的实施细节。统一协议见 [文档治理](design/project-rules.md#decision-governance)，主题定位见[定案入口](design/decision-registry.md)。
 
 ## 未收敛问题
+
+## Q-046 旧 /sync 写路径在 OPERATION_ADMISSION 下「能删不能增」——新路由整批 20071 且错误码指错方向
+
+- **状态**：open
+- **登记**：2026-09-28（T-ACCESS-059 外部评审 claude 通道 P2，用户拍板挂 T-ACCESS-062 统一清退）
+- **来源**：T-ACCESS-059 外评处置（双通道报告见任务卡完成记录）
+- **关联**：[T-ACCESS-059](tasks/T-ACCESS-059.md)；[T-ACCESS-062](tasks/T-ACCESS-062.md)（旧端点清退）；契约总册 §25.1
+
+**现象与证据**：旧 `POST /api/access/service-config/sync` 协议 DTO 无 `requiredPermission`（适配层 `InterfaceSyncDefinition.from` 恒传 null）；059 无迁移期全量切 OPERATION_ADMISSION 后，`ApiMappingWriteDomainServiceImpl.saveAll` 按模式判定 `required=true`，新登记路由行 `required_operation_id` 为 null → 整批抛 20071「业务准入操作不存在、损坏或为 API:ACCESS」并连同资源登记回滚。删除半边仍可用（既有行带引用可刷新），形成「能删不能增」语义分裂。前端 `SyncForm.vue` 仍提供「仅接口登记（旧协议）」选项；契约 §25.1 仍写「旧 /sync 不接受新字段」未写明不可用；旧协议真实写路径已无 IT 覆盖（本卡 E2E 已切 sync-v2）。
+
+**影响**：存量接入方或管理员经旧协议登记新路由收到面向路由复核的 20071 配置故障文案，无法定位「协议不适用、应改用 sync-v2」；当前无生产消费者踩中（SDK 新链接入走 sync-v2）。
+
+**设想方向（未定案）**：随 T-ACCESS-062 旧端点清退一并处置——候选形态：①清退前先在 /sync 入口对 OPERATION_ADMISSION 服务显式返回参数类错误（文案指向 sync-v2）+ 前端隐藏旧协议选项；②直接删旧端点（062 本义），前端与契约同批收口。具体随 062 任务卡定范围。
 
 ## Q-045 新引擎 TRACE 块敏感字段无门禁——089+ 应用层接线时必须补诊断授权
 

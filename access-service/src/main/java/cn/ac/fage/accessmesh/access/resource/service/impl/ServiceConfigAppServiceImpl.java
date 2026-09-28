@@ -183,22 +183,20 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
             config.setExtra(req.extra());
         }
         config.setUpdatedAt(LocalDateTime.now());
-        if (basePathClear || descriptionClear || extraClear) {
-            // 清空须强制写列（T-API-004）：update(entity) 默认忽略 null 字段，
-            // UpdateEntity 代理记录 set(null) 为显式更新列（role extraClear 同款）
-            ServiceConfig patch = UpdateEntity.of(ServiceConfig.class);
-            patch.setId(config.getId());
-            patch.setName(config.getName());
-            patch.setBasePath(config.getBasePath());
-            patch.setDescription(config.getDescription());
-            patch.setStatus(config.getStatus());
-            patch.setApiAuthMode(config.getApiAuthMode());
-            patch.setExtra(config.getExtra());
-            patch.setUpdatedAt(config.getUpdatedAt());
-            serviceConfigMapper.update(patch);
-        } else {
-            serviceConfigMapper.update(config);
-        }
+        // 统一 UpdateEntity 显式列清单（2026-09-28 外评修正，T-API-004 两分支合一）：
+        // ① 清空须强制写列——update(entity) 默认忽略 null 字段，代理 set(null) 为显式更新列；
+        // ② 整实体回写会把加载时的 config_generation 写回库——并发递增后保存名称即令代次
+        //    倒退（自一致校验依赖单调），显式列清单不携带该列。
+        ServiceConfig patch = UpdateEntity.of(ServiceConfig.class);
+        patch.setId(config.getId());
+        patch.setName(config.getName());
+        patch.setBasePath(config.getBasePath());
+        patch.setDescription(config.getDescription());
+        patch.setStatus(config.getStatus());
+        patch.setApiAuthMode(config.getApiAuthMode());
+        patch.setExtra(config.getExtra());
+        patch.setUpdatedAt(config.getUpdatedAt());
+        serviceConfigMapper.update(patch);
         PermissionChangeContext.markServiceCodes(tenantId, req.serviceCode());
         if (!Objects.equals(previousMode, config.getApiAuthMode())
             || !Objects.equals(previousStatus, config.getStatus())) {

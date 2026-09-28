@@ -27,6 +27,7 @@ import cn.ac.fage.accessmesh.access.sync.strategy.SyncModeStrategy;
 import cn.ac.fage.accessmesh.access.sync.strategy.SyncModeStrategyFactory;
 import cn.ac.fage.accessmesh.access.sync.strategy.SyncResult;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
+import com.mybatisflex.core.util.UpdateEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -185,7 +186,13 @@ public class ServiceSyncAppServiceImpl implements ServiceSyncAppService {
         if (req.basePath() != null && !req.basePath().isBlank()) {
             config.setBasePath(req.basePath());
             config.setUpdatedAt(LocalDateTime.now());
-            serviceConfigMapper.update(config);
+            // UpdateEntity 显式列（2026-09-28 外评修正）：整实体回写会把加载时的
+            // config_generation 写回库（并发递增后倒退），basePath 同步只写自身列
+            ServiceConfig patch = UpdateEntity.of(ServiceConfig.class);
+            patch.setId(config.getId());
+            patch.setBasePath(config.getBasePath());
+            patch.setUpdatedAt(config.getUpdatedAt());
+            serviceConfigMapper.update(patch);
         }
 
         return config;
