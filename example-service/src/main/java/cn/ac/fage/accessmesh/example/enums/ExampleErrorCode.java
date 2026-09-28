@@ -28,7 +28,11 @@ public enum ExampleErrorCode {
     /**
      * 网关身份签名校验失败（X-User-Signature 缺失/不匹配/时间戳超窗，或本服务签名密钥未配置）
      */
-    SIGNATURE_INVALID(30003, "身份请求头签名校验失败");
+    SIGNATURE_INVALID(30003, "身份请求头签名校验失败"),
+
+    PERMISSION_DENIED(30004, "无业务操作权限（业务最终检查拒绝，T-ACCESS-061）"),
+
+    PERM_CHECK_UNAVAILABLE(30005, "鉴权服务暂不可用，业务最终检查失败已拒绝（fail-closed）");
 
     /**
      * 构造错误码

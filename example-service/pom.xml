@@ -24,6 +24,14 @@
             <groupId>cn.ac.fage.accessmesh</groupId>
             <artifactId>perm-registration-spring-boot-starter</artifactId>
         </dependency>
+        <!-- 业务最终检查客户端（T-ACCESS-061 用户拍板 2026-09-28：SDK starter 形态）：
+             经 PermissionFeignClient 调 auth/check 族端点（§8.6 逐路由最终检查）；
+             服务认证=perm.internal-secret 旧密钥通道（FeignInternalSyncInterceptor），
+             X-Tenant-Id 由本服务 FeignTenantHeaderInterceptor 从调用上下文注入。 -->
+        <dependency>
+            <groupId>cn.ac.fage.accessmesh</groupId>
+            <artifactId>perm-client-spring-boot-starter</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>

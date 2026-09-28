@@ -528,7 +528,8 @@ class BasicRoleGrantVerticalSliceE2EIT {
                 // servlet 侧会出现两个 SaTokenContext Bean（注入歧义启动失败），排除 reactor 版
                 + "cn.dev33.satoken.reactor.spring.SaTokenContextRegister",
             // 共享类路径带入了 perm-gateway starter（网关鉴权插件），非网关侧关闭
-            "--perm.gateway.enabled=false");
+            "--perm.gateway.enabled=false",
+            "--perm.client.enabled=false");
     }
 
     private static Map<String, String> accessServiceEnv() {
@@ -565,7 +566,8 @@ class BasicRoleGrantVerticalSliceE2EIT {
                 + "org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration,"
                 + "com.mybatisflex.spring.boot.MybatisFlexAutoConfiguration",
             // 路由与权限回源 WebClient 的 lb://access-service 解析目标（免 Nacos 直连）
-            "--spring.cloud.discovery.client.simple.instances.access-service[0].uri=http://localhost:" + accessPort);
+            "--spring.cloud.discovery.client.simple.instances.access-service[0].uri=http://localhost:" + accessPort,
+            "--perm.client.enabled=false");
     }
 
     private static Map<String, String> gatewayEnv() {

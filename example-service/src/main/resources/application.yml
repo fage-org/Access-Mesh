@@ -24,3 +24,19 @@ logging:
 accessmesh:
   cache:
     enabled: false
+
+# 业务最终检查客户端（T-ACCESS-061，§8.6 逐路由）：经 perm-client SDK（Feign）调
+# access-service auth/check 族端点。服务认证=内部密钥通道（SDK FeignInternalSyncInterceptor
+# 注入 X-Internal-Secret/X-Service-Code）；X-Tenant-Id 由本服务 FeignTenantHeaderInterceptor
+# 从 BusinessPermChecker 调用上下文注入。密钥未配置时 check 调用被 access-service 拒绝，
+# 业务侧 fail-closed（30005）——不会静默放行。
+perm:
+  client:
+    enabled: true
+  internal-secret: ${PERM_INTERNAL_SECRET:}
+  service-code: example-service
+
+example:
+  export:
+    # 异步导出作业执行时点重查的演示延迟（毫秒）：窗口内撤权 → 执行时点检查拒绝（N24）
+    delay-ms: 1500

@@ -836,6 +836,17 @@ T-ACCESS-059 已落地（2026-09-28，六项用户拍板与实现形态）：①
 
 迁移资格来自“最终检查的代码位置＋反向拒绝测试”，不是一个 businessChecked=true 配置。权限服务自身的认证／内部调用链保持独立，不能因新准入而递归调用自己的准入端点。没有逐路由证明的服务不切新模式。
 
+### 8.6a T-ACCESS-061 落地记录（2026-09-28）
+
+逐服务业务最终检查与模式切换的收口实现（验收 N01/N04/N05/N24/N25/N26/N27 业务半边）：
+
+- **example-service 参考路由族**：`ReportController` 七路由覆盖检查表全部七行（查看/独立批量/列表搜索/CREATE=TYPE_LEVEL/上下文子权限真实父/异步作业提交与执行时点双鉴权/直连身份链），既有 `/hello` 最终检查定位=身份头存在性。反向拒绝测试=`ReportControllerTest` 16 用例（查 A 不按 B 取数逐参核对、批量拒绝项零数据、TYPE_LEVEL resourceCode=null、错父拒绝、撤权窗口执行时点拒绝）——迁移资格的「代码位置+反向测试」双证明载体。
+- **检查客户端（用户拍板）**：业务服务消费 `perm-client` SDK starter（Feign）调 `auth/check` 族端点；内部密钥通道认证（SDK 既有 `FeignInternalSyncInterceptor`），租户头业务侧注入，主体恒取自已验签身份头（请求 DTO 无主体/租户字段，N25）。fail-closed：信封非 200/data=null/传输异常一律 30005 拒绝。
+- **两层判定实证（N01）**：E2E `ExampleBusinessFinalCheckE2EIT`——用户仅持 report-1 的 EXAMPLE:VIEW 时，网关对 `/report/view` 恒 MAY_ENTER（类型-操作候选），业务最终检查 report-1 放行/report-2 拒绝（30004 信封）；准入与业务检查跨 HTTP 两次执行、不共享运行状态。N04/N05 业务半边同用例：PERM_MUTEX 规则下跨实例不误拒、同实例真互斥由业务 check 拒绝（准入恒 MAY_ENTER——准入不做互斥判定，057 定案的运行时对偶）。
+- **N27 规模（拍板：不新增数值上限常量）**：`InterfaceAdmissionHeavyPgIT`（testcontainers-heavy）300 启用路由×2001 授权行——routes 全量不截断、候选按「类型-操作×条件身份×候选类别」合并恰 3 分支（不逐实例展开）、在线准入按候选存在性一次判定；「超限显式技术失败」由既有网关 256KB 解码上限+5s 回源截止+构建重试 3 次承载（静默截断不存在）。
+- **运行库盘点与切换 runbook**：`docs/ops/runbook-service-mode-switch.md`（六类盘点查询+暂停切换五步）；dev 运行库重建到 HEAD 后执行盘点（记录见任务卡）；E2E 步骤⑪ 为暂停→切模式→恢复演练证据（代次单调递增、空快照 DENY、恢复以库为准）。
+- **「临时强制在线」灰度**：T-ACCESS-060 拍板不落地，本卡范围行的「如使用」条件不成立，无容量预算项。
+
 <a id="r2-migration"></a>
 
 ## 9. 实施、旧新字段迁移与回退

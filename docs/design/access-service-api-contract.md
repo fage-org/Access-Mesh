@@ -3189,6 +3189,13 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
 
 主体／租户取自可信认证链，实际操作对象从业务请求及业务解析得到；不能检查 A 却按另一参数读取 B。继承模式与产品约定显式对齐：**菜单后代可见不能推导默认 SELF 的 check 已打开祖先**。权限服务自身的认证／内部调用链保持独立，不因新准入而递归调用自己的准入端点。首次迁移默认服务级暂停切换（暂停入口→确认逐路由最终检查→切模式→全节点确认并清旧缓存→恢复；runbook 与演练证据随 T-ACCESS-061）。
 
+**T-ACCESS-061 落地记录（2026-09-28，example-service 先行）**：
+
+- **参考路由族**（`ReportController`，示例资源族=EXAMPLE 报表）：`/api/example/report/view`（实际资源+对应操作）、`/batch-view`（独立批量逐项 DECISION，任一允许不放行整批）、`/list`（`query-resources` 范围过滤+分页 total 同口径）、`/create`（TYPE_LEVEL，resourceCode=null——实例准入不授予类型创建权）、`/sub-view`（depend_on 子权限真实父上下文，引擎验证父授权绑定）、`/export/submit`+`/export/status`（异步作业提交与执行时点各自鉴权——执行时点重查同一目标，提交后撤权→作业终态 DENIED）；既有 `/api/example/demo/hello` 的最终检查定位=身份头存在性（无资源目标的问候接口）。逐路由反向拒绝测试=`ReportControllerTest`（16 用例，迁移资格载体）。
+- **检查客户端形态（用户拍板 2026-09-28）**：业务服务消费 `perm-client-spring-boot-starter`（Feign）调 `auth/check`/`auth/batch-check`/`auth/query-resources`；服务认证=内部密钥通道（SDK `FeignInternalSyncInterceptor` 注入 `X-Internal-Secret`/`X-Service-Code`），`X-Tenant-Id` 由业务侧拦截器从调用上下文注入；主体恒取自可信认证链（已验签 `X-User-Id`），请求 DTO 不携带主体/租户字段。e2e 子进程拓扑注意：access/gateway 子进程须 `--perm.client.enabled=false`（e2e 共享类路径经 example→starter 传染，非消费进程显式关闭）。
+- **业务最终拒绝响应形态**：example 域信封 30004（HTTP 200，与网关准入 403 形成层次区分——同一请求两层可区分）；鉴权服务不可用=fail-closed 30005（信封非 200/data=null/传输异常一律拒绝，不 stale-allow）。
+- **runbook 与演练**：`docs/ops/runbook-service-mode-switch.md`（迁移资格核对+暂停切换五步+运行库盘点六查询）；演练证据=`ExampleBusinessFinalCheckE2EIT` 步骤⑪（暂停→空快照 403→切模式代次+1→恢复 30 秒内放行，恢复以库为准）。
+
 ### 25.8 验收用例分配（N01~N30，设计 §10.3）
 
 方案 A 补充矩阵 N01~N30 的验收面归属（与各卡 acceptance 一致，权威=设计 §10.3 归属列与各任务卡）：

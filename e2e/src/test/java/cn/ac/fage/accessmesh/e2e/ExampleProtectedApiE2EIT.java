@@ -675,7 +675,8 @@ class ExampleProtectedApiE2EIT {
                 + "org.springframework.cloud.gateway.config.GatewayMetricsAutoConfiguration,"
                 + "org.springframework.cloud.gateway.config.GatewayResilience4JCircuitBreakerAutoConfiguration,"
                 + "cn.dev33.satoken.reactor.spring.SaTokenContextRegister",
-            "--perm.gateway.enabled=false");
+            "--perm.gateway.enabled=false",
+            "--perm.client.enabled=false");
     }
 
     private static Map<String, String> accessServiceEnv() {
@@ -740,7 +741,8 @@ class ExampleProtectedApiE2EIT {
                 + "com.mybatisflex.spring.boot.MybatisFlexAutoConfiguration",
             // /example/** 路由的 lb://example-service 解析目标（免 Nacos 直连子进程）
             "--spring.cloud.discovery.client.simple.instances.access-service[0].uri=http://localhost:" + accessPort,
-            "--spring.cloud.discovery.client.simple.instances.example-service[0].uri=http://localhost:" + examplePort);
+            "--spring.cloud.discovery.client.simple.instances.example-service[0].uri=http://localhost:" + examplePort,
+            "--perm.client.enabled=false");
     }
 
     private static Map<String, String> gatewayEnv() {

@@ -1,0 +1,159 @@
+package cn.ac.fage.accessmesh.example.perm;
+
+import cn.ac.fage.accessmesh.common.exception.BizException;
+import cn.ac.fage.accessmesh.common.model.R;
+import cn.ac.fage.accessmesh.perm.client.feign.PermissionFeignClient;
+import cn.ac.fage.accessmesh.perm.common.dto.req.AuthCheckReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.QueryResourcesReq;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.AuthCheckResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.BatchAuthCheckResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryResourcesResp;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+
+import java.util.List;
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+/**
+ * 业务最终检查门面单测（T-ACCESS-061）：
+ * 主体纪律（subject=可信请求头值）、父上下文透传、fail-closed（信封非 200/data null/
+ * 传输异常一律 30005）、租户上下文 set/clear 生命周期。
+ */
+class BusinessPermCheckerTest {
+
+    private final PermissionFeignClient client = mock(PermissionFeignClient.class);
+    private final BusinessPermChecker checker = new BusinessPermChecker(client);
+
+    @Test
+    @DisplayName("单目标 DECISION：subject=可信请求头 userId（非任何客户端可控值），目标字段原样透传")
+    void check_buildsSubjectFromTrustedHeaderOnly() {
+        when(client.checkAuth(any(AuthCheckReq.class))).thenReturn(R.ok(AuthCheckResp.allow(List.of(1L), List.of(2L), false)));
+
+        BusinessPermChecker.Decision d = checker.check("7", "42",
+            BusinessPermChecker.Target.of("EXAMPLE", "report-1", "VIEW"));
+
+        assertThat(d.allowed()).isTrue();
+        ArgumentCaptor<AuthCheckReq> captor = ArgumentCaptor.forClass(AuthCheckReq.class);
+        verify(client).checkAuth(captor.capture());
+        AuthCheckReq sent = captor.getValue();
+        assertThat(sent.subjectTypeCode()).isEqualTo("LOCAL_USER");
+        assertThat(sent.subjectExternalId()).isEqualTo("42");
+        assertThat(sent.resourceTypeCode()).isEqualTo("EXAMPLE");
+        assertThat(sent.resourceCode()).isEqualTo("report-1");
+        assertThat(sent.operationCode()).isEqualTo("VIEW");
+    }
+
+    @Test
+    @DisplayName("TYPE_LEVEL 目标：resourceCode=null 原样透传（CREATE 不携带实例码）")
+    void check_typeLevelTargetCarriesNullResourceCode() {
+        when(client.checkAuth(any(AuthCheckReq.class))).thenReturn(R.ok(AuthCheckResp.allow(List.of(), List.of(), false)));
+
+        checker.check("7", "42", BusinessPermChecker.Target.of("EXAMPLE", null, "CREATE"));
+
+        ArgumentCaptor<AuthCheckReq> captor = ArgumentCaptor.forClass(AuthCheckReq.class);
+        verify(client).checkAuth(captor.capture());
+        assertThat(captor.getValue().resourceCode()).isNull();
+        assertThat(captor.getValue().operationCode()).isEqualTo("CREATE");
+    }
+
+    @Test
+    @DisplayName("depend_on 父上下文：真实父资源与父操作透传（引擎验证父授权绑定，N26 载体）")
+    void check_childTargetCarriesParentContext() {
+        when(client.checkAuth(any(AuthCheckReq.class))).thenReturn(R.ok(AuthCheckResp.deny("DEPENDENT_NOT_IN_PARENT_CONTEXT")));
+
+        BusinessPermChecker.Decision d = checker.check("7", "42",
+            BusinessPermChecker.Target.childOf("EXAMPLE", "report-1-detail", "SUB_VIEW",
+                "EXAMPLE", "report-1", List.of("VIEW")));
+
+        assertThat(d.allowed()).isFalse();
+        assertThat(d.reason()).isEqualTo("DEPENDENT_NOT_IN_PARENT_CONTEXT");
+        ArgumentCaptor<AuthCheckReq> captor = ArgumentCaptor.forClass(AuthCheckReq.class);
+        verify(client).checkAuth(captor.capture());
+        AuthCheckReq sent = captor.getValue();
+        assertThat(sent.parentResourceTypeCode()).isEqualTo("EXAMPLE");
+        assertThat(sent.parentResourceCode()).isEqualTo("report-1");
+        assertThat(sent.parentOperationCodes()).containsExactly("VIEW");
+    }
+
+    @Test
+    @DisplayName("独立批量：一次 batch-check 调用，结果按 resourceCode 对齐（逐目标独立）")
+    void batchCheck_alignsPerTargetResultsByCode() {
+        when(client.batchCheckAuth(any(BatchAuthCheckReq.class))).thenReturn(R.ok(new BatchAuthCheckResp(List.of(
+            new BatchAuthCheckResp.AuthCheckItemResult("EXAMPLE", "report-1", "VIEW", true, null, List.of(1L), List.of(2L)),
+            new BatchAuthCheckResp.AuthCheckItemResult("EXAMPLE", "report-2", "VIEW", false, "NO_PERMISSION", List.of(), List.of())))));
+
+        Map<String, BusinessPermChecker.Decision> byCode =
+            checker.batchCheck("7", "42", "EXAMPLE", List.of("report-1", "report-2"), "VIEW");
+
+        assertThat(byCode.get("report-1").allowed()).isTrue();
+        assertThat(byCode.get("report-2").allowed()).isFalse();
+        assertThat(byCode.get("report-2").reason()).isEqualTo("NO_PERMISSION");
+        ArgumentCaptor<BatchAuthCheckReq> captor = ArgumentCaptor.forClass(BatchAuthCheckReq.class);
+        verify(client).batchCheckAuth(captor.capture());
+        assertThat(captor.getValue().items()).hasSize(2);
+        assertThat(captor.getValue().subjectExternalId()).isEqualTo("42");
+    }
+
+    @Test
+    @DisplayName("范围查询：items 的业务码去重收集（列表过滤数据源）")
+    void accessibleCodes_collectsDistinctCodes() {
+        when(client.queryResources(any(QueryResourcesReq.class))).thenReturn(R.ok(new QueryResourcesResp(List.of(
+            new QueryResourcesResp.ResourceEntry("EXAMPLE", "report-1", "default", "销售日报", false, null, null, null),
+            new QueryResourcesResp.ResourceEntry("EXAMPLE", "report-2", "default", "库存周报", false, null, null, null)), 10)));
+
+        var codes = checker.accessibleCodes("7", "42", "EXAMPLE", "VIEW");
+
+        assertThat(codes).containsExactlyInAnyOrder("report-1", "report-2");
+        ArgumentCaptor<QueryResourcesReq> captor = ArgumentCaptor.forClass(QueryResourcesReq.class);
+        verify(client).queryResources(captor.capture());
+        // 单类型×单操作显式构造，不触发笛卡尔组合
+        assertThat(captor.getValue().resourceTypeCodes()).containsExactly("EXAMPLE");
+        assertThat(captor.getValue().operationCodes()).containsExactly("VIEW");
+    }
+
+    @Test
+    @DisplayName("fail-closed：信封 code≠200 / data=null / 传输异常一律 30005，不放行")
+    void call_failsClosedOnUnavailable() {
+        when(client.checkAuth(any(AuthCheckReq.class)))
+            .thenReturn(R.fail(500, "boom"))          // 信封非 200
+            .thenReturn(R.ok(null))                    // data=null（服务端错误信封）
+            .thenThrow(new RuntimeException("connect refused")); // 传输异常
+
+        for (int i = 0; i < 3; i++) {
+            assertThatThrownBy(() -> checker.check("7", "42",
+                    BusinessPermChecker.Target.of("EXAMPLE", "report-1", "VIEW")))
+                .isInstanceOf(BizException.class)
+                .satisfies(e -> assertThat(((BizException) e).getErrorCode()).isEqualTo(30005));
+        }
+    }
+
+    @Test
+    @DisplayName("租户上下文生命周期：调用期间绑定可信租户，调用后清理（防线程复用串租户）")
+    void tenantContext_setDuringCallAndClearedAfter() {
+        when(client.checkAuth(any(AuthCheckReq.class)))
+            .thenAnswer(inv -> {
+                assertThat(PermCallContext.getTenantId()).isEqualTo("7");
+                return R.ok(AuthCheckResp.allow(List.of(), List.of(), false));
+            })
+            .thenReturn(R.ok(AuthCheckResp.allow(List.of(), List.of(), false)));
+
+        checker.check("7", "42", BusinessPermChecker.Target.of("EXAMPLE", "report-1", "VIEW"));
+        assertThat(PermCallContext.getTenantId()).isNull();
+
+        // fail-closed 路径同样必须清理（finally）
+        when(client.checkAuth(any(AuthCheckReq.class))).thenReturn(R.fail(500, "boom"));
+        assertThatThrownBy(() -> checker.check("7", "42",
+                BusinessPermChecker.Target.of("EXAMPLE", "report-1", "VIEW")))
+            .isInstanceOf(BizException.class);
+        assertThat(PermCallContext.getTenantId()).isNull();
+    }
+}

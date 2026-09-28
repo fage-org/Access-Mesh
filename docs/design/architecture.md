@@ -24,7 +24,7 @@ last_reviewed: 2026-09-15 服务清单与拓扑图、§3 章节标题与正文�
 | ----------------------------- | ------------------------------ | ---------------------- | ---------- | ---------------------------------------------------------------------- |
 | gateway                       | Spring Cloud Gateway (WebFlux) | 无（纯网关）           | 8080       | 流量入口：路由转发、Token 校验、接口鉴权                               |
 | access-service（访问控制服务）| Spring Boot 3 (WebMVC)         | PostgreSQL（access_db，public schema） | 9100 | 用户、组织、菜单、认证、字典/通知/文件/审计/调度（管理面）+ 通用权限管理与鉴权引擎（权限面）；能力包模块化单体（12 能力包 + sync/engine/projection/bootstrap/infrastructure，T-ACCESS-033），默认组织树是用户目录；组织既是业务树也是角色容器 |
-| example-service（演示服务）   | Spring Boot 3 (WebMVC)         | 无（瘦身后无数据源，T-API-001） | 9300       | 权限中心接入示例：单受保护接口 `POST /api/example/demo/hello`（身份回显，经 Gateway `/example/**` 路由鉴权，3xxxx 错误码段）；接口级鉴权完全由 Gateway 承担（规范 §2.4），业务服务不引入运行时鉴权 SDK；可选 registration 只发布依赖，默认关闭 |
+| example-service（演示服务）   | Spring Boot 3 (WebMVC)         | 无（瘦身后无数据源，T-API-001） | 9300       | 权限中心接入示例：报表示例族七路由+单受保护接口 `POST /api/example/demo/hello`（身份回显，3xxxx 错误码段）；接口级鉴权（第一层）由 Gateway 承担（规范 §2.4）；业务最终检查（第二层，T-ACCESS-061 拍板）经 perm-client SDK starter 调 auth/check 族端点（内部密钥通道）；可选 registration 只发布依赖，默认关闭 |
 
 ### 1.2 基础设施
 
@@ -86,7 +86,7 @@ last_reviewed: 2026-09-15 服务清单与拓扑图、§3 章节标题与正文�
 | gateway         | access-service | HTTP (转发)    | `/api/access/**` 单路由（外部路径=服务路径，无 StripPrefix；登录/管理/权限接口统一转发） |
 | gateway         | access-service | HTTP (负载均衡 WebClient) | 操作准入鉴权（T-ACCESS-059）：`POST /api/access/auth/interface-admission-snapshot` 拉取准入快照本地四态判定；无通过分支回退 `interface-admission` 在线判定 |
 | gateway         | example-service | HTTP (转发)   | 演示服务接口转发                                                                             |
-| 管理员/运维（经 Gateway） | access-service | HTTP（管理面，运维期） | 接口资源注册：管理员经 `POST /api/access/service-config/sync`（FULL 接口声明）一步创建 API 资源与映射（T-API-001 E2E 钉死；原 resource-entity/sync 直连通道已随 T-PERM-052 类型级所有权退役——API 类型种子声明 SYNC+access-service（T-PERM-069），外部同步入口来源不匹配一律拒绝、资源管理面手工 CRUD 20055，本通道与 bootstrap 固定图即 API 资源唯一事实入口）。example-service 运行期对 access-service 零调用——接口级鉴权由 Gateway 承担（T-API-001：example 已删 perm-client/openfeign，无 Feign 鉴权查询） |
+| 管理员/运维（经 Gateway） | access-service | HTTP（管理面，运维期） | 接口资源注册：管理员经 `POST /api/access/service-config/sync`（FULL 接口声明）一步创建 API 资源与映射（T-API-001 E2E 钉死；原 resource-entity/sync 直连通道已随 T-PERM-052 类型级所有权退役——API 类型种子声明 SYNC+access-service（T-PERM-069），外部同步入口来源不匹配一律拒绝、资源管理面手工 CRUD 20055，本通道与 bootstrap 固定图即 API 资源唯一事实入口）。example-service 运行期对 access-service 的调用仅业务最终检查（T-ACCESS-061：§8.6 两层判定第二层，经 perm-client SDK 内部密钥通道调 auth/check 族端点；接口级准入仍由 Gateway 承担） |
 
 ### 1.5 管理端前后端交互原则
 
