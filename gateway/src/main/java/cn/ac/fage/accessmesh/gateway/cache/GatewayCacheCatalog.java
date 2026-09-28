@@ -38,7 +38,9 @@ public final class GatewayCacheCatalog {
      * </p>
      * <p>
      * L1_ONLY 本地 Caffeine；TTL 15s 为丢失广播兜底上限（快照时效主门禁=服务端 expiresAt，
-     * T-ACCESS-060 边界推导收口：最坏陈旧＝access 事实族 L2≤10s＋快照有效期 15s＝25s≤30s，
+     * T-ACCESS-060 边界推导收口：最坏陈旧＝access 事实族 L2≤10s＋构建耗时≤5s（回源截止
+     * 约束——generatedAt 在构建完成后计算，构建期事实年龄继续增长）＋快照有效期 15s
+     * ＝30s＝30s 目标压线达标（0 余量），
      * 方程由本侧 L1≤15s＋回源截止≤5s 与 access 侧上游 L2＋快照有效期≤30s 双层启动校验锁定）。
      * 快照失效主靠 Redis pub/sub 主动广播 + 订阅重连全量清空，TTL 兜底。
      * </p>

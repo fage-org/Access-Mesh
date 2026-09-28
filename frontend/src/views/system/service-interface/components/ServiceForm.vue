@@ -56,7 +56,7 @@ function initForm() {
       basePath: props.initialData.basePath || "/",
       description: props.initialData.description || "",
       status: props.initialData.status,
-      apiAuthMode: props.initialData.apiAuthMode ?? "LEGACY_API",
+      apiAuthMode: props.initialData.apiAuthMode ?? "OPERATION_ADMISSION",
       extra: props.initialData.extra || ""
     });
     return;

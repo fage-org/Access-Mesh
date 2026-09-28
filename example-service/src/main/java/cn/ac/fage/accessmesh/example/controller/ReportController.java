@@ -21,11 +21,13 @@ import cn.ac.fage.accessmesh.example.dto.DemoReportDtos.ViewResp;
 import cn.ac.fage.accessmesh.example.enums.ExampleErrorCode;
 import cn.ac.fage.accessmesh.example.perm.BusinessPermChecker;
 import cn.ac.fage.accessmesh.example.perm.BusinessPermChecker.Decision;
+import cn.ac.fage.accessmesh.example.perm.BusinessPermChecker.Scope;
 import cn.ac.fage.accessmesh.example.perm.BusinessPermChecker.Target;
 import cn.ac.fage.accessmesh.example.report.DemoReport;
 import cn.ac.fage.accessmesh.example.report.ExportJobRunner;
 import cn.ac.fage.accessmesh.example.report.ExportJobRunner.ExportJob;
 import cn.ac.fage.accessmesh.example.report.ReportStore;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -34,7 +36,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 /**
  * 报表示例控制器（T-ACCESS-061 §8.6 业务入口最终检查表逐路由落地——example-service 先行）。
@@ -47,8 +48,10 @@ import java.util.Set;
  * <p>
  * 主体/租户取自 Gateway 注入且已经 {@code GatewaySignatureFilter} 验签的
  * X-User-Id/X-Tenant-Id 请求头（缺失=30002）；请求 DTO 无主体/租户字段，客户端不可
- * 自报（N25）。最终检查拒绝=信封 30004（HTTP 200，example 域约定）；鉴权服务不可用
- * =fail-closed 30005，不放行任何数据。
+ * 自报（N25）。环境上下文（clientIp）取网关清洗重建后的 X-Forwarded-For（T-GW-008
+ * 下游统一消费口径）传入条件评估。最终检查拒绝=信封 30004（HTTP 200，example 域
+ * 约定）；鉴权服务不可用=fail-closed 30005，不放行任何数据。业务数据按租户分区
+ * （{@link ReportStore}），检查与取数共用同一租户。
  * </p>
  */
 @RestController
@@ -75,16 +78,17 @@ public class ReportController {
 
     /** 查看单报表（§8.6 查看/预览行）：实际资源+对应操作，允许后才返回数据。 */
     @PostMapping("/view")
-    public R<ViewResp> view(@RequestBody ViewReq req,
+    public R<ViewResp> view(@Valid @RequestBody ViewReq req,
                             @RequestHeader(name = "X-User-Id", required = false) String userId,
-                            @RequestHeader(name = "X-Tenant-Id", required = false) String tenantId) {
+                            @RequestHeader(name = "X-Tenant-Id", required = false) String tenantId,
+                            @RequestHeader(name = "X-Forwarded-For", required = false) String clientIp) {
         requireIdentity(userId, tenantId);
-        Decision decision = permChecker.check(tenantId, userId,
+        Decision decision = permChecker.check(tenantId, userId, clientIp,
             Target.of(TYPE_EXAMPLE, req.reportCode(), OP_VIEW));
         if (!decision.allowed()) {
             throw denied(decision);
         }
-        DemoReport report = reportStore.find(req.reportCode())
+        DemoReport report = reportStore.find(tenantId, req.reportCode())
             .orElseThrow(() -> new BizException(ExampleErrorCode.DEMO_PARAM_INVALID.getCode(),
                 "报表不存在: " + req.reportCode()));
         // 检查的目标与取数的目标是同一个业务码（不能检查 A 却按另一参数读取 B）
@@ -93,18 +97,20 @@ public class ReportController {
 
     /** 独立批量查看（§8.6 批量行）：每目标一个 DECISION 项，返回逐项结果——任一允许不放行整批。 */
     @PostMapping("/batch-view")
-    public R<BatchViewResp> batchView(@RequestBody BatchViewReq req,
+    public R<BatchViewResp> batchView(@Valid @RequestBody BatchViewReq req,
                                       @RequestHeader(name = "X-User-Id", required = false) String userId,
-                                      @RequestHeader(name = "X-Tenant-Id", required = false) String tenantId) {
+                                      @RequestHeader(name = "X-Tenant-Id", required = false) String tenantId,
+                                      @RequestHeader(name = "X-Forwarded-For", required = false) String clientIp) {
         requireIdentity(userId, tenantId);
-        var byCode = permChecker.batchCheck(tenantId, userId, TYPE_EXAMPLE, req.reportCodes(), OP_VIEW);
+        var byCode = permChecker.batchCheck(tenantId, userId, clientIp,
+            TYPE_EXAMPLE, req.reportCodes(), OP_VIEW);
         List<BatchViewItem> items = new ArrayList<>(req.reportCodes().size());
         int allowed = 0;
         for (String code : req.reportCodes()) {
             Decision decision = byCode.getOrDefault(code, new Decision(false, "NOT_CHECKED"));
             if (decision.allowed()) {
                 allowed++;
-                DemoReport report = reportStore.find(code).orElse(null);
+                DemoReport report = reportStore.find(tenantId, code).orElse(null);
                 items.add(new BatchViewItem(code, true, null,
                     report == null ? null : report.name(), report == null ? null : report.content()));
             } else {
@@ -117,16 +123,17 @@ public class ReportController {
 
     /** 列表/搜索（§8.6 列表/搜索行）：权限范围过滤落实到返回数据，total 与数据同口径。 */
     @PostMapping("/list")
-    public R<ListResp> list(@RequestBody ListReq req,
+    public R<ListResp> list(@Valid @RequestBody ListReq req,
                             @RequestHeader(name = "X-User-Id", required = false) String userId,
-                            @RequestHeader(name = "X-Tenant-Id", required = false) String tenantId) {
+                            @RequestHeader(name = "X-Tenant-Id", required = false) String tenantId,
+                            @RequestHeader(name = "X-Forwarded-For", required = false) String clientIp) {
         requireIdentity(userId, tenantId);
         int page = req.page() == null || req.page() < 1 ? 1 : req.page();
         int size = req.size() == null || req.size() < 1 ? 10 : Math.min(req.size(), 100);
-        Set<String> accessible = permChecker.accessibleCodes(tenantId, userId, TYPE_EXAMPLE, OP_VIEW);
-        // 同一权限范围先过滤再分页：total 与 items 恒同口径
-        List<DemoReport> visible = reportStore.all().stream()
-            .filter(r -> accessible.contains(r.code()))
+        // 同一权限范围先过滤再分页：total 与 items 恒同口径；ALL=类型级全量授权不按码过滤
+        Scope scope = permChecker.accessibleScope(tenantId, userId, clientIp, TYPE_EXAMPLE, OP_VIEW);
+        List<DemoReport> visible = reportStore.all(tenantId).stream()
+            .filter(r -> scope.contains(r.code()))
             .filter(r -> req.keyword() == null || req.keyword().isBlank()
                 || r.name().contains(req.keyword()) || r.code().contains(req.keyword()))
             .toList();
@@ -140,16 +147,17 @@ public class ReportController {
 
     /** 创建报表（§8.6 CREATE 行）：最终 TYPE_LEVEL——resourceCode 传 null，实例准入不授予类型创建权。 */
     @PostMapping("/create")
-    public R<CreateResp> create(@RequestBody CreateReq req,
+    public R<CreateResp> create(@Valid @RequestBody CreateReq req,
                                 @RequestHeader(name = "X-User-Id", required = false) String userId,
-                                @RequestHeader(name = "X-Tenant-Id", required = false) String tenantId) {
+                                @RequestHeader(name = "X-Tenant-Id", required = false) String tenantId,
+                                @RequestHeader(name = "X-Forwarded-For", required = false) String clientIp) {
         requireIdentity(userId, tenantId);
-        Decision decision = permChecker.check(tenantId, userId,
+        Decision decision = permChecker.check(tenantId, userId, clientIp,
             Target.of(TYPE_EXAMPLE, null, OP_CREATE));
         if (!decision.allowed()) {
             throw denied(decision);
         }
-        DemoReport created = reportStore.create(req.name());
+        DemoReport created = reportStore.create(tenantId, req.name());
         return R.ok(new CreateResp(created.code(), created.name()));
     }
 
@@ -158,17 +166,18 @@ public class ReportController {
      * 引擎验证父授权记录绑定——无父/错父由引擎拒绝（DEPENDENT_NOT_IN_PARENT_CONTEXT）。
      */
     @PostMapping("/sub-view")
-    public R<SubViewResp> subView(@RequestBody SubViewReq req,
+    public R<SubViewResp> subView(@Valid @RequestBody SubViewReq req,
                                   @RequestHeader(name = "X-User-Id", required = false) String userId,
-                                  @RequestHeader(name = "X-Tenant-Id", required = false) String tenantId) {
+                                  @RequestHeader(name = "X-Tenant-Id", required = false) String tenantId,
+                                  @RequestHeader(name = "X-Forwarded-For", required = false) String clientIp) {
         requireIdentity(userId, tenantId);
-        Decision decision = permChecker.check(tenantId, userId,
+        Decision decision = permChecker.check(tenantId, userId, clientIp,
             Target.childOf(TYPE_EXAMPLE, req.subReportCode(), OP_SUB_VIEW,
                 TYPE_EXAMPLE, req.parentReportCode(), List.of(OP_VIEW)));
         if (!decision.allowed()) {
             throw denied(decision);
         }
-        DemoReport sub = reportStore.find(req.subReportCode())
+        DemoReport sub = reportStore.find(tenantId, req.subReportCode())
             .orElseThrow(() -> new BizException(ExampleErrorCode.DEMO_PARAM_INVALID.getCode(),
                 "子权限报表不存在: " + req.subReportCode()));
         return R.ok(new SubViewResp(sub.code(), req.parentReportCode(), sub.name(), sub.content()));
@@ -176,28 +185,36 @@ public class ReportController {
 
     /** 提交异步导出（§8.6 异步作业行·提交时点）：提交时检查 EXPORT；执行时点重查在 ExportJobRunner。 */
     @PostMapping("/export/submit")
-    public R<ExportSubmitResp> exportSubmit(@RequestBody ExportSubmitReq req,
+    public R<ExportSubmitResp> exportSubmit(@Valid @RequestBody ExportSubmitReq req,
                                             @RequestHeader(name = "X-User-Id", required = false) String userId,
-                                            @RequestHeader(name = "X-Tenant-Id", required = false) String tenantId) {
+                                            @RequestHeader(name = "X-Tenant-Id", required = false) String tenantId,
+                                            @RequestHeader(name = "X-Forwarded-For", required = false) String clientIp) {
         requireIdentity(userId, tenantId);
-        Decision decision = permChecker.check(tenantId, userId,
+        Decision decision = permChecker.check(tenantId, userId, clientIp,
             Target.of(TYPE_EXAMPLE, req.reportCode(), OP_EXPORT));
         if (!decision.allowed()) {
             throw denied(decision);
         }
-        ExportJob job = exportJobRunner.submit(req.reportCode(), tenantId, userId);
+        ExportJob job = exportJobRunner.submit(req.reportCode(), tenantId, userId, clientIp);
         return R.ok(new ExportSubmitResp(job.jobId(), job.reportCode()));
     }
 
-    /** 查询导出作业状态：DONE 才携带内容；DENIED=执行时点重查拒绝（N24 撤权窗口演示）。 */
+    /**
+     * 查询导出作业状态（仅作业归属人：租户+用户与提交时不符=与不存在同口径拒绝，不泄露
+     * 作业存在性）：DONE 才携带内容；DENIED=执行时点重查拒绝（N24 撤权窗口演示）。
+     */
     @PostMapping("/export/status")
-    public R<ExportStatusResp> exportStatus(@RequestBody ExportStatusReq req,
+    public R<ExportStatusResp> exportStatus(@Valid @RequestBody ExportStatusReq req,
                                             @RequestHeader(name = "X-User-Id", required = false) String userId,
-                                            @RequestHeader(name = "X-Tenant-Id", required = false) String tenantId) {
+                                            @RequestHeader(name = "X-Tenant-Id", required = false) String tenantId,
+                                            @RequestHeader(name = "X-Forwarded-For", required = false) String clientIp) {
         requireIdentity(userId, tenantId);
         ExportJob job = exportJobRunner.find(req.jobId())
-            .orElseThrow(() -> new BizException(ExampleErrorCode.DEMO_PARAM_INVALID.getCode(),
-                "导出作业不存在: " + req.jobId()));
+            .orElseThrow(() -> jobNotFound(req.jobId()));
+        if (!job.tenantId().equals(tenantId) || !job.userId().equals(userId)) {
+            // 他人/他租户作业与不存在同响应（防按递增 jobId 枚举探测他人导出内容）
+            throw jobNotFound(req.jobId());
+        }
         return R.ok(new ExportStatusResp(job.jobId(), job.reportCode(), job.status().name(),
             job.content(), job.reason()));
     }
@@ -208,6 +225,11 @@ public class ReportController {
             throw new BizException(ExampleErrorCode.DEMO_IDENTITY_HEADER_MISSING.getCode(),
                 ExampleErrorCode.DEMO_IDENTITY_HEADER_MISSING.getMessage());
         }
+    }
+
+    private static BizException jobNotFound(String jobId) {
+        return new BizException(ExampleErrorCode.DEMO_PARAM_INVALID.getCode(),
+            "导出作业不存在: " + jobId);
     }
 
     /** 业务最终检查拒绝：30004 信封（HTTP 200，example 域约定；与网关准入 403 形成层次区分）。 */

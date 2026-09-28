@@ -458,7 +458,7 @@ effectiveRoles = S - D
 
 本版默认：准入在线与构建快照均从新鲜数据库目录解析 required operation 和 coveringMask；事实中的授权／角色／条件仍按各自来源标注。新增缓存目录、路由来源、父结构以及本地 TTL 必须纳入边界校验，回填保留读前令牌／剩余 TTL，不在投影完成后重新起算寿命。
 
-T-ACCESS-057 的准入阶段已通过 `QueryReadSupport.resolveOperations/freshOperations` 读取完整数据库目录；在线与 FACTS 共用该来源，覆盖变化不消费普通掩码桶。N20 由 `AdmissionStagesTest` 与 `QueryExecutionPgIT` 锁定，新快照生命周期与 TTL 仍由 T-ACCESS-059/060 验收。**T-ACCESS-060 已按本节完成边界重推导与启动校验方程锁（2026-09-28，实核读源与 25s≤30s 推导见 §8.5a）。**
+T-ACCESS-057 的准入阶段已通过 `QueryReadSupport.resolveOperations/freshOperations` 读取完整数据库目录；在线与 FACTS 共用该来源，覆盖变化不消费普通掩码桶。N20 由 `AdmissionStagesTest` 与 `QueryExecutionPgIT` 锁定，新快照生命周期与 TTL 仍由 T-ACCESS-059/060 验收。**T-ACCESS-060 已按本节完成边界重推导与启动校验方程锁（2026-09-28，实核读源与 30s 压线推导见 §8.5a）。**
 
 备选是业务操作专用的短 TTL／版本化安全缓存，可降低构建成本，但要同批改写覆盖变化、删除、读前令牌、跨节点失效和启动校验。**它不是本版默认，也不能只换一个 TTL 数字就宣称安全已证明。**即便采用新鲜操作定义，广播＋TTL 仍不是零延迟强一致；旧普通目标查询的操作缓存边界也不会被此次改造自动消除。
 
@@ -805,7 +805,7 @@ T-ACCESS-059 已落地（2026-09-28，六项用户拍板与实现形态）：①
 
 - **条件→服务反查（N19）**：`PermissionChangeAspect` flush 对非空 `markConditions` 统一执行安全超集反查（`selectServiceCodesByConditionGrantTypes`——引用条件的授权行 `resource_type`（全行 NOT NULL，含实例行）→该类型所需操作（`operation_permission`）→映射服务（`resource_api_mapping.required_operation_id`）），结果并入 `serviceCodes` 广播。管理页 update/delete、内联条件随授权页编辑/回收、类型级联回收全部经 markConditions 通道自动覆盖。旧 T-PERM-017「授权资源=API 资源」等值联接（`selectServiceCodesByConditionIds`）整体退役——新映射模型下映射行 `resource_entity_id` 指向 API 登记实体，旧联接结果普遍为空（条件改规则不广播任何服务，红跑实证：屏蔽 flush 反查后广播 serviceCodes 为空、用例失败）。「再按实际覆盖优化」未做：网关对 serviceCodes 非空整租户失效，精确化只改变「是否广播」不改变失效范围，超集方向安全。
 - **接收侧代次（N21 网关半边，边界推导裁定）**：2026-09-28 用户拍板——接收侧不实现单独的代次匹配检查（对 2026-09-25 拍板「接收侧匹配检查」字样的边界推导修订），由既有「失效代际 epoch（失效事件到达即作废在途回源提交，三组竞态测试锁定）＋快照 TTL」承载；广播丢失时旧代次快照最长存活快照 TTL 15s，属「不承诺跨节点强一致」文档化接受面。构建期自一致校验（flushCache 复读）由 T-ACCESS-059 落地。
-- **边界重推导（§5.3 收口）**：快照构建读源实核＝事实族 L2_ONLY≤10s（六目录，启动校验锁）＋操作定义/条件规则原文/路由映射/服务配置含代次复读全部新鲜库读；最坏陈旧＝10s（事实族）＋15s（快照有效期，网关按服务端 expiresAt 门禁、L1 TTL 仅作丢失广播兜底）＝25s≤30s 目标。方程入启动校验：`PermCacheBoundaryValidator` 断言上游 L2 上限＋`SNAPSHOT_TTL`≤30s（调大任一常量即启动失败），网关侧 `GatewayCacheBoundaryValidator` 维持 L1≤15s＋回源截止≤5s。
+- **边界重推导（§5.3 收口）**：快照构建读源实核＝事实族 L2_ONLY≤10s（六目录，启动校验锁）＋操作定义/条件规则原文/路由映射/服务配置含代次复读全部新鲜库读；最坏陈旧＝10s（事实族）＋5s（构建耗时，网关回源截止约束——expiresAt 在构建完成后计算，构建期事实年龄继续增长）＋15s（快照有效期，网关按服务端 expiresAt 门禁、L1 TTL 仅作丢失广播兜底）＝30s＝30s 目标压线达标（0 余量）。方程入启动校验：`PermCacheBoundaryValidator` 断言上游 L2 上限＋`SNAPSHOT_TTL`≤30s（调大任一常量即启动失败），网关侧 `GatewayCacheBoundaryValidator` 维持 L1≤15s＋回源截止≤5s。
 - **N23（模式切换演练）**：模式/启停切换同事务代次 +1 并广播 serviceCodes（access 侧演练：OA→LEGACY→OA 逐次 +1/广播，LEGACY 期间快照端点 20071 信封，回切后即恢复可构建——恢复以库为准不依赖广播送达）；网关侧负形态＝空路由快照可缓存（DENY→403 不回源，防停用风暴），错误信封不缓存（部署错位窗口每请求回源 503 即哨兵，2026-09-28 拍板不加错误负缓存）；「临时强制在线」灰度开关不落地（无现实需求触发）。
 
 ### 8.6 业务服务：以实际目标做最后一道权限检查
@@ -840,10 +840,10 @@ T-ACCESS-059 已落地（2026-09-28，六项用户拍板与实现形态）：①
 
 逐服务业务最终检查与模式切换的收口实现（验收 N01/N04/N05/N24/N25/N26/N27 业务半边）：
 
-- **example-service 参考路由族**：`ReportController` 七路由覆盖检查表全部七行（查看/独立批量/列表搜索/CREATE=TYPE_LEVEL/上下文子权限真实父/异步作业提交与执行时点双鉴权/直连身份链），既有 `/hello` 最终检查定位=身份头存在性。反向拒绝测试=`ReportControllerTest` 16 用例（查 A 不按 B 取数逐参核对、批量拒绝项零数据、TYPE_LEVEL resourceCode=null、错父拒绝、撤权窗口执行时点拒绝）——迁移资格的「代码位置+反向测试」双证明载体。
-- **检查客户端（用户拍板）**：业务服务消费 `perm-client` SDK starter（Feign）调 `auth/check` 族端点；内部密钥通道认证（SDK 既有 `FeignInternalSyncInterceptor`），租户头业务侧注入，主体恒取自已验签身份头（请求 DTO 无主体/租户字段，N25）。fail-closed：信封非 200/data=null/传输异常一律 30005 拒绝。
+- **example-service 参考路由族**：`ReportController` 七路由覆盖检查表全部七行（查看/独立批量/列表搜索/CREATE=TYPE_LEVEL/上下文子权限真实父/异步作业提交与执行时点双鉴权/直连身份链），既有 `/hello` 最终检查定位=身份头存在性。反向拒绝测试=`ReportControllerTest` 20 用例（查 A 不按 B 取数逐参核对、批量拒绝项零数据、TYPE_LEVEL resourceCode=null、错父拒绝、撤权窗口执行时点拒绝、作业归属校验、业务数据租户隔离）+`ReportControllerValidationTest` 3 用例（HTTP 层 @Valid 反例）——迁移资格的「代码位置+反向测试」双证明载体。
+- **检查客户端**：业务服务消费 `perm-client` SDK starter（Feign）调 `auth/check` 族端点；内部密钥通道认证（SDK 既有 `FeignInternalSyncInterceptor`），租户头业务侧注入，主体恒取自已验签身份头（请求 DTO 无主体/租户字段，N25）。fail-closed：信封非 200/data=null/传输异常一律 30005 拒绝。
 - **两层判定实证（N01）**：E2E `ExampleBusinessFinalCheckE2EIT`——用户仅持 report-1 的 EXAMPLE:VIEW 时，网关对 `/report/view` 恒 MAY_ENTER（类型-操作候选），业务最终检查 report-1 放行/report-2 拒绝（30004 信封）；准入与业务检查跨 HTTP 两次执行、不共享运行状态。N04/N05 业务半边同用例：PERM_MUTEX 规则下跨实例不误拒、同实例真互斥由业务 check 拒绝（准入恒 MAY_ENTER——准入不做互斥判定，057 定案的运行时对偶）。
-- **N27 规模（拍板：不新增数值上限常量）**：`InterfaceAdmissionHeavyPgIT`（testcontainers-heavy）300 启用路由×2001 授权行——routes 全量不截断、候选按「类型-操作×条件身份×候选类别」合并恰 3 分支（不逐实例展开）、在线准入按候选存在性一次判定；「超限显式技术失败」由既有网关 256KB 解码上限+5s 回源截止+构建重试 3 次承载（静默截断不存在）。
+- **N27 规模（不新增数值上限常量）**：`InterfaceAdmissionHeavyPgIT`（testcontainers-heavy）300 启用路由×2001 授权行——routes 全量不截断、候选按「类型-操作×条件身份×候选类别」合并恰 3 分支（不逐实例展开）、在线准入按候选存在性一次判定；「超限显式技术失败」由既有网关 256KB 解码上限+5s 回源截止+构建重试 3 次承载（静默截断不存在）。
 - **运行库盘点与切换 runbook**：`docs/ops/runbook-service-mode-switch.md`（六类盘点查询+暂停切换五步）；dev 运行库重建到 HEAD 后执行盘点（记录见任务卡）；E2E 步骤⑪ 为暂停→切模式→恢复演练证据（代次单调递增、空快照 DENY、恢复以库为准）。
 - **「临时强制在线」灰度**：T-ACCESS-060 拍板不落地，本卡范围行的「如使用」条件不成立，无容量预算项。
 

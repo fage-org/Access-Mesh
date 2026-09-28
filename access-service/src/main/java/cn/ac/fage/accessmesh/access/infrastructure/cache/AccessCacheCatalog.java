@@ -41,9 +41,11 @@ import java.util.Set;
  * <p>
  * 可能影响准入快照的 6 个事实族目录统一 L2_ONLY、TTL≤10s、不创建授权 L1
  * （操作定义/条件规则原文/路由映射/服务配置为快照构建期新鲜库读，不占预算——
- * T-ACCESS-057/059 实核）；最坏陈旧＝事实族 L2≤10s＋快照有效期
+ * T-ACCESS-057/059 实核）；最坏陈旧＝事实族 L2≤10s＋构建耗时≤5s（网关回源截止约束
+ * ——generatedAt 在构建完成后计算，构建期事实年龄继续增长）＋快照有效期
  * {@code PermissionAdmissionAppService.SNAPSHOT_TTL} 15s（网关按服务端 expiresAt 门禁，
- * L1 TTL 15s 仅作丢失广播兜底）＝25s≤30s 目标，超限由 {@code PermCacheBoundaryValidator}
+ * L1 TTL 15s 仅作丢失广播兜底）＝30s＝30s 目标压线达标（0 余量），超限由
+ * {@code PermCacheBoundaryValidator}
  * 启动校验强制（方程锁：调大任一常量即启动失败；网关侧另锁 L1≤15s＋回源截止≤5s）。
  * 读路径 miss 回填必须使用 {@code CacheService.beginRead} 令牌写入剩余 TTL。
  * </p>

@@ -70,7 +70,7 @@ last_reviewed: 2026-09-26
 | 缓存 key | identifier = `(subjectTypeCode,userId,serviceCode)`；完整键 `{tenantId}:gw:interface-admission-snapshot:{identifier}` |
 | 缓存值 | `InterfaceAdmissionSnapshotResp`（schemaVersion / 时效 / configGeneration / `routes[]` 完整启用路由与要求 / `operationCandidates[]` 候选分支投影） |
 | 鉴权方式 | 本地内存判定（路由匹配→唯一要求→候选分支，O(1)），不再按用户权限裁剪规则集 |
-| TTL | 15s 兜底（主靠 Redis pub/sub 主动广播；TTL/容量由 catalog 声明，`accessmesh.cache.catalogs."gw:interface-admission-snapshot".*` 运维覆盖，有效 TTL>15s 启动失败；T-ACCESS-060 边界推导收口：最坏陈旧＝access 事实族 L2≤10s＋快照有效期 15s（按服务端 expiresAt 门禁）＝25s≤30s，方程由两侧启动校验器锁定） |
+| TTL | 15s 兜底（主靠 Redis pub/sub 主动广播；TTL/容量由 catalog 声明，`accessmesh.cache.catalogs."gw:interface-admission-snapshot".*` 运维覆盖，有效 TTL>15s 启动失败；T-ACCESS-060 边界推导收口：最坏陈旧＝access 事实族 L2≤10s＋构建耗时≤5s（回源截止约束——expiresAt 在构建完成后计算，构建期事实年龄继续增长）＋快照有效期 15s（按服务端 expiresAt 门禁）＝30s 压线达标（0 余量），方程由两侧启动校验器锁定） |
 | 未命中处理 | 5 秒全链路硬截止内回源拉 interface-admission-snapshot 后缓存再判定；回源错误信封（data=null，20070/20071 等）→ 503 配置故障，不缓存不伪装用户无权限 |
 
 ### 本地判定序（`InterfaceAdmissionMatcher`，四态）
@@ -120,7 +120,7 @@ Gateway 启动后订阅 Redis topic `perm:invalidate`。access-service 写路径
 | `gateway.permission.service-url` | `lb://access-service` | 权限服务地址（T-ACCESS-010：目标由 permission-center 切换） |
 | `gateway.permission.interface-admission-path` | `/api/access/auth/interface-admission` | 在线准入判定（回退实时鉴权用，T-ACCESS-059） |
 | `gateway.permission.interface-admission-snapshot-path` | `/api/access/auth/interface-admission-snapshot` | 准入快照拉取（本地判定主路径，T-ACCESS-059） |
-| `accessmesh.cache.catalogs."[gw:interface-admission-snapshot]".l1-ttl` | `15s`（catalog 声明） | 准入快照 TTL 兜底；有效值 >15s 启动失败（`GatewayCacheBoundaryValidator`；T-ACCESS-060 边界推导收口：与上游 L2≤10s、快照有效期 15s 构成最坏陈旧 25s≤30s，双侧方程锁） |
+| `accessmesh.cache.catalogs."[gw:interface-admission-snapshot]".l1-ttl` | `15s`（catalog 声明） | 准入快照 TTL 兜底；有效值 >15s 启动失败（`GatewayCacheBoundaryValidator`；T-ACCESS-060 边界推导收口：与上游 L2≤10s、回源截止 5s、快照有效期 15s 构成最坏陈旧 30s 压线达标，双侧方程锁） |
 | `accessmesh.cache.catalogs."[gw:interface-admission-snapshot]".l1-maximum-size` | `50000`（catalog 声明） | 本地准入快照最大条目 |
 
 > T-ACCESS-008 已删除配置：`gateway.cache.l1.ttl-seconds` / `max-size`（统一到 catalog + `accessmesh.cache` 覆盖）、`gateway.cache.l1.stale-grace-seconds`（stale-allow 删除）、`gateway.permission.fail-mode`（固定 fail-closed，不可切换）。

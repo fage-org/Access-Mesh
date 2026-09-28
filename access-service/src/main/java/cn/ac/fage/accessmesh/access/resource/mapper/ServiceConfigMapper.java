@@ -89,4 +89,20 @@ public interface ServiceConfigMapper extends BaseMapper<ServiceConfig> {
      */
     Long selectConfigGeneration(@Param("tenantId") Long tenantId,
                                 @Param("serviceCode") String serviceCode);
+
+    /**
+     * 独立语句读取鉴权状态（启停+模式+代次）。
+     * <p>
+     * 供准入快照构建的终校验使用（构建期切模式/停用的代次保护）：与
+     * {@link #selectConfigGeneration} 同款 {@code flushCache} 独立语句形态，
+     * 不命中会话缓存——代次稳定只证明构建期间无变更，模式/启停还须在返回前
+     * 强制落库复读确认（入口校验与首次代次读之间发生的变更不改变代次比对结果）。
+     * </p>
+     *
+     * @param tenantId    租户ID
+     * @param serviceCode 服务编码
+     * @return 仅填充 status/apiAuthMode/configGeneration 的配置行；服务行不存在返回 null
+     */
+    ServiceConfig selectAuthState(@Param("tenantId") Long tenantId,
+                                  @Param("serviceCode") String serviceCode);
 }

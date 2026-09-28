@@ -24,8 +24,9 @@ public interface PermissionAdmissionAppService {
      * {@code isFresh} 按服务端 expiresAt 门禁命中，L1 TTL 15s 仅作丢失广播兜底）。
      * <p>
      * 最坏陈旧窗口方程（启动校验锁，{@code PermCacheBoundaryValidator}）：
-     * 上游事实族 L2 ≤10s ＋ 快照有效期 15s ≤ 30s 目标；操作定义/条件/路由/配置均为
-     * 构建期新鲜库读（T-ACCESS-057/059 实核），不占预算。
+     * 上游事实族 L2 ≤10s ＋ 构建耗时≤5s（网关回源截止约束——expiresAt 在构建完成后
+     * 计算，构建期事实年龄继续增长）＋ 快照有效期 15s ＝ 30s 目标压线达标；操作定义/
+     * 条件/路由/配置均为构建期新鲜库读（T-ACCESS-057/059 实核），不占预算。
      * </p>
      */
     Duration SNAPSHOT_TTL = Duration.ofSeconds(15);

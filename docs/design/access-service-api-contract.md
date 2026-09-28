@@ -2997,7 +2997,7 @@ schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正�
 
 ## 25. 操作准入协议 OPERATION_ADMISSION（interface-admission 族，T-ACCESS-056 落账）
 
-> **章定位**：版本化新协议的契约登记面（沿 §24 服务凭证章先例——设计定稿后、实现任务前的协议落账；端点未实现，本章为实现目标契约）。设计权威=[r2-unified-query-and-admission.md](r2-unified-query-and-admission.md#operation-admission) §7/§8（adopted，实施期权威；计划完结回写后本章为该协议唯一权威落点）。方向定案链：2026-09-09「API 不单独授权、接口权限由操作权限关联派生」→ 2026-09-25 R2 方案 A 设计定案（[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日行，含 configGeneration 限定语义拍板）。协议口径（T-ACCESS-056，2026-09-27 确认）：①错误码随本卡进 `AccessErrorCode` 枚举（契约先行；20071 的引擎配置故障与接口信封映射由 T-ACCESS-057 实现）；②配置故障两族占数值码 20070/20071、准入拒绝走响应 reason 词表；③「技术错误 503」=网关→终端层语义（access-service 端点错误维持现行 HTTP 200 + body 数值码信封）；④端点命名 interface-admission 族；⑤快照条件候选内联 `conditionRules` 传输（§25.2，沿旧快照同构——缺失/解析失败＝不可用分支回源）。实现归属：准入阶段=T-ACCESS-057、映射模型/schema=T-ACCESS-058、端点/快照/SDK/网关=T-ACCESS-059、失效与 TTL=T-ACCESS-060、逐服务切换=T-ACCESS-061、legacy 协议退役=T-ACCESS-062。
+> **章定位**：版本化新协议的契约登记面（沿 §24 服务凭证章先例的协议落账形态；**T-ACCESS-057~061 已全部落地（2026-09-28 收口），本章为该协议唯一权威落点**，设计稿 [r2-unified-query-and-admission.md](r2-unified-query-and-admission.md#operation-admission) §7/§8 的实施期权威已终结——落账时点原文「设计定稿后、实现任务前、端点未实现」仅存档义）。方向定案链：2026-09-09「API 不单独授权、接口权限由操作权限关联派生」→ 2026-09-25 R2 方案 A 设计定案（[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日行，含 configGeneration 限定语义拍板）。协议口径（T-ACCESS-056，2026-09-27 确认）：①错误码随本卡进 `AccessErrorCode` 枚举（契约先行；20071 的引擎配置故障与接口信封映射由 T-ACCESS-057 实现）；②配置故障两族占数值码 20070/20071、准入拒绝走响应 reason 词表；③「技术错误 503」=网关→终端层语义（access-service 端点错误维持现行 HTTP 200 + body 数值码信封）；④端点命名 interface-admission 族；⑤快照条件候选内联 `conditionRules` 传输（§25.2，沿旧快照同构——缺失/解析失败＝不可用分支回源）。实现归属：准入阶段=T-ACCESS-057、映射模型/schema=T-ACCESS-058、端点/快照/SDK/网关=T-ACCESS-059、失效与 TTL=T-ACCESS-060、逐服务切换=T-ACCESS-061、legacy 协议退役=T-ACCESS-062。
 
 ### 25.1 模式与两层判定（方案 A）
 
@@ -3032,7 +3032,7 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
 - 新增 `POST /api/access/service-config/sync-v2`，顶层仍为 `{serviceCode, basePath?, syncMode:"FULL", groups:[{groupCode, groupName, apis:[]}]}`；ApiItem 仍有 `name/httpMethod/path/resourceCode/description?`，新增必填 `requiredPermission`。独立 DTO 与端点表达版本，旧 `/sync` 不接受新字段。整批任一必要引用无效则回滚，成功响应沿用同步新增/更新/删除计数。
 - 凭证调用的 tenantId/serviceCode 来自可信认证链，body.serviceCode 必须一致；管理员调用仍校验该服务的 SERVICE:SYNC_INTERFACE。服务须已登记且启用，旧共享密钥的纯服务身份不开放新端点。
 - 手工、同步、bootstrap 共用映射保存校验，映射只能引用同租户 API 登记实体。FULL 只清该服务 SERVICE_SYNC 映射；仍被保留映射引用的登记实体保留。同一路由被其他维护来源占有时拒绝，不静默接管。
-- 存量来源保守回填 MANUAL，后续 T-ACCESS-061 盘点订正。bootstrap 同事务登记 access-service 的 LEGACY_API 配置并纳入固定图身份检查；存量配置缺口由迁移脚本补齐。
+- 存量来源保守回填 MANUAL，后续 T-ACCESS-061 盘点订正。bootstrap 同事务登记 access-service 的 OPERATION_ADMISSION 配置（058 落账时为 LEGACY_API，059 无迁移期统一上线后随 DDL 缺省同改）并纳入固定图身份检查；存量配置缺口由迁移脚本补齐。
 
 ### 25.2 端点契约 interface-admission / interface-admission-snapshot
 
@@ -3137,7 +3137,7 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
 
 准入配置错误优先于 NO_ROLE：空角色集仍核查要求及新鲜操作目录，要求有效才返回 NO_ROLE。目录检查限于当前要求及有效位覆盖它的操作；不覆盖当前要求的坏行不阻断该要求，覆盖相关操作位损坏仍报 20071。inheritMask 只按位解释、正负均可，不因符号判为损坏（T-ACCESS-057，2026-09-27 确认）。普通鉴权保持既有主体短路（T-ACCESS-057，2026-09-27 确认）。
 
-新准入把业务操作覆盖转换为快照候选，依赖关系已变——**不能沿用旧快照约 30 秒的配置安全结论**。**T-ACCESS-060 边界重推导（2026-09-28，按新准入实际依赖面实核）**：快照构建读源＝事实族（EFFECTIVE_ROLES／ROLE_PERM_SNAPSHOT／TYPE_VALUE／TYPE_CODE／CONDITION_RULES／ROLE_MUTEX_RULE，经引擎 L2_ONLY 目录，启动校验锁有效 TTL≤10s）＋操作定义（新鲜库读，T-ACCESS-057）＋条件规则原文（装配器直读）＋路由映射与服务配置含代次复读（新鲜库读）；最坏陈旧＝事实族 L2 陈旧(≤10s)＋快照有效期(SNAPSHOT_TTL 15s，网关按服务端 expiresAt 门禁命中、L1 TTL 15s 仅作丢失广播兜底)≤**25s≤30s 目标**。方程由 `PermCacheBoundaryValidator`（上游 L2＋快照有效期≤30s，调大任一常量启动失败）与网关 `GatewayCacheBoundaryValidator`（L1≤15s＋回源截止≤5s）双层锁定。即便采用新鲜操作定义，广播＋TTL 仍不是零延迟强一致。专用短 TTL／版本化业务操作缓存为备选（须重做安全边界证明，非默认）。
+新准入把业务操作覆盖转换为快照候选，依赖关系已变——**不能沿用旧快照约 30 秒的配置安全结论**。**T-ACCESS-060 边界重推导（2026-09-28，按新准入实际依赖面实核；同日外评修正算式：`generatedAt/expiresAt` 在构建完成后才计算，事实读取→`generatedAt` 之间的构建耗时使事实年龄继续增长，须计入）**：快照构建读源＝事实族（EFFECTIVE_ROLES／ROLE_PERM_SNAPSHOT／TYPE_VALUE／TYPE_CODE／CONDITION_RULES／ROLE_MUTEX_RULE，经引擎 L2_ONLY 目录，启动校验锁有效 TTL≤10s）＋操作定义（新鲜库读，T-ACCESS-057）＋条件规则原文（装配器直读）＋路由映射与服务配置含代次复读（新鲜库读）；最坏陈旧＝事实族 L2 陈旧(≤10s)＋构建耗时(≤5s，有效快照受网关回源截止 5s 约束——超时构建被网关放弃，不产出可用快照)＋快照有效期(SNAPSHOT_TTL 15s，网关按服务端 expiresAt 门禁命中、L1 TTL 15s 仅作丢失广播兜底)≤**30s＝30s 目标压线达标（0 余量——任一常量调大即越界）**。方程由 `PermCacheBoundaryValidator`（上游 L2＋快照有效期≤30s，调大任一常量启动失败；该方程锁住 25s 基线，构建耗时 5s 由网关侧方程承载）与网关 `GatewayCacheBoundaryValidator`（L1≤15s＋回源截止≤5s）双层锁定。即便采用新鲜操作定义，广播＋TTL 仍不是零延迟强一致。专用短 TTL／版本化业务操作缓存为备选（须重做安全边界证明，非默认）。
 
 失效面（§8.5 矩阵，T-ACCESS-060 收口）：授撤/角色归属/AUTO_DEP 经 markRoles/markUsers 广播（网关角色级租户清/用户级精确清）；**条件同 ID 改规则/启停/删除经 `markConditions` 通道由 `PermissionChangeAspect` flush 统一反查——「引用条件的授权类型→该类型所需操作→映射服务」安全超集（不沿旧授权资源=API 资源联接；管理页/内联/回收全自动覆盖，N19）**；操作定义/覆盖变更按「类型→所需操作→映射服务」超集广播（T-ACCESS-058 形态）；映射写路径与模式/启停切换同事务代次 +1 并广播 serviceCodes。错误信封（20070/20071）不缓存——部署错位窗口内每请求回源 503 即哨兵（2026-09-28 拍板：不加错误负缓存；空路由快照是唯一可缓存负形态）；「临时强制在线」灰度开关不落地（无现实需求触发，N23 以既有机制演练验收）。
 
@@ -3191,7 +3191,7 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
 
 **T-ACCESS-061 落地记录（2026-09-28，example-service 先行）**：
 
-- **参考路由族**（`ReportController`，示例资源族=EXAMPLE 报表）：`/api/example/report/view`（实际资源+对应操作）、`/batch-view`（独立批量逐项 DECISION，任一允许不放行整批）、`/list`（`query-resources` 范围过滤+分页 total 同口径）、`/create`（TYPE_LEVEL，resourceCode=null——实例准入不授予类型创建权）、`/sub-view`（depend_on 子权限真实父上下文，引擎验证父授权绑定）、`/export/submit`+`/export/status`（异步作业提交与执行时点各自鉴权——执行时点重查同一目标，提交后撤权→作业终态 DENIED）；既有 `/api/example/demo/hello` 的最终检查定位=身份头存在性（无资源目标的问候接口）。逐路由反向拒绝测试=`ReportControllerTest`（16 用例，迁移资格载体）。
+- **参考路由族**（`ReportController`，示例资源族=EXAMPLE 报表）：`/api/example/report/view`（实际资源+对应操作）、`/batch-view`（独立批量逐项 DECISION，任一允许不放行整批）、`/list`（`query-resources` 范围过滤+分页 total 同口径）、`/create`（TYPE_LEVEL，resourceCode=null——实例准入不授予类型创建权）、`/sub-view`（depend_on 子权限真实父上下文，引擎验证父授权绑定）、`/export/submit`+`/export/status`（异步作业提交与执行时点各自鉴权——执行时点重查同一目标，提交后撤权→作业终态 DENIED）；既有 `/api/example/demo/hello` 的最终检查定位=身份头存在性（无资源目标的问候接口）。逐路由反向拒绝测试=`ReportControllerTest`（20 用例+`ReportControllerValidationTest` 3 用例 HTTP 层反例，迁移资格载体）。
 - **检查客户端形态（用户拍板 2026-09-28）**：业务服务消费 `perm-client-spring-boot-starter`（Feign）调 `auth/check`/`auth/batch-check`/`auth/query-resources`；服务认证=内部密钥通道（SDK `FeignInternalSyncInterceptor` 注入 `X-Internal-Secret`/`X-Service-Code`），`X-Tenant-Id` 由业务侧拦截器从调用上下文注入；主体恒取自可信认证链（已验签 `X-User-Id`），请求 DTO 不携带主体/租户字段。e2e 子进程拓扑注意：access/gateway 子进程须 `--perm.client.enabled=false`（e2e 共享类路径经 example→starter 传染，非消费进程显式关闭）。
 - **业务最终拒绝响应形态**：example 域信封 30004（HTTP 200，与网关准入 403 形成层次区分——同一请求两层可区分）；鉴权服务不可用=fail-closed 30005（信封非 200/data=null/传输异常一律拒绝，不 stale-allow）。
 - **runbook 与演练**：`docs/ops/runbook-service-mode-switch.md`（迁移资格核对+暂停切换五步+运行库盘点六查询）；演练证据=`ExampleBusinessFinalCheckE2EIT` 步骤⑪（暂停→空快照 403→切模式代次+1→恢复 30 秒内放行，恢复以库为准）。

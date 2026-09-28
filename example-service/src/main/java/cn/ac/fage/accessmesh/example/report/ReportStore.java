@@ -11,8 +11,10 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * 演示报表内存仓（T-ACCESS-061）。
  * <p>
- * 演示服务无数据库：固定种子报表 + 运行期 create 产物。资源实体本身在 access-service
- * 登记（资源树）；本仓只承载业务数据。种子明细行是 depend_on 子权限示例（父=所属报表）。
+ * 演示服务无数据库：固定种子报表 + 运行期 create 产物，<b>按租户分区存取</b>——
+ * 资源实体在 access-service 按租户登记，业务数据同口径隔离：同码跨租户互不可见，
+ * 种子每租户各一份（DemoReport 为不可变 record，跨租户共享种子实例安全）。
+ * 种子明细行是 depend_on 子权限示例（父=所属报表）。
  * </p>
  */
 @Component
@@ -26,28 +28,36 @@ public class ReportStore {
         new DemoReport("report-1-detail", "销售日报-明细", "sales detail rows (child of report-1)"),
         new DemoReport("report-2-detail", "库存周报-明细", "inventory detail rows (child of report-2)"));
 
-    private final Map<String, DemoReport> reports = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, DemoReport>> reportsByTenant = new ConcurrentHashMap<>();
     private final AtomicLong createSequence = new AtomicLong(100);
 
-    public ReportStore() {
-        SEED.forEach(r -> reports.put(r.code(), r));
+    public Optional<DemoReport> find(String tenantId, String code) {
+        if (code == null) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(tenantReports(tenantId).get(code));
     }
 
-    public Optional<DemoReport> find(String code) {
-        return code == null ? Optional.empty() : Optional.ofNullable(reports.get(code));
-    }
-
-    public List<DemoReport> all() {
-        return reports.values().stream()
+    public List<DemoReport> all(String tenantId) {
+        return tenantReports(tenantId).values().stream()
             .sorted(java.util.Comparator.comparing(DemoReport::code))
             .toList();
     }
 
     /** CREATE 路由产物：生成业务码（资源实体登记由接入方经管理面完成，演示省略）。 */
-    public DemoReport create(String name) {
+    public DemoReport create(String tenantId, String name) {
         String code = "report-" + createSequence.incrementAndGet();
         DemoReport created = new DemoReport(code, name, "created report content (" + code + ")");
-        reports.put(code, created);
+        tenantReports(tenantId).put(code, created);
         return created;
+    }
+
+    /** 每租户一份种子，首次访问惰性初始化（不预判租户集；computeIfAbsent 保证并发下单次播种）。 */
+    private Map<String, DemoReport> tenantReports(String tenantId) {
+        return reportsByTenant.computeIfAbsent(tenantId, tenant -> {
+            Map<String, DemoReport> seeded = new ConcurrentHashMap<>();
+            SEED.forEach(r -> seeded.put(r.code(), r));
+            return seeded;
+        });
     }
 }

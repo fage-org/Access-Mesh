@@ -57,4 +57,14 @@
           AND delete_flag = 0
     </select>
 
+    <!-- 快照构建终校验（代次保护的完备面）：代次比对只覆盖「首次代次读之后」的变更，
+         入口校验与首次代次读之间切模式/停用会使代次前后一致但状态已变——返回前以
+         flushCache 独立语句复读启停+模式，确认仍在启用且 OPERATION_ADMISSION -->
+    <select id="selectAuthState" resultType="cn.ac.fage.accessmesh.access.resource.entity.ServiceConfig" flushCache="true">
+        SELECT status, api_auth_mode, config_generation FROM service_config
+        WHERE tenant_id = #{tenantId}
+          AND service_code = #{serviceCode}
+          AND delete_flag = 0
+    </select>
+
 </mapper>

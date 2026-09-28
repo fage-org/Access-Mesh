@@ -40,7 +40,7 @@ last_updated: 2026-09-28
 
 ## 完成记录（2026-09-28 收口）
 
-### 用户拍板（2026-09-28，三项）
+### 当前口径（三项定案）
 
 1. **检查客户端形态=B：引入 perm-client SDK starter**——example-service 消费 `perm-client-spring-boot-starter`（Feign）调 `auth/check`/`auth/batch-check`/`auth/query-resources`；服务认证=SDK 既有内部密钥通道（`FeignInternalSyncInterceptor`，零 SDK 改动），`X-Tenant-Id` 由 example 侧 `FeignTenantHeaderInterceptor` 从调用上下文注入（SDK 约定租户头由调用方负责）；修订 AGENTS.md 旧定案「example 不消费运行时鉴权 SDK starter」（接口级鉴权仍由 Gateway 承担）。**e2e 子进程注意**：example 新增 starter 后经 e2e 测试类路径传染到 access/gateway 子进程（env 设 PERM_INTERNAL_SECRET 触发拦截器条件装配、perm.service-code 无值启动即炸）——两类 e2e 的 access/gateway 子进程参数加 `--perm.client.enabled=false`（非消费进程显式关闭）。
 2. **运行库盘点载体=A：重建 dev 运行库后盘点**——dev 库（docker accessmesh-postgresql）已隔代陈旧（缺 058/059 列之外 resource_entity 类型号整体漂移，HEAD 代码不可跑），按标准重建三步（DROP SCHEMA+DDL+FLUSHALL+`ACCESS_BOOTSTRAP_ENABLED=true` 重种）拉回 HEAD 后执行六类盘点留档（见下「运行库盘点执行记录」）。
@@ -62,7 +62,7 @@ last_updated: 2026-09-28
 
 主体纪律：主体/租户恒取自已验签 `X-User-Id`/`X-Tenant-Id` 头，**请求 DTO 无主体/租户字段**（N25）；业务拒绝=信封 30004（HTTP 200，与网关准入 403 形成层次区分）；鉴权不可用=fail-closed 30005。
 
-**② 迁移资格（代码位置+反向拒绝测试）**——逐路由反向拒绝测试 `ReportControllerTest` 16 用例（每路由允许+拒绝双态、目标逐参 verify、批量拒绝项零数据、TYPE_LEVEL null 码、错父、撤权窗口执行时点 DENIED、fail-closed 30005、身份头缺失 30002）；`BusinessPermCheckerTest` 7 用例（主体纪律/父上下文透传/batch 对齐/范围去重/fail-closed 三形态/租户上下文 set-clear 生命周期）；`FeignTenantHeaderInterceptorTest` 2 用例。**N01/N04/N05/N24/N25/N26/N27 实测绿**：
+**② 迁移资格（代码位置+反向拒绝测试）**——逐路由反向拒绝测试 `ReportControllerTest` 20 用例（每路由允许+拒绝双态、目标逐参 verify、批量拒绝项零数据、TYPE_LEVEL null 码、错父、撤权窗口执行时点 DENIED、fail-closed 30005、身份头缺失 30002、作业归属校验、业务数据租户隔离）；`ReportControllerValidationTest` 3 用例（HTTP 层 @Valid 反例：空名/空码/超批量上限→400+90001，业务层零调用）；`BusinessPermCheckerTest` 9 用例（主体纪律/父上下文透传/batch 对齐/INSTANCE 码收集/ALL 全量投影/clientIp 透传/fail-closed 三形态/租户上下文 set-clear 生命周期）；`FeignTenantHeaderInterceptorTest` 2 用例。**N01/N04/N05/N24/N25/N26/N27 实测绿**：
 
 - **N01/N24/N25（E2E ③④⑤⑥）**：双路——网关对 `/report/view` 恒 MAY_ENTER（report-1 VIEW 候选），业务 report-1 放行/report-2 30004（跨 HTTP 两次执行不共享 RunState）；批量混入逐项；列表仅 report-1（total=1）；直连伪造身份头 30003。
 - **N24 异步半边（E2E ⑨）**：提交检查→执行 DONE；提交后撤权（4s 窗口）→执行时点重查 DENIED；撤权后候选转移（EXPORT→report-2）下网关放行、业务提交时点 30004。
@@ -81,7 +81,7 @@ last_updated: 2026-09-28
 | ⑤ 同步归属 | 映射 maintain_source=BOOTSTRAP 单一来源 105 条（无 SERVICE_SYNC/MANUAL 混写） |
 | ⑥ 无最终业务门禁路由 | access-service 自身 105 路由=059 定案③「服务层 QueryGate 门禁同码」（双层同码即最终门禁）；example-service 七路由=本卡①的代码位置+反向测试——**双服务逐路由均有最终门禁** |
 
-盘点执行注记：六查询初版①④误以 type_definition.id 作 join 键（实体/授权行 resource_type 存 **type_value**），首跑在重建库上暴露（④ 假命中 SYSTEM_CONFIG 两行）——已修正为 type_value 语义并重跑（runbook §三同批修正）；真实发现=④ 的 107 行 legacy API 授权（上表处置）。重建前旧库为隔代种子（类型号整体漂移），按拍板②直接重建不作原地迁移。
+盘点执行注记：六查询初版①④误以 type_definition.id 作 join 键（实体/授权行 resource_type 存 **type_value**），首跑在重建库上暴露（④ 假命中 SYSTEM_CONFIG 两行）——已修正为 type_value 语义并重跑（runbook §三同批修正）；真实发现=④ 的 107 行 legacy API 授权（上表处置）。重建前旧库为隔代种子（类型号整体漂移），按定案②直接重建不作原地迁移。
 
 **④ e2e 垂直切片**——`ExampleBusinessFinalCheckE2EIT`（11 用例全绿，一次起栈）：①~② 登记+授权 → ③~⑩ 业务半边全景（N01/N24/N25/CREATE/子权限/异步/N04/N05）→ ⑪ **暂停切换 runbook 演练**（`status=0` 暂停→代次+1→请求 403〔空快照 DENY〕→`apiAuthMode=LEGACY_API` 切模式→代次再+1→仍 403→`status=1+OPERATION_ADMISSION` 恢复→代次再+1→30 秒内回 200；`g0<g1<g2<g3` 单调断言、恢复以库为准不等 TTL）。runbook 文档=`docs/ops/runbook-service-mode-switch.md`（迁移资格核对+五步切换+六查询盘点+参考接入形态）。
 
@@ -89,7 +89,7 @@ last_updated: 2026-09-28
 
 ### 验证证据
 
-- example-service 单测 35 用例全绿（ReportController 16+BusinessPermChecker 7+FeignTenantHeaderInterceptor 2+既有 10）。
+- example-service 单测 47 用例全绿（ReportController 20+ReportControllerValidation 3+BusinessPermChecker 9+FeignTenantHeaderInterceptor 2+既有 13）。
 - `InterfaceAdmissionHeavyPgIT` 2/2（testcontainers-heavy）。
 - `ExampleBusinessFinalCheckE2EIT` 11/11；`ExampleProtectedApiE2EIT` 回归通过（`--perm.client.enabled=false` 修订后）。
 - 全量收口回归 `mvn test -T 1C`（E2E+heavy 必跑）：见收口提交记录。
@@ -97,3 +97,10 @@ last_updated: 2026-09-28
 ### 文档回写
 
 契约 §25.7 落地记录段；设计 §8.6a 落地记录；`docs/ops/runbook-service-mode-switch.md`（新）；`example-service.md`（§8.6 路由族+SDK 边界改写+演示场景表）；AGENTS.md（SDK 定案修订+e2e 子进程注意）；docker-compose（example 补 PERM_INTERNAL_SECRET）；计划进度区+README 任务行。
+
+### 外评修正（2026-09-28 收口后，评审基线 27b961e88→f7768f1d6）
+
+- **P1×2（数据隔离）**：`export/status` 补作业归属校验（租户+用户与提交时不符=与不存在同口径拒绝，防按递增 jobId 枚举他人导出内容；e2e ⑨ 提交者=查询者同人不受影响）；`ReportStore` 按租户分区存取（种子每租户惰性一份——资源实体按租户登记、业务数据同口径，同码跨租户互不可见）。
+- **P2×6**：全量授权（`scopeMode=ALL`，条目 resourceCode=null）由 `BusinessPermChecker.Scope.all` 表达（旧实现按码收集恒空集）；准入快照构建补终校验（独立 `selectAuthState` 复读启停+模式——代次比对只覆盖首次代次读之后的变更，入口校验与首次代次读之间切模式/停用须在返回前拦下，归 060 面的完备修正）；前端新建服务默认 `apiAuthMode` 改 `OPERATION_ADMISSION`（与后端创建缺省一致，`ServiceForm` 编辑 fallback 同批）；可信 clientIp 经网关重建 `X-Forwarded-For` 传入 checker 三个调用面（SDK 契约键 `clientIp`，与网关 `PermissionClient` 同款；缺失不传=IP 条件归引擎 fail-closed），异步作业提交时捕获、执行时点重放（与租户/主体同构）；报表入口 `@Valid` 补齐（HTTP 层反例=`ReportControllerValidationTest`：空名/空码/超批量上限→400+90001、业务层零调用）；撤权窗口单测改 mock answer 按调用序号定序（提交时点 check 恒先于执行时点——submit 内同步完成，无 10ms 延迟余量竞态；E2E 4s 窗口属跨进程固有形态——撤权经真实管理面+失效广播，本机回环余量充足，维持）。
+- **文档轨**：契约 §25 章定位「端点未实现」与 §25.1「bootstrap 登记 LEGACY_API」两处陈旧叙述修正（bootstrap 现行登记 OPERATION_ADMISSION）；最坏陈旧算式补构建耗时项（事实读取→generatedAt 间事实年龄继续增长：10s+5s+15s=30s 压线达标 0 余量；契约 §25.4/双侧 catalog Javadoc/SNAPSHOT_TTL 常量注释/060 卡/计划/README 同批）；runbook 盘点 SQL ①②补租户/服务分组维度、④类型联接补租户条件（跨租户 join 多行放大计数）；`example-service.md` 接入路径段改 sync-v2+EXAMPLE:VIEW 现行口径（旧 /sync+API:ACCESS 不再用于新链接入）；059/060/061 卡过程性拍板小节与外评处置章节按文档治理改写为当前口径（r2 §8.6a「（用户拍板）」注记同批去除）。
+- 验证：example-service 47/47（含归属/隔离/ALL/clientIp/@Valid 新回归锁）；access-service `PermissionAdmissionAppServiceImplTest` 5/5（终校验三态+重试+失败关闭）、`InterfaceAdmissionPgIT` 19/19（真库新语句+终校验路径）。

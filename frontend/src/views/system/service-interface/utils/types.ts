@@ -81,7 +81,9 @@ export interface ServiceSummary extends ServiceConfigResp {
 }
 
 export const createEmptyServiceForm = (): ServiceConfigFormData => ({
-  apiAuthMode: "LEGACY_API",
+  // 与后端创建缺省一致（T-ACCESS-059 无迁移期统一上线 OPERATION_ADMISSION）——
+  // 默认 LEGACY_API 会在用户未改动时显式提交覆盖后端缺省，新网关链路拿到 20071/503
+  apiAuthMode: "OPERATION_ADMISSION",
   serviceCode: "",
   name: "",
   basePath: "/",

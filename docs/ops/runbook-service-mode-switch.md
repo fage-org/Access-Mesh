@@ -43,8 +43,8 @@ OPERATION_ADMISSION 端点不服务 LEGACY 模式（快照端点 20071 信封→
 显式找到登记 API 并补准入操作（不能凭旧菜单类型猜 VIEW）。
 
 ```sql
--- ① 各服务映射分布与登记实体类型（非 API 手工映射=引用非 API 类型实体的启用映射行）
-SELECT m.service_code,
+-- ① 各服务映射分布与登记实体类型（非 API 手工映射=引用非 API 类型实体的启用映射行；按租户+服务分组，多租户同服务码不合并）
+SELECT m.tenant_id, m.service_code,
        count(*) AS mappings,
        count(*) FILTER (WHERE re.resource_type = (SELECT type_value FROM type_definition
            WHERE tenant_id = m.tenant_id AND type_key = 'resource_type' AND type_code = 'API' AND delete_flag = 0)) AS api_ref,
@@ -52,13 +52,13 @@ SELECT m.service_code,
 FROM resource_api_mapping m
 LEFT JOIN resource_entity re ON re.id = m.resource_entity_id AND re.tenant_id = m.tenant_id AND re.delete_flag = 0
 WHERE m.delete_flag = 0
-GROUP BY m.service_code ORDER BY 1;
+GROUP BY m.tenant_id, m.service_code ORDER BY 1, 2;
 
--- ② 同路由/重叠路径多要求（启用映射按精确路由重复；重叠路径歧义由快照构建期 20070 拦截）
-SELECT http_method || ' ' || path_pattern AS route, count(*), count(DISTINCT required_operation_id) AS distinct_reqs
+-- ② 同路由/重叠路径多要求（启用映射按精确路由重复；重叠路径歧义由快照构建期 20070 拦截；按租户+服务+路由分组——歧义判定域是单服务内，不同服务的合法同名路由不算重复）
+SELECT tenant_id, service_code, http_method || ' ' || path_pattern AS route, count(*), count(DISTINCT required_operation_id) AS distinct_reqs
 FROM resource_api_mapping
 WHERE delete_flag = 0 AND enabled
-GROUP BY 1 HAVING count(*) > 1;
+GROUP BY 1, 2, 3 HAVING count(*) > 1;
 
 -- ③ 缺业务操作登记（启用映射无 required_operation_id——OPERATION_ADMISSION 下 20071 配置故障）
 SELECT service_code, http_method, path_pattern
@@ -68,7 +68,7 @@ WHERE delete_flag = 0 AND enabled AND required_operation_id IS NULL;
 -- ④ 各服务独立 API 授权（旧 API:ACCESS 授权行残留——OPERATION_ADMISSION 不消费，062 受控清理面）
 SELECT rrp.tenant_id, rrp.abstract_role_id, count(*)
 FROM role_resource_permission rrp
-JOIN type_definition td ON td.type_value = rrp.resource_type AND td.type_key = 'resource_type' AND td.type_code = 'API' AND td.delete_flag = 0
+JOIN type_definition td ON td.tenant_id = rrp.tenant_id AND td.type_value = rrp.resource_type AND td.type_key = 'resource_type' AND td.type_code = 'API' AND td.delete_flag = 0
 WHERE rrp.delete_flag = 0
 GROUP BY 1, 2;
 

@@ -38,7 +38,7 @@ class BusinessPermCheckerTest {
     void check_buildsSubjectFromTrustedHeaderOnly() {
         when(client.checkAuth(any(AuthCheckReq.class))).thenReturn(R.ok(AuthCheckResp.allow(List.of(1L), List.of(2L), false)));
 
-        BusinessPermChecker.Decision d = checker.check("7", "42",
+        BusinessPermChecker.Decision d = checker.check("7", "42", null,
             BusinessPermChecker.Target.of("EXAMPLE", "report-1", "VIEW"));
 
         assertThat(d.allowed()).isTrue();
@@ -57,7 +57,7 @@ class BusinessPermCheckerTest {
     void check_typeLevelTargetCarriesNullResourceCode() {
         when(client.checkAuth(any(AuthCheckReq.class))).thenReturn(R.ok(AuthCheckResp.allow(List.of(), List.of(), false)));
 
-        checker.check("7", "42", BusinessPermChecker.Target.of("EXAMPLE", null, "CREATE"));
+        checker.check("7", "42", null, BusinessPermChecker.Target.of("EXAMPLE", null, "CREATE"));
 
         ArgumentCaptor<AuthCheckReq> captor = ArgumentCaptor.forClass(AuthCheckReq.class);
         verify(client).checkAuth(captor.capture());
@@ -70,7 +70,7 @@ class BusinessPermCheckerTest {
     void check_childTargetCarriesParentContext() {
         when(client.checkAuth(any(AuthCheckReq.class))).thenReturn(R.ok(AuthCheckResp.deny("DEPENDENT_NOT_IN_PARENT_CONTEXT")));
 
-        BusinessPermChecker.Decision d = checker.check("7", "42",
+        BusinessPermChecker.Decision d = checker.check("7", "42", null,
             BusinessPermChecker.Target.childOf("EXAMPLE", "report-1-detail", "SUB_VIEW",
                 "EXAMPLE", "report-1", List.of("VIEW")));
 
@@ -92,7 +92,7 @@ class BusinessPermCheckerTest {
             new BatchAuthCheckResp.AuthCheckItemResult("EXAMPLE", "report-2", "VIEW", false, "NO_PERMISSION", List.of(), List.of())))));
 
         Map<String, BusinessPermChecker.Decision> byCode =
-            checker.batchCheck("7", "42", "EXAMPLE", List.of("report-1", "report-2"), "VIEW");
+            checker.batchCheck("7", "42", null, "EXAMPLE", List.of("report-1", "report-2"), "VIEW");
 
         assertThat(byCode.get("report-1").allowed()).isTrue();
         assertThat(byCode.get("report-2").allowed()).isFalse();
@@ -104,20 +104,53 @@ class BusinessPermCheckerTest {
     }
 
     @Test
-    @DisplayName("范围查询：items 的业务码去重收集（列表过滤数据源）")
-    void accessibleCodes_collectsDistinctCodes() {
+    @DisplayName("范围查询：INSTANCE 行业务码去重收集（列表过滤数据源）")
+    void accessibleScope_collectsDistinctInstanceCodes() {
         when(client.queryResources(any(QueryResourcesReq.class))).thenReturn(R.ok(new QueryResourcesResp(List.of(
-            new QueryResourcesResp.ResourceEntry("EXAMPLE", "report-1", "default", "销售日报", false, null, null, null),
-            new QueryResourcesResp.ResourceEntry("EXAMPLE", "report-2", "default", "库存周报", false, null, null, null)), 10)));
+            new QueryResourcesResp.ResourceEntry("EXAMPLE", "report-1", "default", "销售日报", false,
+                cn.ac.fage.accessmesh.perm.common.enums.ScopeMode.INSTANCE, null, null),
+            new QueryResourcesResp.ResourceEntry("EXAMPLE", "report-2", "default", "库存周报", false,
+                cn.ac.fage.accessmesh.perm.common.enums.ScopeMode.INSTANCE, null, null)), 10)));
 
-        var codes = checker.accessibleCodes("7", "42", "EXAMPLE", "VIEW");
+        BusinessPermChecker.Scope scope = checker.accessibleScope("7", "42", null, "EXAMPLE", "VIEW");
 
-        assertThat(codes).containsExactlyInAnyOrder("report-1", "report-2");
+        assertThat(scope.all()).isFalse();
+        assertThat(scope.codes()).containsExactlyInAnyOrder("report-1", "report-2");
         ArgumentCaptor<QueryResourcesReq> captor = ArgumentCaptor.forClass(QueryResourcesReq.class);
         verify(client).queryResources(captor.capture());
         // 单类型×单操作显式构造，不触发笛卡尔组合
         assertThat(captor.getValue().resourceTypeCodes()).containsExactly("EXAMPLE");
         assertThat(captor.getValue().operationCodes()).containsExactly("VIEW");
+    }
+
+    @Test
+    @DisplayName("范围查询：scopeMode=ALL 行（resourceCode=null）→ Scope.all 表达全量，不按码过滤成空集")
+    void accessibleScope_allModeProjectsToAllFlag() {
+        when(client.queryResources(any(QueryResourcesReq.class))).thenReturn(R.ok(new QueryResourcesResp(List.of(
+            new QueryResourcesResp.ResourceEntry("EXAMPLE", null, null, null, false,
+                cn.ac.fage.accessmesh.perm.common.enums.ScopeMode.ALL, null, null)), 10)));
+
+        BusinessPermChecker.Scope scope = checker.accessibleScope("7", "42", null, "EXAMPLE", "VIEW");
+
+        // ALL=类型级全量授权：contains 对任意码为真（旧实现把 null 码收进集合，全量授权列表恒空）
+        assertThat(scope.all()).isTrue();
+        assertThat(scope.contains("report-1")).isTrue();
+        assertThat(scope.contains("anything")).isTrue();
+    }
+
+    @Test
+    @DisplayName("clientIp 透传：可信链 IP 经 context.clientIp 传引擎（缺省不传，IP 条件 fail-closed 归引擎）")
+    void check_carriesClientIpInContext() {
+        when(client.checkAuth(any(AuthCheckReq.class))).thenReturn(R.ok(AuthCheckResp.allow(List.of(), List.of(), false)));
+
+        checker.check("7", "42", "10.0.0.9", BusinessPermChecker.Target.of("EXAMPLE", "report-1", "VIEW"));
+        checker.check("7", "42", null, BusinessPermChecker.Target.of("EXAMPLE", "report-1", "VIEW"));
+
+        ArgumentCaptor<AuthCheckReq> captor = ArgumentCaptor.forClass(AuthCheckReq.class);
+        verify(client, org.mockito.Mockito.times(2)).checkAuth(captor.capture());
+        // SDK 契约键=clientIp（CallerContext.KEY_CLIENT_IP 线格式，与网关 PermissionClient 同款）
+        assertThat(captor.getAllValues().get(0).context()).containsEntry("clientIp", "10.0.0.9");
+        assertThat(captor.getAllValues().get(1).context()).isNull();
     }
 
     @Test
@@ -129,7 +162,7 @@ class BusinessPermCheckerTest {
             .thenThrow(new RuntimeException("connect refused")); // 传输异常
 
         for (int i = 0; i < 3; i++) {
-            assertThatThrownBy(() -> checker.check("7", "42",
+            assertThatThrownBy(() -> checker.check("7", "42", null,
                     BusinessPermChecker.Target.of("EXAMPLE", "report-1", "VIEW")))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode()).isEqualTo(30005));
@@ -146,12 +179,12 @@ class BusinessPermCheckerTest {
             })
             .thenReturn(R.ok(AuthCheckResp.allow(List.of(), List.of(), false)));
 
-        checker.check("7", "42", BusinessPermChecker.Target.of("EXAMPLE", "report-1", "VIEW"));
+        checker.check("7", "42", null, BusinessPermChecker.Target.of("EXAMPLE", "report-1", "VIEW"));
         assertThat(PermCallContext.getTenantId()).isNull();
 
         // fail-closed 路径同样必须清理（finally）
         when(client.checkAuth(any(AuthCheckReq.class))).thenReturn(R.fail(500, "boom"));
-        assertThatThrownBy(() -> checker.check("7", "42",
+        assertThatThrownBy(() -> checker.check("7", "42", null,
                 BusinessPermChecker.Target.of("EXAMPLE", "report-1", "VIEW")))
             .isInstanceOf(BizException.class);
         assertThat(PermCallContext.getTenantId()).isNull();

@@ -53,9 +53,9 @@ last_updated: 2026-09-28
 
 ### 边界重推导（§5.3 收口）
 
-快照构建读源实核：事实族六目录（EFFECTIVE_ROLES/ROLE_PERM_SNAPSHOT/TYPE_VALUE/TYPE_CODE/CONDITION_RULES/ROLE_MUTEX_RULE）经引擎 L2_ONLY≤10s；操作定义（057 新鲜目录）、条件规则原文（装配器 `conditionMapper.selectValidByIds` 直读）、路由映射与服务配置含代次复读全部新鲜库读不占预算。最坏陈旧＝事实族 L2≤10s＋快照有效期 15s（网关 `isFresh` 按服务端 expiresAt 门禁命中——「不在投影完成后重新起算寿命」由此承载；L1 TTL 15s 仅作丢失广播兜底）＝25s≤30s。回填保留读前令牌（`LoadToken` 取于回源前、提交前代际校验）与回源截止共享（既有机制，测试既有锁定）。
+快照构建读源实核：事实族六目录（EFFECTIVE_ROLES/ROLE_PERM_SNAPSHOT/TYPE_VALUE/TYPE_CODE/CONDITION_RULES/ROLE_MUTEX_RULE）经引擎 L2_ONLY≤10s；操作定义（057 新鲜目录）、条件规则原文（装配器 `conditionMapper.selectValidByIds` 直读）、路由映射与服务配置含代次复读全部新鲜库读不占预算。最坏陈旧＝事实族 L2≤10s＋构建耗时≤5s（网关回源截止约束——expiresAt 在构建完成后计算，构建期事实年龄继续增长，外评修正补入算式）＋快照有效期 15s（网关 `isFresh` 按服务端 expiresAt 门禁命中——「不在投影完成后重新起算寿命」由此承载；L1 TTL 15s 仅作丢失广播兜底）＝30s＝30s 目标压线达标（0 余量）。回填保留读前令牌（`LoadToken` 取于回源前、提交前代际校验）与回源截止共享（既有机制，测试既有锁定）。
 
-### 用户拍板（2026-09-28，三项）
+### 当前口径（三项定案）
 
 1. **接收侧代次匹配检查：不新增机制**——由「失效代际 epoch（失效事件到达即作废在途回源提交）＋快照 TTL」承载，此为对 2026-09-25 拍板「接收侧匹配检查」字样的边界推导修订；广播丢失时旧代次快照最长存活快照 TTL 15s，属「不承诺跨节点强一致」文档化接受面（权衡示例：代次水位线可把该窗口收窄到≈0，但新增 tenant×service 表+put 路径校验+失效面，为尾部情况多买保险不值）。
 2. **错误信封负缓存：维持现状**——LEGACY 部署错位窗口内每请求回源 503 即哨兵，不加约 5s 短缓存；空路由快照（停用/未登记）是唯一可缓存负形态（059 拍板既有）。
@@ -64,7 +64,7 @@ last_updated: 2026-09-28
 ### 验收对照（N19/N21/N23）
 
 - **N19（条件同 ID 更新/操作覆盖改变→相关服务失效；不依赖旧 resourceId 等值反查）**：`InterfaceAdmissionPgIT.conditionUpdateShouldBroadcastMappedServicesByGrantTypeSuperset`（真库全链：条件挂 ADMIT2 类型级授权+svc-a 映射 ADMIT2:VIEW+svc-b 仅映射 ADMIT3→广播恰含 svc-a；**红跑实证**：临时屏蔽 flush 反查后广播 serviceCodes=`[]` 用例失败）；`operationTypeSupersetShouldSelectOnlyServicesMappingThatType`（操作类型超集 SQL 正负锁——此前测试零覆盖）；`PermissionChangeAspectTest` 通道单测（markConditions→反查并入广播合并去重 + 负向：无 conditionIds 不触发反查）；`ConditionAppServiceImplTest` 改写为条件通道登记断言。
-- **N21（旧在途读取不覆盖新代次）**：构建期自一致（059 真库并发写路径）＋接收侧 epoch 三组竞态测试（`GatewayInvalidationRaceTest`）＋过期快照按 miss 重载（`PermissionFilterTest.ExpiredCachedSnapshotReloads`）既有；本卡裁定接收侧不新增代次消费（拍板①）。
+- **N21（旧在途读取不覆盖新代次）**：构建期自一致（059 真库并发写路径）＋接收侧 epoch 三组竞态测试（`GatewayInvalidationRaceTest`）＋过期快照按 miss 重载（`PermissionFilterTest.ExpiredCachedSnapshotReloads`）既有；本卡裁定接收侧不新增代次消费（当前口径①）。
 - **N23（模式切换/回切本地演练；不依赖广播发送即成功）**：`modeSwitchShouldBumpGenerationBroadcastAndRecover`（OA→LEGACY→OA 逐次同事务代次 +1+广播；LEGACY 期 20071；回切即恢复可构建——恢复以库为准）；网关负形态 `NegativeCacheForms` 两用例（空快照缓存后 403 不回源；错误信封每请求回源 503 不缓存）。
 - **失效矩阵其余行**：授撤/角色/父结构→markRoles/markUsers 广播（`AuthorizationChangeInvalidationPgIT` 等既有）+网关 evict 分支测试既有；映射/模式行代次与广播由 059 代次锁+本卡 N23 用例覆盖。每触发负向：反查排除（svc-b 不在广播）、无 conditionIds 不反查、错误信封不缓存、停用空快照不清其他服务缓存（identifier 隔离）。
 
@@ -72,12 +72,9 @@ last_updated: 2026-09-28
 
 - 定向：`InterfaceAdmissionPgIT` 19/19、`PermissionChangeAspectTest`+`ConditionAppServiceImplTest`+`AccessCacheCatalogBoundaryTest` 50 用例、gateway `PermissionFilterTest` 11/11 全绿。
 - 收口全量：`mvn test -T 1C`（含 E2E/heavy）BUILD SUCCESS，0 失败 0 错误 0 跳过（E2E 双切片 8+8 全跑）。
-- 双轨评审（主代理直跑）：代码轨一处自修（flush 反查失败隔离 try/catch，防阻断同批角色/用户广播）；减法检查零新增可裁剪项（三项拍板已裁水位线/负缓存/强制在线）；残留清扫旧 SQL 符号代码面 0 命中（文档叙事引用除外）、schema 双册 COMMENT 逐字一致（diff 实证）；rrp.condition_id 无索引与退役旧查询同谓词形态（低频管理路径，不加索引）。
+- 双轨评审（主代理直跑）：代码轨一处自修（flush 反查失败隔离 try/catch，防阻断同批角色/用户广播）；减法检查零新增可裁剪项（三项定案已裁水位线/负缓存/强制在线）；残留清扫旧 SQL 符号代码面 0 命中（文档叙事引用除外）、schema 双册 COMMENT 逐字一致（diff 实证）；rrp.condition_id 无索引与退役旧查询同谓词形态（低频管理路径，不加索引）。
 
-## 外部评审处置（2026-09-28，claude+grok 双通道，commit 837cf916e）
+### 外评修正与边界确认（commit 837cf916e）
 
-- claude 通道（v2 提示词，专项清单 8 项）：P0=0/P1=0/P2=0/**P3×3**，清单 8/8 独立复核全过（含 depend_on 子行无条件 DDL 焊死下「条件行自身 resource_type 即完整超集」的漏广播排除论证）；过度设计可裁剪项=无（评价本卡为净减法）。
-- grok 通道（120 turns）：**全零缺陷**；8 项清单独立复核全过（因无仓内 surefire 报告仅以断言代码为证）；3 条存量观察；可裁剪项=无。
-- 处置（全部核实成立，事实性最小修正直修+类推扫描）：①P3 N19 用例改传真实新规则载荷（原仅改名，锁不住「规则变化必须失效」的未来收窄回归）；②P3 `PermissionConditionDomainService` 接口 javadoc 旧口径（markRoles 覆盖快照面）改写为 markConditions 通道反查口径；③P3 `ConditionAppServiceImpl` 构造器 @param 退役叙述删除（类推扫描：其余 T-PERM-017 命中均为 C3/C4 条件可下发语义，无关且仍准确）；④grok 存量 `PermInvalidationPublisher` javadoc「TTL(30-60s)」改现行 15s；⑤claude 存量 implements 全限定名冗余（本卡引入 import 后）顺手清理。
-- 撤回/不处置（附依据）：两通道共同点名的 `isFresh(expiresAt==null)` 视为新鲜——`InterfaceAdmissionMatcher.java:94-97` 对 null expiresAt 判 CONFIG_FAULT 503（「缓存层 TTL 之外的双保险」），null 路径不可能 stale-allow，且现行装配恒传 expiresAt，无触发路径，不收紧；Q-046 未被本卡放大（claude 复核：反查对缺操作引用行同样排除，该服务两路径均失败关闭）。
-- 处置后复跑：`InterfaceAdmissionPgIT` 19/19（新载荷用例过）、`ConditionAppServiceImplTest` 33/33、编译净。
+- 修正五项（逐条代码级核实成立，事实性最小修正直修+类推扫描）：①N19 用例改传真实新规则载荷（原仅改名，锁不住「规则变化必须失效」的未来收窄回归）；②`PermissionConditionDomainService` 接口 javadoc 旧口径（markRoles 覆盖快照面）改写为 markConditions 通道反查口径；③`ConditionAppServiceImpl` 构造器 @param 退役叙述删除（类推扫描：其余 T-PERM-017 命中均为 C3/C4 条件可下发语义，无关且仍准确）；④`PermInvalidationPublisher` javadoc「TTL(30-60s)」改现行 15s；⑤implements 全限定名冗余清理。处置后定向复跑 `InterfaceAdmissionPgIT` 19/19、`ConditionAppServiceImplTest` 33/33、编译净。
+- 边界确认（评审曾点名，核实后不处置）：`isFresh(expiresAt==null)` 视为新鲜——`InterfaceAdmissionMatcher.java:94-97` 对 null expiresAt 判 CONFIG_FAULT 503（「缓存层 TTL 之外的双保险」），null 路径不可能 stale-allow，且现行装配恒传 expiresAt，无触发路径，不收紧；Q-046 未被本卡放大（反查对缺操作引用行同样排除，该服务两路径均失败关闭）；depend_on 子行无条件 DDL 焊死下「条件行自身 resource_type 即完整超集」的漏广播排除论证核实成立。

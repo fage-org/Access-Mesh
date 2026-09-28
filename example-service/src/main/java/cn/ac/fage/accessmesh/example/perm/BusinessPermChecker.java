@@ -10,6 +10,7 @@ import cn.ac.fage.accessmesh.perm.common.dto.req.QueryResourcesReq;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.AuthCheckResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.BatchAuthCheckResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryResourcesResp;
+import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -32,6 +33,11 @@ import java.util.function.Supplier;
  * 两次执行、不共享运行状态。
  * </p>
  * <p>
+ * 环境上下文（clientIp）由 Controller 从网关清洗重建后的 {@code X-Forwarded-For}
+ * （单一可信来源=T-GW-008 下游统一消费口径）取出显式传入；缺失时不传——IP 类条件
+ * 由引擎按缺上下文拒绝（fail-closed）。异步作业在提交时捕获该值、执行时点重放。
+ * </p>
+ * <p>
  * 失败语义 fail-closed：Feign 传输异常、信封 code≠200、data=null 一律视为不可判定，
  * 抛 30005 拒绝业务——不因鉴权服务故障放行任何数据（§8.6「不能检查 A 却按 B 取数」
  * 的对偶面：不能判定时也不取数）。
@@ -43,6 +49,9 @@ public class BusinessPermChecker {
     private static final Logger log = LoggerFactory.getLogger(BusinessPermChecker.class);
     private static final String SUBJECT_TYPE_LOCAL_USER = "LOCAL_USER";
 
+    /** SDK 契约条件评估上下文的受信 IP 键（CallerContext.KEY_CLIENT_IP 线格式，与网关 PermissionClient 同款）。 */
+    private static final String CONTEXT_KEY_CLIENT_IP = "clientIp";
+
     private final PermissionFeignClient permissionClient;
 
     public BusinessPermChecker(PermissionFeignClient permissionClient) {
@@ -50,13 +59,13 @@ public class BusinessPermChecker {
     }
 
     /** 单目标 DECISION（§8.6 查看/创建/导出/子权限行）。 */
-    public Decision check(String tenantId, String userId, Target target) {
+    public Decision check(String tenantId, String userId, String clientIp, Target target) {
         AuthCheckResp resp = call(tenantId, () -> permissionClient.checkAuth(new AuthCheckReq(
             SUBJECT_TYPE_LOCAL_USER, userId,
             target.resourceTypeCode(), target.resourceCode(), target.operationCode(),
             null, null, null,
             target.parentResourceTypeCode(), target.parentResourceCode(), target.parentCodeType(),
-            target.parentOperationCodes(), null)));
+            target.parentOperationCodes(), contextOf(clientIp))));
         return new Decision(resp.allowed(), resp.reason());
     }
 
@@ -64,14 +73,16 @@ public class BusinessPermChecker {
      * 独立批量（§8.6）：每个目标一个 DECISION 项、一次 batch-check 调用，结果按
      * resourceCode 对齐返回——任一允许不放行整批，全拒/允许子集由调用方业务决定。
      */
-    public Map<String, Decision> batchCheck(String tenantId, String userId, String resourceTypeCode,
+    public Map<String, Decision> batchCheck(String tenantId, String userId, String clientIp,
+                                            String resourceTypeCode,
                                             List<String> resourceCodes, String operationCode) {
         List<BatchAuthCheckReq.AuthCheckItem> items = new ArrayList<>(resourceCodes.size());
         for (String code : resourceCodes) {
             items.add(new BatchAuthCheckReq.AuthCheckItem(resourceTypeCode, code, operationCode, null, null, null));
         }
         BatchAuthCheckResp resp = call(tenantId, () -> permissionClient.batchCheckAuth(
-            new BatchAuthCheckReq(SUBJECT_TYPE_LOCAL_USER, userId, items, null, null, null, null, null)));
+            new BatchAuthCheckReq(SUBJECT_TYPE_LOCAL_USER, userId, items,
+                null, null, null, null, contextOf(clientIp))));
         Map<String, Decision> byCode = new LinkedHashMap<>();
         for (BatchAuthCheckResp.AuthCheckItemResult item : resp.items()) {
             byCode.put(item.resourceCode(), new Decision(item.allowed(), item.reason()));
@@ -82,17 +93,25 @@ public class BusinessPermChecker {
     /**
      * 范围查询（§8.6 列表/搜索行）：取该类型+操作下主体可访问的业务码集合，业务侧
      * 以同口径过滤数据与统计 total——分页 total 与返回数据必须来自同一权限范围。
+     * {@code scopeMode=ALL}（类型级全量授权）以 {@link Scope#all} 表达——此时
+     * 条目 resourceCode 为 null，按码过滤会漏掉全部数据，须以 {@link Scope#contains} 消费。
      */
-    public Set<String> accessibleCodes(String tenantId, String userId, String resourceTypeCode,
-                                       String operationCode) {
+    public Scope accessibleScope(String tenantId, String userId, String clientIp,
+                                 String resourceTypeCode, String operationCode) {
         QueryResourcesResp resp = call(tenantId, () -> permissionClient.queryResources(
             new QueryResourcesReq(SUBJECT_TYPE_LOCAL_USER, userId,
-                List.of(resourceTypeCode), List.of(operationCode), null, null, null, null, null)));
+                List.of(resourceTypeCode), List.of(operationCode),
+                null, null, null, null, contextOf(clientIp))));
+        boolean all = false;
         Set<String> codes = new LinkedHashSet<>();
         for (QueryResourcesResp.ResourceEntry entry : resp.items()) {
-            codes.add(entry.resourceCode());
+            if (entry.scopeMode() == ScopeMode.ALL) {
+                all = true;
+            } else if (entry.resourceCode() != null) {
+                codes.add(entry.resourceCode());
+            }
         }
-        return codes;
+        return new Scope(all, codes);
     }
 
     /** 统一调用包装：绑定租户上下文（拦截器注入 X-Tenant-Id）+ fail-closed 信封解析。 */
@@ -115,6 +134,11 @@ public class BusinessPermChecker {
         } finally {
             PermCallContext.clear();
         }
+    }
+
+    /** 条件评估上下文：仅承载受信 clientIp（缺省不传，IP 类条件由引擎 fail-closed）。 */
+    private static Map<String, Object> contextOf(String clientIp) {
+        return clientIp == null ? null : Map.of(CONTEXT_KEY_CLIENT_IP, clientIp);
     }
 
     private static BizException unavailable() {
@@ -140,5 +164,13 @@ public class BusinessPermChecker {
 
     /** 最终检查判定结果（引擎 DECISION 投影：allowed + 拒绝原因）。 */
     public record Decision(boolean allowed, String reason) {
+    }
+
+    /** 可访问范围（引擎 GRANT_LIST 投影）：all=类型级全量授权（不按码过滤）；codes=实例级可访问业务码。 */
+    public record Scope(boolean all, Set<String> codes) {
+
+        public boolean contains(String code) {
+            return all || codes.contains(code);
+        }
     }
 }
