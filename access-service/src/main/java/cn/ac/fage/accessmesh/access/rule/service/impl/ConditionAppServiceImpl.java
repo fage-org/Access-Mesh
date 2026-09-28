@@ -64,7 +64,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
      * 构造函数注入依赖
      *
      * @param conditionMapper             权限条件数据访问层
-     * @param roleResourcePermissionDomainService 授权事实领域服务（引用守卫 + T-PERM-017 P2-A 反查 serviceCodes；Q-009 收敛注入）
+     * @param roleResourcePermissionDomainService 授权事实领域服务（引用守卫与实例授权判定；Q-009 收敛注入——条件→服务反查已移交 AOP flush 通道，T-ACCESS-060）
      * @param engine                      权限查询引擎
      * @param localProjectionDomainService 本地投影领域服务（CONDITION 实例投影，T-PERM-048）
      * @param conditionDomainService      条件领域服务（规则写入口径校验双轨共享）

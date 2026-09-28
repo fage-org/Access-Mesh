@@ -539,7 +539,11 @@ class InterfaceAdmissionPgIT {
         grant(null, 2L, true, cond, null);                        // ADMIT2 类型级 VIEW 带条件
 
         clearInvocations(invalidationPublisher);
-        conditions.updateCondition(TENANT, new ConditionUpdateReq(condCode, "n19 改规则", null, null, null, null), 100L);
+        // 真实改规则（外评 P3 处置：仅改名锁不住「规则变化必须失效」——未来把 mark 收窄为
+        // 仅名称变化不登记时本用例须转红），载荷换成不同 CIDR 的合法可下发规则
+        conditions.updateCondition(TENANT, new ConditionUpdateReq(condCode, "n19 改规则",
+            "{\"logic\":\"AND\",\"items\":[{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"192.168.0.0/16\"]}}]}",
+            null, null, null), 100L);
 
         // 广播恰含映射 ADMIT2 操作的正向服务；负向服务不在集合中
         assertThat(captureBroadcastServiceCodes()).containsExactly(SERVICE);

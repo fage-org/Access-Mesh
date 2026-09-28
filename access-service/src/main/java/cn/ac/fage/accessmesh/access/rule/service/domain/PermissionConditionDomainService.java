@@ -85,7 +85,8 @@ public interface PermissionConditionDomainService {
      * 仅接受 source=INLINE 的行（MANAGED 条件须走管理页 update）；enabled 维持 true 不变，
      * 可变面=name/conditionRules/gatewayEvaluable（最终态联合校验同管理页轨）。
      * 编辑后由本方法登记 markConditions（CONDITION_RULES 缓存失效；Gateway 快照面由
-     * 授权链路 markRoles 的租户级安全清理覆盖，T-PERM-006）。
+     * markConditions 通道按「引用条件的授权类型→所需操作→映射服务」超集反查并入
+     * serviceCodes 广播，T-ACCESS-060；同事务授权行变更另由 markRoles 覆盖）。
      * </p>
      *
      * @param tenantId   租户ID

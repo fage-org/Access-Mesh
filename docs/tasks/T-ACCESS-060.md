@@ -73,3 +73,11 @@ last_updated: 2026-09-28
 - 定向：`InterfaceAdmissionPgIT` 19/19、`PermissionChangeAspectTest`+`ConditionAppServiceImplTest`+`AccessCacheCatalogBoundaryTest` 50 用例、gateway `PermissionFilterTest` 11/11 全绿。
 - 收口全量：`mvn test -T 1C`（含 E2E/heavy）BUILD SUCCESS，0 失败 0 错误 0 跳过（E2E 双切片 8+8 全跑）。
 - 双轨评审（主代理直跑）：代码轨一处自修（flush 反查失败隔离 try/catch，防阻断同批角色/用户广播）；减法检查零新增可裁剪项（三项拍板已裁水位线/负缓存/强制在线）；残留清扫旧 SQL 符号代码面 0 命中（文档叙事引用除外）、schema 双册 COMMENT 逐字一致（diff 实证）；rrp.condition_id 无索引与退役旧查询同谓词形态（低频管理路径，不加索引）。
+
+## 外部评审处置（2026-09-28，claude+grok 双通道，commit 837cf916e）
+
+- claude 通道（v2 提示词，专项清单 8 项）：P0=0/P1=0/P2=0/**P3×3**，清单 8/8 独立复核全过（含 depend_on 子行无条件 DDL 焊死下「条件行自身 resource_type 即完整超集」的漏广播排除论证）；过度设计可裁剪项=无（评价本卡为净减法）。
+- grok 通道（120 turns）：**全零缺陷**；8 项清单独立复核全过（因无仓内 surefire 报告仅以断言代码为证）；3 条存量观察；可裁剪项=无。
+- 处置（全部核实成立，事实性最小修正直修+类推扫描）：①P3 N19 用例改传真实新规则载荷（原仅改名，锁不住「规则变化必须失效」的未来收窄回归）；②P3 `PermissionConditionDomainService` 接口 javadoc 旧口径（markRoles 覆盖快照面）改写为 markConditions 通道反查口径；③P3 `ConditionAppServiceImpl` 构造器 @param 退役叙述删除（类推扫描：其余 T-PERM-017 命中均为 C3/C4 条件可下发语义，无关且仍准确）；④grok 存量 `PermInvalidationPublisher` javadoc「TTL(30-60s)」改现行 15s；⑤claude 存量 implements 全限定名冗余（本卡引入 import 后）顺手清理。
+- 撤回/不处置（附依据）：两通道共同点名的 `isFresh(expiresAt==null)` 视为新鲜——`InterfaceAdmissionMatcher.java:94-97` 对 null expiresAt 判 CONFIG_FAULT 503（「缓存层 TTL 之外的双保险」），null 路径不可能 stale-allow，且现行装配恒传 expiresAt，无触发路径，不收紧；Q-046 未被本卡放大（claude 复核：反查对缺操作引用行同样排除，该服务两路径均失败关闭）。
+- 处置后复跑：`InterfaceAdmissionPgIT` 19/19（新载荷用例过）、`ConditionAppServiceImplTest` 33/33、编译净。

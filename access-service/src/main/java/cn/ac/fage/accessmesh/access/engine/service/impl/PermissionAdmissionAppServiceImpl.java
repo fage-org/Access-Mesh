@@ -59,7 +59,7 @@ import java.util.Set;
  * </p>
  */
 @Service
-public class PermissionAdmissionAppServiceImpl implements cn.ac.fage.accessmesh.access.engine.service.PermissionAdmissionAppService {
+public class PermissionAdmissionAppServiceImpl implements PermissionAdmissionAppService {
 
     private static final Logger log = LoggerFactory.getLogger(PermissionAdmissionAppServiceImpl.class);
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
