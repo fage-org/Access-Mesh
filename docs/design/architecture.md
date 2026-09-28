@@ -158,7 +158,7 @@ last_reviewed: 2026-09-15 服务清单与拓扑图、§3 章节标题与正文�
 
 | 层级 | 存储 | Key 模式 | TTL | 失效方式 |
 | ---- | -------- | -------------------------------------- | --- | -------------------- |
-| 准入快照 L1 | Caffeine（统一 CacheService，L1_ONLY，catalog `gw:interface-admission-snapshot`） | `{tenantId}:gw:interface-admission-snapshot:{subjectTypeCode,userId,serviceCode}` | ≤15s | Redis pub/sub `perm:invalidate` 主动失效 + TTL 兜底（T-ACCESS-059；完整边界推导归 T-ACCESS-060） |
+| 准入快照 L1 | Caffeine（统一 CacheService，L1_ONLY，catalog `gw:interface-admission-snapshot`） | `{tenantId}:gw:interface-admission-snapshot:{subjectTypeCode,userId,serviceCode}` | ≤15s | Redis pub/sub `perm:invalidate` 主动失效 + TTL 兜底（T-ACCESS-059；T-ACCESS-060 边界推导收口：最坏陈旧＝事实族 L2≤10s＋快照有效期 15s＝25s≤30s，方程入两侧启动校验；条件变更经「授权类型→所需操作→映射服务」超集反查广播） |
 | L2 | 无 | — | — | 快照缓存不落 L2；Sa-Token 会话与失效订阅仍使用 Redis |
 
 > 一次授权请求触发的整个快照加载流程共享不超过 5 秒的墙钟硬截止，超时不写缓存并固定 fail-closed。串行授权安全预算 ≤30s = access-service 授权 L2（≤10s）+ 回源全链路截止（≤5s）+ Gateway 快照 L1（≤15s），详见 [`access-service-architecture.md`](access-service-architecture.md) §7.2。

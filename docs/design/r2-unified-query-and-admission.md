@@ -458,7 +458,7 @@ effectiveRoles = S - D
 
 本版默认：准入在线与构建快照均从新鲜数据库目录解析 required operation 和 coveringMask；事实中的授权／角色／条件仍按各自来源标注。新增缓存目录、路由来源、父结构以及本地 TTL 必须纳入边界校验，回填保留读前令牌／剩余 TTL，不在投影完成后重新起算寿命。
 
-T-ACCESS-057 的准入阶段已通过 `QueryReadSupport.resolveOperations/freshOperations` 读取完整数据库目录；在线与 FACTS 共用该来源，覆盖变化不消费普通掩码桶。N20 由 `AdmissionStagesTest` 与 `QueryExecutionPgIT` 锁定，新快照生命周期与 TTL 仍由 T-ACCESS-059/060 验收。
+T-ACCESS-057 的准入阶段已通过 `QueryReadSupport.resolveOperations/freshOperations` 读取完整数据库目录；在线与 FACTS 共用该来源，覆盖变化不消费普通掩码桶。N20 由 `AdmissionStagesTest` 与 `QueryExecutionPgIT` 锁定，新快照生命周期与 TTL 仍由 T-ACCESS-059/060 验收。**T-ACCESS-060 已按本节完成边界重推导与启动校验方程锁（2026-09-28，实核读源与 25s≤30s 推导见 §8.5a）。**
 
 备选是业务操作专用的短 TTL／版本化安全缓存，可降低构建成本，但要同批改写覆盖变化、删除、读前令牌、跨节点失效和启动校验。**它不是本版默认，也不能只换一个 TTL 数字就宣称安全已证明。**即便采用新鲜操作定义，广播＋TTL 仍不是零延迟强一致；旧普通目标查询的操作缓存边界也不会被此次改造自动消除。
 
@@ -798,6 +798,15 @@ T-ACCESS-059 已落地（2026-09-28，六项用户拍板与实现形态）：①
 **首次迁移默认采用可验证的服务级切换：**暂停目标服务业务入口→确认每条路由已具备业务最终检查→切模式／配置→全接流量节点确认新版本并清理旧缓存／加载→恢复。需要不停流时另补带全节点确认的代次切换协议；一次 pub/sub 广播不是完成证据。新快照缺失、远端不可用、未知 schema 不得自动 OR 旧权限或 stale-allow；按现有失败关闭路径返回技术错误。[C06][C07]
 
 新快照短 TTL、上游安全目录寿命与截止时间按第 5 节重新推导并纳入启动校验；不能直接宣称旧 30 秒目标自动覆盖新增的操作／路由依赖。临时强制在线可用于灰度验证，但要有容量预算与退出条件，不能称作性能不变的终态。
+
+### 8.5a T-ACCESS-060 落地记录（2026-09-28）
+
+失效矩阵与边界推导的收口实现（验收 N19/N21/N23）：
+
+- **条件→服务反查（N19）**：`PermissionChangeAspect` flush 对非空 `markConditions` 统一执行安全超集反查（`selectServiceCodesByConditionGrantTypes`——引用条件的授权行 `resource_type`（全行 NOT NULL，含实例行）→该类型所需操作（`operation_permission`）→映射服务（`resource_api_mapping.required_operation_id`）），结果并入 `serviceCodes` 广播。管理页 update/delete、内联条件随授权页编辑/回收、类型级联回收全部经 markConditions 通道自动覆盖。旧 T-PERM-017「授权资源=API 资源」等值联接（`selectServiceCodesByConditionIds`）整体退役——新映射模型下映射行 `resource_entity_id` 指向 API 登记实体，旧联接结果普遍为空（条件改规则不广播任何服务，红跑实证：屏蔽 flush 反查后广播 serviceCodes 为空、用例失败）。「再按实际覆盖优化」未做：网关对 serviceCodes 非空整租户失效，精确化只改变「是否广播」不改变失效范围，超集方向安全。
+- **接收侧代次（N21 网关半边，边界推导裁定）**：2026-09-28 用户拍板——接收侧不实现单独的代次匹配检查（对 2026-09-25 拍板「接收侧匹配检查」字样的边界推导修订），由既有「失效代际 epoch（失效事件到达即作废在途回源提交，三组竞态测试锁定）＋快照 TTL」承载；广播丢失时旧代次快照最长存活快照 TTL 15s，属「不承诺跨节点强一致」文档化接受面。构建期自一致校验（flushCache 复读）由 T-ACCESS-059 落地。
+- **边界重推导（§5.3 收口）**：快照构建读源实核＝事实族 L2_ONLY≤10s（六目录，启动校验锁）＋操作定义/条件规则原文/路由映射/服务配置含代次复读全部新鲜库读；最坏陈旧＝10s（事实族）＋15s（快照有效期，网关按服务端 expiresAt 门禁、L1 TTL 仅作丢失广播兜底）＝25s≤30s 目标。方程入启动校验：`PermCacheBoundaryValidator` 断言上游 L2 上限＋`SNAPSHOT_TTL`≤30s（调大任一常量即启动失败），网关侧 `GatewayCacheBoundaryValidator` 维持 L1≤15s＋回源截止≤5s。
+- **N23（模式切换演练）**：模式/启停切换同事务代次 +1 并广播 serviceCodes（access 侧演练：OA→LEGACY→OA 逐次 +1/广播，LEGACY 期间快照端点 20071 信封，回切后即恢复可构建——恢复以库为准不依赖广播送达）；网关侧负形态＝空路由快照可缓存（DENY→403 不回源，防停用风暴），错误信封不缓存（部署错位窗口每请求回源 503 即哨兵，2026-09-28 拍板不加错误负缓存）；「临时强制在线」灰度开关不落地（无现实需求触发）。
 
 ### 8.6 业务服务：以实际目标做最后一道权限检查
 

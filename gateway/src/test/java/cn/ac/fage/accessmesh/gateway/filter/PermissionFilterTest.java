@@ -433,4 +433,59 @@ class PermissionFilterTest {
             assertThat(cachedSnapshot()).isNotNull();
         }
     }
+
+    // ─── T-ACCESS-060 N23：负缓存形态（空快照可缓存 / 错误信封不缓存） ───
+
+    @Nested
+    class NegativeCacheForms {
+
+        @Test
+        void emptySnapshotShouldBeCachedAndServedAsDenyWithoutRefetch() throws InterruptedException {
+            // 空快照（停用/未登记服务 routes=[]）＝唯一可缓存负形态（059 拍板）：首次回源后
+            // TTL 内后续请求命中缓存不再回源，本地无注册匹配 DENY→403——防停用服务
+            // 全量流量逐请求回源风暴
+            java.time.LocalDateTime now = java.time.LocalDateTime.now();
+            InterfaceAdmissionSnapshotResp empty = new InterfaceAdmissionSnapshotResp(
+                InterfaceAdmissionSnapshotResp.CURRENT_SCHEMA_VERSION, TENANT_ID,
+                new InterfaceAdmissionSnapshotResp.Subject(SUBJECT_TYPE_CODE, String.valueOf(USER_ID)),
+                SERVICE_CODE, now, now.plusSeconds(60), 3L,
+                List.of(), List.of(), "OPERATION_ADMISSION", true);
+
+            AtomicInteger fetches = new AtomicInteger();
+            when(permissionClient.interfaceAdmissionSnapshot(anyString(), anyLong(), anyString(), anyLong()))
+                .thenAnswer(inv -> {
+                    fetches.incrementAndGet();
+                    return Mono.just(successResult(empty));
+                });
+
+            ServerWebExchange first = buildExchange();
+            assertThat(awaitCapturedStatus(first, 5)).isEqualTo(HttpStatus.FORBIDDEN);
+
+            ServerWebExchange second = buildExchange();
+            assertThat(awaitCapturedStatus(second, 5)).isEqualTo(HttpStatus.FORBIDDEN);
+
+            assertThat(fetches).hasValue(1);          // 第二次命中缓存，未回源
+            assertThat(cachedSnapshot()).isNotNull(); // 空快照已入缓存（负形态载体）
+        }
+
+        @Test
+        void errorEnvelopeShouldNotBeCachedAndEveryRequestRefetches() throws InterruptedException {
+            // 错误信封（data=null，如 LEGACY 模式 20071）不缓存（N23 拍板：维持现状）：
+            // 部署错位窗口内每请求回源一次并 503 fail-closed——持续 503 即哨兵，不加负缓存缓解
+            AtomicInteger fetches = new AtomicInteger();
+            when(permissionClient.interfaceAdmissionSnapshot(anyString(), anyLong(), anyString(), anyLong()))
+                .thenAnswer(inv -> {
+                    fetches.incrementAndGet();
+                    return Mono.just(R.ok(null));
+                });
+
+            for (int i = 0; i < 2; i++) {
+                ServerWebExchange exchange = buildExchange();
+                assertThat(awaitCapturedStatus(exchange, 5)).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+            }
+
+            assertThat(fetches).hasValue(2);   // 每请求各回源一次（无错误负缓存）
+            assertThat(cachedSnapshot()).isNull(); // 错误结果未写缓存
+        }
+    }
 }

@@ -3112,7 +3112,7 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
 
 - `routes[]` 携带该服务**完整启用路由**与各自要求；不按用户权限裁剪规则（§25.5 完整配置优先）。
 - `operationCandidates[]` 为最终准入投影（原始 GrantFact 不去重合并）：**每个元素承载一个条件身份（无条件用 `conditionId: null`）＋一个具体 `candidateKind`（`ALL`/`INSTANCE`/`CONTEXT_DEFERRED` 三选一）**，同一 type-operation 的不同条件身份或候选类别分列多个元素（设计 §8.4 归并键：type-operation＋conditionId／无条件身份＋候选类别）；仅上下文子行提供的候选保留 `CONTEXT_DEFERRED`，不伪装成主授权。`gatewayEvaluable` 表示该分支条件可否本地评估（false＝需回源，不表示通过）。**条件候选（`conditionId` 非 null）在 `gatewayEvaluable=true` 且规则类型全在四类型白名单（DATE_RANGE/TIME_RANGE/IP_WHITELIST/IP_BLACKLIST）内时内联 `conditionRules`——String 规则原文，同 §15 `ConditionResp.conditionRules` 的 `{logic, items[]}` 形态，沿旧快照 `ApiPermissionEntry.conditionRules` 同构传输（§18.4）；其余情况省略该字段，网关按需回源分支处理**。`gatewayEvaluable=true` 但 `conditionRules` 缺失或解析失败＝不可用分支（不通过、不转为无条件），无其他通过分支时回源在线判定（N11，同旧快照 FALLBACK 形态）。
-- `configGeneration`＝构建期自一致校验（2026-09-25 拍板限定语义）：构建前后代次比对、变更即废弃重建；接收侧（网关）不消费代次，代次匹配检查未实现（归 T-ACCESS-060 边界推导，勿以此为前提）；不承诺跨节点授权版本强一致。**载体（T-ACCESS-059 拍板，2026-09-28）：`service_config.config_generation` 计数列（BIGINT NOT NULL DEFAULT 0），该服务映射写路径（共用保存入口/删除/FULL 清理）与模式切换同事务 +1；快照构建以独立语句+`flushCache="true"` 复读代次（强制落库——仅独立语句不避开 MyBatis 会话一级缓存对同语句二次调用的命中，2026-09-28 外评核实修正），有限重试后仍不稳定按技术故障失败关闭。服务配置保存不整实体回写该列（UpdateEntity 显式列，防并发递增后倒退）。**
+- `configGeneration`＝构建期自一致校验（2026-09-25 拍板限定语义）：构建前后代次比对、变更即废弃重建；接收侧（网关）不消费代次（**T-ACCESS-060 边界推导裁定，2026-09-28 用户拍板**：接收侧由「失效代际 epoch 作废在途＋快照 TTL 兜底」承载，不实现单独的代次匹配检查——此为对 2026-09-25 拍板「接收侧匹配检查」字样的边界推导修订；广播丢失时旧代次快照最长存活快照 TTL 15s，属「不承诺跨节点强一致」的文档化接受面）；不承诺跨节点授权版本强一致。**载体（T-ACCESS-059 拍板，2026-09-28）：`service_config.config_generation` 计数列（BIGINT NOT NULL DEFAULT 0），该服务映射写路径（共用保存入口/删除/FULL 清理）与模式切换同事务 +1；快照构建以独立语句+`flushCache="true"` 复读代次（强制落库——仅独立语句不避开 MyBatis 会话一级缓存对同语句二次调用的命中，2026-09-28 外评核实修正），有限重试后仍不稳定按技术故障失败关闭。服务配置保存不整实体回写该列（UpdateEntity 显式列，防并发递增后倒退）。**
 - 快照不携带用于绕过业务最终检查的「实例已授权」证明；客户端传入 `finalCheckRequired=false` 不能改变服务配置。**候选投影与快照响应 DTO 已随 T-ACCESS-059 落地（`InterfaceAdmissionSnapshotResp`，schemaVersion=1）；routes 携带该服务完整启用路由（access-service 自身管理端点同样接入，各端点要求=服务层 QueryGate 门禁同码——开放读端点按所属类型 VIEW 绑定；`auth/query-scopes` M2M 种子映射移出固定图停用）。**
 - **服务未登记或停用（status=0）→ 成功返回空路由快照**（`routes=[]`、`operationCandidates=[]`，代次取当前列值、未登记为 0）：该服务无参与授权的路由，网关本地无命中按无注册匹配拒绝（DENY→403），与在线端点 `API_NOT_REGISTERED` 语义对称（2026-09-28 外评拍板：停用是例行管理操作，抛 20071 会使网关对该服务全量 503 重试风暴；20071 保留给 LEGACY 模式异常与引用损坏）。
 
@@ -3137,7 +3137,9 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
 
 准入配置错误优先于 NO_ROLE：空角色集仍核查要求及新鲜操作目录，要求有效才返回 NO_ROLE。目录检查限于当前要求及有效位覆盖它的操作；不覆盖当前要求的坏行不阻断该要求，覆盖相关操作位损坏仍报 20071。inheritMask 只按位解释、正负均可，不因符号判为损坏（T-ACCESS-057，2026-09-27 确认）。普通鉴权保持既有主体短路（T-ACCESS-057，2026-09-27 确认）。
 
-新准入把业务操作覆盖转换为快照候选，依赖关系已变——**不能沿用旧快照约 30 秒的配置安全结论**；新快照 TTL、上游安全目录寿命与回源截止时间按设计 §5.3 重新推导并纳入启动校验（T-ACCESS-060）。即便采用新鲜操作定义，广播＋TTL 仍不是零延迟强一致。专用短 TTL／版本化业务操作缓存为备选（须重做安全边界证明，非默认）。
+新准入把业务操作覆盖转换为快照候选，依赖关系已变——**不能沿用旧快照约 30 秒的配置安全结论**。**T-ACCESS-060 边界重推导（2026-09-28，按新准入实际依赖面实核）**：快照构建读源＝事实族（EFFECTIVE_ROLES／ROLE_PERM_SNAPSHOT／TYPE_VALUE／TYPE_CODE／CONDITION_RULES／ROLE_MUTEX_RULE，经引擎 L2_ONLY 目录，启动校验锁有效 TTL≤10s）＋操作定义（新鲜库读，T-ACCESS-057）＋条件规则原文（装配器直读）＋路由映射与服务配置含代次复读（新鲜库读）；最坏陈旧＝事实族 L2 陈旧(≤10s)＋快照有效期(SNAPSHOT_TTL 15s，网关按服务端 expiresAt 门禁命中、L1 TTL 15s 仅作丢失广播兜底)≤**25s≤30s 目标**。方程由 `PermCacheBoundaryValidator`（上游 L2＋快照有效期≤30s，调大任一常量启动失败）与网关 `GatewayCacheBoundaryValidator`（L1≤15s＋回源截止≤5s）双层锁定。即便采用新鲜操作定义，广播＋TTL 仍不是零延迟强一致。专用短 TTL／版本化业务操作缓存为备选（须重做安全边界证明，非默认）。
+
+失效面（§8.5 矩阵，T-ACCESS-060 收口）：授撤/角色归属/AUTO_DEP 经 markRoles/markUsers 广播（网关角色级租户清/用户级精确清）；**条件同 ID 改规则/启停/删除经 `markConditions` 通道由 `PermissionChangeAspect` flush 统一反查——「引用条件的授权类型→该类型所需操作→映射服务」安全超集（不沿旧授权资源=API 资源联接；管理页/内联/回收全自动覆盖，N19）**；操作定义/覆盖变更按「类型→所需操作→映射服务」超集广播（T-ACCESS-058 形态）；映射写路径与模式/启停切换同事务代次 +1 并广播 serviceCodes。错误信封（20070/20071）不缓存——部署错位窗口内每请求回源 503 即哨兵（2026-09-28 拍板：不加错误负缓存；空路由快照是唯一可缓存负形态）；「临时强制在线」灰度开关不落地（无现实需求触发，N23 以既有机制演练验收）。
 
 ### 25.5 路由匹配与歧义规则
 

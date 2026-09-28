@@ -75,26 +75,22 @@ public interface RoleResourcePermissionMapper extends BaseMapper<RoleResourcePer
     Set<Long> selectValidRoleIds(@Param("tenantId") Long tenantId);
 
     /**
-     * 根据条件ID集合反查受影响的服务编码集合（条件变更场景登记 serviceCodes 失效）。
+     * 按条件ID集合反查受影响的服务编码集合（条件变更场景登记 serviceCodes 失效）。
      * <p>
-     * T-PERM-017 P2-A 评审反馈：条件 update/delete 时，已下发到 Gateway 内联 conditionRules 的
-     * 接口快照需失效。本方法 JOIN role_resource_permission + resource_api_mapping，
-     * 一次 SQL 查出所有引用了这些条件的资源对应的 serviceCodes，供 ConditionAppService 调用
-     * {@code markServiceCodes} 进入广播事件载荷。
-     * </p>
-     * <p>
-     * SQL: SELECT DISTINCT m.service_code FROM role_resource_permission rrp
-     *      JOIN resource_api_mapping m ON m.resource_entity_id = rrp.resource_entity_id
-     *      WHERE rrp.tenant_id=? AND rrp.condition_id IN (...) AND rrp.delete_flag=0
-     *        AND m.tenant_id=? AND m.delete_flag=0
+     * T-ACCESS-060（N19）安全超集反查：「引用条件的授权类型 → 该类型所需操作 → 映射服务」。
+     * 旧 T-PERM-017 按 {@code rrp.resource_entity_id = m.resource_entity_id} 联接沿
+     * 「授权资源=API 资源」旧模型，新映射模型（T-ACCESS-058）下映射行引用 API 登记实体、
+     * 准入候选来自业务类型授权，旧联接结果普遍为空——本方法按授权行 {@code resource_type}
+     * （全行 NOT NULL，含实例行）超集反查，供 {@code PermissionChangeAspect} flush 统一调用
+     * {@code markServiceCodes} 进入广播事件载荷（管理页/内联/回收全部走 markConditions 通道自动覆盖）。
      * </p>
      *
      * @param tenantId     租户ID
      * @param conditionIds 条件ID集合（不可为空）
      * @return 受影响的服务编码集合（去重）；无引用返回空集合
      */
-    Set<String> selectServiceCodesByConditionIds(@Param("tenantId") Long tenantId,
-                                                  @Param("conditionIds") Set<Long> conditionIds);
+    Set<String> selectServiceCodesByConditionGrantTypes(@Param("tenantId") Long tenantId,
+                                                         @Param("conditionIds") Set<Long> conditionIds);
 
     /**
      * 按权限行 id 集合查询其非空 condition_id（T-PERM-048 内联回收：级联删除授权行前收集候选，
@@ -111,7 +107,7 @@ public interface RoleResourcePermissionMapper extends BaseMapper<RoleResourcePer
      * 查询条件ID集合中仍被有效授权行引用的 condition_id（T-PERM-048 条件删除引用守卫/内联回收共用）。
      * <p>
      * 仅按 {@code condition_id + delete_flag=0} 过滤，同时覆盖类型级（scope_all）与实例级两形态行。
-     * 与 {@link #selectServiceCodesByConditionIds}（JOIN mapping 查广播面）语义不同——本方法只判存在性。
+     * 与 {@link #selectServiceCodesByConditionGrantTypes}（按授权类型超集查广播面）语义不同——本方法只判存在性。
      * </p>
      *
      * @param tenantId     租户ID

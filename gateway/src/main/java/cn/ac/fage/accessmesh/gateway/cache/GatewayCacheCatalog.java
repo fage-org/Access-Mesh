@@ -37,9 +37,10 @@ public final class GatewayCacheCatalog {
      * 匹配与歧义检测→唯一要求→评条件分支（无通过分支回源在线判定）
      * </p>
      * <p>
-     * L1_ONLY 本地 Caffeine；TTL 15s 为现行安全边界上限（沿用既有预算形态；完整安全
-     * 边界推导与启动校验归 T-ACCESS-060——设计 §5.3 新准入依赖关系已变，不自动沿用
-     * 旧 30 秒结论）。快照失效主靠 Redis pub/sub 主动广播 + 订阅重连全量清空，TTL 兜底。
+     * L1_ONLY 本地 Caffeine；TTL 15s 为丢失广播兜底上限（快照时效主门禁=服务端 expiresAt，
+     * T-ACCESS-060 边界推导收口：最坏陈旧＝access 事实族 L2≤10s＋快照有效期 15s＝25s≤30s，
+     * 方程由本侧 L1≤15s＋回源截止≤5s 与 access 侧上游 L2＋快照有效期≤30s 双层启动校验锁定）。
+     * 快照失效主靠 Redis pub/sub 主动广播 + 订阅重连全量清空，TTL 兜底。
      * </p>
      */
     public static final CacheCatalogEntry<InterfaceAdmissionSnapshotResp> INTERFACE_ADMISSION_SNAPSHOT =

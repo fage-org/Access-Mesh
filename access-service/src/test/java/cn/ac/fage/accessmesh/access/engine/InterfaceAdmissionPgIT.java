@@ -4,14 +4,19 @@ import cn.ac.fage.accessmesh.access.engine.service.PermissionAdmissionAppService
 import cn.ac.fage.accessmesh.access.engine.util.InterfaceAdmissionSnapshotAssembler;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
+import cn.ac.fage.accessmesh.access.infrastructure.cache.PermInvalidationPublisher;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
 import cn.ac.fage.accessmesh.access.resource.dto.RequiredPermission;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ApiMappingAddReq;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigReq;
 import cn.ac.fage.accessmesh.access.resource.entity.ServiceConfig;
+import cn.ac.fage.accessmesh.access.resource.enums.ApiAuthMode;
 import cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper;
 import cn.ac.fage.accessmesh.access.resource.service.ResourceManageAppService;
 import cn.ac.fage.accessmesh.access.resource.service.ServiceConfigAppService;
+import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceApiMappingDomainService;
+import cn.ac.fage.accessmesh.access.rule.dto.req.ConditionUpdateReq;
+import cn.ac.fage.accessmesh.access.rule.service.ConditionAppService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
@@ -34,6 +39,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -42,7 +48,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -55,7 +64,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * reason 词表、20070 路由歧义 / 20071 配置故障（引用悬空/LEGACY 模式）、配置代次
  * 逐写入口递增回归锁、N21 构建期自一致（真库并发写路径——代次复读经 flushCache 落库，
  * 非 SpyBean 喂数列）、停用/未登记空路由快照（外评拍板：网关 DENY 语义对称）、
- * 保存不回写代次（整实体回写倒退锁）、凭证服务归属约束、HTTP 契约冒烟。
+ * 保存不回写代次（整实体回写倒退锁）、凭证服务归属约束、HTTP 契约冒烟、
+ * T-ACCESS-060 N19 条件/操作类型超集反查广播与 N23 模式切换演练。
  * </p>
  */
 @SpringBootTest
@@ -74,8 +84,12 @@ class InterfaceAdmissionPgIT {
 
     private static final Long TENANT = 1L;
     private static final String SERVICE = "admission-it";
+    /** N19 负向服务：只映射另一类型（ADMIT3）的操作，不受 ADMIT2 条件/操作变更影响。 */
+    private static final String SERVICE_OTHER = "admission-it-other";
     private static final String TYPE = "ADMIT2";
     private static final int TYPE_VALUE = 961;
+    private static final String TYPE2 = "ADMIT3";
+    private static final int TYPE_VALUE2 = 962;
 
     @DynamicPropertySource
     static void configure(DynamicPropertyRegistry registry) {
@@ -86,11 +100,14 @@ class InterfaceAdmissionPgIT {
     @Autowired PermissionAdmissionAppService admission;
     @Autowired ResourceManageAppService resources;
     @Autowired ServiceConfigAppService serviceConfigs;
+    @Autowired ConditionAppService conditions;
+    @Autowired ResourceApiMappingDomainService apiMappingReads;
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
     @MockBean cn.ac.fage.accessmesh.access.engine.query.QueryGate gate;
     @SpyBean ServiceConfigMapper serviceConfigMapper;
     @SpyBean InterfaceAdmissionSnapshotAssembler snapshotAssembler;
+    @SpyBean PermInvalidationPublisher invalidationPublisher;
 
     /** 用例序号（每用例唯一 subject/role ID 段内递增）。 */
     private static final java.util.concurrent.atomic.AtomicLong SEQ = new java.util.concurrent.atomic.AtomicLong();
@@ -104,12 +121,12 @@ class InterfaceAdmissionPgIT {
     @BeforeEach
     void setup() {
         // 本类独占 ItInfra 数据库；每用例重建自身事实（固定私有 ID 段，防跨类冲突）
-        jdbc.update("DELETE FROM resource_api_mapping WHERE service_code = ?", SERVICE);
-        jdbc.update("DELETE FROM service_config WHERE service_code = ?", SERVICE);
-        jdbc.update("DELETE FROM role_resource_permission WHERE resource_type = ?", TYPE_VALUE);
+        jdbc.update("DELETE FROM resource_api_mapping WHERE service_code IN (?, ?)", SERVICE, SERVICE_OTHER);
+        jdbc.update("DELETE FROM service_config WHERE service_code IN (?, ?)", SERVICE, SERVICE_OTHER);
+        jdbc.update("DELETE FROM role_resource_permission WHERE resource_type IN (?, ?)", TYPE_VALUE, TYPE_VALUE2);
         jdbc.update("DELETE FROM permission_condition WHERE code LIKE 'admit-it:%'");
-        jdbc.update("DELETE FROM operation_permission WHERE resource_type = ?", TYPE_VALUE);
-        jdbc.update("DELETE FROM resource_entity WHERE resource_type = ?", TYPE_VALUE);
+        jdbc.update("DELETE FROM operation_permission WHERE resource_type IN (?, ?)", TYPE_VALUE, TYPE_VALUE2);
+        jdbc.update("DELETE FROM resource_entity WHERE resource_type IN (?, ?)", TYPE_VALUE, TYPE_VALUE2);
         jdbc.update("DELETE FROM resource_entity WHERE code LIKE 'admit-it:%'");
         jdbc.update("DELETE FROM user_role WHERE target_type = 'ROLE' AND target_id BETWEEN 9662001 AND 9662999");
         jdbc.update("DELETE FROM abstract_role WHERE id BETWEEN 9662001 AND 9662999");
@@ -117,6 +134,8 @@ class InterfaceAdmissionPgIT {
 
         jdbc.update("INSERT INTO type_definition (tenant_id, type_key, type_code, type_value, name, is_system) "
             + "VALUES (1, 'resource_type', ?, ?, '准入验收', false) ON CONFLICT DO NOTHING", TYPE, TYPE_VALUE);
+        jdbc.update("INSERT INTO type_definition (tenant_id, type_key, type_code, type_value, name, is_system) "
+            + "VALUES (1, 'resource_type', ?, ?, '准入负向类型', false) ON CONFLICT DO NOTHING", TYPE2, TYPE_VALUE2);
         viewOpId = jdbc.queryForObject("INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask) "
             + "VALUES (1, ?, 'VIEW', '查看', 2, 0) RETURNING id", Long.class, TYPE_VALUE);
         exportOpId = jdbc.queryForObject("INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask) "
@@ -163,9 +182,27 @@ class InterfaceAdmissionPgIT {
     }
 
     private void insertMapping(Long apiId, String method, String path, Long operationId) {
+        insertMapping(SERVICE, apiId, method, path, operationId);
+    }
+
+    private void insertMapping(String serviceCode, Long apiId, String method, String path, Long operationId) {
         jdbc.update("INSERT INTO resource_api_mapping "
             + "(tenant_id, resource_entity_id, service_code, http_method, path_pattern, required_operation_id, maintain_source, enabled, match_order) "
-            + "VALUES (1, ?, ?, ?, ?, ?, 'BOOTSTRAP', true, 0)", apiId, SERVICE, method, path, operationId);
+            + "VALUES (1, ?, ?, ?, ?, ?, 'BOOTSTRAP', true, 0)", apiId, serviceCode, method, path, operationId);
+    }
+
+    /** 建负向类型（ADMIT3）的 VIEW 操作并返回操作 ID（N19 负向服务映射消费）。 */
+    private Long otherTypeViewOp() {
+        return jdbc.queryForObject("INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask) "
+            + "VALUES (1, ?, 'VIEW', '查看', 2, 0) RETURNING id", Long.class, TYPE_VALUE2);
+    }
+
+    /** 捕获最近一次失效广播的 serviceCodes（调用前先 clearInvocations 隔离前序发布）。 */
+    @SuppressWarnings("unchecked")
+    private Set<String> captureBroadcastServiceCodes() {
+        org.mockito.ArgumentCaptor<Set<String>> captor = org.mockito.ArgumentCaptor.forClass(Set.class);
+        verify(invalidationPublisher).publish(any(), any(), any(), captor.capture());
+        return captor.getValue();
     }
 
     private Long insertIpWhitelistCondition(String cidr) {
@@ -478,6 +515,74 @@ class InterfaceAdmissionPgIT {
         serviceConfigs.saveServiceConfig(TENANT, new ServiceConfigReq(
             SERVICE, "改名不触代次", null, null, null, null, null, null, null, null), 100L);
         assertThat(generation()).isEqualTo(base + 1);
+    }
+
+    // ─── T-ACCESS-060：失效广播反查（N19）与模式切换演练（N23 access 侧） ───
+
+    @Test
+    void conditionUpdateShouldBroadcastMappedServicesByGrantTypeSuperset() {
+        // N19：条件同 ID 改规则 → 相关服务准入快照失效。安全超集=「引用条件的授权类型→
+        // 该类型所需操作→映射服务」——映射行 resource_entity_id 指向 API 登记实体，旧
+        // 「授权资源=API 资源」等值联接在此数据形态下返回空（改条件不广播任何服务）；
+        // markConditions 通道反查由 PermissionChangeAspect flush 统一承载（红跑证据：
+        // 屏蔽 flush 反查块后本用例 serviceCodes 断言失败，见任务卡验收对照）
+        Long apiA = registerApi("n19-a");
+        insertMapping(apiA, "POST", "/api/n19/a", viewOpId);
+        // 负向服务：只映射 ADMIT3 的操作，不受 ADMIT2 条件变更影响
+        insertMapping(SERVICE_OTHER, registerApi("n19-b"), "POST", "/api/n19/b", otherTypeViewOp());
+
+        String condCode = "admit-it:n19-" + SEQ.incrementAndGet();
+        Long cond = jdbc.queryForObject(
+            "INSERT INTO permission_condition (tenant_id, code, name, condition_rules, enabled, gateway_evaluable, source) "
+                + "VALUES (1, ?, 'n19 条件', ?::jsonb, true, true, 'MANAGED') RETURNING id", Long.class, condCode,
+            "{\"logic\":\"AND\",\"items\":[{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}]}");
+        grant(null, 2L, true, cond, null);                        // ADMIT2 类型级 VIEW 带条件
+
+        clearInvocations(invalidationPublisher);
+        conditions.updateCondition(TENANT, new ConditionUpdateReq(condCode, "n19 改规则", null, null, null, null), 100L);
+
+        // 广播恰含映射 ADMIT2 操作的正向服务；负向服务不在集合中
+        assertThat(captureBroadcastServiceCodes()).containsExactly(SERVICE);
+    }
+
+    @Test
+    void operationTypeSupersetShouldSelectOnlyServicesMappingThatType() {
+        // N19 另半边（操作定义/覆盖变更反查，T-ACCESS-058 已实现、本卡补测试锁）：
+        // 「类型→该类型所需操作→映射服务」超集只命中映射该类型操作的服务
+        insertMapping(registerApi("op-a"), "POST", "/api/op/a", viewOpId);
+        insertMapping(SERVICE_OTHER, registerApi("op-b"), "POST", "/api/op/b", otherTypeViewOp());
+
+        assertThat(apiMappingReads.selectServiceCodesByRequiredOperationTypes(TENANT, Set.of(TYPE_VALUE)))
+            .containsExactly(SERVICE);
+        assertThat(apiMappingReads.selectServiceCodesByRequiredOperationTypes(TENANT, Set.of(TYPE_VALUE2)))
+            .containsExactly(SERVICE_OTHER);
+    }
+
+    @Test
+    void modeSwitchShouldBumpGenerationBroadcastAndRecover() {
+        // N23 access 侧演练：模式切换（OA→LEGACY→OA）逐次同事务代次 +1、广播 serviceCodes；
+        // LEGACY 期间快照端点按 20071 配置故障信封（网关侧每请求回源 503、不缓存错误——
+        // 网关半边见 PermissionFilterTest），回切后本地快照恢复可构建（不依赖广播送达即恢复：
+        // 代次/模式以库为准，网关任一次拉取即读到新状态）
+        insertMapping(registerApi("n23"), "POST", "/api/n23", viewOpId);
+        long base = generation();
+
+        clearInvocations(invalidationPublisher);
+        serviceConfigs.saveServiceConfig(TENANT, new ServiceConfigReq(
+            SERVICE, "准入验收服务", null, null, null, null, null, null, null, ApiAuthMode.LEGACY_API), 100L);
+        assertThat(generation()).isEqualTo(base + 1);
+        assertThat(captureBroadcastServiceCodes()).containsExactly(SERVICE);
+        assertThatThrownBy(() -> admission.interfaceAdmissionSnapshot(TENANT, snapshotReq()))
+            .isInstanceOfSatisfying(BizException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(20071));
+
+        clearInvocations(invalidationPublisher);
+        serviceConfigs.saveServiceConfig(TENANT, new ServiceConfigReq(
+            SERVICE, "准入验收服务", null, null, null, null, null, null, null, ApiAuthMode.OPERATION_ADMISSION), 100L);
+        assertThat(generation()).isEqualTo(base + 2);
+        assertThat(captureBroadcastServiceCodes()).containsExactly(SERVICE);
+        var snapshot = admission.interfaceAdmissionSnapshot(TENANT, snapshotReq());
+        assertThat(snapshot.routes()).extracting("pathPattern").contains("/api/n23");
     }
 
     // ─── 身份约束与 HTTP 契约 ───

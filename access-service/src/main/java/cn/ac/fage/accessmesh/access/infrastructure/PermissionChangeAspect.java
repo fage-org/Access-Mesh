@@ -7,6 +7,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.infrastructure.cache.PermInvalidationPublisher;
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
+import cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -43,13 +44,16 @@ public class PermissionChangeAspect {
     private final SubjectDomainService subjectDomainService;
     private final CacheService cacheService;
     private final PermInvalidationPublisher publisher;
+    private final RoleResourcePermissionDomainService roleResourcePermissionDomainService;
 
     public PermissionChangeAspect(SubjectDomainService subjectDomainService,
                                   CacheService cacheService,
-                                  PermInvalidationPublisher publisher) {
+                                  PermInvalidationPublisher publisher,
+                                  RoleResourcePermissionDomainService roleResourcePermissionDomainService) {
         this.subjectDomainService = subjectDomainService;
         this.cacheService = cacheService;
         this.publisher = publisher;
+        this.roleResourcePermissionDomainService = roleResourcePermissionDomainService;
     }
 
     @Around("@annotation(pc)")
@@ -142,6 +146,24 @@ public class PermissionChangeAspect {
             // 租户级目录清除保证权限回收/组织树变更后旧范围不继续暴露。
             // 旧命名空间 evict-only 别名已删除（Q-006 过渡窗口关闭，T-ACCESS-054）
             cacheService.evictAll(AccessCacheCatalog.ORG_VISIBILITY, tenantId);
+            // 4.6 markConditions 通道统一反查（T-ACCESS-060，N19）：条件规则/启停/删除改变准入快照
+            // 内联 conditionRules 与候选分支内容——按「引用条件的授权类型→该类型所需操作→映射服务」
+            // 安全超集反查并并入 serviceCodes 广播（不沿旧授权资源=API 资源联接，管理页/内联/回收
+            // 全部经 markConditions 自动覆盖）。afterCommit 反查读已提交数据；反查失败仅损失
+            // 条件服务并入（网关快照 TTL 兜底），不得阻断本 flush 其余失效与广播
+            if (!conditionIds.isEmpty()) {
+                try {
+                    Set<String> conditionServices =
+                        roleResourcePermissionDomainService.selectServiceCodesByConditionGrantTypes(tenantId, conditionIds);
+                    if (!conditionServices.isEmpty()) {
+                        serviceCodes = new java.util.HashSet<>(serviceCodes);
+                        serviceCodes.addAll(conditionServices);
+                    }
+                } catch (Exception e) {
+                    log.warn("Condition->service reverse lookup failed, skip merging condition services "
+                        + "(tenantId={}, conditionIds={}): {}", tenantId, conditionIds, e.getMessage());
+                }
+            }
             // 5. 广播失效事件（含 serviceCodes：API mapping/资源/sync 变更触发 Gateway 清本地快照，T-PERM-006 实现）
             publisher.publish(tenantId, roleIds, userIds, serviceCodes);
         } catch (Exception e) {

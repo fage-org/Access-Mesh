@@ -37,11 +37,14 @@ import java.util.Set;
  *   <tr><td>DICT_TYPES</td><td>admin:dict-types</td><td>L1_L2</td><td>10m/60m</td><td>自 AdminCacheCatalog 迁入（039），code 不变</td></tr>
  * </table>
  *
- * <h3>快照链路安全边界（T-ACCESS-008 用户决策 2026-08-21）：</h3>
+ * <h3>快照链路安全边界（T-ACCESS-008 用户决策 2026-08-21；T-ACCESS-060 按新准入依赖面重推导）：</h3>
  * <p>
- * 可能影响接口权限快照的 6 个目录统一 L2_ONLY、TTL≤10s、不创建授权 L1，
- * 与 Gateway 快照回源截止 5s、Gateway L1 15s 构成「10+5+15≤30s」安全边界；
- * 超限由 {@code PermCacheBoundaryValidator} 启动校验强制。
+ * 可能影响准入快照的 6 个事实族目录统一 L2_ONLY、TTL≤10s、不创建授权 L1
+ * （操作定义/条件规则原文/路由映射/服务配置为快照构建期新鲜库读，不占预算——
+ * T-ACCESS-057/059 实核）；最坏陈旧＝事实族 L2≤10s＋快照有效期
+ * {@code PermissionAdmissionAppService.SNAPSHOT_TTL} 15s（网关按服务端 expiresAt 门禁，
+ * L1 TTL 15s 仅作丢失广播兜底）＝25s≤30s 目标，超限由 {@code PermCacheBoundaryValidator}
+ * 启动校验强制（方程锁：调大任一常量即启动失败；网关侧另锁 L1≤15s＋回源截止≤5s）。
  * 读路径 miss 回填必须使用 {@code CacheService.beginRead} 令牌写入剩余 TTL。
  * </p>
  */

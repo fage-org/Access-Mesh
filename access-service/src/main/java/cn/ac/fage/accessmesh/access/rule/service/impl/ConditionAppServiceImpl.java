@@ -207,10 +207,10 @@ public class ConditionAppServiceImpl implements ConditionAppService {
         localProjectionDomainService.upsertConditionResource(tenantId, condition.getCode(),
             condition.getName(), Boolean.TRUE.equals(condition.getEnabled()));
 
-        // 登记受影响条件，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）
-        // T-PERM-017 P2-A：条件规则变更需同步失效 Gateway 已下发的内联 conditionRules 接口快照。
+        // 登记受影响条件，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）。
+        // T-ACCESS-060（N19）：条件→服务反查由 AOP flush 的 markConditions 通道统一承载
+        // （安全超集：引用条件的授权类型→该类型所需操作→映射服务），本入口不再自行反查。
         PermissionChangeContext.markConditions(tenantId, Set.of(condition.getId()));
-        markServiceCodesForConditions(tenantId, Set.of(condition.getId()));
         return toConditionResp(condition);
     }
 
@@ -323,10 +323,9 @@ public class ConditionAppServiceImpl implements ConditionAppService {
         localProjectionDomainService.softDeleteConditionResources(tenantId, validCodes);
         OperationLogRuntimeContext.setSummary("soft-deleted " + validIds.size() + " permission_condition row(s)");
 
-        // 登记受影响条件，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）
-        // T-PERM-017 P2-A：批量删除同步反查 serviceCodes 触发 Gateway 本地快照失效。
+        // 登记受影响条件，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）。
+        // T-ACCESS-060（N19）：条件→服务反查由 AOP flush 的 markConditions 通道统一承载，本入口不再自行反查
         PermissionChangeContext.markConditions(tenantId, validIds);
-        markServiceCodesForConditions(tenantId, validIds);
     }
 
     /**
@@ -337,25 +336,6 @@ public class ConditionAppServiceImpl implements ConditionAppService {
         if (ConditionSource.INLINE.getValue().equals(condition.getSource())) {
             throw new BizException(AccessErrorCode.CONDITION_INLINE_NOT_MANAGEABLE.getCode(),
                 "内联条件不可在管理面管理（只能在授权页随记录更改）: " + condition.getCode());
-        }
-    }
-
-    /**
-     * 反查受影响条件引用的 serviceCodes 并登记进 PermissionChangeContext（T-PERM-017 P2-A）。
-     * <p>
-     * 用于条件 update/delete 后通知 Gateway 失效已下发的内联 conditionRules 接口快照。
-     * 委托 {@link RoleResourcePermissionDomainService#selectServiceCodesByConditionIds}（JOIN 一次 SQL），
-     * 空结果（条件未被任何 grant 引用）→ no-op，不无谓登记。
-     * </p>
-     *
-     * @param tenantId     租户ID
-     * @param conditionIds 受影响条件ID集合（非空）
-     */
-    private void markServiceCodesForConditions(Long tenantId, Set<Long> conditionIds) {
-        if (conditionIds == null || conditionIds.isEmpty()) return;
-        Set<String> serviceCodes = roleResourcePermissionDomainService.selectServiceCodesByConditionIds(tenantId, conditionIds);
-        if (serviceCodes != null && !serviceCodes.isEmpty()) {
-            PermissionChangeContext.markServiceCodes(tenantId, serviceCodes);
         }
     }
 

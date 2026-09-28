@@ -91,45 +91,31 @@
           AND delete_flag = 0
     </select>
 
-    <!-- T-PERM-017 P2-A：按 conditionIds 反查受影响 serviceCodes，供 ConditionAppService update/delete 后 markServiceCodes -->
-    <select id="selectServiceCodesByConditionIds" resultType="java.lang.String">
-        SELECT DISTINCT service_code
-        FROM (
-            -- 实例级条件授权：rrp.resource_entity_id 直接映射到 resource_api_mapping
-            SELECT m.service_code
-            FROM role_resource_permission rrp
-            INNER JOIN resource_api_mapping m
-                    ON m.resource_entity_id = rrp.resource_entity_id
-                   AND m.tenant_id = rrp.tenant_id
-                   AND m.delete_flag = 0
-            WHERE rrp.tenant_id = #{tenantId}
-              AND rrp.delete_flag = 0
-              AND rrp.condition_id IN
-            <foreach collection="conditionIds" item="cid" open="(" separator="," close=")">
-                #{cid}
-            </foreach>
-
-            UNION
-
-            -- scopeAll 条件授权：rrp.resource_entity_id IS NULL，需按 rrp.resource_type 覆盖该类型全部 API 资源
-            SELECT m.service_code
-            FROM role_resource_permission rrp
-            INNER JOIN resource_entity re
-                    ON re.tenant_id = rrp.tenant_id
-                   AND re.resource_type = rrp.resource_type
-                   AND re.delete_flag = 0
-            INNER JOIN resource_api_mapping m
-                    ON m.resource_entity_id = re.id
-                   AND m.tenant_id = rrp.tenant_id
-                   AND m.delete_flag = 0
-            WHERE rrp.tenant_id = #{tenantId}
-              AND rrp.delete_flag = 0
-              AND rrp.scope_all = true
-              AND rrp.condition_id IN
-            <foreach collection="conditionIds" item="cid" open="(" separator="," close=")">
-                #{cid}
-            </foreach>
-        ) affected_service_codes
+    <!-- T-ACCESS-060（N19）：条件变更反查受影响 serviceCodes 的安全超集——「引用条件的授权类型 →
+         该类型所需操作 → 映射服务」。旧 T-PERM-017 按 rrp.resource_entity_id = m.resource_entity_id
+         联接沿「授权资源=API 资源」旧模型：新映射模型下映射行 resource_entity_id 指向 API 登记实体，
+         联接结果普遍为空（条件改规则后不广播任何服务）；rrp.resource_type 全行 NOT NULL（含实例行），
+         按类型超集反查与实际覆盖无关，方向安全（网关对 serviceCodes 非空整租户失效，过度失效安全）。
+         调用方=PermissionChangeAspect.flush（markConditions 通道统一反查，管理页/内联/回收全覆盖） -->
+    <select id="selectServiceCodesByConditionGrantTypes" resultType="java.lang.String">
+        SELECT DISTINCT m.service_code
+        FROM resource_api_mapping m
+        INNER JOIN operation_permission op
+                ON op.id = m.required_operation_id
+               AND op.tenant_id = m.tenant_id
+               AND op.delete_flag = 0
+        WHERE m.tenant_id = #{tenantId}
+          AND m.delete_flag = 0
+          AND op.resource_type IN (
+              SELECT rrp.resource_type
+              FROM role_resource_permission rrp
+              WHERE rrp.tenant_id = #{tenantId}
+                AND rrp.delete_flag = 0
+                AND rrp.condition_id IN
+              <foreach collection="conditionIds" item="cid" open="(" separator="," close=")">
+                  #{cid}
+              </foreach>
+          )
     </select>
 
     <!-- T-PERM-048 内联回收：级联删除授权行前按行收集非空 condition_id（与 selectReferencedConditionIds 反向） -->

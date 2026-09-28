@@ -13,6 +13,7 @@ import cn.ac.fage.accessmesh.access.engine.query.TypeOperation;
 import cn.ac.fage.accessmesh.access.engine.query.User;
 import cn.ac.fage.accessmesh.access.engine.util.InterfaceAdmissionSnapshotAssembler;
 import cn.ac.fage.accessmesh.access.engine.util.InterfaceAdmissionSnapshotAssembler.RouteRequirement;
+import cn.ac.fage.accessmesh.access.engine.service.PermissionAdmissionAppService;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.CallerType;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
@@ -67,10 +68,10 @@ public class PermissionAdmissionAppServiceImpl implements cn.ac.fage.accessmesh.
     private static final int MAX_BUILD_ATTEMPTS = 3;
 
     /**
-     * 快照建议有效期。与网关侧 L1 上限（15s）对齐；完整安全边界推导与启动校验归
-     * T-ACCESS-060（设计 §5.3：新准入依赖关系已变，不沿用旧 30 秒结论的自动覆盖）。
+     * 快照建议有效期（{@link PermissionAdmissionAppService#SNAPSHOT_TTL}，T-ACCESS-060 边界
+     * 推导与启动校验方程见常量注释）。
      */
-    private static final Duration SNAPSHOT_TTL = Duration.ofSeconds(15);
+    private static final Duration SNAPSHOT_TTL = PermissionAdmissionAppService.SNAPSHOT_TTL;
 
     private final QueryExecutionEngine queryEngine;
     private final TypeResolutionService typeResolutionService;

@@ -735,7 +735,7 @@ UPDATE service_config SET config_generation = config_generation + 1
 WHERE tenant_id = 1 AND service_code = 'access-service' AND delete_flag = 0;
 
 COMMENT ON COLUMN service_config.api_auth_mode IS '可信服务配置控制的鉴权模式 LEGACY_API/OPERATION_ADMISSION；不接受客户端模式头。T-ACCESS-059 拍板无迁移期统一上线：全部服务（含 access-service 自身）默认 OPERATION_ADMISSION，LEGACY_API 值仅作 062 退役前的版本回退部署形态（服务端准入端点对 LEGACY_API 服务按配置故障拒绝）';
-COMMENT ON COLUMN service_config.config_generation IS '准入快照配置代次（T-ACCESS-059 计数列载体，2026-09-28 拍板）：该服务映射写路径（共用保存入口/删除/FULL 清理）与模式切换同事务 +1；准入快照构建事务内先读代次→构建→复读比对（复读语句 flushCache 强制落库，绕开会话一级缓存），变更即废弃重建（2026-09-25 拍板限定语义：构建期自一致校验；接收侧代次匹配检查未实现，归 T-ACCESS-060，不承诺跨节点强一致）';
+COMMENT ON COLUMN service_config.config_generation IS '准入快照配置代次（T-ACCESS-059 计数列载体，2026-09-28 拍板）：该服务映射写路径（共用保存入口/删除/FULL 清理）与模式切换同事务 +1；准入快照构建事务内先读代次→构建→复读比对（复读语句 flushCache 强制落库，绕开会话一级缓存），变更即废弃重建（2026-09-25 拍板限定语义：构建期自一致校验；T-ACCESS-060 边界推导裁定 2026-09-28：接收侧不单独消费代次，由失效代际 epoch＋快照 TTL 承载，不承诺跨节点强一致）';
 
 -- 验证：access-service 启用映射应全部具备操作引用（期望 0 行）
 -- SELECT http_method, path_pattern FROM resource_api_mapping

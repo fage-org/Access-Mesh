@@ -70,7 +70,7 @@ last_reviewed: 2026-09-26
 | 缓存 key | identifier = `(subjectTypeCode,userId,serviceCode)`；完整键 `{tenantId}:gw:interface-admission-snapshot:{identifier}` |
 | 缓存值 | `InterfaceAdmissionSnapshotResp`（schemaVersion / 时效 / configGeneration / `routes[]` 完整启用路由与要求 / `operationCandidates[]` 候选分支投影） |
 | 鉴权方式 | 本地内存判定（路由匹配→唯一要求→候选分支，O(1)），不再按用户权限裁剪规则集 |
-| TTL | 15s 兜底（主靠 Redis pub/sub 主动广播；TTL/容量由 catalog 声明，`accessmesh.cache.catalogs."gw:interface-admission-snapshot".*` 运维覆盖，有效 TTL>15s 启动失败；完整安全边界推导与启动校验归 T-ACCESS-060） |
+| TTL | 15s 兜底（主靠 Redis pub/sub 主动广播；TTL/容量由 catalog 声明，`accessmesh.cache.catalogs."gw:interface-admission-snapshot".*` 运维覆盖，有效 TTL>15s 启动失败；T-ACCESS-060 边界推导收口：最坏陈旧＝access 事实族 L2≤10s＋快照有效期 15s（按服务端 expiresAt 门禁）＝25s≤30s，方程由两侧启动校验器锁定） |
 | 未命中处理 | 5 秒全链路硬截止内回源拉 interface-admission-snapshot 后缓存再判定；回源错误信封（data=null，20070/20071 等）→ 503 配置故障，不缓存不伪装用户无权限 |
 
 ### 本地判定序（`InterfaceAdmissionMatcher`，四态）
@@ -95,7 +95,8 @@ Gateway 启动后订阅 Redis topic `perm:invalidate`。access-service 写路径
 
 - `userIds` 非空且 `serviceCodes`/`roleIds` 为空：按 `tenantId + userId` 精确清理该用户全部服务快照（本地跟踪索引枚举 identifier，覆盖用户角色关系变化）。
 - `serviceCodes` 非空或仅 `roleIds` 非空：按 `tenantId` 租户级 `evictAll` 安全清理——Gateway 无本地反查服务/角色影响用户集合的能力，过度失效方向安全；回源惊群由 per-key in-flight 去重缓解。
-- 广播丢失或订阅断线时由快照 TTL（≤15s）兜底。
+- 广播丢失或订阅断线时由快照 TTL（≤15s）兜底（T-ACCESS-060 边界推导裁定：接收侧不实现单独的代次匹配检查，由失效代际 epoch＋TTL 承载；广播丢失时旧代次快照最长存活快照 TTL，属文档化接受面）。
+- `serviceCodes` 的上游来源（T-ACCESS-060 收口）：映射增删改/FULL、服务配置保存与模式/启停切换、操作定义/覆盖变更（类型→所需操作→映射服务超集），以及**条件规则/启停/删除**——`PermissionChangeAspect` flush 对 `markConditions` 通道统一按「引用条件的授权类型→该类型所需操作→映射服务」安全超集反查并入广播（N19，管理页/内联/回收全覆盖，不沿旧授权资源=API 资源联接）。
 
 广播契约定义在 `perm-common` 的 `PermInvalidateEvent`，由 access-service 发布端与 Gateway 订阅端共享，避免跨模块事件结构漂移。
 
@@ -119,7 +120,7 @@ Gateway 启动后订阅 Redis topic `perm:invalidate`。access-service 写路径
 | `gateway.permission.service-url` | `lb://access-service` | 权限服务地址（T-ACCESS-010：目标由 permission-center 切换） |
 | `gateway.permission.interface-admission-path` | `/api/access/auth/interface-admission` | 在线准入判定（回退实时鉴权用，T-ACCESS-059） |
 | `gateway.permission.interface-admission-snapshot-path` | `/api/access/auth/interface-admission-snapshot` | 准入快照拉取（本地判定主路径，T-ACCESS-059） |
-| `accessmesh.cache.catalogs."[gw:interface-admission-snapshot]".l1-ttl` | `15s`（catalog 声明） | 准入快照 TTL 兜底；有效值 >15s 启动失败（`GatewayCacheBoundaryValidator`；完整边界推导归 T-ACCESS-060） |
+| `accessmesh.cache.catalogs."[gw:interface-admission-snapshot]".l1-ttl` | `15s`（catalog 声明） | 准入快照 TTL 兜底；有效值 >15s 启动失败（`GatewayCacheBoundaryValidator`；T-ACCESS-060 边界推导收口：与上游 L2≤10s、快照有效期 15s 构成最坏陈旧 25s≤30s，双侧方程锁） |
 | `accessmesh.cache.catalogs."[gw:interface-admission-snapshot]".l1-maximum-size` | `50000`（catalog 声明） | 本地准入快照最大条目 |
 
 > T-ACCESS-008 已删除配置：`gateway.cache.l1.ttl-seconds` / `max-size`（统一到 catalog + `accessmesh.cache` 覆盖）、`gateway.cache.l1.stale-grace-seconds`（stale-allow 删除）、`gateway.permission.fail-mode`（固定 fail-closed，不可切换）。

@@ -327,58 +327,73 @@ class ConditionAppServiceImplTest {
     }
 
     @Nested
-    class ConditionChangeMarksServiceCodes {
+    class ConditionChangeRegistersConditionChannel {
 
         @Test
-        void shouldMarkServiceCodes_whenUpdateCondition() {
-            // T-PERM-017 P2-A：update 反查 serviceCodes 并 markServiceCodes
-            PermissionCondition existing = newCondition(true,
-                "{\"logic\":\"AND\",\"items\":[{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}]}");
-            when(conditionMapper.selectValidByCode(TENANT_ID, CONDITION_CODE)).thenReturn(existing);
-            when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(CONDITION_CODE), any()))
-                .thenReturn(true);
-            when(rolePermMapper.selectServiceCodesByConditionIds(eq(TENANT_ID), eq(Set.of(CONDITION_ID))))
-                .thenReturn(Set.of("svc-a", "svc-b"));
+        void shouldMarkConditions_whenUpdateCondition() {
+            // T-ACCESS-060（N19）：update 登记 markConditions（条件→服务反查由 AOP flush 统一承载，
+            // 本入口不再自行反查——反查通道的回归锁见 PermissionChangeAspectTest 与 PgIT）
+            PermissionChangeContext.bindIfAbsent();
+            try {
+                PermissionCondition existing = newCondition(true,
+                    "{\"logic\":\"AND\",\"items\":[{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}]}");
+                when(conditionMapper.selectValidByCode(TENANT_ID, CONDITION_CODE)).thenReturn(existing);
+                when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(CONDITION_CODE), any()))
+                    .thenReturn(true);
 
-            ConditionUpdateReq req = new ConditionUpdateReq(CONDITION_CODE, "rename", null, null, null, null);
-            service.updateCondition(TENANT_ID, req, OPERATOR_ID);
+                ConditionUpdateReq req = new ConditionUpdateReq(CONDITION_CODE, "rename", null, null, null, null);
+                service.updateCondition(TENANT_ID, req, OPERATOR_ID);
 
-            verify(rolePermMapper).selectServiceCodesByConditionIds(eq(TENANT_ID), eq(Set.of(CONDITION_ID)));
+                assertThat(PermissionChangeContext.snapshot().conditionIds())
+                    .containsExactly(CONDITION_ID);
+            } finally {
+                PermissionChangeContext.clear();
+            }
         }
 
         @Test
-        void shouldMarkServiceCodes_whenDeleteConditionsByCodes() {
+        void shouldMarkConditions_whenDeleteConditionsByCodes() {
             // 原 shouldMarkServiceCodes_whenDeleteCondition（单删孤儿方法已随 T-PERM-029 删除），覆盖迁移批量版
-            PermissionCondition existing = newCondition(true,
-                "{\"logic\":\"AND\",\"items\":[{\"type\":\"DATE_RANGE\",\"params\":{\"start\":\"2026-01-01\",\"end\":\"2026-12-31\"}}]}");
-            when(conditionMapper.selectValidByCodes(eq(TENANT_ID), anySet())).thenReturn(List.of(existing));
-            when(engine.getDeniedResourceCodes(eq(TENANT_ID), eq(OPERATOR_ID), any(), anySet(), any()))
-                .thenReturn(Set.of());
-            when(rolePermMapper.selectServiceCodesByConditionIds(eq(TENANT_ID), eq(Set.of(CONDITION_ID))))
-                .thenReturn(Set.of("svc-c"));
+            PermissionChangeContext.bindIfAbsent();
+            try {
+                PermissionCondition existing = newCondition(true,
+                    "{\"logic\":\"AND\",\"items\":[{\"type\":\"DATE_RANGE\",\"params\":{\"start\":\"2026-01-01\",\"end\":\"2026-12-31\"}}]}");
+                when(conditionMapper.selectValidByCodes(eq(TENANT_ID), anySet())).thenReturn(List.of(existing));
+                when(engine.getDeniedResourceCodes(eq(TENANT_ID), eq(OPERATOR_ID), any(), anySet(), any()))
+                    .thenReturn(Set.of());
 
-            service.deleteConditionsByCodes(TENANT_ID, List.of(CONDITION_CODE), OPERATOR_ID);
+                service.deleteConditionsByCodes(TENANT_ID, List.of(CONDITION_CODE), OPERATOR_ID);
 
-            verify(conditionMapper).softDeleteBatch(eq(TENANT_ID), eq(List.of(CONDITION_ID)), any());
-            verify(rolePermMapper).selectServiceCodesByConditionIds(eq(TENANT_ID), eq(Set.of(CONDITION_ID)));
+                verify(conditionMapper).softDeleteBatch(eq(TENANT_ID), eq(List.of(CONDITION_ID)), any());
+                assertThat(PermissionChangeContext.snapshot().conditionIds())
+                    .containsExactly(CONDITION_ID);
+            } finally {
+                PermissionChangeContext.clear();
+            }
         }
 
         @Test
-        void shouldNotMarkServiceCodes_whenNoGrantsReferenceCondition() {
-            // 条件未被任何 grant 引用 → selectServiceCodesByConditionIds 返回空集合 → no-op
-            PermissionCondition existing = newCondition(false,
-                "{\"logic\":\"AND\",\"items\":[{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}]}");
-            when(conditionMapper.selectValidByCode(TENANT_ID, CONDITION_CODE)).thenReturn(existing);
-            when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(CONDITION_CODE), any()))
-                .thenReturn(true);
-            when(rolePermMapper.selectServiceCodesByConditionIds(eq(TENANT_ID), eq(Set.of(CONDITION_ID))))
-                .thenReturn(Set.of());
+        void shouldNotTouchServiceCodesChannel_whenNoGrantsReferenceCondition() {
+            // 条件未被任何 grant 引用：本入口不写 serviceCodes（反查归 AOP，空引用时其查询返回空），
+            // 且不因反查挪位而丢失条件失效本身（markConditions 仍登记）
+            PermissionChangeContext.bindIfAbsent();
+            try {
+                PermissionCondition existing = newCondition(false,
+                    "{\"logic\":\"AND\",\"items\":[{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}]}");
+                when(conditionMapper.selectValidByCode(TENANT_ID, CONDITION_CODE)).thenReturn(existing);
+                when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(CONDITION_CODE), any()))
+                    .thenReturn(true);
 
-            ConditionUpdateReq req = new ConditionUpdateReq(CONDITION_CODE, "rename", null, null, null, null);
+                ConditionUpdateReq req = new ConditionUpdateReq(CONDITION_CODE, "rename", null, null, null, null);
 
-            assertThatCode(() -> service.updateCondition(TENANT_ID, req, OPERATOR_ID))
-                .doesNotThrowAnyException();
-            verify(rolePermMapper, times(1)).selectServiceCodesByConditionIds(any(), anySet());
+                assertThatCode(() -> service.updateCondition(TENANT_ID, req, OPERATOR_ID))
+                    .doesNotThrowAnyException();
+                assertThat(PermissionChangeContext.snapshot().serviceCodes()).isEmpty();
+                assertThat(PermissionChangeContext.snapshot().conditionIds())
+                    .containsExactly(CONDITION_ID);
+            } finally {
+                PermissionChangeContext.clear();
+            }
         }
     }
 
@@ -454,7 +469,6 @@ class ConditionAppServiceImplTest {
             assertThatThrownBy(() -> service.deleteConditionsByCodes(TENANT_ID, List.of(CONDITION_CODE), OPERATOR_ID))
                 .isInstanceOf(SecurityException.class);
             verify(conditionMapper, never()).softDeleteBatch(anyLong(), anyList(), any());
-            verify(rolePermMapper, never()).selectServiceCodesByConditionIds(anyLong(), anySet());
         }
 
         @Test

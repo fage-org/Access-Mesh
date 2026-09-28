@@ -5,6 +5,8 @@ import cn.ac.fage.accessmesh.perm.common.dto.req.InterfaceAdmissionSnapshotReq;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceAdmissionResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceAdmissionSnapshotResp;
 
+import java.time.Duration;
+
 /**
  * 操作准入应用服务（T-ACCESS-059，契约总册 §25.2 / 设计 §8.4）。
  * <p>
@@ -16,6 +18,17 @@ import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceAdmissionSnapshotResp
  * </p>
  */
 public interface PermissionAdmissionAppService {
+
+    /**
+     * 快照建议有效期（T-ACCESS-060 边界推导：快照有效期 = 构建时刻起 15s，网关侧
+     * {@code isFresh} 按服务端 expiresAt 门禁命中，L1 TTL 15s 仅作丢失广播兜底）。
+     * <p>
+     * 最坏陈旧窗口方程（启动校验锁，{@code PermCacheBoundaryValidator}）：
+     * 上游事实族 L2 ≤10s ＋ 快照有效期 15s ≤ 30s 目标；操作定义/条件/路由/配置均为
+     * 构建期新鲜库读（T-ACCESS-057/059 实核），不占预算。
+     * </p>
+     */
+    Duration SNAPSHOT_TTL = Duration.ofSeconds(15);
 
     /**
      * 在线操作准入判定。

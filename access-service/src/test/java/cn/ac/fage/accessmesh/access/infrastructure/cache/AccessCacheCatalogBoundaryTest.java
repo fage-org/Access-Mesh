@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.infrastructure.cache;
 
+import cn.ac.fage.accessmesh.access.engine.service.PermissionAdmissionAppService;
 import cn.ac.fage.accessmesh.common.cache.CacheCatalogEntry;
 import cn.ac.fage.accessmesh.common.cache.CacheMode;
 import cn.ac.fage.accessmesh.common.cache.CacheProperties;
@@ -165,5 +166,16 @@ class AccessCacheCatalogBoundaryTest {
             .plus(Duration.ofSeconds(5))
             .plus(Duration.ofSeconds(15));
         assertThat(budget).isEqualTo(Duration.ofSeconds(30));
+    }
+
+    @Test
+    void snapshotStalenessEquation_shouldStayWithinWorstCaseBound() {
+        // T-ACCESS-060 边界推导方程（按新准入依赖面重推导）：事实族 L2 陈旧(≤10s) +
+        // 快照有效期(SNAPSHOT_TTL) ≤ 30s 最坏陈旧目标；操作定义/条件规则原文/路由映射/
+        // 服务配置均为构建期新鲜库读不占预算。启动校验器同式断言（未来调大任一常量即启动失败）
+        assertThat(PermissionAdmissionAppService.SNAPSHOT_TTL).isEqualTo(Duration.ofSeconds(15));
+        assertThat(PermCacheBoundaryValidator.MAX_SNAPSHOT_L2_TTL
+                .plus(PermissionAdmissionAppService.SNAPSHOT_TTL))
+            .isLessThanOrEqualTo(PermCacheBoundaryValidator.MAX_WORST_CASE_STALENESS);
     }
 }

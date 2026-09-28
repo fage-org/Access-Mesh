@@ -87,7 +87,7 @@ last_updated: 2026-09-28
 | [T-ACCESS-057](../tasks/T-ACCESS-057.md) | OPERATION_ADMISSION 阶段与新结果（ADM-T02） | ✅ |
 | [T-ACCESS-058](../tasks/T-ACCESS-058.md) | 映射模型、服务模式与同步/管理面（ADM-T03） | ✅ |
 | [T-ACCESS-059](../tasks/T-ACCESS-059.md) | 新端点、快照与 SDK/网关链路（ADM-T04） | ✅ |
-| [T-ACCESS-060](../tasks/T-ACCESS-060.md) | 失效、TTL 边界与在途代次（ADM-T05） | ⚙️ |
+| [T-ACCESS-060](../tasks/T-ACCESS-060.md) | 失效、TTL 边界与在途代次（ADM-T05） | ✅ |
 | [T-ACCESS-061](../tasks/T-ACCESS-061.md) | 逐服务业务最终检查与模式切换（ADM-T06） | ⚙️ |
 | [T-ACCESS-062](../tasks/T-ACCESS-062.md) | API 独立授权与 legacy 协议退役（ADM-T07） | ⚙️ |
 
@@ -117,6 +117,7 @@ last_updated: 2026-09-28
 - 2026-09-27 T-PERM-092 完成：旧执行体与四旧 DTO＋TargetMode/ResolveContext 删除（X04 退役锁入 QueryBoundaryArchitectureTest；inheritClosureOf 收编 check 适配层私有）；characterization 五类清面改写（断言与事实集保留，服务面/直构 execute 驱动）；implementation.md §3 族整体重写为 R2 终态（设计稿 §2~§5 标注已并入）；指令面 rule/skill 双副本/AGENTS 与活文档现在时残留同批清扫；089/090 卡与进度区过程叙事按文档治理改终态事实。R2 入口统一完成条件闭合（计划第二完成条件=T-ACCESS-062）。迁移细节与验证证据见[任务卡](../tasks/T-PERM-092.md)。
 - 2026-09-28 T-ACCESS-057/058 收口补记（进度区此前滞后，同批归位）：057——OPERATION_ADMISSION 阶段落地（掩码语义对齐收口），终态见[任务卡](../tasks/T-ACCESS-057.md)；058——映射操作引用与独立维护来源落地（sync-v2 双身份、评审 P2×1+P3×8 处置、全量含 E2E/heavy BUILD SUCCESS），终态见[任务卡](../tasks/T-ACCESS-058.md)。
 - 2026-09-28 T-ACCESS-059 完成：无迁移期统一上线（用户六项拍板：①全部服务一次切 OPERATION_ADMISSION、网关单链无模式发现；②网关直接切新链删旧链（回退=回滚网关版本，服务端旧端点留 062）；③access-service 自身端点也接准入——固定图 105 路由按服务层门禁同码补操作引用+两笔补授；④端点身份=凭证+网关内部密钥并存（M2M 白名单扩两端点，凭证限自身服务）；⑤configGeneration=service_config 计数列（四挂点同事务 bump、快照构建独立语句复读自一致）；⑥SDK 只加 PermissionClient 两方法）。interface-admission 族两端点+快照装配（多要求一次 execute、候选归并、条件内联共享 GatewayPushableRules）、网关四态 matcher+过期缓存 miss 重载（评审 P1 修复+红跑实证）、迁移脚本 059、E2E 双切片同批改造；契约 §25/设计 §8.4/gateway.md/engine 册等十册回写+skill 双副本。N11/N12/N14/N15/N21/N22/N28 验收证据与全量 BUILD SUCCESS 见[任务卡](../tasks/T-ACCESS-059.md)。T-ACCESS-060 依赖解锁（TTL 边界推导与失效演练）。
+- 2026-09-28 T-ACCESS-060 完成：条件→服务反查 markConditions 通道化——`PermissionChangeAspect` flush 统一按「引用条件的授权类型→所需操作→映射服务」安全超集反查并入 serviceCodes 广播（管理页/内联/回收全覆盖；旧 T-PERM-017 API 资源等值联接整体退役，红跑实证屏蔽反查后广播为空用例即红）；边界按新准入依赖面重推导（事实族 L2≤10s＋快照有效期 15s＝25s≤30s，操作定义/条件原文/路由/配置新鲜库读不占预算）入双侧启动校验方程锁（`PermCacheBoundaryValidator` 上游 L2＋SNAPSHOT_TTL≤30s）；N19/N21/N23 用例落地（PgIT 19/19＋网关负形态两用例）。三项用户拍板：接收侧代次匹配检查不新增（epoch＋TTL 承载，修订 2026-09-25 字样）、错误信封不加负缓存（每请求回源 503 即哨兵）、「临时强制在线」灰度开关不落地。终态见[任务卡](../tasks/T-ACCESS-060.md)。T-ACCESS-061 依赖解锁。
 - 2026-09-27 T-ACCESS-056 完成：准入协议落契约总册 [§25](../design/access-service-api-contract.md#operation-admission-protocol)（OPERATION_ADMISSION／interface-admission 族目标契约：端点与快照 DTO、requiredPermission、候选/路由/迁移规则、N 系分配索引）；两配置故障错误码与 §20.2 词表增量随枚举落账（契约先行）；设计 §10.3 补验收归属列、§7/§8 章首补落账指针。落账拍板与外评处置见[任务卡](../tasks/T-ACCESS-056.md)。
 
 ## 附录 A：全仓旧执行体清点册（T-PERM-080 产出）

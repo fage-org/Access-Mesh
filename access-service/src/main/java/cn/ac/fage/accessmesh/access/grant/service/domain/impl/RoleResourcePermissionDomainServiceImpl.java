@@ -83,11 +83,11 @@ public class RoleResourcePermissionDomainServiceImpl implements RoleResourcePerm
     }
 
     @Override
-    public Set<String> selectServiceCodesByConditionIds(Long tenantId, Set<Long> conditionIds) {
+    public Set<String> selectServiceCodesByConditionGrantTypes(Long tenantId, Set<Long> conditionIds) {
         if (conditionIds == null || conditionIds.isEmpty()) {
             return Collections.emptySet();
         }
-        return roleResourcePermissionMapper.selectServiceCodesByConditionIds(tenantId, conditionIds);
+        return roleResourcePermissionMapper.selectServiceCodesByConditionGrantTypes(tenantId, conditionIds);
     }
 
     @Override

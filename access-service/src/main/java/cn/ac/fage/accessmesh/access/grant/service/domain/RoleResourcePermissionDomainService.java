@@ -84,13 +84,17 @@ public interface RoleResourcePermissionDomainService {
     Set<Long> selectReferencedConditionIds(Long tenantId, Set<Long> conditionIds);
 
     /**
-     * 根据条件 ID 集合反查受影响的服务编码集合（条件变更登记 serviceCodes 广播失效）。
+     * 按条件 ID 集合反查受影响的服务编码集合（条件变更登记 serviceCodes 广播失效）。
+     * <p>
+     * T-ACCESS-060（N19）安全超集：「引用条件的授权类型 → 该类型所需操作 → 映射服务」；
+     * 调用方为 {@code PermissionChangeAspect} flush（markConditions 通道统一反查）。
+     * </p>
      *
      * @param tenantId     租户ID
      * @param conditionIds 条件ID集合
      * @return 受影响的服务编码集合
      */
-    Set<String> selectServiceCodesByConditionIds(Long tenantId, Set<Long> conditionIds);
+    Set<String> selectServiceCodesByConditionGrantTypes(Long tenantId, Set<Long> conditionIds);
 
     /**
      * 批量软删授权行（删除级联本体；同事务内先盘点登记失效再调用）。
