@@ -64,12 +64,6 @@ BatchAuthCheckReq.AuthCheckItem#inheritMode -> []
 BatchAuthCheckReq.AuthCheckItem#operationCode -> [@NotBlank, @Pattern(message="操作编码必须以大写字母开头，仅含大写字母/数字/下划线", regexp="^[A-Z][A-Z0-9_]*$")]
 BatchAuthCheckReq.AuthCheckItem#resourceCode -> []
 BatchAuthCheckReq.AuthCheckItem#resourceTypeCode -> [@NotBlank, @Pattern(message="资源类型编码必须以大写字母开头，仅含大写字母/数字/下划线", regexp="^[A-Z][A-Z0-9_]*$")]
-CheckInterfaceReq#context -> []
-CheckInterfaceReq#httpMethod -> [@NotBlank]
-CheckInterfaceReq#path -> [@NotBlank]
-CheckInterfaceReq#serviceCode -> [@NotBlank]
-CheckInterfaceReq#subjectExternalId -> [@NotBlank]
-CheckInterfaceReq#subjectTypeCode -> [@NotBlank]
 IdReq#id -> [@NotNull]
 IdsReq#ids -> [@NotEmpty, @Size(max=1000, message="批量上限 1000（project-rules §分批约束，超限分批提交）")]
 OperationListReq#resourceTypeCode -> []
@@ -136,7 +130,6 @@ UserRoleListReq#subjectTypeCode -> [@NotBlank]
     private static final List<Class<?>> GUARDED_CLASSES = List.of(
         cn.ac.fage.accessmesh.perm.common.dto.req.AuthCheckReq.class,
         cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq.class,
-        cn.ac.fage.accessmesh.perm.common.dto.req.CheckInterfaceReq.class,
         cn.ac.fage.accessmesh.perm.common.dto.req.IdReq.class,
         cn.ac.fage.accessmesh.perm.common.dto.req.IdsReq.class,
         cn.ac.fage.accessmesh.perm.common.dto.req.OperationListReq.class,
@@ -157,7 +150,6 @@ UserRoleListReq#subjectTypeCode -> [@NotBlank]
 AuthCheckReq: String subjectTypeCode, String subjectExternalId, String resourceTypeCode, String resourceCode, String operationCode, String domainCode, String codeType, String inheritMode, String parentResourceTypeCode, String parentResourceCode, String parentCodeType, List<String> parentOperationCodes, Map<String, Object> context
 BatchAuthCheckReq: String subjectTypeCode, String subjectExternalId, List<BatchAuthCheckReq$AuthCheckItem> items, String parentResourceTypeCode, String parentResourceCode, String parentCodeType, List<String> parentOperationCodes, Map<String, Object> context
 BatchAuthCheckReq.AuthCheckItem: String resourceTypeCode, String resourceCode, String operationCode, String domainCode, String codeType, String inheritMode
-CheckInterfaceReq: String subjectTypeCode, String subjectExternalId, String serviceCode, String httpMethod, String path, Map<String, Object> context
 IdReq: Long id
 IdsReq: List<Long> ids
 OperationListReq: String resourceTypeCode

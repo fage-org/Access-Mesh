@@ -144,8 +144,6 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
             config.setBasePath(req.basePath());
             config.setDescription(req.description());
             config.setStatus(req.status() != null ? req.status() : 1);
-            // T-ACCESS-059 无迁移期拍板：新服务缺省 OPERATION_ADMISSION（与 DDL 默认值一致）
-            config.setApiAuthMode(req.apiAuthMode() == null ? "OPERATION_ADMISSION" : req.apiAuthMode().name());
             config.setExtra(req.extra());
             config.setCreatedBy(operatorId);
             LocalDateTime now = LocalDateTime.now();
@@ -159,8 +157,7 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
         boolean basePathClear = Boolean.TRUE.equals(req.basePathClear());
         boolean descriptionClear = Boolean.TRUE.equals(req.descriptionClear());
         boolean extraClear = Boolean.TRUE.equals(req.extraClear());
-        // T-ACCESS-059：模式/启停变化改变准入快照构建输入，保存后同事务递增配置代次
-        String previousMode = config.getApiAuthMode();
+        // T-ACCESS-059：启停变化改变准入快照构建输入，保存后同事务递增配置代次
         Integer previousStatus = config.getStatus();
         if (req.name() != null) config.setName(req.name());
         if (basePathClear) {
@@ -174,7 +171,6 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
             config.setDescription(req.description());
         }
         if (req.status() != null) config.setStatus(req.status());
-        if (req.apiAuthMode() != null) config.setApiAuthMode(req.apiAuthMode().name());
         if (extraClear) {
             // extra 清空语义（U006 拍板）=撤销 extra.syncTypes 同步白名单声明：
             // 该服务 user/role 同步通道全拒（fail-closed），可逆（重新提交 extra 即恢复）
@@ -193,13 +189,11 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
         patch.setBasePath(config.getBasePath());
         patch.setDescription(config.getDescription());
         patch.setStatus(config.getStatus());
-        patch.setApiAuthMode(config.getApiAuthMode());
         patch.setExtra(config.getExtra());
         patch.setUpdatedAt(config.getUpdatedAt());
         serviceConfigMapper.update(patch);
         PermissionChangeContext.markServiceCodes(tenantId, req.serviceCode());
-        if (!Objects.equals(previousMode, config.getApiAuthMode())
-            || !Objects.equals(previousStatus, config.getStatus())) {
+        if (!Objects.equals(previousStatus, config.getStatus())) {
             serviceConfigMapper.incrementConfigGeneration(tenantId, req.serviceCode());
         }
         return toServiceConfigResp(config);
@@ -384,7 +378,7 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
         return new ServiceConfigResp(
             c.getId(), c.getTenantId(), c.getServiceCode(),
             c.getName(), c.getBasePath(), c.getDescription(),
-            c.getStatus(), c.getExtra(), c.getCreatedAt(), c.getUpdatedAt(), c.getApiAuthMode()
+            c.getStatus(), c.getExtra(), c.getCreatedAt(), c.getUpdatedAt()
         );
     }
 }

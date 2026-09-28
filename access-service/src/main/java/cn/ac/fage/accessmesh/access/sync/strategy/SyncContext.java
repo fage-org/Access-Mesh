@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.sync.strategy;
 
-import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigSyncReq;
+import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigSyncV2Req;
 import cn.ac.fage.accessmesh.access.resource.entity.ServiceConfig;
 
 /**
@@ -59,7 +59,7 @@ public record SyncContext(
      * @param apiType      API类型
      * @return 同步上下文对象
      */
-    public static SyncContext of(Long tenantId, ServiceConfig config, ServiceConfigSyncReq req,
+    public static SyncContext of(Long tenantId, ServiceConfig config, ServiceConfigSyncV2Req req,
                                   Long operatorId, String basePath, Integer apiType) {
         return new SyncContext(tenantId, config, InterfaceSyncDefinition.from(req), operatorId, basePath, apiType);
     }

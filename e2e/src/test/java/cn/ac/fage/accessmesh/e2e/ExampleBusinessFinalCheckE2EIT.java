@@ -50,7 +50,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * （对父放行/错父拒绝）；⑥异步导出提交/执行时点双鉴权（提交后撤权→执行时点拒绝）；
  * ⑦直连伪造身份链阻断（N25）；⑧PERM_MUTEX 业务半边（N04 跨实例不误拒 / N05 同实例
  * 真互斥：准入恒 MAY_ENTER、业务最终检查拒绝）；⑨服务级暂停切换 runbook 演练
- * （暂停→切模式→恢复：代次单调递增、空快照 DENY、恢复以库为准）。
+ * （暂停→恢复：代次单调递增、空快照 DENY、恢复以库为准）。
  *
  * <p><b>example-service 消费 perm-client SDK</b>（T-ACCESS-061 拍板）：业务最终检查经
  * PermissionFeignClient 调 auth/check 族端点（内部密钥通道），Feign 目标 access-service
@@ -423,31 +423,22 @@ class ExampleBusinessFinalCheckE2EIT {
 
     @Test
     @Order(11)
-    @DisplayName("⑪ 服务级暂停切换 runbook 演练：暂停→切模式→恢复，代次单调递增+恢复以库为准")
+    @DisplayName("⑪ 服务级暂停切换 runbook 演练：暂停→恢复，代次单调递增+恢复以库为准")
     void step11_servicePauseSwitchResumeDrill() throws Exception {
         // 基线代次（步骤⑦已把 report-1 家族资源建齐；此处只动 service_config）
         long g0 = generation();
-        // ① 暂停（status=0）：模式/启停变化同事务 +1
-        saveServiceConfig(0, null);
+        // ① 暂停（status=0）：启停变化同事务 +1
+        saveServiceConfig(0);
         long g1 = generation();
         assertThat(g1).as("暂停必须递增配置代次").isGreaterThan(g0);
         // 空路由快照（停用服务）→ 网关本地无命中 DENY 403（容忍过渡期 200/503）
         awaitHttpStatus("/api/example/report/view", "{\"reportCode\":\"report-1\"}", 403,
             s -> s == 200 || s == 503, "暂停后请求必须回到 403（空快照 DENY）");
 
-        // ② 切模式（暂停态下 LEGACY_API——回退部署形态演练；OPERATION_ADMISSION 端点不服务）
-        saveServiceConfig(null, "LEGACY_API");
-        long g2 = generation();
-        assertThat(g2).as("切模式必须递增配置代次").isGreaterThan(g1);
-        // 暂停态不放开流量：仍 403（容忍 503）
-        awaitHttpStatus("/api/example/report/view", "{\"reportCode\":\"report-1\"}", 403,
-            s -> s == 200 || s == 503, "暂停+切模式期间请求必须保持 403");
-
-        // ③ 恢复（status=1 + 回切 OPERATION_ADMISSION）：代次再 +1，恢复以库为准（广播送达即失效，
-        // 不等 TTL）
-        saveServiceConfig(1, "OPERATION_ADMISSION");
+        // 恢复：启停同事务递增代次，恢复以库中状态为准。
+        saveServiceConfig(1);
         long g3 = generation();
-        assertThat(g3).as("恢复必须递增配置代次").isGreaterThan(g2);
+        assertThat(g3).as("恢复必须递增配置代次").isGreaterThan(g1);
         JsonNode restored = awaitBusinessResult("/api/example/report/view",
             "{\"reportCode\":\"report-1\"}", b -> b.path("code").asInt() == 200,
             "恢复后必须在 30 秒窗口内回到放行（以库为准，不等快照 TTL 兜底）");
@@ -545,15 +536,12 @@ class ExampleBusinessFinalCheckE2EIT {
     // 服务切换与代次
     // ------------------------------------------------------------------
 
-    private static void saveServiceConfig(Integer status, String apiAuthMode) {
+    private static void saveServiceConfig(Integer status) {
         var req = JSON.createObjectNode()
             .put("serviceCode", SERVICE)
             .put("name", "Example Service");
         if (status != null) {
             req.put("status", status);
-        }
-        if (apiAuthMode != null) {
-            req.put("apiAuthMode", apiAuthMode);
         }
         postForData(gateway() + "/api/access/service-config/save", adminToken, req);
     }

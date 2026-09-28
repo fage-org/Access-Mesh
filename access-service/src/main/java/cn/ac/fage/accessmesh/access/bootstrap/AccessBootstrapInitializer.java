@@ -272,14 +272,6 @@ public class AccessBootstrapInitializer {
         cn.ac.fage.accessmesh.access.resource.entity.ServiceConfig seedServiceConfig =
             seedWriter.findServiceConfig(tenantId);
         boolean serviceConfigPresent = seedServiceConfig != null;
-        // T-ACCESS-059 无迁移期拍板：固定图服务行必须为 OPERATION_ADMISSION——
-        // 存量库漂移（迁移脚本 059 未执行）fail-fast，避免准入端点以 20071 不可诊断地拒绝
-        if (seedServiceConfig != null && !"OPERATION_ADMISSION".equals(seedServiceConfig.getApiAuthMode())) {
-            conflicts.add("service_config(access-service) api_auth_mode 漂移为 "
-                + seedServiceConfig.getApiAuthMode() + "（期望 OPERATION_ADMISSION）——请执行迁移脚本 "
-                + "docs/ops/operation-admission-migrate-059.sql");
-        }
-        Long serviceResourceId = serviceResourcePresent ? serviceResources.get(0).getId() : null;
         if (serviceResourcePresent && (serviceResources.get(0).getStatus() == null
                 || serviceResources.get(0).getStatus() != 1)) {
             conflicts.add("SERVICE 资源 '" + BootstrapGraphDefinition.SERVICE_RESOURCE_CODE
@@ -300,7 +292,7 @@ public class AccessBootstrapInitializer {
             }
         }
         if (!disabledApiCodes.isEmpty()) {
-            conflicts.add("API 资源已停用（Gateway 实例级鉴权将失效）: " + disabledApiCodes);
+            conflicts.add("固定图 API 登记资源已停用（操作准入按无注册路由拒绝，管理端点不可达）: " + disabledApiCodes);
         }
         if (!apiResourceIds.isEmpty() && apiResourceIds.size() < expectedApiCodes.size()) {
             Set<String> missing = new HashSet<>(expectedApiCodes);
@@ -360,13 +352,18 @@ public class AccessBootstrapInitializer {
         //    （delete_flag=id 历史行）= 管理端整行撤销 → WARN 放行不补回；缺行 + 无任何
         //    历史记录 = 初始化残缺/键被占用/硬删 → 维持 fail-fast ——
         if (rolePresent && roleId != null) {
+            List<RoleResourcePermission> existingGrants = seedWriter.findValidGrants(tenantId, roleId);
+            if (existingGrants.stream().anyMatch(grant -> Objects.equals(
+                grant.getResourceType(), resourceTypes.get(ResourceTypeCode.API)))) {
+                conflicts.add("固定图仍有已退役的 API 授权；请先执行 T-ACCESS-062 受控迁移或重建开发库");
+            }
             Map<GrantIdentity, List<GrantKey>> existingByIdentity =
-                seedWriter.findValidGrants(tenantId, roleId).stream()
+                existingGrants.stream()
                     .collect(Collectors.groupingBy(GrantIdentity::of,
                         Collectors.mapping(GrantKey::of, Collectors.toList())));
             List<RoleResourcePermission> missingGrants = new ArrayList<>();
             for (RoleResourcePermission grant : buildExpectedGrants(
-                    tenantId, roleId, resourceTypes, operationBits, apiResourceIds, serviceResourceId)) {
+                    tenantId, roleId, resourceTypes, operationBits)) {
                 List<GrantKey> candidates = existingByIdentity.get(GrantIdentity.of(grant));
                 if (candidates == null) {
                     missingGrants.add(grant);
@@ -578,7 +575,7 @@ public class AccessBootstrapInitializer {
 
         // SERVICE 资源（固定图种子对象；MANAGE_API_MAPPING 已类型级，保留供未来实例级授权）
         seedWriter.insertServiceConfig(tenantId);
-        Long serviceResourceId = seedWriter.insertResource(tenantId,
+        seedWriter.insertResource(tenantId,
             resourceTypes.get(ResourceTypeCode.SERVICE),
             BootstrapGraphDefinition.SERVICE_RESOURCE_CODE, BootstrapGraphDefinition.SERVICE_RESOURCE_NAME);
 
@@ -600,9 +597,9 @@ public class AccessBootstrapInitializer {
 
         seedWriter.insertApiMappings(tenantId, mappingSeeds);
 
-        // 授权（业务门禁全 scopeAll + 实例级 API:ACCESS；清单见 BootstrapGraphDefinition，计数以 AccessBootstrapPgIT 断言为准）
+        // 授权（业务门禁全 scopeAll；API 登记不产生授权，T-ACCESS-062；清单见 BootstrapGraphDefinition，计数以 AccessBootstrapPgIT 断言为准）
         List<RoleResourcePermission> grants = buildExpectedGrants(
-            tenantId, roleId, resourceTypes, operationBits, apiResourceIds, serviceResourceId);
+            tenantId, roleId, resourceTypes, operationBits);
         seedWriter.insertGrants(tenantId, roleId, grants);
 
         // 菜单种子 + MENU 投影（T-FE-015；逐行 insert 回填主键，种子清单「先父后子」排序保证
@@ -702,28 +699,15 @@ public class AccessBootstrapInitializer {
     // ===== 期望授权构造（检测比对与创建落库共用） =====
 
     /**
-     * 按固定图定义构造期望授权（无 id）。resourceCode 为 null 的条目 scopeAll=true；
-     * 实例条目的资源 id 来自 API/SERVICE 资源定位结果——检测场景下资源缺失的条目跳过
-     * （资源缺失已由检测先行报告，此处不重复、不空指针）。
+     * 按固定图定义构造期望授权（无 id）。固定图条目全为类型级（resourceCode=null →
+     * scopeAll=true；API 登记不产生授权，T-ACCESS-062 退役实例级规格后无实例条目）。
      */
     private List<RoleResourcePermission> buildExpectedGrants(Long tenantId, Long roleId,
                                                              Map<String, Integer> resourceTypes,
-                                                             Map<String, Long> operationBits,
-                                                             Map<String, Long> apiResourceIds,
-                                                             Long serviceResourceId) {
+                                                             Map<String, Long> operationBits) {
         LocalDateTime now = LocalDateTime.now();
         List<RoleResourcePermission> grants = new ArrayList<>();
         for (BootstrapGraphDefinition.GrantSpec spec : BootstrapGraphDefinition.allGrants()) {
-            boolean scopeAll = spec.resourceCode() == null;
-            Long resourceEntityId = null;
-            if (!scopeAll) {
-                resourceEntityId = ResourceTypeCode.API.equals(spec.resourceTypeCode())
-                    ? apiResourceIds.get(spec.resourceCode())
-                    : serviceResourceId;
-                if (resourceEntityId == null) {
-                    continue;
-                }
-            }
             Long bits = operationBits.get(BusinessKeyUtil.operationCodeKey(spec.resourceTypeCode(), spec.operationCode()));
             if (bits == null) {
                 continue;
@@ -731,10 +715,10 @@ public class AccessBootstrapInitializer {
             RoleResourcePermission grant = new RoleResourcePermission();
             grant.setTenantId(tenantId);
             grant.setAbstractRoleId(roleId);
-            grant.setResourceEntityId(resourceEntityId);
+            grant.setResourceEntityId(null);
             grant.setGrantedBits(bits);
             grant.setResourceType(resourceTypes.get(spec.resourceTypeCode()));
-            grant.setScopeAll(scopeAll);
+            grant.setScopeAll(true);
             grant.setCanGrant(spec.canGrant());
             grant.setGrantSource(GrantSource.MANUAL.getValue());
             grant.setCreatedAt(now);

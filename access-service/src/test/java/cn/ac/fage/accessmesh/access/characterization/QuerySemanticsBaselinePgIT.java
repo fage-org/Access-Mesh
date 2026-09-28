@@ -7,12 +7,10 @@ import cn.ac.fage.accessmesh.access.grant.service.domain.PermissionGrantDomainSe
 import cn.ac.fage.accessmesh.access.it.ItInfra;
 import cn.ac.fage.accessmesh.perm.common.dto.req.AuthCheckReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq;
-import cn.ac.fage.accessmesh.perm.common.dto.req.InterfaceSnapshotReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.QueryScopesReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.UserEffectivePermissionCodesReq;
 import cn.ac.fage.accessmesh.access.engine.dto.AuthCheckResp;
 import cn.ac.fage.accessmesh.access.engine.dto.BatchAuthCheckResp;
-import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryScopesResp;
 import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import org.junit.jupiter.api.DisplayName;
@@ -308,67 +306,6 @@ class QuerySemanticsBaselinePgIT {
                 .as("父判定失败：scopeAll 组同样 DENIED（整表拒绝）").isEqualTo(ScopeMode.DENIED);
             assertThat(group.items()).isEmpty();
         });
-    }
-
-    // ===== 快照投影族：interface-snapshot（实例映射/scopeAll 展开/空主体 golden）=====
-
-    @Test
-    @DisplayName("快照：实例授权按 serviceCode 映射出精确路由条目；无映射服务空集")
-    void snapshotShouldReturnMappedInstanceEntriesForService() {
-        seedBaseline();
-        InterfaceSnapshotResp svcA = queryAppService.interfaceSnapshot(TENANT, new InterfaceSnapshotReq(
-            "USER", String.valueOf(R2BaselineFixture.USER_SNAP), R2BaselineFixture.SVC_INST));
-        assertThat(svcA.allowedApis()).hasSize(1);
-        InterfaceSnapshotResp.ApiPermissionEntry entry = svcA.allowedApis().get(0);
-        assertThat(entry.serviceCode()).isEqualTo(R2BaselineFixture.SVC_INST);
-        assertThat(entry.httpMethod()).isEqualTo("POST");
-        assertThat(entry.pathPattern()).isEqualTo("/r2b/inst");
-        assertThat(entry.hasCondition()).isFalse();
-        assertThat(entry.conditionId()).isNull();
-        assertThat(entry.conditionRules()).isNull();
-        assertThat(entry.scopeMode()).isEqualTo(ScopeMode.INSTANCE);
-
-        InterfaceSnapshotResp svcB = queryAppService.interfaceSnapshot(TENANT, new InterfaceSnapshotReq(
-            "USER", String.valueOf(R2BaselineFixture.USER_SNAP), R2BaselineFixture.SVC_ALL));
-        assertThat(svcB.allowedApis())
-            .as("实例授权仅对已映射路由生效：svc-b 无该实体映射 → 空").isEmpty();
-    }
-
-    @Test
-    @DisplayName("快照：API scopeAll 展开为该服务全部 enabled 映射（INSTANCE 条目，不输出 ALL 通配）")
-    void snapshotShouldExpandScopeAllToAllEnabledMappings() {
-        seedBaseline();
-        InterfaceSnapshotResp svcB = queryAppService.interfaceSnapshot(TENANT, new InterfaceSnapshotReq(
-            "USER", String.valueOf(R2BaselineFixture.USER_SNAP_ALL), R2BaselineFixture.SVC_ALL));
-        assertThat(svcB.allowedApis()).hasSize(2);
-        assertThat(svcB.allowedApis())
-            .allSatisfy(entry -> {
-                assertThat(entry.serviceCode()).isEqualTo(R2BaselineFixture.SVC_ALL);
-                assertThat(entry.scopeMode()).isEqualTo(ScopeMode.INSTANCE);
-                assertThat(entry.hasCondition()).isFalse();
-            });
-        assertThat(svcB.allowedApis())
-            .extracting(InterfaceSnapshotResp.ApiPermissionEntry::pathPattern)
-            .as("enabled 过滤回归锁：svc-b 第三条映射 /r2b/all-off 为 enabled=false，"
-                + "不得进入快照（Mapper 误删 enabled 过滤则本断言多出该路径变红）")
-            .containsExactlyInAnyOrder("/r2b/all-1", "/r2b/all-2");
-
-        InterfaceSnapshotResp svcA = queryAppService.interfaceSnapshot(TENANT, new InterfaceSnapshotReq(
-            "USER", String.valueOf(R2BaselineFixture.USER_SNAP_ALL), R2BaselineFixture.SVC_INST));
-        assertThat(svcA.allowedApis())
-            .as("scopeAll 语义=「该服务全部已注册 API」：svc-a 的 1 条映射同样展开").hasSize(1);
-    }
-
-    @Test
-    @DisplayName("快照：无角色主体与互斥双删主体均为空快照（Gateway 缓存空集靠 TTL/广播）")
-    void snapshotShouldBeEmptyWhenNoRoleOrAllRolesMutexDropped() {
-        seedBaseline();
-        assertThat(queryAppService.interfaceSnapshot(TENANT, new InterfaceSnapshotReq(
-            "USER", String.valueOf(R2BaselineFixture.USER_NONE), R2BaselineFixture.SVC_INST)).allowedApis())
-            .isEmpty();
-        assertThat(queryAppService.interfaceSnapshot(TENANT, new InterfaceSnapshotReq(
-            "USER", String.valueOf(R2BaselineFixture.USER_MUTEX), R2BaselineFixture.SVC_INST)).allowedApis())
-            .as("u_mutex 双角色被 ROLE_MUTEX 双删 → 有效角色空 → 空快照").isEmpty();
     }
 
     // ===== 视图族（T-PERM-091）：登录权限串 + 菜单派生资源访问事实 golden =====

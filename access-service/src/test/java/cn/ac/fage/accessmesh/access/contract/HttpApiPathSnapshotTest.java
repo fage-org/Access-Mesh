@@ -71,10 +71,8 @@ class HttpApiPathSnapshotTest {
 /api/access/abstract-user/update
 /api/access/auth/batch-check
 /api/access/auth/check
-/api/access/auth/check-interface
 /api/access/auth/interface-admission-snapshot
 /api/access/auth/interface-admission
-/api/access/auth/interface-snapshot
 /api/access/auth/query-resources
 /api/access/auth/query-scopes
 /api/access/biz-domain/create
@@ -135,7 +133,6 @@ class HttpApiPathSnapshotTest {
 /api/access/service-config/list
 /api/access/service-config/remove
 /api/access/service-config/save
-/api/access/service-config/sync
 /api/access/service-config/sync-v2
 /api/access/service-credential/create
 /api/access/service-credential/list
@@ -256,11 +253,9 @@ class HttpApiPathSnapshotTest {
 /api/access/abstract-user/sync|access.sync.dto.AbstractUserSyncReq|common.model.R<perm.common.dto.resp.SyncResultResp>
 /api/access/abstract-user/update|access.user.dto.req.AbstractUserUpdateReq|common.model.R<access.user.dto.resp.AbstractUserResp>
 /api/access/auth/batch-check|perm.common.dto.req.BatchAuthCheckReq|common.model.R<access.engine.dto.BatchAuthCheckResp>
-/api/access/auth/check-interface|perm.common.dto.req.CheckInterfaceReq|common.model.R<access.engine.dto.CheckInterfaceResp>
 /api/access/auth/check|perm.common.dto.req.AuthCheckReq|common.model.R<access.engine.dto.AuthCheckResp>
 /api/access/auth/interface-admission-snapshot|perm.common.dto.req.InterfaceAdmissionSnapshotReq|common.model.R<perm.common.dto.resp.InterfaceAdmissionSnapshotResp>
 /api/access/auth/interface-admission|perm.common.dto.req.InterfaceAdmissionReq|common.model.R<perm.common.dto.resp.InterfaceAdmissionResp>
-/api/access/auth/interface-snapshot|perm.common.dto.req.InterfaceSnapshotReq|common.model.R<perm.common.dto.resp.InterfaceSnapshotResp>
 /api/access/auth/query-resources|perm.common.dto.req.QueryResourcesReq|common.model.R<perm.common.dto.resp.QueryResourcesResp>
 /api/access/auth/query-scopes|perm.common.dto.req.QueryScopesReq|common.model.R<perm.common.dto.resp.QueryScopesResp>
 /api/access/biz-domain/create|access.domain.dto.req.BizDomainCreateReq|common.model.R<access.domain.dto.resp.BizDomainResp>
@@ -325,7 +320,6 @@ class HttpApiPathSnapshotTest {
 /api/access/service-credential/list|access.infrastructure.credential.dto.req.ServiceCredentialListReq|common.model.R<perm.common.dto.resp.ItemsResp<access.infrastructure.credential.dto.resp.ServiceCredentialResp>>
 /api/access/service-credential/remove|common.model.IdReq|common.model.R<Void>
 /api/access/service-credential/update|access.infrastructure.credential.dto.req.ServiceCredentialUpdateReq|common.model.R<access.infrastructure.credential.dto.resp.ServiceCredentialResp>
-/api/access/service-config/sync|access.resource.dto.req.ServiceConfigSyncReq|common.model.R<access.resource.dto.resp.ServiceConfigSyncResp>
 /api/access/service-config/sync-v2|access.resource.dto.req.ServiceConfigSyncV2Req|common.model.R<access.resource.dto.resp.ServiceConfigSyncResp>
 /api/access/system-config/detail|access.platform.dto.req.SystemConfigGetReq|common.model.R<access.platform.dto.resp.SystemConfigResp>
 /api/access/system-config/list|access.platform.dto.req.SystemConfigListReq|common.model.R<perm.common.dto.resp.PageResp<access.platform.dto.resp.SystemConfigResp>>

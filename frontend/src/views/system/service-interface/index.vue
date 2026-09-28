@@ -175,7 +175,6 @@ function openMappingForm(mode: "create" | "edit", row?: ApiMappingResp) {
         },
         mode,
         serviceCode: service.serviceCode,
-        apiAuthMode: service.apiAuthMode,
         initialData: row || null
       }),
     beforeSure: async (done, { closeLoading }) => {

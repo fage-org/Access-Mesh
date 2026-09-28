@@ -44,7 +44,7 @@ import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomain
  *       管理面资源 CRUD 一律 20055（行由用户/组织/菜单/角色管理、文件夹预置/惰性登记、
  *       类型定义管理、条件管理（MANAGED 条件投影，T-PERM-048）自动维护），收编原类型保留
  *       清单与行级 owner=access-service 投影防线两套旧机制。API 类型同款种子声明（T-PERM-069，
- *       2026-09-18「仅 API 收紧」定案）：唯一事实入口=service-config/sync 接口声明通道
+ *       2026-09-18「仅 API 收紧」定案）：唯一事实入口=service-config/sync-v2 接口声明通道
  *       （领域直写不经本守卫管理面门禁）+bootstrap 固定图种子，管理面 20055 enforcement
  *       堵手工 MANUAL 行口径外通道；SERVICE 维持 MANAGED（新行唯一通道=管理面手工建行，
  *       做按服务实例级授权目标行——收紧即零 writer）。</li>
@@ -417,11 +417,11 @@ public class ResourceTypeOwnershipGuard {
         if (ownership != null && MODE_SYNC.equals(ownership.managedMode())) {
             // 内部来源（事实链路类型：USER/ORG/MENU/ROLE、ADMIN_FILE 文件夹（T-ADMIN-025）、
             // TYPE_DEFINITION 类型定义实例投影（T-PERM-051）、CONDITION 管理页条件投影（T-PERM-048）
-            // 及 API 接口资源（T-PERM-069——事实入口 service-config/sync 与 bootstrap，领域直写））
+            // 及 API 接口资源（T-PERM-069——事实入口 service-config/sync-v2 与 bootstrap，领域直写））
             if (LocalProjectionOwner.SERVICE_CODE.equals(ownership.syncSourceService())) {
                 throw new BizException(AccessErrorCode.RESOURCE_EXTERNALLY_MAINTAINED.getCode(),
                         "资源由系统事实链路维护（用户/组织/菜单/角色/类型定义/条件管理、文件上传/预置、"
-                                + "服务接口同步 service-config/sync），资源管理面只读: resourceTypeCode="
+                                + "服务接口同步 service-config/sync-v2），资源管理面只读: resourceTypeCode="
                                 + resourceTypeCode);
             }
             throw new BizException(AccessErrorCode.RESOURCE_EXTERNALLY_MAINTAINED.getCode(),

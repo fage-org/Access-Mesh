@@ -66,8 +66,7 @@ public R<RoleResp> create(@RequestBody RoleCreateReq req) {
 - check/batchCheck 外部端点在 `PermissionCheckAppServiceImpl` 适配层直构 `QueryRequest`（不经门面四方法）。
 
 旧 `PermQueryEngine` 与四旧 DTO（`PermQuery`/`PermResult`/`PermBatchQuery`/`PermBatchResult`）、
-`TargetMode`、`ResolveContext` 已删除（T-PERM-092：判定面/管理门禁/getDenied〔089〕、范围与
-LEGACY_API 四面〔090〕、视图/转授〔091〕全部迁新 execute 后整删；X04 退役锁=
+`TargetMode`、`ResolveContext` 已删除（T-PERM-092：判定面/管理门禁/getDenied〔089〕、范围查询〔090〕、视图/转授〔091〕全部迁新 execute 后整删；X04 退役锁=
 `QueryBoundaryArchitectureTest` 断言主源码不得再现）——**禁止引用或恢复**；
 check 族 `inheritMode` 线格式解析收编于 `PermissionCheckAppServiceImpl.inheritClosureOf`。
 
@@ -107,11 +106,6 @@ return PermResultUtils.toAuthCheckResp((DecisionResult) result.orderedResults().
 
 // batchCheck（T-PERM-089 已迁）：多个独立 DECISION item 一次 execute（item key=输入下标，
 // 原序/重复项天然对齐；禁循环 N 次公开 execute）
-
-// checkInterface（T-PERM-090 已迁）：LEGACY_API 共同集合——全部匹配 API 一个 TARGET_SET 单 item
-// （SELF＋TypeFallback.ALLOW；空实体引用退 TYPE_LEVEL）；queryScopes=GRANT_LIST＋父要求＋
-// RAW_AND_KEPT（ScopeCoverageProjector 四态投影）；queryResources/interfaceSnapshot=GRANT_LIST＋FACTS
-// （interfaceSnapshot 用 Evaluation.preserveEnforce()，快照装配消费 List<GrantFact>）
 
 // 视图/转授（T-PERM-091 已迁）：视图=GRANT_LIST＋EVALUATE/ENFORCE＋KEPT＋descriptions＋
 // effectiveOperations（PermissionViewAppServiceImpl/PermViewAssembler/PermViewResult 消费

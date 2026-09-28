@@ -27,7 +27,7 @@ vi.mock("@/api/service-interface", () => ({
   removeApiMappings: (...args: unknown[]) => mockRemoveApiMappings(...args),
   removeServiceConfigs: vi.fn(),
   saveServiceConfig: (...args: unknown[]) => mockSaveServiceConfig(...args),
-  syncServiceInterfaces: vi.fn()
+  syncServiceInterfacesV2: vi.fn()
 }));
 
 import { useServiceInterface } from "./hook";

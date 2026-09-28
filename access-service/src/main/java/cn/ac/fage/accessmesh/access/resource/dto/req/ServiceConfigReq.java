@@ -40,8 +40,7 @@ public record ServiceConfigReq(
     String extra,
     Boolean basePathClear,
     Boolean descriptionClear,
-    Boolean extraClear,
-    cn.ac.fage.accessmesh.access.resource.enums.ApiAuthMode apiAuthMode
+    Boolean extraClear
 ) {
     /**
      * T-API-004（U006 拍板：全端点冲突拒绝）：新值与 Clear 同传拒绝。

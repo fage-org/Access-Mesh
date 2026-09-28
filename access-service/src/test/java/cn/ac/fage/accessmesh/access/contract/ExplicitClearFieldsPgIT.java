@@ -188,12 +188,12 @@ class ExplicitClearFieldsPgIT {
     void serviceConfigClearPersistsAndCreateRejected() {
         serviceConfigAppService.saveServiceConfig(TENANT,
             new cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigReq(
-                "it-clear-svc", "清空协议服务", "/it-clear", "旧描述", null, "{\"syncTypes\":{}}", null, null, null, null),
+                "it-clear-svc", "清空协议服务", "/it-clear", "旧描述", null, "{\"syncTypes\":{}}", null, null, null),
             null);
 
         serviceConfigAppService.saveServiceConfig(TENANT,
             new cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigReq(
-                "it-clear-svc", "清空协议服务", null, null, null, null, true, true, true, null),
+                "it-clear-svc", "清空协议服务", null, null, null, null, true, true, true),
             null);
 
         assertThat(jdbc.queryForObject(
@@ -210,7 +210,7 @@ class ExplicitClearFieldsPgIT {
 
         assertThatThrownBy(() -> serviceConfigAppService.saveServiceConfig(TENANT,
             new cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigReq(
-                "it-clear-svc-new", "新服务", null, null, null, null, true, null, null, null),
+                "it-clear-svc-new", "新服务", null, null, null, null, true, null, null),
             null))
             .isInstanceOf(BizException.class)
             .hasMessageContaining("创建服务配置不接受");
@@ -223,10 +223,8 @@ class ExplicitClearFieldsPgIT {
     @Test
     @DisplayName("接口映射 extra 清空真实落 NULL（JSONB 列显式 NULL 写入）")
     void apiMappingExtraClearPersistsNull() {
-        // T-ACCESS-059：DDL 缺省已改 OPERATION_ADMISSION（无迁移期口径）——本用例测 extraClear
-        // 语义与准入无关，钉 LEGACY_API 维持旧协议形态夹具
-        jdbc.update("INSERT INTO service_config(tenant_id, service_code, name, api_auth_mode) "
-            + "VALUES (?, 'it-clear-map-svc', '映射服务', 'LEGACY_API')", TENANT);
+        jdbc.update("INSERT INTO service_config(tenant_id, service_code, name) "
+            + "VALUES (?, 'it-clear-map-svc', '映射服务')", TENANT);
         jdbc.update(
             "INSERT INTO resource_entity(tenant_id, resource_type, code, code_type, name, path, status, extra) "
                 + "VALUES (?, 3, 'it-clear-api-1', 'default', '清空映射资源', '/it/clear', 1, '{}')", TENANT);
@@ -237,6 +235,10 @@ class ExplicitClearFieldsPgIT {
                 + "VALUES (?, ?, 'it-clear-map-svc', 'POST', '/it/clear/**', true, '{\"k\":1}')", TENANT, resourceId);
         Long mappingId = jdbc.queryForObject(
             "SELECT id FROM resource_api_mapping WHERE tenant_id = ? AND resource_entity_id = ?", Long.class, TENANT, resourceId);
+        jdbc.update("UPDATE resource_api_mapping SET required_operation_id = (SELECT o.id FROM operation_permission o "
+            + "JOIN type_definition t ON t.tenant_id=o.tenant_id AND t.type_value=o.resource_type "
+            + "AND t.type_key='resource_type' AND t.type_code='RESOURCE' AND t.delete_flag=0 "
+            + "WHERE o.tenant_id=? AND o.code='VIEW' AND o.delete_flag=0) WHERE id=?", TENANT, mappingId);
 
         resourceManageAppService.updateApiMapping(TENANT,
             new cn.ac.fage.accessmesh.access.resource.dto.req.ApiMappingUpdateReq(

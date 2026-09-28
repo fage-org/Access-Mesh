@@ -37,7 +37,7 @@ public interface PermissionAdmissionAppService {
      * 路由匹配从该服务完整已启用路由集取全部命中（完整配置优先，不按用户权限挑较弱规则）：
      * 无注册匹配 DENY（API_NOT_REGISTERED）；多匹配异要求 20070 配置故障；同要求去重后
      * 经引擎准入评估（存在候选资格即 MAY_ENTER，恒要求业务最终检查）。
-     * 服务未登记/停用按无注册路由拒绝；LEGACY_API 模式为配置故障 20071（不回落旧协议）。
+     * 服务未登记/停用按无注册路由拒绝；不回落已退役的旧协议。
      * </p>
      */
     InterfaceAdmissionResp interfaceAdmission(Long tenantId, InterfaceAdmissionReq req);

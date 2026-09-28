@@ -56,10 +56,11 @@ public class SecurityWebMvcConfig implements WebMvcConfigurer {
         // Gateway 或持凭证/密钥服务可达」）；豁免会话入口族与白名单自服务端点（精确清单
         // 见下方 excludePathPatterns，与 Gateway 白名单同源——保留公开/Sa-Token 会话/JWT
         // 自有信任模型，密钥拦截会架空服务层会话分支与 JWT 分支）；
-        // 运行时鉴权六端点（check/batch-check/check-interface/query-resources/query-scopes/
-        // interface-snapshot）维持覆盖（旧密钥服务凭证通道，与迁移前 /api/perm/auth/* 一致——
+        // 运行时鉴权六端点（check/batch-check/query-resources/query-scopes/
+        // interface-admission/interface-admission-snapshot）维持覆盖（旧密钥服务凭证通道，与迁移前 /api/perm/auth/* 一致——
         // INTERNAL_AUTHENTICATED 属性由本拦截器写入，豁免会使签名拦截器按 tenant-only 拒绝；
-        // 新凭证通道的 M2M 白名单不含运行时鉴权六端点，凭证请求对其 403，见 M2mCredentialEndpoints）。
+        // 拦截器覆盖与 M2M 白名单是两件事：per-service 凭证通道仅纳 interface-admission 两端点，
+        // check 族四端点凭证请求 403，见 M2mCredentialEndpoints）。
         // 失败直接 403 终止链。
         registry.addInterceptor(serviceAuthArbiter)
                 .addPathPatterns("/api/access/**")

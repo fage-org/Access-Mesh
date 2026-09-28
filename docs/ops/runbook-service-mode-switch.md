@@ -1,49 +1,24 @@
-# Runbook：服务级暂停切换与运行库盘点（T-ACCESS-061）
+# Runbook：服务暂停恢复与运行库盘点
 
-> 适用场景：业务服务从 LEGACY_API 切到 OPERATION_ADMISSION、或对已切服务做模式/启停
-> 变更。设计依据：r2-unified-query-and-admission.md §8.5「首次迁移默认采用可验证的服务级
-> 切换」与 §8.6；契约总册 §25.7「服务迁移门槛」。演练证据：
-> `e2e/src/test/java/cn/ac/fage/accessmesh/e2e/ExampleBusinessFinalCheckE2EIT.java`
-> 步骤⑪（暂停→切模式→恢复：代次单调递增、空快照 DENY、恢复以库为准）。
+T-ACCESS-062 后服务统一操作准入，没有模式切换字段。首次退役部署与成套回滚见 [API 退役手册](runbook-api-retirement-062.md)。日常发布仍使用服务级暂停，演练由 `ExampleBusinessFinalCheckE2EIT` 的暂停/恢复用例承载。
 
-## 一、迁移资格（切换前置门槛）
+## 一、接入资格
 
-迁移资格 = **「最终检查的代码位置 + 反向拒绝测试」**，不是 `businessChecked=true` 类配置。
-没有逐路由证明（业务服务内实际目标完整鉴权代码位置明确、且存在「无权限时确实拒绝」
-的反向测试）的服务不切新模式。
+每个业务路由必须有对实际目标的最终检查代码与无权限反向拒绝测试。主体与租户取自可信认证链，不能由业务请求 DTO 自报。Gateway 准入通过不等于对象鉴权通过。
 
-- 最终检查代码位置：业务服务内每个路由对**业务请求实际解析出的目标**调用
-  `auth/check` 族端点做实例级判定（example-service 参考实现：
-  `BusinessPermChecker` 门面 + `ReportController` 七路由）。
-- 反向拒绝测试：逐路由「无权限→拒绝」用例（example 参考：
-  `ReportControllerTest` 16 用例——查 A 不按 B 取数、批量逐项、TYPE_LEVEL、
-  父上下文、异步执行时点重查）。
-- 主体纪律：主体/租户只取自可信认证链（Gateway 注入且已验签的请求头），
-  请求 DTO 不携带主体/租户字段，客户端不可自报。
+## 二、暂停与恢复
 
-## 二、切换步骤（服务级暂停切换）
+1. `POST /api/access/service-config/save` 保存 `{serviceCode, name, status:0}`；配置代次递增，网关最终收敛到空路由快照拒绝。
+2. 核对业务最终检查，完成发布或映射更新。确认全部节点运行目标版本，停止旧进程以清除在途加载、本地快照与负缓存。
+3. 保存 `{serviceCode, name, status:1}`；代次再次递增，并广播服务快照失效。业务按库中启停状态恢复，广播丢失时受既有 30 秒边界约束。失败时维持暂停，不能关闭安全检查作为恢复手段。
 
-按序执行，任一步失败即停止并回退到上一步形态（恢复=反向执行模式/启停保存）：
+## 三、运行库盘点（迁移或恢复服务前执行）
 
-| 步 | 操作 | 验证 |
-|---|---|---|
-| 1. 暂停 | `POST /api/access/service-config/save` `{serviceCode, name, status: 0}` | `service_config.config_generation` 递增；网关对新请求返回 403（空路由快照 DENY，不回源风暴——T-ACCESS-060 拍板空快照可缓存） |
-| 2. 确认逐路由最终检查 | 逐路由核对「最终检查代码位置 + 反向拒绝测试」（§一） | 证明材料落任务卡/评审记录 |
-| 3. 切模式 | 同端点保存 `{serviceCode, name, apiAuthMode: "OPERATION_ADMISSION"}`（仍处暂停态） | `config_generation` 再递增 |
-| 4. 全节点确认新版本并清旧缓存 | 模式/启停保存同事务广播 `perm:invalidate`（serviceCodes 非空→网关租户级快照清除）；确认全部网关节点收到（订阅重连节点由启动全量清空兜底） | 网关本地快照代次=新代次（快照响应 `configGeneration`） |
-| 5. 恢复 | 保存 `{serviceCode, name, status: 1}` | `config_generation` 再递增；30 秒陈旧窗口内业务恢复放行（恢复以库为准，不依赖广播送达） |
-
-回退形态（版本回退部署）：`apiAuthMode=LEGACY_API` 仅作 062 退役前的回退部署形态——
-OPERATION_ADMISSION 端点不服务 LEGACY 模式（快照端点 20071 信封→网关 503），
-回退须整体回滚网关版本，禁止新旧 OR。
-
-## 三、运行库盘点（切换前必执行）
-
-六类查询逐项执行，结果留档到任务卡；**不确认的数据不启新模式**。非 API 存量映射要
-显式找到登记 API 并补准入操作（不能凭旧菜单类型猜 VIEW）。
+六类查询逐项执行，结果留档到任务卡；**不确认的数据不恢复服务**。非 API 存量映射要
+显式找到登记 API 并补准入操作，或经确认清理（不能凭旧菜单类型猜 VIEW）。盘点包含停用映射，防止以后启用时重新引入死配置。重叠路径歧义 SQL 无法完备枚举（查询②只覆盖精确重复）：恢复流量前对每个服务抽验实际路径，至少覆盖被通配模式遮蔽的精确路由（如 `/reports/**` 之下的 `/reports/export`）——经网关以真实账号请求，预期为正常业务响应或 403 无权限，出现 503 即配置故障（路由歧义/引用损坏），不确认不恢复。
 
 ```sql
--- ① 各服务映射分布与登记实体类型（非 API 手工映射=引用非 API 类型实体的启用映射行；按租户+服务分组，多租户同服务码不合并）
+-- ① 各服务映射分布与登记实体类型（包含停用映射；按租户+服务分组，多租户同服务码不合并）
 SELECT m.tenant_id, m.service_code,
        count(*) AS mappings,
        count(*) FILTER (WHERE re.resource_type = (SELECT type_value FROM type_definition
@@ -54,18 +29,30 @@ LEFT JOIN resource_entity re ON re.id = m.resource_entity_id AND re.tenant_id = 
 WHERE m.delete_flag = 0
 GROUP BY m.tenant_id, m.service_code ORDER BY 1, 2;
 
--- ② 同路由/重叠路径多要求（启用映射按精确路由重复；重叠路径歧义由快照构建期 20070 拦截；按租户+服务+路由分组——歧义判定域是单服务内，不同服务的合法同名路由不算重复）
+-- ② 同路由多要求（启用映射按精确路由重复——只覆盖 method+path 完全相同的重复行；重叠路径
+--    歧义〔如 /reports/** 通配遮蔽 /reports/export 精确〕不在盘点与快照构建期检测，请求匹配时
+--    才拦截：网关本地等价检测→终端 503、在线判定 20070——须按本节末段的实际路径抽验清零；
+--    按租户+服务+路由分组——歧义判定域是单服务内，不同服务的合法同名路由不算重复）
 SELECT tenant_id, service_code, http_method || ' ' || path_pattern AS route, count(*), count(DISTINCT required_operation_id) AS distinct_reqs
 FROM resource_api_mapping
 WHERE delete_flag = 0 AND enabled
 GROUP BY 1, 2, 3 HAVING count(*) > 1;
 
--- ③ 缺业务操作登记（启用映射无 required_operation_id——OPERATION_ADMISSION 下 20071 配置故障）
-SELECT service_code, http_method, path_pattern
-FROM resource_api_mapping
-WHERE delete_flag = 0 AND enabled AND required_operation_id IS NULL;
+-- ③ 操作引用缺失/悬空或定义损坏（包含停用映射）：操作行缺失/软删、所属类型不可反查、API 类型
+--    操作（作准入要求恒无候选）在启用映射命中时快照 20071 配置故障→网关 503；binary_bit 非
+--    单个正位是写侧保存入口必拒的脏数据（判定面按位语义不可信）——命中任意一项即不恢复
+SELECT m.tenant_id, m.id, m.service_code, m.http_method, m.path_pattern, m.enabled, m.required_operation_id,
+       op.code AS op_code, td.type_code AS op_type_code, op.binary_bit
+FROM resource_api_mapping m
+LEFT JOIN operation_permission op ON op.id = m.required_operation_id
+    AND op.tenant_id = m.tenant_id AND op.delete_flag = 0
+LEFT JOIN type_definition td ON td.tenant_id = m.tenant_id AND td.type_key = 'resource_type'
+    AND td.type_value = op.resource_type AND td.delete_flag = 0
+WHERE m.delete_flag = 0
+  AND (op.id IS NULL OR td.id IS NULL OR td.type_code = 'API'
+       OR op.binary_bit IS NULL OR op.binary_bit <= 0 OR bit_count(op.binary_bit::bit(64)) <> 1);
 
--- ④ 各服务独立 API 授权（旧 API:ACCESS 授权行残留——OPERATION_ADMISSION 不消费，062 受控清理面）
+-- ④ 独立 API 授权残留（当前应为零；异常存量按 062 手册受控处置）
 SELECT rrp.tenant_id, rrp.abstract_role_id, count(*)
 FROM role_resource_permission rrp
 JOIN type_definition td ON td.tenant_id = rrp.tenant_id AND td.type_value = rrp.resource_type AND td.type_key = 'resource_type' AND td.type_code = 'API' AND td.delete_flag = 0
@@ -86,7 +73,7 @@ WHERE m.delete_flag = 0 AND m.enabled
 GROUP BY 1;
 ```
 
-dev 运行库执行记录（T-ACCESS-061，重建到 HEAD 后）：见任务卡完成记录。
+dev 运行库初始盘点见 [T-ACCESS-061](../tasks/T-ACCESS-061.md)，退役后复核见 [T-PERM-054](../tasks/T-PERM-054.md#完成记录)。其他部署须在自身运行库执行，不以开发库结果替代。映射注释的存量同步脚本为 [api-mapping-comments-054.sql](api-mapping-comments-054.sql)，仅更新说明，不清理数据。
 
 ## 四、example-service 参考接入形态（T-ACCESS-061 拍板）
 

@@ -3,7 +3,7 @@ doc_type: design
 title: Gateway 服务设计
 status: adopted
 domain: gateway
-last_reviewed: 2026-09-26
+last_reviewed: 2026-09-28
 ---
 
 # Gateway 服务设计
@@ -60,7 +60,7 @@ last_reviewed: 2026-09-26
 
 ## 操作准入快照鉴权（T-ACCESS-059；旧 API:ACCESS 快照链随无迁移期切换删除）
 
-> 旧链（`interface-snapshot` 拉取 / `InterfaceSnapshotMatcher` / `check-interface` 回退）网关侧消费已删，服务端旧端点保留至 T-ACCESS-062 退役；回退=回滚网关版本。协议与判定序权威＝[契约总册 §25](../access-service-api-contract.md#operation-admission-protocol)。
+> 旧链（`interface-snapshot` 拉取 / `InterfaceSnapshotMatcher` / `check-interface` 回退）网关侧消费已删，服务端旧端点已随 T-ACCESS-062 删除；回退必须匹配代码、schema 与授权备份（见 [退役手册](../../ops/runbook-api-retirement-062.md)）。协议与判定序权威＝[契约总册 §25](../access-service-api-contract.md#operation-admission-protocol)。
 
 ### 缓存模型
 
@@ -136,7 +136,7 @@ Gateway 启动后订阅 Redis topic `perm:invalidate`。access-service 写路径
 | access-service 不可达（网络错误、超时、5xx） | 503 `SERVICE_UNAVAILABLE`（fail-closed） |
 | 快照加载超过 5 秒全链路硬截止 | 不写缓存 + 503（`reason=deadline_exceeded`） |
 | 显式失效（`perm:invalidate` 已到达）后回源失败/在途回源代际失效 | 503（权限主动撤销 > 不可达兜底） |
-| 快照匹配 DENY / FALLBACK 且 check-interface 失败 | 403 / 503 |
+| 快照匹配 DENY / FALLBACK 且 interface-admission 失败 | 403 / 503 |
 
 **核心原则：权限主动撤销 > 服务不可达兜底；任何不确定性一律拒绝。**
 
@@ -198,7 +198,7 @@ Gateway 通过 Micrometer 暴露 Prometheus 指标。依赖 `spring-boot-starter
 
 ## 与权限中心的约定
 
-- 接口级鉴权契约以 `../access-service-api-contract.md`（契约总册）为准（§18.3 check-interface、§18.4 interface-snapshot）。
+- 接口级鉴权契约以 `../access-service-api-contract.md`（契约总册）为准（§25 interface-admission / interface-admission-snapshot）。
 - 限流、请求体大小、安全响应头按网关配置实现；CORS 见上文「CORS 配置终态」段。
 
 ## 测试域与 E2E IT（T-ACCESS-021 建链，T-ACCESS-031 分轨）

@@ -80,6 +80,51 @@ class PermissionGrantPlanDomainServiceImplTest {
 
     // ========== 辅助 ==========
 
+    @Test
+    void shouldRejectApiGrantBeforeWriting_whenPreparingPlan() {
+        var api = new ApplyGrantPlanReq.GrantRecordKey("API", null, null, "ACCESS", ScopeMode.ALL, null, null, false);
+        var plan = new ApplyGrantPlanReq.GrantPlan(
+            List.of(new ApplyGrantPlanReq.CreateItem(api, null, List.of())), List.of(), List.of());
+        BizException error = assertThrows(BizException.class,
+            () -> service.prevalidate(TENANT, SUBJECT, ROLE, null, plan));
+        assertEquals(20044, error.getErrorCode());
+        assertEquals("API 类型仅用于接口登记，不支持授权", error.getMessage());
+        org.mockito.Mockito.verifyNoInteractions(rolePermissionMapper, conditionDomainService);
+    }
+
+    @Test
+    void shouldRejectApiChild_whenPreviewingBusinessGrant() {
+        var api = new ApplyGrantPlanReq.GrantRecordKey("API", "route", "default", "ACCESS", ScopeMode.INSTANCE, null, null, false);
+        var plan = new ApplyGrantPlanReq.GrantPlan(List.of(new ApplyGrantPlanReq.CreateItem(
+            key("report:sales", ScopeMode.INSTANCE, null, false), null, List.of(api))), List.of(), List.of());
+        BizException error = assertThrows(BizException.class, () -> service.prepare(TENANT, SUBJECT, ROLE, null, plan));
+        assertEquals(20044, error.getErrorCode());
+        org.mockito.Mockito.verifyNoInteractions(rolePermissionMapper, conditionDomainService);
+    }
+
+    @Test
+    void shouldRejectApiGrant_whenSystemSeedTriesToRecreateIt() {
+        when(typeResolutionService.resolveTypeValue(TENANT, "resource_type", "API")).thenReturn(4);
+        var api = existing(1L, null, "AUTHORITY_ROOT");
+        BizException error = assertThrows(BizException.class, () -> service.seedGrants(TENANT, ROLE, List.of(api)));
+        assertEquals(20044, error.getErrorCode());
+        org.mockito.Mockito.verifyNoInteractions(rolePermissionMapper);
+    }
+
+    @Test
+    void shouldRejectTouchedLegacyApiRow_whenPlanUpdatesOrRemovesIt() {
+        // T-ACCESS-062：update/remove/父引用触达的既有行若是已退役的 API 授权，同样拒绝——
+        // 存量 API 行只能走受控迁移脚本，不经授权页 update/removes 通道
+        when(rolePermissionMapper.selectValidByRoleId(TENANT, ROLE)).thenReturn(List.of(existing(1L, null, "MANUAL")));
+        when(typeResolutionService.resolveTypeValue(TENANT, "resource_type", "API")).thenReturn(4);
+        var plan = new ApplyGrantPlanReq.GrantPlan(List.of(), List.of(), List.of(1L));
+        BizException error = assertThrows(BizException.class, () -> service.prepare(TENANT, SUBJECT, ROLE, null, plan));
+        assertEquals(20044, error.getErrorCode());
+        org.mockito.Mockito.verify(rolePermissionMapper, org.mockito.Mockito.never()).insert(any());
+        org.mockito.Mockito.verify(rolePermissionMapper, org.mockito.Mockito.never()).insertBatch(org.mockito.ArgumentMatchers.anyList());
+        org.mockito.Mockito.verify(rolePermissionMapper, org.mockito.Mockito.never()).softDeleteBatch(any(), any(), any());
+    }
+
     private static ApplyGrantPlanReq.GrantRecordKey key(String resourceCode, ScopeMode scopeMode,
                                                         String conditionCode, Boolean canGrant) {
         return new ApplyGrantPlanReq.GrantRecordKey(

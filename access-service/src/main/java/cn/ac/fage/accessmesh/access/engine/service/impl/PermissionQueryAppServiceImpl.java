@@ -1,11 +1,8 @@
 package cn.ac.fage.accessmesh.access.engine.service.impl;
 
-import cn.ac.fage.accessmesh.perm.common.dto.req.InterfaceSnapshotReq;
 import cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtil;
 import cn.ac.fage.accessmesh.perm.common.dto.req.QueryResourcesReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.QueryScopesReq;
-import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
-import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp.ApiPermissionEntry;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryResourcesResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryScopesResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryScopesResp.ScopeGroup;
@@ -34,7 +31,6 @@ import cn.ac.fage.accessmesh.access.engine.query.TypeOperation;
 import cn.ac.fage.accessmesh.access.engine.query.User;
 import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import cn.ac.fage.accessmesh.access.engine.util.OperationPermissionUtils;
-import cn.ac.fage.accessmesh.access.engine.util.SnapshotAssembler;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -52,13 +48,12 @@ import java.util.stream.Collectors;
 /**
  * 权限查询应用服务实现
  * <p>
- * 提供高级查询功能：资源查询、范围查询、接口快照。
- * T-PERM-090 起三入口全部经新 {@link QueryExecutionEngine#execute} 表达
+ * 提供高级查询功能：资源查询、范围查询。
+ * T-PERM-090 起入口全部经新 {@link QueryExecutionEngine#execute} 表达
  * （设计 §6.2/§6.4/§6.6）：queryResources=GRANT_LIST＋EVALUATE/ENFORCE＋FACTS
  * （展示树扩展走 OutputSpec 展示展开，判定与展示分离）；queryScopes=GRANT_LIST＋
  * 父要求＋EVALUATE/ENFORCE＋RAW_AND_KEPT（四态组装交给 {@link ScopeCoverageProjector}
- * 纯投影）；interfaceSnapshot=GRANT_LIST＋PRESERVE/ENFORCE＋FACTS（LEGACY_API
- * 旧快照口径）。本类不再引用旧执行体。
+ * 纯投影）。
  * </p>
  */
 @Service
@@ -70,24 +65,20 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
     private final TypeResolutionService typeResolutionService;
     private final DomainClassifyService domainClassifyService;
     private final QueryExecutionEngine queryEngine;
-    private final SnapshotAssembler snapshotAssembler;
 
     /**
      * 构造函数注入依赖
      *
      * @param typeResolutionService  类型解析服务（主体/父对象预检查与类型码解析）
      * @param domainClassifyService  域分类服务（queryResources 的 domainCode 过滤）
-     * @param queryEngine            新查询执行器（T-PERM-090 起三入口统一）
-     * @param snapshotAssembler      LEGACY_API 快照装配器
+     * @param queryEngine            新查询执行器（T-PERM-090 起入口统一）
      */
     public PermissionQueryAppServiceImpl(TypeResolutionService typeResolutionService,
                                          DomainClassifyService domainClassifyService,
-                                         QueryExecutionEngine queryEngine,
-                                         SnapshotAssembler snapshotAssembler) {
+                                         QueryExecutionEngine queryEngine) {
         this.typeResolutionService = typeResolutionService;
         this.domainClassifyService = domainClassifyService;
         this.queryEngine = queryEngine;
-        this.snapshotAssembler = snapshotAssembler;
     }
 
     // ===== queryResources（GRANT_LIST＋EVALUATE/ENFORCE＋FACTS；展示面树扩展归展示展开） =====
@@ -426,57 +417,6 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
             }
         }
         return merged;
-    }
-
-    // ===== interfaceSnapshot（GRANT_LIST＋PRESERVE/ENFORCE＋FACTS；LEGACY_API 旧快照口径） =====
-
-    /**
-     * LEGACY_API 接口权限快照（Gateway 消费，迁移期形态，T-ACCESS-062 退役）。
-     * <p>
-     * T-PERM-018：缓存下沉——access-service 侧不缓存 INTERFACE_SNAPSHOT(L2) 与 permissionVersion。
-     * 每次实时调引擎构建全量快照（ROLE_PERM_SNAPSHOT 兜住角色权限记录读路径），交 Gateway 本地缓存匹配。
-     * T-PERM-017 C3：PRESERVE 条件——条件评估应在 Gateway 用真实请求 context 完成（IP/clientIp），
-     * access-service 此处空 context 评估会误丢弃 IP 类条件条目；条件身份经保留事实下发。
-     * 互斥仍 ENFORCE（沿旧 markConditionsOnly＋evaluateConflicts 形态，设计 §6.6）；
-     * 主体角色解析（含互斥双删）由新引擎 User 主体内部完成，等价旧 resolveJudgementRoleIds 入口。
-     * </p>
-     */
-    @Override
-    @Transactional(readOnly = true)
-    public InterfaceSnapshotResp interfaceSnapshot(Long tenantId, InterfaceSnapshotReq req) {
-        Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
-        if (userId == null) return new InterfaceSnapshotResp(List.of());
-
-        QueryItem item = QueryItem.grantListFacts("snapshot", null, Evaluation.preserveEnforce(),
-            new OutputSpec(FactDetail.KEPT, false, false, false, PresentationExpansion.NONE, Set.of(), false));
-        GrantSetResult result = (GrantSetResult) queryEngine.execute(new QueryRequest(tenantId, new User(userId),
-            CallerContext.of(null), ReadOptions.defaults(), List.of(item))).orderedResults().get(0);
-        if (result.collectionStatus() == GrantSetResult.CollectionStatus.NO_ROLE) {
-            // 无有效角色 → 空快照。Gateway 缓存空快照，靠 TTL + 广播最终一致。
-            return new InterfaceSnapshotResp(List.of());
-        }
-
-        List<GrantFact> facts = result.details().stageFacts().stream()
-            .flatMap(stage -> stage.retainedAfterEvaluation().stream()).toList();
-        Integer apiType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", ResourceTypeCode.API);
-        List<ApiPermissionEntry> entries = snapshotAssembler.buildSnapshot(tenantId, facts, req.serviceCode(), apiType);
-
-        List<ApiPermissionEntry> dedupedEntries = entries.stream()
-            .collect(Collectors.toMap(
-                // T-PERM-017 C4 修 P1-②：去重 key 加 conditionId，避免同 API 多授权（无条件+含条件）
-                // 被折叠成单条。Gateway InterfaceSnapshotMatcher 用 OR 语义合并多条 entry。
-                // conditionId=null（无条件）参与 key，使无条件分支与任何条件分支独立保留。
-                apiEntry -> BusinessKeyUtil.apiEntryDedupKey(
-                    apiEntry.serviceCode(), apiEntry.httpMethod(), apiEntry.pathPattern(), apiEntry.conditionId()),
-                apiEntry -> apiEntry,
-                (left, right) -> left,
-                LinkedHashMap::new
-            ))
-            .values()
-            .stream()
-            .toList();
-
-        return new InterfaceSnapshotResp(dedupedEntries);
     }
 
 }

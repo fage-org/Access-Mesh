@@ -283,15 +283,6 @@ public final class BusinessKeyUtil {
     }
 
     /**
-     * API 快照条目去重键（四段竖线）：{@code serviceCode|method|pathPattern|conditionId}
-     * （conditionId 为 null 拼字面 {@code "null"}——无条件分支与条件分支独立保留，T-PERM-017 C4）。
-     * <p>PermissionQueryAppServiceImpl Gateway 快照装配去重。</p>
-     */
-    public static String apiEntryDedupKey(String serviceCode, String httpMethod, String pathPattern, Long conditionId) {
-        return serviceCode + "|" + httpMethod + "|" + pathPattern + "|" + conditionId;
-    }
-
-    /**
      * API 映射存在键：{@code serviceCode|resourceEntityId|METHOD|path}（method 大写化）。
      * <p>与 resource_api_mapping 唯一索引同构——AccessBootstrapInitializer 固定图缺行判定。</p>
      */

@@ -145,9 +145,6 @@ class ServiceConfigCascadePgIT {
         config.setName(serviceCode + " 服务");
         config.setBasePath("/" + serviceCode.toLowerCase());
         config.setStatus(1);
-        // T-ACCESS-059：DDL 缺省已改 OPERATION_ADMISSION——本类测级联/参数序等映射写语义，
-        // 夹具钉 LEGACY_API 维持旧协议形态（新协议面由 AdmissionMappingPgIT/InterfaceAdmissionPgIT 覆盖）
-        config.setApiAuthMode("LEGACY_API");
         config.setExtra("{}");
         config.setCreatedAt(now);
         config.setUpdatedAt(now);
@@ -253,7 +250,7 @@ class ServiceConfigCascadePgIT {
 
     /**
      * T-PERM-069 回归锁（Q-008 定案「仅 API 收紧」，真实 DDL 种子驱动）：API 类型由种子声明
-     * SYNC+access-service——唯一事实入口=service-config/sync 接口声明通道+bootstrap 固定图
+     * SYNC+access-service——唯一事实入口=service-config/sync-v2 接口声明通道+bootstrap 固定图
      * （两通道领域直写不经管理面门禁），资源管理面写入口须一律 20055 且文案指向事实入口；
      * 旧种子（API 缺省 MANAGED）下 rejectIfSyncManagedType 返回类型行不抛，本用例即失败。
      * SERVICE 维持 MANAGED 对照锁：管理面手工建行仍是新 SERVICE 行唯一通道（按服务实例级
@@ -269,7 +266,7 @@ class ServiceConfigCascadePgIT {
             .isNotNull();
         assertThatThrownBy(() -> ownershipGuard().rejectIfSyncManagedType(TENANT, ResourceTypeCode.API))
             .hasMessageContaining("资源由系统事实链路维护")
-            .hasMessageContaining("服务接口同步 service-config/sync")
+            .hasMessageContaining("服务接口同步 service-config/sync-v2")
             .hasMessageContaining("API");
         assertThat(ownershipGuard().rejectIfSyncManagedType(TENANT, ResourceTypeCode.SERVICE))
             .isNotNull()
@@ -295,7 +292,8 @@ class ServiceConfigCascadePgIT {
             ResourceManageAppService manageService = newResourceManageAppService(permitAllEngine());
 
             var resp = manageService.updateApiMapping(TENANT, new cn.ac.fage.accessmesh.access.resource.dto.req.ApiMappingUpdateReq(
-                resource.getId(), mapping.getId(), "PUT", "/pgit27/d/1-v2", 5, true, null, null, null));
+                resource.getId(), mapping.getId(), "PUT", "/pgit27/d/1-v2", 5, true, null, null,
+                new cn.ac.fage.accessmesh.access.resource.dto.RequiredPermission("RESOURCE", "VIEW")));
 
             assertThat(resp.httpMethod()).isEqualTo("PUT");
             assertThat(resp.pathPattern()).isEqualTo("/pgit27/d/1-v2");

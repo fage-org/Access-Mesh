@@ -235,9 +235,11 @@ class GatewayApplicationConfigTest {
         assertTrue(!wl.contains("/auth/**"),
             "whitelist 不得残留旧形态 /auth/**（auth 家族已并入 /api/access/auth/**），实际 " + wl);
         org.springframework.util.AntPathMatcher m = new org.springframework.util.AntPathMatcher();
+        // 运行时鉴权六端点（T-ACCESS-062 后：check/batch-check/query-resources/query-scopes/
+        // interface-admission/interface-admission-snapshot，与 SecurityWebMvcConfig 密钥豁免口径同源）
         for (String runtime : java.util.List.of("/api/access/auth/check", "/api/access/auth/batch-check",
-                "/api/access/auth/check-interface", "/api/access/auth/query-resources",
-                "/api/access/auth/query-scopes", "/api/access/auth/interface-snapshot")) {
+                "/api/access/auth/query-resources", "/api/access/auth/query-scopes",
+                "/api/access/auth/interface-admission", "/api/access/auth/interface-admission-snapshot")) {
             assertTrue(wl.stream().noneMatch(pat -> m.match(pat, runtime)),
                 "whitelist 不得放行运行时鉴权端点 " + runtime + "，实际 " + wl);
         }

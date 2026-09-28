@@ -98,8 +98,8 @@ class InterfaceAdmissionHeavyPgIT {
             + "VALUES (1, ?, 'VIEW', '查看', 2, 0) RETURNING id", Long.class, TYPE_VALUE);
         exportOpId = jdbc.queryForObject("INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask) "
             + "VALUES (1, ?, 'EXPORT', '导出', 4, 0) RETURNING id", Long.class, TYPE_VALUE);
-        jdbc.update("INSERT INTO service_config (tenant_id, service_code, name, api_auth_mode, status) "
-            + "VALUES (1, ?, '准入大规模服务', 'OPERATION_ADMISSION', 1)", SERVICE);
+        jdbc.update("INSERT INTO service_config (tenant_id, service_code, name, status) "
+            + "VALUES (1, ?, '准入大规模服务', 1)", SERVICE);
         jdbc.update("INSERT INTO abstract_role (id, tenant_id, role_type, external_id, name, status, extra) "
             + "VALUES (?, 1, 6, 'admit-heavy-role', 'admit-heavy', 1, '{}')", ROLE_ID);
         jdbc.update("INSERT INTO abstract_user (id, tenant_id, user_type, external_id, name, enabled, extra) "

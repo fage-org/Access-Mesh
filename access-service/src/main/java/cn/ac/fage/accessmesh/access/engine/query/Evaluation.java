@@ -33,9 +33,4 @@ public record Evaluation(ConditionMode conditionMode, MutexMode mutexMode) {
     public static Evaluation preserveSkip() {
         return new Evaluation(ConditionMode.PRESERVE, MutexMode.SKIP);
     }
-
-    /** 保留条件但执行互斥的清单形态（LEGACY_API 旧快照 PRESERVE＋ENFORCE）。 */
-    public static Evaluation preserveEnforce() {
-        return new Evaluation(ConditionMode.PRESERVE, MutexMode.ENFORCE);
-    }
 }

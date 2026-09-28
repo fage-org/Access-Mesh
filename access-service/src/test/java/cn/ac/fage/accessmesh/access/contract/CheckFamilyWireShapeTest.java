@@ -14,7 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * SDK 直连端点线格式字段快照（T-API-002 回归锁；T-API-003 check 族改写）。
  * <p>
  * 口径分族（2026-09-09 定案，推翻 T-API-002 的 check 族裁剪部分）：
- * check 族三端点（check / batch-check / check-interface）恢复结果记录全量回传
+ * check 族端点（check / batch-check）恢复结果记录全量回传
  * （matchedRoleIds / matchedPermissionIds / matchedResources[].resourceId）——统一引擎
  * 消费方模型「调用方根据结果记录判定」需要记录在场；Query* 响应族（query-resources /
  * query-scopes）六字段裁剪维持 T-API-002 终态，内部 id 字段族禁止回潮。
@@ -76,11 +76,6 @@ class CheckFamilyWireShapeTest {
         assertThat(components(cn.ac.fage.accessmesh.access.engine.dto.BatchAuthCheckResp.AuthCheckItemResult.class))
             .containsExactly("resourceTypeCode", "resourceCode", "operationCode", "allowed", "reason",
                 "matchedRoleIds", "matchedPermissionIds");
-        assertThat(components(cn.ac.fage.accessmesh.access.engine.dto.CheckInterfaceResp.class))
-            .containsExactly("allowed", "reason", "matchedResources", "cacheTtlSeconds");
-        assertThat(components(cn.ac.fage.accessmesh.access.engine.dto.CheckInterfaceResp.MatchedResource.class))
-            .containsExactly("resourceId", "resourceTypeCode", "resourceCode", "operationCode", "allowed",
-                "matchedRoleIds", "matchedPermissionIds");
     }
 
     @Test
@@ -94,11 +89,6 @@ class CheckFamilyWireShapeTest {
             .isEqualTo(components(cn.ac.fage.accessmesh.perm.common.dto.resp.BatchAuthCheckResp.class));
         assertThat(components(cn.ac.fage.accessmesh.access.engine.dto.BatchAuthCheckResp.AuthCheckItemResult.class))
             .isEqualTo(components(cn.ac.fage.accessmesh.perm.common.dto.resp.BatchAuthCheckResp.AuthCheckItemResult.class));
-        assertThat(components(cn.ac.fage.accessmesh.access.engine.dto.CheckInterfaceResp.class))
-            .as("CheckInterfaceResp 双副本漂移会破坏 Gateway 反序列化")
-            .isEqualTo(components(cn.ac.fage.accessmesh.perm.common.dto.resp.CheckInterfaceResp.class));
-        assertThat(components(cn.ac.fage.accessmesh.access.engine.dto.CheckInterfaceResp.MatchedResource.class))
-            .isEqualTo(components(cn.ac.fage.accessmesh.perm.common.dto.resp.CheckInterfaceResp.MatchedResource.class));
     }
 
     @Test

@@ -45,7 +45,6 @@ export function methodTagType(
 }
 
 export interface ServiceConfigFormData {
-  apiAuthMode?: "LEGACY_API" | "OPERATION_ADMISSION";
   serviceCode: string;
   name: string;
   basePath: string;
@@ -66,14 +65,13 @@ export interface MappingFormData {
 }
 
 export interface SyncFormData {
-  version: 1 | 2;
   basePath: string;
   groupsJson: string;
 }
 
+/** 同步提交体（唯一协议 v2：接口登记与业务准入操作声明）。 */
 export type SyncSubmission =
-  | { version: 1; request: import("@/api/service-interface").ServiceConfigSyncReq }
-  | { version: 2; request: import("@/api/service-interface").ServiceConfigSyncV2Req };
+  import("@/api/service-interface").ServiceConfigSyncV2Req;
 
 export interface ServiceSummary extends ServiceConfigResp {
   apiCount: number;
@@ -81,9 +79,6 @@ export interface ServiceSummary extends ServiceConfigResp {
 }
 
 export const createEmptyServiceForm = (): ServiceConfigFormData => ({
-  // 与后端创建缺省一致（T-ACCESS-059 无迁移期统一上线 OPERATION_ADMISSION）——
-  // 默认 LEGACY_API 会在用户未改动时显式提交覆盖后端缺省，新网关链路拿到 20071/503
-  apiAuthMode: "OPERATION_ADMISSION",
   serviceCode: "",
   name: "",
   basePath: "/",
@@ -119,15 +114,11 @@ export function createSyncPayload(service: ServiceConfigResp): SyncFormData {
       ]
     }
   ];
-  const version = service.apiAuthMode === "OPERATION_ADMISSION" ? 2 : 1;
-  if (version === 2) {
-    sampleGroups[0].apis[0].requiredPermission = {
-      resourceTypeCode: "REPORT",
-      operationCode: "VIEW"
-    };
-  }
+  sampleGroups[0].apis[0].requiredPermission = {
+    resourceTypeCode: "REPORT",
+    operationCode: "VIEW"
+  };
   return {
-    version,
     basePath: service.basePath || "/",
     groupsJson: JSON.stringify(sampleGroups, null, 2)
   };
@@ -145,10 +136,7 @@ export function validateOptionalJson(raw: string): string | null {
   }
 }
 
-export function parseSyncGroups(
-  raw: string,
-  version: 1 | 2 = 1
-): {
+export function parseSyncGroups(raw: string): {
   groups?: SyncApiGroup[];
   error?: string;
 } {
@@ -173,21 +161,18 @@ export function parseSyncGroups(
         return { error: "每个分组必须包含 groupCode、groupName 和 apis" };
       }
       for (const api of group.apis) {
-        if (version === 2) {
-          const requirement = api?.requiredPermission;
-          const code = /^[A-Z][A-Z0-9_]*$/;
-          if (
-            !requirement ||
-            !code.test(requirement.resourceTypeCode ?? "") ||
-            !code.test(requirement.operationCode ?? "") ||
-            (requirement.resourceTypeCode === "API" &&
-              requirement.operationCode === "ACCESS")
-          ) {
-            return {
-              error:
-                "每条新版接口须提供 requiredPermission（业务资源类型与操作），不允许 API:ACCESS"
-            };
-          }
+        const requirement = api?.requiredPermission;
+        const code = /^[A-Z][A-Z0-9_]*$/;
+        if (
+          !requirement ||
+          !code.test(requirement.resourceTypeCode ?? "") ||
+          !code.test(requirement.operationCode ?? "") ||
+          requirement.resourceTypeCode === "API"
+        ) {
+          return {
+            error:
+              "每条接口须提供 requiredPermission（业务资源类型与操作），不允许 API 类型（API 仅用于接口登记，作准入要求恒无候选）"
+          };
         }
         if (
           !api ||

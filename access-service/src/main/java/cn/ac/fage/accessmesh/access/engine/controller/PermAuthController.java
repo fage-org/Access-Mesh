@@ -4,18 +4,14 @@ import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.perm.common.dto.req.AuthCheckReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq;
-import cn.ac.fage.accessmesh.perm.common.dto.req.CheckInterfaceReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.InterfaceAdmissionReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.InterfaceAdmissionSnapshotReq;
-import cn.ac.fage.accessmesh.perm.common.dto.req.InterfaceSnapshotReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.QueryResourcesReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.QueryScopesReq;
 import cn.ac.fage.accessmesh.access.engine.dto.AuthCheckResp;
 import cn.ac.fage.accessmesh.access.engine.dto.BatchAuthCheckResp;
-import cn.ac.fage.accessmesh.access.engine.dto.CheckInterfaceResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceAdmissionResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceAdmissionSnapshotResp;
-import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryResourcesResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryScopesResp;
 import cn.ac.fage.accessmesh.access.engine.service.PermissionAdmissionAppService;
@@ -81,16 +77,6 @@ public class PermAuthController {
         return R.ok(permissionCheckAppService.batchCheck(TenantContextHolder.getTenantId(), req));
     }
 
-    /**
-     * 接口级权限校验
-     *
-     * @param req 接口校验请求，包含用户ID、服务编码、HTTP方法、路径
-     * @return 接口校验结果，包含是否允许访问
-     */
-    @PostMapping("/check-interface")
-    public R<CheckInterfaceResp> checkInterface(@Valid @RequestBody CheckInterfaceReq req) {
-        return R.ok(permissionCheckAppService.checkInterface(TenantContextHolder.getTenantId(), req));
-    }
 
     /**
      * 查询用户可访问资源
@@ -114,16 +100,6 @@ public class PermAuthController {
         return R.ok(permissionQueryAppService.queryScopes(TenantContextHolder.getTenantId(), req));
     }
 
-    /**
-     * 获取接口权限快照
-     *
-     * @param req 接口快照请求，包含主体、服务编码和可选权限令牌
-     * @return 主体维度的服务接口权限快照
-     */
-    @PostMapping("/interface-snapshot")
-    public R<InterfaceSnapshotResp> interfaceSnapshot(@Valid @RequestBody InterfaceSnapshotReq req) {
-        return R.ok(permissionQueryAppService.interfaceSnapshot(TenantContextHolder.getTenantId(), req));
-    }
 
     /**
      * 在线操作准入判定（T-ACCESS-059，契约总册 §25.2）。

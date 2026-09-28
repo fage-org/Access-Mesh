@@ -642,7 +642,7 @@ COMMENT ON COLUMN type_definition.name IS '显示名称';
 COMMENT ON COLUMN type_definition.description IS '描述';
 COMMENT ON COLUMN type_definition.is_system IS '是否系统预置：true=预置不可删改，false=租户自定义可扩展';
 COMMENT ON COLUMN type_definition.sort_order IS '排序';
-COMMENT ON COLUMN type_definition.extra IS '扩展配置(JSON)，如 {"max_depth": 5} 控制资源树深度。resource_type 类型承载类型级所有权声明（T-PERM-052，2026-09-05 定案）：managedMode=MANAGED(缺省,管理面维护)/SYNC(外部同步维护)，SYNC 时必填 syncSourceService（须为已注册有效服务，type_key 非 resource_type 携带此二键保存拒绝）；声明有效值变更（含删键隐式切回 MANAGED）——系统预置类型钉死不可变更、自定义类型在类型下存在有效资源行时拒绝（20056），保存边界校验已知键结构（显式 null 拒绝），未知键开放不视为声明（拼错键=无声明按缺省 MANAGED）；读取侧 extra 损坏按 MANAGED 处理（对外部同步 fail-closed、对管理面可写=可恢复方向）。内部来源 syncSourceService=access-service 仅 is_system 预置类型可声明（USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION/CONDITION 七类事实链路类型，种子声明 SYNC+access-service；ADMIN_FILE 文件夹实例由 bootstrap 预置+上传惰性登记产出，T-ADMIN-025；TYPE_DEFINITION 类型定义实例投影由写路径同事务维护+bootstrap 自愈补种产出，T-PERM-051；CONDITION 管理页条件投影由条件写路径同事务维护+bootstrap 自愈补种产出（仅 source=MANAGED），T-PERM-048；API 类型同款种子声明（T-PERM-069，2026-09-18 Q-008 定案「仅 API 收紧」）——唯一事实入口=service-config/sync 接口声明通道+bootstrap 固定图，管理面资源 CRUD 20055，SERVICE 维持 MANAGED）。授权根所有者指针（T-PERM-062）：grantOriginRole={"roleTypeCode":..,"roleExternalId":..}（服务端管理键——create 请求经 ownerRoleTypeCode/ownerRoleExternalId 字段注入、extra 自带该键拒绝 20044；仅自定义 resource_type 携带，缺省 BASIC_ROLE/bootstrap-admin，roleTypeCode 值域仅 BASIC_ROLE 功能角色（容器角色拒绝 20044，2026-09-12 claude 外评定案）；指针无清除语义，变更=所有者迁移（同事务先清后种重整化 AUTHORITY_ROOT 行））';
+COMMENT ON COLUMN type_definition.extra IS '扩展配置(JSON)，如 {"max_depth": 5} 控制资源树深度。resource_type 类型承载类型级所有权声明（T-PERM-052，2026-09-05 定案）：managedMode=MANAGED(缺省,管理面维护)/SYNC(外部同步维护)，SYNC 时必填 syncSourceService（须为已注册有效服务，type_key 非 resource_type 携带此二键保存拒绝）；声明有效值变更（含删键隐式切回 MANAGED）——系统预置类型钉死不可变更、自定义类型在类型下存在有效资源行时拒绝（20056），保存边界校验已知键结构（显式 null 拒绝），未知键开放不视为声明（拼错键=无声明按缺省 MANAGED）；读取侧 extra 损坏按 MANAGED 处理（对外部同步 fail-closed、对管理面可写=可恢复方向）。内部来源 syncSourceService=access-service 仅 is_system 预置类型可声明（USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION/CONDITION 七类事实链路类型，种子声明 SYNC+access-service；ADMIN_FILE 文件夹实例由 bootstrap 预置+上传惰性登记产出，T-ADMIN-025；TYPE_DEFINITION 类型定义实例投影由写路径同事务维护+bootstrap 自愈补种产出，T-PERM-051；CONDITION 管理页条件投影由条件写路径同事务维护+bootstrap 自愈补种产出（仅 source=MANAGED），T-PERM-048；API 类型同款种子声明（T-PERM-069，2026-09-18 Q-008 定案「仅 API 收紧」）——唯一事实入口=service-config/sync-v2 接口声明通道+bootstrap 固定图，管理面资源 CRUD 20055，SERVICE 维持 MANAGED）。授权根所有者指针（T-PERM-062）：grantOriginRole={"roleTypeCode":..,"roleExternalId":..}（服务端管理键——create 请求经 ownerRoleTypeCode/ownerRoleExternalId 字段注入、extra 自带该键拒绝 20044；仅自定义 resource_type 携带，缺省 BASIC_ROLE/bootstrap-admin，roleTypeCode 值域仅 BASIC_ROLE 功能角色（容器角色拒绝 20044，2026-09-12 claude 外评定案）；指针无清除语义，变更=所有者迁移（同事务先清后种重整化 AUTHORITY_ROOT 行））';
 COMMENT ON COLUMN type_definition.delete_flag IS '逻辑删除：0=未删除，删除时填本行id';
 
 -- 预置类型种子（tenant 1；type_value 为权威数值，与文件头 type_value 终值分配表一致——
@@ -702,7 +702,7 @@ INSERT INTO type_definition (tenant_id, type_key, type_code, type_value, name, i
 -- 由条件写路径同事务投影维护 + bootstrap 自愈补种（仅 source=MANAGED；INLINE 内联条件不投影——
 -- 无资源身份消费者，授权树零过滤），人工不得构造（同款 20055）。
 -- T-PERM-069（2026-09-18 定案「仅 API 收紧」，Q-008 定案）增 API：API 资源行唯一事实入口=
--- service-config/sync 接口声明通道（契约 §19.8，SERVICE_SYNC 维护来源）+ bootstrap 固定图种子，
+-- service-config/sync-v2 接口声明通道（契约 §19.8，SERVICE_SYNC 维护来源）+ bootstrap 固定图种子，
 -- 两条通道均领域直写不经管理面门禁；管理面资源 CRUD 20055 enforcement——堵手工 MANUAL 行
 -- 口径外通道（FULL diff 清理与服务删除级联只覆盖 SERVICE_SYNC，MANUAL 行成永久孤儿）。
 -- SERVICE 维持 MANAGED：新 SERVICE 行唯一通道=管理面手工建行（按服务实例级授权目标行），
@@ -923,7 +923,8 @@ INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_b
     (1, 11, 'MANAGE',             '管理系统配置',     16, 2, 0, 0, 0),
     -- OPERATION(12)：更新/删除操作权限门禁
     (1, 12, 'MANAGE',             '管理操作权限',     16, 2, 0, 0, 0),
-    -- API(3)：网关接口鉴权专用（check-interface 入口，TARGET_SET 共同集合）
+    -- API(3)：历史 API 操作编码——API 独立授权已随 T-ACCESS-062 退役，本行仅用于识别并拒绝
+    -- API:ACCESS 形态的准入要求（ApiMappingWriteDomainServiceImpl 守卫），不再参与任何授权判定
     (1, 3,  'ACCESS',             '访问接口',         16, 0, 0, 0, 0)
 ON CONFLICT (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND delete_flag = 0 DO NOTHING;
 
@@ -968,8 +969,8 @@ COMMENT ON COLUMN resource_entity.name IS '名称';
 COMMENT ON COLUMN resource_entity.path IS '树路径（物化路径）';
 COMMENT ON COLUMN resource_entity.status IS '状态：0=停用 1=启用';
 COMMENT ON COLUMN resource_entity.extra IS '扩展属性(JSON)，如菜单图标/路由等';
-COMMENT ON COLUMN resource_entity.owner_service_code IS '资源维护方服务编码；仅用于 service-config/sync、资源依赖等既有维护来源标记。新 resource-entity/sync/full-sync：本地管理投影由 access.application 同一事务写入 access-service（sync 入口已拒绝旧内部来源 admin-service，20045）；外部业务服务同步保持 NULL，其 ownership 以 sync_metadata 为准';
-COMMENT ON COLUMN resource_entity.maintain_source IS '维护来源（记录值，判定不依赖本列——资源所有权由类型声明 type_definition.extra.managedMode 承载，T-PERM-052）：MANUAL=人工维护，SERVICE_SYNC=service-config/sync 自动维护，SYNC=resource-entity 外部同步通道写入值（owner_service_code=NULL，所有权由类型声明+sync_metadata 承载），SDK_SCAN/MANIFEST/ADMIN_UI 可用于后续扩展；列无 CHECK 约束，新值须同步登记本注释';
+COMMENT ON COLUMN resource_entity.owner_service_code IS '资源维护方服务编码；仅用于 service-config/sync-v2、资源依赖等既有维护来源标记。新 resource-entity/sync/full-sync：本地管理投影由 access.application 同一事务写入 access-service（sync 入口已拒绝旧内部来源 admin-service，20045）；外部业务服务同步保持 NULL，其 ownership 以 sync_metadata 为准';
+COMMENT ON COLUMN resource_entity.maintain_source IS '维护来源（记录值，判定不依赖本列——资源所有权由类型声明 type_definition.extra.managedMode 承载，T-PERM-052）：MANUAL=人工维护，SERVICE_SYNC=service-config/sync-v2 自动维护，SYNC=resource-entity 外部同步通道写入值（owner_service_code=NULL，所有权由类型声明+sync_metadata 承载），SDK_SCAN/MANIFEST/ADMIN_UI 可用于后续扩展；列无 CHECK 约束，新值须同步登记本注释';
 
 -- -----------------------------------------------------------------------------
 -- 23. resource_api_mapping - 接口资源映射表
@@ -1001,9 +1002,9 @@ CREATE INDEX idx_resource_api_mapping_lookup ON resource_api_mapping (tenant_id,
 CREATE INDEX idx_resource_api_mapping_resource ON resource_api_mapping (resource_entity_id) WHERE delete_flag = 0;
 CREATE INDEX idx_resource_api_mapping_operation ON resource_api_mapping (tenant_id, required_operation_id) WHERE delete_flag = 0 AND required_operation_id IS NOT NULL;
 
-COMMENT ON TABLE resource_api_mapping IS '接口登记映射：resource_entity_id 引用 API 登记实体，required_operation_id 引用业务准入操作；LEGACY_API 沿用共同候选鉴权，OPERATION_ADMISSION 完整匹配路由后同要求去重、不同要求报配置故障';
+COMMENT ON TABLE resource_api_mapping IS '接口登记映射：resource_entity_id 引用 API 登记实体，required_operation_id 引用业务准入操作；完整匹配启用路由后同要求去重、不同要求报配置故障；绑定不产生 API 授权，业务服务仍须检查实际目标';
 COMMENT ON COLUMN resource_api_mapping.service_code IS '所属服务编码';
-COMMENT ON COLUMN resource_api_mapping.required_operation_id IS '业务准入操作 ID，类型从操作定义取得；LEGACY_API 存量可为空，不得将 API:ACCESS 作为准入要求；有效引用阻止操作删除和位变更';
+COMMENT ON COLUMN resource_api_mapping.required_operation_id IS '业务准入操作 ID，类型从操作定义取得；共同保存入口要求有效引用，启用映射缺失或损坏引用报 20071 配置故障，不回退默认操作；不得以 API 类型操作作准入要求（API 授权已退役，恒无候选，读侧同报 20071）；有效引用阻止操作删除和位变更';
 COMMENT ON COLUMN resource_api_mapping.maintain_source IS '映射独立维护来源 MANUAL/SERVICE_SYNC/BOOTSTRAP；FULL 仅清所属服务的 SERVICE_SYNC 映射，不从资源来源或 extra 推断；存量迁移保守回填 MANUAL';
 COMMENT ON COLUMN resource_api_mapping.http_method IS 'HTTP 方法，如 GET/POST/PUT/DELETE';
 COMMENT ON COLUMN resource_api_mapping.path_pattern IS '接口路径模式（完整路径含前缀）';
@@ -1019,8 +1020,6 @@ CREATE TABLE service_config (
     base_path    VARCHAR(512),
     description  VARCHAR(512),
     status       INT NOT NULL DEFAULT 1,
-    api_auth_mode VARCHAR(32) NOT NULL DEFAULT 'OPERATION_ADMISSION'
-        CHECK (api_auth_mode IN ('LEGACY_API', 'OPERATION_ADMISSION')),
     config_generation BIGINT NOT NULL DEFAULT 0,
     extra        JSONB DEFAULT '{}',
     created_by   BIGINT,
@@ -1036,11 +1035,10 @@ CREATE UNIQUE INDEX uk_service_config ON service_config (tenant_id, service_code
 
 COMMENT ON TABLE service_config IS '接入服务配置：全量同步策略，支持手动增删改接口映射。extra.syncTypes 声明服务可同步的类型白名单（见 api-contract §19.9）；停用(status=0)后其接口不参与授权且 sync/full-sync 全部拒绝';
 COMMENT ON COLUMN service_config.service_code IS '服务编码，租户内唯一';
-COMMENT ON COLUMN service_config.api_auth_mode IS '可信服务配置控制的鉴权模式 LEGACY_API/OPERATION_ADMISSION；不接受客户端模式头。T-ACCESS-059 拍板无迁移期统一上线：全部服务（含 access-service 自身）默认 OPERATION_ADMISSION，LEGACY_API 值仅作 062 退役前的版本回退部署形态（服务端准入端点对 LEGACY_API 服务按配置故障拒绝）';
-COMMENT ON COLUMN service_config.config_generation IS '准入快照配置代次（T-ACCESS-059 计数列载体，2026-09-28 拍板）：该服务映射写路径（共用保存入口/删除/FULL 清理）与模式切换同事务 +1；准入快照构建事务内先读代次→构建→复读比对（复读语句 flushCache 强制落库，绕开会话一级缓存），变更即废弃重建（2026-09-25 拍板限定语义：构建期自一致校验；T-ACCESS-060 边界推导裁定 2026-09-28：接收侧不单独消费代次，由失效代际 epoch＋快照 TTL 承载，不承诺跨节点强一致）';
+COMMENT ON COLUMN service_config.config_generation IS '准入快照配置代次（T-ACCESS-059 计数列载体，2026-09-28 拍板）：该服务映射写路径（共用保存入口/删除/FULL 清理）与服务启停同事务 +1；准入快照构建事务内先读代次→构建→复读比对（复读语句 flushCache 强制落库，绕开会话一级缓存），变更即废弃重建（2026-09-25 拍板限定语义：构建期自一致校验；T-ACCESS-060 边界推导裁定 2026-09-28：接收侧不单独消费代次，由失效代际 epoch＋快照 TTL 承载，不承诺跨节点强一致）';
 COMMENT ON COLUMN service_config.base_path IS '基础路径前缀';
 COMMENT ON COLUMN service_config.extra IS '扩展属性(JSON)：syncTypes 声明同步类型白名单（subjectTypeCodes/roleTypeCodes/sourceTypes 字符串数组，缺失分类=无权限；资源维度已随 T-PERM-052 类型级所有权退役，保存含 resourceTypeCodes 拒绝）；保存时校验结构，运行时 fail-closed';
-COMMENT ON COLUMN service_config.status IS '状态：0=停用 1=启用。停用后该服务的接口不参与授权；资源/依赖同步通道（sync/full-sync、manifest）拒绝（SECURITY_DENIED），接口声明同步（service-config/sync、sync-v2）拒绝 20025（T-ACCESS-058）';
+COMMENT ON COLUMN service_config.status IS '状态：0=停用 1=启用。停用后该服务的接口不参与授权；资源/依赖同步通道（sync/full-sync、manifest）拒绝（SECURITY_DENIED），接口声明同步（service-config/sync-v2）拒绝 20025（T-ACCESS-058；旧 service-config/sync 已随 T-ACCESS-062 删除）';
 
 -- -----------------------------------------------------------------------------
 -- 25. permission_condition - 权限条件表（JSONB 规则字段，一行=一个完整条件定义）

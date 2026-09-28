@@ -3,7 +3,7 @@ doc_type: design
 title: R2 权限查询引擎统一与操作准入（方案 A）设计
 status: adopted
 domain: access-service
-last_reviewed: 2026-09-27
+last_reviewed: 2026-09-28
 ---
 
 # Access-Mesh：R2 权限查询引擎与 T-PERM-054 统一设计
@@ -21,7 +21,7 @@ last_reviewed: 2026-09-27
 | 决策状态 | **定稿（2026-09-25 用户确认）**：方案 A 方向与 R2-A 结构约束实现；当日三项拍板已并入正文（§2.2 时区不处理、§5.1 S/H/D、§8.4 configGeneration 限定语义）。实施载体=计划 r2-query-engine-and-admission（T-PERM-080~094 + T-ACCESS-056~062）；T-PERM-054 已解除暂缓归入该计划。计划完结时内容按现行规范回写对应设计文档族（engine/implementation.md、契约总册、services/gateway.md），本稿转 superseded 随计划归档（2026-09-25 拍板，沿 permission-query-unification 先例） |
 | 验证状态 | v3.0 评审（2026-09-25）对 HEAD 9ba64cf2c 完成 25+ 项代码级事实复核（PQ-01/02/03/05/06、缓存目录边界、任务卡、映射实体与 FULL 清理、快照装配/网关 fail-closed/菜单类型页/条件工具/旧 DTO/checkInterface），勘误已并入本版；未修改仓库代码，未执行编译、集成测试、运行库盘点或性能基准。文中代码为设计示意，不是已实现类 |
 
-本版可独立阅读：必要的契约、算法、反例、调用方迁移和验收均放在正文；附录 A 对照原 v2.0 的保留位置。旧稿的“接口和快照只认 API:ACCESS”仅保留为 **LEGACY_API 迁移期规则**，不再是终态。其他 IMP 写侧解耦和继承触发依赖仍独立，不因本版重开或自动实施。
+本版可独立阅读：必要的契约、算法、反例、调用方迁移和验收均放在正文；附录 A 对照原 v2.0 的保留位置。旧稿的“接口和快照只认 API:ACCESS”为已退役的迁移期规则，终态见 §6.6。其他 IMP 写侧解耦和继承触发依赖仍独立，不因本版重开或自动实施。
 
 > **v3.1 修订（2026-09-25 定稿）**：①时区拍板——本项目不做时区处理（§2.2/N26 收敛）；②角色互斥采用 S/H/D 全命中确定化（§5.1，终结 [历史定案原文](../archive/2026-09-26/decision-registry-before.md) 2026-09-22 留观②）；③configGeneration 保留、语义限定为构建期自一致校验（§8.4）；④评审勘误并入——§2.2 Roles 视角不过滤 ROLE_MUTEX、§7.2 准入候选来源措辞（任意实例原授权，无祖先闭包）、§8.3 旧协议 operationCode 已删（T-PERM-053）、§6.6 ACCESS 覆盖位精确口径、§9.1 字段名对齐现物。
 
@@ -563,9 +563,8 @@ T-PERM-087 的展示展开按保留事实源批量读取既有祖先/后代 CTE�
 | PermissionViewAppServiceImpl | GRANT_LIST FULL＋有效操作投影 | 查看他人门禁、权限码全量、可见后代与新类型页语义 |
 | PermissionGrantDomainServiceImpl | DB 原始 FACTS，PRESERVE＋SKIP | 同行转授资格、授权根诊断与写入保护 |
 | 配置、解释、PermViewAssembler | FACTS 或 DECISION＋TRACE | 按真实用途选择，删除旧结果依赖，不机械套 GRANT_LIST |
-| LEGACY_API checkInterface | 一个 API:ACCESS TARGET_SET 集合 | 原注册门禁和共同集合互斥；迁移期不拆项 OR |
-| LEGACY_API interfaceSnapshot／SnapshotAssembler | GRANT_LIST＋PRESERVE／ENFORCE FACTS | 原 API:ACCESS 覆盖、条件分支、注册映射展开；旧模式结束后退役 |
-| 新在线 interface-admission | OPERATION_ADMISSION＋ADMISSION | 服务模式、完整路由匹配、唯一 required operation 和新响应 |
+| 旧 checkInterface / interfaceSnapshot / SnapshotAssembler | 已删除 | T-ACCESS-062：旧在线与快照协议退役，迁移期实现仅供历史追溯 |
+| 新在线 interface-admission | OPERATION_ADMISSION＋ADMISSION | 服务状态、完整路由匹配、唯一 required operation 和新响应 |
 | 新准入快照 | 多个 OPERATION_ADMISSION＋FACTS | 完整路由表、条件分支、版本、失效与本地准入协议 |
 
 迁移前清点全仓直接调用、方法引用、反射、缓存序列化、测试夹具与文档，不以这张主要消费者表代替完整引用清单。
@@ -590,23 +589,7 @@ T-PERM-087 的展示展开按保留事实源批量读取既有祖先/后代 CTE�
 > 旧引擎 `query`/`queryBatch` 生产消费者已全部迁移（T-PERM-090/091 完成），旧执行体与四旧 DTO
 > 已随 T-PERM-092 删除。
 
-> **就地实施注（2026-09-27，T-PERM-090）**：本矩阵范围与 LEGACY_API 四行已切新 execute——
-> ①queryScopes=GRANT_LIST＋父要求＋EVALUATE/ENFORCE＋RAW_AND_KEPT（ScopeCoverageProjector
-> 四态纯投影；父对象存在性预检查在外层返回 OBJECT_KEY_NOT_FOUND；NO_ROLE/PARENT_DENIED 映射
-> NO_PERMISSION＋全 DENIED 分组；matchedParentOperations=ResultDetails.parentCheck 摘要直取，
-> X03 基线 QuerySemanticsBaselinePgIT 17 用例全绿对拍）；②queryResources=GRANT_LIST＋EVALUATE/
-> ENFORCE＋FACTS（includeChildren/includeInherited 映射 OutputSpec 展示展开 CHILDREN/PARENTS/BOTH，
-> depend_on 行仍装配后隐藏）；③checkInterface=一个 API:ACCESS TARGET_SET 共同集合（注册门禁在先、
-> 全部匹配 API 组成一个单 item、SELF、TypeFallback.ALLOW＝旧 INSTANCE 的 scopeAll 回退形态；全部
-> 映射无实体引用退 TYPE_LEVEL）；④interfaceSnapshot=GRANT_LIST＋PRESERVE/ENFORCE＋FACTS（角色
-> 解析含互斥双删由 User 主体内部完成；SnapshotAssembler 改消费 List<GrantFact>，S01~S04 回归锁
-> 不变）。执行时边界拍板（用户，2026-09-27）：090/091 两卡范围文本交叠勘正——快照面（interfaceSnapshot/
-> SnapshotAssembler）归 090、有效权限码/可见资源投影（PermissionViewAppServiceImpl）归 091，两卡
-> 范围行已同批勘正。CallerContext 提取公共化（fromCallerMap 工厂，089/090 消费面共用）；适配层退化
-> 归一沿 089 口径：queryScopes 父操作集过滤 null 后空＝NO_PERMISSION 整表拒、范围类型/操作 null
-> 元素组合直接 DENIED 分组（旧引擎解析落空同形），不进引擎结构拒绝。OperationDefinition.toCacheRow
-> 公开予包外结果消费方复用 OperationPermissionUtils 位运算族。旧引擎生产消费者现仅剩 091 目标
-> （PermissionViewAppServiceImpl/PermViewAssembler、PermissionGrantDomainServiceImpl）。
+范围查询由 T-PERM-090 迁入唯一 execute：queryScopes 为 GRANT_LIST＋父要求＋EVALUATE/ENFORCE＋RAW_AND_KEPT，ScopeCoverageProjector 纯投影四态；queryResources 为 GRANT_LIST＋EVALUATE/ENFORCE＋FACTS，展示展开走 OutputSpec，depend_on 行在装配后隐藏。父对象不存在返回 OBJECT_KEY_NOT_FOUND；NO_ROLE/PARENT_DENIED 映射全 DENIED；父操作过滤 null 后为空返回 NO_PERMISSION，范围类型/操作 null 组合直接 DENIED。CallerContext.fromCallerMap 提取公共化；OperationDefinition.toCacheRow 供结果消费方复用位运算。同期旧接口在线/快照适配已随 T-ACCESS-062 删除。
 
 > **就地实施注（2026-09-27，T-PERM-091）**：本矩阵剩余两行（视图/转授）已切新 execute，旧引擎
 > 生产消费者清零——①PermissionGrantDomainServiceImpl.checkCanGrant＝GRANT_LIST＋PRESERVE+SKIP＋
@@ -623,11 +606,13 @@ T-PERM-087 的展示展开按保留事实源批量读取既有祖先/后代 CTE�
 > （TRACE 门禁暂缓 Q-045）。X03 基线扩至 23 用例全绿（＋视图族 2＋转授族 4——T01 快照预热后撤销
 > 仍拒/T02 不拼接两行/T04 祖先不自动扩大/互斥双删整批 NO_ROLE）。
 
-### 6.6 LEGACY_API 兼容边界不能误写成终态
+### 6.6 旧接口授权协议退役
 
-迁移期旧接口仍先检查注册，再对全部匹配 API 资源组成一个共同 TARGET_SET，SELF、ALLOW、FULL；不拆项 OR。旧快照仍从 GRANT_LIST PRESERVE＋ENFORCE 结果投影，仅**有效位覆盖 ACCESS 的操作位集合**（ACCESS 位 ∪ inheritMask 覆盖 ACCESS 的自定义位，与现行 SnapshotAssembler 口径一致）才放行；dependent 条目按旧装配顺序排除；API 的 ALL 展开为**目标服务已注册且启用的路由**，不产生任意路径通配；无条件与各 conditionId 分支保留。
+T-ACCESS-062 删除旧在线检查、旧快照协议及专用 DTO/装配器，API 类型授权的生产入口全部关闭。旧兼容语义不再约束当前实现；业务 check/batch-check 与范围/视图查询仍使用唯一 QueryExecutionEngine。
 
-原 v2.0 明确指出旧 LIST 快照与在线共同目标／逐目标可能有不同集合语义，本版不假装它们因重构自动等价。**新准入不从这份旧结果继续加工**，它有自己的明确候选选择，因而不继承旧 LIST 的跨实例 PERM_MUTEX 删除。
+服务配置模式字段一并删除（数据库 `api_auth_mode`、请求/响应 `apiAuthMode`、枚举及前端选择入口），全部服务统一业务操作准入；新准入响应的协议常量保持，不存在配置切回旧模式的通道（2026-09-28 确认）。
+
+清理覆盖所有租户和所有来源的有效 API 类型授权；bootstrap 同样标为 MANUAL，不能只按来源识别。先备份再受控软删除；保留业务授权与 API 登记目录，业务子行引用待删 API 父行时停止并报告。此范围取代先前仅称「系统来源」的表述（2026-09-28 确认）。验收及实施进度以任务卡为准；部署操作见 [退役手册](../ops/runbook-api-retirement-062.md)。
 
 <a id="operation-admission"></a>
 
@@ -712,13 +697,13 @@ T-ACCESS-057 保留结构合法子行；父结构按候选 depend_on 并集分�
 
 ### 8.1 映射模型：API 是登记对象，业务操作是准入要求
 
-T-ACCESS-058 已为映射落库业务操作引用和独立维护来源，共同保存入口限制登记实体为 API。改造前手工可绑非 API 实例的存量死配置仍由 T-ACCESS-061/T-PERM-054 盘点处置，不通过放开 API 过滤掩盖。[C01][C03][C04]
+T-ACCESS-058 已为映射落库业务操作引用和独立维护来源，共同保存入口限制登记实体为 API。改造前手工可绑非 API 实例的死配置通过显式登记 API 与业务操作引用处置，不通过放开 API 过滤掩盖。[C01][C03][C04] 开发库盘点与原三问的验收证据见 [T-PERM-054](../tasks/T-PERM-054.md#验收对照)；该库无非 API 存量，不代表未经盘点的其他部署已完成迁移。
 
 本版默认保留 API 登记实体，减少对同步／目录的冲击；增加明确业务操作引用，不改角色授权真值。
 
 | 对象 | 建议模型与约束 |
 |---|---|
-| service_config | 新增 api_auth_mode=LEGACY_API／OPERATION_ADMISSION；由可信服务配置控制，迁移期按服务选择，不接受客户端模式头 |
+| service_config | 不再有鉴权模式字段；启停状态及配置代次仍由可信配置控制 |
 | resource_api_mapping | 保留 resource_entity_id 引用注册 API；新增 required_operation_id；业务类型从操作定义取得，避免两份类型真值 |
 | 对外 DTO | requiredPermission={resourceTypeCode, operationCode}，不要求 REPORT_A/B；内部解析为操作 ID |
 | 维护来源 | 明确 MANUAL／SERVICE_SYNC／BOOTSTRAP；owner 绑定服务所有权；不要通过 extra 或被绑业务资源推断覆盖权 |
@@ -746,11 +731,11 @@ T-ACCESS-058 已为映射落库业务操作引用和独立维护来源，共同�
 
 ### 8.3 手工、服务同步、FULL 清理一并改造
 
-新版同步采用独立端点 `POST /api/access/service-config/sync-v2` 与独立 DTO（T-ACCESS-058，2026-09-27 确认），ApiItem 真正落 requiredPermission 并由读侧消费；旧 `/sync` 保持原协议，不能自动升级；现行同步 DTO 已无操作引用字段（operationCode 已于 T-PERM-053，2026-09-05 删除——「仅校验无运行时效果」为删除前历史形态），新版本化 DTO 才引入 requiredPermission 并由读侧真正消费。[C08]
+接口声明采用独立端点 `POST /api/access/service-config/sync-v2` 与独立 DTO（T-ACCESS-058），ApiItem 的 requiredPermission 真正落库并由读侧消费。旧 `/sync` 及其 DTO 已随 T-ACCESS-062 退役；旧 operationCode 字段的「仅校验无运行时效果」是 T-PERM-053 删除前的历史形态，不作为当前输入协议。[C08]
 
 `sync-v2` 支持 per-service 凭证与管理员两种身份：凭证租户及服务归属取自认证链，请求 serviceCode 必须等于凭证所属服务；管理员沿 SERVICE:SYNC_INTERFACE 门禁。存量映射来源统一保守回填 MANUAL，不根据 extra.syncKey 或绑定资源推断 SERVICE_SYNC；真实来源由 T-ACCESS-061 盘点后显式订正，未经订正的旧同步行再次发布会按归属冲突拒绝（T-ACCESS-058，2026-09-27 确认）。
 
-手工、同步与 bootstrap 的共同保存入口要求服务已登记。bootstrap 同事务创建 `access-service` 的 LEGACY_API 服务配置并将配置身份纳入固定图检查，存量通过迁移脚本补齐，不保留缺配置时猜测 LEGACY_API 的内置服务例外。旧同步的退役由 T-ACCESS-062 处理，本阶段不另建新旧客户端混用限制（T-ACCESS-058，2026-09-27 确认）。
+手工、同步与 bootstrap 的共同保存入口要求服务已登记。bootstrap 同事务创建 access-service 服务配置并将身份纳入固定图检查，存量通过迁移脚本补齐。全部服务统一操作准入；旧同步 /sync 已退役，接口声明只走 /sync-v2，不考虑旧客户端兼容。
 
 手工／同步／bootstrap 共用校验保存职责。保留服务认证、所属服务与原 FULL 事务边界；任一必要操作引用解析失败整批回滚，不静默跳过。FULL 只收敛**该服务 SERVICE_SYNC 自有映射**，不能覆盖 MANUAL／BOOTSTRAP；显式接管单独授权和审计，同一路由跨 owner 争写拒绝。
 
@@ -758,7 +743,7 @@ FULL 清理以映射自身 SERVICE_SYNC 来源和所属服务为准；原按 API
 
 ### 8.4 新准入快照：保留本地性能路径，协议明确隔离
 
-不默认改成每次“网关远程准入＋业务远程实例检查”。建议增加新端点／DTO，如 interface-admission、interface-admission-snapshot（名称为建议），PermissionClient 显式按可信服务模式调用。旧 check-interface 只能服务 LEGACY_API，新模式失败不回落旧 API:ACCESS。
+不默认改成每次“网关远程准入＋业务远程实例检查”。interface-admission 与 interface-admission-snapshot 已落地，PermissionClient 统一调用新协议。旧 check-interface 已删除，新协议失败不回落旧 API:ACCESS。
 
 ```text
 InterfaceAdmissionSnapshot
@@ -782,7 +767,7 @@ configGeneration 表示本次路由／模式配置代次。**（2026-09-25 拍�
 
 T-ACCESS-059 已落地（2026-09-28，六项用户拍板与实现形态）：①**无迁移期统一上线**——全部服务（含 access-service 自身）一次切 OPERATION_ADMISSION，网关单链无模式发现，DDL 缺省与 service-config/save 创建缺省均改 OPERATION_ADMISSION，存量库经迁移脚本 `docs/ops/operation-admission-migrate-059.sql` 全量切换（含固定图映射补操作引用、query-scopes 种子映射停用、bootstrap 角色补 CONDITION:VIEW/ADMIN_ORG_TREE_CONFIG:VIEW 两笔类型级授权）；②网关直接切新链删旧链（服务端旧端点保留至 062，回退=回滚网关版本）；③access-service 自身管理端点也接准入——固定图约百条映射按「各端点服务层 QueryGate 门禁同码」补业务操作引用（开放读端点按所属类型 VIEW 绑定并同批补授，维持管理员现行可过行为；job 写三档绑码不授，网关 403 与现行服务层 403 终端一致）；④端点身份=凭证+网关内部密钥并存（两端点入 M2M 白名单，凭证限自身服务；旧密钥自报服务头拒绝）；⑤configGeneration=service_config.config_generation 计数列（写路径同事务 +1，快照构建独立语句复读自一致校验）；⑥SDK 只增 PermissionClient 两方法（Filter/Matcher 落网关侧）。网关本地判定四态 ALLOW/FALLBACK/DENY/CONFIG_FAULT（歧义/未知 schema/时效失败→终端 503；内联规则解析失败=不可用分支回源）；快照 TTL 沿 15s/5s 既有预算形态，完整边界推导归 T-ACCESS-060。N11/N12/N14/N15/N21/N22/N28 验收证据见[任务卡](../tasks/T-ACCESS-059.md)。
 
-### 8.5 失效、时效与模式切换
+### 8.5 失效、时效与服务启停
 
 | 变化 | 必须维护 |
 |---|---|
@@ -791,11 +776,11 @@ T-ACCESS-059 已落地（2026-09-28，六项用户拍板与实现形态）：①
 | 操作覆盖／定义变更 | 新鲜定义、准入快照及对应服务失效；引用 ID 没变不代表权限语义没变 |
 | 父授权撤销或结构变化 | 子候选的结构有效性及新快照随授权生命周期收敛，不让只缓存子行永不检查父 |
 | 映射新增、改绑、停用、删除、FULL 缺失 | 事务内事实改变，提交后更新服务路由与准入快照；不重算角色 AUTO_DEP |
-| 服务模式／配置代次／协议切换 | 旧新命名空间、在途加载、负缓存和节点能力一起处理 |
+| 服务启停／配置代次／协议升级 | 旧新命名空间、在途加载、负缓存和节点能力一起处理 |
 
 条件关联服务的反查默认采用安全超集：“引用条件的授权类型→该类型所需操作→映射服务”，再按实际覆盖优化；不能直接沿旧授权资源＝API 资源关联 [C13]。收到失效后，旧在途读取不能覆盖新一代缓存；保留加载去重、回源截止、剩余 TTL 和失败关闭。
 
-**首次迁移默认采用可验证的服务级切换：**暂停目标服务业务入口→确认每条路由已具备业务最终检查→切模式／配置→全接流量节点确认新版本并清理旧缓存／加载→恢复。需要不停流时另补带全节点确认的代次切换协议；一次 pub/sub 广播不是完成证据。新快照缺失、远端不可用、未知 schema 不得自动 OR 旧权限或 stale-allow；按现有失败关闭路径返回技术错误。[C06][C07]
+**首次迁移默认采用可验证的服务级切换：**暂停目标服务业务入口→确认每条路由已具备业务最终检查→更新版本／配置→全接流量节点确认新版本并清理旧缓存／加载→恢复。需要不停流时另补带全节点确认的代次切换协议；一次 pub/sub 广播不是完成证据。新快照缺失、远端不可用、未知 schema 不得自动 OR 旧权限或 stale-allow；按现有失败关闭路径返回技术错误。[C06][C07]
 
 新快照短 TTL、上游安全目录寿命与截止时间按第 5 节重新推导并纳入启动校验；不能直接宣称旧 30 秒目标自动覆盖新增的操作／路由依赖。临时强制在线可用于灰度验证，但要有容量预算与退出条件，不能称作性能不变的终态。
 
@@ -806,7 +791,7 @@ T-ACCESS-059 已落地（2026-09-28，六项用户拍板与实现形态）：①
 - **条件→服务反查（N19）**：`PermissionChangeAspect` flush 对非空 `markConditions` 统一执行安全超集反查（`selectServiceCodesByConditionGrantTypes`——引用条件的授权行 `resource_type`（全行 NOT NULL，含实例行）→该类型所需操作（`operation_permission`）→映射服务（`resource_api_mapping.required_operation_id`）），结果并入 `serviceCodes` 广播。管理页 update/delete、内联条件随授权页编辑/回收、类型级联回收全部经 markConditions 通道自动覆盖。旧 T-PERM-017「授权资源=API 资源」等值联接（`selectServiceCodesByConditionIds`）整体退役——新映射模型下映射行 `resource_entity_id` 指向 API 登记实体，旧联接结果普遍为空（条件改规则不广播任何服务，红跑实证：屏蔽 flush 反查后广播 serviceCodes 为空、用例失败）。「再按实际覆盖优化」未做：网关对 serviceCodes 非空整租户失效，精确化只改变「是否广播」不改变失效范围，超集方向安全。
 - **接收侧代次（N21 网关半边，边界推导裁定）**：2026-09-28 用户拍板——接收侧不实现单独的代次匹配检查（对 2026-09-25 拍板「接收侧匹配检查」字样的边界推导修订），由既有「失效代际 epoch（失效事件到达即作废在途回源提交，三组竞态测试锁定）＋快照 TTL」承载；广播丢失时旧代次快照最长存活快照 TTL 15s，属「不承诺跨节点强一致」文档化接受面。构建期自一致校验（flushCache 复读）由 T-ACCESS-059 落地。
 - **边界重推导（§5.3 收口）**：快照构建读源实核＝事实族 L2_ONLY≤10s（六目录，启动校验锁）＋操作定义/条件规则原文/路由映射/服务配置含代次复读全部新鲜库读；最坏陈旧＝10s（事实族）＋5s（构建耗时，网关回源截止约束——expiresAt 在构建完成后计算，构建期事实年龄继续增长）＋15s（快照有效期，网关按服务端 expiresAt 门禁、L1 TTL 仅作丢失广播兜底）＝30s＝30s 目标压线达标（0 余量）。方程入启动校验：`PermCacheBoundaryValidator` 断言上游 L2 上限＋`SNAPSHOT_TTL`≤30s（调大任一常量即启动失败），网关侧 `GatewayCacheBoundaryValidator` 维持 L1≤15s＋回源截止≤5s。
-- **N23（模式切换演练）**：模式/启停切换同事务代次 +1 并广播 serviceCodes（access 侧演练：OA→LEGACY→OA 逐次 +1/广播，LEGACY 期间快照端点 20071 信封，回切后即恢复可构建——恢复以库为准不依赖广播送达）；网关侧负形态＝空路由快照可缓存（DENY→403 不回源，防停用风暴），错误信封不缓存（部署错位窗口每请求回源 503 即哨兵，2026-09-28 拍板不加错误负缓存）；「临时强制在线」灰度开关不落地（无现实需求触发）。
+- **N23（服务启停演练）**：启停变化同事务代次 +1 并广播 serviceCodes，暂停后空路由快照可缓存（DENY→403 不回源），恢复以库中状态为准。T-ACCESS-062 删除模式字段后，模式切换测试退出，启停/配置变更及终校验测试继续保留。错误信封不缓存；临时强制在线开关不落地（无现实需求）。
 
 ### 8.6 业务服务：以实际目标做最后一道权限检查
 
@@ -901,7 +886,7 @@ PermResultUtils 改为新结果到既有外部响应的纯转换，或删除；�
 | ADM-T04 | 新端点、快照、PermissionClient／Filter／Matcher | ADM-T02／03；完整路由匹配、本地／在线一致、版本隔离 |
 | ADM-T05 | 新链路失效、TTL 边界校验与在途代次控制 | ADM-T03／04；条件／操作／父／路由均可收敛，旧加载不能覆盖新态 |
 | ADM-T06 | 逐服务业务最终检查、负向验收与模式切换 | ADM-T04／05；A/B、批量、导出、父上下文及身份链实测 |
-| ADM-T07 | 全服务迁完后退出 API 独立授权和 legacy 协议 | ADM-T06、R2-T13；保留 API 登记目录，受控清理系统来源授权和旧缓存；退役 API 授权生产入口（bootstrap 种子与授权写入口拒 API 类型、前端授权页分支）——空库启动零 API 授权行、写入口负向验收 |
+| ADM-T07 | 全服务迁完后退出 API 独立授权和 legacy 协议 | ADM-T06、R2-T13；保留 API 登记目录，受控清理全部有效 API 类型授权和旧缓存；退役 API 授权生产入口（bootstrap 种子与授权写入口拒 API 类型、前端授权页分支）——空库启动零 API 授权行、写入口负向验收 |
 
 **两个完成条件：**R2-T13 可以在仍有 LEGACY_API 服务时完成，因为 legacy 语义也应通过新 R2 表达，不需要旧引擎。ADM-T07 才表示 API 独立授权模式退役。不能用“R2 入口统一了”证明 T-PERM-054 完成，也不能为未迁完服务永久保留旧查询执行体。
 
@@ -931,7 +916,7 @@ PermResultUtils 改为新结果到既有外部响应的纯转换，或删除；�
 
 ### 10.2 原 v2.0 必要回归矩阵（保留编号）
 
-下表继承原完整稿的验收要求，不是本轮已执行记录。S01～S04 只验证 LEGACY_API 迁移兼容；新准入使用下一节 N 系列，不能拿旧快照通过代替新模式验收。
+下表保留原验收编号。S01～S04 是已退役的旧协议兼容证据，专用测试随 T-ACCESS-062 删除；新准入使用下一节 N 系列，不能拿旧快照通过代替新模式验收。
 
 | ID | 场景 | 关键预期 |
 |---|---|---|
@@ -1035,8 +1020,8 @@ PermResultUtils 改为新结果到既有外部响应的纯转换，或删除；�
 | N26 | 父子时钟与评估时刻 | 同次父子一时刻（沿现行 a2 定案）；重构不意外改变本地时钟评估语义（时区拍板：不做时区处理） | 061 |
 | N27 | 大路由表、大授权量、分块、快照上限 | 不逐实例 check，不展开全租户；不截断 FACTS／routes；超限显式技术失败 | 061 |
 | N28 | 权限服务自身／公共路由／内部服务认证 | 保持独立认证边界，不形成准入递归；缺映射不自动公共 | 059 |
-| N29 | R2 完成但仍有 LEGACY_API 服务 | legacy 也进入新 execute；旧完整核心／DTO 已退出，无永久双执行 | 062 |
-| N30 | ADM-T07 清理系统来源 API 授权 | 使用受控迁移；不误删业务授权或 API 注册目录，回滚数据可追踪；空库启动零 API 授权行、写入口拒 API 类型（负向锁） | 062 |
+| N29 | 全服务统一新准入，旧执行体及旧协议退出 | 旧端点/DTO/快照装配器与模式字段已删除，无永久双执行 | 062 |
+| N30 | ADM-T07 清理全部有效 API 类型授权 | 使用受控迁移；不误删业务授权或 API 注册目录，回滚数据可追踪；空库启动零 API 授权行、写入口拒 API 类型（负向锁） | 062 |
 
 ### 10.4 性能基准和结构门槛
 
@@ -1141,7 +1126,7 @@ var request = new QueryRequest(
   output = KEPT + 所需条件元数据，完整收集，不混入普通目标项
 ```
 
-路由、服务模式和完整注册集留在外层，不作为普通 QueryRequest 中任意可控策略。LEGACY_API 在线仍构建一个共同 API:ACCESS TargetSet；旧快照仍为 GrantList PRESERVE＋ENFORCE。两种 legacy 适配都可以使用新 execute，**不能因为保留旧授权模式而保留旧引擎**。
+路由和完整注册集留在外层，不作为普通 QueryRequest 中任意可控策略。服务统一操作准入；legacy 在线与快照适配、旧执行体均已退出，不保留双执行机制。
 
 ## 附录 B：与第一版 R2-v2.0 的内容对照
 

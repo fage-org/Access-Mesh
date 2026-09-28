@@ -13,19 +13,6 @@ last_updated: 2026-09-28
 
 ## 未收敛问题
 
-## Q-046 旧 /sync 写路径在 OPERATION_ADMISSION 下「能删不能增」——新路由整批 20071 且错误码指错方向
-
-- **状态**：open
-- **登记**：2026-09-28（T-ACCESS-059 外部评审 claude 通道 P2，用户拍板挂 T-ACCESS-062 统一清退）
-- **来源**：T-ACCESS-059 外评处置（双通道报告见任务卡完成记录）
-- **关联**：[T-ACCESS-059](tasks/T-ACCESS-059.md)；[T-ACCESS-062](tasks/T-ACCESS-062.md)（旧端点清退）；契约总册 §25.1
-
-**现象与证据**：旧 `POST /api/access/service-config/sync` 协议 DTO 无 `requiredPermission`（适配层 `InterfaceSyncDefinition.from` 恒传 null）；059 无迁移期全量切 OPERATION_ADMISSION 后，`ApiMappingWriteDomainServiceImpl.saveAll` 按模式判定 `required=true`，新登记路由行 `required_operation_id` 为 null → 整批抛 20071「业务准入操作不存在、损坏或为 API:ACCESS」并连同资源登记回滚。删除半边仍可用（既有行带引用可刷新），形成「能删不能增」语义分裂。前端 `SyncForm.vue` 仍提供「仅接口登记（旧协议）」选项；契约 §25.1 仍写「旧 /sync 不接受新字段」未写明不可用；旧协议真实写路径已无 IT 覆盖（本卡 E2E 已切 sync-v2）。
-
-**影响**：存量接入方或管理员经旧协议登记新路由收到面向路由复核的 20071 配置故障文案，无法定位「协议不适用、应改用 sync-v2」；当前无生产消费者踩中（SDK 新链接入走 sync-v2）。
-
-**设想方向（未定案）**：随 T-ACCESS-062 旧端点清退一并处置——候选形态：①清退前先在 /sync 入口对 OPERATION_ADMISSION 服务显式返回参数类错误（文案指向 sync-v2）+ 前端隐藏旧协议选项；②直接删旧端点（062 本义），前端与契约同批收口。具体随 062 任务卡定范围。
-
 ## Q-045 新引擎 TRACE 块敏感字段无门禁——089+ 应用层接线时必须补诊断授权
 
 - **状态**：open
@@ -356,6 +343,7 @@ last_updated: 2026-09-28
 ## 已收敛（终态索引，一行一条；详情在关联任务卡/所属规范或历史来源）
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
+| Q-046 | 旧 /sync 写路径在 OPERATION_ADMISSION 下「能删不能增」——新路由整批 20071 且错误码指错方向 | closed（2026-09-28 随 T-ACCESS-062 收敛——登记时拍板的设想方向②落地：`POST /api/access/service-config/sync` 端点、`ServiceConfigSyncReq` DTO、`InterfaceSyncDefinition.from` v1 适配与前端「仅接口登记（旧协议）」选项整体删除（404 负向锁=LegacyInterfaceRetirementTest），接口声明唯一入口=sync-v2；契约 §25.1 同批改写） | [T-ACCESS-062](tasks/T-ACCESS-062.md) | 2026-09-28 |
 | Q-033 | 契约总册 org CRUD 门禁行/正文未带岗位精化码 | closed（2026-09-24 随 T-ACCESS-055 doc-only 收敛——§4 门禁表三行+§8.4~§8.6 补「按目标 orgType 解析精化码（岗位 *_POSITION）」注记，与 org-user-permission-contract 对齐；[历史定案原文](archive/2026-09-26/decision-registry-before.md) 同日行；正文条目 2026-09-25 补迁本索引） | [T-ACCESS-055](archive/2026-09-24/tasks/T-ACCESS-055.md) | 2026-09-24 |
 | Q-036 | PositionTab 展示面两处存量：位置列恒「-」与成员加载失败落空态 | closed（T-FE-058 done：①index.vue 传 org-tree prop 修复父路径解析；②展开区三态区分（成员列表/失败占位+重试/暂无成员），失败不再误显空态） | [T-FE-058](archive/2026-09-24/tasks/T-FE-058.md) | 2026-09-23 |
 | Q-035 | 新增岗位弹窗 initialData.parentOrgId 通道失效——上级恒默认根组织 | closed（T-FE-058 done：openCreatePositionDialog 改传 parentOrgId/parentOrgName prop 对齐 index.vue 先例；浏览器实测上级预选「默认组织」、不手选直接提交创建成功） | [T-FE-058](archive/2026-09-24/tasks/T-FE-058.md) | 2026-09-23 |

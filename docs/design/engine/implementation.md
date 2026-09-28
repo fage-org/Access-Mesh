@@ -3,7 +3,7 @@ doc_type: design
 title: 权限中心 — 核心功能实现设计
 status: adopted
 domain: access-service
-last_reviewed: 2026-09-26
+last_reviewed: 2026-09-28
 ---
 
 # 权限中心 — 核心功能实现设计
@@ -139,7 +139,7 @@ cn.ac.fage.accessmesh.permission
 │   ├── PermViewAssembler（登录权限串管线专用，T-PERM-059 后排查视图面已删）
 │   ├── RolePermEntryMapper                         ← 在 util 包（非 domain）
 │   ├── SecurityEventType / SecurityLogUtil / SecurityUtils
-│   ├── SnapshotAssembler
+│   ├── InterfaceAdmissionSnapshotAssembler
 │   ├── StringUtils
 │   └── TreeBuilder
 └── config
@@ -377,7 +377,7 @@ clientIp 从当前请求自动装配（无请求上下文时 IP 类条件 fail-c
 权限 Mapper、解析角色或调用条件/互斥服务（`QueryBoundaryArchitectureTest` 锁定）。
 
 **执行主体直构面**：check/batchCheck（`PermissionCheckAppServiceImpl` 适配层，T-PERM-089）、
-范围/LEGACY_API 四面（`PermissionQueryAppServiceImpl`/`SnapshotAssembler`，T-PERM-090）、
+范围查询（`PermissionQueryAppServiceImpl`，T-PERM-090）、
 视图/转授（`PermissionViewAppServiceImpl`/`PermissionGrantDomainServiceImpl`，T-PERM-091）——
 适配层直构 `QueryRequest` 经 `execute`，`inheritMode` 线格式解析收编于适配层私有
 `inheritClosureOf`（T-PERM-092）。
@@ -516,8 +516,8 @@ scopeAll 条目不参与展开；query-resources 的树扩展（原 `expandResou
 - **`GrantFact`**：保留/原始授权事实（permissionId/roleId/resourceEntityId/grantedBits/conditionId/
   scopeAll/grantSource）；视图装配按源授权行主键关联投影行
   （GrantFact.permissionId ↔ EffectiveOperationEntry.sourcePermissionId）。
-- **`PermResultUtils`**：新结果→既有外部响应的**纯转换**（toAuthCheckResp / toCheckInterfaceResp；
-  不经中间结果对象，设计 §9.1）。需要 matched id 集合的内部场景直接消费引擎结果。
+- **`PermResultUtils`**：新结果→既有外部响应的**纯转换**（toAuthCheckResp；
+  不经中间结果对象，设计 §9.1；toCheckInterfaceResp 已随 T-ACCESS-062 旧协议退役删除）。需要 matched id 集合的内部场景直接消费引擎结果。
 
 ### 3.7 内部 scopeAll 与对外 scopeMode 映射
 
@@ -526,7 +526,6 @@ scopeAll 条目不参与展开；query-resources 的树扩展（原 `expandResou
 
 | 装配器              | 映射方式 |
 | ------------------- | -------- |
-| `SnapshotAssembler` | API 类型 `scopeAll=true` 条目展开为该 serviceCode 全部 enabled 注册映射的 `scopeMode=INSTANCE` 条目（不输出 ALL 通配——类型级 API 授权语义=「全部已注册 API」，未注册接口维持默认拒绝，S02；T-PERM-017 C4 多条件分支保留）；实例级条目照常经 API 映射组装 `scopeMode=INSTANCE` |
 | `PermViewAssembler` | 按 `resourceType` 分组输出全量范围视图项，对外使用 `scopeMode=ALL` |
 
 query-scopes 四态分组（T-PERM-009 契约维持）：AppService 只留线格式组装——raw 无覆盖条目 DENIED、
@@ -541,8 +540,6 @@ query-scopes 四态分组（T-PERM-009 契约维持）：AppService 只留线格
 | 批量鉴权     | `POST /api/access/auth/batch-check`        | 多个独立 DECISION item 一次 execute（item key=输入下标，原序/重复项对齐；见 §3.10） |
 | 资源权限查询 | `POST /api/access/auth/query-resources`    | GRANT_LIST＋EVALUATE/ENFORCE＋FACTS；树扩展=OutputSpec 展示展开 |
 | 范围权限查询 | `POST /api/access/auth/query-scopes`       | GRANT_LIST＋ParentRequirement＋RAW_AND_KEPT；四态组装=ScopeCoverageProjector |
-| 接口级判定   | `POST /api/access/auth/check-interface`    | LEGACY_API 共同集合：全部匹配 API 一个 TARGET_SET 单 item（SELF＋TypeFallback.ALLOW；空实体引用退 TYPE_LEVEL） |
-| 接口快照     | `POST /api/access/auth/interface-snapshot` | GRANT_LIST＋PRESERVE/ENFORCE＋KEPT；`SnapshotAssembler` 消费 `List<GrantFact>` |
 | 操作准入在线判定 | `POST /api/access/auth/interface-admission` | ADMISSION_CANDIDATES＋EVALUATE+SKIP＋ADMISSION（完整路由匹配/歧义 20070/悬空 20071→唯一要求；T-ACCESS-059） |
 | 操作准入快照 | `POST /api/access/auth/interface-admission-snapshot` | 全部去重要求一次 execute 多 admissionFacts item（PRESERVE+SKIP＋KEPT）；`InterfaceAdmissionSnapshotAssembler` 投影候选分支（条件内联共享 `GatewayPushableRules`），configGeneration 构建期自一致校验（T-ACCESS-059） |
 | 视图/权限串  | `POST /api/access/permission-view/**`      | GRANT_LIST＋EVALUATE/ENFORCE＋KEPT＋descriptions＋effectiveOperations（T-PERM-091） |
@@ -811,25 +808,13 @@ GROUP_ROLE 树结构变更（moveRole 调整 parent_id；extra.basicRoleIds 无�
     新值必为冷键，接线是「写路径变更集合即失效」的语义完备性保证
 ```
 
-### 5.3 Gateway 回调鉴权流程
+### 5.3 Gateway 操作准入流程
 
-```
-Gateway 本地接口快照未命中时：
-  1. 从 Token 中提取 tenant_id、abstract_user_id
-  2. 从路由信息提取 serviceCode、httpMethod、path
-  3. 构建本地快照 key：perm:snapshot:{tenantId}:{subjectTypeCode}:{userId}:{serviceCode}
-  4. POST /api/access/auth/interface-snapshot → 权限中心
-     入参：{ subjectTypeCode, subjectExternalId, serviceCode }
-  5. 权限中心内部：
-     a. 引擎 User 主体内部解析有效角色（EFFECTIVE_ROLES 缓存 + 互斥双删，T-PERM-075 共同判定语义）
-     b. GRANT_LIST（读来源 ROLE_SNAPSHOT）经 ROLE_PERM_SNAPSHOT getBatch 批量读取角色权限
-     c. PRESERVE/ENFORCE 评估（条件身份保留进快照、互斥仍清）
-     d. API mapping 组装为 InterfaceSnapshotResp.allowedApis（SnapshotAssembler 消费 List<GrantFact>）
-  6. Gateway 写入本地 Caffeine 快照（默认 TTL 30s）
-  7. Gateway 使用 InterfaceSnapshotMatcher 本地匹配 serviceCode + httpMethod + path，放行或返回 403
+Gateway 使用已验证身份、服务编码和原始路由构建准入快照键。L1 未命中时调用 `interface-admission-snapshot`：服务端读取完整启用路由，按业务类型/操作去重后一次 execute 批量收集 ADMISSION_CANDIDATES，保留条件身份并延后业务互斥与父上下文判定；配置代次自一致及服务启停终校验通过后返回。
 
-无需版本轮询，无需快照拉取调度器。
-```
+网关以四态匹配（ALLOW/FALLBACK/DENY/CONFIG_FAULT）处理快照，需回源时调用同语义 `interface-admission`，不消费旧 API:ACCESS 授权。进入业务后仍执行实际目标最终鉴权。目录 `gw:interface-admission-snapshot` 为 L1_ONLY，TTL≤15s、加载截止≤5s，上游权限事实 L2≤10s，总陈旧边界≤30s。完整协议见 [契约总册 §25](../access-service-api-contract.md#operation-admission-protocol)。
+
+旧检查/快照/专用装配器已随 T-ACCESS-062 删除，所有服务统一操作准入，模式配置字段不存在；退役部署的缓存与在途清理见 [退役手册](../../ops/runbook-api-retirement-062.md)。
 
 ---
 
@@ -846,10 +831,6 @@ record AuthCheckReq(String subjectTypeCode, String subjectExternalId,
                     String operationCode, String domainCode,
                     String codeType, String inheritMode,
                     Map<String, Object> context) {}
-
-record CheckInterfaceReq(String subjectTypeCode, String subjectExternalId,
-                         String serviceCode, String httpMethod,
-                         String path, Map<String, Object> context) {}
 
 record RoleResourcePermissionSaveReq(String domainCode, String roleTypeCode,
                                       String roleExternalId,
@@ -1064,7 +1045,7 @@ Map<String, PermissionGrantDomainService.GrantCheckResult> grantResults =
 后端全部业务键的统一构造/解析入口为 `perm-common` 的 `cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtil`（2026-09-07 收敛，格式由 `BusinessKeyUtilParityTest` 以 golden 值锁定——改格式即测试失败，不是运行时静默错配）。
 
 - **为什么收敛**：同一格式的构造与消费曾分散多类（类型解析缓存键由 TypeResolutionServiceImpl 写入、TypeDefinitionAppServiceImpl 失效，靠缓存目录册注释口头约定一致；转授检查五段键在授权域/授权计划域逐字重复实现），任一侧手改格式即静默错配。
-- **范围**：跨类格式契约键（类型解析缓存、操作位/操作编码、资源三段、转授五段、relationKey 解析、typeCode 生成码、对外权限串）+ 单文件内部映射键（主体/角色定位、关系去重、diff 去重、API 路由）——2026-09-07 用户定案 A+B 全收。**补收（2026-09-08，业务键统一定案）**：竖线分隔族入 BusinessKeyUtil——`roleProjectionIndexKey`/`userRoleTripleKey`（投影三元组）/`apiRouteResourceKey`（映射同步活跃键）/`apiEntryDedupKey`（快照去重四段）/`apiMappingPresenceKey`（bootstrap 缺行判定）——`scopeItemKey`（T-PERM-090）与 `permEntrySourceKey`/`inheritedEntryKey`（T-PERM-092）随唯一生产调用方（旧执行体）删除而注销；`sync_metadata.sync_key` 三段归 `SyncKeyCodecUtil.syncKey`（同步通道族），`resource_api_mapping.extra.syncKey` 两段随映射同步停写而注销 `apiMappingSyncKey`（T-ACCESS-058）。
+- **范围**：跨类格式契约键（类型解析缓存、操作位/操作编码、资源三段、转授五段、relationKey 解析、typeCode 生成码、对外权限串）+ 单文件内部映射键（主体/角色定位、关系去重、diff 去重、API 路由）——2026-09-07 用户定案 A+B 全收。**补收（2026-09-08，业务键统一定案）**：竖线分隔族入 BusinessKeyUtil——`roleProjectionIndexKey`/`userRoleTripleKey`（投影三元组）/`apiRouteResourceKey`（映射同步活跃键）/`apiMappingPresenceKey`（bootstrap 缺行判定）——`scopeItemKey`（T-PERM-090）与 `permEntrySourceKey`/`inheritedEntryKey`（T-PERM-092）随唯一生产调用方（旧执行体）删除而注销；`sync_metadata.sync_key` 三段归 `SyncKeyCodecUtil.syncKey`（同步通道族），`resource_api_mapping.extra.syncKey` 两段随映射同步停写而注销 `apiMappingSyncKey`（T-ACCESS-058）。
 - **出界（不经 BusinessKeyUtil）**：sync API 契约键（percent-encoded）归 access-service `SyncKeyCodecUtil`；缓存框架存储信封（common cache）；Gateway 本地快照键；登录计数/任务幂等/树写锁等基础设施键；错误文案与日志 summary 拼接，以及 SignatureVerifier 的基础设施签名载荷。
 - **放置依据**：落 perm-common 而非 access-service 自身 util，依据 §3 单一来源先例（PageResp/ItemsResp 同款）——SDK 侧（starter 测试夹具、未来投影数据）需与 access-service 同格式构造 relationKey 等键；任务卡 acceptance 明写「收敛到 perm-common」。
 - **TYPE_DEFINITION 实例投影（T-PERM-051 已落地 2026-09-07）**：`typeInstanceBusinessKey(typeKey, typeCode)` 复合键是实例投影与门禁的唯一构造入口（`LocalProjectionDomainService.upsertTypeDefinitionResource`/`TypeDefinitionAppServiceImpl` 全部消费方经此构造，不得裸拼）；语义与级联细节见 architecture §12.3。
@@ -1073,7 +1054,7 @@ Map<String, PermissionGrantDomainService.GrantCheckResult> grantResults =
 
 ### 8.2 大小写口径（T-PERM-066 定案：raw 严格化，2026-09-14）
 
-`operationCodeKey` 族**统一 raw 裸拼、不做大小写归一**——大写由入站 DTO `@Pattern("^[A-Z][A-Z0-9_]*$")` 在边界保证（400/90001 前置拒绝），小写/混合大小写/首尾空格在授权面与查询面**一致拒绝**（原「授权域 `toUpperCase()`/`trim()` 归一 → apply-grant-plan 传小写 `view` 可匹配 DB `VIEW` 授权成功；查询/解析域裸拼 → 同一份小写走 check/dependency 链路 20005 fail-closed 拒绝」的双语义已消除——授权域归一站点随 T-PERM-066 全部退役）。定义侧（operation-permission `code`、type-definition `typeCode`）同款 @Pattern 锁死，小写定义不可再建（未部署零存量）。覆盖面、边界（roleTypeCode/subjectTypeCode/domainCode/typeKey 不在锁范围；OrgQuery VIEW/CREATE 白名单与 check-interface 固定 ACCESS 维持既有口径）与守卫测试见总册 §2.5 T-PERM-066 注记；定案原文见 [历史定案原文](../../archive/2026-09-26/decision-registry-before.md) 2026-09-14 行。
+`operationCodeKey` 族**统一 raw 裸拼、不做大小写归一**——大写由入站 DTO `@Pattern("^[A-Z][A-Z0-9_]*$")` 在边界保证（400/90001 前置拒绝），小写/混合大小写/首尾空格在授权面与查询面**一致拒绝**（原「授权域 `toUpperCase()`/`trim()` 归一 → apply-grant-plan 传小写 `view` 可匹配 DB `VIEW` 授权成功；查询/解析域裸拼 → 同一份小写走 check/dependency 链路 20005 fail-closed 拒绝」的双语义已消除——授权域归一站点随 T-PERM-066 全部退役）。定义侧（operation-permission `code`、type-definition `typeCode`）同款 @Pattern 锁死，小写定义不可再建（未部署零存量）。覆盖面、边界（roleTypeCode/subjectTypeCode/domainCode/typeKey 不在锁范围；OrgQuery VIEW/CREATE 白名单维持既有口径）与守卫测试见总册 §2.5 T-PERM-066 注记；定案原文见 [历史定案原文](../../archive/2026-09-26/decision-registry-before.md) 2026-09-14 行。
 
 ### 8.3 D3 一致性核对结论（2026-09-07）
 

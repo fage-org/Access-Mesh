@@ -93,7 +93,6 @@ class BootstrapSeedWriterImpl implements BootstrapSeedWriter {
         config.setTenantId(tenantId);
         config.setServiceCode(LocalProjectionOwner.SERVICE_CODE);
         config.setName(BootstrapGraphDefinition.SERVICE_RESOURCE_NAME);
-        config.setApiAuthMode("OPERATION_ADMISSION");
         config.setStatus(1);
         config.setCreatedAt(LocalDateTime.now());
         config.setUpdatedAt(config.getCreatedAt());

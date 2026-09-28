@@ -1,16 +1,14 @@
 package cn.ac.fage.accessmesh.access.engine.service;
 
-import cn.ac.fage.accessmesh.perm.common.dto.req.InterfaceSnapshotReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.QueryResourcesReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.QueryScopesReq;
-import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryResourcesResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryScopesResp;
 
 /**
  * 权限查询应用服务接口
  * <p>
- * 提供高级查询功能：资源查询、范围查询、接口快照。
+ * 提供高级查询功能：资源查询、范围查询。
  * 从 PermissionServiceImpl 提取。
  * </p>
  */
@@ -34,13 +32,5 @@ public interface PermissionQueryAppService {
      */
     QueryScopesResp queryScopes(Long tenantId, QueryScopesReq req);
 
-    /**
-     * 接口快照查询
-     *
-     * @param tenantId 租户ID
-     * @param req      接口快照请求
-     * @return 接口快照响应
-     */
-    InterfaceSnapshotResp interfaceSnapshot(Long tenantId, InterfaceSnapshotReq req);
 
 }

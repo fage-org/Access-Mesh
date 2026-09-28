@@ -158,7 +158,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
      * 构建用户有效权限视图（getEffectivePermissionCodes 与 getEffectiveResourceAccess 的公共管线）。
      * <p>
      * 步骤：解析 userId → 新引擎 GRANT_LIST 全量事实（User 主体内部完成有效角色解析＋
-     * 互斥双删，等价旧 resolveJudgementRoleIds 入口，沿 T-PERM-090 interfaceSnapshot 先例）→
+     * 互斥双删，等价旧 resolveJudgementRoleIds 入口）→
      * 装配器按资源类型白名单过滤（排除 API 资源、包含 scope 权限、不分页）。
      * 任一前置步骤失败返回 null（调用方按「无权限」处理）。
      * </p>

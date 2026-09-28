@@ -12,14 +12,12 @@ export type ItemsResp<T> = {
   items: T[];
 };
 
-export type ApiAuthMode = "LEGACY_API" | "OPERATION_ADMISSION";
 export type RequiredPermission = {
   resourceTypeCode: string;
   operationCode: string;
 };
 
 export type ServiceConfigResp = {
-  apiAuthMode?: ApiAuthMode;
   id: number;
   tenantId?: number;
   serviceCode: string;
@@ -35,7 +33,6 @@ export type ServiceConfigResp = {
 };
 
 export type ServiceConfigSaveReq = {
-  apiAuthMode?: ApiAuthMode;
   serviceCode: string;
   name: string;
   basePath?: string | null;
@@ -113,7 +110,7 @@ export type SyncApiGroup = {
   apis: SyncApiItem[];
 };
 
-export type ServiceConfigSyncReq = {
+type ServiceInterfaceDeclaration = {
   serviceCode: string;
   basePath?: string | null;
   /** 当前权威契约仅允许 FULL。 */
@@ -127,7 +124,7 @@ export type SyncV2ApiItem = Omit<SyncApiItem, "requiredPermission"> & {
 };
 
 export type ServiceConfigSyncV2Req = Omit<
-  ServiceConfigSyncReq,
+  ServiceInterfaceDeclaration,
   "groups"
 > & {
   groups: Array<Omit<SyncApiGroup, "apis"> & { apis: SyncV2ApiItem[] }>;
@@ -240,18 +237,7 @@ export const removeApiMappings = async (ids: number[]): Promise<void> => {
   unwrap(res);
 };
 
-export const syncServiceInterfaces = async (
-  data: ServiceConfigSyncReq
-): Promise<ServiceConfigSyncResp> => {
-  const res = await http.request<R<ServiceConfigSyncResp>>(
-    "post",
-    "/api/access/service-config/sync",
-    { data }
-  );
-  return unwrap(res);
-};
-
-/** 新版声明独立端点，不自动改变服务鉴权模式。 */
+/** 接口登记与业务准入操作声明。 */
 export const syncServiceInterfacesV2 = async (
   data: ServiceConfigSyncV2Req
 ): Promise<ServiceConfigSyncResp> => {

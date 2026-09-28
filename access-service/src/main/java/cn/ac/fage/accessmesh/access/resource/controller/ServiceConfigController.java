@@ -6,7 +6,6 @@ import cn.ac.fage.accessmesh.perm.common.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigGetReq;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigApisReq;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigReq;
-import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigSyncReq;
 import cn.ac.fage.accessmesh.access.infrastructure.dto.EmptyReq;
 import cn.ac.fage.accessmesh.access.resource.dto.resp.ApiMappingResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
@@ -104,21 +103,6 @@ public class ServiceConfigController {
     public R<Void> deleteServiceConfig(@Valid @RequestBody IdsReq req) {
         serviceConfigAppService.deleteServiceConfigsByIds(TenantContextHolder.getTenantId(), req.ids(), null);
         return R.ok();
-    }
-
-    /**
-     * 同步服务API接口
-     * <p>
-     * 从服务实例自动同步API接口列表到权限中心。
-     * 服务启动时调用此接口注册其所有API，用于Gateway接口级权限校验。
-     * </p>
-     *
-     * @param req 服务同步请求，包含服务编码、API接口列表
-     * @return 同步结果，包含新增、更新、删除的接口数量
-     */
-    @PostMapping("/sync")
-    public R<ServiceConfigSyncResp> syncServiceConfig(@Valid @RequestBody ServiceConfigSyncReq req) {
-        return R.ok(serviceSyncAppService.syncInterfaces(TenantContextHolder.getTenantId(), req));
     }
 
     @PostMapping("/sync-v2")

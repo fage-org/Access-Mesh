@@ -45,7 +45,7 @@ public class GatewayProperties {
      * 这些路径直接放行，如认证接口、公开资源等。
      * T-GW-007：/actuator/** 移出白名单——actuator 经独立管理端口提供，主端口不再暴露。
      * T-ACCESS-042（外评 P2 收窄）：/api/access/auth/** 整族放行会罩住运行时鉴权六端点
-     * （check/batch-check/check-interface/query-resources/query-scopes/interface-snapshot——
+     * （check/batch-check/query-resources/query-scopes/interface-admission/interface-admission-snapshot——
      * 旧形态在 /perm/api/perm/auth/* 不匹配旧 /auth/**，非等价替换）；收窄为会话入口族
      * 精确清单，与 access-service SecurityWebMvcConfig 密钥豁免清单同源。
      * T-GW-009：纳入 /api/access/user/reset-password（自助改密通道，定案⑤）。
@@ -155,7 +155,7 @@ public class GatewayProperties {
         // T-ACCESS-059：操作准入在线判定（本地无通过分支回源/灰度强制在线用）
         private String interfaceAdmissionPath = "/api/access/auth/interface-admission";
         // T-ACCESS-059：操作准入快照（网关本地判定主路径；旧 check-interface/interface-snapshot
-        // 网关消费随无迁移期切换删除，服务端旧端点保留至 T-ACCESS-062 退役）
+        // 网关消费随无迁移期切换删除，服务端旧端点已退役）
         private String interfaceAdmissionSnapshotPath = "/api/access/auth/interface-admission-snapshot";
         private String unregisteredPolicy = "DENY";
         /**

@@ -2,9 +2,7 @@ package cn.ac.fage.accessmesh.access.engine.service.impl;
 
 import cn.ac.fage.accessmesh.perm.common.dto.req.AuthCheckReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq;
-import cn.ac.fage.accessmesh.perm.common.dto.req.CheckInterfaceReq;
 import cn.ac.fage.accessmesh.access.engine.dto.BatchAuthCheckResp;
-import cn.ac.fage.accessmesh.access.engine.dto.CheckInterfaceResp;
 import cn.ac.fage.accessmesh.access.engine.query.ByCode;
 import cn.ac.fage.accessmesh.access.engine.query.ByEntityId;
 import cn.ac.fage.accessmesh.access.engine.query.DecisionResult;
@@ -51,9 +49,9 @@ import static org.mockito.Mockito.when;
 /**
  * 权限检查应用服务测试类
  * <p>
- * check/batchCheck 随 T-PERM-089、checkInterface 随 T-PERM-090 走新 execute
+ * check/batchCheck 随 T-PERM-089 走新 execute
  * （外部响应断言保留作回归锁，另锁适配层请求形状：两档选择、inheritMode 映射、
- * 空白编码归一、原序/重复项、退化 context 保留键拒绝、LEGACY_API 共同集合
+ * 空白编码归一、原序/重复项、退化 context 保留键拒绝
  * TARGET_SET 形状与空实体引用 TYPE_LEVEL 退化）。
  * </p>
  */
@@ -68,111 +66,7 @@ class PermissionCheckAppServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new PermissionCheckAppServiceImpl(typeResolutionService, queryEngine, apiMappingMapper);
-    }
-
-    @Test
-    void shouldDenyWhenInterfaceNotRegistered() {
-        CheckInterfaceReq req = new CheckInterfaceReq("USER", "u-1", "example-service", "POST", "/api/user/list", Map.of());
-        when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
-        when(apiMappingMapper.selectForInterfaceCheck(any(), any(), any())).thenReturn(List.of());
-
-        CheckInterfaceResp resp = service.checkInterface(1L, req);
-
-        assertFalse(resp.allowed());
-        assertEquals("API_NOT_REGISTERED", resp.reason());
-        assertTrue(resp.matchedResources().isEmpty());
-    }
-
-    @Test
-    void shouldAllowWhenAnyMatchedMappingPasses() {
-        CheckInterfaceReq req = new CheckInterfaceReq("USER", "u-1", "example-service", "POST", "/api/user/list", Map.of());
-        when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
-
-        ResourceApiMapping m1 = new ResourceApiMapping();
-        m1.setResourceEntityId(100L);
-        m1.setPathPattern("/api/user/list");
-        ResourceApiMapping m2 = new ResourceApiMapping();
-        m2.setResourceEntityId(101L);
-        m2.setPathPattern("/api/user/list");
-        when(apiMappingMapper.selectForInterfaceCheck(any(), any(), any())).thenReturn(List.of(m1, m2));
-
-        // LEGACY_API 共同集合（T-PERM-090）：全部匹配 API 组成一个 TARGET_SET 单 item，
-        // 互斥候选同场判定（D02，不拆项 OR）；持 101 的 ACCESS 实例授权 → 允许
-        GrantFact allowEntry = new GrantFact(401L, 200L, 1, 101L, 1L, false, null, null, false, null, "MANUAL");
-        when(queryEngine.execute(any(QueryRequest.class))).thenReturn(result(
-            interfaceAllowItem(List.of(allowEntry))));
-
-        CheckInterfaceResp resp = service.checkInterface(1L, req);
-
-        assertTrue(resp.allowed());
-        assertEquals(1, resp.matchedResources().size());
-        CheckInterfaceResp.MatchedResource matched = resp.matchedResources().get(0);
-        assertTrue(matched.allowed());
-        // T-API-003：resourceId 与 matched id 字段族恢复回传（裁剪态下这些断言失败）
-        assertEquals(101L, matched.resourceId());
-        assertEquals("api:user:list:2", matched.resourceCode());
-        assertEquals("ACCESS", matched.operationCode());
-        assertEquals(List.of(200L), matched.matchedRoleIds());
-        assertEquals(List.of(401L), matched.matchedPermissionIds());
-
-        // 适配层请求形状锁：单 item TARGET_SET＝两 clause（全部匹配 API 组成一个共同集合）、
-        // SELF（API 扁平无判面继承）、TypeFallback.ALLOW（scopeAll 类型级放行，等价旧 INSTANCE 回退）
-        QueryRequest request = capturedRequest();
-        assertEquals(1, request.items().size());
-        QueryItem item = request.items().get(0);
-        assertEquals("checkInterface", item.key());
-        assertInstanceOf(TargetSet.class, item.selection());
-        TargetSet target = (TargetSet) item.selection();
-        assertEquals(2, target.clauses().size());
-        assertEquals(Set.of(new ByEntityId(100L), new ByEntityId(101L)),
-            target.clauses().stream().map(TargetClause::resource).collect(java.util.stream.Collectors.toSet()));
-        target.clauses().forEach(clause ->
-            assertEquals(new cn.ac.fage.accessmesh.access.engine.query.TypeOperation("API", "ACCESS"), clause.operation()));
-        assertEquals(Inheritance.SELF, target.inheritance());
-        assertEquals(TypeFallback.ALLOW, target.typeFallback());
-    }
-
-    @Test
-    void shouldDenyNoPermissionWhenResourceExists() {
-        CheckInterfaceReq req = new CheckInterfaceReq("USER", "u-1", "example-service", "POST", "/api/user/list", Map.of());
-        when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
-
-        ResourceApiMapping mapping = new ResourceApiMapping();
-        mapping.setResourceEntityId(100L);
-        mapping.setPathPattern("/api/user/list");
-        when(apiMappingMapper.selectForInterfaceCheck(any(), any(), any())).thenReturn(List.of(mapping));
-
-        DecisionResult deny = DecisionResult.deny("checkInterface", DecisionResult.Reason.NO_PERMISSION,
-            coverage(), ResultDetails.empty());
-        when(queryEngine.execute(any(QueryRequest.class))).thenReturn(result(deny));
-
-        CheckInterfaceResp resp = service.checkInterface(1L, req);
-
-        assertFalse(resp.allowed());
-        assertEquals("NO_PERMISSION", resp.reason());
-    }
-
-    @Test
-    void checkInterfaceMustFallBackToTypeLevelWhenNoMappingCarriesEntity() {
-        when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
-
-        // 数据异常退化：映射无实体引用（旧引擎空目标集下仅查 scopeAll 的行为等价物）——
-        // TYPE_LEVEL 单要求，不构造空 clause TARGET_SET（结构错误）
-        ResourceApiMapping dangling = new ResourceApiMapping();
-        dangling.setResourceEntityId(null);
-        dangling.setPathPattern("/api/user/list");
-        when(apiMappingMapper.selectForInterfaceCheck(any(), any(), any())).thenReturn(List.of(dangling));
-
-        GrantFact scopeAll = new GrantFact(409L, 26L, 1, null, 1L, true, null, null, false, null, "MANUAL");
-        when(queryEngine.execute(any(QueryRequest.class))).thenReturn(allowResult(List.of(26L), List.of(409L), scopeAll));
-
-        CheckInterfaceResp resp = service.checkInterface(1L, new CheckInterfaceReq(
-            "USER", "u-1", "example-service", "POST", "/api/user/list", Map.of()));
-
-        assertTrue(resp.allowed());
-        assertTrue(resp.matchedResources().isEmpty(), "scopeAll 类型级放行无实例行，matched 为空（沿旧形态）");
-        assertInstanceOf(TypeLevel.class, capturedRequest().items().get(0).selection());
+        service = new PermissionCheckAppServiceImpl(typeResolutionService, queryEngine);
     }
 
     @Test
@@ -362,24 +256,6 @@ class PermissionCheckAppServiceImplTest {
             Set.of(ResultDetails.DetailSection.MATCHED_IDS, ResultDetails.DetailSection.FACTS_KEPT),
             roleIds, permissionIds, List.of(new StageFacts(Stage.INSTANCE, List.of(retained),
                 List.of(retained), StageFacts.Status.PRESENT))));
-    }
-
-    /** checkInterface 允许项：保留事实（INSTANCE 阶段）＋描述块（资源业务键与操作目录）。 */
-    private static DecisionResult interfaceAllowItem(List<GrantFact> retained) {
-        ResultDetails.Descriptions descriptions = new ResultDetails.Descriptions(
-            Map.of(101L, new ResultDetails.ResourceDescription(101L, 1, "api:user:list:2",
-                "default", "用户列表API-2", null, null, 0, null, null, null)),
-            Map.of(),
-            Map.of(300L, new OperationDefinition(300L, 1, "ACCESS", "接口访问", 1L, 0L, 1L,
-                null, null, null, null, null, null, 0L)),
-            Map.of());
-        return DecisionResult.allow("checkInterface", coverage(), new ResultDetails(
-            Set.of(ResultDetails.DetailSection.MATCHED_IDS, ResultDetails.DetailSection.FACTS_KEPT,
-                ResultDetails.DetailSection.DESCRIPTIONS),
-            retained.stream().map(GrantFact::roleId).filter(Objects::nonNull).distinct().toList(),
-            retained.stream().map(GrantFact::permissionId).filter(Objects::nonNull).distinct().toList(),
-            List.of(new StageFacts(Stage.INSTANCE, List.of(), retained, StageFacts.Status.PRESENT)),
-            descriptions, List.of(), List.of(), new ResultDetails.ParentCheckSummary(List.of()), null));
     }
 
     private static EvaluationCoverage coverage() {

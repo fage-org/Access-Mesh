@@ -84,6 +84,35 @@ describe("授权页类型候选降级判定", () => {
     getConditionList.mockResolvedValue({ items: [] });
   });
 
+  it("API 登记类型不出现在授权类型候选或资源树中", async () => {
+    vi.stubGlobal("localStorage", { getItem: vi.fn(), setItem: vi.fn() });
+    getTypeDefList.mockResolvedValue({
+      items: [
+        { typeKey: "resource_type", typeCode: "API", sortOrder: 0 },
+        { typeKey: "resource_type", typeCode: "REPORT", sortOrder: 1 }
+      ]
+    });
+    getResourceTree.mockResolvedValue({
+      items: [
+        { root: { id: 1, resourceTypeCode: "API", children: [] } },
+        { root: { id: 2, resourceTypeCode: "REPORT", children: [] } }
+      ]
+    });
+    const hook = usePermissionGrant();
+    try {
+      await hook.retryLoadDeps();
+      await flush();
+      expect(hook.typeCandidates.value.map(t => t.typeCode)).toEqual([
+        "REPORT"
+      ]);
+      expect(hook.allResourceForest.value.map(t => t.resourceTypeCode)).toEqual(
+        ["REPORT"]
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("T-PERM-048 codex P2-4：refreshConditions 乱序守卫——旧响应晚归被丢弃（旧实现覆盖回过期列表）", async () => {
     const hook = usePermissionGrant();
     hook.retryLoadDeps();

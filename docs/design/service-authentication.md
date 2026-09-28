@@ -3,7 +3,7 @@ doc_type: design
 title: 公共服务认证模块（per-service credential）
 status: adopted
 domain: access-service
-last_reviewed: 2026-09-27
+last_reviewed: 2026-09-28（T-ACCESS-062：旧 /sync 删除、sync-v2 唯一入口）；此前 2026-09-27
 ---
 
 # 公共服务认证模块（per-service credential）设计
@@ -130,7 +130,7 @@ CREATE TABLE service_credential (
                         不含全部 sync 端点时永不可达）；SDK 拦截器默认注入凭证头
 ```
 
-接口声明新版 `POST /api/access/service-config/sync-v2` 纳入凭证白名单（T-ACCESS-058，2026-09-27）：凭证只能维护自身租户/服务，同时保留管理员的 SERVICE:SYNC_INTERFACE 门禁；旧共享密钥的纯服务身份不进入该新端点。旧 `/sync` 仍按原协议保留，后续统一退役。
+接口声明新版 `POST /api/access/service-config/sync-v2` 纳入凭证白名单（T-ACCESS-058，2026-09-27）：凭证只能维护自身租户/服务，同时保留管理员的 SERVICE:SYNC_INTERFACE 门禁；旧共享密钥的纯服务身份不进入该新端点。旧 `/sync` 端点已随 T-ACCESS-062 删除，接口声明唯一入口为 sync-v2。
 
 操作准入两端点 `POST /api/access/auth/interface-admission` / `interface-admission-snapshot` 纳入凭证白名单（T-ACCESS-059，2026-09-28）：**运行时查询族首批凭证化端点（Q-040 收敛方向）**——凭证调用受「serviceCode=凭证所属服务」约束（sync-v2 先例）；网关沿用内部密钥平台信任域形态（无 X-Service-Code 自报头，§3.2 TLS 段口径），旧密钥＋自报服务头的纯服务调用拒绝 403（同 sync-v2 的拦截器按 URI 拒绝形态）。
 

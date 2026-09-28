@@ -10,7 +10,6 @@ import cn.ac.fage.accessmesh.access.resource.dto.RequiredPermission;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ApiMappingAddReq;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigReq;
 import cn.ac.fage.accessmesh.access.resource.entity.ServiceConfig;
-import cn.ac.fage.accessmesh.access.resource.enums.ApiAuthMode;
 import cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper;
 import cn.ac.fage.accessmesh.access.resource.service.ResourceManageAppService;
 import cn.ac.fage.accessmesh.access.resource.service.ServiceConfigAppService;
@@ -140,8 +139,8 @@ class InterfaceAdmissionPgIT {
             + "VALUES (1, ?, 'VIEW', '查看', 2, 0) RETURNING id", Long.class, TYPE_VALUE);
         exportOpId = jdbc.queryForObject("INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask) "
             + "VALUES (1, ?, 'EXPORT', '导出', 4, 2) RETURNING id", Long.class, TYPE_VALUE);
-        jdbc.update("INSERT INTO service_config (tenant_id, service_code, name, api_auth_mode, status) "
-            + "VALUES (1, ?, '准入验收服务', 'OPERATION_ADMISSION', 1)", SERVICE);
+        jdbc.update("INSERT INTO service_config (tenant_id, service_code, name, status) "
+            + "VALUES (1, ?, '准入验收服务', 1)", SERVICE);
         // 每用例唯一 subject/role ID：引擎 EFFECTIVE_ROLES/ROLE_PERM_SNAPSHOT 为 L2 缓存，
         // 复用同 ID 会读到前序用例缓存的角色集（空/旧），无法用缓存失效验证判定语义
         long seq = SEQ.incrementAndGet();
@@ -308,14 +307,6 @@ class InterfaceAdmissionPgIT {
         assertThat(snapshot.operationCandidates()).isEmpty();
     }
 
-    @Test
-    void snapshotShouldRejectLegacyModeServiceAsConfigFault() {
-        // LEGACY_API（版本回退部署形态）按配置故障拒绝：准入端点不回落旧协议
-        jdbc.update("UPDATE service_config SET api_auth_mode = 'LEGACY_API' WHERE service_code = ?", SERVICE);
-        assertThatThrownBy(() -> admission.interfaceAdmissionSnapshot(TENANT, snapshotReq()))
-            .isInstanceOfSatisfying(BizException.class,
-                e -> assertThat(e.getErrorCode()).isEqualTo(20071));
-    }
 
     @Test
     void snapshotShouldReturnEmptySnapshotForDisabledOrUnregisteredService() {
@@ -340,6 +331,23 @@ class InterfaceAdmissionPgIT {
         Long api = registerApi("view");
         insertMapping(api, "POST", "/api/demo/view", viewOpId);
         jdbc.update("UPDATE resource_api_mapping SET required_operation_id = NULL WHERE service_code = ?", SERVICE);
+        assertThatThrownBy(() -> admission.interfaceAdmissionSnapshot(TENANT, snapshotReq()))
+            .isInstanceOfSatisfying(BizException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(20071));
+    }
+
+    @Test
+    void snapshotShouldTreatApiTypeRequirementAsConfigFault() {
+        // T-ACCESS-062 后 API 授权全灭：API 类型操作作准入要求恒无候选（绑定即恒 deny 死配置）——
+        // 读侧兜底报 20071 配置故障（写侧共用保存入口已拒绝，此处锁存量/直写脏数据形态；
+        // 旧实现只识别悬空/损坏引用，对 API 类型要求返回正常快照，本用例在其下失败）
+        Long apiAccessOpId = jdbc.queryForObject(
+            "SELECT op.id FROM operation_permission op WHERE op.tenant_id = 1 AND op.delete_flag = 0 "
+                + "AND op.code = 'ACCESS' AND op.resource_type = "
+                + "(SELECT type_value FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' "
+                + "AND type_code = 'API' AND delete_flag = 0)", Long.class);
+        Long api = registerApi("apireq");
+        insertMapping(api, "POST", "/api/demo/apireq", apiAccessOpId);
         assertThatThrownBy(() -> admission.interfaceAdmissionSnapshot(TENANT, snapshotReq()))
             .isInstanceOfSatisfying(BizException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(20071));
@@ -513,7 +521,7 @@ class InterfaceAdmissionPgIT {
             return invocation.callRealMethod();
         }).when(serviceConfigMapper).update(any(ServiceConfig.class));
         serviceConfigs.saveServiceConfig(TENANT, new ServiceConfigReq(
-            SERVICE, "改名不触代次", null, null, null, null, null, null, null, null), 100L);
+            SERVICE, "改名不触代次", null, null, null, null, null, null, null), 100L);
         assertThat(generation()).isEqualTo(base + 1);
     }
 
@@ -562,32 +570,6 @@ class InterfaceAdmissionPgIT {
             .containsExactly(SERVICE_OTHER);
     }
 
-    @Test
-    void modeSwitchShouldBumpGenerationBroadcastAndRecover() {
-        // N23 access 侧演练：模式切换（OA→LEGACY→OA）逐次同事务代次 +1、广播 serviceCodes；
-        // LEGACY 期间快照端点按 20071 配置故障信封（网关侧每请求回源 503、不缓存错误——
-        // 网关半边见 PermissionFilterTest），回切后本地快照恢复可构建（不依赖广播送达即恢复：
-        // 代次/模式以库为准，网关任一次拉取即读到新状态）
-        insertMapping(registerApi("n23"), "POST", "/api/n23", viewOpId);
-        long base = generation();
-
-        clearInvocations(invalidationPublisher);
-        serviceConfigs.saveServiceConfig(TENANT, new ServiceConfigReq(
-            SERVICE, "准入验收服务", null, null, null, null, null, null, null, ApiAuthMode.LEGACY_API), 100L);
-        assertThat(generation()).isEqualTo(base + 1);
-        assertThat(captureBroadcastServiceCodes()).containsExactly(SERVICE);
-        assertThatThrownBy(() -> admission.interfaceAdmissionSnapshot(TENANT, snapshotReq()))
-            .isInstanceOfSatisfying(BizException.class,
-                e -> assertThat(e.getErrorCode()).isEqualTo(20071));
-
-        clearInvocations(invalidationPublisher);
-        serviceConfigs.saveServiceConfig(TENANT, new ServiceConfigReq(
-            SERVICE, "准入验收服务", null, null, null, null, null, null, null, ApiAuthMode.OPERATION_ADMISSION), 100L);
-        assertThat(generation()).isEqualTo(base + 2);
-        assertThat(captureBroadcastServiceCodes()).containsExactly(SERVICE);
-        var snapshot = admission.interfaceAdmissionSnapshot(TENANT, snapshotReq());
-        assertThat(snapshot.routes()).extracting("pathPattern").contains("/api/n23");
-    }
 
     // ─── 身份约束与 HTTP 契约 ───
 

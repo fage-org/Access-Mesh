@@ -204,18 +204,23 @@ export function usePermissionGrant() {
       // 🔧 T-PERM-048：includeInline=true 含内联条件（回显内联名称/规则；选择器侧过滤 INLINE）
       await refreshConditions();
       typeCandidates.value = (typeResp.items ?? [])
-        .filter(t => t.typeKey === TYPE_KEY.RESOURCE_TYPE)
+        .filter(
+          t => t.typeKey === TYPE_KEY.RESOURCE_TYPE && t.typeCode !== "API"
+        )
         .sort((a, b) => a.sortOrder - b.sortOrder);
       allResourceForest.value = (treeResp.items ?? [])
+        .filter(it => it.root?.resourceTypeCode !== "API")
         .map(it => it.root)
         .filter(Boolean) as ResourceTreeNode[];
-      allOperationDefs.value = (opResp.items ?? []).map(op => ({
-        code: op.code,
-        name: op.name,
-        resourceTypeCode: op.resourceTypeCode,
-        binaryBit: op.binaryBit,
-        inheritMask: op.inheritMask
-      }));
+      allOperationDefs.value = (opResp.items ?? [])
+        .filter(op => op.resourceTypeCode !== "API")
+        .map(op => ({
+          code: op.code,
+          name: op.name,
+          resourceTypeCode: op.resourceTypeCode,
+          binaryBit: op.binaryBit,
+          inheritMask: op.inheritMask
+        }));
       depsLoaded = true;
     } catch (error: any) {
       message(error.message || "加载基础数据失败", { type: "error" });

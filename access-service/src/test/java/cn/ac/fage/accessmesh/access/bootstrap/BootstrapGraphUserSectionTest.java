@@ -25,10 +25,7 @@ class BootstrapGraphUserSectionTest {
     @Test
     @DisplayName("固定图 USER 意外出现 MANAGE 行，违反换绑边界")
     void userSectionMustStayFineGrainedWithoutManage() {
-        List<BootstrapGraphDefinition.GrantSpec> all = Stream.concat(
-                BootstrapGraphDefinition.businessGrants().stream(),
-                BootstrapGraphDefinition.apiAccessGrants().stream())
-            .toList();
+        List<BootstrapGraphDefinition.GrantSpec> all = BootstrapGraphDefinition.allGrants();
 
         Set<String> userOps = all.stream()
             .filter(g -> ResourceTypeCode.USER.equals(g.resourceTypeCode()))

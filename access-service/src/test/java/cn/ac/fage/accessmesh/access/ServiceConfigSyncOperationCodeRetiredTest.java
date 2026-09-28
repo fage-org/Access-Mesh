@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.access;
 
 import cn.ac.fage.accessmesh.access.AccessServiceApplication;
 import cn.ac.fage.accessmesh.access.AccessServiceApplicationTest;
-import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigSyncReq;
+import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigSyncV2Req;
 import cn.ac.fage.accessmesh.access.resource.dto.resp.ServiceConfigSyncResp;
 import cn.ac.fage.accessmesh.access.resource.service.ServiceSyncAppService;
 import cn.ac.fage.accessmesh.common.enums.GlobalErrorCode;
@@ -65,6 +65,20 @@ class ServiceConfigSyncOperationCodeRetiredTest {
 
     private static final String INTERNAL_SECRET = "test-internal-secret-for-sync-operation-code-retired";
 
+    private static org.springframework.http.HttpHeaders signedUserHeaders() throws Exception {
+        long timestamp = System.currentTimeMillis() / 1000;
+        var mac = javax.crypto.Mac.getInstance("HmacSHA256");
+        mac.init(new javax.crypto.spec.SecretKeySpec("test-signature-secret-for-sync-operation-code-retired"
+            .getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256"));
+        String signature = java.util.HexFormat.of().formatHex(mac.doFinal(("100|1|" + timestamp)
+            .getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        var headers = new org.springframework.http.HttpHeaders();
+        headers.add("X-User-Id", "100");
+        headers.add("X-User-Signature", signature);
+        headers.add("X-Signature-Timestamp", String.valueOf(timestamp));
+        return headers;
+    }
+
     /** 唯一活跃调用方为管理前端服务接口配置页；此处以 SERVICE 凭证身份直达端点（业务层 mock）。 */
     @Autowired
     private MockMvc mockMvc;
@@ -75,7 +89,7 @@ class ServiceConfigSyncOperationCodeRetiredTest {
     @Test
     @DisplayName("锁步后载荷：不含 operationCode 反序列化成功，其余字段全量到达业务层")
     void sync_withoutOperationCode_accepted() throws Exception {
-        when(serviceSyncAppService.syncInterfaces(eq(1L), org.mockito.ArgumentMatchers.any(ServiceConfigSyncReq.class)))
+        when(serviceSyncAppService.syncInterfacesV2(eq(1L), org.mockito.ArgumentMatchers.any(ServiceConfigSyncV2Req.class)))
             .thenReturn(new ServiceConfigSyncResp(1, 0, 1, 0, 0, 0));
         String body = """
             {
@@ -91,26 +105,27 @@ class ServiceConfigSyncOperationCodeRetiredTest {
                       "httpMethod": "POST",
                       "path": "/api/demo/list",
                       "resourceCode": "my-svc:demo:list",
-                      "description": "示例"
+                      "description": "示例",
+                      "requiredPermission": {"resourceTypeCode":"REPORT","operationCode":"VIEW"}
                     }
                   ]
                 }
               ]
             }
             """;
-        mockMvc.perform(post("/api/access/service-config/sync")
+        mockMvc.perform(post("/api/access/service-config/sync-v2")
+                .headers(signedUserHeaders())
                 .header("X-Tenant-Id", "1")
                 .header("X-Internal-Secret", INTERNAL_SECRET)
-                .header("X-Service-Code", "my-svc")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.code").value(200))
             .andExpect(jsonPath("$.data.createdMappings").value(1));
 
-        ArgumentCaptor<ServiceConfigSyncReq> captor = ArgumentCaptor.forClass(ServiceConfigSyncReq.class);
-        verify(serviceSyncAppService).syncInterfaces(eq(1L), captor.capture());
-        ServiceConfigSyncReq.ApiItem api = captor.getValue().groups().get(0).apis().get(0);
+        ArgumentCaptor<ServiceConfigSyncV2Req> captor = ArgumentCaptor.forClass(ServiceConfigSyncV2Req.class);
+        verify(serviceSyncAppService).syncInterfacesV2(eq(1L), captor.capture());
+        ServiceConfigSyncV2Req.ApiItem api = captor.getValue().groups().get(0).apis().get(0);
         assertThat(api.name()).isEqualTo("查询列表");
         assertThat(api.httpMethod()).isEqualTo("POST");
         assertThat(api.path()).isEqualTo("/api/demo/list");
@@ -143,10 +158,10 @@ class ServiceConfigSyncOperationCodeRetiredTest {
               ]
             }
             """;
-        mockMvc.perform(post("/api/access/service-config/sync")
+        mockMvc.perform(post("/api/access/service-config/sync-v2")
+                .headers(signedUserHeaders())
                 .header("X-Tenant-Id", "1")
                 .header("X-Internal-Secret", INTERNAL_SECRET)
-                .header("X-Service-Code", "my-svc")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))
             // 信封码断言锁定 400 + 90001 形态（HttpMessageNotReadable 通道；负向载荷

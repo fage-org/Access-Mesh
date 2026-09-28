@@ -23,7 +23,6 @@ defineOptions({ name: "ServiceInterfaceMappingForm" });
 const props = defineProps<{
   mode: "create" | "edit";
   serviceCode: string;
-  apiAuthMode?: "LEGACY_API" | "OPERATION_ADMISSION";
   initialData?: ApiMappingResp | null;
 }>();
 
@@ -54,9 +53,7 @@ const {
     const code = formData.requiredResourceTypeCode;
     if (!code) return [];
     const result = await getOperationList({ resourceTypeCode: code });
-    return result.items.filter(
-      op => !(op.resourceTypeCode === "API" && op.code === "ACCESS")
-    );
+    return result.items.filter(op => op.resourceTypeCode !== "API");
   }
 });
 
@@ -96,7 +93,8 @@ async function loadResourceTypes() {
   try {
     const res = await getTypeDefList({ typeKey: TYPE_KEY.RESOURCE_TYPE });
     resourceTypes.value = res.items
-      .filter(t => t.typeKey === TYPE_KEY.RESOURCE_TYPE)
+      // API 类型仅用于接口登记，不作准入要求（作要求恒无候选=T-ACCESS-062 后死配置）
+      .filter(t => t.typeKey === TYPE_KEY.RESOURCE_TYPE && t.typeCode !== "API")
       .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
   } catch {
     resourceTypes.value = [];
@@ -123,9 +121,7 @@ const editingResourceDisplay = computed(() => {
 const rules = computed<FormRules>(() => ({
   requiredResourceTypeCode: [
     {
-      required:
-        props.apiAuthMode === "OPERATION_ADMISSION" ||
-        !!props.initialData?.requiredPermission,
+      required: true,
       message: "请选择业务资源类型",
       trigger: "change"
     }
@@ -267,10 +263,7 @@ defineExpose({ validate, getFormData });
       <el-select
         v-model="formData.requiredResourceTypeCode"
         class="w-full!"
-        :clearable="
-          !initialData?.requiredPermission &&
-          apiAuthMode !== 'OPERATION_ADMISSION'
-        "
+        :clearable="false"
         placeholder="选择业务资源类型"
         @change="onRequiredTypeChange"
       >

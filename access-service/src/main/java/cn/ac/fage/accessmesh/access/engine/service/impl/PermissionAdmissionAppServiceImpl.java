@@ -55,8 +55,8 @@ import java.util.Set;
  * 变更即废弃重建）；代次复读走独立 {@code selectConfigGeneration} 语句且
  * flushCache=true 强制落库——仅独立语句不够：同语句同参数二次调用仍会命中
  * MyBatis SESSION 级一级缓存，自一致比对恒相等（2026-09-28 外评核实修正）。
- * 代次稳定后另有终校验（独立 {@code selectAuthState} 语句复读启停+模式）：入口校验
- * 与首次代次读之间切模式/停用不改变代次比对结果，须在返回前确认服务状态仍适用。
+ * 代次稳定后另有终校验（独立 {@code selectAuthState} 语句复读启停）：入口校验
+ * 与首次代次读之间停用不改变代次比对结果，须在返回前确认服务状态仍适用。
  * 要求解析按映射集一次批量完成（操作行 + 类型反查各一条，禁止逐路由点查）。
  * </p>
  */
@@ -102,7 +102,6 @@ public class PermissionAdmissionAppServiceImpl implements PermissionAdmissionApp
             // 未登记/停用＝该服务无参与授权的路由（沿 check-interface 无注册拒绝口径）
             return InterfaceAdmissionResp.notRegistered();
         }
-        requireOperationAdmissionMode(config);
         Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
         if (userId == null) return InterfaceAdmissionResp.userNotFound();
 
@@ -141,11 +140,10 @@ public class PermissionAdmissionAppServiceImpl implements PermissionAdmissionApp
         if (config == null || config.getStatus() == null || config.getStatus() != 1) {
             // 未登记/停用＝该服务无参与授权的路由：空路由成功快照，网关本地无命中按
             // 无注册匹配拒绝（DENY→403），与在线端点 notRegistered 语义对称（2026-09-28
-            // 外评拍板：20071 仅保留给 LEGACY 模式异常与引用损坏——停用是例行管理操作，
+            // 外评拍板：20071 仅保留给引用损坏等配置故障——停用是例行管理操作，
             // 抛 20071 会使网关对该服务全量 503 重试风暴）
             return emptySnapshot(tenantId, req, config, config == null ? 0L : config.getConfigGeneration());
         }
-        requireOperationAdmissionMode(config);
         Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
 
         for (int attempt = 1; attempt <= MAX_BUILD_ATTEMPTS; attempt++) {
@@ -165,15 +163,14 @@ public class PermissionAdmissionAppServiceImpl implements PermissionAdmissionApp
                 continue;
             }
             // 终校验（代次保护的完备面）：代次比对只覆盖首次代次读之后的变更，入口校验与
-            // 首次代次读之间切模式/停用会使代次前后一致但状态已变——强制落库复读确认
-            // 仍在启用且 OPERATION_ADMISSION，把配置校验纳入每次构建的保护范围
+            // 首次代次读之间停用会使代次前后一致但状态已变——强制落库复读确认
+            // 仍在启用，把配置校验纳入每次构建的保护范围
             ServiceConfig authState = serviceConfigMapper.selectAuthState(tenantId, req.serviceCode());
             if (authState == null || authState.getStatus() == null || authState.getStatus() != 1) {
                 log.info("Admission snapshot build hit disabled/unregistered service at final check (tenant={}, service={})",
                     tenantId, req.serviceCode());
                 return emptySnapshot(tenantId, req, authState, generationAfter);
             }
-            requireOperationAdmissionMode(authState);
             LocalDateTime generatedAt = LocalDateTime.now();
             return snapshotAssembler.assemble(tenantId, req, generationAfter, generatedAt,
                 generatedAt.plus(SNAPSHOT_TTL), routes, candidates);
@@ -232,14 +229,6 @@ public class PermissionAdmissionAppServiceImpl implements PermissionAdmissionApp
     private long readGeneration(Long tenantId, String serviceCode) {
         Long generation = serviceConfigMapper.selectConfigGeneration(tenantId, serviceCode);
         return generation == null ? -1L : generation;
-    }
-
-    private void requireOperationAdmissionMode(ServiceConfig config) {
-        if (!"OPERATION_ADMISSION".equals(config.getApiAuthMode())) {
-            throw new BizException(AccessErrorCode.ADMISSION_CONFIG_FAULT.getCode(),
-                "服务鉴权模式为 " + config.getApiAuthMode()
-                    + "（OPERATION_ADMISSION 端点不服务 LEGACY_API，不回落旧协议）: " + config.getServiceCode());
-        }
     }
 
     /**

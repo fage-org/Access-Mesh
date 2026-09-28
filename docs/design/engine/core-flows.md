@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 核心流程链路
 status: adopted
 domain: access-service
-last_reviewed: 2026-09-26
+last_reviewed: 2026-09-28
 ---
 
 # Permission Center 核心流程链路
@@ -68,7 +68,7 @@ flowchart LR
 | 步骤 | 接口                                       | 关键入参                          | 结果               |
 | ---- | ------------------------------------------ | --------------------------------- | ------------------ |
 | 1    | `POST /api/access/service-config/save`       | `serviceCode + basePath + name`   | 注册或更新服务     |
-| 2    | `POST /api/access/service-config/sync`       | `syncMode=FULL + groups[].apis[]` | 全量同步服务接口   |
+| 2    | `POST /api/access/service-config/sync-v2`    | `syncMode=FULL + groups[].apis[]`（每条必填 `requiredPermission`） | 全量同步服务接口   |
 | 3    | `POST /api/access/service-config/apis`       | `serviceCode`                     | 查看服务接口映射列表 |
 | 4    | `POST /api/access/resource-api-mapping/list` | `serviceCode` 或 `resourceId`     | 查看接口映射       |
 
@@ -171,7 +171,6 @@ QueryExecutionEngine.execute(QueryRequest)
 
 **内部 `scopeAll` 作为一等权限维度，对外统一映射为 `scopeMode`**：
 
-- `SnapshotAssembler`：内部 `scopeAll` 条目展开为该 serviceCode 全部 enabled 注册路由的 `scopeMode=INSTANCE` 条目（不输出 ALL 通配——类型级 API 授权语义=「全部已注册 API」，未注册接口维持默认拒绝，S02）；实例级条目经 API 映射组装 `scopeMode=INSTANCE`。
 - `PermViewAssembler`：按 `resourceType` 分组输出全量范围视图项，对外使用 `scopeMode=ALL`，例如 `DATA_EDIT + DEPT + scopeMode=ALL` 表示可编辑全部部门范围。
 
 **两语义拆分**（T-PERM-057，Q1 定案）：
@@ -231,13 +230,13 @@ QueryExecutionEngine.execute(QueryRequest)
 | `CONDITION_NOT_MET`  | 条件不满足                   |
 | `CONFLICT_DETECTED`  | 权限互斥导致失效（角色互斥不产生本 reason——双删后无角色走 `NO_ROLE`；角色互斥双删另行记 CONFLICT_DETECTED **操作日志**，T-PERM-063） |
 
-**Gateway 接口权限检查**：Gateway 调用 `POST /api/access/auth/check-interface`，服务端匹配 API 映射后经一个 TARGET_SET 单 item（全部匹配 API 共同集合，SELF＋TypeFallback.ALLOW）做 `API.ACCESS` 判定（T-PERM-090），不额外叠加其他资源类型 VIEW 门禁。
+**Gateway 操作准入**：使用完整路由与业务操作要求做 ADMISSION_CANDIDATES 存在性判定，准入通过后业务仍须检查实际目标；协议见契约总册 §25。旧 API:ACCESS 在线/快照协议已退役。
 
 > **注意（历史注记）**：原 `getEffectivePermissions` 的权限门禁从 `SYSTEM_CONFIG.VIEW` 改为按 targetType 对应的资源类型 VIEW 权限判定（T-PERM-033 定案；端点已随 T-PERM-059 删除，2026-09-10，门禁先例由 check 族与审计端点延续）。
 
 ## 10. 场景七：业务服务 SDK 鉴权与权限查询
 
-目标：业务服务既能判断单个动作是否允许，也能查询用户可操作资源集合和数据范围。SDK 运行时接口入参不依赖权限中心内部数据库 ID，也不依赖管理端解释端点（原 `permission-view/*` 已随 T-PERM-059 删除，2026-09-10）；响应面按统一引擎消费方模型分族——check 族（check/batch-check/check-interface）回传结果记录（matchedRoleIds/matchedPermissionIds/matchedResources[].resourceId，T-API-003 推翻 T-API-002 的 check 族裁剪），Query\* 响应族不泄漏内部 id（T-API-002 终态维持）。
+目标：业务服务既能判断单个动作是否允许，也能查询用户可操作资源集合和数据范围。SDK 运行时接口入参不依赖权限中心内部数据库 ID，也不依赖管理端解释端点（原 `permission-view/*` 已随 T-PERM-059 删除，2026-09-10）；响应面按统一引擎消费方模型分族——check 族（check/batch-check）回传结果记录（matchedRoleIds/matchedPermissionIds，T-API-003 推翻 T-API-002 的 check 族裁剪），Query\* 响应族不泄漏内部 id（T-API-002 终态维持）。
 
 | 能力           | 接口                                  | 典型场景                                                     | 结果                          |
 | -------------- | ------------------------------------- | ------------------------------------------------------------ | ----------------------------- |
@@ -310,8 +309,8 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 
 | 步骤 | 接口                                 | 关键入参                       | 结果                   |
 | ---- | ------------------------------------ | ------------------------------ | ---------------------- |
-| 1    | `POST /api/access/service-config/sync` | 新的 FULL 接口列表             | 权限中心计算 diff      |
-| 2    | 自动处理                             | 新接口创建 API 资源和映射      | 可被授权               |
+| 1    | `POST /api/access/service-config/sync-v2` | 新的 FULL 接口列表（每条必填业务操作要求） | 权限中心计算 diff      |
+| 2    | 自动处理                             | 新接口创建 API 资源和映射      | 可被授权（API 登记不产生授权，准入按业务操作要求评估） |
 | 3    | 自动处理                             | 删除接口软删映射和自动创建资源 | Gateway 不再匹配旧接口 |
 | 4    | 自动处理                             | 影响 API mapping / API 资源的 serviceCode | 广播 `PermInvalidateEvent.serviceCodes`，Gateway 清本地快照 |
 | 5    | `POST /api/access/service-config/apis` | `serviceCode`                  | 验证最新接口映射列表     |
@@ -408,8 +407,8 @@ resource_dependency.resource_entity_id 是源，depends_on_resource_entity_id �
 | 通用权限服务   | 外部系统只使用稳定业务键即可完成主体同步、授权和鉴权                                                  |
 | 接口规范统一   | 全部接口走 `/api/access/*`，无 RESTful Path 参数，无 body `tenantId`                                    |
 | SaaS 多租户    | 所有查询和写入都强制带 `X-Tenant-Id`，接口映射也按租户过滤                                            |
-| Gateway 可接入 | `interface-admission`/`interface-admission-snapshot` 使用 serviceCode、method、原始 path（T-ACCESS-059）；`check-interface` 为 LEGACY_API 旧协议（062 退役） |
-| SDK 可接入     | `auth/check`、`auth/batch-check`、`auth/query-resources`、`auth/query-scopes` 入参全部走业务键、不要求内部数据库 ID；响应面 check 族（含 Gateway 复用的 `check-interface`）按 T-API-003（2026-09-09 定案推翻 T-API-002 check 族裁剪）回传结果记录（matchedRoleIds/matchedPermissionIds/matchedResources[].resourceId），Query\* 响应族不泄漏内部 id（T-API-002 终态维持）   |
+| Gateway 可接入 | `interface-admission`/`interface-admission-snapshot` 使用 serviceCode、method、原始 path（T-ACCESS-059）；旧接口检查协议已退役 |
+| SDK 可接入     | `auth/check`、`auth/batch-check`、`auth/query-resources`、`auth/query-scopes` 入参全部走业务键、不要求内部数据库 ID；响应面 check 族按 T-API-003（2026-09-09 定案推翻 T-API-002 check 族裁剪）回传结果记录（matchedRoleIds/matchedPermissionIds），Query\* 响应族不泄漏内部 id（T-API-002 终态维持）   |
 | 管理端可解释   | 权限视图、操作日志、变更日志能解释授权来源和变更历史                                                  |
 | 数据权限可表达 | `depend_on` 子权限和直接范围权限共同表达主资源上下文内的有效范围，运行时通过 `auth/query-scopes` 查询 |
 | 接口同步简单   | 首期只有 FULL 同步，接入服务不需要维护增量事件                                                        |
@@ -421,8 +420,6 @@ resource_dependency.resource_entity_id 是源，depends_on_resource_entity_id �
 - `type_definition.type_value` 必须在同一 `tenant_id + type_key` 内全局唯一，不能按业务域重复分配相同值。
 - `operationCode` 在解析时必须结合 `resourceTypeCode`，避免不同资源类型下同名操作产生歧义。
 - `resourceCode` 必须结合 `resourceTypeCode + codeType` 解析，避免多编码歧义（`domainCode` 不参与资源解析， P2-2 同步）。
-- `check-interface` 查询 `resource_api_mapping` 必须带 `tenant_id`。
-- `check-interface` 命中同一路径的多个资源映射时采用 OR 语义，任一映射资源权限通过即允许；响应必须使用 `matchedResources[]` 表达所有命中映射资源。
 - `auth/query-resources` 和 `auth/query-scopes` 必须复用 `auth/check` 的鉴权计算链路，避免查询结果和布尔鉴权结果不一致。
 - `role_resource_permission.scope_all` 必须显式参与查询结果，不能用空结果或特殊资源编码隐式表示全量范围。
 - `canManage=true` 只允许授权同一条权限，不能扩大资源、操作或范围；可授权对象候选范围由业务服务控制。

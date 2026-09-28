@@ -11,7 +11,6 @@ import {
   removeApiMappings,
   removeServiceConfigs,
   saveServiceConfig,
-  syncServiceInterfaces,
   syncServiceInterfacesV2,
   updateApiMapping,
   type ApiMappingResp,
@@ -22,7 +21,6 @@ import type {
   ServiceConfigFormData,
   ServiceSummary
 } from "./types";
-import type { ServiceConfigSyncReq } from "@/api/service-interface";
 
 /**
  * 服务与接口映射页的状态编排。
@@ -211,7 +209,6 @@ export function useServiceInterface() {
         basePath: form.basePath || null,
         description: form.description || null,
         status: form.status,
-        apiAuthMode: form.apiAuthMode,
         extra: form.extra.trim() || null,
         basePathClear: original?.basePath != null && !form.basePath,
         descriptionClear: original?.description != null && !form.description,
@@ -389,13 +386,10 @@ export function useServiceInterface() {
   }
 
   async function runFullSync(
-    submission: import("./types").SyncSubmission
+    request: import("./types").SyncSubmission
   ): Promise<ServiceConfigSyncResp | null> {
     try {
-      const result =
-        submission.version === 2
-          ? await syncServiceInterfacesV2(submission.request)
-          : await syncServiceInterfaces(submission.request);
+      const result = await syncServiceInterfacesV2(request);
       await loadDirectory();
       return result;
     } catch (error: unknown) {

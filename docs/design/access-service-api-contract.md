@@ -6,7 +6,7 @@ domain: cross-service
 supersedes:
   - docs/design/permission-center/api-contract.md
   - docs/design/services/admin-service-api-contract.md
-last_reviewed: 2026-09-27
+last_reviewed: 2026-09-28
 ---
 
 # access-service API 契约总册
@@ -138,11 +138,11 @@ last_reviewed: 2026-09-27
 
 ### 2.5 入参约束集中注记（批量上限与 Req 单源 T-PERM-065 / 码值大写 T-PERM-066）
 
-**operationCode/resourceTypeCode 族入参大写（T-PERM-066，2026-09-14 定案 raw 严格化）**：operationCode 族字段（`operationCode`/`operationCodes`/`parentOperationCodes`/`sourceOperationCodes`/`requiredOperationCodes`/`scopeOperationCodes` 等）与同链路的 `resourceTypeCode` 族字段（含 `resourceTypeCodes`/`scopeResourceTypeCodes` 复数形）统一 `@Pattern("^[A-Z][A-Z0-9_]*$")`——小写/混合大小写/含首尾空格一律 **400（90001，Bean Validation 层）**，不进解析链路。覆盖：`auth/check`、`auth/batch-check`（含 item 与请求级 parent 链）、`auth/query-scopes`（parent/scope 四列表）、`auth/query-resources`、`user-effective-permission-codes`、`role-resource-permission/apply-grant-plan`（`recordKey` 主键与 `children` 嵌套级联）、`integration/permission-manifest/full-sync`（source/target 类型码及源/目标操作码列表）、`operation-permission` create/update/detail/remove（`code`）、`type-definition` create（`typeCode`，可选——null 与空串放行走留空生成分支（`^$` 显式放行，grok 外评 P2 处置），非空值须大写）。**定义侧同款锁死**：小写操作码/类型码定义自本批不可再建（未部署零存量迁移；服务端自动生成的 typeCode 恒大写）。授权域旧 `toUpperCase/trim` 归一已随本批退役——两域统一 raw 裸拼，小写不再存在「授权面（apply-grant-plan 经归一）静默成功、查询面 20005 fail-closed 拒绝」的双语义。守卫：`OperationCodeCaseValidationTest` 行为锁（旧实现无注解必红）+ `PermCommonReqContractTest` 注解签名快照。边界（不锁面）：`roleTypeCode`/`subjectTypeCode`/`domainCode`/`typeKey` 不在本锁范围（两域一致 raw，值域口径另议）；**仅含 `resourceTypeCode` 的纯查询/资源实体 CRUD 面不加锁**（`operation-permission/list`、`resource-entity` list/tree/detail/create/update/key 族、`resource-dependency/check` 等——两域一致 raw，非授权/查询不对称面）。`/api/access/org/tree` 的 `operationCode`（VIEW/CREATE 白名单 10008）与 check-interface 固定 `ACCESS` 维持既有严格口径。SDK 消费方（perm-common 单源）随注解同批生效——客户端启用 bean validation 时构造期即拒绝。
+**operationCode/resourceTypeCode 族入参大写（T-PERM-066，2026-09-14 定案 raw 严格化）**：operationCode 族字段（`operationCode`/`operationCodes`/`parentOperationCodes`/`sourceOperationCodes`/`requiredOperationCodes`/`scopeOperationCodes` 等）与同链路的 `resourceTypeCode` 族字段（含 `resourceTypeCodes`/`scopeResourceTypeCodes` 复数形）统一 `@Pattern("^[A-Z][A-Z0-9_]*$")`——小写/混合大小写/含首尾空格一律 **400（90001，Bean Validation 层）**，不进解析链路。覆盖：`auth/check`、`auth/batch-check`（含 item 与请求级 parent 链）、`auth/query-scopes`（parent/scope 四列表）、`auth/query-resources`、`user-effective-permission-codes`、`role-resource-permission/apply-grant-plan`（`recordKey` 主键与 `children` 嵌套级联）、`integration/permission-manifest/full-sync`（source/target 类型码及源/目标操作码列表）、`operation-permission` create/update/detail/remove（`code`）、`type-definition` create（`typeCode`，可选——null 与空串放行走留空生成分支（`^$` 显式放行，grok 外评 P2 处置），非空值须大写）。**定义侧同款锁死**：小写操作码/类型码定义自本批不可再建（未部署零存量迁移；服务端自动生成的 typeCode 恒大写）。授权域旧 `toUpperCase/trim` 归一已随本批退役——两域统一 raw 裸拼，小写不再存在「授权面（apply-grant-plan 经归一）静默成功、查询面 20005 fail-closed 拒绝」的双语义。守卫：`OperationCodeCaseValidationTest` 行为锁（旧实现无注解必红）+ `PermCommonReqContractTest` 注解签名快照。边界（不锁面）：`roleTypeCode`/`subjectTypeCode`/`domainCode`/`typeKey` 不在本锁范围（两域一致 raw，值域口径另议）；**仅含 `resourceTypeCode` 的纯查询/资源实体 CRUD 面不加锁**（`operation-permission/list`、`resource-entity` list/tree/detail/create/update/key 族、`resource-dependency/check` 等——两域一致 raw，非授权/查询不对称面）。`/api/access/org/tree` 的 `operationCode`（VIEW/CREATE 白名单 10008）维持既有严格口径。SDK 消费方（perm-common 单源）随注解同批生效——客户端启用 bean validation 时构造期即拒绝。
 
 **批量上限 1000（SDK 公开契约，2026-09-12 登记）**：进入权限引擎批量入口的列表型字段一律 `@Size(max = 1000)`（超限 400，Bean Validation 层拒绝，不进引擎）。覆盖：`user-role/assign` 的 `items`、`user-role/revoke` 的 `items`、`resource-entity/batch-create` 的 `items`（**仅封规模**——嵌套项不级联校验，畸形项走服务端宽容收集逐条跳过、部分成功语义为有意设计，2026-09-12 用户拍板维持）、perm 家族 `IdsReq.ids` 批量端点族（abstract-role/remove、abstract-user/remove、biz-domain/remove、conflict-rule/remove、domain-config/remove、resource-api-mapping/remove、service-config/remove、type-definition/remove）、`auth/batch-check` 的 `items`、`AuthCheckReq/BatchAuthCheckReq` 的 `parentOperationCodes`。SDK 消费方（perm-common）与服务端同限值（`BatchEntrySizeValidationTest` 行为锁 + `PermCommonReqContractTest` 注解签名快照双守卫）。管理面家族批删端点（`/api/access/dict/type/delete` 等）不进引擎闭包，**不设此限**（2026-09-12 用户拍板不换绑）。`integration/permission-manifest/full-sync` 的 `dependencies`/`requires` 清单同**不设此限**（2026-09-21 拍板豁免登记：发布通道天然大批量、非引擎批量入口——清单完整性是协议语义〔含完整空清单〕，规模由源侧快照完整性与部署侧报文限制约束，4,370 目标项清单为已验证设计预期；与资源 full-sync `items` 同族）。
 
-**Req 单源（DTO 双轨收敛）**：原 access-service `permission/dto/req` 与 perm-common `dto/req` 双轨维护的 17 对同名 Req 已收敛——服务端 Controller/AppService 与 SDK 消费方统一消费 perm-common 类型（`AuthCheckReq`、`BatchAuthCheckReq`、`CheckInterfaceReq`、`IdReq`、`IdsReq`、`OperationListReq`、`ResourceBatchCreateReq`、`ResourceCreateReq`、`ResourceKeyReq`、`ResourceKeysReq`、`ResourceUpdateReq`、`RoleCreateReq`、`RoleDetailReq`、`RoleListReq`、`UserAssignRoleReq`、`UserRoleBatchRevokeReq`、`UserRoleListReq`），access-service 侧副本删除。SDK 侧 T-PERM-028 同批漏改三处同步修复为服务端业务键定稿形态：`ResourceUpdateReq`（update，原 id 定位）、`PermissionFeignClient.getRole`（原 `IdReq`→`RoleDetailReq`）、`deleteResources`（原 `IdsReq`→`ResourceKeysReq`）——原形态发至服务端均必 400；`UserAssignRoleReq.items`/`UserRoleBatchRevokeReq.items`/`IdsReq.ids`/`ResourceBatchCreateReq.items` 补齐 `@Size(max=1000)`（原 SDK 契约缺失，外部服务按 SDK 构造超限请求会被服务端拒——现在 SDK 侧同限值，构造期即感知）。`UserAssignRoleReq`/`UserRoleBatchRevokeReq`/`ResourceBatchCreateReq` 的 `items` 另带元素级 `@NotNull`（null 元素 400，不级联嵌套字段——不触碰 batch-create 宽容收集拍板语义）。管理面家族同名 `IdsReq`/`UserRoleListReq`（后者与 perm-common 同名异义：`userId` 内部 ID 查询）保持独立，不参与单源。check 族响应 DTO 仍双副本（`CheckFamilyWireShapeTest` 同形守卫），Resp 面收敛未盘点、另定。
+**Req 单源（DTO 双轨收敛）**：原 access-service `permission/dto/req` 与 perm-common `dto/req` 双轨维护的 17 对同名 Req 已收敛——服务端 Controller/AppService 与 SDK 消费方统一消费 perm-common 类型（`AuthCheckReq`、`BatchAuthCheckReq`、~~`CheckInterfaceReq`~~（已随 T-ACCESS-062 legacy 协议退役删除）、`IdReq`、`IdsReq`、`OperationListReq`、`ResourceBatchCreateReq`、`ResourceCreateReq`、`ResourceKeyReq`、`ResourceKeysReq`、`ResourceUpdateReq`、`RoleCreateReq`、`RoleDetailReq`、`RoleListReq`、`UserAssignRoleReq`、`UserRoleBatchRevokeReq`、`UserRoleListReq`），access-service 侧副本删除。SDK 侧 T-PERM-028 同批漏改三处同步修复为服务端业务键定稿形态：`ResourceUpdateReq`（update，原 id 定位）、`PermissionFeignClient.getRole`（原 `IdReq`→`RoleDetailReq`）、`deleteResources`（原 `IdsReq`→`ResourceKeysReq`）——原形态发至服务端均必 400；`UserAssignRoleReq.items`/`UserRoleBatchRevokeReq.items`/`IdsReq.ids`/`ResourceBatchCreateReq.items` 补齐 `@Size(max=1000)`（原 SDK 契约缺失，外部服务按 SDK 构造超限请求会被服务端拒——现在 SDK 侧同限值，构造期即感知）。`UserAssignRoleReq`/`UserRoleBatchRevokeReq`/`ResourceBatchCreateReq` 的 `items` 另带元素级 `@NotNull`（null 元素 400，不级联嵌套字段——不触碰 batch-create 宽容收集拍板语义）。管理面家族同名 `IdsReq`/`UserRoleListReq`（后者与 perm-common 同名异义：`userId` 内部 ID 查询）保持独立，不参与单源。check 族响应 DTO 仍双副本（`CheckFamilyWireShapeTest` 同形守卫），Resp 面收敛未盘点、另定。
 
 ### 2.6 管理面家族通用约束
 
@@ -259,7 +259,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 
 > **终态口径（T-ACCESS-016 定稿，2026-08-23）**：① 主体 ID 统一后 `sys_user.id = abstract_user.id`（唯一 ID 源，access-service-architecture §12），`external_id`/`code` 的数值与语义不变（同一 Long 的字符串化）；② 类型码随 §13 注册表收敛：`abstract_user(ADMIN_USER)`→`abstract_user(LOCAL_USER)`（user_type 更名）、`resource_entity(ADMIN_USER/ADMIN_ORG/ADMIN_MENU)`→`resource_entity(USER/ORG/MENU)`；③ 保留业务键终态（§8.7 终态注记）：subject 侧 `ADMIN_USER`→`LOCAL_USER`（无兼容别名）；resource 侧取消类型级保留，本地投影行改按所有权保护（外部 sync UPSERT/DISABLE/DELETE 任一 mutation 分支前置 `owner=access-service` 即 20045、新建撞 code 由唯一索引兜底；USER/MENU 保持公共类型可被外部同步自身资源）——**该 resource 侧口径已被 T-PERM-052 类型级所有权取代（2026-09-05；T-ADMIN-025 增 ADMIN_FILE）：事实链路类型种子声明 SYNC+access-service，外部同步一律拒绝、管理面 20055 只读，行级 owner 防线删除，见下方「保护」段**。类型串替换已随 T-ACCESS-018 落地（本契约全量切换）；USER/ROLE 投影全写路径补齐已随 T-ACCESS-019 落地（2026-08-23，permission 域 abstract-user/abstract-role 管理入口同事务投影，外部 sync 入口遗留登记）。
 
-保护：权限管理入口与外部 `/api/access/**/sync|full-sync` 拒绝改写本地投影——保留业务键 `LOCAL_USER` / `ORG|POSITION` / `SYS_USER_ORG`（subject 侧原 `ADMIN_USER` 已更名）与内部 `sourceService` 拒绝为 `BizException(20045)`；resource 侧为类型级所有权（T-PERM-052，2026-09-05；T-ADMIN-025 增 ADMIN_FILE、T-PERM-051 增 TYPE_DEFINITION：事实链路七类型 USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION/CONDITION （T-PERM-048 增 CONDITION——管理页条件投影，仅 source=MANAGED）种子声明 `managedMode=SYNC + syncSourceService=access-service`，外部同步入口拒绝、管理面资源 CRUD 20055 只读，原保留清单与行级 owner 防线已收编删除；T-PERM-069 增 API 同款种子声明——唯一事实入口=service-config/sync 接口声明通道+bootstrap 固定图，管理面资源 CRUD 20055；SERVICE 维持 MANAGED，详见 §13/§12/§19.1/§19.8）。
+保护：权限管理入口与外部 `/api/access/**/sync|full-sync` 拒绝改写本地投影——保留业务键 `LOCAL_USER` / `ORG|POSITION` / `SYS_USER_ORG`（subject 侧原 `ADMIN_USER` 已更名）与内部 `sourceService` 拒绝为 `BizException(20045)`；resource 侧为类型级所有权（T-PERM-052，2026-09-05；T-ADMIN-025 增 ADMIN_FILE、T-PERM-051 增 TYPE_DEFINITION：事实链路七类型 USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION/CONDITION （T-PERM-048 增 CONDITION——管理页条件投影，仅 source=MANAGED）种子声明 `managedMode=SYNC + syncSourceService=access-service`，外部同步入口拒绝、管理面资源 CRUD 20055 只读，原保留清单与行级 owner 防线已收编删除；T-PERM-069 增 API 同款种子声明——唯一事实入口=service-config/sync-v2 接口声明通道+bootstrap 固定图，管理面资源 CRUD 20055；SERVICE 维持 MANAGED，详见 §13/§12/§19.1/§19.8）。
 
 本契约接口的投影动作：
 
@@ -1261,6 +1261,9 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 ### 11.4 聚合授权提交 apply-grant-plan（T-PERM-034 已落地 2026-08-30，收敛为唯一写入口，收窄）
 
+**API 授权退役（T-ACCESS-062）**：API 类型仅用于接口登记，不支持任何来源的独立授权。授权计划的预览与保存拒绝 API 主行、子行及对遗留 API 行的修改/删除；返回现有业务参数错误 `20044`，message 为「API 类型仅用于接口登记，不支持授权」。不新增专用旧客户端错误或兼容入口。系统种子通道同样不得生产 API 授权；受保护行由受控迁移清理，不能在普通授权页绕过只读规则。
+
+
 > **自动授权预览已随 T-PERM-073 落地（2026-09-21，见 §11.4.1；2026-09-20 M5 采纳）**：按[自动授权设计 §12](dependency-auto-grant.md#admin-ui)，预览仅供参考，保存以事务内最新事实重新校验与计算；自动授撤影响与预览不同不构成拒绝保存或再次确认的条件，不新增强制预览凭证或版本匹配。保存成功后刷新实际权限与来源，预览/刷新失败不能冒充零影响或提交结果。现役提交校验与回滚规则保持。
 
 > **自动授权物化已随 T-PERM-072 落地（2026-09-21）：AUTO_DEP 行由物化器同事务 diff 落库、按角色完整重算收缩（此前 2026-09-20 采纳设计）**：按[自动授权设计 §6.3](dependency-auto-grant.md#materializer)，AUTO_DEP 保留推导出的各操作与条件事实，仅按同角色的资源/操作/条件身份精确去重，不按操作覆盖、条件支配或 MANUAL/类型级覆盖省略自动行。VIEW/UPDATE 即使存在覆盖关系也分别保留，运行时依各入口既有互斥评估集合处理，不以删行规避冲突。此为已生效的自动结果规则，MANUAL 唯一性和现役提交契约不变。
@@ -1451,7 +1454,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 | create/batch-create 父校验（T-PERM-068，2026-09-17 Q-007 定案②） | 与 move 同口径：业务键父 `parentResourceTypeCode` ≠ 自身类型 → 20053（拒绝/宽容收集跳过）；单条 create 裸 `parentId` 补父存在性（20004）与类型校验（20053），batch-create 裸 `parentId` 存在性既有、补类型比对；父业务键半传（只传 code 无 typeCode）仍按「无父造根」处理（与 sync 缺省回填语义有意不同——管理面交互式 API，半传视为前端缺陷更安全） |
 | create/batch-create 查重身份（T-PERM-076，2026-09-22 实施定案） | 查重/重复身份=完整业务键（tenant+resourceTypeCode+code+归一 codeType，同 DDL `uk_resource_entity`）：同 code 跨资源类型、同类型跨 codeType 均可分别创建；batch-create 对**存量与本批已接受项**按完整键判重——命中项宽容收集逐项跳过（部分成功，不因重复项整批 SQL 失败），批内同完整键首项胜出；畸形项（code/name 空白）同样逐项跳过（items 不级联 Bean Validation 的既定拍板下由服务端收集，不再以 NOT NULL 违例连坐整批）；成功项响应 `id` 经完整键回查校准（insertBatch 不回填自增主键，回查先例=投影轨）；单条 create 语义不变（唯一索引兜底），并发插入按既有契约由唯一索引拒绝 |
 | remove 未命中键 | 静默跳过（对齐原 ids 批删语义），级联软删子孙 |
-| SYNC 类型只读（T-PERM-052；API 入列 T-PERM-069） | 目标类型声明 `extra.managedMode=SYNC` 时 create/batch-create/update/move/remove 一律拒绝 **20055** `RESOURCE_EXTERNALLY_MAINTAINED`——message 按声明来源分两支：**内部来源**（`syncSourceService=access-service`，事实链路七类型 USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION/CONDITION + API，T-PERM-069 起）为「资源由系统事实链路维护（用户/组织/菜单/角色/类型定义/条件管理、文件上传/预置、服务接口同步 service-config/sync——末项仅 API 适用），资源管理面只读: resourceTypeCode=X」；**外部来源**为「资源由外部来源维护，请到来源系统操作: resourceTypeCode=X, syncSourceService=Y」；**remove 的级联守卫覆盖删除全集（含展开的后代）**——入口虽已收紧同类型父边（T-PERM-068），DB 直写脏数据仍可能构成 MANAGED 根下含 SYNC 类型后代的跨类型子树，命中即整批拒绝不软删；读路径（tree/list/detail）不受限 |
+| SYNC 类型只读（T-PERM-052；API 入列 T-PERM-069） | 目标类型声明 `extra.managedMode=SYNC` 时 create/batch-create/update/move/remove 一律拒绝 **20055** `RESOURCE_EXTERNALLY_MAINTAINED`——message 按声明来源分两支：**内部来源**（`syncSourceService=access-service`，事实链路七类型 USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION/CONDITION + API，T-PERM-069 起）为「资源由系统事实链路维护（用户/组织/菜单/角色/类型定义/条件管理、文件上传/预置、服务接口同步 service-config/sync-v2——末项仅 API 适用），资源管理面只读: resourceTypeCode=X」；**外部来源**为「资源由外部来源维护，请到来源系统操作: resourceTypeCode=X, syncSourceService=Y」；**remove 的级联守卫覆盖删除全集（含展开的后代）**——入口虽已收紧同类型父边（T-PERM-068），DB 直写脏数据仍可能构成 MANAGED 根下含 SYNC 类型后代的跨类型子树，命中即整批拒绝不软删；读路径（tree/list/detail）不受限 |
 
 > **resource 面 sortOrder 字段退役（T-ACCESS-036，2026-09-13）**：`resource_entity.sort_order` 全仓零读取方（列表分页 `ORDER BY id`、资源树不按该列排序），列与实体字段、SDK 双册 `ResourceCreateReq/ResourceUpdateReq/ResourceResp`、服务端 `ResourceResp/ResourceTreeResp`、`ResourceEntitySyncReq` 与 full-sync item、`ResourceTreeResp.ResourceTreeNode` 及全部写入点（管理面 create/batch-create/update、资源同步通道、service-config/sync 资源落库）一次性退役；前端提交与表单链路同批清理。仍携带 `sortOrder` 的旧载荷在反序列化层被拒（全局 ObjectMapper 严格模式，未知字段 → 400/90001 信封，与 T-PERM-053 operationCode 退役同机制）；`ResourceSortOrderRetiredTest` 锁定四 DTO 面行为。role/menu/org/type_definition 的 `sortOrder` 不在退役范围（各自在用）。
 
@@ -1465,7 +1468,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 **操作引用拒绝（T-PERM-072 操作生命周期守卫，设计 §7）**：`operation-permission/update` 的 `binaryBit` 有效变更、`operation-permission/remove` 批量删除，存在 `granted_bits` 直接等于该操作位的有效 MANUAL/AUTO_DEP 授权行时整批拒绝 **20069** `OPERATION_REFERENCED_BY_GRANTS`（granted_bits 等值命中；AUTHORITY_ROOT 基座行不算用户引用——仍按上文 T-PERM-062 同事务迁移/级联处理）。处置=先撤销相关授权（依赖来源须由所属服务经 manifest 重发收缩，无其他来源的 AUTO_DEP 随物化重算同事务回收）。T-ACCESS-058 将有效接口映射的 required_operation_id 纳入同一 20069 守卫（含停用映射与类型删除间接路径）；先改绑或删除映射才可变更操作位/删除操作。inheritMask 变更仍允许，按操作所属类型反查服务安全超集并在提交后广播失效。位/inheritMask 变更与操作删除在守卫通过后：声明按新位重编译（OPERATION_INVALID 降级）+ 受影响角色 AUTO_DEP 同事务完整重算；角色删除级联回收全部有效授权行（MANUAL+AUTO_DEP+AUTHORITY_ROOT）与 INLINE 条件孤儿——全部删除通道一致（管理面 deleteRoles、组织/岗位删除经容器角色级联、abstract-role/sync DELETE 与 full-sync 漂移删除；物化器对已删角色不再推导并按 desired 恒空回收其 AUTO_DEP 行）。
 
-**类型授权根生命周期（T-PERM-062，2026-09-12 定案——新类型首笔授权自举）**：全新自定义类型在租户内初始可转授行为 0，apply-grant-plan 委托校验（checkCanGrant 严格无旁路，§14.1 红线维持）下无人能完成首笔授权——固定图内 `API:ACCESS` 类型级 canGrant（T-API-001「鸡生蛋」解法）的模式推广到类型生命周期：
+**类型授权根生命周期（T-PERM-062，2026-09-12 定案——新类型首笔授权自举）**：全新自定义类型在租户内初始可转授行为 0，apply-grant-plan 委托校验（checkCanGrant 严格无旁路，§14.1 红线维持）下无人能完成首笔授权——通过类型生命周期产生受保护的首授基座（API 类型授权已退役，不参与此机制）：
 
 - **创建即建基座**：`type-definition/create`（typeKey=resource_type）同事务向所有者角色写 CRUD 四操作位 `AUTHORITY_ROOT` 首授行（`grant_source=AUTHORITY_ROOT`；scopeAll + canGrant + 无条件 + 无实例 + 单操作位，形状由 DDL CHECK `ck_role_resource_permission_authority_root` 焊死）；所有者指针持久化于 `type_definition.extra.grantOriginRole`（`{"roleTypeCode":..,"roleExternalId":..}`，roleTypeCode 值域仅 BASIC_ROLE）——**服务端管理键**：create 请求 extra 自带该键拒绝 **20044**（合法输入通道是 `ownerRoleTypeCode/ownerRoleExternalId` 请求字段）。
 - **追加操作补种**：`operation-permission/create` 目标为自定义 resource_type 时同事务向同一所有者补种该操作位（不钩则死锁转移到第五个操作）；`is_system` 类型不钩（内置类型转授链收窄是既有产品选择，T-PERM-027 口径维持）。
@@ -1523,7 +1526,6 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 | `POST /api/access/service-config/detail`       | 查询服务详情                      |
 | `POST /api/access/service-config/save`         | 幂等保存服务（serviceCode 形状 `^[A-Za-z0-9][A-Za-z0-9._-]*$` ≤128，与凭证签发侧同宽——T-PERM-070 外评闭合） |
 | `POST /api/access/service-config/remove`       | 删除服务，支持批量                |
-| `POST /api/access/service-config/sync`         | 全量同步服务接口，权限中心做 diff |
 | `POST /api/access/service-config/sync-v2`      | 新版接口与业务操作 FULL 声明，详见 §25.1 |
 | `POST /api/access/service-config/apis`         | 查询服务接口映射列表（扁平）      |
 | `POST /api/access/resource-api-mapping/list`   | 查询接口映射                      |
@@ -1534,12 +1536,13 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 **service-config / resource-api-mapping 契约要点（T-PERM-027 收口，2026-08-29）**：
 
 - `list` 维持 `{}` 全量返回（设计定案：服务登记数量有界——租户内微服务个数，页面左栏目录面板本地过滤，无分页参数与分页响应）；门禁 SERVICE:VIEW 类型级（T-ACCESS-052 实例准入：类型级通过全量返回；否则持任一 SERVICE 实例 VIEW〔含继承覆盖，如 MANAGE 继承 VIEW 位〕者进入且结果按可见实例裁剪——service-a 负责人只见 a 不泄露 b；零可见实例仍 403，fail-closed）。
-- `save` 幂等（`{serviceCode, name, basePath?, description?, status?, extra?, basePathClear?, descriptionClear?, extraClear?, apiAuthMode?}`，按 `uk_service_config(tenant_id, service_code)` 定位，null 字段不更新）；`extra.syncTypes` 结构校验见 §19.9。`ServiceConfigResp` 含 `apiAuthMode` 与 `updatedAt`（保存与 FULL 同步回写 basePath 时刷新；`lastSyncedAt` 不设——无现成列且聚合推导语义模糊，登记不做）。**T-API-004（§2.7 统一协议）**：三字段补显式清空——`basePathClear`/`descriptionClear`/`extraClear` true 经 UpdateEntity 真实落 NULL（与新值同传 400、空白 400）；创建分支（config 不存在新建）携带任一 true 拒绝 **20044** `PERM_INVALID_PARAM`（新建无既有值可清，字段省略即为空）；`extraClear` 语义=撤销 `extra.syncTypes` 同步白名单声明——该服务 user/role 同步通道全拒（SECURITY_DENIED，fail-closed，重新提交 extra 即恢复）。
+- `save` 幂等（`{serviceCode, name, basePath?, description?, status?, extra?, basePathClear?, descriptionClear?, extraClear?}`，按 `uk_service_config(tenant_id, service_code)` 定位，null 字段不更新）；`extra.syncTypes` 结构校验见 §19.9。`ServiceConfigResp` 含 `updatedAt`（保存与 FULL 同步回写 basePath 时刷新；`lastSyncedAt` 不设——无现成列且聚合推导语义模糊，登记不做）。**T-API-004（§2.7 统一协议）**：三字段补显式清空——`basePathClear`/`descriptionClear`/`extraClear` true 经 UpdateEntity 真实落 NULL（与新值同传 400、空白 400）；创建分支（config 不存在新建）携带任一 true 拒绝 **20044** `PERM_INVALID_PARAM`（新建无既有值可清，字段省略即为空）；`extraClear` 语义=撤销 `extra.syncTypes` 同步白名单声明——该服务 user/role 同步通道全拒（SECURITY_DENIED，fail-closed，重新提交 extra 即恢复）。
 - `resource-api-mapping/update` 补 `extraClear`（T-API-004，§2.7 统一协议）：true 经 UpdateEntity 真实落 NULL；与 `extra` 同传 400、extra 空白 400；false/缺省无清空作用。
 - `remove` 级联清理（设计定案）：同事务软删该服务**全部** API 映射（含 MANUAL 维护来源——服务已删则其路由不再存在，映射即死路径）+ 该服务 SERVICE_SYNC 自动维护的孤立 API 资源（FULL diff 同清理边界，§19.8；被其他服务跨服务手工映射引用的资源保留），事务提交后广播 Gateway 本地快照失效（受影响 serviceCodes）；整批失败整批不变更。
-- `sync` 仅接受 `syncMode=FULL`（§19.8）：DTO 校验层 `@Pattern("FULL")` 拒绝其他值（`MethodArgumentNotValidException` → HTTP 400，body `code=90001` 参数校验失败），增量策略已删除（全仓零生产调用）。门禁 SERVICE:SYNC_INTERFACE 实例级（serviceCode）。
+- `sync-v2` 仅接受 `syncMode=FULL`（§25.1）：DTO 校验层 `@Pattern("FULL")` 拒绝其他值（`MethodArgumentNotValidException` → HTTP 400，body `code=90001` 参数校验失败），增量策略已删除。管理员门禁 SERVICE:SYNC_INTERFACE 实例级（serviceCode）；服务凭证按 §24 校验租户与服务归属。旧 `/sync` 已退役。
 - `apis` 与 `resource-api-mapping/list` 返回的 `ApiMappingResp` 含关联资源业务字段 `resourceCode/resourceName/resourceTypeCode`（批量补全；资源已软删时为 null，前端回退展示内部 `resourceEntityId`），另返回映射自身 maintainSource 及 requiredPermission（§25.1）——`apis` 实现委托 `list`（同层复用，门禁与补全单点）。`list` 门禁（T-ACCESS-055 实例准入）：请求带 `serviceCode` 按该服务实例 VIEW 校验；不带（管理全量列表）类型级 VIEW 通过即全量，类型级不过时持任一 SERVICE 实例 VIEW（含继承覆盖，如 MANAGE 继承 VIEW 位）者可进入、结果按可见服务裁剪（拒绝服务的映射不出现在结果中；可见性锚点=服务目录全集，可见服务无映射时返回空列表而非 403），零可见实例 403 fail-closed（`listServiceConfigs` 同款口径；翻 T-ACCESS-052 收口「resource-api-mapping/list 半边维持原登记」案）。
 - `resource-api-mapping/create`/`update` 仍以内部 `resourceId` 绑定资源（§12.5 单条响应，§12 定案不随业务键切换）；登记实体固定从 API 资源树选择（数据源 `resource-entity/tree`），业务准入类型与操作独立选择；requiredPermission 与维护来源语义见 §25.1。
+- 手工、同步、bootstrap 共用保存校验：非本租户有效 API 登记实体、缺失或损坏的业务操作、API 类型操作要求（2026-09-28 拍板整类收窄——API 授权退役后恒无候选，读侧对存量脏数据同报 20071）均按 **20071 ADMISSION_CONFIG_FAULT** 拒绝。更新省略 requiredPermission 仅保留并重新校验原操作引用；不得推测 VIEW。运行时启用映射缺失或损坏操作引用同样报配置故障（网关 503），不是普通无权限或公共路由。准入 MAY_ENTER 后仍由业务检查实际目标，映射绑定不产生 API 授权或资源依赖（T-PERM-054 收口，详见 §25）。
 - 权限门禁：读 SERVICE:VIEW（list/detail/apis、mapping list；list 为 T-ACCESS-052 实例准入见上，detail 本即实例级）；写 save/remove = SERVICE:MANAGE、sync = SERVICE:SYNC_INTERFACE、映射 create/update/remove = SERVICE:MANAGE_API_MAPPING（批量 remove 按映射行 serviceCode 批量校验）。SERVICE:VIEW/MANAGE/SYNC_INTERFACE 已补入空库 bootstrap 固定图（死锁防护=持有解锁首管理员页面读写，MANAGE_API_MAPPING 与 DOMAIN:VIEW 先例）；转授口径（T-ACCESS-052，2026-09-23 拍板「最小集四条」）：SERVICE:MANAGE 与 SERVICE:MANAGE_API_MAPPING 两条类型级 scopeAll 行 **canGrant=true**（位域能力分立——MANAGE 行（bit16/mask2，有效位 18）可转授构造 SERVICE:实例 的 VIEW 与 MANAGE；MANAGE_API_MAPPING 行（bit32）转授构造其自身；**单持 MANAGE 行不能构造 MANAGE_API_MAPPING 授权**（covers 判定 18&32=0，需持 MANAGE_API_MAPPING 可转授行——首管理员两条都持故全能构造，service-a 负责人场景首授解锁））；VIEW/SYNC_INTERFACE 维持不可转授。存量已初始化库不自动重种（canGrant 属可变属性，bootstrap 漂移仅 warn 放行），订正语句登记 rebuild-runbook。
 
 ### 12.3 资源依赖只读查询（/api/access/resource-dependency/*）
@@ -1937,15 +1940,13 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
 | `POST /api/access/auth/batch-check`         | 批量资源权限判定                                       |
 | `POST /api/access/auth/query-resources`     | 查询主体在指定资源类型和操作下可访问或可管理的资源集合 |
 | `POST /api/access/auth/query-scopes`        | 查询主体在某个主资源上下文内可用的范围资源权限集合     |
-| `POST /api/access/auth/check-interface`     | Gateway 接口级判定                                     |
-| `POST /api/access/auth/interface-snapshot`  | Gateway 接口权限快照，可选优化接口                     |
 
 > **context 保留键口径（2026-09-27 T-PERM-090 外评处置，用户拍板）**：`context` 顶层仅
 > `clientIp` 为文档化契约键（Gateway 重建、提取为受信评估 IP）；`evaluatedAt`/`timestamp`
 > 为服务器环境保留键，顶层出现即结构拒绝（400 `VALIDATION_FAILED`，评估时刻由服务端时钟
 > 决定，不接受客户端覆盖）。示例已按此口径修订（曾展示 `timestamp` 键的旧示例与实现冲突）。
 
-> **SDK 入口清单（T-API-002 收口 2026-09-06；T-API-003 check 族改写 2026-09-10）**：`check` / `batch-check` / `query-resources` / `query-scopes` 四件套已全部进入 perm-sdk `PermissionFeignClient`（Query* DTO 迁入 perm-common，接入方不再手写 HTTP + 自造 DTO 副本）；`check-interface` / `interface-snapshot` 为 Gateway 专用（经 starter/PermissionClient 消费），不开放业务服务 Feign 入口。**内部数据库 id 字段族口径分族**：check 族三端点（check/batch-check/check-interface）结果记录全量回传（`matchedRoleIds`/`matchedPermissionIds`/`matchedResources[].resourceId`，T-API-003 推翻 T-API-002 的 check 族裁剪——统一引擎消费方模型「调用方根据结果记录判定」需要记录在场，详见 §18.2/§18.3 注记）；Query\* 响应族（query-resources/query-scopes）六字段裁剪维持 T-API-002 终态（详见 §18.5/§18.6 各节注记）。
+> **SDK 入口清单（T-API-002 收口 2026-09-06；T-API-003 check 族改写 2026-09-10）**：`check` / `batch-check` / `query-resources` / `query-scopes` 四件套已全部进入 perm-sdk `PermissionFeignClient`（Query* DTO 迁入 perm-common，接入方不再手写 HTTP + 自造 DTO 副本）；Gateway 消费 §25 新准入协议，旧检查与快照端点已退役。**内部数据库 id 字段族口径分族**：check/batch-check结果记录全量回传（`matchedRoleIds`/`matchedPermissionIds`，T-API-003 推翻 T-API-002 的 check 族裁剪——统一引擎消费方模型「调用方根据结果记录判定」需要记录在场，详见 §18.2/§18.3 注记）；Query\* 响应族（query-resources/query-scopes）六字段裁剪维持 T-API-002 终态（详见 §18.5/§18.6 各节注记）。
 
 ### 18.2 单次鉴权 check
 
@@ -1988,110 +1989,13 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
 > **主资源上下文与 depend_on 单点闭合（T-PERM-058，2026-09-10 落地）**：查询目标为子权限（depend_on）实例时，可选传入 `parentResourceTypeCode` / `parentResourceCode` / `parentCodeType` / `parentOperationCodes`（与 §18.6 query-scopes 父入参同名对齐；type 与 code 必须成对提供，半传 400；**给出父上下文时 `parentOperationCodes` 一并必填且非空**——缺省/空集按 400 拒绝，勿依赖静默回退：引擎对空操作集不发父判定查询、父判定必不命中）——引擎对父资源做 INSTANCE 判定（含条件/互斥评估，惰性执行：仅当目标命中集确含子行才触发），子行要求其 `depend_on` ∈ 父命中权限集才计入。**不传时子权限行一律不参与判定（fail-closed）**，拒绝原因为 `DEPENDENT_NOT_IN_PARENT_CONTEXT`（与「无任何授权」的 `NO_PERMISSION` 区分；**类型级门禁面（resourceCode=null）为 `NO_PERMISSION`**——该面无 DEPENDENT 分支，SDK 按 reason 分支时勿漏判）——子权限的授权语义是「只在父权限命中的主资源上下文内生效」（§18.6 DEPENDENT 公式），无上下文即无法证明父命中。`batch-check` 的同名四字段为**请求级**（与 query-scopes 对齐：批量项共享同一主资源上下文，如报表A上下文内的广东/杭州/上海多目标）。引擎内部便捷入口（`hasPermissionByCode` / `hasPermissionByEntityId` / `getDenied*`，管理面写门禁矩阵）无主资源上下文概念，同口径 fail-closed；类型级门禁（`resourceCode=null`）只认主授权——scopeAll 子权限行（写侧可造形态）不放行类型级门禁（读侧排除，DB 直写脏数据同受防护）。
 > **批量评估口径**：`batch-check` = 多个独立 DECISION item 一次 `execute`（item key=输入下标，语义与单条逐 item 等价——等价差分回归锁钉死；实现设计见 engine/implementation.md §3.10），**wire 契约零变化**（T-PERM-061 A+ 形态 2026-09-11 落地；T-PERM-089 起经新 execute）（请求/响应 JSON、1000 上限、reason 词表、matched 字段族不变）。**评估时刻（a2 定案）**：整批共用请求级单一评估时刻——服务端在批量入口统一钉住一个 `evaluatedAt`（全部 item 评估、父判定递归、条件评估共用），时间类条件（DATE_RANGE/TIME_RANGE）的观测粒度为**批**而非 item：跨时间边界的大批量不再出现「前一半放行、后一半拒绝」的批内漂移。READ COMMITTED 下批量化同时把「逐 item 各语句各看各的」变为「批内一次装载同源」——与 a2 同向的行为变化，随定案接受。互斥审计按 item 独立成行（ConflictEvidence：execution＋item＋stage＋ruleRef 聚合的单行单规则结构化摘要，T-PERM-088/092 终态；旧 (组, ruleId) 去重聚合携 hitItemCount 的形态随旧执行体退场）。
 
-### 18.3 Gateway 接口级鉴权 check-interface
+### 18.3 旧接口检查协议已退役
 
-`POST /api/access/auth/check-interface`
+`POST /api/access/auth/check-interface` 已删除（T-ACCESS-062），不保留兼容入口或专用 DTO。网关在线检查使用 §25 的 `interface-admission`。
 
-```json
-{
-  "subjectTypeCode": "USER",
-  "subjectExternalId": "u-10001",
-  "serviceCode": "access-service",
-  "httpMethod": "POST",
-  "path": "/api/example/order/list",
-  "context": {
-    "clientIp": "127.0.0.1",
-    "headers": {
-      "User-Agent": "Mozilla/5.0"
-    }
-  }
-}
-```
+### 18.4 旧接口快照协议已退役
 
-响应：
-
-```json
-{
-  "allowed": true,
-  "reason": null,
-  "matchedResources": [
-    {
-      "resourceId": 101,
-      "resourceTypeCode": null,
-      "resourceCode": "admin:user:list",
-      "operationCode": "ACCESS",
-      "allowed": true,
-      "matchedRoleIds": [20],
-      "matchedPermissionIds": [401]
-    }
-  ],
-  "cacheTtlSeconds": 30
-}
-```
-
-规则：
-
-- 查询 `resource_api_mapping` 必须带 `tenant_id + service_code + http_method + enabled + delete_flag=0`。
-- `path` 使用请求原始路径——T-ACCESS-042 起外部路径=服务路径，二者天然同形（原「不用 StripPrefix 后路径」的区分已随 StripPrefix 退役消失）。
-- 当同一路径匹配多个资源映射时，接口级鉴权采用 OR 语义：任一映射资源权限通过即允许。
-- 响应使用 `matchedResources[]` 返回所有命中的映射资源及各自鉴权结果；只要其中任一项 `allowed=true`，顶层 `allowed=true`。
-- 未注册接口默认拒绝，返回 `API_NOT_REGISTERED`。
-- **结果记录全量回传（T-API-003，2026-09-09 定案推翻 T-API-002 的 check 族裁剪，2026-09-10 落地）**：`matchedResources[]` 条目的 `resourceId`（resource_entity 内部行 id）与 `matchedRoleIds` / `matchedPermissionIds` 恢复回传——统一引擎消费方模型「调用方根据结果记录判定」需要记录在场；业务键 `resourceTypeCode + resourceCode` 继续并行表达资源身份。现消费方 Gateway 只读 `allowed` / `reason`，不受回传字段影响。`matchedResources[].resourceTypeCode` 实现恒 null（示例同步改 null，[历史定案原文](../archive/2026-09-26/decision-registry-before.md) T-API-003 行挂靠 T-PERM-059 的示例漂移收口，2026-09-10 用户拍板）——资源身份以 `resourceId + resourceCode` 表达。
-
-### 18.4 Gateway 接口权限快照 interface-snapshot
-
-`POST /api/access/auth/interface-snapshot`
-
-用于 Gateway 按服务拉取当前主体可访问的 API 快照。permission-center 每次实时调 engine 构建全量快照返回（T-PERM-018 缓存下沉，移除 `permissionVersion`/`notModified` 与条件请求），Gateway 本地 Caffeine 缓存 + Redis 广播（`perm:invalidate`，事件载荷含 `serviceCodes`，T-PERM-006 订阅侧已落地）+ TTL 兜底保证一致性。
-
-> **令牌移除（T-PERM-018，2026-06-20）**：`permissionVersion` / `notModified` 字段已移除——令牌「唯一真正作用是 INTERFACE_SNAPSHOT 缓存 key」已核实，permission-center 侧该 L2 缓存已删，令牌随之失效，连带 304/notModified 死代码一并清除。permission-center 正确性改由 engine `ROLE_PERM_SNAPSHOT` 读缓存（per-role 精确失效）保证；Gateway 本地陈旧由广播 + TTL 兜底。
-
-> **快照展开口径修订（2026-09-28 外评处置对齐，T-PERM-090 登记的存量陈旧）**：本节曾按「`scopeMode=ALL` 通配、服务端不展开」描述——实现自 T-PERM-017 起即为 enabled 注册路由展开、条目恒 `INSTANCE`（设计 S02）；本节示例与规则随 engine 三册同批对齐。`conditionRules` 字段（T-PERM-017 C3 内联）此前未入示例，一并补齐（§25.2 准入快照对该字段形态的交叉引用以本节为准）。仓库内消费方 Gateway 已随 T-ACCESS-059 切换 `interface-admission-snapshot`（§25.2），本端点保留供外部消费。
-
-请求：
-
-```json
-{
-  "subjectTypeCode": "USER",
-  "subjectExternalId": "u-10001",
-  "serviceCode": "access-service"
-}
-```
-
-响应：
-
-```json
-{
-  "allowedApis": [
-    {
-      "serviceCode": "access-service",
-      "httpMethod": "POST",
-      "pathPattern": "/api/user/list",
-      "hasCondition": false,
-      "conditionId": null,
-      "conditionRules": null,
-      "scopeMode": "INSTANCE"
-    },
-    {
-      "serviceCode": "access-service",
-      "httpMethod": "POST",
-      "pathPattern": "/api/role/list",
-      "hasCondition": true,
-      "conditionId": 5,
-      "conditionRules": "{\"logic\":\"AND\",\"items\":[{\"type\":\"TIME_RANGE\",\"params\":{\"start\":\"09:00:00\",\"end\":\"18:00:00\"}}]}",
-      "scopeMode": "INSTANCE"
-    }
-  ]
-}
-```
-
-规则：
-
-- permission-center 每次实时构建全量快照返回，不再有令牌比较 / 304 短路路径；无有效角色时返回 `allowedApis=[]`。
-- **快照条目恒 `scopeMode=INSTANCE`，不输出 ALL 通配**：API 类型级授权（内部 `scope_all=true`）由服务端展开为该 `serviceCode` 全部 enabled 注册路由的逐条 INSTANCE 条目——类型级 API 授权语义=「全部**已注册** API」，未注册接口维持默认拒绝，新增路由经调用方快照 TTL/广播窗口后生效。实例级授权条目按 `httpMethod + pathPattern` 精确匹配。
-- **条件分支成条口径**：含条件的类型级授权逐路由保留条件身份，不同条件身份（`conditionId`）各自独立成条、同一条件身份多角色合并——调用方按 OR 语义合并评估，任一分支放行即允许（不因某条件分支评估失败误拒无条件授权）。
-- **条件内联（T-PERM-017 C3）**：`hasCondition=true` 条目在条件 `gatewayEvaluable=true` 且规则类型全在四类型白名单（DATE_RANGE/TIME_RANGE/IP_WHITELIST/IP_BLACKLIST）内时内联 `conditionRules`（String 规则原文，同 §15 `ConditionResp.conditionRules` 的 `{logic, items[]}` 形态）——调用方本地用请求 context 重评；其余情况 `conditionRules=null`，命中该条目后回退 `check-interface` 实时鉴权。
-- Gateway 本地缓存 key 为 `(tenantId,subjectTypeCode,userId,serviceCode)`；API mapping / 资源 / syncInterfaces 变更触发 `PermInvalidateEvent`（含 `serviceCodes`），Gateway 订阅后按 tenant+serviceCodes evict 本地快照（T-PERM-006）。
+`POST /api/access/auth/interface-snapshot`、旧快照 DTO 与 SnapshotAssembler 已删除（T-ACCESS-062）。网关使用 §25 的 `interface-admission-snapshot`；新旧快照不共用命名空间。全节点停流替换时清除旧进程缓存、负缓存和在途加载，操作步骤见 [退役手册](../ops/runbook-api-retirement-062.md)。
 
 ### 18.5 通用资源权限查询 query-resources
 
@@ -2310,7 +2214,7 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
 - DELETE 有子拒绝（2026-09-18 用户拍板）：单条 DELETE 目标存在有效后代（含脏数据跨类型子，保守阻塞防误删）→ `retryClass=DEPENDENCY_MISSING`、reason=`CHILDREN_EXIST`，先于版本写入不推进——先删子资源后同版本重发父即自愈（乱序删除窗口短退避自愈，子永不悬挂）；后代全删/目标不存在照常幂等软删。full-sync 差异校准维持 scope 全量口径逐行软删、不查子（同载荷整树同删，无乱序问题）。
 - 父资源环路防护（T-PERM-044 评审补齐，与 moveResource 同款）：目标父为资源自身或其子孙时拒绝 `retryClass=NON_RETRYABLE`、reason=`RESOURCE_PARENT_INVALID`；full-sync 按内存图逐项判定（当前生效图 = 库内关系 + 本事务已应用项的边），仅拒绝真正闭合环的项，指向环的前缀安全项放行。
 - 调用方必须通过可信 Header 提供服务身份；permission-center 必须校验认证服务身份与 `sourceService`（不匹配返回 `SECURITY_DENIED`/`SOURCE_SERVICE_MISMATCH`），禁止任意服务同步任意资源类型。
-- **类型级所有权门禁（T-PERM-052，2026-09-05 定案，取代原 syncTypes.resourceTypeCodes 白名单维度）**：目标 `resourceTypeCode` 必须在类型定义上声明 `extra.managedMode=SYNC` 且 `extra.syncSourceService` 等于调用服务身份，且调用服务在 service_config 注册、未软删、`status=1` 启用（评审批次补强：服务停用/注销即四个同步通道一起断，与主体/角色/user_role 白名单语义一致）——任一不满足返回 `SECURITY_DENIED`/`RESOURCE_TYPE_OWNERSHIP_DENIED`（类型不存在一并 fail-closed 拒绝，真实原因仅记服务端日志）。每个资源类型单一所有权：MANAGED（缺省，管理面维护）/ SYNC（声明来源独占同步，管理面只读）；事实链路七类型 USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION/CONDITION 由种子声明 SYNC+access-service（内部来源，见 §13；ADMIN_FILE 为 T-ADMIN-025 增补——文件夹实例由 bootstrap 预置+上传惰性登记产出；TYPE_DEFINITION 为 T-PERM-051 增补——类型定义实例投影由写路径同事务维护+bootstrap 自愈补种产出；CONDITION 为 T-PERM-048 增补——管理页条件投影由条件写路径同事务维护+bootstrap 自愈补种产出，仅 MANAGED 来源；API 为 T-PERM-069 增补同款声明——唯一事实入口=service-config/sync 接口声明通道+bootstrap 固定图，本接口对其来源不匹配拒绝不变、管理面 20055，SERVICE 维持 MANAGED）。外部服务接入先经 `type-definition/create` 建自有类型（如 `HR_ORG`、`BI_MENU`）并声明来源，再调用本接口同步。
+- **类型级所有权门禁（T-PERM-052，2026-09-05 定案，取代原 syncTypes.resourceTypeCodes 白名单维度）**：目标 `resourceTypeCode` 必须在类型定义上声明 `extra.managedMode=SYNC` 且 `extra.syncSourceService` 等于调用服务身份，且调用服务在 service_config 注册、未软删、`status=1` 启用（评审批次补强：服务停用/注销即四个同步通道一起断，与主体/角色/user_role 白名单语义一致）——任一不满足返回 `SECURITY_DENIED`/`RESOURCE_TYPE_OWNERSHIP_DENIED`（类型不存在一并 fail-closed 拒绝，真实原因仅记服务端日志）。每个资源类型单一所有权：MANAGED（缺省，管理面维护）/ SYNC（声明来源独占同步，管理面只读）；事实链路七类型 USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION/CONDITION 由种子声明 SYNC+access-service（内部来源，见 §13；ADMIN_FILE 为 T-ADMIN-025 增补——文件夹实例由 bootstrap 预置+上传惰性登记产出；TYPE_DEFINITION 为 T-PERM-051 增补——类型定义实例投影由写路径同事务维护+bootstrap 自愈补种产出；CONDITION 为 T-PERM-048 增补——管理页条件投影由条件写路径同事务维护+bootstrap 自愈补种产出，仅 MANAGED 来源；API 为 T-PERM-069 增补同款声明——唯一事实入口=service-config/sync-v2 接口声明通道+bootstrap 固定图，本接口对其来源不匹配拒绝不变、管理面 20055，SERVICE 维持 MANAGED）。外部服务接入先经 `type-definition/create` 建自有类型（如 `HR_ORG`、`BI_MENU`）并声明来源，再调用本接口同步。
 - 外部业务服务同步自有资源类型时调用本接口（`resourceTypeCode` 须经类型级所有权门禁，见上条；T-ACCESS-018 的「公共类型外部同步合法」口径已随 T-PERM-052 类型级所有权定案收紧——外部服务同步自身用户/菜单须建自有类型，公共 `USER`/`MENU` 类型不再对同步开放）；事实链路七类型 `USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION/CONDITION` 由种子声明 `SYNC + syncSourceService=access-service`（内部来源，2026-09-05 内部来源统一；ADMIN_FILE 为 T-ADMIN-025 增补、TYPE_DEFINITION 为 T-PERM-051 增补、CONDITION 为 T-PERM-048 增补——管理页条件投影）——本接口对该七类型一律入口拒绝（来源不匹配，较旧口径「不撞投影行即放行」更严），其资源行由 user/org/menu 能力写编排（原 access.application）与角色/主体管理入口（T-ACCESS-019）经 LocalProjectionDomainService 同事务独占维护（ADMIN_FILE 文件夹投影走 ensureAdminFileFolder 两条事实链：bootstrap 预置 + 上传惰性登记；TYPE_DEFINITION 实例投影走写路径同事务维护 + bootstrap 自愈补种两条事实链，T-PERM-051）；原类型保留清单与行级投影防线（rejectIfLocalResource 20045）已收编删除，管理面 `create|batch-create|update|move|remove` 对 SYNC 类型（含七类型；API 同为种子声明 SYNC+access-service——T-PERM-069，事实入口 service-config 接口声明通道+bootstrap，管理面 20055 只读）统一 20055 只读（见 §12）。
 - 外部业务服务的全量校准同步走 `resource-entity/full-sync`，不是逐条调用本接口。
 - `sortOrder` 已随 resource 面字段退役删除（T-ACCESS-036）：本接口与 full-sync item 的旧载荷仍携带该字段 → 400（严格 mapper 未知字段拒绝，见 §12.1 退役注记）。
@@ -2360,7 +2264,7 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
 - 单请求表示 `scope.sourceService` 字段与 `scopeKey=resourceTypeCode={resourceTypeCode}` 共同限定范围内的完整事实；`sourceService` 独立承载，不拼入 `scopeKey`。
 - full-sync item 的父资源定位与单条 sync 同口径（T-PERM-068）：父字段组以 `parentResourceCode` 非空为激活条件；`parentResourceTypeCode` 缺省回填 scope 中的 `resourceTypeCode`、`parentCodeType` 缺省 `default`（本句「默认同类型」自 T-PERM-068 起为真实实现语义——此前实现半传静默解挂与原文不符，已修）；显式 `parentResourceTypeCode` 异于 scope 类型 → 该 item `NON_RETRYABLE`/`PARENT_TYPE_MISMATCH`、不推进同步版本，同批其余项正常应用。实现解析父节点使用 `生效类型 + parentResourceCode + parentCodeType`。
 - permission-center 以 `sync_metadata(entityKind=RESOURCE_ENTITY, sourceService, scopeKey)` 作为 full-sync ownership 范围；请求中存在则 upsert 并更新 metadata，请求中缺失的 metadata 对应事实按删除语义软删除。`resource_entity.owner_service_code/maintain_source` 不作为本接口的清理依据（`sync_key` 列已删除，2026-09-05）。
-- `resource-entity/full-sync` 与既有 `service-config/sync` 是两条独立 ownership 通道。本接口只清理命中 `sync_metadata` scope 的同步事实，绝不按 `resourceTypeCode` 扫描删除资源，也不删除 `service-config/sync`、`MANUAL` 或其他维护来源创建的事实。
+- `resource-entity/full-sync` 与既有 `service-config/sync-v2` 是两条独立 ownership 通道。本接口只清理命中 `sync_metadata` scope 的同步事实，绝不按 `resourceTypeCode` 扫描删除资源，也不删除 `service-config/sync-v2`、`MANUAL` 或其他维护来源创建的事实。
 - 全量接口仍必须执行 source 身份校验、类型级所有权门禁（scope.resourceTypeCode 同 §19.1 单条口径）和旧版本 no-op 规则。
 - 组织资源等有树依赖的数据应按足够小的 scope 调用，避免单请求过大。
 
@@ -2724,43 +2628,11 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 | `USER_ROLE` | `BIND` | `ACTIVE` |
 | `USER_ROLE` | `UNBIND` | `UNBOUND` |
 
-### 19.8 服务接口全量同步 service-config/sync
+### 19.8 服务接口全量同步
 
-`POST /api/access/service-config/sync`
+接口登记统一使用 `POST /api/access/service-config/sync-v2`，请求和身份规则见 §25.1。旧 `/sync` 与其 DTO 已删除，不保留兼容通道。
 
-```json
-{
-  "serviceCode": "access-service",
-  "basePath": "/admin",
-  "syncMode": "FULL",
-  "groups": [
-    {
-      "groupCode": "user",
-      "groupName": "用户管理",
-      "apis": [
-        {
-          "name": "查询用户列表",
-          "httpMethod": "POST",
-          "path": "/api/user/list",
-          "resourceCode": "admin:user:list",
-          "description": "用户列表查询"
-        }
-      ]
-    }
-  ]
-}
-```
-
-规则：
-
-- 首期只支持 `syncMode=FULL`。FULL 模式下，以本次上报内容作为该 `serviceCode` 的完整事实来源。（T-PERM-027 收口：`ServiceConfigSyncReq.syncMode` 校验层 `@Pattern("FULL")` 拒绝其他值，增量策略已删除。）
-- `ApiItem.operationCode` 字段已退役（T-PERM-053，2026-09-05 删除）：接口权限模型为「API 资源实例 × ACCESS 单操作」，无操作粒度——敏感度区分靠把敏感路由拆分为独立 API 资源实例、仅向目标角色授 ACCESS。仍携带该字段的旧请求体经全局严格 ObjectMapper（未知字段拒绝，common `cacheObjectMapper` 顶替 Boot 宽容默认）反序列化失败返回 HTTP 400；前后端同批锁步发布（唯一活跃调用方=管理前端服务接口配置页），不做 mapper 放宽。
-- 权限中心自动拼接 `basePath + path` 得到 Gateway 原始路径。
-- 新接口自动创建 API 类型 `resource_entity` 和 `resource_api_mapping`。
-- `service-config/sync` 自动创建的 API 资源必须写入 `resource_entity.ownerServiceCode=serviceCode`、`maintainSource=SERVICE_SYNC`（`resource_entity.sync_key` 列已删除：写-only 死列全仓零读取方，2026-09-05 T-PERM-052 清理；资源依赖表的同名列不受影响）。
-- FULL diff 只软删除 `resource_api_mapping.maintain_source=SERVICE_SYNC` 且 `service_code=本次服务` 范围内本次缺失的映射——T-ACCESS-058 起按**映射自身维护来源**判定，不再从绑定 API 资源的 `ownerServiceCode + maintainSource` 推断（修复 MANUAL 映射绑 SERVICE_SYNC 资源被 FULL 误清的缺口）；登记实体已软删时该类 SERVICE_SYNC 映射一并清理。
-- 映射清理后无剩余有效映射引用的、由本服务 SERVICE_SYNC 自动创建的 API 资源可同步软删除；`maintain_source=MANUAL/BOOTSTRAP` 的映射与其他服务或其他来源仍引用的登记实体保留，不删除。
-- API 类型已由 DDL 种子声明 `SYNC + syncSourceService=access-service`（T-PERM-069，2026-09-18 Q-008「仅 API 收紧」定案）：本通道与 bootstrap 固定图即 API 资源的唯一事实入口（领域直写，不经资源管理面门禁）；资源管理面 `create|batch-create|update|move|remove` 对 API 类型一律 20055，外部 `resource-entity/sync|full-sync` 对其来源不匹配拒绝。SERVICE 类型维持 MANAGED（新 SERVICE 行唯一通道=管理面手工建行——按服务实例级授权的目标行）。
+同步仍按服务维护 API 登记资源及映射，`ownerServiceCode=serviceCode`、`maintainSource=SERVICE_SYNC`；API 类型由平台内部维护，管理面直接修改资源实体仍拒绝 20055。FULL 仅回收该服务自己维护且本次缺失的事实，不接管其他来源映射。同步只发布接口元数据和业务操作要求，不生成 API 授权。
 
 ### 19.9 同步类型白名单配置（service-config/save 的 extra.syncTypes）
 
@@ -2871,7 +2743,7 @@ schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正�
 
 ## 21. 验收标准
 ### 21.1 perm 家族验收标准
-- 当 Gateway 使用默认配置回调权限中心时，系统应调用 `POST /api/access/auth/check-interface` 并得到稳定响应。
+- 当 Gateway 使用默认配置回调权限中心时，系统应调用 `POST /api/access/auth/interface-admission` 并得到稳定响应。
 - 当外部系统只知道用户 `subjectTypeCode + subjectExternalId`、资源 `resourceTypeCode + resourceCode`、操作 `operationCode` 时，系统应能完成鉴权判定。
 - 当管理端查询任何列表接口时，响应 `data` 应始终是对象，且列表数据位于 `data.items`。
 - 当调用批量删除接口时，系统应接受 `{ "ids": [...] }` 并执行软删除，不暴露 RESTful Path 参数。
@@ -2891,7 +2763,7 @@ schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正�
 5. **响应壳统一**: 所有接口返回 `R<T>`, 列表不直接返回数组 (由 `RResponseAdvice` 强制); ~~现有违反此规则的接口 (例如 `/api/access/org/tree` 直接返回 `List<OrgResp>`)~~ 已清零（`/api/access/org/tree` 已由 T-ADMIN-021 切 `R<ItemsResp<OrgResp>>`；台账见附录 B）.
 6. **异常映射**: 业务拒绝抛 `BizException`; 安全拒绝抛 `SecurityException`; 技术故障抛 `SystemException`. 不允许用 `SecurityException` 表达"资源不存在".
 7. **默认树身份目录边界**: `/api/access/user/create` (带 orgId), `/api/access/user/delete`, `/api/access/user/enable`, `/api/access/user/reset-password`, `/api/access/user-org/set-primary` 必须在 AppService 内做默认树边界二次校验, 失败抛 `BizException`.
-8. **投影所有权**: subject/role/user_role 侧保留业务键（`LOCAL_USER`/`ORG|POSITION`/`SYS_USER_ORG`）不得被外部 sync/full-sync 写入，失败抛 `BizException(20045)`；resource 侧为类型级所有权（T-PERM-052，2026-09-05；T-ADMIN-025 增 ADMIN_FILE、T-PERM-051 增 TYPE_DEFINITION）：事实链路七类型 USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION/CONDITION （T-PERM-048 增 CONDITION——管理页条件投影，仅 source=MANAGED）种子声明 SYNC+access-service——外部同步被类型所有权门禁以 `RESOURCE_TYPE_OWNERSHIP_DENIED`（同步拒绝响应）拒绝、管理面资源 CRUD 拒绝 20055、所有权声明变更/类型删除冲突拒绝 20056，原行级 `owner=access-service` 检查已收编删除；API 为 T-PERM-069 增补同款种子声明（唯一事实入口=service-config/sync 接口声明通道+bootstrap 固定图，管理面 20055；SERVICE 维持 MANAGED）。外部增量/全量同步仍使用 `sync_metadata` 做版本乱序保护。
+8. **投影所有权**: subject/role/user_role 侧保留业务键（`LOCAL_USER`/`ORG|POSITION`/`SYS_USER_ORG`）不得被外部 sync/full-sync 写入，失败抛 `BizException(20045)`；resource 侧为类型级所有权（T-PERM-052，2026-09-05；T-ADMIN-025 增 ADMIN_FILE、T-PERM-051 增 TYPE_DEFINITION）：事实链路七类型 USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION/CONDITION （T-PERM-048 增 CONDITION——管理页条件投影，仅 source=MANAGED）种子声明 SYNC+access-service——外部同步被类型所有权门禁以 `RESOURCE_TYPE_OWNERSHIP_DENIED`（同步拒绝响应）拒绝、管理面资源 CRUD 拒绝 20055、所有权声明变更/类型删除冲突拒绝 20056，原行级 `owner=access-service` 检查已收编删除；API 为 T-PERM-069 增补同款种子声明（唯一事实入口=service-config/sync-v2 接口声明通道+bootstrap 固定图，管理面 20055；SERVICE 维持 MANAGED）。外部增量/全量同步仍使用 `sync_metadata` 做版本乱序保护。
 
 ## 22. 已确认决策（设计沉淀）
 ### 22.1 perm 家族已确认决策
@@ -2934,10 +2806,10 @@ schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正�
 
 ## 23. 实施建议
 1. 直接以 `/api/access/*` 重新实现 permission-center Controller，不保留旧路径兼容。
-2. Gateway 默认路径改为 `/api/access/auth/check-interface`。
+2. Gateway 使用 `/api/access/auth/interface-admission` 及对应准入快照协议。
 3. SDK Feign 改为依赖稳定契约 DTO，返回类型与服务端保持一致。
 4. 所有 Request DTO 移除 `tenantId` 字段，服务端从 Header/SecurityContext 获取租户和操作者。
-5. 首期 `service-config/sync` 仅实现 FULL 全量同步。
+5. 首期 `service-config/sync-v2` 仅实现 FULL 全量同步。
 6. `auth/query-resources` 和 `auth/query-scopes` 必须复用 `auth/check` 的角色解析、条件评估、冲突处理、租户过滤和缓存失效逻辑。
 
 ## 24. 服务凭证与 M2M 服务认证（T-PERM-070）
@@ -3007,7 +2879,7 @@ schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正�
 
 ### 25.1 模式与两层判定（方案 A）
 
-`service_config` 增加每服务鉴权模式 `api_auth_mode = LEGACY_API / OPERATION_ADMISSION`（随 T-ACCESS-058 落地；**T-ACCESS-059 拍板无迁移期统一上线（2026-09-28）：全部服务（含 access-service 自身）一次切 OPERATION_ADMISSION，网关单链无模式发现，DDL 缺省改 OPERATION_ADMISSION，存量库经迁移脚本 `docs/ops/operation-admission-migrate-059.sql` 全量切换；LEGACY_API 值仅作 T-ACCESS-062 退役前的版本回退部署形态（服务端准入端点对 LEGACY_API 服务按配置故障 20071 拒绝），迁移期「按服务选择」口径不再适用**）。LEGACY_API 沿用 §18.3/§18.4 旧协议（check-interface / interface-snapshot，API:ACCESS 资源语义），终态退役见 T-ACCESS-062。
+全部服务统一使用业务操作准入。T-ACCESS-062 删除 `service_config.api_auth_mode`、服务配置请求/响应 `apiAuthMode`、模式枚举及前端选择入口；协议响应的 `mode="OPERATION_ADMISSION"` 仍是协议常量，不是可配置开关。API 登记目录保留，API 独立授权与旧在线/快照协议退役。存量先备份并受控清理所有租户、所有来源的有效 API 授权，存在业务子行引用时停止，见 [退役手册](../ops/runbook-api-retirement-062.md)。
 
 OPERATION_ADMISSION 模式下接口检查为两层判定，**不生成第二份 API 授权**：
 
@@ -3032,13 +2904,13 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
 
 **映射管理与同步写入（T-ACCESS-058）**：
 
-- `service-config/save` 增加可选 `apiAuthMode`（LEGACY_API / OPERATION_ADMISSION）；**创建缺省 OPERATION_ADMISSION（T-ACCESS-059 无迁移期口径，与 DDL 缺省一致）**，更新缺省不修改；模式或启停变化同事务递增 `config_generation`。响应返回该模式；客户端请求头和同步清单均不能切换模式。
-- 映射 create/update 增加 `requiredPermission`；更新省略时保留已有要求，改绑时提交完整类型与操作。LEGACY_API 可提前配置要求，OPERATION_ADMISSION 保存时必须有有效要求。无要求不是公共接口。
+- `service-config/save` 不接受鉴权模式字段；服务启停变化同事务递增 `config_generation`。客户端请求头和同步清单均不能切换鉴权行为。
+- 映射 create/update 增加 `requiredPermission`；更新省略时保留已有要求，改绑时提交完整类型与操作。保存时必须有有效要求。无要求不是公共接口。
 - 映射列表及 create/update 响应返回 `requiredPermission` 和映射自身的 `maintainSource`（MANUAL/SERVICE_SYNC/BOOTSTRAP）；不再从登记资源推断映射维护来源。类型取自操作定义，不重复持久化。
-- 新增 `POST /api/access/service-config/sync-v2`，顶层仍为 `{serviceCode, basePath?, syncMode:"FULL", groups:[{groupCode, groupName, apis:[]}]}`；ApiItem 仍有 `name/httpMethod/path/resourceCode/description?`，新增必填 `requiredPermission`。独立 DTO 与端点表达版本，旧 `/sync` 不接受新字段。整批任一必要引用无效则回滚，成功响应沿用同步新增/更新/删除计数。
+- 新增 `POST /api/access/service-config/sync-v2`，顶层仍为 `{serviceCode, basePath?, syncMode:"FULL", groups:[{groupCode, groupName, apis:[]}]}`；ApiItem 仍有 `name/httpMethod/path/resourceCode/description?`，新增必填 `requiredPermission`。独立 DTO 与端点表达声明协议，旧 `/sync` 已退役。整批任一必要引用无效则回滚，成功响应沿用同步新增/更新/删除计数。
 - 凭证调用的 tenantId/serviceCode 来自可信认证链，body.serviceCode 必须一致；管理员调用仍校验该服务的 SERVICE:SYNC_INTERFACE。服务须已登记且启用，旧共享密钥的纯服务身份不开放新端点。
 - 手工、同步、bootstrap 共用映射保存校验，映射只能引用同租户 API 登记实体。FULL 只清该服务 SERVICE_SYNC 映射；仍被保留映射引用的登记实体保留。同一路由被其他维护来源占有时拒绝，不静默接管。
-- 存量来源保守回填 MANUAL，后续 T-ACCESS-061 盘点订正。bootstrap 同事务登记 access-service 的 OPERATION_ADMISSION 配置（058 落账时为 LEGACY_API，059 无迁移期统一上线后随 DDL 缺省同改）并纳入固定图身份检查；存量配置缺口由迁移脚本补齐。
+- 存量来源保守回填 MANUAL，后续 T-ACCESS-061 盘点订正。bootstrap 同事务登记 access-service 配置并纳入固定图身份检查；不生成 API 授权。存量配置缺口由迁移脚本补齐。
 
 ### 25.2 端点契约 interface-admission / interface-admission-snapshot
 
@@ -3047,7 +2919,7 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
 | `POST /api/access/auth/interface-admission` | 在线操作准入判定（网关回源／灰度强制在线用） |
 | `POST /api/access/auth/interface-admission-snapshot` | 按服务+主体拉取准入快照（网关本地判定用） |
 
-两端点为 M2M 调用，SDK `PermissionClient` 显式按可信服务模式调用；**身份形态（T-ACCESS-059 落地，2026-09-28）：per-service 凭证 + 网关内部密钥并存——两端点入 `M2mCredentialEndpoints` 凭证白名单（Q-040 收敛方向：运行时查询族首批凭证化端点），凭证调用按 sync-v2 先例约束 `serviceCode=凭证所属服务`（服务端校验）；网关沿用 X-Internal-Secret 平台信任域形态（service-authentication §3.2），旧密钥 + 自报 X-Service-Code 的纯服务调用拒绝 403（sync-v2 先例，不扩大旧密钥面）**。新模式失败**不回落**旧 API:ACCESS 路径；**网关消费形态（T-ACCESS-059）：PermissionFilter 直接切新链（准入快照 + 本地四态判定 + interface-admission 回源），网关侧旧链消费（interface-snapshot 拉取/旧 matcher/check-interface 调用）删除，服务端旧端点保留至 T-ACCESS-062；回退=回滚网关版本**。两端点随 T-ACCESS-059 已实现（`PermissionAdmissionAppService`）。
+两端点为 M2M 调用，SDK `PermissionClient` 调用新协议；**身份形态（T-ACCESS-059 落地，2026-09-28）：per-service 凭证 + 网关内部密钥并存——两端点入 `M2mCredentialEndpoints` 凭证白名单（Q-040 收敛方向：运行时查询族首批凭证化端点），凭证调用按 sync-v2 先例约束 `serviceCode=凭证所属服务`（服务端校验）；网关沿用 X-Internal-Secret 平台信任域形态（service-authentication §3.2），旧密钥 + 自报 X-Service-Code 的纯服务调用拒绝 403（sync-v2 先例，不扩大旧密钥面）**。新模式失败**不回落**旧 API:ACCESS 路径；**网关消费形态（T-ACCESS-059）：PermissionFilter 直接切新链（准入快照 + 本地四态判定 + interface-admission 回源），网关侧旧链消费（interface-snapshot 拉取/旧 matcher/check-interface 调用）删除，服务端旧端点已随 T-ACCESS-062 删除；回退须匹配代码、schema 与授权备份**。两端点随 T-ACCESS-059 已实现（`PermissionAdmissionAppService`）。
 
 **interface-admission 请求**（沿 check-interface 形态）：
 
@@ -3118,9 +2990,9 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
 
 - `routes[]` 携带该服务**完整启用路由**与各自要求；不按用户权限裁剪规则（§25.5 完整配置优先）。
 - `operationCandidates[]` 为最终准入投影（原始 GrantFact 不去重合并）：**每个元素承载一个条件身份（无条件用 `conditionId: null`）＋一个具体 `candidateKind`（`ALL`/`INSTANCE`/`CONTEXT_DEFERRED` 三选一）**，同一 type-operation 的不同条件身份或候选类别分列多个元素（设计 §8.4 归并键：type-operation＋conditionId／无条件身份＋候选类别）；仅上下文子行提供的候选保留 `CONTEXT_DEFERRED`，不伪装成主授权。`gatewayEvaluable` 表示该分支条件可否本地评估（false＝需回源，不表示通过）。**条件候选（`conditionId` 非 null）在 `gatewayEvaluable=true` 且规则类型全在四类型白名单（DATE_RANGE/TIME_RANGE/IP_WHITELIST/IP_BLACKLIST）内时内联 `conditionRules`——String 规则原文，同 §15 `ConditionResp.conditionRules` 的 `{logic, items[]}` 形态，沿旧快照 `ApiPermissionEntry.conditionRules` 同构传输（§18.4）；其余情况省略该字段，网关按需回源分支处理**。`gatewayEvaluable=true` 但 `conditionRules` 缺失或解析失败＝不可用分支（不通过、不转为无条件），无其他通过分支时回源在线判定（N11，同旧快照 FALLBACK 形态）。
-- `configGeneration`＝构建期自一致校验（2026-09-25 拍板限定语义）：构建前后代次比对、变更即废弃重建；接收侧（网关）不消费代次（**T-ACCESS-060 边界推导裁定，2026-09-28 用户拍板**：接收侧由「失效代际 epoch 作废在途＋快照 TTL 兜底」承载，不实现单独的代次匹配检查——此为对 2026-09-25 拍板「接收侧匹配检查」字样的边界推导修订；广播丢失时旧代次快照最长存活快照 TTL 15s，属「不承诺跨节点强一致」的文档化接受面）；不承诺跨节点授权版本强一致。**载体（T-ACCESS-059 拍板，2026-09-28）：`service_config.config_generation` 计数列（BIGINT NOT NULL DEFAULT 0），该服务映射写路径（共用保存入口/删除/FULL 清理）与模式切换同事务 +1；快照构建以独立语句+`flushCache="true"` 复读代次（强制落库——仅独立语句不避开 MyBatis 会话一级缓存对同语句二次调用的命中，2026-09-28 外评核实修正），有限重试后仍不稳定按技术故障失败关闭。服务配置保存不整实体回写该列（UpdateEntity 显式列，防并发递增后倒退）。**
+- `configGeneration`＝构建期自一致校验（2026-09-25 拍板限定语义）：构建前后代次比对、变更即废弃重建；接收侧（网关）不消费代次（**T-ACCESS-060 边界推导裁定，2026-09-28 用户拍板**：接收侧由「失效代际 epoch 作废在途＋快照 TTL 兜底」承载，不实现单独的代次匹配检查——此为对 2026-09-25 拍板「接收侧匹配检查」字样的边界推导修订；广播丢失时旧代次快照最长存活快照 TTL 15s，属「不承诺跨节点强一致」的文档化接受面）；不承诺跨节点授权版本强一致。**载体（T-ACCESS-059 拍板，2026-09-28）：`service_config.config_generation` 计数列（BIGINT NOT NULL DEFAULT 0），该服务映射写路径（共用保存入口/删除/FULL 清理）与服务启停同事务 +1；快照构建以独立语句+`flushCache="true"` 复读代次（强制落库——仅独立语句不避开 MyBatis 会话一级缓存对同语句二次调用的命中，2026-09-28 外评核实修正），有限重试后仍不稳定按技术故障失败关闭。服务配置保存不整实体回写该列（UpdateEntity 显式列，防并发递增后倒退）。**
 - 快照不携带用于绕过业务最终检查的「实例已授权」证明；客户端传入 `finalCheckRequired=false` 不能改变服务配置。**候选投影与快照响应 DTO 已随 T-ACCESS-059 落地（`InterfaceAdmissionSnapshotResp`，schemaVersion=1）；routes 携带该服务完整启用路由（access-service 自身管理端点同样接入，各端点要求=服务层 QueryGate 门禁同码——开放读端点按所属类型 VIEW 绑定；`auth/query-scopes` M2M 种子映射移出固定图停用）。**
-- **服务未登记或停用（status=0）→ 成功返回空路由快照**（`routes=[]`、`operationCandidates=[]`，代次取当前列值、未登记为 0）：该服务无参与授权的路由，网关本地无命中按无注册匹配拒绝（DENY→403），与在线端点 `API_NOT_REGISTERED` 语义对称（2026-09-28 外评拍板：停用是例行管理操作，抛 20071 会使网关对该服务全量 503 重试风暴；20071 保留给 LEGACY 模式异常与引用损坏）。
+- **服务未登记或停用（status=0）→ 成功返回空路由快照**（`routes=[]`、`operationCandidates=[]`，代次取当前列值、未登记为 0）：该服务无参与授权的路由，网关本地无命中按无注册匹配拒绝（DENY→403），与在线端点 `API_NOT_REGISTERED` 语义对称（2026-09-28 外评拍板：停用是例行管理操作，抛 20071 会使网关对该服务全量 503 重试风暴；20071 保留给引用损坏等配置故障——T-ACCESS-062 模式字段退役后无 LEGACY 形态）。
 
 **网关本地判定序**（固定顺序）：校验模式／版本／时效 → 完整路由匹配与歧义检测 → 取得唯一要求 → 评该要求的条件分支。存在无条件或条件通过分支即 MAY_ENTER；无通过分支但有需远端求值的候选则回源在线判定；其余拒绝。坏条件显式不可用（不能因空 rules 成为无条件；**内联规则解析失败同样按不可用分支回源，不转为无条件——T-ACCESS-059 实现口径**）；CONTEXT_DEFERRED 分支恒不可本地评估（父运行时判定归在线/业务）。本地四态（ALLOW／FALLBACK／DENY／CONFIG_FAULT）由 `InterfaceAdmissionMatcher` 实现：CONFIG_FAULT（路由歧义/未知 schema/时效或模式校验失败）对终端 503，不伪装用户无权限。新快照缺失、远端不可用、未知 schema 不得自动 OR 旧权限或 stale-allow，按现行失败关闭路径返回技术错误（§25.6）。
 
@@ -3145,7 +3017,7 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
 
 新准入把业务操作覆盖转换为快照候选，依赖关系已变——**不能沿用旧快照约 30 秒的配置安全结论**。**T-ACCESS-060 边界重推导（2026-09-28，按新准入实际依赖面实核；同日外评修正算式：`generatedAt/expiresAt` 在构建完成后才计算，事实读取→`generatedAt` 之间的构建耗时使事实年龄继续增长，须计入）**：快照构建读源＝事实族（EFFECTIVE_ROLES／ROLE_PERM_SNAPSHOT／TYPE_VALUE／TYPE_CODE／CONDITION_RULES／ROLE_MUTEX_RULE，经引擎 L2_ONLY 目录，启动校验锁有效 TTL≤10s）＋操作定义（新鲜库读，T-ACCESS-057）＋条件规则原文（装配器直读）＋路由映射与服务配置含代次复读（新鲜库读）；最坏陈旧＝事实族 L2 陈旧(≤10s)＋构建耗时(≤5s，有效快照受网关回源截止 5s 约束——超时构建被网关放弃，不产出可用快照)＋快照有效期(SNAPSHOT_TTL 15s，网关按服务端 expiresAt 门禁命中、L1 TTL 15s 仅作丢失广播兜底)≤**30s＝30s 目标压线达标（0 余量——任一常量调大即越界）**。方程由 `PermCacheBoundaryValidator`（上游 L2＋快照有效期≤30s，调大任一常量启动失败；该方程锁住 25s 基线，构建耗时 5s 由网关侧方程承载）与网关 `GatewayCacheBoundaryValidator`（L1≤15s＋回源截止≤5s）双层锁定。即便采用新鲜操作定义，广播＋TTL 仍不是零延迟强一致。专用短 TTL／版本化业务操作缓存为备选（须重做安全边界证明，非默认）。
 
-失效面（§8.5 矩阵，T-ACCESS-060 收口）：授撤/角色归属/AUTO_DEP 经 markRoles/markUsers 广播（网关角色级租户清/用户级精确清）；**条件同 ID 改规则/启停/删除经 `markConditions` 通道由 `PermissionChangeAspect` flush 统一反查——「引用条件的授权类型→该类型所需操作→映射服务」安全超集（不沿旧授权资源=API 资源联接；管理页/内联/回收全自动覆盖，N19）**；操作定义/覆盖变更按「类型→所需操作→映射服务」超集广播（T-ACCESS-058 形态）；映射写路径与模式/启停切换同事务代次 +1 并广播 serviceCodes。错误信封（20070/20071）不缓存——部署错位窗口内每请求回源 503 即哨兵（2026-09-28 拍板：不加错误负缓存；空路由快照是唯一可缓存负形态）；「临时强制在线」灰度开关不落地（无现实需求触发，N23 以既有机制演练验收）。
+失效面（§8.5 矩阵，T-ACCESS-060 收口）：授撤/角色归属/AUTO_DEP 经 markRoles/markUsers 广播（网关角色级租户清/用户级精确清）；**条件同 ID 改规则/启停/删除经 `markConditions` 通道由 `PermissionChangeAspect` flush 统一反查——「引用条件的授权类型→该类型所需操作→映射服务」安全超集（不沿旧授权资源=API 资源联接；管理页/内联/回收全自动覆盖，N19）**；操作定义/覆盖变更按「类型→所需操作→映射服务」超集广播（T-ACCESS-058 形态）；映射写路径与服务启停同事务代次 +1 并广播 serviceCodes。错误信封（20070/20071）不缓存——部署错位窗口内每请求回源 503 即哨兵（2026-09-28 拍板：不加错误负缓存；空路由快照是唯一可缓存负形态）；「临时强制在线」灰度开关不落地（无现实需求触发，N23 以既有机制演练验收）。
 
 ### 25.5 路由匹配与歧义规则
 
@@ -3179,7 +3051,7 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
 
 ### 25.7 服务迁移门槛
 
-服务从 LEGACY_API 切到 OPERATION_ADMISSION 的**迁移资格 =「最终检查的代码位置＋反向拒绝测试」**，不是一个 `businessChecked=true` 配置：没有逐路由证明（业务服务内实际目标完整鉴权代码位置明确、且存在「无权限时确实拒绝」的反向测试）的服务不切新模式。
+服务接入操作准入的**资格 =「最终检查的代码位置＋反向拒绝测试」**，不是一个 `businessChecked=true` 配置：没有逐路由证明（业务服务内实际目标完整鉴权代码位置明确、且存在「无权限时确实拒绝」的反向测试）的服务不启用接入。
 
 业务入口最终检查口径（逐路由落地，example-service 先行，T-ACCESS-061）：
 

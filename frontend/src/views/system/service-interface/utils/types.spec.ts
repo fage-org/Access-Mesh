@@ -23,8 +23,11 @@ const service: ServiceConfigResp = {
 
 describe("操作准入映射", () => {
   it("新版清单缺少业务操作要求时拒绝", () => {
-    const raw = createSyncPayload(service).groupsJson;
-    expect(parseSyncGroups(raw, 2).error).toContain("requiredPermission");
+    const groups = JSON.parse(createSyncPayload(service).groupsJson);
+    delete groups[0].apis[0].requiredPermission;
+    expect(parseSyncGroups(JSON.stringify(groups)).error).toContain(
+      "requiredPermission"
+    );
   });
 
   it("新版清单保留业务类型与操作配对", () => {
@@ -34,7 +37,7 @@ describe("操作准入映射", () => {
       operationCode: "VIEW"
     };
     expect(
-      parseSyncGroups(JSON.stringify(groups), 2).groups?.[0].apis[0]
+      parseSyncGroups(JSON.stringify(groups)).groups?.[0].apis[0]
         .requiredPermission
     ).toEqual({ resourceTypeCode: "REPORT", operationCode: "VIEW" });
   });
@@ -68,6 +71,10 @@ describe("服务接口同步 operationCode 退役（T-PERM-053）", () => {
         groupName: "默认",
         apis: [
           {
+            requiredPermission: {
+              resourceTypeCode: "REPORT",
+              operationCode: "VIEW"
+            },
             name: "查询列表",
             httpMethod: "POST",
             path: "/api/demo/list",
@@ -97,6 +104,10 @@ describe("服务接口同步 operationCode 退役（T-PERM-053）", () => {
         groupName: "默认",
         apis: [
           {
+            requiredPermission: {
+              resourceTypeCode: "REPORT",
+              operationCode: "VIEW"
+            },
             name: "查询列表",
             httpMethod: "POST",
             path: "/api/demo/list",
@@ -118,6 +129,10 @@ describe("服务接口同步 operationCode 退役（T-PERM-053）", () => {
         groupName: "默认",
         apis: [
           {
+            requiredPermission: {
+              resourceTypeCode: "REPORT",
+              operationCode: "VIEW"
+            },
             name: "查询列表",
             httpMethod: "POST",
             path: "/api/demo/list"

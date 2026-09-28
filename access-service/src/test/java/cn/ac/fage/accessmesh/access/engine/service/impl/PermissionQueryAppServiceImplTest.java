@@ -1,11 +1,9 @@
 package cn.ac.fage.accessmesh.access.engine.service.impl;
 
-import cn.ac.fage.accessmesh.perm.common.dto.req.InterfaceSnapshotReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.QueryResourcesReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.QueryScopesReq;
 import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryResourcesResp;
-import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryScopesResp;
 import cn.ac.fage.accessmesh.access.domain.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
@@ -28,7 +26,6 @@ import cn.ac.fage.accessmesh.access.engine.query.ResultDetails;
 import cn.ac.fage.accessmesh.access.engine.query.Stage;
 import cn.ac.fage.accessmesh.access.engine.query.StageFacts;
 import cn.ac.fage.accessmesh.access.engine.query.TypeOperation;
-import cn.ac.fage.accessmesh.access.engine.util.SnapshotAssembler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -59,7 +56,7 @@ import static org.mockito.Mockito.when;
 /**
  * 权限查询应用服务测试类
  * <p>
- * T-PERM-090：queryResources/queryScopes/interfaceSnapshot 全部迁新 execute。
+ * T-PERM-090：queryResources/queryScopes 全部迁新 execute。
  * 外部响应断言保留作回归锁（X03 等价），另锁适配层请求形状（GRANT_LIST＋父要求＋
  * RAW_AND_KEPT＋extraOperationKeys、展示展开方向映射、快照 PRESERVE/ENFORCE）。
  * 引擎批量语义由容器轨（QuerySemanticsBaselinePgIT）钉死，本类 stub 新入口不作等价证据。
@@ -71,14 +68,13 @@ class PermissionQueryAppServiceImplTest {
     @Mock private TypeResolutionService typeResolutionService;
     @Mock private DomainClassifyService domainClassifyService;
     @Mock private QueryExecutionEngine queryEngine;
-    @Mock private SnapshotAssembler snapshotAssembler;
 
     private PermissionQueryAppServiceImpl service;
 
     @BeforeEach
     void setUp() {
         service = new PermissionQueryAppServiceImpl(
-            typeResolutionService, domainClassifyService, queryEngine, snapshotAssembler);
+            typeResolutionService, domainClassifyService, queryEngine);
     }
 
     // ===== queryScopes tests =====
@@ -227,56 +223,6 @@ class PermissionQueryAppServiceImplTest {
         assertEquals(ScopeMode.DENIED, degenerate.scopeGroups().get(3).scopeMode());
         // 退化组合不进 extraOperationKeys（避免结构拒绝）
         assertEquals(Set.of(deptView), capturedRequest().items().get(0).output().extraOperationKeys());
-    }
-
-    // ===== interfaceSnapshot tests (T-PERM-018：缓存下沉，移除令牌/notModified) =====
-
-    @Nested
-    @MockitoSettings(strictness = Strictness.LENIENT)
-    class InterfaceSnapshotTests {
-
-        @Test
-        void shouldBuildSnapshotFromEngineEveryCallWithoutToken() {
-            // T-PERM-018：access-service 每次实时构建全量快照，不再有 permissionVersion/notModified
-            GrantFact fact = new GrantFact(401L, 200L, 2, 101L, 1L, false, null, null, false, null, "MANUAL");
-            when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
-            when(typeResolutionService.resolveTypeValue(1L, "resource_type", "API")).thenReturn(2);
-            when(queryEngine.execute(any(QueryRequest.class)))
-                .thenReturn(result(presentResult(List.of(), List.of(fact), Map.of(), Map.of(), Map.of(), List.of())));
-            when(snapshotAssembler.buildSnapshot(eq(1L), anyList(), eq("example-service"), eq(2)))
-                .thenReturn(List.of(
-                    new InterfaceSnapshotResp.ApiPermissionEntry("example-service", "POST", "/api/user/list", false, null, null, ScopeMode.INSTANCE)
-                ));
-
-            InterfaceSnapshotResp first = service.interfaceSnapshot(1L, new InterfaceSnapshotReq(
-                "USER", "u-1", "example-service"));
-            InterfaceSnapshotResp second = service.interfaceSnapshot(1L, new InterfaceSnapshotReq(
-                "USER", "u-1", "example-service"));
-
-            // 每次都返回全量 entries（无 notModified 短路）
-            assertEquals(1, first.allowedApis().size());
-            assertEquals(1, second.allowedApis().size());
-            verify(snapshotAssembler, times(2)).buildSnapshot(eq(1L), anyList(), eq("example-service"), eq(2));
-
-            // 适配层请求形状锁：GRANT_LIST＋PRESERVE/ENFORCE（LEGACY_API 旧快照口径，设计 §6.6）
-            QueryItem item = capturedRequest().items().get(0);
-            assertEquals(Evaluation.preserveEnforce(), item.evaluation());
-            assertNull(((GrantList) item.selection()).requiredParent());
-        }
-
-        @Test
-        void shouldReturnEmptySnapshotWhenNoEffectiveRoles() {
-            when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
-            when(queryEngine.execute(any(QueryRequest.class))).thenReturn(result(
-                new GrantSetResult("snapshot", GrantSetResult.CollectionStatus.NO_ROLE, coverage(false), ResultDetails.empty())));
-
-            InterfaceSnapshotResp resp = service.interfaceSnapshot(1L, new InterfaceSnapshotReq(
-                "USER", "u-1", "example-service"));
-
-            assertTrue(resp.allowedApis().isEmpty());
-            // 无有效角色（新引擎 User 主体内部等价解析）→ 空快照，不进装配器
-            verify(snapshotAssembler, times(0)).buildSnapshot(any(), anyList(), any(), any());
-        }
     }
 
     // ===== queryResources tests =====

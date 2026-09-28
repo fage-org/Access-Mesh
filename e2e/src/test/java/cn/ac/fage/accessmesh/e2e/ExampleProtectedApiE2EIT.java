@@ -142,9 +142,9 @@ class ExampleProtectedApiE2EIT {
             postgres.getJdbcUrl() + "?stringtype=unspecified", postgres.getUsername(), postgres.getPassword());
              var st = conn.createStatement()) {
             st.execute(ddl);
-            // 环境种子：example-service 接入服务注册（service-config/sync 的前置——服务配置须已存在）；
+            // 环境种子：example-service 接入服务注册（service-config/sync-v2 的前置——服务配置须已存在）；
             // 正式接入由管理员经 service-config 管理接口维护。API 资源/映射由第③步
-            // service-config/sync 接口声明通道自动创建（API 类型种子声明 SYNC+access-service，
+            // service-config/sync-v2 接口声明通道自动创建（API 类型种子声明 SYNC+access-service，
             // T-PERM-069——外部 resource-entity/sync 来源不匹配拒绝、资源管理面手工 CRUD 20055，
             // 旧 syncTypes.resourceTypeCodes 白名单已退役）
             st.execute("INSERT INTO service_config (tenant_id, service_code, name, status) VALUES ("
@@ -233,7 +233,7 @@ class ExampleProtectedApiE2EIT {
     @Order(3)
     @DisplayName("③ example 经 service-config 接口声明通道注册 API 资源与 Gateway 映射（FULL）")
     void step3_createExampleApiResourceAndMapping() {
-        // API 资源的唯一事实入口是 service-config/sync 接口声明通道（api-contract §19.8）：FULL
+        // API 资源的唯一事实入口是 service-config/sync-v2 接口声明通道（api-contract §19.8）：FULL
         // 上报即完整事实来源，自动创建 API 资源与 resource_api_mapping（owner=example-service、
         // maintainSource=SERVICE_SYNC、pathPattern=basePath+path）。API 类型种子声明
         // SYNC+access-service（T-PERM-069，2026-09-18 Q-008「仅 API 收紧」）——resource-entity/sync

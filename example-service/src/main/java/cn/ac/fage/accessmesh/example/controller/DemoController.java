@@ -14,11 +14,14 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 演示控制器
  * <p>
- * AccessMesh 权限中心接入示例：本接口自身不做任何鉴权，接口级鉴权由 Gateway 承担
+ * AccessMesh 权限中心接入示例：本接口自身不做任何鉴权，网关操作准入由 Gateway 承担
  * （规范 §2.4 服务内不重复鉴权）——Gateway 路由 /api/example/**（serviceCode=example-service）
- * 命中 resource_api_mapping 后按接口快照放行或拒绝（未授权 403，授权后 200）。
- * 注册方式：access-service 中创建资源实体与 API 映射（serviceCode=example-service、
- * pathPattern=/api/example/demo/hello——T-ACCESS-042 起外部路径=服务路径），再向角色授予 API:ACCESS。
+ * 命中 resource_api_mapping 后按路由绑定的业务操作要求做准入判定（无准入候选 403，有候选放行；
+ * 有实际数据目标的接口还须业务层最终检查，见 ReportController 参考实现）。
+ * 注册方式：经 service-config/sync-v2 声明接口（serviceCode=example-service、
+ * pathPattern=/api/example/demo/hello——T-ACCESS-042 起外部路径=服务路径，
+ * 每条接口必填业务操作要求如 DEMO:VIEW），再向角色授予对应业务资源权限
+ * （API 类型仅用于接口登记，不单独授权，T-ACCESS-062）。
  * </p>
  * <p>
  * 身份信任链：Gateway HeaderCleanFilter 清除客户端自带身份头后注入 X-User-Id/X-Tenant-Id，

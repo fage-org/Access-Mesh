@@ -17,7 +17,7 @@ import java.util.List;
  * API 资源 {@code resource_entity(API).code = "{METHOD}:{外部路径}"}（T-ACCESS-042 起 URL 单命名空间，
  * 外部路径 = 服务路径 /api/access/**，无 Gateway 路由前缀与 StripPrefix——Gateway PermissionFilter
  * 以原始请求路径匹配 resource_api_mapping.path_pattern，注册值即控制器真实路径）；
- * 目标接口 {@code POST /api/access/role/my-info} 仅预建资源并预授 API:ACCESS+canGrant，不建映射
+ * 目标接口 {@code POST /api/access/role/my-info} 仅预建资源，不建映射
  * （映射由 E2E 真实创建，T-ACCESS-021）。
  * </p>
  */
@@ -66,24 +66,23 @@ public final class BootstrapGraphDefinition {
      * @param path           外部路径（T-ACCESS-042 起外部=服务路径 /api/access/**，无路由前缀）
      * @param name           资源显示名（授权页资源树可见）
      * @param withMapping    是否预建 resource_api_mapping（目标接口 false，映射归 E2E 真实创建）
-     * @param grantCanGrant  该 API 实例授权是否携带 canGrant=true（仅目标接口，授权传递用）
      * @param requiredTypeCode    准入要求业务资源类型码（T-ACCESS-059：无迁移期统一 OPERATION_ADMISSION，
      *                            每条映射必须绑定业务操作引用；null 仅目标接口合法）
      * @param requiredOperationCode 准入要求操作码（与类型码成对）
      */
     public record ApiRoute(String method, String path, String name,
-                           boolean withMapping, boolean grantCanGrant,
+                           boolean withMapping,
                            String requiredTypeCode, String requiredOperationCode) {
 
         /** 常规形态：预建映射 + 准入要求（管理端点按服务层 QueryGate 门禁同码绑定）。 */
         public static ApiRoute route(String method, String path, String name,
                                      String requiredTypeCode, String requiredOperationCode) {
-            return new ApiRoute(method, path, name, true, false, requiredTypeCode, requiredOperationCode);
+            return new ApiRoute(method, path, name, true, requiredTypeCode, requiredOperationCode);
         }
     }
 
     /**
-     * 业务门禁授权条目（Gateway 层 API:ACCESS 实例授权由 {@link #apiRoutes()} 派生，不在此列）。
+     * 业务门禁授权条目；API 登记不产生授权。
      *
      * @param resourceTypeCode 资源类型码
      * @param operationCode    操作码
@@ -252,7 +251,6 @@ public final class BootstrapGraphDefinition {
             ApiRoute.route("POST", "/api/access/service-config/save", "bootstrap:保存服务配置", ResourceTypeCode.SERVICE, OperationCode.MANAGE),
             ApiRoute.route("POST", "/api/access/service-config/remove", "bootstrap:删除服务配置", ResourceTypeCode.SERVICE, OperationCode.MANAGE),
             ApiRoute.route("POST", "/api/access/service-config/apis", "bootstrap:服务接口映射查询", ResourceTypeCode.SERVICE, OperationCode.VIEW),
-            ApiRoute.route("POST", "/api/access/service-config/sync", "bootstrap:服务接口FULL同步", ResourceTypeCode.SERVICE, OperationCode.SYNC_INTERFACE),
             ApiRoute.route("POST", "/api/access/service-config/sync-v2", "bootstrap:服务接口操作准入同步", ResourceTypeCode.SERVICE, OperationCode.SYNC_INTERFACE),
             ApiRoute.route("POST", "/api/access/resource-api-mapping/list", "bootstrap:接口映射列表", ResourceTypeCode.SERVICE, OperationCode.VIEW),
             ApiRoute.route("POST", "/api/access/resource-api-mapping/update", "bootstrap:更新接口映射", ResourceTypeCode.SERVICE, OperationCode.MANAGE_API_MAPPING),
@@ -310,8 +308,8 @@ public final class BootstrapGraphDefinition {
             ApiRoute.route("POST", "/api/access/job/detail", "bootstrap:任务详情", ResourceTypeCode.ADMIN_JOB, OperationCode.VIEW),
             ApiRoute.route("POST", "/api/access/job/page", "bootstrap:任务分页", ResourceTypeCode.ADMIN_JOB, OperationCode.VIEW),
             ApiRoute.route("POST", "/api/access/job/log/page", "bootstrap:任务日志分页", ResourceTypeCode.ADMIN_JOB, OperationCode.VIEW),
-            // 目标接口（§14.6）：仅预建资源 + API:ACCESS+canGrant，不建映射（无准入要求）
-            new ApiRoute("POST", "/api/access/role/my-info", "bootstrap:目标接口(my-info)", false, true, null, null));
+            // 目标接口（§14.6）：仅预建资源，不建映射（无准入要求）
+            new ApiRoute("POST", "/api/access/role/my-info", "bootstrap:目标接口(my-info)", false, null, null));
     }
 
     /**
@@ -383,7 +381,7 @@ public final class BootstrapGraphDefinition {
             // T-FE-015：组织与用户页读写门禁全档——固定图不持则空库上该页读写路径无授予起点
             // （死锁，同 DEPENDENCY 先例；菜单种子挂 ORG 资源类型走 v3.5 派生同样要求先持有）。
             // ORG 系/USER 系操作码（OperationCode 唯一常量源，T-ACCESS-034 合一；DDL 非预置扩展码组全有种子），
-            // 不可转授（默认口径，转授链例外见 T-ACCESS-052 最小集四条与 API:ACCESS）
+            // 不可转授（默认口径，转授链例外见 T-ACCESS-052 最小集四条）
             new GrantSpec(ResourceTypeCode.ORG, OperationCode.VIEW, null, false),
             new GrantSpec(ResourceTypeCode.ORG, OperationCode.CREATE, null, false),
             new GrantSpec(ResourceTypeCode.ORG, OperationCode.UPDATE, null, false),
@@ -426,21 +424,7 @@ public final class BootstrapGraphDefinition {
             // 不可转授（默认口径）
             new GrantSpec(ResourceTypeCode.ADMIN_JOB, OperationCode.VIEW, null, false),
             new GrantSpec(ResourceTypeCode.ADMIN_JOB, OperationCode.TRIGGER, null, false),
-            new GrantSpec(ResourceTypeCode.ADMIN_JOB, OperationCode.ENABLE, null, false),
-            // T-API-001：类型级 API:ACCESS + canGrant——新接入服务接口的授权必须由首管理员完成，
-            // 实例级（仅清单内管理接口）会造成鸡生蛋（无正规入口给新接口授权）。
-            new GrantSpec(ResourceTypeCode.API, OperationCode.ACCESS, null, true));
-    }
-
-    /**
-     * Gateway 层实例级 API:ACCESS 授权（由管理 API 清单派生）。
-     * ACCESS 为网关接口鉴权专用操作码（api-contract/DDL 运行时种子，OperationCode 的 API 段常量）。
-     */
-    public static List<GrantSpec> apiAccessGrants() {
-        return apiRoutes().stream()
-            .map(route -> new GrantSpec(ResourceTypeCode.API, OperationCode.ACCESS,
-                apiResourceCode(route.method(), route.path()), route.grantCanGrant()))
-            .toList();
+            new GrantSpec(ResourceTypeCode.ADMIN_JOB, OperationCode.ENABLE, null, false));
     }
 
     /**
@@ -475,9 +459,9 @@ public final class BootstrapGraphDefinition {
             new MenuSeed("MENU", "权限变更日志", "/system", "/system/permission-change-log", "ep/history", 12, ResourceTypeCode.PERMISSION_CHANGE_LOG, null));
     }
 
-    /** 全部固定图授权（业务门禁 + 实例级 API:ACCESS；计数以 AccessBootstrapPgIT 断言为准） */
+    /** 全部固定图授权（业务门禁；计数以 AccessBootstrapPgIT 断言为准） */
     public static List<GrantSpec> allGrants() {
-        return java.util.stream.Stream.concat(businessGrants().stream(), apiAccessGrants().stream()).toList();
+        return businessGrants();
     }
 
     /**

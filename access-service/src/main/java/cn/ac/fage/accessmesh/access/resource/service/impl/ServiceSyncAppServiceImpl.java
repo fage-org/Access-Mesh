@@ -6,7 +6,6 @@ import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
-import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigSyncReq;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigSyncV2Req;
 import cn.ac.fage.accessmesh.access.sync.strategy.InterfaceSyncDefinition;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
@@ -78,26 +77,6 @@ public class ServiceSyncAppServiceImpl implements ServiceSyncAppService {
         this.treeWriteLockSupport = treeWriteLockSupport;
     }
 
-    /**
-     * 同步服务接口与资源API映射
-     * <p>
-     * 以 FULL 模式同步服务接口定义与资源API映射关系（权威契约 §6.3 首期仅允许 FULL，
-     * T-PERM-027 收口：DTO 校验层拒绝其他值）。使用策略模式处理同步模式的具体逻辑。
-     * 需要SERVICE_SYNC_INTERFACE权限。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param req      同步请求，包含服务编码、同步模式、接口列表等
-     * @return 同步结果响应
-     * @throws SecurityException 无权限时抛出
-     */
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    @PermissionChange
-    @OperationLog(module = "PERMISSION", action = "SERVICE_INTERFACE_SYNC", targetType = "service_config", targetId = "#req.serviceCode()", summary = "'sync result: createdResources=' + #result.createdResources() + ', createdMappings=' + #result.createdMappings() + ', updatedMappings=' + #result.updatedMappings() + ', deletedResources=' + #result.deletedResources() + ', deletedMappings=' + #result.deletedMappings()")
-    public ServiceConfigSyncResp syncInterfaces(Long tenantId, ServiceConfigSyncReq req) {
-        return sync(tenantId, InterfaceSyncDefinition.from(req));
-    }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -110,7 +89,7 @@ public class ServiceSyncAppServiceImpl implements ServiceSyncAppService {
 
     private ServiceConfigSyncResp sync(Long tenantId, InterfaceSyncDefinition req) {
         Long operatorId = null;
-        if (req.version() == 2 && AccessRequestContext.getCallerType() == CallerType.SERVICE) {
+        if (AccessRequestContext.getCallerType() == CallerType.SERVICE) {
             if (!Objects.equals(tenantId, AccessRequestContext.getTenantId())
                 || !Objects.equals(req.serviceCode(), AccessRequestContext.getServiceCode())) {
                 throw new SecurityException("Service identity does not own requested service");

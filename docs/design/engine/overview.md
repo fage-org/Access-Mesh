@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 概念模型
 status: adopted
 domain: access-service
-last_reviewed: 2026-09-27（T-PERM-092 旧执行体删除：鉴权与查询入口节改 QueryGate/execute 终态口径；引擎组件口径更新）；此前 2026-09-15 domain 改 access-service；同批修正分层架构节 TableDef 表述与仓库规则相反的存量错误）；此前 2026-09-13（T-ACCESS-039：缓存目录册引用改挂合一后 AccessCacheCatalog）；此前 2026-09-13（T-ACCESS-034：操作码常量类引用改挂合一后 OperationCode）；此前 2026-09-13（T-ACCESS-040 迁位 docs/design/engine/，内容原样；api-contract 引用重挂总册）；此前 2026-09-10   # 2026-09-10 T-PERM-059 收口：运行时接口列表与「权限排查与变更日志」节（改「变更日志与审计」）更新删除口径；此前 2026-09-09   # 2026-09-09 T-PERM-057 统一引擎落地：鉴权与查询入口节改 targetMode 三态工厂表 + 两语义拆分注记；此前 2026-08-28 复杂查询工厂表收敛（forResourceQuery/forResourceCheck 删除、补 forValidateByEntityId）；此前：2026-08-27 缓存 TTL 口径修正（Gateway L1 ≤15s、30s=10+5+15 总预算）
+last_reviewed: 2026-09-28（T-ACCESS-062 退役口径：复杂查询面表/对外接口/缓存节改操作准入终态——checkInterface 行改 OPERATION_ADMISSION、端点清单换 interface-admission 族、API.ACCESS 判定句改写）；此前 2026-09-27（T-PERM-092 旧执行体删除：鉴权与查询入口节改 QueryGate/execute 终态口径；引擎组件口径更新）；此前 2026-09-15 domain 改 access-service；同批修正分层架构节 TableDef 表述与仓库规则相反的存量错误）；此前 2026-09-13（T-ACCESS-039：缓存目录册引用改挂合一后 AccessCacheCatalog）；此前 2026-09-13（T-ACCESS-034：操作码常量类引用改挂合一后 OperationCode）；此前 2026-09-13（T-ACCESS-040 迁位 docs/design/engine/，内容原样；api-contract 引用重挂总册）；此前 2026-09-10   # 2026-09-10 T-PERM-059 收口：运行时接口列表与「权限排查与变更日志」节（改「变更日志与审计」）更新删除口径；此前 2026-09-09   # 2026-09-09 T-PERM-057 统一引擎落地：鉴权与查询入口节改 targetMode 三态工厂表 + 两语义拆分注记；此前 2026-08-28 复杂查询工厂表收敛（forResourceQuery/forResourceCheck 删除、补 forValidateByEntityId）；此前：2026-08-27 缓存 TTL 口径修正（Gateway L1 ≤15s、30s=10+5+15 总预算）
 ---
 
 # Permission Center 概念模型
@@ -142,7 +142,7 @@ Set<Long> deniedEntityIds = queryGate.getDeniedEntityIds(tenantId, subjectId,
 | 消费面 | 目标选择 | 说明                                            |
 | ----------------------------- | ---------- | ----------------------------------------------- |
 | check/batchCheck（T-PERM-089） | 无编码目标 TypeLevel / 有编码单 clause TargetSet | 运行时鉴权；判定面继承关 + `inheritMode("PARENT"/"BOTH")` 显式开（适配层 `inheritClosureOf` 解析） |
-| checkInterface（T-PERM-090） | TargetSet（共同集合） | 接口鉴权，全部匹配 API 一个 item；API 扁平无树天然关 |
+| 操作准入 interfaceAdmission/快照（T-ACCESS-057~059，OPERATION_ADMISSION 选择） | OPERATION_ADMISSION | 网关路由准入候选（MAY_ENTER＋业务最终检查）；旧 checkInterface（TargetSet 共同集合）已随 T-ACCESS-062 退役 |
 | QueryGate 判定面（T-PERM-089） | TypeLevel / TargetSet | 管理面写门禁：条件评估拉平（自动装配 clientIp）+ 条目互斥 + 判定面继承开 |
 | queryScopes（T-PERM-090） | GRANT_LIST | 数据范围查询：`ParentRequirement` 主资源上下文经引擎执行 depend_on 过滤，条件/互斥评估在引擎；四态组装=ScopeCoverageProjector |
 | queryResources/快照/视图/转授（T-PERM-090/091） | GRANT_LIST | 用户视图/清单面：全量角色权限事实 + effectiveOperations 操作投影；树扩展经展示面展开 |
@@ -153,7 +153,7 @@ Set<Long> deniedEntityIds = queryGate.getDeniedEntityIds(tenantId, subjectId,
 
 - `auth/check`：判断单个资源操作是否允许。
 - `auth/batch-check`：批量判断多个资源操作。
-- `auth/check-interface`：Gateway 接口级鉴权。
+- `auth/interface-admission` / `auth/interface-admission-snapshot`：网关操作准入在线判定与快照（契约总册 §25；旧 check-interface/interface-snapshot 已随 T-ACCESS-062 退役）。
 - `auth/query-resources`：查询用户能操作哪些独立资源。
 - `auth/query-scopes`：查询用户在某个主资源上下文内能操作哪些范围资源。
 - 管理端解释/排查端点族（原 `permission-view/*`）：已删除（T-PERM-059，2026-09-10 删除重设计定案），新形态另立任务；登录权限串 `effective-permission-codes` 为该控制器唯一存续端点。
@@ -174,7 +174,7 @@ Set<Long> deniedEntityIds = queryGate.getDeniedEntityIds(tenantId, subjectId,
 - **缓存失效采用 Redis pub/sub 主动广播 + TTL 兜底**（2026-06-27 T-PERM-007 核对）：写操作通过 `@PermissionChange` 绑定 `PermissionChangeContext`，业务侧只调用 `markRoles/markUsers/markConditions/markRoleSnapshots/markServiceCodes` 登记影响范围；事务提交后由 `PermissionChangeAspect` 统一 evict `EFFECTIVE_ROLES` / `ROLE_PERM_SNAPSHOT` / `CONDITION_RULES` 并通过 `StringRedisTemplate.convertAndSend("perm:invalidate", PermInvalidateEvent JSON)` 广播。Gateway 订阅后 evict 本地接口快照；广播丢失由 TTL（30-60s）自然过期兜底。**已删除 `permission_version` 机制**（原“递增 version 驱动失效”的设计已废弃，Gateway 不读 version）。
 - Gateway 本地 L1 缓存（Caffeine，TTL ≤15s，catalog `gw:interface-admission-snapshot`（T-ACCESS-059 操作准入快照）；30 秒是串行授权安全总预算 = 授权 L2 ≤10s + 回源全链路截止 ≤5s + 快照 L1 ≤15s，见 access-service-architecture §7.2），L2 缓存由权限中心内部维护（Redis，通过 `CacheService` + `AccessCacheCatalog` 统一管理）。权限中心侧不再缓存 `INTERFACE_SNAPSHOT(L2)`，接口快照每次实时调 engine 构建，依赖 `ROLE_PERM_SNAPSHOT` 兜住角色权限记录读路径。
 - 缓存失效在事务提交后由 `PermissionChangeAspect.afterCommit` 执行；业务侧（AppService / DomainService 方法体）禁止手写 `TransactionSynchronizationManager`。
-- 接口级权限检查（`check-interface`）匹配 API 映射后直接走 `API.ACCESS` 引擎判定，无额外 VIEW 门禁。
+- 网关操作准入（`interface-admission` 族）：按服务启用路由的准入要求从业务授权中寻找候选（存在候选即 MAY_ENTER、恒要求业务最终检查）；API 类型不单独授权（T-ACCESS-062），旧 `API.ACCESS` 判定已退役。
 
 ## 关联文档
 

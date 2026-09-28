@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.access.resource.service.domain.impl;
 
 import cn.ac.fage.accessmesh.common.exception.SystemException;
 import cn.ac.fage.accessmesh.access.projection.PermConstants;
-import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigSyncReq;
+import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigSyncV2Req;
 import cn.ac.fage.accessmesh.access.resource.entity.ServiceConfig;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
@@ -44,14 +44,14 @@ class MappingSyncHandlerImplTest {
 
     @Test
     void shouldThrowSystemExceptionWhenSyncedResourceWasNotCreated() {
-        ServiceConfigSyncReq req = new ServiceConfigSyncReq(
+        ServiceConfigSyncV2Req req = new ServiceConfigSyncV2Req(
             "svc-a",
             "/base",
             "FULL",
-            List.of(new ServiceConfigSyncReq.GroupItem(
+            List.of(new ServiceConfigSyncV2Req.GroupItem(
                 "default",
                 "默认",
-                List.of(new ServiceConfigSyncReq.ApiItem("demo", "GET", "/demo", "demo:read", "demo api"))
+                List.of(new ServiceConfigSyncV2Req.ApiItem("demo", "GET", "/demo", "demo:read", "demo api", new cn.ac.fage.accessmesh.access.resource.dto.RequiredPermission("REPORT", "VIEW")))
             ))
         );
         SyncContext context = SyncContext.of(1L, new ServiceConfig(), req, 100L, "/base", 1);

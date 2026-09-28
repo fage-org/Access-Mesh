@@ -67,7 +67,7 @@ public class PermissionCondition {
      * 可下发类型见 {@code ConditionEvalUtils.GATEWAY_PUSHABLE_TYPES}：
      * {@code IP_WHITELIST} / {@code IP_BLACKLIST} / {@code DATE_RANGE} / {@code TIME_RANGE}（4 类全部）。
      * 跨进程时钟一致性由 NTP 同步保证（亚秒漂移 << 业务粒度小时级），TIME_RANGE 同样可下发。
-     * 未来扩展类型（如 ORG_SCOPE / DATA_OWNER）默认 fail-close 不下发，由 fallback check-interface 兜底。
+     * 未来扩展类型（如 ORG_SCOPE / DATA_OWNER）默认 fail-close 不下发，由 fallback interface-admission 兜底。
      * </p>
      */
     private Boolean gatewayEvaluable;

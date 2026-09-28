@@ -3,7 +3,7 @@ doc_type: design
 title: access-service 能力包结构与两域融合
 status: adopted
 domain: cross-service
-last_reviewed: 2026-09-26
+last_reviewed: 2026-09-28（T-ACCESS-062 退役清扫：engine 归位表 check-interface/interface-snapshot/SnapshotAssembler/CheckInterfaceResp 标注删除）；此前 2026-09-26
 ---
 
 # access-service 能力包结构与两域融合
@@ -376,11 +376,11 @@ Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{
 | permission.service.domain.impl.PermQueryEngine | engine.core | 已随 T-PERM-092 删除（旧执行体；新执行主体=engine.query.QueryExecutionEngine） |
 | permission.service.domain：TypeResolutionService/Impl、ResolveContext、SubjectDomainService/Impl、BatchConditionEvaluator、BatchPermMutexEvaluator | engine.core | 类型解析/主体装载/批量评估器=引擎管线输入面与评估器；ResolveContext 已随 T-PERM-092 删除（新引擎解析记忆在 engine.query.QueryReadSupport） |
 | permission.service：PermissionCheckAppService/Impl、PermissionQueryAppService/Impl、PermissionViewAppService/Impl | engine.service | 引擎对外查询编排 |
-| permission.controller：PermAuthController、PermissionViewController | engine.controller | check/batch-check/check-interface/interface-snapshot/query-resources/query-scopes/effective-permission-codes |
+| permission.controller：PermAuthController、PermissionViewController | engine.controller | check/batch-check/query-resources/query-scopes/interface-admission(-snapshot)/effective-permission-codes（旧 check-interface/interface-snapshot 已随 T-ACCESS-062 删除） |
 | admin.security.**AdminPermissionValidator** + application.security.**AdminPermissionValidatorImpl** | engine | 门禁门面（消费面横跨全部 admin 能力 Service、写编排与查询；Impl 委托 QueryGate〔T-PERM-089 起〕），裁决 7 |
 | admin.security.**AdminOperationCode** + permission.constant.**OperationCodeConstants** + admin.security.**OrgOperationCodeMapper** | engine.constant | 033 两册先随迁，034 合一为单册按资源类型分节（裁决 7） |
-| permission.util：PermResultUtils、SnapshotAssembler、PermViewAssembler、ScopeModeSupport、OperationPermissionUtils、RolePermEntryMapper；permission.vo.RolePermEntry | engine.util / engine.vo | |
-| permission.dto.query：PermBatchQuery、PermBatchResult、PermEvalContext、PermQuery、PermResult、PermViewFilter、PermViewResult；permission.dto.resp：AuthCheckResp、BatchAuthCheckResp、CheckInterfaceResp | engine.dto | 查询模型 + check 族响应；四旧 DTO（PermQuery/PermResult/PermBatchQuery/PermBatchResult）已随 T-PERM-092 删除，新请求/结果模型在 engine.query |
+| permission.util：PermResultUtils、SnapshotAssembler、PermViewAssembler、ScopeModeSupport、OperationPermissionUtils、RolePermEntryMapper；permission.vo.RolePermEntry | engine.util / engine.vo | SnapshotAssembler 已随 T-ACCESS-062 旧快照协议删除；操作准入快照装配=InterfaceAdmissionSnapshotAssembler |
+| permission.dto.query：PermBatchQuery、PermBatchResult、PermEvalContext、PermQuery、PermResult、PermViewFilter、PermViewResult；permission.dto.resp：AuthCheckResp、BatchAuthCheckResp、CheckInterfaceResp | engine.dto | 查询模型 + check 族响应；四旧 DTO（PermQuery/PermResult/PermBatchQuery/PermBatchResult）已随 T-PERM-092 删除、CheckInterfaceResp 已随 T-ACCESS-062 删除，新请求/结果模型在 engine.query |
 | permission.dto.req.**PermissionCheckReq** | —（**删除**） | 实测零消费方（僵尸 DTO，按「无消费即删」政策随 033 清除） |
 
 引擎无自有 mapper；其直读投影/映射表 mapper（PermissionView/QueryAppServiceImpl→ResourceEntityMapper、PermissionCheckAppServiceImpl→ResourceApiMappingMapper 等既有输入面装载形态）属 §8.4 断言显式豁免。`engine.service` 对外查询编排与能力包 DomainService 同层互调为既有形态（`PermissionQueryAppServiceImpl`→`DomainClassifyService`/`PermissionConflictDomainService`）；`engine.core` 对能力包 Service/DomainService 的依赖仅限 rule 域条件/冲突评估 DomainService（批量评估器条件四态与互斥评估的既有形态，拆包前同包直调、随本归属清单拆包显式化为 engine.core→rule.service.domain；评估器现由 engine.query 新执行主体消费）；其余能力包的 Service/DomainService 不依赖（对实体/DTO/枚举的跨包 import 与 mapper 直读为既有输入面形态，见 §8.4 豁免 1——非断言对象）。

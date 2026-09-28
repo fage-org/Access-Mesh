@@ -3,7 +3,7 @@ doc_type: design
 title: 微服务架构设计
 status: adopted
 domain: common
-last_reviewed: 2026-09-15 服务清单与拓扑图、§3 章节标题与正文、§6 决策表的域前缀表述清扫；结构契约 capability-structure）
+last_reviewed: 2026-09-28（T-ACCESS-062 退役口径：接口资源注册/同步通道改 sync-v2、接口权限演示改操作准入+业务最终检查）；此前 2026-09-15 服务清单与拓扑图、§3 章节标题与正文、§6 决策表的域前缀表述清扫；结构契约 capability-structure）
 ---
 
 # 微服务架构设计
@@ -86,7 +86,7 @@ last_reviewed: 2026-09-15 服务清单与拓扑图、§3 章节标题与正文�
 | gateway         | access-service | HTTP (转发)    | `/api/access/**` 单路由（外部路径=服务路径，无 StripPrefix；登录/管理/权限接口统一转发） |
 | gateway         | access-service | HTTP (负载均衡 WebClient) | 操作准入鉴权（T-ACCESS-059）：`POST /api/access/auth/interface-admission-snapshot` 拉取准入快照本地四态判定；无通过分支回退 `interface-admission` 在线判定 |
 | gateway         | example-service | HTTP (转发)   | 演示服务接口转发                                                                             |
-| 管理员/运维（经 Gateway） | access-service | HTTP（管理面，运维期） | 接口资源注册：管理员经 `POST /api/access/service-config/sync`（FULL 接口声明）一步创建 API 资源与映射（T-API-001 E2E 钉死；原 resource-entity/sync 直连通道已随 T-PERM-052 类型级所有权退役——API 类型种子声明 SYNC+access-service（T-PERM-069），外部同步入口来源不匹配一律拒绝、资源管理面手工 CRUD 20055，本通道与 bootstrap 固定图即 API 资源唯一事实入口）。example-service 运行期对 access-service 的调用仅业务最终检查（T-ACCESS-061：§8.6 两层判定第二层，经 perm-client SDK 内部密钥通道调 auth/check 族端点；接口级准入仍由 Gateway 承担） |
+| 管理员/运维（经 Gateway） | access-service | HTTP（管理面，运维期） | 接口资源注册：管理员经 `POST /api/access/service-config/sync-v2`（FULL 接口声明，每条接口必填业务操作要求）一步创建 API 资源与映射（T-API-001 E2E 钉死；原 resource-entity/sync 直连通道已随 T-PERM-052 类型级所有权退役——API 类型种子声明 SYNC+access-service（T-PERM-069），外部同步入口来源不匹配一律拒绝、资源管理面手工 CRUD 20055，本通道与 bootstrap 固定图即 API 资源唯一事实入口；旧 service-config/sync 已随 T-ACCESS-062 删除）。example-service 运行期对 access-service 的调用仅业务最终检查（T-ACCESS-061：§8.6 两层判定第二层，经 perm-client SDK 内部密钥通道调 auth/check 族端点；接口级准入仍由 Gateway 承担） |
 
 ### 1.5 管理端前后端交互原则
 
@@ -319,8 +319,8 @@ sys_menu 的权威 DDL 见 [`schema/access-service.sql`](schema/access-service.s
 
 | 模块               | 说明                                                                                          | 档位       |
 | ------------------ | --------------------------------------------------------------------------------------------- | ---------- |
-| 服务注册与接口同步 | 接口声明经 `/api/access/service-config/sync`（FULL）注册 API 资源与映射（管理员经 Gateway 运维期操作；原 resource-entity/sync 通道已随 T-PERM-052 类型级所有权退役） | 当前可用   |
-| 接口权限演示       | 单受保护接口 `POST /api/example/demo/hello` 经 Gateway 快照鉴权 + 身份回显 + HMAC 签名校验演示 | 当前可用   |
+| 服务注册与接口同步 | 接口声明经 `/api/access/service-config/sync-v2`（FULL，每条接口必填业务操作要求）注册 API 资源与映射（管理员经 Gateway 运维期操作；原 resource-entity/sync 通道已随 T-PERM-052 类型级所有权退役） | 当前可用   |
+| 接口权限演示       | 单受保护接口 `POST /api/example/demo/hello` 经 Gateway 操作准入 + 业务最终检查 + 身份回显 + HMAC 签名校验演示 | 当前可用   |
 | 菜单/按钮权限演示  | 前端动态菜单与按钮级权限控制                                                                  | 已规划     |
 | 报表范围权限演示   | `query-scopes`、`DIRECT ∪ DEPENDENT`、`scopeMode=ALL`                                        | 已规划     |
 | 权限条件演示       | 时间范围/IP 白名单条件评估效果                                                                | 已规划     |

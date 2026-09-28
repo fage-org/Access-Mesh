@@ -7,15 +7,14 @@ description: >-
 origin: project
 metadata:
   project: AccessMesh
-  version: "7.0.0"
+  version: "8.0.0"
 ---
 
 # 统一权限查询引擎规范
 
 > **执行主体唯一（T-PERM-092 终态）**：旧 `PermQueryEngine` 与四旧 DTO
 > （`PermQuery`/`PermResult`/`PermBatchQuery`/`PermBatchResult`）、`TargetMode`、
-> `ResolveContext` 已删除——判定面/管理门禁/getDenied（T-PERM-089）、范围与 LEGACY_API
-> 四面（T-PERM-090）、视图/转授（T-PERM-091）全部经新 `QueryExecutionEngine.execute`
+> `ResolveContext` 已删除——判定面/管理门禁/getDenied（T-PERM-089）、范围查询（T-PERM-090）、视图/转授（T-PERM-091）全部经新 `QueryExecutionEngine.execute`
 > 后整删；X04 退役锁=`QueryBoundaryArchitectureTest`（主源码再现即红）。
 > check 族 `inheritMode` 线格式解析收编于 `PermissionCheckAppServiceImpl.inheritClosureOf`。
 
@@ -91,7 +90,7 @@ return PermResultUtils.toAuthCheckResp((DecisionResult) result.orderedResults().
 退化输入定案（2026-09-27 用户拍板）：resourceCode 空白串归一 TYPE_LEVEL；
 context 顶层 evaluatedAt/timestamp 保留键由 CallerContext 结构拒绝（400 VALIDATION_FAILED），clientIp 提取不受影响。
 
-## Domain 层 API（范围/LEGACY_API/视图/转授全部直构 QueryRequest）
+## Domain 层 API（范围/视图/转授直构 QueryRequest）
 
 授权传递校验使用 `PermissionGrantDomainService`。
 
@@ -99,18 +98,6 @@ context 顶层 evaluatedAt/timestamp 保留键由 CallerContext 结构拒绝（4
 > `sys_user.id` 与之同值，操作者 ID 直接传入即可（与业务层 API 节同口径，无运行时 ID 空间转换层）。
 
 ```java
-// checkInterface — LEGACY_API 共同集合（T-PERM-090）：全部匹配 API 组成一个 TARGET_SET 单 item
-// （注册门禁在先、不拆项 OR、SELF、TypeFallback.ALLOW；全部映射无实体引用退 TYPE_LEVEL）
-TypeOperation access = new TypeOperation(ResourceTypeCode.API, OperationCode.ACCESS);
-Selection selection = entityIds.isEmpty()
-    ? new TypeLevel(List.of(access))
-    : new TargetSet(entityIds.stream().map(id -> new TargetClause(access, new ByEntityId(id))).toList(),
-        Inheritance.SELF, TypeFallback.ALLOW, null);
-QueryResult r = queryEngine.execute(new QueryRequest(tenantId, new User(userId),
-    CallerContext.fromCallerMap(context), ReadOptions.defaults(),
-    List.of(QueryItem.decision("checkInterface", selection, interfaceOutput()))));
-return PermResultUtils.toCheckInterfaceResp((DecisionResult) r.orderedResults().get(0), 30);
-
 // queryResources — GRANT_LIST＋EVALUATE/ENFORCE＋FACTS（树扩展=OutputSpec 展示展开，判定与展示分离）
 PresentationExpansion expansion = /* includeChildren/includeInherited → CHILDREN/PARENTS/BOTH/NONE */;
 QueryItem item = QueryItem.grantListFacts("resources", null, Evaluation.full(),
@@ -123,11 +110,6 @@ OutputSpec output = new OutputSpec(FactDetail.RAW_AND_KEPT, true, true, false,
     PresentationExpansion.NONE, Set.copyOf(requirements), false); // requirements=类型×操作全组合
 QueryItem item = QueryItem.grantListFacts("scopes", parent, Evaluation.full(), output);
 List<ScopeGroup> groups = ScopeCoverageProjector.project((GrantSetResult) result, requirements);
-
-// interfaceSnapshot — LEGACY_API 旧快照（T-PERM-090）：GRANT_LIST＋PRESERVE/ENFORCE＋FACTS
-// （条件身份保留、互斥仍清；角色解析含互斥双删由 User 主体内部完成；SnapshotAssembler 消费 List<GrantFact>）
-QueryItem item = QueryItem.grantListFacts("snapshot", null, Evaluation.preserveEnforce(),
-    new OutputSpec(FactDetail.KEPT, false, false, false, PresentationExpansion.NONE, Set.of(), false));
 
 // grant check — 授权传递检查（canGrant 校验；T-PERM-091：GRANT_LIST＋PRESERVE+SKIP＋FACTS＋
 // 读来源 DATABASE〔写校验面新鲜度〕，操作定义装载留领域侧〔2026-09-27 拍板〕）
@@ -150,7 +132,7 @@ execute(QueryRequest)
 （完整设计：docs/design/r2-unified-query-and-admission.md §4；实现：docs/design/engine/implementation.md）
 ```
 
-操作准入用 `QueryItem.admission/admissionFacts` 构造独立请求（T-ACCESS-057）：新鲜完整操作目录先核查要求，再按合并 type-mask 批量读 ALL/实例候选；配置故障优先于 NO_ROLE。子行只批量核父结构，标 CONTEXT_DEFERRED，不评父条件；PERM_MUTEX 固定延后业务。在线评本行条件并可存在性短路，FACTS 核条件可用状态、排除坏条件、完整保留有效条件身份而不按当前环境过滤。禁止从旧 GRANT_LIST 结果或普通长 TTL 操作掩码推导；AdmissionResult 恒要求最终检查。端点已随 T-ACCESS-059 落地：`POST /api/access/auth/interface-admission`（在线判定，PermissionAdmissionAppService）与 `interface-admission-snapshot`（快照构建，InterfaceAdmissionSnapshotAssembler＋configGeneration 自一致校验）；网关消费新链（InterfaceAdmissionMatcher 四态），旧 check-interface/interface-snapshot 网关侧已删（062 退役）。
+操作准入用 `QueryItem.admission/admissionFacts` 构造独立请求（T-ACCESS-057）：新鲜完整操作目录先核查要求，再按合并 type-mask 批量读 ALL/实例候选；配置故障优先于 NO_ROLE。子行只批量核父结构，标 CONTEXT_DEFERRED，不评父条件；PERM_MUTEX 固定延后业务。在线评本行条件并可存在性短路，FACTS 核条件可用状态、排除坏条件、完整保留有效条件身份而不按当前环境过滤。禁止从旧 GRANT_LIST 结果或普通长 TTL 操作掩码推导；AdmissionResult 恒要求最终检查。端点已随 T-ACCESS-059 落地：`POST /api/access/auth/interface-admission`（在线判定，PermissionAdmissionAppService）与 `interface-admission-snapshot`（快照构建，InterfaceAdmissionSnapshotAssembler＋configGeneration 自一致校验）；网关消费新链（InterfaceAdmissionMatcher 四态），旧 check-interface/interface-snapshot、专用 DTO 与装配器已删除（T-ACCESS-062）；服务不再提供模式配置，API 类型只登记、不授权。
 
 **判定/展示两语义拆分**：判定面继承（`Inheritance.SELF_AND_ANCESTORS`，查询前目标∪同类型祖先链，
 改变 allowed/denied）≠ 展示面展开（`PresentationExpansion`，查询后克隆 `grantSource=INHERITED`，
@@ -163,7 +145,6 @@ execute(QueryRequest)
 | 工具类 | 方法 | 用途 |
 |--------|------|------|
 | `PermResultUtils` | `toAuthCheckResp(DecisionResult)` | 新单项判定→AuthCheckResp（纯转换，T-PERM-089） |
-| `PermResultUtils` | `toCheckInterfaceResp(DecisionResult, ttl)` | 新单项判定→CheckInterfaceResp（纯转换，T-PERM-090） |
 | `OperationPermissionUtils` | `effectiveBits()` | 有效位计算 |
 | `OperationPermissionUtils` | `covers(granted,target)` | 操作覆盖检查 |
 | `OperationPermissionUtils` | `coveredOperations()` | 按位掩码取覆盖操作集 |

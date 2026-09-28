@@ -115,11 +115,12 @@ public interface PermissionFeignClient {
      * 拉取操作准入快照（T-ACCESS-059，契约总册 §25.2）。
      * <p>
      * 版本化新协议（schemaVersion 隔离，不与旧 API:ACCESS 快照互用）：完整启用路由
-     * 与按主体归并的候选分支投影；服务须为 OPERATION_ADMISSION 模式。
+     * 与按主体归并的候选分支投影；全部服务统一操作准入（T-ACCESS-062 后无模式字段）。
      * </p>
      *
      * @param req 快照请求
-     * @return 操作准入快照（服务未登记/停用/LEGACY 模式按 20071 错误信封返回）
+     * @return 操作准入快照（服务未登记/停用返回空路由快照——网关按无注册匹配拒绝；
+     *         启用映射引用损坏等配置故障按 20071 错误信封返回）
      */
     @PostMapping("/api/access/auth/interface-admission-snapshot")
     R<InterfaceAdmissionSnapshotResp> interfaceAdmissionSnapshot(@RequestBody InterfaceAdmissionSnapshotReq req);

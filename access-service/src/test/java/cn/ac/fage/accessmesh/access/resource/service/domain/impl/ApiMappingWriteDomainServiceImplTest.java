@@ -43,7 +43,6 @@ class ApiMappingWriteDomainServiceImplTest {
         writer = new ApiMappingWriteDomainServiceImpl(mappings, resources, services, types, operations, locks);
         ServiceConfig service = new ServiceConfig();
         service.setStatus(1);
-        service.setApiAuthMode("LEGACY_API");
         lenient().when(services.selectByTenantAndServiceCode(1L, "svc-a")).thenReturn(service);
         lenient().when(types.selectByTenantAndTypeKey(1L, "resource_type"))
             .thenReturn(List.of(type("API", 1), type("REPORT", 2)));
@@ -62,18 +61,10 @@ class ApiMappingWriteDomainServiceImplTest {
         verify(mappings).insert(row);
     }
 
-    @Test
-    void should_preserveNoRequirement_whenLegacyMappingIsSaved() {
-        ResourceApiMapping row = mapping(null, null);
-        writer.saveAll(1L, "svc-a", ApiMappingSource.MANUAL, List.of(new Write(row, null)));
-        assertThat(row.getRequiredOperationId()).isNull();
-        verify(mappings).insert(row);
-    }
 
     @Test
-    void should_requireBusinessOperation_whenServiceUsesAdmissionMode() {
+    void should_requireBusinessOperation_whenMappingIsSaved() {
         ServiceConfig config = new ServiceConfig();
-        config.setApiAuthMode("OPERATION_ADMISSION");
         when(services.selectByTenantAndServiceCode(1L, "svc-a")).thenReturn(config);
         assertThatThrownBy(() -> writer.saveAll(1L, "svc-a", ApiMappingSource.MANUAL,
             List.of(new Write(mapping(null, null), null)))).isInstanceOf(BizException.class);
@@ -84,7 +75,12 @@ class ApiMappingWriteDomainServiceImplTest {
     void should_rejectMissingServiceConfig_whenCreatingMapping() {
         when(services.selectByTenantAndServiceCode(1L, "svc-a")).thenReturn(null);
         assertThatThrownBy(() -> writer.saveAll(1L, "svc-a", ApiMappingSource.MANUAL,
-            List.of(new Write(mapping(null, null), null)))).isInstanceOf(BizException.class);
+            List.of(new Write(mapping(null, null), new RequiredPermission("REPORT", "VIEW")))))
+            .isInstanceOfSatisfying(BizException.class, e -> {
+                assertThat(e.getErrorCode()).isEqualTo(20071);
+                assertThat(e.getMessage()).contains("服务未登记");
+            });
+        verify(mappings, never()).insert(any(ResourceApiMapping.class));
     }
 
     @Test
@@ -100,14 +96,43 @@ class ApiMappingWriteDomainServiceImplTest {
     void should_rejectNonApiRegistration_whenResourceHasBusinessType() {
         when(resources.selectValidByIds(1L, Set.of(10L))).thenReturn(List.of(resource(2)));
         assertThatThrownBy(() -> writer.saveAll(1L, "svc-a", ApiMappingSource.MANUAL,
-            List.of(new Write(mapping(null, null), null)))).isInstanceOf(BizException.class);
+            List.of(new Write(mapping(null, null), new RequiredPermission("REPORT", "VIEW")))))
+            .isInstanceOfSatisfying(BizException.class, e -> {
+                assertThat(e.getErrorCode()).isEqualTo(20071);
+                assertThat(e.getMessage()).contains("API 登记实体");
+            });
+        verify(mappings, never()).insert(any(ResourceApiMapping.class));
+        verify(services, never()).incrementConfigGeneration(anyLong(), anyString());
     }
 
     @Test
     void should_rejectApiAccessRequirement_whenProvidedExplicitly() {
+        when(operations.selectByTenantAndResourceTypes(1L, Set.of(1)))
+            .thenReturn(List.of(operation(22L, 1, "ACCESS", 2L, 0L)));
         assertThatThrownBy(() -> writer.saveAll(1L, "svc-a", ApiMappingSource.MANUAL,
             List.of(new Write(mapping(null, null), new RequiredPermission("API", "ACCESS")))))
-            .isInstanceOf(BizException.class);
+            .isInstanceOfSatisfying(BizException.class, e -> {
+                assertThat(e.getErrorCode()).isEqualTo(20071);
+                assertThat(e.getMessage()).contains("API 类型操作");
+            });
+        verify(mappings, never()).insert(any(ResourceApiMapping.class));
+        verify(services, never()).incrementConfigGeneration(anyLong(), anyString());
+    }
+
+    @Test
+    void should_rejectApiTypeRequirement_forAnyNonAccessOperation() {
+        // T-ACCESS-062 后 API 授权全灭，API 类型任意操作作准入要求均恒无候选——写侧整类拒绝
+        // （2026-09-28 拍板收窄）。旧实现只拒 API:ACCESS 组合，EXPORT 反例放行保存，本用例在其下失败
+        when(operations.selectByTenantAndResourceTypes(1L, Set.of(1)))
+            .thenReturn(List.of(operation(23L, 1, "EXPORT", 64L, 0L)));
+        assertThatThrownBy(() -> writer.saveAll(1L, "svc-a", ApiMappingSource.MANUAL,
+            List.of(new Write(mapping(null, null), new RequiredPermission("API", "EXPORT")))))
+            .isInstanceOfSatisfying(BizException.class, e -> {
+                assertThat(e.getErrorCode()).isEqualTo(20071);
+                assertThat(e.getMessage()).contains("API 类型操作");
+            });
+        verify(mappings, never()).insert(any(ResourceApiMapping.class));
+        verify(services, never()).incrementConfigGeneration(anyLong(), anyString());
     }
 
     @Test
@@ -124,7 +149,12 @@ class ApiMappingWriteDomainServiceImplTest {
     void should_rejectCrossTenantResource_whenNoValidRegistrationWasFound() {
         when(resources.selectValidByIds(1L, Set.of(10L))).thenReturn(List.of());
         assertThatThrownBy(() -> writer.saveAll(1L, "svc-a", ApiMappingSource.MANUAL,
-            List.of(new Write(mapping(null, null), null)))).isInstanceOf(BizException.class);
+            List.of(new Write(mapping(null, null), new RequiredPermission("REPORT", "VIEW")))))
+            .isInstanceOfSatisfying(BizException.class, e -> {
+                assertThat(e.getErrorCode()).isEqualTo(20071);
+                assertThat(e.getMessage()).contains("本租户有效的 API 登记实体");
+            });
+        verify(mappings, never()).insert(any(ResourceApiMapping.class));
     }
 
     private ResourceApiMapping mapping(Long id, String source) {

@@ -608,7 +608,8 @@ class QueryStagesTest {
         QueryResult result = execute(
             QueryItem.facts("full", selection, Evaluation.full(), OutputSpec.rawAndKept()),
             QueryItem.facts("preserve", selection, Evaluation.preserveSkip(), OutputSpec.kept()),
-            QueryItem.facts("mutex", selection, Evaluation.preserveEnforce(), OutputSpec.rawAndKept()));
+            QueryItem.facts("mutex", selection,
+                new Evaluation(ConditionMode.PRESERVE, MutexMode.ENFORCE), OutputSpec.rawAndKept()));
         var full = ((GrantSetResult) result.orderedResults().get(0)).details().stageFacts().getFirst();
         assertThat(full.rawAfterContext()).extracting(GrantFact::permissionId).containsExactly(101L, 102L);
         assertThat(full.retainedAfterEvaluation()).extracting(GrantFact::permissionId).containsExactly(101L);

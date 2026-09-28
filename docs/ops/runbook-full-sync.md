@@ -12,7 +12,7 @@
 | 资源实体全量 | `POST /api/access/resource-entity/full-sync` | scope 内全量校准 | 补缺失 + 清多余 |
 | 主体/角色/成员逐条 | `POST /api/access/abstract-user/sync`、`abstract-role/sync`、`user-role/sync` | 主体/角色 UPSERT/DISABLE/DELETE、成员 BIND/UNBIND | 幂等单条 |
 | 主体/角色/成员全量 | 对应 `/full-sync` | scope 内全量校准 | 补缺失 + 清多余 |
-| 服务接口清单 | `POST /api/access/service-config/sync`（契约 §19.8） | API 清单登记（service-config 声明通道） | 全量替换 |
+| 服务接口清单 | `POST /api/access/service-config/sync-v2`（契约 §19.8） | API 清单登记（service-config 声明通道，每条接口必填业务操作要求；旧 /sync 已随 T-ACCESS-062 删除） | 全量替换 |
 
 **选择规则**：常态增量事件 → 逐条 `sync`；对账/初始化/源侧发生过批量修复 → `full-sync`（单请求 = scope 内完整事实声明，**缺失即删除**）。组织树等有树依赖的数据按足够小的 scope 拆分调用，避免单请求过大。
 
@@ -64,7 +64,7 @@
 ## 6. 回滚与误删恢复
 
 - **full-sync 不可直接回滚**（删除语义是声明式结果，无事务级逆操作）。恢复手段 = 反向补数据：从备份/源系统导出被误删对象，按逐条 `sync`（UPSERT）重新写入，**syncVersion 必须严格大于历史最高序**（相等版本为 STALE，不会重建事实）。
-- 误删影响面：full-sync 只清理 `sync_metadata` 命中 scope 的同步事实，不触碰 MANUAL 管理面数据与其他通道（`service-config/sync` 是独立 ownership 通道）——恢复时同样只影响本 scope。
+- 误删影响面：full-sync 只清理 `sync_metadata` 命中 scope 的同步事实，不触碰 MANUAL 管理面数据与其他通道（`service-config/sync-v2` 是独立 ownership 通道）——恢复时同样只影响本 scope。
 - `DISABLE`/`DELETE` 单条误操作：以新的 UPSERT + 更高版本覆盖恢复（软删行复活走同幂等键 upsert）。
 
 资源 scope 已切换发布顺序时，以上恢复还必须携带源侧新分配的更高代次；不得回退或删除发布屏障来复用旧请求。

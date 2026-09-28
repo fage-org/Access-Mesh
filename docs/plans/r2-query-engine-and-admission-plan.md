@@ -88,14 +88,14 @@ last_updated: 2026-09-28
 | [T-ACCESS-058](../tasks/T-ACCESS-058.md) | 映射模型、服务模式与同步/管理面（ADM-T03） | ✅ |
 | [T-ACCESS-059](../tasks/T-ACCESS-059.md) | 新端点、快照与 SDK/网关链路（ADM-T04） | ✅ |
 | [T-ACCESS-060](../tasks/T-ACCESS-060.md) | 失效、TTL 边界与在途代次（ADM-T05） | ✅ |
-| [T-ACCESS-061](../tasks/T-ACCESS-061.md) | 逐服务业务最终检查与模式切换（ADM-T06） | ⚙️ |
-| [T-ACCESS-062](../tasks/T-ACCESS-062.md) | API 独立授权与 legacy 协议退役（ADM-T07） | ⚙️ |
+| [T-ACCESS-061](../tasks/T-ACCESS-061.md) | 逐服务业务最终检查与模式切换（ADM-T06） | ✅ |
+| [T-ACCESS-062](../tasks/T-ACCESS-062.md) | API 独立授权与 legacy 协议退役（ADM-T07） | ✅ |
 
 ### 归入卡
 
 | ID | 标题 | 状态 |
 |---|---|---|
-| [T-PERM-054](../tasks/T-PERM-054.md) | 手工 API 映射绑定非 API 资源处置——方案 A 落地收口（2026-09-25 解除暂缓归入） | ⚙️ |
+| [T-PERM-054](../tasks/T-PERM-054.md) | 手工 API 映射绑定非 API 资源处置——方案 A 落地收口 | ✅ |
 
 ## 归档条件
 

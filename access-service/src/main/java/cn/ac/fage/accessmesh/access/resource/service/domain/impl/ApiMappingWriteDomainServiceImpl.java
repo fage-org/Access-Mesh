@@ -6,7 +6,6 @@ import cn.ac.fage.accessmesh.access.resource.dto.RequiredPermission;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.resource.enums.ApiMappingSource;
-import cn.ac.fage.accessmesh.access.resource.enums.ApiAuthMode;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper;
@@ -54,10 +53,6 @@ public class ApiMappingWriteDomainServiceImpl implements ApiMappingWriteDomainSe
         locks.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         var config = services.selectByTenantAndServiceCode(tenantId, serviceCode);
         if (config == null) throw invalid("服务未登记: " + serviceCode);
-        String mode = config.getApiAuthMode();
-        if (!ApiAuthMode.LEGACY_API.name().equals(mode) && !ApiAuthMode.OPERATION_ADMISSION.name().equals(mode)) {
-            throw invalid("未知服务鉴权模式");
-        }
 
         Map<String, Integer> typeValues = types.selectByTenantAndTypeKey(tenantId, "resource_type").stream()
             .collect(Collectors.toMap(TypeDefinition::getTypeCode, TypeDefinition::getTypeValue));
@@ -105,17 +100,16 @@ public class ApiMappingWriteDomainServiceImpl implements ApiMappingWriteDomainSe
             OperationPermission op = write.requiredPermission() == null
                 ? (row.getRequiredOperationId() == null ? null : retained.get(row.getRequiredOperationId()))
                 : byRequirement.get(write.requiredPermission());
-            boolean required = write.requiredPermission() != null || row.getRequiredOperationId() != null
-                || ApiAuthMode.OPERATION_ADMISSION.name().equals(mode);
-            if (required) {
-                if (op == null || op.getBinaryBit() == null || op.getBinaryBit() <= 0
+            if (op == null || op.getBinaryBit() == null || op.getBinaryBit() <= 0
                     || Long.bitCount(op.getBinaryBit()) != 1 || op.getInheritMask() == null
                     || !typeCodes.containsKey(op.getResourceType())
-                    || (Objects.equals(op.getResourceType(), typeValues.get("API")) && "ACCESS".equals(op.getCode()))) {
-                    throw invalid("业务准入操作不存在、损坏或为 API:ACCESS");
-                }
-                row.setRequiredOperationId(op.getId());
+                    || Objects.equals(op.getResourceType(), typeValues.get("API"))) {
+                // T-ACCESS-062 后 API 授权全灭：API 类型任何操作作准入要求都恒无候选（死配置），
+                // API 类型仅用于接口登记，准入要求一律绑定业务类型操作（2026-09-28 拍板收窄，
+                // 旧口径仅拒 API:ACCESS 组合）
+                throw invalid("业务准入操作不存在、损坏或为 API 类型操作");
             }
+            row.setRequiredOperationId(op.getId());
             row.setMaintainSource(source.name());
         }
         // 全批校验成功后才写；入口事务保证数据库异常也整批回滚。

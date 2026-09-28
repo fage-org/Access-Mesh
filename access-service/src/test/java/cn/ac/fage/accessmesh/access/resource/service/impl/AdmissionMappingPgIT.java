@@ -11,7 +11,6 @@ import cn.ac.fage.accessmesh.access.resource.dto.req.ApiMappingAddReq;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ApiMappingUpdateReq;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigReq;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigSyncV2Req;
-import cn.ac.fage.accessmesh.access.resource.enums.ApiAuthMode;
 import cn.ac.fage.accessmesh.access.resource.service.ResourceManageAppService;
 import cn.ac.fage.accessmesh.access.resource.service.ServiceConfigAppService;
 import cn.ac.fage.accessmesh.access.resource.service.ServiceSyncAppService;
@@ -154,9 +153,6 @@ class AdmissionMappingPgIT {
         assertThat(row.maintainSource()).isEqualTo("SERVICE_SYNC");
         assertThat(jdbc.queryForObject("SELECT required_operation_id FROM resource_api_mapping WHERE id = ?",
             Long.class, row.id())).isEqualTo(viewId);
-        // T-ACCESS-059：DDL 缺省改 OPERATION_ADMISSION（无迁移期统一口径）——直插行随缺省
-        assertThat(jdbc.queryForObject("SELECT api_auth_mode FROM service_config WHERE service_code = ?",
-            String.class, SERVICE)).isEqualTo("OPERATION_ADMISSION");
     }
 
     @Test
@@ -257,7 +253,7 @@ class AdmissionMappingPgIT {
     @Test
     void should_rejectManualMappingSave_whenAdmissionModeRequiresOperation() {
         configs.saveServiceConfig(1L, new ServiceConfigReq(SERVICE, "准入测试", null, null, 1,
-            null, null, null, null, ApiAuthMode.OPERATION_ADMISSION), 100L);
+            null, null, null, null), 100L);
         Long apiId = registerManualApi();
         assertThatThrownBy(() -> resources.addApiMapping(1L,
             new ApiMappingAddReq(apiId, SERVICE, "GET", "/base/demo", 0, true, null, null)))

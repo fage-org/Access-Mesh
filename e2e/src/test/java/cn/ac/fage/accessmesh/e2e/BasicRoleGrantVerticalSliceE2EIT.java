@@ -892,13 +892,13 @@ class BasicRoleGrantVerticalSliceE2EIT {
 
     /**
      * 服务端快照探针（失败诊断用）：以内部密钥直连 access-service 的
-     * /api/access/auth/interface-snapshot，返回目标用户在 access-service 下的 allowedApis——
-     * 用于区分「服务端授权未生效」与「Gateway 快照未刷新」。
+     * /api/access/auth/interface-admission-snapshot，返回目标用户在 access-service 下的
+     * 操作准入快照——用于区分「服务端授权未生效」与「Gateway 快照未刷新」。
      */
     private static String probeInternalSnapshot() {
         try {
             HttpRequest request = HttpRequest.newBuilder(
-                    URI.create("http://localhost:" + accessService.port() + "/api/access/auth/interface-snapshot"))
+                    URI.create("http://localhost:" + accessService.port() + "/api/access/auth/interface-admission-snapshot"))
                 .timeout(Duration.ofSeconds(10))
                 .header("Content-Type", "application/json")
                 .header("X-Tenant-Id", TENANT_ID)

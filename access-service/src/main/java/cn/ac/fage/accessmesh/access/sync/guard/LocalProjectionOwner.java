@@ -20,7 +20,7 @@ package cn.ac.fage.accessmesh.access.sync.guard;
  * ——外部 sync 一律拒绝（来源不匹配）、管理面资源 CRUD 一律 20055（原类型保留清单与
  * {@code LocalProjectionGuard.rejectIfLocalResource/rejectIfForeignResource} 行级防线均已收编删除）。
  * API 类型同款种子声明（T-PERM-069，2026-09-18「仅 API 收紧」定案）：唯一事实入口=
- * service-config/sync 接口声明通道+bootstrap 固定图（领域直写），管理面资源 CRUD 20055；
+ * service-config/sync-v2 接口声明通道+bootstrap 固定图（领域直写），管理面资源 CRUD 20055；
  * SERVICE 维持 MANAGED（新行唯一通道=管理面手工建行）。
  * </p>
  */

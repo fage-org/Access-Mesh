@@ -45,10 +45,10 @@ docker compose --profile app up -d --build
 
 **体验授权闭环**（example 演示接口 403 → 授权 → 200 → 撤销 → 403）：
 
-1. 登录管理台，进入「服务与接口」页（侧栏菜单），登记 example-service 服务并全量声明其接口——一步创建 API 资源与 Gateway 映射；
-2. 在「角色管理」页点目标角色行进入权限入口（按钮文案按是否持 ROLE:MANAGE 为「权限授予」/「查看权限」；该页不进侧栏菜单，入口是角色管理页的操作按钮），给该角色授予此 API 资源的 `API:ACCESS` 操作（空库首启只有 admin 与固定图管理角色——可先在「组织与用户」页新建用户并绑定目标角色，或直接授给 admin 自身持有的管理角色后复用 admin 会话体验）；
+1. 登录管理台，在「类型定义」创建业务资源类型 `EXAMPLE`，再在「资源与操作」下创建该类型的示例实例（例如编码 `demo-report`）。进入「服务与接口」登记 example-service 并全量声明接口，给 `POST /api/example/demo/hello` 配置业务操作要求 `EXAMPLE:VIEW`（清单字段 `requiredPermission: {"resourceTypeCode":"EXAMPLE","operationCode":"VIEW"}`）。接口声明使用 sync-v2，自动创建 API 登记资源和 Gateway 映射；
+2. 创建普通用户和功能角色并建立绑定。在「角色管理」的权限入口，向该普通角色授予 `EXAMPLE` 类型下 `demo-report` 实例的 `VIEW` 权限。API 类型仅用于登记，不出现在授权页。用普通用户验证，避免管理员已有类型授权影响结果；
 3. 用持有该角色的用户会话调 `POST http://127.0.0.1:8080/api/example/demo/hello`（body `{"name":"accessmesh"}`）——授权前 401/403，授权后 30 秒内变 200（网关快照撤权边界），响应回显 Gateway 注入的用户与租户身份。令牌来源：登录接口 `POST /api/access/auth/login` 响应的 `accessToken`（`Authorization: Bearer <token>` 头），或浏览器登录后从 DevTools 取本地会话令牌；
-4. 撤销与恢复：回到第 2 步的授权入口删除该条 `API:ACCESS` 授权行——30 秒内再调同接口回到 403（撤权与授权受同一 30 秒网关快照窗口约束）；需要恢复时对同一资源重授 `ACCESS` 即可，同样 30 秒内生效。
+4. 撤销与恢复：回到第 2 步删除该条 `EXAMPLE:VIEW` 授权——没有其他覆盖 VIEW 的授权时，30 秒内再调同接口回到 403。对同一业务实例重新授予 VIEW 后恢复；报表等有实际数据目标的接口还会在业务层检查请求目标，不能只靠网关准入放行。
 
 完整接入指引（含服务身份——**资源同步用 per-service 凭证、运行时权限查询用内部密钥两套并存**、SDK 现状、业务资源类型与授权根）见 [扩展指南 §2/§3](design/extension-guide.md)。
 

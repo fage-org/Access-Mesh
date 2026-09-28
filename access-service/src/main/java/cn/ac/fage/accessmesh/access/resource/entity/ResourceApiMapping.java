@@ -47,7 +47,7 @@ public class ResourceApiMapping {
      */
     private String serviceCode;
 
-    /** 业务准入操作引用；LEGACY_API 存量可为空。 */
+    /** 业务准入操作引用；有效映射保存时必须提供。 */
     private Long requiredOperationId;
 
     /** 映射维护来源；所属服务由 serviceCode 表达。 */

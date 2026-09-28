@@ -161,9 +161,6 @@ class PermissionFeignClientContractTest {
         assertThat(recordComponents(cn.ac.fage.accessmesh.perm.common.dto.resp.BatchAuthCheckResp.AuthCheckItemResult.class))
             .containsExactly("resourceTypeCode", "resourceCode", "operationCode", "allowed", "reason",
                 "matchedRoleIds", "matchedPermissionIds");
-        assertThat(recordComponents(cn.ac.fage.accessmesh.perm.common.dto.resp.CheckInterfaceResp.MatchedResource.class))
-            .containsExactly("resourceId", "resourceTypeCode", "resourceCode", "operationCode", "allowed",
-                "matchedRoleIds", "matchedPermissionIds");
     }
 
     @Test

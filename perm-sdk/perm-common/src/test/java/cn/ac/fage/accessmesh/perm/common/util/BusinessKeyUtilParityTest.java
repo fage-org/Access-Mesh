@@ -154,15 +154,6 @@ class BusinessKeyUtilParityTest {
     }
 
     @Test
-    void apiEntryDedupKeyShouldLockFourSegmentAndNullCondition() {
-        assertThat(BusinessKeyUtil.apiEntryDedupKey("demo-svc", "POST", "/api/x", 7L))
-            .isEqualTo("demo-svc|POST|/api/x|7");
-        // 无条件分支 conditionId=null 拼字面 "null"，与任何条件分支独立保留（T-PERM-017 C4）
-        assertThat(BusinessKeyUtil.apiEntryDedupKey("demo-svc", "POST", "/api/x", null))
-            .isEqualTo("demo-svc|POST|/api/x|null");
-    }
-
-    @Test
     void apiMappingPresenceKeyShouldLockIndexIsomorphicFormat() {
         assertThat(BusinessKeyUtil.apiMappingPresenceKey("demo-svc", 1001L, "get", "/api/x"))
             .isEqualTo("demo-svc|1001|GET|/api/x");

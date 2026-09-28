@@ -10,13 +10,10 @@ import java.util.Set;
 
 import cn.ac.fage.accessmesh.perm.common.dto.req.AuthCheckReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq;
-import cn.ac.fage.accessmesh.perm.common.dto.req.CheckInterfaceReq;
 import cn.ac.fage.accessmesh.access.engine.dto.AuthCheckResp;
 import cn.ac.fage.accessmesh.access.engine.dto.BatchAuthCheckResp;
 import cn.ac.fage.accessmesh.access.engine.dto.BatchAuthCheckResp.AuthCheckItemResult;
-import cn.ac.fage.accessmesh.access.engine.dto.CheckInterfaceResp;
 import cn.ac.fage.accessmesh.access.engine.query.ByCode;
-import cn.ac.fage.accessmesh.access.engine.query.ByEntityId;
 import cn.ac.fage.accessmesh.access.engine.query.CallerContext;
 import cn.ac.fage.accessmesh.access.engine.query.DecisionResult;
 import cn.ac.fage.accessmesh.access.engine.query.FactDetail;
@@ -36,24 +33,18 @@ import cn.ac.fage.accessmesh.access.engine.query.TypeFallback;
 import cn.ac.fage.accessmesh.access.engine.query.TypeLevel;
 import cn.ac.fage.accessmesh.access.engine.query.TypeOperation;
 import cn.ac.fage.accessmesh.access.engine.query.User;
-import cn.ac.fage.accessmesh.access.resource.entity.ResourceApiMapping;
-import cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.access.engine.service.PermissionCheckAppService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
-import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.engine.util.PermResultUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.AntPathMatcher;
 
-import java.util.stream.Collectors;
-import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 
 /**
  * 权限检查应用服务实现
  * <p>
- * 提供纯校验功能：单次校验、批量校验、接口级校验。
- * check/batchCheck（T-PERM-089）、checkInterface（T-PERM-090）全部直构 QueryRequest
+ * 提供纯校验功能：单次校验、批量校验。
+ * check/batchCheck 全部直构 QueryRequest
  * 经新 execute；外层职责保留——主体业务键解析、USER_NOT_FOUND 缺省、原序/重复项
  * （按下标 item key）、请求级父上下文与请求级单一评估时刻〔RunState 单时钟〕。
  * </p>
@@ -61,25 +52,20 @@ import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 @Service
 public class PermissionCheckAppServiceImpl implements PermissionCheckAppService {
 
-    private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 
     private final TypeResolutionService typeResolutionService;
     private final QueryExecutionEngine queryEngine;
-    private final ResourceApiMappingMapper apiMappingMapper;
 
     /**
      * 构造函数注入依赖
      *
      * @param typeResolutionService 类型解析服务
-     * @param queryEngine            新查询执行器（check/batchCheck/checkInterface）
-     * @param apiMappingMapper       API映射数据访问层
+     * @param queryEngine            新查询执行器（check/batchCheck）
      */
     public PermissionCheckAppServiceImpl(TypeResolutionService typeResolutionService,
-                                         QueryExecutionEngine queryEngine,
-                                         ResourceApiMappingMapper apiMappingMapper) {
+                                         QueryExecutionEngine queryEngine) {
         this.typeResolutionService = typeResolutionService;
         this.queryEngine = queryEngine;
-        this.apiMappingMapper = apiMappingMapper;
     }
 
     /**
@@ -162,62 +148,6 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
     }
 
     /**
-     * 接口级权限校验
-     * <p>
-     * 校验用户是否有权访问指定的API接口。
-     * 根据服务编码和HTTP方法查找API映射，匹配路径模式，
-     * 然后经新 execute 校验 ACCESS 权限（T-PERM-090 迁移）。
-     * LEGACY_API 共同集合语义（设计 §6.6，迁移期不拆项 OR）：注册门禁在先
-     * （未注册/不匹配即 API_NOT_REGISTERED），全部匹配 API 组成一个 TARGET_SET
-     * 单 item——互斥候选在同场集合上判定（D02），不逐 API 独立判；API 扁平无
-     * 判定面继承（SELF）、scopeAll 类型级放行（TypeFallback.ALLOW，等价旧
-     * INSTANCE 先查 scopeAll 的回退形态）。全部映射无实体引用（数据异常）时退
-     * TYPE_LEVEL——等价旧引擎空目标集下仅查 scopeAll 的行为。context.clientIp
-     * 提取为受信 IP；顶层 evaluatedAt/timestamp 由 CallerContext 结构拒绝
-     * （400 VALIDATION_FAILED，2026-09-27 外评处置修订——原 089 拍板 500 形态经用户改判）。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param req      接口校验请求，包含用户标识、服务编码、HTTP方法和请求路径
-     * @return 接口校验响应，包含是否允许、拒绝原因与匹配资源详情列表（T-API-003：resourceId 与 matched id 字段族恢复回传）
-     */
-    @Override
-    @Transactional(readOnly = true)
-    public CheckInterfaceResp checkInterface(Long tenantId, CheckInterfaceReq req) {
-        Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
-        if (userId == null) return CheckInterfaceResp.deny("USER_NOT_FOUND");
-
-        List<ResourceApiMapping> mappings = apiMappingMapper.selectForInterfaceCheck(
-            tenantId, req.serviceCode(), req.httpMethod());
-        if (mappings.isEmpty()) return CheckInterfaceResp.deny("API_NOT_REGISTERED");
-
-        List<ResourceApiMapping> matched = mappings.stream()
-            .filter(m -> pathMatches(m.getPathPattern(), req.path())).toList();
-        if (matched.isEmpty()) return CheckInterfaceResp.deny("API_NOT_REGISTERED");
-
-        Set<Long> entityIds = matched.stream()
-            .map(ResourceApiMapping::getResourceEntityId)
-            .filter(id -> id != null && id > 0)
-            .collect(Collectors.toCollection(LinkedHashSet::new));
-
-        TypeOperation access = new TypeOperation(ResourceTypeCode.API, OperationCode.ACCESS);
-        Selection selection = entityIds.isEmpty()
-            ? new TypeLevel(List.of(access))
-            : new TargetSet(entityIds.stream()
-                .map(id -> new TargetClause(access, new ByEntityId(id))).toList(),
-                Inheritance.SELF, TypeFallback.ALLOW, null);
-        QueryItem item = QueryItem.decision("checkInterface", selection, interfaceOutput());
-        QueryResult result = queryEngine.execute(new QueryRequest(tenantId, new User(userId),
-            callerContext(req.context()), ReadOptions.defaults(), List.of(item)));
-        return PermResultUtils.toCheckInterfaceResp((DecisionResult) result.orderedResults().get(0), 30);
-    }
-
-    /** checkInterface 输出：保留事实＋命中 ID＋描述块（matched 资源业务键与操作码组装消费）。 */
-    private static OutputSpec interfaceOutput() {
-        return new OutputSpec(FactDetail.KEPT, true, true, false, PresentationExpansion.NONE, Set.of(), false);
-    }
-
-    /**
      * {@code inheritMode} SDK 线格式参数解析（check 族契约口径，T-PERM-092 收编）：
      * "PARENT"/"BOTH" → 判定面继承开；"CHILD"/"NONE"/其他含缺省 → 关。
      *
@@ -275,21 +205,5 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
      *  2026-09-27 外评处置修订；T-PERM-090 起统一走 {@link CallerContext#fromCallerMap} 公共工厂）。 */
     private static CallerContext callerContext(Map<String, Object> context) {
         return CallerContext.fromCallerMap(context);
-    }
-
-    /**
-     * 路径匹配检查
-     * <p>
-     * 检查请求路径是否匹配路径模式。
-     * 支持精确匹配和Ant风格模式匹配（如 /api/**）。
-     * </p>
-     *
-     * @param pattern 路径模式
-     * @param path    请求路径
-     * @return 是否匹配
-     */
-    private boolean pathMatches(String pattern, String path) {
-        if (pattern.equals(path)) return true;
-        return PATH_MATCHER.match(pattern, path);
     }
 }

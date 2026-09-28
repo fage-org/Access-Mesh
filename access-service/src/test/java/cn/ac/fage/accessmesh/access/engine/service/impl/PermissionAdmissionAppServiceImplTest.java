@@ -32,12 +32,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 快照构建终校验回归锁（构建期切模式/停用的代次保护完备面）。
+ * 快照构建终校验回归锁（构建期停用的代次保护完备面）。
  * <p>
- * 代次自一致比对只覆盖「首次代次读之后」的变更：入口校验与首次代次读之间切模式/
- * 停用会使代次前后一致、但服务已不适用——终校验（独立 selectAuthState 强制落库复读）
- * 必须在返回前确认仍在启用且 OPERATION_ADMISSION。旧实现（校验在重试循环外、终校验
- * 不存在）下「切 LEGACY 仍返回快照」用例因拿到快照而失败。
+ * 代次自一致比对只覆盖「首次代次读之后」的变更：入口校验与首次代次读之间停用会使代次前后一致、但服务已不适用——终校验（独立 selectAuthState 强制落库复读）
+ * 必须在返回前确认仍在启用。旧实现（校验在重试循环外、终校验
+ * 不存在）下「停用仍返回快照」用例因拿到快照而失败。
  * </p>
  */
 class PermissionAdmissionAppServiceImplTest {
@@ -58,7 +57,7 @@ class PermissionAdmissionAppServiceImplTest {
     @BeforeEach
     void setUp() {
         when(serviceConfigMapper.selectByTenantAndServiceCode(TENANT, SERVICE))
-            .thenReturn(enabledConfig("OPERATION_ADMISSION"));
+            .thenReturn(enabledConfig());
         when(typeResolutionService.resolveUserId(TENANT, REQ.subjectTypeCode(), REQ.subjectExternalId()))
             .thenReturn(1L);
         when(apiMappingMapper.selectEnabledByServiceCode(TENANT, SERVICE)).thenReturn(List.of());
@@ -68,10 +67,9 @@ class PermissionAdmissionAppServiceImplTest {
             .thenReturn(mock(InterfaceAdmissionSnapshotResp.class));
     }
 
-    private static ServiceConfig enabledConfig(String mode) {
+    private static ServiceConfig enabledConfig() {
         ServiceConfig config = new ServiceConfig();
         config.setStatus(1);
-        config.setApiAuthMode(mode);
         config.setConfigGeneration(5L);
         return config;
     }
@@ -93,7 +91,7 @@ class PermissionAdmissionAppServiceImplTest {
     void stableAndAuthStateHolds_returnsSnapshot() {
         when(serviceConfigMapper.selectConfigGeneration(TENANT, SERVICE)).thenReturn(5L);
         when(serviceConfigMapper.selectAuthState(TENANT, SERVICE))
-            .thenReturn(enabledConfig("OPERATION_ADMISSION"));
+            .thenReturn(enabledConfig());
 
         admission.interfaceAdmissionSnapshot(TENANT, REQ);
 
@@ -102,28 +100,12 @@ class PermissionAdmissionAppServiceImplTest {
             any(LocalDateTime.class), any(LocalDateTime.class), anyList(), anyList());
     }
 
-    @Test
-    @DisplayName("构建后代次稳定但已切 LEGACY → 终校验 20071，不返回快照（重试不沿用入口旧状态）")
-    void modeSwitchedBeforeGenerationRead_finalCheckRejects() {
-        // 场景：入口校验时 OPERATION_ADMISSION、切 LEGACY 发生在入口校验与首次代次读之间——
-        // 代次前后一致（5L==5L），自一致比对无法发现，只有终校验能拦
-        when(serviceConfigMapper.selectConfigGeneration(TENANT, SERVICE)).thenReturn(5L);
-        when(serviceConfigMapper.selectAuthState(TENANT, SERVICE))
-            .thenReturn(enabledConfig("LEGACY_API"));
-
-        assertThatThrownBy(() -> admission.interfaceAdmissionSnapshot(TENANT, REQ))
-            .isInstanceOf(BizException.class)
-            .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                .isEqualTo(AccessErrorCode.ADMISSION_CONFIG_FAULT.getCode()));
-        verify(snapshotAssembler, never()).assemble(anyLong(), any(InterfaceAdmissionSnapshotReq.class), anyLong(),
-            any(), any(), anyList(), anyList());
-    }
 
     @Test
     @DisplayName("构建后代次稳定但已停用 → 终校验按停用语义返回空路由快照（与入口停用同口径）")
     void disabledBeforeGenerationRead_finalCheckReturnsEmptySnapshot() {
         when(serviceConfigMapper.selectConfigGeneration(TENANT, SERVICE)).thenReturn(5L);
-        ServiceConfig disabled = enabledConfig("OPERATION_ADMISSION");
+        ServiceConfig disabled = enabledConfig();
         disabled.setStatus(0);
         when(serviceConfigMapper.selectAuthState(TENANT, SERVICE)).thenReturn(disabled);
 
@@ -139,7 +121,7 @@ class PermissionAdmissionAppServiceImplTest {
     void generationChangeTriggersRetry_thenFinalCheckGoverns() {
         when(serviceConfigMapper.selectConfigGeneration(TENANT, SERVICE)).thenReturn(5L, 6L, 6L, 6L);
         // 第一轮：代次 5→6 重建；第二轮：代次 6 稳定但已停用 → 空快照
-        ServiceConfig disabled = enabledConfig("OPERATION_ADMISSION");
+        ServiceConfig disabled = enabledConfig();
         disabled.setStatus(0);
         when(serviceConfigMapper.selectAuthState(TENANT, SERVICE)).thenReturn(disabled);
 

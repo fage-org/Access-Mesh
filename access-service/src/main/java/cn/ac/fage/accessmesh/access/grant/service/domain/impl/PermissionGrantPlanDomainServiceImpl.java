@@ -13,6 +13,7 @@ import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.access.rule.enums.ConditionSource;
 import cn.ac.fage.accessmesh.access.domain.enums.ConfigType;
 import cn.ac.fage.accessmesh.access.grant.enums.GrantSource;
+import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.domain.service.domain.DomainConfigDomainService;
 import cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomainService;
@@ -140,6 +141,10 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
                                                                      String domainCode,
                                                                      ApplyGrantPlanReq.GrantPlan plan) {
         List<ApplyGrantPlanReq.CreateItem> createItems = plan.createItems();
+        for (ApplyGrantPlanReq.CreateItem create : createItems) {
+            rejectApiGrant(create.key().resourceTypeCode());
+            create.childItems().forEach(child -> rejectApiGrant(child.resourceTypeCode()));
+        }
         List<ApplyGrantPlanReq.UpdateItem> updateItems = plan.updateItems();
         List<Long> removeIds = plan.removeIds();
         if (createItems.isEmpty() && updateItems.isEmpty() && removeIds.isEmpty()) {
@@ -160,6 +165,18 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             .selectValidByRoleId(tenantId, roleId);
         Map<Long, RoleResourcePermission> existingById = existingPermissions.stream()
             .collect(Collectors.toMap(RoleResourcePermission::getId, Function.identity()));
+
+        Set<Long> touchedIds = new HashSet<>(removeIdSet);
+        touchedIds.addAll(updateIds);
+        createItems.stream().map(ApplyGrantPlanReq.CreateItem::parentPermissionId)
+            .filter(Objects::nonNull).forEach(touchedIds::add);
+        if (!touchedIds.isEmpty()) {
+            Integer apiType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", ResourceTypeCode.API);
+            if (apiType != null && existingPermissions.stream().anyMatch(row -> touchedIds.contains(row.getId())
+                && apiType.equals(row.getResourceType()))) {
+                rejectApiGrant(ResourceTypeCode.API);
+            }
+        }
 
         Set<Long> referencedIds = new LinkedHashSet<>();
         referencedIds.addAll(updateIds);
@@ -556,6 +573,10 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
     public void seedGrants(Long tenantId, Long roleId, List<RoleResourcePermission> grants) {
         if (grants == null || grants.isEmpty()) {
             return;
+        }
+        Integer apiType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", ResourceTypeCode.API);
+        if (apiType != null && grants.stream().anyMatch(row -> apiType.equals(row.getResourceType()))) {
+            rejectApiGrant(ResourceTypeCode.API);
         }
         List<RoleResourcePermission> existing = rolePermissionMapper.selectValidByRoleIds(tenantId, Set.of(roleId));
         // 幂等 insert-if-absent：同身份键（对齐 uk_role_resource_permission 身份列）种子行跳过；
@@ -1011,6 +1032,12 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
 
     private BizException validation(String message) {
         return new BizException(AccessErrorCode.VALIDATION_FAILED.getCode(), message);
+    }
+
+    private void rejectApiGrant(String resourceTypeCode) {
+        if (ResourceTypeCode.API.equalsIgnoreCase(resourceTypeCode)) {
+            throw biz(AccessErrorCode.PERM_INVALID_PARAM, "API 类型仅用于接口登记，不支持授权");
+        }
     }
 
     private BizException biz(AccessErrorCode errorCode) {

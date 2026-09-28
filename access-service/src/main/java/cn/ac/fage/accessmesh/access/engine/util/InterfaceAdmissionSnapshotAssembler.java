@@ -7,6 +7,7 @@ import cn.ac.fage.accessmesh.access.resource.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.access.rule.entity.PermissionCondition;
 import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
+import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.perm.common.dto.req.InterfaceAdmissionSnapshotReq;
@@ -61,7 +62,9 @@ public class InterfaceAdmissionSnapshotAssembler {
 
     /**
      * 批量解析映射集的准入要求：required_operation_id 悬空、操作行缺失/软删、
-     * 所属类型不可反查均为配置故障 20071（不猜默认操作）。
+     * 所属类型不可反查均为配置故障 20071（不猜默认操作）；要求类型为 API 同样 20071
+     * ——API 授权已随 T-ACCESS-062 全灭，API 类型操作作准入要求恒无候选（死配置，
+     * 写侧共用保存入口已拒绝，此处兜底存量/直写脏数据，2026-09-28 拍板收窄）。
      */
     public List<RouteRequirement> resolveRouteRequirements(Long tenantId, List<ResourceApiMapping> mappings) {
         if (mappings.isEmpty()) {
@@ -87,6 +90,10 @@ public class InterfaceAdmissionSnapshotAssembler {
             if (typeCode == null) {
                 throw configFault("映射操作引用的类型定义不可解析: " + mapping.getHttpMethod()
                     + " " + mapping.getPathPattern());
+            }
+            if (ResourceTypeCode.API.equals(typeCode)) {
+                throw configFault("映射操作引用为 API 类型（API 仅用于接口登记，作准入要求恒无候选）: "
+                    + mapping.getHttpMethod() + " " + mapping.getPathPattern());
             }
             routes.add(new RouteRequirement(mapping.getHttpMethod(), mapping.getPathPattern(),
                 new AdmissionRequirement(typeCode, op.getCode())));

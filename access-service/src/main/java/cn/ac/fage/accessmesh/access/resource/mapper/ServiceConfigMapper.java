@@ -64,7 +64,7 @@ public interface ServiceConfigMapper extends BaseMapper<ServiceConfig> {
     /**
      * 递增服务准入快照配置代次（T-ACCESS-059 计数列载体）。
      * <p>
-     * 由该服务映射写路径（共用保存入口/删除/FULL 清理）与模式切换在同事务调用；
+     * 由该服务映射写路径（共用保存入口/删除/FULL 清理）与服务启停在同事务调用；
      * 准入快照构建以「构建前后代次比对、变更即废弃重建」消费（2026-09-25 拍板限定语义）。
      * 服务行不存在时返回 0（新增映射行会因服务未登记先行失败，此处不重复校验）。
      * </p>
@@ -91,17 +91,17 @@ public interface ServiceConfigMapper extends BaseMapper<ServiceConfig> {
                                 @Param("serviceCode") String serviceCode);
 
     /**
-     * 独立语句读取鉴权状态（启停+模式+代次）。
+     * 独立语句读取鉴权状态（启停+代次）。
      * <p>
-     * 供准入快照构建的终校验使用（构建期切模式/停用的代次保护）：与
+     * 供准入快照构建的终校验使用（构建期停用的代次保护）：与
      * {@link #selectConfigGeneration} 同款 {@code flushCache} 独立语句形态，
-     * 不命中会话缓存——代次稳定只证明构建期间无变更，模式/启停还须在返回前
+     * 不命中会话缓存——代次稳定只证明构建期间无变更，启停还须在返回前
      * 强制落库复读确认（入口校验与首次代次读之间发生的变更不改变代次比对结果）。
      * </p>
      *
      * @param tenantId    租户ID
      * @param serviceCode 服务编码
-     * @return 仅填充 status/apiAuthMode/configGeneration 的配置行；服务行不存在返回 null
+     * @return 仅填充 status/configGeneration 的配置行；服务行不存在返回 null
      */
     ServiceConfig selectAuthState(@Param("tenantId") Long tenantId,
                                   @Param("serviceCode") String serviceCode);

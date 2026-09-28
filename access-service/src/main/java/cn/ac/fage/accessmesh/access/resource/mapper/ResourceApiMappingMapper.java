@@ -58,20 +58,8 @@ public interface ResourceApiMappingMapper extends BaseMapper<ResourceApiMapping>
                                                       @Param("httpMethod") String httpMethod);
 
     /**
-     * 查询接口快照用的API映射（按服务编码和资源ID集合过滤）
-     *
-     * @param tenantId       租户ID
-     * @param serviceCode    服务编码
-     * @param resourceIds    资源ID集合
-     * @return 映射列表
-     */
-    List<ResourceApiMapping> selectForSnapshot(@Param("tenantId") Long tenantId,
-                                                @Param("serviceCode") String serviceCode,
-                                                @Param("resourceIds") Set<Long> resourceIds);
-
-    /**
-     * 查询服务下全部启用的 API 映射（接口快照的 scopeAll 展开用：类型级 API 授权
-     * 展开为「全部已注册接口」时按 serviceCode 取全量 enabled 映射）
+     * 查询服务下全部启用的 API 映射（操作准入快照构建取该服务完整路由集，
+     * 完整配置优先、不按用户权限挑较弱规则——T-ACCESS-059）
      *
      * @param tenantId    租户ID
      * @param serviceCode 服务编码

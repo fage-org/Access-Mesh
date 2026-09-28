@@ -146,9 +146,11 @@ class AccessBootstrapPgIT {
     void createsFullGraphOnEmptyDatabase() {
         initializer.initialize(BOOTSTRAP_PASSWORD);
 
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM role_resource_permission p JOIN type_definition t "
+            + "ON t.tenant_id=p.tenant_id AND t.type_key='resource_type' AND t.type_code='API' "
+            + "AND t.type_value=p.resource_type AND t.delete_flag=0 WHERE p.delete_flag=0", Long.class)).isZero();
+
         // T-ACCESS-059 无迁移期拍板：固定图服务行为 OPERATION_ADMISSION；全部启用映射绑定业务操作引用
-        assertThat(jdbc.queryForObject("SELECT api_auth_mode FROM service_config WHERE tenant_id = ? "
-            + "AND service_code = 'access-service' AND delete_flag = 0", String.class, TENANT)).isEqualTo("OPERATION_ADMISSION");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM resource_api_mapping WHERE tenant_id = ? "
             + "AND delete_flag = 0 AND enabled = true AND required_operation_id IS NULL", Long.class, TENANT)).isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM resource_api_mapping WHERE tenant_id = ? "
@@ -205,14 +207,14 @@ class AccessBootstrapPgIT {
             "SELECT count(*) FROM resource_entity WHERE tenant_id = ? "
                 + "AND resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'API') "
                 + "AND code IN ('" + String.join("','", expectedApiCodes) + "') AND delete_flag = 0",
-            Long.class, TENANT)).isEqualTo(106L);
+            Long.class, TENANT)).isEqualTo(105L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM resource_api_mapping ram JOIN resource_entity re "
                 + "ON ram.resource_entity_id = re.id AND re.tenant_id = ram.tenant_id "
                 + "WHERE ram.tenant_id = ? AND ram.delete_flag = 0 "
                 + "AND re.resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'API') "
                 + "AND re.code LIKE 'POST:%'",
-            Long.class, TENANT)).isEqualTo(105L);
+            Long.class, TENANT)).isEqualTo(104L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM resource_api_mapping ram JOIN resource_entity re "
                 + "ON ram.resource_entity_id = re.id AND re.tenant_id = ram.tenant_id "
@@ -234,7 +236,7 @@ class AccessBootstrapPgIT {
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND grant_source = 'MANUAL'",
-            Long.class, TENANT, roleId)).isEqualTo(161L);
+            Long.class, TENANT, roleId)).isEqualTo(54L);
 
         // 系统任务种子（T-PERM-073，2026-09-21 用户定案）：默认停用、预置 cron；invokeTarget
         // 必须经 @JobInvocable 白名单真实解析（防拼写漂移到首次手动触发才暴露）且 String
@@ -251,7 +253,7 @@ class AccessBootstrapPgIT {
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND scope_all = true",
-            Long.class, TENANT, roleId)).isEqualTo(55L);
+            Long.class, TENANT, roleId)).isEqualTo(54L);
         // T-ACCESS-054（U010 拍板）：ADMIN_JOB 最小运营三行精确锁——VIEW bit2/TRIGGER bit64/
         // ENABLE bit16（DDL 扩展码组），scopeAll 类型级、不可转授；负向锁=ADMIN_JOB 无其他
         // scopeAll 行（CREATE/UPDATE/DELETE 无种子为拍板收窄形态，防混入后靠总量断言漏检）
@@ -272,7 +274,7 @@ class AccessBootstrapPgIT {
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND can_grant = true",
-            Long.class, TENANT, roleId)).isEqualTo(6L);
+            Long.class, TENANT, roleId)).isEqualTo(4L);
         // T-ACCESS-052 最小集四条 canGrant（新库按新定义种）：业务门禁可转授行明细
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
@@ -300,7 +302,7 @@ class AccessBootstrapPgIT {
                 + "ON p.resource_entity_id = re.id AND re.tenant_id = p.tenant_id "
                 + "WHERE p.tenant_id = ? AND p.abstract_role_id = ? AND p.delete_flag = 0 "
                 + "AND p.can_grant = true AND re.code = 'POST:/api/access/role/my-info'",
-            Long.class, TENANT, roleId)).isEqualTo(1L);
+            Long.class, TENANT, roleId)).isZero();
 
         // 重复执行不重复建号：admin 唯一、角色唯一
         assertThat(jdbc.queryForObject(
@@ -423,41 +425,58 @@ class AccessBootstrapPgIT {
     @Order(4)
     @DisplayName("状态②变体：授权属性漂移（管理端运营修改）→ warn 放行不重种（2026-09-02 口径定案）")
     void grantAttributeDriftIsToleratedAndNotReseeded() {
-        // 模拟授权页运营修改：API:ACCESS 类型级 scopeAll 授权 canGrant=true → false。
+        // 模拟授权页运营修改：OPERATION_LOG:VIEW 类型级授权 canGrant=false → true。
         // 旧实现（canGrant 参与完整匹配键）此处必抛「授权缺失或属性不匹配」fail-fast——本用例为其回归锁
-        jdbc.update("UPDATE role_resource_permission SET can_grant = false, updated_at = now() "
-                + "WHERE tenant_id = ? AND scope_all = true AND can_grant = true "
+        jdbc.update("UPDATE role_resource_permission SET can_grant = true, updated_at = now() "
+                + "WHERE tenant_id = ? AND scope_all = true AND can_grant = false "
                 + "AND abstract_role_id = (SELECT id FROM abstract_role WHERE tenant_id = ? AND external_id = ?) "
                 + "AND resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = ? "
-                + "AND type_key = 'resource_type' AND type_code = 'API')",
+                + "AND type_key = 'resource_type' AND type_code = 'OPERATION_LOG')",
             TENANT, TENANT, BootstrapGraphDefinition.ADMIN_ROLE_EXTERNAL_ID, TENANT);
 
         initializer.initialize(BOOTSTRAP_PASSWORD);
 
-        // 放行且不重种：该身份行唯一、保持运营修改值（未被固定图覆盖回 true，也未补种新行）
+        // 放行且不重种：该身份行唯一、保持运营修改值（未被固定图覆盖回 false，也未补种新行）
         Integer totalCount = jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND scope_all = true "
                 + "AND delete_flag = 0 "
                 + "AND abstract_role_id = (SELECT id FROM abstract_role WHERE tenant_id = ? AND external_id = ?) "
                 + "AND resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = ? "
-                + "AND type_key = 'resource_type' AND type_code = 'API')",
+                + "AND type_key = 'resource_type' AND type_code = 'OPERATION_LOG')",
             Integer.class, TENANT, TENANT, BootstrapGraphDefinition.ADMIN_ROLE_EXTERNAL_ID, TENANT);
         assertThat(totalCount).isEqualTo(1);
         Integer falseCount = jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND scope_all = true "
-                + "AND can_grant = false AND delete_flag = 0 "
+                + "AND can_grant = true AND delete_flag = 0 "
                 + "AND abstract_role_id = (SELECT id FROM abstract_role WHERE tenant_id = ? AND external_id = ?) "
                 + "AND resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = ? "
-                + "AND type_key = 'resource_type' AND type_code = 'API')",
+                + "AND type_key = 'resource_type' AND type_code = 'OPERATION_LOG')",
             Integer.class, TENANT, TENANT, BootstrapGraphDefinition.ADMIN_ROLE_EXTERNAL_ID, TENANT);
         assertThat(falseCount).isEqualTo(1);
+    }
+
+    @Test
+    @Order(3)
+    void shouldFailFast_whenOldDatabaseStillContainsApiSeedGrants() {
+        Long id = jdbc.queryForObject("INSERT INTO role_resource_permission(tenant_id,abstract_role_id,"
+            + "resource_type,granted_bits,scope_all,can_grant) SELECT ?,r.id,t.type_value,16,true,true "
+            + "FROM abstract_role r JOIN type_definition t ON t.tenant_id=r.tenant_id "
+            + "AND t.type_key='resource_type' AND t.type_code='API' AND t.delete_flag=0 "
+            + "WHERE r.tenant_id=? AND r.external_id=? AND r.delete_flag=0 RETURNING role_resource_permission.id",
+            Long.class, TENANT, TENANT, BootstrapGraphDefinition.ADMIN_ROLE_EXTERNAL_ID);
+        try {
+            assertThatThrownBy(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("已退役的 API 授权");
+        } finally {
+            jdbc.update("DELETE FROM role_resource_permission WHERE id=?", id);
+        }
     }
 
     @Test
     @Order(5)
     @DisplayName("状态③例外（T-ACCESS-029 三分）：缺行 + 同身份键软删墓碑 → WARN 列明授权键放行不补回（旧实现 fail-fast，本用例为其回归锁）")
     void missingGrantWithSoftDeletedTombstoneWarnsAndPasses() {
-        // 模拟管理端整行撤销两条固定图授权，软删形态与 softDeleteBatch 一致（delete_flag=id + deleted_at）：
+        // 模拟管理端整行撤销固定图授权，软删形态与 softDeleteBatch 一致（delete_flag=id + deleted_at）：
         // ① OPERATION_LOG:VIEW 类型级 scopeAll——身份键 resource_entity_id=NULL（复评审补的 NULL
         //    语义回归锚：SQL = NULL 恒不命中，墓碑匹配若下推 SQL 等值条件本用例必红）；
         // ② POST:/api/access/user/create 的 API 实例 ACCESS——身份键带 resource_entity_id
@@ -480,16 +499,8 @@ class AccessBootstrapPgIT {
                 + "AND abstract_role_id = (SELECT id FROM abstract_role WHERE tenant_id = ? AND external_id = ?) "
                 + "AND scope_all = true AND delete_flag != 0",
             TENANT, TENANT, BootstrapGraphDefinition.ADMIN_ROLE_EXTERNAL_ID);
-        Map<String, Object> instanceTombstone = jdbc.queryForMap(
-            "SELECT resource_type, granted_bits, resource_entity_id FROM role_resource_permission WHERE tenant_id = ? "
-                + "AND abstract_role_id = (SELECT id FROM abstract_role WHERE tenant_id = ? AND external_id = ?) "
-                + "AND scope_all = false AND delete_flag != 0",
-            TENANT, TENANT, BootstrapGraphDefinition.ADMIN_ROLE_EXTERNAL_ID);
         String scopeAllKey = scopeAllTombstone.get("resource_type") + "#bits="
             + scopeAllTombstone.get("granted_bits") + "@ALL";
-        String instanceKey = instanceTombstone.get("resource_type") + "#bits="
-            + instanceTombstone.get("granted_bits") + "@instance" + instanceTombstone.get("resource_entity_id");
-
         LoggerContext logCtx = (LoggerContext) LogManager.getContext(false);
         CapturingAppender appender = new CapturingAppender();
         appender.start();
@@ -501,15 +512,15 @@ class AccessBootstrapPgIT {
             assertThatCode(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
                 .doesNotThrowAnyException();
 
-            // WARN 内容列明具体授权键（含 scopeAll NULL 身份键与实例身份键两条）
+            // WARN 内容列明具体授权键（scopeAll NULL 身份键）
             assertThat(appender.warnMessages()).anySatisfy(message ->
-                assertThat(message).contains("软删墓碑").contains(scopeAllKey).contains(instanceKey));
+                assertThat(message).contains("软删墓碑").contains(scopeAllKey));
         } finally {
             bootstrapLogger.removeAppender(appender);
             appender.stop();
         }
 
-        // 放行且不补回：两个身份键的有效行数仍为 0（未被重种覆盖管理端撤销）
+        // 放行且不补回：被撤销授权的有效行数仍为 0（未被重种覆盖管理端撤销）
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? "
                 + "AND abstract_role_id = (SELECT id FROM abstract_role WHERE tenant_id = ? AND external_id = ?) "
@@ -626,7 +637,7 @@ class AccessBootstrapPgIT {
             TENANT);
         assertThatThrownBy(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
             .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("API 资源已停用");
+            .hasMessageContaining("API 登记资源已停用");
 
         jdbc.update("UPDATE resource_entity SET status = 0 WHERE tenant_id = ? "
                 + "AND resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'SERVICE') "

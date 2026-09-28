@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.access.resource.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
-import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigSyncReq;
+import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigSyncV2Req;
 import cn.ac.fage.accessmesh.access.resource.entity.ServiceConfig;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
@@ -61,12 +61,12 @@ class ServiceSyncAppServiceImplTest {
             when(typeResolutionService.resolveTypeValue(1L, "resource_type", ResourceTypeCode.API))
                 .thenReturn(null);
 
-            ServiceConfigSyncReq req = new ServiceConfigSyncReq("my-svc", null, "FULL",
-                List.of(new ServiceConfigSyncReq.GroupItem("default", "默认", List.of(
-                    new ServiceConfigSyncReq.ApiItem("test", "GET", "/api/test", "test:read", "test api")
+            ServiceConfigSyncV2Req req = new ServiceConfigSyncV2Req("my-svc", null, "FULL",
+                List.of(new ServiceConfigSyncV2Req.GroupItem("default", "默认", List.of(
+                    new ServiceConfigSyncV2Req.ApiItem("test", "GET", "/api/test", "test:read", "test api", new cn.ac.fage.accessmesh.access.resource.dto.RequiredPermission("REPORT", "VIEW"))
                 ))));
             assertThrows(cn.ac.fage.accessmesh.common.exception.BizException.class,
-                () -> service.syncInterfaces(1L, req));
+                () -> service.syncInterfacesV2(1L, req));
             org.mockito.Mockito.verify(treeWriteLockSupport).lockTreeWrites(1L,
                 cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         }
@@ -80,11 +80,11 @@ class ServiceSyncAppServiceImplTest {
                 eq(ResourceTypeCode.SERVICE), eq("my-svc"), eq(OperationCode.SYNC_INTERFACE)))
                 .thenReturn(false);
 
-            ServiceConfigSyncReq req = new ServiceConfigSyncReq("my-svc", null, "FULL",
-                List.of(new ServiceConfigSyncReq.GroupItem("default", "默认", List.of(
-                    new ServiceConfigSyncReq.ApiItem("test", "GET", "/api/test", "test:read", "test api")
+            ServiceConfigSyncV2Req req = new ServiceConfigSyncV2Req("my-svc", null, "FULL",
+                List.of(new ServiceConfigSyncV2Req.GroupItem("default", "默认", List.of(
+                    new ServiceConfigSyncV2Req.ApiItem("test", "GET", "/api/test", "test:read", "test api", new cn.ac.fage.accessmesh.access.resource.dto.RequiredPermission("REPORT", "VIEW"))
                 ))));
-            assertThrows(SecurityException.class, () -> service.syncInterfaces(1L, req));
+            assertThrows(SecurityException.class, () -> service.syncInterfacesV2(1L, req));
         }
     }
 
@@ -97,11 +97,11 @@ class ServiceSyncAppServiceImplTest {
                 .thenReturn(true);
             when(serviceConfigMapper.selectByTenantAndServiceCode(1L, "my-svc")).thenReturn(null);
 
-            ServiceConfigSyncReq req = new ServiceConfigSyncReq("my-svc", null, "FULL",
-                List.of(new ServiceConfigSyncReq.GroupItem("default", "默认", List.of(
-                    new ServiceConfigSyncReq.ApiItem("test", "GET", "/api/test", "test:read", "test api")
+            ServiceConfigSyncV2Req req = new ServiceConfigSyncV2Req("my-svc", null, "FULL",
+                List.of(new ServiceConfigSyncV2Req.GroupItem("default", "默认", List.of(
+                    new ServiceConfigSyncV2Req.ApiItem("test", "GET", "/api/test", "test:read", "test api", new cn.ac.fage.accessmesh.access.resource.dto.RequiredPermission("REPORT", "VIEW"))
                 ))));
-            BizException exception = assertThrows(BizException.class, () -> service.syncInterfaces(1L, req));
+            BizException exception = assertThrows(BizException.class, () -> service.syncInterfacesV2(1L, req));
             assertEquals(AccessErrorCode.RESOURCE_NOT_FOUND.getCode(), exception.getErrorCode());
         }
     }
@@ -115,13 +115,13 @@ class ServiceSyncAppServiceImplTest {
         jakarta.validation.Validator validator = jakarta.validation.Validation
             .buildDefaultValidatorFactory().getValidator();
 
-        ServiceConfigSyncReq fullReq = new ServiceConfigSyncReq("my-svc", null, "FULL",
-            List.of(new ServiceConfigSyncReq.GroupItem("default", "默认", List.of())));
+        ServiceConfigSyncV2Req fullReq = new ServiceConfigSyncV2Req("my-svc", null, "FULL",
+            List.of(new ServiceConfigSyncV2Req.GroupItem("default", "默认", List.of())));
         assertTrue(validator.validate(fullReq).isEmpty(), "FULL 必须通过校验");
 
         for (String illegal : new String[] {"INCREMENTAL", "PARTIAL", "full", ""}) {
-            ServiceConfigSyncReq req = new ServiceConfigSyncReq("my-svc", null, illegal,
-                List.of(new ServiceConfigSyncReq.GroupItem("default", "默认", List.of())));
+            ServiceConfigSyncV2Req req = new ServiceConfigSyncV2Req("my-svc", null, illegal,
+                List.of(new ServiceConfigSyncV2Req.GroupItem("default", "默认", List.of())));
             assertFalse(validator.validate(req).isEmpty(),
                 "syncMode=" + illegal + " 必须被校验层拒绝");
         }

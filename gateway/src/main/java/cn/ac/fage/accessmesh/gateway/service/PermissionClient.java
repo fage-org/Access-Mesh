@@ -23,8 +23,8 @@ import java.util.Map;
  * 调用access-service的 interface-admission 族端点（快照拉取＋在线判定回源）。
  * 使用负载均衡的WebClient支持lb://服务URL格式；身份为平台内部密钥形态
  * （X-Internal-Secret + X-Tenant-Id，网关属平台信任域——service-authentication §3.2）。
- * 旧 check-interface / interface-snapshot 消费随无迁移期切换删除（服务端端点保留至
- * T-ACCESS-062 退役）。
+ * 旧 check-interface / interface-snapshot 消费随无迁移期切换删除（服务端端点已随
+ * T-ACCESS-062 删除 退役）。
  * </p>
  */
 @Service

@@ -263,7 +263,7 @@ public final class ConditionEvalUtils {
     /**
      * 判定一组条件规则是否可下发 Gateway 评估（T-PERM-017）
      * <p>
-     * 用于 {@code ConditionAppService} 写入校验 + {@code SnapshotAssembler} 内联前防御过滤。
+     * 用于 {@code ConditionAppService} 写入校验 + {@code InterfaceAdmissionSnapshotAssembler} 内联前防御过滤。
      * 两处共用同一份判定，避免管理面接受却下发面拒绝的不一致。
      * </p>
      * <p>

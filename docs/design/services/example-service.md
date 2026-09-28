@@ -3,7 +3,7 @@ doc_type: design
 title: Example Service 设计
 status: adopted
 domain: example-service
-last_reviewed: 2026-09-28   # T-ACCESS-061：§8.6 业务最终检查七路由参考族落地（perm-client SDK 消费拍板+内部密钥通道+反向拒绝测试）、SDK 接入边界改写；此前 2026-09-23（T-ACCESS-053）
+last_reviewed: 2026-09-28（退役清扫：场景表 sync→sync-v2、接口权限行改两层判定口径）；同日 T-ACCESS-061：§8.6 业务最终检查七路由参考族落地（perm-client SDK 消费拍板+内部密钥通道+反向拒绝测试）、SDK 接入边界改写；此前 2026-09-23（T-ACCESS-053）
 ---
 
 # Example Service 设计
@@ -32,8 +32,8 @@ last_reviewed: 2026-09-28   # T-ACCESS-061：§8.6 业务最终检查七路由�
 
 | 场景               | 目标                                                           | 状态 |
 | ------------------- | -------------------------------------------------------------- | ---- |
-| 服务注册与接口同步 | 展示业务服务如何向 access-service 全量同步接口资源               | ✅ 已交付（service-config/sync 声明通道；E2E ③） |
-| 接口权限           | 展示 Gateway + access-service 接口级鉴权                        | ✅ 已交付（403→授权→200→**撤销→403→重授恢复**完整主线，T-ACCESS-053；E2E ④~⑥+⑧） |
+| 服务注册与接口同步 | 展示业务服务如何向 access-service 全量同步接口资源               | ✅ 已交付（service-config/sync-v2 声明通道，每条接口必填业务操作要求；E2E ③） |
+| 接口权限           | 展示 Gateway 操作准入 + 业务最终检查两层判定                      | ✅ 已交付（403→授权→200→**撤销→403→重授恢复**完整主线，T-ACCESS-053/061；E2E ④~⑥+⑧） |
 | 服务身份（凭证）   | 展示 per-service 凭证签发/认证/轮换吊销（T-PERM-070）           | ✅ 已交付（E2E ⑦ 凭证认证链；两套身份适用面见 extension-guide §2.2） |
 | 菜单/按钮权限      | 展示前端资源和操作权限控制                                     | 规划 |
 | 报表范围权限       | 展示 `query-scopes`、`DIRECT ∪ DEPENDENT`、`scopeMode=ALL`     | 规划 |
