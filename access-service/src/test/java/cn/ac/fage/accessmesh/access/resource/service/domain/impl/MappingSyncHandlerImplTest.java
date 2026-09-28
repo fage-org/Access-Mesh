@@ -37,7 +37,9 @@ class MappingSyncHandlerImplTest {
 
     @BeforeEach
     void setUp() {
-        handler = new MappingSyncHandlerImpl(resourceApiMappingMapper, resourceEntityMapper, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.ApiMappingWriteDomainService.class));
+        handler = new MappingSyncHandlerImpl(resourceApiMappingMapper, resourceEntityMapper,
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.ApiMappingWriteDomainService.class),
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper.class));
     }
 
     @Test

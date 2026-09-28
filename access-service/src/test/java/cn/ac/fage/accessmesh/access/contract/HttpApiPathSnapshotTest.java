@@ -72,6 +72,8 @@ class HttpApiPathSnapshotTest {
 /api/access/auth/batch-check
 /api/access/auth/check
 /api/access/auth/check-interface
+/api/access/auth/interface-admission-snapshot
+/api/access/auth/interface-admission
 /api/access/auth/interface-snapshot
 /api/access/auth/query-resources
 /api/access/auth/query-scopes
@@ -256,6 +258,8 @@ class HttpApiPathSnapshotTest {
 /api/access/auth/batch-check|perm.common.dto.req.BatchAuthCheckReq|common.model.R<access.engine.dto.BatchAuthCheckResp>
 /api/access/auth/check-interface|perm.common.dto.req.CheckInterfaceReq|common.model.R<access.engine.dto.CheckInterfaceResp>
 /api/access/auth/check|perm.common.dto.req.AuthCheckReq|common.model.R<access.engine.dto.AuthCheckResp>
+/api/access/auth/interface-admission-snapshot|perm.common.dto.req.InterfaceAdmissionSnapshotReq|common.model.R<perm.common.dto.resp.InterfaceAdmissionSnapshotResp>
+/api/access/auth/interface-admission|perm.common.dto.req.InterfaceAdmissionReq|common.model.R<perm.common.dto.resp.InterfaceAdmissionResp>
 /api/access/auth/interface-snapshot|perm.common.dto.req.InterfaceSnapshotReq|common.model.R<perm.common.dto.resp.InterfaceSnapshotResp>
 /api/access/auth/query-resources|perm.common.dto.req.QueryResourcesReq|common.model.R<perm.common.dto.resp.QueryResourcesResp>
 /api/access/auth/query-scopes|perm.common.dto.req.QueryScopesReq|common.model.R<perm.common.dto.resp.QueryScopesResp>

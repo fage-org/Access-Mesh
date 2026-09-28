@@ -964,6 +964,10 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
         // API mapping 删除影响 Gateway 本地快照构建 → 广播受影响 serviceCodes（perm 未变，不 markRoles）
         PermissionChangeContext.markServiceCodes(tenantId, serviceCodes);
+        // T-ACCESS-059：路由集变化，同事务递增各受影响服务的准入快照配置代次
+        for (String serviceCode : serviceCodes) {
+            serviceConfigMapper.incrementConfigGeneration(tenantId, serviceCode);
+        }
 
         OperationLogRuntimeContext.setSummary(
             "soft-deleted " + n + " resource_api_mapping row(s), ids=" + mappingIdsToDelete

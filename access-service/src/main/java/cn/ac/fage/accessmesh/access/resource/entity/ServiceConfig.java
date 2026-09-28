@@ -62,8 +62,14 @@ public class ServiceConfig {
      */
     private Integer status;
 
-    /** 可信配置控制的接口鉴权模式。 */
-    private String apiAuthMode = "LEGACY_API";
+    /**
+     * 可信配置控制的接口鉴权模式（T-ACCESS-059 无迁移期拍板：默认 OPERATION_ADMISSION 统一上线；
+     * LEGACY_API 仅作 062 退役前的版本回退部署形态）。
+     */
+    private String apiAuthMode = "OPERATION_ADMISSION";
+
+    /** 准入快照配置代次：映射写路径与模式切换同事务递增（快照构建期自一致校验，T-ACCESS-059）。 */
+    private Long configGeneration = 0L;
 
     /**
      * 扩展信息（JSON格式），存储额外属性

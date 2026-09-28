@@ -8,7 +8,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * M2M 凭证端点白名单单源回归锁（T-PERM-070）。
  * <p>锁定：method+精确路径双因子匹配、无通配（前缀/相邻命名空间不得命中）、
- * 阶段一三端点基线（071 manifest 端点预留）。</p>
+ * 阶段一三端点基线（071 manifest 端点预留）＋ T-ACCESS-059 操作准入两端点
+ * （运行时查询族首批凭证化端点，Q-040 收敛方向）。</p>
  */
 class M2mCredentialEndpointsTest {
 
@@ -19,6 +20,9 @@ class M2mCredentialEndpointsTest {
         assertThat(M2mCredentialEndpoints.matches("POST", "/api/access/resource-entity/full-sync")).isTrue();
         assertThat(M2mCredentialEndpoints.matches("POST", "/api/access/integration/permission-manifest/full-sync")).isTrue();
         assertThat(M2mCredentialEndpoints.matches("POST", "/api/access/service-config/sync-v2")).isTrue();
+        // T-ACCESS-059：操作准入两端点（凭证调用；网关沿用内部密钥平台信任域形态）
+        assertThat(M2mCredentialEndpoints.matches("POST", "/api/access/auth/interface-admission")).isTrue();
+        assertThat(M2mCredentialEndpoints.matches("POST", "/api/access/auth/interface-admission-snapshot")).isTrue();
         // method 大小写不敏感
         assertThat(M2mCredentialEndpoints.matches("post", "/api/access/resource-entity/sync")).isTrue();
     }
@@ -32,8 +36,12 @@ class M2mCredentialEndpointsTest {
         assertThat(M2mCredentialEndpoints.matches("POST", "/api/access/resource-entity/create")).isFalse();
         assertThat(M2mCredentialEndpoints.matches("POST", "/api/access/service-config/sync")).isFalse();
         assertThat(M2mCredentialEndpoints.matches("POST", "/api/access/abstract-user/full-sync")).isFalse();
-        // 管理与查询端点（凭证能力半径边界）
+        // 管理与查询端点（凭证能力半径边界；旧 auth 查询族维持凭证外——check/interface 旧端点归 062 退役）
         assertThat(M2mCredentialEndpoints.matches("POST", "/api/access/auth/query-resources")).isFalse();
+        assertThat(M2mCredentialEndpoints.matches("POST", "/api/access/auth/check-interface")).isFalse();
+        assertThat(M2mCredentialEndpoints.matches("POST", "/api/access/auth/interface-snapshot")).isFalse();
+        // 前缀相邻不命中（admission 非 admission-snapshot 的兄弟路径不存在通配）
+        assertThat(M2mCredentialEndpoints.matches("POST", "/api/access/auth/interface-admission/extra")).isFalse();
         assertThat(M2mCredentialEndpoints.matches("POST", "/api/access/service-credential/list")).isFalse();
         // 方法不匹配
         assertThat(M2mCredentialEndpoints.matches("GET", "/api/access/resource-entity/sync")).isFalse();
@@ -45,13 +53,15 @@ class M2mCredentialEndpointsTest {
     @Test
     @DisplayName("清单保持精确端点边界")
     void shouldExposeImmutableBaseline() {
-        assertThat(M2mCredentialEndpoints.endpoints()).hasSize(4);
+        assertThat(M2mCredentialEndpoints.endpoints()).hasSize(6);
         assertThat(M2mCredentialEndpoints.endpoints())
             .extracting(M2mCredentialEndpoints.M2mEndpoint::path)
             .containsExactlyInAnyOrder(
                 "/api/access/resource-entity/sync",
                 "/api/access/resource-entity/full-sync",
                 "/api/access/integration/permission-manifest/full-sync",
-                "/api/access/service-config/sync-v2");
+                "/api/access/service-config/sync-v2",
+                "/api/access/auth/interface-admission",
+                "/api/access/auth/interface-admission-snapshot");
     }
 }

@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
  * Gateway 本地接口快照缓存失效器（T-PERM-006 / T-ACCESS-008）
  * <p>
  * 根据 access-service 广播的 {@link PermInvalidateEvent} 清理本地
- * {@code INTERFACE_SNAPSHOT}（统一 CacheService，L1_ONLY）。Redis pub/sub 只保证尽力送达，
+ * {@code INTERFACE_ADMISSION_SNAPSHOT}（统一 CacheService，L1_ONLY）。Redis pub/sub 只保证尽力送达，
  * 丢失时由 TTL 兜底（≤15s）。
  * </p>
  * <p>
@@ -71,11 +71,11 @@ public class InterfaceSnapshotCacheInvalidator {
         this.loadRegistry = loadRegistry;
         this.trackedIdentifiers = Caffeine.newBuilder()
             .maximumSize(cacheProperties.getEffectiveL1MaxSize(
-                GatewayCacheCatalog.INTERFACE_SNAPSHOT.getCode(),
-                GatewayCacheCatalog.INTERFACE_SNAPSHOT.getL1MaxSize()))
+                GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT.getCode(),
+                GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT.getL1MaxSize()))
             .expireAfterWrite(cacheProperties.getEffectiveL1Ttl(
-                GatewayCacheCatalog.INTERFACE_SNAPSHOT.getCode(),
-                GatewayCacheCatalog.INTERFACE_SNAPSHOT.getL1Ttl()))
+                GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT.getCode(),
+                GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT.getL1Ttl()))
             .build();
     }
 
@@ -159,7 +159,7 @@ public class InterfaceSnapshotCacheInvalidator {
             .map(identifier -> trackedKey(tenantId, identifier))
             .collect(Collectors.toSet()));
         for (String identifier : affected) {
-            cacheService.evict(GatewayCacheCatalog.INTERFACE_SNAPSHOT, tenantId, identifier);
+            cacheService.evict(GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT, tenantId, identifier);
             trackedIdentifiers.invalidate(trackedKey(tenantId, identifier));
         }
         invalidationMarker.cleanupIfOversized(liveKeys());
@@ -178,7 +178,7 @@ public class InterfaceSnapshotCacheInvalidator {
      */
     private long evictTenantWide(Long tenantId) {
         invalidationMarker.clearAndBumpGlobalEpoch();
-        cacheService.evictAll(GatewayCacheCatalog.INTERFACE_SNAPSHOT, tenantId);
+        cacheService.evictAll(GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT, tenantId);
         String tenantPrefix = tenantId + ":";
         trackedIdentifiers.asMap().keySet().removeIf(key -> key.startsWith(tenantPrefix));
         log.debug("Evicted all gateway interface snapshots for tenant={}", tenantId);
@@ -195,7 +195,7 @@ public class InterfaceSnapshotCacheInvalidator {
      */
     public void clearAll() {
         invalidationMarker.clearAndBumpGlobalEpoch();
-        cacheService.evictAll(GatewayCacheCatalog.INTERFACE_SNAPSHOT);
+        cacheService.evictAll(GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT);
         trackedIdentifiers.invalidateAll();
     }
 

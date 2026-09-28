@@ -150,7 +150,7 @@ execute(QueryRequest)
 （完整设计：docs/design/r2-unified-query-and-admission.md §4；实现：docs/design/engine/implementation.md）
 ```
 
-操作准入用 `QueryItem.admission/admissionFacts` 构造独立请求（T-ACCESS-057）：新鲜完整操作目录先核查要求，再按合并 type-mask 批量读 ALL/实例候选；配置故障优先于 NO_ROLE。子行只批量核父结构，标 CONTEXT_DEFERRED，不评父条件；PERM_MUTEX 固定延后业务。在线评本行条件并可存在性短路，FACTS 核条件可用状态、排除坏条件、完整保留有效条件身份而不按当前环境过滤。禁止从旧 GRANT_LIST 结果或普通长 TTL 操作掩码推导；AdmissionResult 恒要求最终检查。端点/快照接线在 T-ACCESS-059。
+操作准入用 `QueryItem.admission/admissionFacts` 构造独立请求（T-ACCESS-057）：新鲜完整操作目录先核查要求，再按合并 type-mask 批量读 ALL/实例候选；配置故障优先于 NO_ROLE。子行只批量核父结构，标 CONTEXT_DEFERRED，不评父条件；PERM_MUTEX 固定延后业务。在线评本行条件并可存在性短路，FACTS 核条件可用状态、排除坏条件、完整保留有效条件身份而不按当前环境过滤。禁止从旧 GRANT_LIST 结果或普通长 TTL 操作掩码推导；AdmissionResult 恒要求最终检查。端点已随 T-ACCESS-059 落地：`POST /api/access/auth/interface-admission`（在线判定，PermissionAdmissionAppService）与 `interface-admission-snapshot`（快照构建，InterfaceAdmissionSnapshotAssembler＋configGeneration 自一致校验）；网关消费新链（InterfaceAdmissionMatcher 四态），旧 check-interface/interface-snapshot 网关侧已删（062 退役）。
 
 **判定/展示两语义拆分**：判定面继承（`Inheritance.SELF_AND_ANCESTORS`，查询前目标∪同类型祖先链，
 改变 allowed/denied）≠ 展示面展开（`PresentationExpansion`，查询后克隆 `grantSource=INHERITED`，
@@ -222,3 +222,5 @@ ResourceTypeCode.API               // API接口
 | `engine/util/OperationPermissionUtils.java` | 位运算 |
 | `perm-common` 的 `cn.ac.fage.accessmesh.perm.common.util.ConditionEvalUtils` | 条件评估 |
 | `engine/util/RolePermEntryMapper.java` | 实体→VO（ROLE_PERM_SNAPSHOT 缓存载荷例外保留对象） |
+| `engine/service/impl/PermissionAdmissionAppServiceImpl.java` | interface-admission 族两端点（T-ACCESS-059） |
+| `engine/util/InterfaceAdmissionSnapshotAssembler.java` | 准入快照路由要求解析与候选投影（T-ACCESS-059） |

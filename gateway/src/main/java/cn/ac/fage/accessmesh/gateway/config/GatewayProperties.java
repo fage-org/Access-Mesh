@@ -152,9 +152,11 @@ public class GatewayProperties {
     public static class Permission {
         // T-ACCESS-010：目标由 permission-center 统一切换为 access-service
         private String serviceUrl = "lb://access-service";
-        private String checkInterfacePath = "/api/access/auth/check-interface";
-        // T-PERM-001：快照模式接口，Gateway 拉取用户全量接口权限快照用于本地匹配
-        private String interfaceSnapshotPath = "/api/access/auth/interface-snapshot";
+        // T-ACCESS-059：操作准入在线判定（本地无通过分支回源/灰度强制在线用）
+        private String interfaceAdmissionPath = "/api/access/auth/interface-admission";
+        // T-ACCESS-059：操作准入快照（网关本地判定主路径；旧 check-interface/interface-snapshot
+        // 网关消费随无迁移期切换删除，服务端旧端点保留至 T-ACCESS-062 退役）
+        private String interfaceAdmissionSnapshotPath = "/api/access/auth/interface-admission-snapshot";
         private String unregisteredPolicy = "DENY";
         /**
          * 权限快照加载全链路墙钟硬截止时间（T-ACCESS-008，默认/上限 5 秒）。

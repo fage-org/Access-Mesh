@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.gateway.cache;
 
-import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceAdmissionSnapshotResp;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
@@ -15,9 +15,9 @@ import java.util.function.Supplier;
 @Component
 public class InterfaceSnapshotLoadRegistry {
 
-    private final ConcurrentHashMap<String, Mono<InterfaceSnapshotResp>> inFlight = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Mono<InterfaceAdmissionSnapshotResp>> inFlight = new ConcurrentHashMap<>();
 
-    public Mono<InterfaceSnapshotResp> load(String cacheKey, Supplier<Mono<InterfaceSnapshotResp>> loader) {
+    public Mono<InterfaceAdmissionSnapshotResp> load(String cacheKey, Supplier<Mono<InterfaceAdmissionSnapshotResp>> loader) {
         return inFlight.computeIfAbsent(cacheKey, key -> sharedLoadMono(key, loader));
     }
 
@@ -25,9 +25,9 @@ public class InterfaceSnapshotLoadRegistry {
         return Set.copyOf(inFlight.keySet());
     }
 
-    private Mono<InterfaceSnapshotResp> sharedLoadMono(String key, Supplier<Mono<InterfaceSnapshotResp>> loader) {
-        AtomicReference<Mono<InterfaceSnapshotResp>> ref = new AtomicReference<>();
-        Mono<InterfaceSnapshotResp> mono = Mono.defer(loader)
+    private Mono<InterfaceAdmissionSnapshotResp> sharedLoadMono(String key, Supplier<Mono<InterfaceAdmissionSnapshotResp>> loader) {
+        AtomicReference<Mono<InterfaceAdmissionSnapshotResp>> ref = new AtomicReference<>();
+        Mono<InterfaceAdmissionSnapshotResp> mono = Mono.defer(loader)
             .doOnTerminate(() -> removeIfCurrent(key, ref.get()))
             .doOnCancel(() -> removeIfCurrent(key, ref.get()))
             .cache();
@@ -35,7 +35,7 @@ public class InterfaceSnapshotLoadRegistry {
         return mono;
     }
 
-    private void removeIfCurrent(String key, Mono<InterfaceSnapshotResp> mono) {
+    private void removeIfCurrent(String key, Mono<InterfaceAdmissionSnapshotResp> mono) {
         if (mono != null) {
             inFlight.remove(key, mono);
         }

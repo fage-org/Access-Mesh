@@ -54,7 +54,9 @@ class PermissionFeignClientContractTest {
         "/api/access/resource-entity/update",
         "/api/access/resource-entity/remove",
         "/api/access/operation-permission/list",
-        "/api/access/permission-view/effective-permission-codes"
+        "/api/access/permission-view/effective-permission-codes",
+        "/api/access/auth/interface-admission",
+        "/api/access/auth/interface-admission-snapshot"
     );
 
     /** 接口的全部实例方法（不做注解预过滤——封闭检查必须覆盖每一个方法）。 */
@@ -86,7 +88,7 @@ class PermissionFeignClientContractTest {
             .toList();
 
         assertThat((long) actualPaths.size())
-            .as("接口方法总数必须与契约清单一致（17，2026-09-10 T-PERM-059 删 effective-permissions 后），防止增删端点静默漂移")
+            .as("接口方法总数必须与契约清单一致（19，T-ACCESS-059 增操作准入两端点），防止增删端点静默漂移")
             .isEqualTo(CONTRACT_PATHS.size());
         assertThat(actualPaths)
             .as("SDK 声明的路径集合必须与契约清单完全一致")

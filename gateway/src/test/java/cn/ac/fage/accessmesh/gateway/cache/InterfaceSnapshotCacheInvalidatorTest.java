@@ -4,9 +4,7 @@ import cn.ac.fage.accessmesh.common.cache.CacheProperties;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.common.cache.DefaultCacheService;
 import cn.ac.fage.accessmesh.common.cache.impl.CaffeineLocalCacheStore;
-import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
-import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp.ApiPermissionEntry;
-import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceAdmissionSnapshotResp;
 import cn.ac.fage.accessmesh.perm.common.event.PermInvalidateEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,14 +51,13 @@ class InterfaceSnapshotCacheInvalidatorTest {
 
     private void putSnapshot(Long tenantId, Long userId, String serviceCode) {
         String id = identifier(userId, serviceCode);
-        cacheService.put(GatewayCacheCatalog.INTERFACE_SNAPSHOT, tenantId, id, snapshot(serviceCode));
+        cacheService.put(GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT, tenantId, id, snapshot(serviceCode));
         invalidator.track(tenantId, id);
     }
 
-    private InterfaceSnapshotResp snapshot(String serviceCode) {
-        return new InterfaceSnapshotResp(List.of(
-            new ApiPermissionEntry(serviceCode, null, null, false, null, null, ScopeMode.ALL)
-        ));
+    private InterfaceAdmissionSnapshotResp snapshot(String serviceCode) {
+        return new InterfaceAdmissionSnapshotResp(1, 1L, null, serviceCode, null, null, 0L,
+            List.of(), List.of(), "OPERATION_ADMISSION", true);
     }
 
     @Test
@@ -73,12 +70,12 @@ class InterfaceSnapshotCacheInvalidatorTest {
         long evicted = invalidator.evict(new PermInvalidateEvent(TENANT_ID, Set.of(), Set.of(10L), Set.of()));
 
         assertThat(evicted).isEqualTo(2);
-        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier(10L, "example-service"))).isNull();
-        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier(10L, "example-service"))).isNull();
+        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT, TENANT_ID, identifier(10L, "example-service"))).isNull();
+        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT, TENANT_ID, identifier(10L, "example-service"))).isNull();
         // 同租户其他用户不受影响
-        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier(20L, "example-service"))).isNotNull();
+        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT, TENANT_ID, identifier(20L, "example-service"))).isNotNull();
         // 其他租户同用户不受影响
-        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, OTHER_TENANT_ID, identifier(10L, "example-service"))).isNotNull();
+        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT, OTHER_TENANT_ID, identifier(10L, "example-service"))).isNotNull();
         // 被清理 key 标记失效（租户限定键，防旧回源复活）
         assertThat(marker.contains(TENANT_ID + ":" + identifier(10L, "example-service"))).isTrue();
     }
@@ -92,8 +89,8 @@ class InterfaceSnapshotCacheInvalidatorTest {
 
         // 服务级失效降级为租户级兜底（-1 表示全量）
         assertThat(evicted).isEqualTo(-1L);
-        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier(10L, "example-service"))).isNull();
-        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier(20L, "example-service"))).isNull();
+        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT, TENANT_ID, identifier(10L, "example-service"))).isNull();
+        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT, TENANT_ID, identifier(20L, "example-service"))).isNull();
     }
 
     @Test
@@ -104,8 +101,8 @@ class InterfaceSnapshotCacheInvalidatorTest {
         long evicted = invalidator.evict(new PermInvalidateEvent(TENANT_ID, Set.of(5L), Set.of(), Set.of()));
 
         assertThat(evicted).isEqualTo(-1L);
-        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier(10L, "example-service"))).isNull();
-        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier(20L, "example-service"))).isNull();
+        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT, TENANT_ID, identifier(10L, "example-service"))).isNull();
+        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT, TENANT_ID, identifier(20L, "example-service"))).isNull();
     }
 
     @Test
@@ -115,7 +112,7 @@ class InterfaceSnapshotCacheInvalidatorTest {
         long evicted = invalidator.evict(new PermInvalidateEvent(TENANT_ID, Set.of(), Set.of(), Set.of()));
 
         assertThat(evicted).isZero();
-        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier(10L, "example-service"))).isNotNull();
+        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT, TENANT_ID, identifier(10L, "example-service"))).isNotNull();
     }
 
     @Test
@@ -125,8 +122,8 @@ class InterfaceSnapshotCacheInvalidatorTest {
 
         invalidator.clearAll();
 
-        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier(10L, "example-service"))).isNull();
-        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, OTHER_TENANT_ID, identifier(20L, "example-service"))).isNull();
+        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT, TENANT_ID, identifier(10L, "example-service"))).isNull();
+        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT, OTHER_TENANT_ID, identifier(20L, "example-service"))).isNull();
     }
 
     /**
@@ -136,12 +133,12 @@ class InterfaceSnapshotCacheInvalidatorTest {
     @Test
     void clearAll_shouldEvictTenantsMissingFromTrackingIndex() {
         // 快照直接写入缓存但不登记跟踪索引（模拟索引条目已丢失）
-        cacheService.put(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID,
+        cacheService.put(GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT, TENANT_ID,
             identifier(10L, "example-service"), snapshot("example-service"));
 
         invalidator.clearAll();
 
-        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID,
+        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT, TENANT_ID,
             identifier(10L, "example-service"))).isNull();
     }
 }

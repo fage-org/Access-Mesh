@@ -154,8 +154,9 @@ class AdmissionMappingPgIT {
         assertThat(row.maintainSource()).isEqualTo("SERVICE_SYNC");
         assertThat(jdbc.queryForObject("SELECT required_operation_id FROM resource_api_mapping WHERE id = ?",
             Long.class, row.id())).isEqualTo(viewId);
+        // T-ACCESS-059：DDL 缺省改 OPERATION_ADMISSION（无迁移期统一口径）——直插行随缺省
         assertThat(jdbc.queryForObject("SELECT api_auth_mode FROM service_config WHERE service_code = ?",
-            String.class, SERVICE)).isEqualTo("LEGACY_API");
+            String.class, SERVICE)).isEqualTo("OPERATION_ADMISSION");
     }
 
     @Test
@@ -189,7 +190,8 @@ class AdmissionMappingPgIT {
     @Test
     void should_rejectCrossSourceRouteWriteAndRollback_whenManualRouteAlreadyExists() {
         Long apiId = registerManualApi();
-        resources.addApiMapping(1L, new ApiMappingAddReq(apiId, SERVICE, "GET", "/base/demo", 0, true, null, null));
+        resources.addApiMapping(1L, new ApiMappingAddReq(apiId, SERVICE, "GET", "/base/demo", 0, true, null,
+            new RequiredPermission(TYPE, "VIEW")));
         assertThatThrownBy(() -> sync.syncInterfacesV2(1L, request(SERVICE, api("demo", "VIEW"))))
             .isInstanceOf(BizException.class);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM resource_entity WHERE code = 'admission:demo'", Long.class)).isZero();

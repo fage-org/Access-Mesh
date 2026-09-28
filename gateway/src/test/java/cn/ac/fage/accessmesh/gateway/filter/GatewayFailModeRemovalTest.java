@@ -141,7 +141,7 @@ class GatewayFailModeRemovalTest {
         assertThat(registry.getMeters().stream()
             .filter(m -> "gateway.perm.unreachable".equals(m.getId().getName()))
             .count())
-            .as("不可达计数器（source=snapshot/check_interface）必须注册")
+            .as("不可达计数器（source=snapshot/interface_admission）必须注册")
             .isGreaterThanOrEqualTo(2);
         // 评审修复：fail-closed 拒绝路径的计数器必须存在（denied + deadline_exceeded），
         // 否则「fallback 仅 mode=closed」检查在计数器整体缺失时为假阴性

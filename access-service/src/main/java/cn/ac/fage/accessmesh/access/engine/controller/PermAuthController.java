@@ -5,15 +5,20 @@ import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.perm.common.dto.req.AuthCheckReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.CheckInterfaceReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.InterfaceAdmissionReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.InterfaceAdmissionSnapshotReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.InterfaceSnapshotReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.QueryResourcesReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.QueryScopesReq;
 import cn.ac.fage.accessmesh.access.engine.dto.AuthCheckResp;
 import cn.ac.fage.accessmesh.access.engine.dto.BatchAuthCheckResp;
 import cn.ac.fage.accessmesh.access.engine.dto.CheckInterfaceResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceAdmissionResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceAdmissionSnapshotResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryResourcesResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryScopesResp;
+import cn.ac.fage.accessmesh.access.engine.service.PermissionAdmissionAppService;
 import cn.ac.fage.accessmesh.access.engine.service.PermissionCheckAppService;
 import cn.ac.fage.accessmesh.access.engine.service.PermissionQueryAppService;
 import jakarta.validation.Valid;
@@ -37,17 +42,21 @@ public class PermAuthController {
 
     private final PermissionCheckAppService permissionCheckAppService;
     private final PermissionQueryAppService permissionQueryAppService;
+    private final PermissionAdmissionAppService permissionAdmissionAppService;
 
     /**
      * 构造函数注入依赖
      *
      * @param permissionCheckAppService 权限检查服务
      * @param permissionQueryAppService 权限查询服务
+     * @param permissionAdmissionAppService 操作准入服务（T-ACCESS-059）
      */
     public PermAuthController(PermissionCheckAppService permissionCheckAppService,
-                          PermissionQueryAppService permissionQueryAppService) {
+                          PermissionQueryAppService permissionQueryAppService,
+                          PermissionAdmissionAppService permissionAdmissionAppService) {
         this.permissionCheckAppService = permissionCheckAppService;
         this.permissionQueryAppService = permissionQueryAppService;
+        this.permissionAdmissionAppService = permissionAdmissionAppService;
     }
 
     /**
@@ -114,6 +123,31 @@ public class PermAuthController {
     @PostMapping("/interface-snapshot")
     public R<InterfaceSnapshotResp> interfaceSnapshot(@Valid @RequestBody InterfaceSnapshotReq req) {
         return R.ok(permissionQueryAppService.interfaceSnapshot(TenantContextHolder.getTenantId(), req));
+    }
+
+    /**
+     * 在线操作准入判定（T-ACCESS-059，契约总册 §25.2）。
+     * <p>
+     * M2M 端点（网关回源／灰度强制在线）：路由匹配从该服务完整启用路由集取全部命中，
+     * 同要求去重后经引擎 ADMISSION_CANDIDATES 评估；恒要求业务最终检查。
+     * </p>
+     */
+    @PostMapping("/interface-admission")
+    public R<InterfaceAdmissionResp> interfaceAdmission(@Valid @RequestBody InterfaceAdmissionReq req) {
+        return R.ok(permissionAdmissionAppService.interfaceAdmission(TenantContextHolder.getTenantId(), req));
+    }
+
+    /**
+     * 操作准入快照（T-ACCESS-059，契约总册 §25.2）。
+     * <p>
+     * M2M 端点（网关本地判定）：完整启用路由＋按主体归并的候选分支投影＋配置代次
+     * （构建期自一致校验）；schema 版本化，与旧 API:ACCESS 快照结构互不复用。
+     * </p>
+     */
+    @PostMapping("/interface-admission-snapshot")
+    public R<InterfaceAdmissionSnapshotResp> interfaceAdmissionSnapshot(
+            @Valid @RequestBody InterfaceAdmissionSnapshotReq req) {
+        return R.ok(permissionAdmissionAppService.interfaceAdmissionSnapshot(TenantContextHolder.getTenantId(), req));
     }
 
 }

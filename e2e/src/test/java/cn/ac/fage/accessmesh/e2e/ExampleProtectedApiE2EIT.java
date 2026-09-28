@@ -44,7 +44,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>固定 8 步顺序：① 空库 bootstrap 首管理员真实登录 → ② 创建目标用户与空权限
  * BASIC_ROLE 并分配 → ③ 为 example 接口真实创建 API 资源实体与映射（bootstrap 固定图
  * 不含 example 资源）→ ④ 目标用户经 Gateway 调用 /api/example/demo/hello 断言
- * 403（授权前拒绝）→ ⑤ 授予 BASIC_ROLE 该 API 的 API:ACCESS → ⑥ 30 秒陈旧窗口内轮询至
+ * 403（授权前拒绝）→ ⑤ 授予 BASIC_ROLE 示例业务实例的 EXAMPLE:VIEW（准入候选，T-ACCESS-059）→ ⑥ 30 秒陈旧窗口内轮询至
  * HTTP 200 + 信封 code=200 + Gateway 身份头回显（userId=目标用户），并验证授权后参数
  * 非法仍返回信封 code=30001（业务错误不因放行被吞）→ ⑦ T-PERM-070 凭证认证链
  * （签发/M2M 放行/半头 401/错凭证 403/管理端点不被旁路/停用 20067）→ ⑧ 撤销与恢复
@@ -91,6 +91,9 @@ class ExampleProtectedApiE2EIT {
     /** E2E 目标接口（T-ACCESS-042 起外部路径=服务路径，注册值即 /api/example/demo/hello） */
     private static final String TARGET_API_METHOD = "POST";
     private static final String TARGET_API_PATH = "/api/example/demo/hello";
+    /** 示例业务实例业务码（⑤ 实例授权目标；T-ACCESS-059 准入候选载体） */
+    private static final String TARGET_REPORT_CODE = "e2e-example-report-1";
+
     /** API 资源业务码：service-config 声明通道 DTO @Pattern（^[a-zA-Z0-9_:.-]+$）禁斜杠，冒号段式 */
     private static final String TARGET_API_RESOURCE_CODE = "example:demo:hello";
 
@@ -236,7 +239,25 @@ class ExampleProtectedApiE2EIT {
         // SYNC+access-service（T-PERM-069，2026-09-18 Q-008「仅 API 收紧」）——resource-entity/sync
         // 外部通道来源不匹配一律 RESOURCE_TYPE_OWNERSHIP_DENIED，资源管理面手工 CRUD 20055，
         // 本通道（领域直写不经管理面门禁）不受影响，经 Gateway 走管理面（bootstrap 固定图含本路径）
-        JsonNode syncResp = postForData(gateway() + "/api/access/service-config/sync", adminToken,
+        // T-ACCESS-059 无迁移期统一 OPERATION_ADMISSION：先建 example 业务类型（VIEW 操作随
+        // 类型创建联动预置，T-PERM-028），再以 sync-v2 版本化声明 API 与业务准入要求
+        // （EXAMPLE:VIEW）；旧 /sync 协议不携带操作引用，不再用于新链接入
+        JsonNode typeCreated = postForData(gateway() + "/api/access/type-definition/create", adminToken,
+            JSON.createObjectNode()
+                .put("typeKey", "resource_type")
+                .put("typeCode", "EXAMPLE")
+                .put("name", "E2E 示例业务类型"));
+        assertThat(typeCreated.path("id").asLong())
+            .as("example 业务类型必须创建成功，响应：" + typeCreated).isPositive();
+        JsonNode reportCreated = postForData(gateway() + "/api/access/resource-entity/create", adminToken,
+            JSON.createObjectNode()
+                .put("resourceTypeCode", "EXAMPLE")
+                .put("code", TARGET_REPORT_CODE)
+                .put("name", "E2E 示例报表"));
+        assertThat(reportCreated.path("id").asLong())
+            .as("示例业务实例必须创建成功（⑤实例授权目标），响应：" + reportCreated).isPositive();
+
+        JsonNode syncResp = postForData(gateway() + "/api/access/service-config/sync-v2", adminToken,
             JSON.createObjectNode()
                 .put("serviceCode", "example-service")
                 .put("basePath", "")
@@ -249,7 +270,10 @@ class ExampleProtectedApiE2EIT {
                         .put("httpMethod", TARGET_API_METHOD)
                         .put("path", TARGET_API_PATH)
                         .put("resourceCode", TARGET_API_RESOURCE_CODE)
-                        .put("description", "E2E 目标接口"))))));
+                        .put("description", "E2E 目标接口")
+                        .set("requiredPermission", JSON.createObjectNode()
+                            .put("resourceTypeCode", "EXAMPLE")
+                            .put("operationCode", "VIEW")))))));
         assertThat(syncResp.path("createdResources").asLong())
             .as("接口声明通道必须创建 API 资源，响应：" + syncResp).isPositive();
         assertThat(syncResp.path("createdMappings").asLong())
@@ -299,7 +323,7 @@ class ExampleProtectedApiE2EIT {
 
     @Test
     @Order(5)
-    @DisplayName("⑤ 管理员授予 BASIC_ROLE example API 的 API:ACCESS（apply-grant-plan，与授权页同源写入口）")
+    @DisplayName("⑤ 管理员授予 BASIC_ROLE 示例业务实例的 EXAMPLE:VIEW（准入候选，apply-grant-plan 同源写入口）")
     void step5_grantApiAccess() {
         JsonNode items = grantApiAccessOnce();
         assertThat(items.isArray() && items.size() == 1)
@@ -314,11 +338,12 @@ class ExampleProtectedApiE2EIT {
      * 提交后记录 30 秒陈旧窗口起点，返回响应 items。
      */
     private static JsonNode grantApiAccessOnce() {
+        // T-ACCESS-059：准入候选=业务操作授权（API:ACCESS 不再参与网关判定）
         var key = JSON.createObjectNode();
-        key.put("resourceTypeCode", "API");
-        key.put("resourceCode", TARGET_API_RESOURCE_CODE);
+        key.put("resourceTypeCode", "EXAMPLE");
+        key.put("resourceCode", TARGET_REPORT_CODE);
         key.put("codeType", "default");
-        key.put("operationCode", "ACCESS");
+        key.put("operationCode", "VIEW");
         key.put("scopeMode", "INSTANCE");
         key.putNull("conditionCode");
         key.put("canGrant", false);

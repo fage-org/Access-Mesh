@@ -54,7 +54,7 @@ last_reviewed: 2026-09-25   # T-PERM-054 解除暂缓：§2.2 状态句改「已
 1. **注册服务**：管理台「服务+接口映射」页（`POST /api/access/service-config/save`）登记 `serviceCode`/`name`/`status=1`。
 2. **声明接口**：`POST /api/access/service-config/sync`（FULL 模式）上报接口清单——一步创建 **API 资源**与 **Gateway 路由映射**（`pathPattern = basePath + path`，行归属标记 `maintainSource=SERVICE_SYNC`）。API 类型由系统种子声明 SYNC+access-service（T-PERM-069），本通道与 bootstrap 固定图即唯一事实入口——**不要**走 `resource-entity/sync` 通道（外部来源不匹配，会被 `RESOURCE_TYPE_OWNERSHIP_DENIED` 拒绝；资源管理面手工 CRUD 亦 20055）。
 3. **授权**：未授权前 Gateway 对该接口一律拒绝（403）。经管理台授权页（入口见前置 3）对目标角色授该 API 实例（或 API 类型级）的 `ACCESS` 操作——授权写入口须用户身份（ROLE:MANAGE），不收服务身份。
-4. **请求链路**：业务前端持平台会话令牌（`Authorization: Bearer <token>`，sa-token）经 **Gateway (8080)** 访问业务接口；Gateway 按映射做**接口快照本地判定**（快照未覆盖或条件未下发时回退 `check-interface` 实时判定）并对可下发条件做本地重评。授权生效受 Gateway 快照刷新窗口约束（上界 30s）。
+4. **请求链路**：业务前端持平台会话令牌（`Authorization: Bearer <token>`，sa-token）经 **Gateway (8080)** 访问业务接口；Gateway 做**操作准入快照本地判定**（T-ACCESS-059：路由要求→候选分支，条件不可本地评估回源 `interface-admission` 在线判定）并对可下发条件做本地重评。准入 MAY_ENTER 不等于允许——业务服务必须以实际目标做完整实例鉴权；授权生效受 Gateway 快照刷新窗口约束（上界 30s）。
 5. **服务侧防直调**：业务服务部署 Gateway 签名校验过滤器（example 的 `GatewaySignatureFilter` 模式）——拒绝未带有效网关签名的请求，防止绕过 Gateway 直调后端。
 6. **撤销与恢复**（T-ACCESS-053 补全，与授权同源）：撤销=授权页删除该条授权行（唯一删除语义 `apply-grant-plan` 的 `removes` 段；旧 `revoke` 端点已物理删除）——撤权生效受与授权相同的 30 秒陈旧窗口约束，窗口内接口回到 403；恢复=对同一资源重授 `ACCESS`（撤销为软删，重授即新建行），同样 30 秒内生效。回归锁：`ExampleProtectedApiE2EIT` 第⑧步（撤销→403→重授→200）。
 
@@ -90,7 +90,7 @@ last_reviewed: 2026-09-25   # T-PERM-054 解除暂缓：§2.2 状态句改「已
 
 | 层 | 判定者 | 权限对象 | 效果 |
 |---|---|---|---|
-| 接口层 | Gateway（**接口快照本地判定**，快照未覆盖/条件未下发时回退 `check-interface` 实时判定） | API 资源的 `ACCESS` 操作 | 请求能否**过网关到达业务服务**——无 API:ACCESS 一律 403，业务权限再全也不放行 |
+| 接口层 | Gateway（**操作准入快照本地判定**，T-ACCESS-059；条件不可本地评估回源 `interface-admission`） | 路由声明的业务操作（requiredPermission，如 `REPORT:VIEW`） | 请求能否**过网关到达业务服务**——无覆盖候选一律 403；API:ACCESS 不再参与（062 退役面） |
 | 业务层 | 业务服务自己（调 `auth/check` 查询后按结果分支） | 业务资源类型的自有操作（如 `REPORT:VIEW`，见 §3 建模） | 业务服务**收到请求后**如何处理——两层是先后关系不是替代关系 |
 
 两个方向的自动化派生**均未交付**，须分开配置：「授业务权限自动派生 API:ACCESS」= T-PERM-054（已解除暂缓——2026-09-25 方案 A 定稿立项，计划 r2-query-engine-and-admission 承载；终态不派生 API:ACCESS，改为网关操作准入+业务实例鉴权两层判定，设计见 r2-unified-query-and-admission.md，仍属「已规划未交付」档）；「业务侧按 scopeMode 动态生成 SQL 数据过滤」= T-PERM-036（暂缓，延后至 example 演示，能力边界见 §6）。

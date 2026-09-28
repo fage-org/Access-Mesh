@@ -3,7 +3,7 @@ package cn.ac.fage.accessmesh.gateway.cache;
 import cn.ac.fage.accessmesh.common.cache.CacheCatalogEntry;
 import cn.ac.fage.accessmesh.common.cache.CacheMode;
 import cn.ac.fage.accessmesh.common.cache.TypeRef;
-import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceAdmissionSnapshotResp;
 
 import java.time.Duration;
 
@@ -17,7 +17,7 @@ import java.time.Duration;
  * <p>
  * T-ACCESS-008（用户决策：配置统一到 catalog + accessmesh.cache 运维覆盖）：
  * TTL/容量唯一来源为本目录声明，运维覆盖走
- * {@code accessmesh.cache.catalogs."[gw:interface-snapshot]".l1-ttl / l1-maximum-size}；
+ * {@code accessmesh.cache.catalogs."[gw:interface-admission-snapshot]".l1-ttl / l1-maximum-size}；
  * 有效 L1 TTL&gt;15s 时启动失败（{@code GatewayCacheBoundaryValidator}），
  * 与上游授权 L2 10s、快照回源截止 5s 构成「10+5+15≤30s」安全边界。
  * </p>
@@ -28,24 +28,26 @@ public final class GatewayCacheCatalog {
     }
 
     /**
-     * 接口权限快照缓存（T-PERM-001 快照模式 / T-ACCESS-008 迁移 CacheService）
+     * 操作准入快照缓存（T-ACCESS-059 无迁移期切换；旧 API:ACCESS 快照条目随切链退役）
      * <p>
      * Key: identifier = {@code subjectTypeCode:userId:serviceCode}
-     * （CacheService 组装完整键 {@code {tenantId}:gw:interface-snapshot:{identifier}}）
-     * Value: {@link InterfaceSnapshotResp} 用户在该服务下的全量接口权限快照
+     * （CacheService 组装完整键 {@code {tenantId}:gw:interface-admission-snapshot:{identifier}}）
+     * Value: {@link InterfaceAdmissionSnapshotResp} 该服务完整启用路由与主体候选分支投影。
+     * 新 schema 与旧快照命名空间隔离（N22）；本地判定序=校验模式/版本/时效→完整路由
+     * 匹配与歧义检测→唯一要求→评条件分支（无通过分支回源在线判定）
      * </p>
      * <p>
-     * L1_ONLY 本地 Caffeine；TTL 15s 为安全边界上限（快照失效主靠 Redis pub/sub
-     * 主动广播 + 订阅重连全量清空，TTL 兜底）。鉴权时按
-     * {@code InterfaceSnapshotMatcher} 本地匹配 allowedApis。
+     * L1_ONLY 本地 Caffeine；TTL 15s 为现行安全边界上限（沿用既有预算形态；完整安全
+     * 边界推导与启动校验归 T-ACCESS-060——设计 §5.3 新准入依赖关系已变，不自动沿用
+     * 旧 30 秒结论）。快照失效主靠 Redis pub/sub 主动广播 + 订阅重连全量清空，TTL 兜底。
      * </p>
      */
-    public static final CacheCatalogEntry<InterfaceSnapshotResp> INTERFACE_SNAPSHOT =
-        CacheCatalogEntry.<InterfaceSnapshotResp>builder()
-            .code("gw:interface-snapshot")
+    public static final CacheCatalogEntry<InterfaceAdmissionSnapshotResp> INTERFACE_ADMISSION_SNAPSHOT =
+        CacheCatalogEntry.<InterfaceAdmissionSnapshotResp>builder()
+            .code("gw:interface-admission-snapshot")
             .mode(CacheMode.L1_ONLY)
             .l1Ttl(Duration.ofSeconds(15))
             .l1MaxSize(50000)
-            .valueType(new TypeRef<InterfaceSnapshotResp>() {})
+            .valueType(new TypeRef<InterfaceAdmissionSnapshotResp>() {})
             .build();
 }

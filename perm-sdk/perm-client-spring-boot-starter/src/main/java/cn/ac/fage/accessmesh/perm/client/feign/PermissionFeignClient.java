@@ -4,6 +4,8 @@ import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.perm.common.dto.req.*;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.AuthCheckResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.BatchAuthCheckResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceAdmissionResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceAdmissionSnapshotResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.OperationPermissionResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
@@ -91,6 +93,36 @@ public interface PermissionFeignClient {
      */
     @PostMapping("/api/access/auth/query-scopes")
     R<QueryScopesResp> queryScopes(@RequestBody QueryScopesReq req);
+
+    // ========== 操作准入（T-ACCESS-059，M2M：per-service 凭证或平台内部密钥形态） ==========
+
+    /**
+     * 在线操作准入判定（T-ACCESS-059，契约总册 §25.2）。
+     * <p>
+     * M2M 端点：路由匹配取该服务完整启用路由集，同要求去重后经引擎评估；
+     * MAY_ENTER 仅表示存在候选资格（恒 finalCheckRequired=true），业务服务必须以
+     * 实际目标做完整实例鉴权，不得以准入替代最终检查。凭证调用受
+     * 「serviceCode=凭证所属服务」约束（sync-v2 先例）。
+     * </p>
+     *
+     * @param req 准入判定请求（主体由可信调用方断言）
+     * @return 准入判定结果（配置故障经错误信封返回，data=null）
+     */
+    @PostMapping("/api/access/auth/interface-admission")
+    R<InterfaceAdmissionResp> interfaceAdmission(@RequestBody InterfaceAdmissionReq req);
+
+    /**
+     * 拉取操作准入快照（T-ACCESS-059，契约总册 §25.2）。
+     * <p>
+     * 版本化新协议（schemaVersion 隔离，不与旧 API:ACCESS 快照互用）：完整启用路由
+     * 与按主体归并的候选分支投影；服务须为 OPERATION_ADMISSION 模式。
+     * </p>
+     *
+     * @param req 快照请求
+     * @return 操作准入快照（服务未登记/停用/LEGACY 模式按 20071 错误信封返回）
+     */
+    @PostMapping("/api/access/auth/interface-admission-snapshot")
+    R<InterfaceAdmissionSnapshotResp> interfaceAdmissionSnapshot(@RequestBody InterfaceAdmissionSnapshotReq req);
 
     // ========== 角色管理 ==========
 

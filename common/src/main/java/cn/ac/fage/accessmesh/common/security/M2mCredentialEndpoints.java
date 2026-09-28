@@ -29,7 +29,11 @@ public final class M2mCredentialEndpoints {
         new M2mEndpoint("POST", "/api/access/resource-entity/sync"),
         new M2mEndpoint("POST", "/api/access/resource-entity/full-sync"),
         new M2mEndpoint("POST", "/api/access/service-config/sync-v2"),
-        new M2mEndpoint("POST", "/api/access/integration/permission-manifest/full-sync"));
+        new M2mEndpoint("POST", "/api/access/integration/permission-manifest/full-sync"),
+        // T-ACCESS-059：操作准入两端点（Q-040 收敛方向——运行时查询族首批凭证化端点；
+        // 凭证调用受「serviceCode=凭证所属服务」约束，网关沿用内部密钥平台信任域形态）
+        new M2mEndpoint("POST", "/api/access/auth/interface-admission"),
+        new M2mEndpoint("POST", "/api/access/auth/interface-admission-snapshot"));
 
     /** 不可变端点清单（消费方遍历/测试断言用）。 */
     public static List<M2mEndpoint> endpoints() {

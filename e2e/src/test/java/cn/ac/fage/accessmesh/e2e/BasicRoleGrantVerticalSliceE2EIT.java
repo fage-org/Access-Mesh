@@ -249,15 +249,22 @@ class BasicRoleGrantVerticalSliceE2EIT {
             .as("bootstrap 预建的 my-info API 资源必须可见，实际树响应：%s", treeData)
             .isPositive();
 
+        // T-ACCESS-059：无迁移期统一 OPERATION_ADMISSION——映射必绑业务操作引用（USER:VIEW，
+        // 与 my-info 服务层自身视图语义同码；网关准入候选=BASIC_ROLE 即将获得的 USER 实例授权）
         JsonNode mapping = postForData(gateway() + "/api/access/resource-api-mapping/create", adminToken,
             JSON.createObjectNode()
                 .put("resourceId", targetApiResourceId)
                 .put("serviceCode", "access-service")
                 .put("httpMethod", TARGET_API_METHOD)
                 .put("pathPattern", TARGET_API_PATH)
-                .put("enabled", true));
+                .put("enabled", true)
+                .set("requiredPermission", JSON.createObjectNode()
+                    .put("resourceTypeCode", "USER")
+                    .put("operationCode", "VIEW")));
         assertThat(mapping.path("pathPattern").asText())
             .as("目标 API 映射必须按 Gateway 外部路径创建").isEqualTo(TARGET_API_PATH);
+        assertThat(mapping.path("requiredPermission").path("operationCode").asText())
+            .as("映射必须回显业务准入要求").isEqualTo("VIEW");
     }
 
     @Test
@@ -273,13 +280,15 @@ class BasicRoleGrantVerticalSliceE2EIT {
 
     @Test
     @Order(5)
-    @DisplayName("⑤ 管理员授予 BASIC_ROLE 目标 API 的 API:ACCESS（apply-grant-plan，与授权页同源写入口）")
+    @DisplayName("⑤ 管理员授予 BASIC_ROLE 目标用户的 USER:VIEW（准入要求候选，apply-grant-plan 同源写入口）")
     void step5_grantApiAccess() {
+        // T-ACCESS-059：网关准入按业务操作候选判定——授予目标用户自身实例的 USER:VIEW
+        // （resource_entity(USER).code = subjectId，T-ORG-001 统一主体 ID）；API:ACCESS 不再参与
         var key = JSON.createObjectNode();
-        key.put("resourceTypeCode", "API");
-        key.put("resourceCode", TARGET_API_CODE);
+        key.put("resourceTypeCode", "USER");
+        key.put("resourceCode", String.valueOf(targetUserId));
         key.put("codeType", "default");
-        key.put("operationCode", "ACCESS");
+        key.put("operationCode", "VIEW");
         key.put("scopeMode", "INSTANCE");
         key.putNull("conditionCode");
         key.put("canGrant", false);

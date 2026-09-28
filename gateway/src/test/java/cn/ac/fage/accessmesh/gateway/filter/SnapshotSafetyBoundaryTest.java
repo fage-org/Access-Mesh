@@ -16,9 +16,8 @@ import cn.ac.fage.accessmesh.gateway.cache.InterfaceSnapshotCacheKeys;
 import cn.ac.fage.accessmesh.gateway.cache.InterfaceSnapshotLoadRegistry;
 import cn.ac.fage.accessmesh.gateway.config.GatewayProperties;
 import cn.ac.fage.accessmesh.gateway.service.PermissionClient;
-import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
-import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp.ApiPermissionEntry;
-import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.AdmissionRequirement;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceAdmissionSnapshotResp;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,7 +50,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * 30 秒安全边界组合验收测试（T-ACCESS-008 复评 P2-6 修复）。
+ * 30 秒安全边界组合验收测试（T-ACCESS-008 复评 P2-6 修复；T-ACCESS-059 操作准入链适配）。
  * <p>
  * 真实时钟串联任务验收场景：上游授权 L2 条目接近 10 秒过期（L2_ONLY 目录 TTL=10s，
  * 按绝对过期时刻存取的 SPI 存储——与 RedissonBucketStore 的 RBucket TTL 语义一致）→
@@ -200,10 +199,25 @@ class SnapshotSafetyBoundaryTest {
         return exchange;
     }
 
-    private InterfaceSnapshotResp snapshot() {
-        return new InterfaceSnapshotResp(List.of(
-            new ApiPermissionEntry(SERVICE_CODE, null, null, false, null, null, ScopeMode.ALL)
-        ));
+    private InterfaceAdmissionSnapshotResp snapshot() {
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        return new InterfaceAdmissionSnapshotResp(
+            InterfaceAdmissionSnapshotResp.CURRENT_SCHEMA_VERSION, TENANT_ID,
+            new InterfaceAdmissionSnapshotResp.Subject(SUBJECT_TYPE_CODE, String.valueOf(USER_ID)),
+            SERVICE_CODE, now, now.plusSeconds(60), 0L,
+            List.of(new InterfaceAdmissionSnapshotResp.RouteEntry("GET", "/api/test",
+                new AdmissionRequirement("EXAMPLE", "VIEW"))),
+            List.of(new InterfaceAdmissionSnapshotResp.OperationCandidateEntry(
+                "EXAMPLE", "VIEW", null, true, "ALL", null)),
+            "OPERATION_ADMISSION", true);
+    }
+
+    private InterfaceAdmissionSnapshotResp emptySnapshot() {
+        return new InterfaceAdmissionSnapshotResp(
+            InterfaceAdmissionSnapshotResp.CURRENT_SCHEMA_VERSION, TENANT_ID,
+            new InterfaceAdmissionSnapshotResp.Subject(SUBJECT_TYPE_CODE, String.valueOf(USER_ID)),
+            SERVICE_CODE, java.time.LocalDateTime.now(), java.time.LocalDateTime.now().plusSeconds(60),
+            0L, List.of(), List.of(), "OPERATION_ADMISSION", true);
     }
 
     @Test
@@ -224,13 +238,12 @@ class SnapshotSafetyBoundaryTest {
 
         // Gateway 回源：读取上游 L2 后注入接近 5s 的全链路延迟（真实墙钟截止 5s 内）
         AtomicInteger clientCalls = new AtomicInteger();
-        when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
+        when(permissionClient.interfaceAdmissionSnapshot(anyString(), anyLong(), anyString(), anyLong()))
             .thenAnswer(inv -> Mono.defer(() -> {
                 clientCalls.incrementAndGet();
                 String upstreamValue = upstream.get(upstreamCatalog, TENANT_ID, "auth");
-                InterfaceSnapshotResp resp = upstreamValue != null
-                    ? snapshot()
-                    : new InterfaceSnapshotResp(List.of());
+                InterfaceAdmissionSnapshotResp resp = upstreamValue != null
+                    ? snapshot() : emptySnapshot();
                 return Mono.just(R.ok(resp)).delayElement(Duration.ofMillis(4_500));
             }));
 
@@ -238,8 +251,8 @@ class SnapshotSafetyBoundaryTest {
         long fillTime = System.currentTimeMillis();
 
         String identifier = InterfaceSnapshotCacheKeys.build(SUBJECT_TYPE_CODE, USER_ID, SERVICE_CODE);
-        InterfaceSnapshotResp cached =
-            gatewayCache.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier);
+        InterfaceAdmissionSnapshotResp cached =
+            gatewayCache.get(GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT, TENANT_ID, identifier);
 
         // 4.5s 延迟在 5s 截止内（余量 ~0.5s）：快照正常回填 Gateway L1（15s TTL）
         assertThat(clientCalls.get()).isEqualTo(1);

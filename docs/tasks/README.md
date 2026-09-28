@@ -51,7 +51,7 @@
 | [T-ACCESS-056](T-ACCESS-056.md) | （ADM-T01）准入定案回写与协议落账 | ✅（2026-09-27 收口：契约总册 §25+错误码 20070/20071+N 系归属落账；落账拍板与外评处置见任务卡） | T-PERM-080, T-PERM-082 |
 | [T-ACCESS-057](T-ACCESS-057.md) | （ADM-T02）OPERATION_ADMISSION 阶段与新结果 | ✅ | T-PERM-083, T-PERM-084, T-PERM-085, T-PERM-086, T-PERM-088, T-ACCESS-056 |
 | [T-ACCESS-058](T-ACCESS-058.md) | （ADM-T03）映射模型、服务模式与同步/管理面 | ✅（2026-09-28 收口：required_operation_id+maintain_source 落库、api_auth_mode 可信切换、sync-v2 独立协议（凭证/管理员双身份）与共用保存校验；评审 P2×1+P3×8 全处置、全量含 E2E/heavy BUILD SUCCESS） | T-ACCESS-056 |
-| [T-ACCESS-059](T-ACCESS-059.md) | （ADM-T04）新端点、快照与 SDK/网关链路 | ⚙️ | T-ACCESS-057, T-ACCESS-058 |
+| [T-ACCESS-059](T-ACCESS-059.md) | （ADM-T04）新端点、快照与 SDK/网关链路 | ✅（2026-09-28 收口：无迁移期统一上线六项拍板〔切链删旧链/自身端点接准入/凭证+网关旧密钥/计数列代次/SDK 仅客户端〕+全量含 E2E/heavy BUILD SUCCESS；评审 P1 过期缓存硬 503 修复+红跑实证；T-ACCESS-060 解锁） | T-ACCESS-057, T-ACCESS-058 |
 | [T-ACCESS-060](T-ACCESS-060.md) | （ADM-T05）失效、TTL 边界与在途代次 | ⚙️ | T-ACCESS-058, T-ACCESS-059 |
 | [T-ACCESS-061](T-ACCESS-061.md) | （ADM-T06）逐服务业务最终检查与模式切换 | ⚙️ | T-ACCESS-059, T-ACCESS-060 |
 | [T-ACCESS-062](T-ACCESS-062.md) | （ADM-T07）API 独立授权与 legacy 协议退役（含授权生产入口退役） | ⚙️ | T-ACCESS-061, T-PERM-092 |

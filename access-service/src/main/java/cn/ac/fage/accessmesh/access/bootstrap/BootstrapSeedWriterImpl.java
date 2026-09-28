@@ -4,6 +4,7 @@ import cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionOwner;
 import cn.ac.fage.accessmesh.access.projection.PermConstants;
 import cn.ac.fage.accessmesh.access.role.entity.AbstractRole;
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
+import cn.ac.fage.accessmesh.access.resource.dto.RequiredPermission;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.access.resource.entity.ServiceConfig;
 import cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper;
@@ -92,7 +93,7 @@ class BootstrapSeedWriterImpl implements BootstrapSeedWriter {
         config.setTenantId(tenantId);
         config.setServiceCode(LocalProjectionOwner.SERVICE_CODE);
         config.setName(BootstrapGraphDefinition.SERVICE_RESOURCE_NAME);
-        config.setApiAuthMode("LEGACY_API");
+        config.setApiAuthMode("OPERATION_ADMISSION");
         config.setStatus(1);
         config.setCreatedAt(LocalDateTime.now());
         config.setUpdatedAt(config.getCreatedAt());
@@ -179,7 +180,9 @@ class BootstrapSeedWriterImpl implements BootstrapSeedWriter {
             mapping.setPathPattern(seed.pathPattern());
             mapping.setMatchOrder(0);
             mapping.setEnabled(true);
-            return new ApiMappingWriteDomainService.Write(mapping, null);
+            return new ApiMappingWriteDomainService.Write(mapping,
+                seed.requiredTypeCode() == null || seed.requiredOperationCode() == null ? null
+                    : new RequiredPermission(seed.requiredTypeCode(), seed.requiredOperationCode()));
         }).toList();
         mappingWriter.saveAll(tenantId, LocalProjectionOwner.SERVICE_CODE, ApiMappingSource.BOOTSTRAP, writes);
     }

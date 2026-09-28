@@ -12,9 +12,9 @@ import cn.ac.fage.accessmesh.gateway.cache.InterfaceSnapshotCacheKeys;
 import cn.ac.fage.accessmesh.gateway.cache.InterfaceSnapshotLoadRegistry;
 import cn.ac.fage.accessmesh.gateway.config.GatewayProperties;
 import cn.ac.fage.accessmesh.gateway.service.PermissionClient;
-import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
-import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp.ApiPermissionEntry;
-import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.AdmissionRequirement;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceAdmissionResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceAdmissionSnapshotResp;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,11 +53,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * T-ACCESS-008 监控指标测试：固定 fail-closed（open/stale 系列指标已随 fail-mode 删除）。
+ * T-ACCESS-008 监控指标测试（T-ACCESS-059 操作准入链适配）：固定 fail-closed（open/stale 系列指标已随 fail-mode 删除）。
  * <p>
  * 指标命名：
  * <ul>
- *   <li>{@code gateway.perm.unreachable}（tag: source=snapshot|check_interface）</li>
+ *   <li>{@code gateway.perm.unreachable}（tag: source=snapshot|interface_admission）</li>
  *   <li>{@code gateway.perm.fallback}（tag: mode=closed, reason=denied|deadline_exceeded）</li>
  * </ul>
  */
@@ -146,14 +146,35 @@ class PermissionFilterMetricsTest {
     private static WebClientRequestException connectionRefused() {
         return new WebClientRequestException(
             new java.net.ConnectException("Connection refused"),
-            HttpMethod.GET, URI.create("http://access-service/api/access/auth/interface-snapshot"),
+            HttpMethod.GET, URI.create("http://access-service/api/access/auth/interface-admission-snapshot"),
             HttpHeaders.EMPTY);
     }
 
-    private InterfaceSnapshotResp allowSnapshot() {
-        return new InterfaceSnapshotResp(List.of(
-            new ApiPermissionEntry(SERVICE_CODE, null, null, false, null, null, ScopeMode.ALL)
-        ));
+    private InterfaceAdmissionSnapshotResp allowSnapshot() {
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        return new InterfaceAdmissionSnapshotResp(
+            InterfaceAdmissionSnapshotResp.CURRENT_SCHEMA_VERSION, TENANT_ID,
+            new InterfaceAdmissionSnapshotResp.Subject(SUBJECT_TYPE_CODE, String.valueOf(USER_ID)),
+            SERVICE_CODE, now, now.plusSeconds(60), 0L,
+            List.of(new InterfaceAdmissionSnapshotResp.RouteEntry("GET", "/api/test",
+                new AdmissionRequirement("EXAMPLE", "VIEW"))),
+            List.of(new InterfaceAdmissionSnapshotResp.OperationCandidateEntry(
+                "EXAMPLE", "VIEW", null, true, "ALL", null)),
+            "OPERATION_ADMISSION", true);
+    }
+
+    /** FALLBACK 快照：要求命中但仅有需远端求值的条件候选（内联缺失 → 回源在线判定）。 */
+    private InterfaceAdmissionSnapshotResp fallbackSnapshot() {
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        return new InterfaceAdmissionSnapshotResp(
+            InterfaceAdmissionSnapshotResp.CURRENT_SCHEMA_VERSION, TENANT_ID,
+            new InterfaceAdmissionSnapshotResp.Subject(SUBJECT_TYPE_CODE, String.valueOf(USER_ID)),
+            SERVICE_CODE, now, now.plusSeconds(60), 0L,
+            List.of(new InterfaceAdmissionSnapshotResp.RouteEntry("GET", "/api/test",
+                new AdmissionRequirement("EXAMPLE", "VIEW"))),
+            List.of(new InterfaceAdmissionSnapshotResp.OperationCandidateEntry(
+                "EXAMPLE", "VIEW", 5L, false, "INSTANCE", null)),
+            "OPERATION_ADMISSION", true);
     }
 
     private void awaitCompletion(PermissionFilter filter, ServerWebExchange exchange)
@@ -176,13 +197,13 @@ class PermissionFilterMetricsTest {
         @Test
         void shouldIncrementUnreachableSnapshot_whenSnapshotFetchFails() throws InterruptedException {
             PermissionFilter filter = createFilter(Duration.ofSeconds(5));
-            when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
+            when(permissionClient.interfaceAdmissionSnapshot(anyString(), anyLong(), anyString(), anyLong()))
                 .thenReturn(Mono.error(connectionRefused()));
 
             awaitCompletion(filter, buildExchange());
 
             assertThat(counterValue("gateway.perm.unreachable", "source", "snapshot")).isEqualTo(1.0);
-            assertThat(counterValue("gateway.perm.unreachable", "source", "check_interface")).isEqualTo(0.0);
+            assertThat(counterValue("gateway.perm.unreachable", "source", "interface_admission")).isEqualTo(0.0);
         }
 
         @Test
@@ -190,19 +211,16 @@ class PermissionFilterMetricsTest {
             PermissionFilter filter = createFilter(Duration.ofSeconds(5));
             String key = InterfaceSnapshotCacheKeys.build(SUBJECT_TYPE_CODE, USER_ID, SERVICE_CODE);
 
-            // 快照缓存放 FALLBACK 条目，使 decide() 走 fallbackCheckInterface
-            InterfaceSnapshotResp fallbackSnapshot = new InterfaceSnapshotResp(List.of(
-                new ApiPermissionEntry(SERVICE_CODE, "GET", "/api/test", true, null, null, ScopeMode.INSTANCE)
-            ));
-            cacheService.put(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, key, fallbackSnapshot);
+            // 快照缓存放 FALLBACK 形态（条件候选不可本地评估），使 decide() 走在线准入回源
+            cacheService.put(GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT, TENANT_ID, key, fallbackSnapshot());
 
-            when(permissionClient.checkInterface(anyString(), anyLong(), anyString(), anyString(),
+            when(permissionClient.interfaceAdmission(anyString(), anyLong(), anyString(), anyString(),
                 anyString(), anyString(), anyLong()))
                 .thenReturn(Mono.error(connectionRefused()));
 
             awaitCompletion(filter, buildExchange());
 
-            assertThat(counterValue("gateway.perm.unreachable", "source", "check_interface")).isEqualTo(1.0);
+            assertThat(counterValue("gateway.perm.unreachable", "source", "interface_admission")).isEqualTo(1.0);
             assertThat(counterValue("gateway.perm.unreachable", "source", "snapshot")).isEqualTo(0.0);
         }
     }
@@ -215,7 +233,7 @@ class PermissionFilterMetricsTest {
         @Test
         void shouldIncrementFallbackClosedDenied_whenUnreachable() throws InterruptedException {
             PermissionFilter filter = createFilter(Duration.ofSeconds(5));
-            when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
+            when(permissionClient.interfaceAdmissionSnapshot(anyString(), anyLong(), anyString(), anyLong()))
                 .thenReturn(Mono.error(connectionRefused()));
 
             awaitCompletion(filter, buildExchange());
@@ -227,7 +245,7 @@ class PermissionFilterMetricsTest {
         @Test
         void shouldIncrementDeadlineExceeded_whenLoadExceedsDeadline() throws InterruptedException {
             PermissionFilter filter = createFilter(Duration.ofMillis(150));
-            when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
+            when(permissionClient.interfaceAdmissionSnapshot(anyString(), anyLong(), anyString(), anyLong()))
                 .thenReturn(Mono.just(R.ok(allowSnapshot()))
                     .delayElement(Duration.ofSeconds(1)));
 

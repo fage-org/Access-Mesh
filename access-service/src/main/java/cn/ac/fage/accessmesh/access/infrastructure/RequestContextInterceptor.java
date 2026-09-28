@@ -162,6 +162,15 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
             }
             // 纯服务调用：serviceCode 在凭证通过后绑定（防无凭证外部伪造）
             String serviceCode = request.getHeader(HEADER_SERVICE_CODE);
+            // T-ACCESS-059：操作准入两端点不扩展旧共享密钥的自报服务通道（sync-v2 先例）——
+            // 携带 X-Service-Code 的旧密钥纯服务调用拒绝（服务身份请走 per-service 凭证）；
+            // 无该头的网关内部密钥形态（平台信任域，沿 check-interface 口径）放行。
+            if ((serviceCode != null && !serviceCode.isBlank())
+                && ("/api/access/auth/interface-admission".equals(uri)
+                    || "/api/access/auth/interface-admission-snapshot".equals(uri))) {
+                writeJson(response, HttpServletResponse.SC_FORBIDDEN, "操作准入端点需要服务凭证或平台内部调用形态");
+                return false;
+            }
             Long tenantId = signatureVerifier.parseTenantId(request);
             if (tenantId == null) {
                 logSecurity(request, "service call missing X-Tenant-Id");

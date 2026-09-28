@@ -84,7 +84,7 @@ last_reviewed: 2026-09-15 服务清单与拓扑图、§3 章节标题与正文�
 | 调用方          | 被调方        | 协议           | 场景                                                                                         |
 | --------------- | ------------- | -------------- | -------------------------------------------------------------------------------------------- |
 | gateway         | access-service | HTTP (转发)    | `/api/access/**` 单路由（外部路径=服务路径，无 StripPrefix；登录/管理/权限接口统一转发） |
-| gateway         | access-service | HTTP (负载均衡 WebClient) | 快照鉴权：`POST /api/access/auth/interface-snapshot` 拉取全量接口权限快照；未覆盖场景回退 `check-interface` 实时鉴权 |
+| gateway         | access-service | HTTP (负载均衡 WebClient) | 操作准入鉴权（T-ACCESS-059）：`POST /api/access/auth/interface-admission-snapshot` 拉取准入快照本地四态判定；无通过分支回退 `interface-admission` 在线判定 |
 | gateway         | example-service | HTTP (转发)   | 演示服务接口转发                                                                             |
 | 管理员/运维（经 Gateway） | access-service | HTTP（管理面，运维期） | 接口资源注册：管理员经 `POST /api/access/service-config/sync`（FULL 接口声明）一步创建 API 资源与映射（T-API-001 E2E 钉死；原 resource-entity/sync 直连通道已随 T-PERM-052 类型级所有权退役——API 类型种子声明 SYNC+access-service（T-PERM-069），外部同步入口来源不匹配一律拒绝、资源管理面手工 CRUD 20055，本通道与 bootstrap 固定图即 API 资源唯一事实入口）。example-service 运行期对 access-service 零调用——接口级鉴权由 Gateway 承担（T-API-001：example 已删 perm-client/openfeign，无 Feign 鉴权查询） |
 
@@ -145,9 +145,9 @@ last_reviewed: 2026-09-15 服务清单与拓扑图、§3 章节标题与正文�
     │   │        ├─ 条件授权且条件规则已内联 → 本地评估，通过则放行
     │   │        └─ 条件规则未下发 → 标记 FALLBACK，回退实时鉴权
     │   └─ 未命中 → 在 5 秒全链路硬截止内回源拉取快照
-    │              POST /api/access/auth/interface-snapshot（access-service）
+    │              POST /api/access/auth/interface-admission-snapshot（access-service，T-ACCESS-059）
     │
-    ├─ FALLBACK：POST /api/access/auth/check-interface（access-service 实时鉴权）
+    ├─ FALLBACK：POST /api/access/auth/interface-admission（access-service 在线准入判定）
     │
     └─ 回源失败/超截止 → 固定 fail-closed 503；匹配拒绝 → 403
 ```
@@ -158,7 +158,7 @@ last_reviewed: 2026-09-15 服务清单与拓扑图、§3 章节标题与正文�
 
 | 层级 | 存储 | Key 模式 | TTL | 失效方式 |
 | ---- | -------- | -------------------------------------- | --- | -------------------- |
-| 快照 L1 | Caffeine（统一 CacheService，L1_ONLY，catalog `gw:interface-snapshot`） | `{tenantId}:gw:interface-snapshot:{subjectTypeCode,userId,serviceCode}` | ≤15s | Redis pub/sub `perm:invalidate` 主动失效 + TTL 兜底 |
+| 准入快照 L1 | Caffeine（统一 CacheService，L1_ONLY，catalog `gw:interface-admission-snapshot`） | `{tenantId}:gw:interface-admission-snapshot:{subjectTypeCode,userId,serviceCode}` | ≤15s | Redis pub/sub `perm:invalidate` 主动失效 + TTL 兜底（T-ACCESS-059；完整边界推导归 T-ACCESS-060） |
 | L2 | 无 | — | — | 快照缓存不落 L2；Sa-Token 会话与失效订阅仍使用 Redis |
 
 > 一次授权请求触发的整个快照加载流程共享不超过 5 秒的墙钟硬截止，超时不写缓存并固定 fail-closed。串行授权安全预算 ≤30s = access-service 授权 L2（≤10s）+ 回源全链路截止（≤5s）+ Gateway 快照 L1（≤15s），详见 [`access-service-architecture.md`](access-service-architecture.md) §7.2。

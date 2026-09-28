@@ -146,8 +146,11 @@ class AccessBootstrapPgIT {
     void createsFullGraphOnEmptyDatabase() {
         initializer.initialize(BOOTSTRAP_PASSWORD);
 
+        // T-ACCESS-059 无迁移期拍板：固定图服务行为 OPERATION_ADMISSION；全部启用映射绑定业务操作引用
         assertThat(jdbc.queryForObject("SELECT api_auth_mode FROM service_config WHERE tenant_id = ? "
-            + "AND service_code = 'access-service' AND delete_flag = 0", String.class, TENANT)).isEqualTo("LEGACY_API");
+            + "AND service_code = 'access-service' AND delete_flag = 0", String.class, TENANT)).isEqualTo("OPERATION_ADMISSION");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM resource_api_mapping WHERE tenant_id = ? "
+            + "AND delete_flag = 0 AND enabled = true AND required_operation_id IS NULL", Long.class, TENANT)).isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM resource_api_mapping WHERE tenant_id = ? "
             + "AND maintain_source <> 'BOOTSTRAP' AND delete_flag = 0", Long.class, TENANT)).isZero();
 
@@ -202,14 +205,14 @@ class AccessBootstrapPgIT {
             "SELECT count(*) FROM resource_entity WHERE tenant_id = ? "
                 + "AND resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'API') "
                 + "AND code IN ('" + String.join("','", expectedApiCodes) + "') AND delete_flag = 0",
-            Long.class, TENANT)).isEqualTo(107L);
+            Long.class, TENANT)).isEqualTo(106L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM resource_api_mapping ram JOIN resource_entity re "
                 + "ON ram.resource_entity_id = re.id AND re.tenant_id = ram.tenant_id "
                 + "WHERE ram.tenant_id = ? AND ram.delete_flag = 0 "
                 + "AND re.resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'API') "
                 + "AND re.code LIKE 'POST:%'",
-            Long.class, TENANT)).isEqualTo(106L);
+            Long.class, TENANT)).isEqualTo(105L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM resource_api_mapping ram JOIN resource_entity re "
                 + "ON ram.resource_entity_id = re.id AND re.tenant_id = ram.tenant_id "
@@ -231,7 +234,7 @@ class AccessBootstrapPgIT {
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND grant_source = 'MANUAL'",
-            Long.class, TENANT, roleId)).isEqualTo(160L);
+            Long.class, TENANT, roleId)).isEqualTo(161L);
 
         // 系统任务种子（T-PERM-073，2026-09-21 用户定案）：默认停用、预置 cron；invokeTarget
         // 必须经 @JobInvocable 白名单真实解析（防拼写漂移到首次手动触发才暴露）且 String
@@ -248,7 +251,7 @@ class AccessBootstrapPgIT {
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND scope_all = true",
-            Long.class, TENANT, roleId)).isEqualTo(53L);
+            Long.class, TENANT, roleId)).isEqualTo(55L);
         // T-ACCESS-054（U010 拍板）：ADMIN_JOB 最小运营三行精确锁——VIEW bit2/TRIGGER bit64/
         // ENABLE bit16（DDL 扩展码组），scopeAll 类型级、不可转授；负向锁=ADMIN_JOB 无其他
         // scopeAll 行（CREATE/UPDATE/DELETE 无种子为拍板收窄形态，防混入后靠总量断言漏检）

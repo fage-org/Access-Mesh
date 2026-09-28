@@ -145,6 +145,9 @@ class ServiceConfigCascadePgIT {
         config.setName(serviceCode + " 服务");
         config.setBasePath("/" + serviceCode.toLowerCase());
         config.setStatus(1);
+        // T-ACCESS-059：DDL 缺省已改 OPERATION_ADMISSION——本类测级联/参数序等映射写语义，
+        // 夹具钉 LEGACY_API 维持旧协议形态（新协议面由 AdmissionMappingPgIT/InterfaceAdmissionPgIT 覆盖）
+        config.setApiAuthMode("LEGACY_API");
         config.setExtra("{}");
         config.setCreatedAt(now);
         config.setUpdatedAt(now);

@@ -10,11 +10,11 @@ import cn.ac.fage.accessmesh.gateway.cache.InterfaceSnapshotCacheKeys;
 import cn.ac.fage.accessmesh.gateway.cache.InterfaceSnapshotLoadRegistry;
 import cn.ac.fage.accessmesh.gateway.config.GatewayProperties;
 import cn.ac.fage.accessmesh.gateway.model.GatewayResponse;
-import cn.ac.fage.accessmesh.gateway.service.InterfaceSnapshotMatcher;
-import cn.ac.fage.accessmesh.gateway.service.InterfaceSnapshotMatcher.Decision;
+import cn.ac.fage.accessmesh.gateway.service.InterfaceAdmissionMatcher;
+import cn.ac.fage.accessmesh.gateway.service.InterfaceAdmissionMatcher.Decision;
 import cn.ac.fage.accessmesh.gateway.service.PermissionClient;
-import cn.ac.fage.accessmesh.perm.common.dto.resp.CheckInterfaceResp;
-import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceAdmissionResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceAdmissionSnapshotResp;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Counter;
@@ -38,34 +38,35 @@ import reactor.core.publisher.Mono;
 
 import java.net.InetSocketAddress;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.concurrent.TimeoutException;
 
 /**
- * 接口级权限过滤器（T-PERM-001 快照模式 / T-PERM-017 条件 Gateway 重评 / T-ACCESS-008 安全边界）
+ * 操作准入过滤器（T-ACCESS-059 无迁移期切换；旧 API:ACCESS 快照链已删除）。
  * <p>
- * 缓存维度：(tenantId,subjectTypeCode,userId,serviceCode)→InterfaceSnapshotResp，
- * 经统一 {@link CacheService}（L1_ONLY，catalog {@code gw:interface-snapshot}，TTL≤15s）。
- * 鉴权流程：
+ * 缓存维度：(tenantId,subjectTypeCode,userId,serviceCode)→InterfaceAdmissionSnapshotResp，
+ * 经统一 {@link CacheService}（L1_ONLY，catalog {@code gw:interface-admission-snapshot}，TTL≤15s，
+ * 与旧快照 schema 命名空间隔离 N22）。判定流程：
  * <ol>
- *   <li>本地查快照 → 未命中回源拉取并缓存（access-service 实时构建全量快照）</li>
- *   <li>本地匹配 ({@link InterfaceSnapshotMatcher}) 返回三态：
+ *   <li>本地查准入快照 → 未命中回源拉取并缓存</li>
+ *   <li>本地判定（{@link InterfaceAdmissionMatcher}，固定判定序）返回四态：
  *     <ul>
- *       <li>{@link Decision#ALLOW} → 直接放行</li>
- *       <li>{@link Decision#FALLBACK} → 同步调 {@code check-interface}（配置路径 /api/access/auth/check-interface）实时鉴权（仅传 clientIp）</li>
- *       <li>{@link Decision#DENY} → 403 拒绝</li>
+ *       <li>{@link Decision#ALLOW} → MAY_ENTER 放行（业务层做最终实例检查）</li>
+ *       <li>{@link Decision#FALLBACK} → 同步调 interface-admission 在线判定（仅传 clientIp）</li>
+ *       <li>{@link Decision#DENY} → 403 拒绝（正常准入拒绝）</li>
+ *       <li>{@link Decision#CONFIG_FAULT} → 503 配置故障（路由歧义/未知 schema/时效失败，
+ *           不伪装用户无权限）</li>
  *     </ul>
  *   </li>
  * </ol>
  * </p>
  * <p>
- * T-ACCESS-008 安全边界：
+ * 安全边界（沿 T-ACCESS-008，回退=回滚网关版本）：
  * <ul>
- *   <li><b>固定 fail-closed</b>：删除可切换 fail-mode 及 open/stale-allow 分支——
- *       回源不可达、显式失效后回源失败、未知异常一律 503 拒绝，不得绕过授权或使用过期结果</li>
- *   <li><b>5 秒全链路硬截止</b>：一次授权请求触发的整个快照加载流程（服务发现/负载均衡、
- *       连接、请求发送、access-service 处理、响应读取/解码、失效竞争重试）共享同一墙钟截止；
- *       重试不重新计时。超过截止不得写入 Gateway 缓存并固定 503。
- *       连接/响应分段超时（WebClientConfig）不替代该总截止</li>
+ *   <li><b>固定 fail-closed</b>：回源不可达、显式失效后回源失败、服务端配置故障信封
+ *       （20070/20071 等 data=null）、未知异常一律 503，不回落旧 API:ACCESS、不 stale-allow</li>
+ *   <li><b>5 秒全链路硬截止</b>：快照加载全流程共享同一墙钟截止，重试不重新计时，
+ *       超截止不写缓存固定 503</li>
  *   <li>保留失效代际校验（{@link InvalidationMarker}）、per-key 回源去重
  *       （{@link InterfaceSnapshotLoadRegistry}）与订阅重连全量清空</li>
  * </ul>
@@ -89,17 +90,17 @@ public class PermissionFilter implements GlobalFilter, Ordered {
     private final ObjectMapper objectMapper;
     private final Duration snapshotLoadDeadline;
 
-    // T-ACCESS-008 监控指标（固定 fail-closed；open/stale 系列随 fail-mode 删除）
+    // 监控指标（固定 fail-closed；来源 tag 区分快照/在线回源）
     private final Counter unreachableSnapshotCounter;
-    private final Counter unreachableCheckInterfaceCounter;
+    private final Counter unreachableAdmissionCounter;
     private final Counter fallbackClosedDeniedCounter;
     private final Counter deadlineExceededCounter;
 
     /**
      * 构造函数注入依赖
      *
-     * @param permissionClient       权限校验客户端
-     * @param cacheService           统一缓存服务（L1_ONLY gw:interface-snapshot）
+     * @param permissionClient       权限校验客户端（interface-admission 族）
+     * @param cacheService           统一缓存服务（L1_ONLY gw:interface-admission-snapshot）
      * @param invalidationMarker     失效代际标记
      * @param loadRegistry           回源去重注册表
      * @param invalidator            快照失效器（回填成功后 track 登记跟踪索引）
@@ -125,11 +126,11 @@ public class PermissionFilter implements GlobalFilter, Ordered {
 
         this.unreachableSnapshotCounter = Counter.builder("gateway.perm.unreachable")
             .tag("source", "snapshot")
-            .description("Access-service unreachable during snapshot fetch")
+            .description("Access-service unreachable during admission snapshot fetch")
             .register(meterRegistry);
-        this.unreachableCheckInterfaceCounter = Counter.builder("gateway.perm.unreachable")
-            .tag("source", "check_interface")
-            .description("Access-service unreachable during check-interface fallback")
+        this.unreachableAdmissionCounter = Counter.builder("gateway.perm.unreachable")
+            .tag("source", "interface_admission")
+            .description("Access-service unreachable during online admission fallback")
             .register(meterRegistry);
         this.fallbackClosedDeniedCounter = Counter.builder("gateway.perm.fallback")
             .tag("mode", "closed").tag("reason", "denied")
@@ -177,36 +178,40 @@ public class PermissionFilter implements GlobalFilter, Ordered {
         // marker / in-flight 去重命名空间使用租户限定键（identifier 不含租户，
         // 直接复用会跨租户串扰）；CacheService 自行组装含租户前缀的完整缓存键
         String loadKey = tenantId + ":" + identifier;
-        InterfaceSnapshotResp cached = cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, tenantId, identifier);
+        InterfaceAdmissionSnapshotResp cached = cacheService.get(
+            GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT, tenantId, identifier);
 
         if (cached != null) {
-            if (!invalidationMarker.contains(loadKey)) {
+            if (!invalidationMarker.contains(loadKey) && isFresh(cached)) {
                 return decide(exchange, chain, cached, serviceCode, httpMethod, path, clientIp,
-                    subjectTypeCode, userId, tenantId, identifier);
+                    subjectTypeCode, userId, tenantId);
             }
-            // 显式失效（perm:invalidate 已到达）：驱逐本地快照后强制回源
-            cacheService.evict(GatewayCacheCatalog.INTERFACE_SNAPSHOT, tenantId, identifier);
+            // 显式失效（perm:invalidate 已到达）或快照自身已过期（缓存 TTL 与服务端 expiresAt
+            // 起点差＝回源延迟，缓存尾部存在"缓存仍在、快照已过期"窗口）：驱逐后按未命中回源
+            // 重载——过期是自然的 miss 语义，不是终端 503
+            cacheService.evict(GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT, tenantId, identifier);
         }
 
-        // 未命中：回源拉取快照，整段加载流程置于 5 秒全链路硬截止内（T-ACCESS-008）
+        // 未命中：回源拉取快照，整段加载流程置于 5 秒全链路硬截止内
         // switchIfEmpty 置于 flatMap 之前：将"快照为空"转为异常，避免 decide() 返回 Mono<Void>
-        // （天然 empty）时误触发 switchIfEmpty → 重复写 403
-        return loadSnapshotWithinDeadline(exchange, loadKey, identifier, subjectTypeCode, userId,
+        // （天然 empty）时误触发 switchIfEmpty → 重复写错误响应
+        return loadSnapshotWithinDeadline(loadKey, identifier, subjectTypeCode, userId,
             serviceCode, tenantId)
             .switchIfEmpty(Mono.error(new EmptySnapshotException()))
             .flatMap(snapshot -> decide(exchange, chain, snapshot, serviceCode, httpMethod, path, clientIp,
-                subjectTypeCode, userId, tenantId, identifier))
+                subjectTypeCode, userId, tenantId))
             .onErrorResume(EmptySnapshotException.class, e ->
-                writeForbidden(exchange, "无接口访问权限"))
+                // 回源 data=null：服务端错误信封（20070/20071 等）→ 配置故障 503，不伪装用户无权限
+                writeServiceUnavailable(exchange, "鉴权配置故障"))
             .onErrorResume(StaleLoadDiscardedException.class, e -> {
                 // 显式失效并发——固定 fail-closed 503（权限主动撤销 > 服务不可达兜底）
-                log.warn("Discarded stale interface snapshot load after invalidation (key={})", loadKey);
+                log.warn("Discarded stale admission snapshot load after invalidation (key={})", loadKey);
                 return writeServiceUnavailable(exchange, "鉴权服务暂时不可用");
             })
             .onErrorResume(DeadlineExceededException.class, e ->
                 writeServiceUnavailable(exchange, "鉴权服务暂时不可用"))
             .onErrorResume(AccessServiceUnreachableException.class, e -> {
-                // T-ACCESS-008：固定 fail-closed（fail-mode/open/stale-allow 已删除）
+                // 固定 fail-closed（不回落旧 API:ACCESS）
                 unreachableSnapshotCounter.increment();
                 fallbackClosedDeniedCounter.increment();
                 log.warn("Access-service unreachable ({}), fail-closed denying request: {}",
@@ -215,61 +220,72 @@ public class PermissionFilter implements GlobalFilter, Ordered {
             })
             // 非远端不可达异常（代码 bug / DTO 兼容等）固定 fail-closed
             .onErrorResume(e -> {
-                log.error("Unexpected error during permission check (key={}), failing closed", loadKey, e);
+                log.error("Unexpected error during admission check (key={}), failing closed", loadKey, e);
                 return writeServiceUnavailable(exchange, "鉴权服务暂时不可用");
             });
     }
 
+    /** 缓存命中可用性预检：失效代际之外补快照时效检查（过期条目按 miss 重载，不硬 503）。 */
+    private static boolean isFresh(InterfaceAdmissionSnapshotResp snapshot) {
+        return snapshot.expiresAt() == null || LocalDateTime.now().isBefore(snapshot.expiresAt());
+    }
+
     /**
-     * 根据快照本地匹配结果三态分发：ALLOW 放行 / FALLBACK 调 check-interface / DENY 拒绝。
-     * <p>
-     * T-PERM-017 C4：FALLBACK 分支处理 gateway_evaluable=false 或 conditionRules 未下发的含条件 entry。
-     * 同步 HTTP 调 access-service 实时鉴权，context 仅承载 clientIp（跨进程时钟一致性由 NTP 保证）。
-     * </p>
+     * 本地判定四态分发：ALLOW 放行 / FALLBACK 调 interface-admission 在线判定 /
+     * DENY 拒绝 / CONFIG_FAULT 503（N14 路由歧义与 N22 模式/时效失败）。
      */
     private Mono<Void> decide(ServerWebExchange exchange, GatewayFilterChain chain,
-                              InterfaceSnapshotResp snapshot, String serviceCode, String httpMethod,
+                              InterfaceAdmissionSnapshotResp snapshot, String serviceCode, String httpMethod,
                               String path, String clientIp,
-                              String subjectTypeCode, Long userId, Long tenantId,
-                              String identifier) {
-        Decision decision = InterfaceSnapshotMatcher.match(snapshot, serviceCode, httpMethod, path, clientIp);
+                              String subjectTypeCode, Long userId, Long tenantId) {
+        Decision decision = InterfaceAdmissionMatcher.match(snapshot, serviceCode, httpMethod,
+            path, clientIp, LocalDateTime.now());
         return switch (decision) {
             case ALLOW -> chain.filter(exchange);
             case DENY -> writeForbidden(exchange, "无接口访问权限");
-            case FALLBACK -> fallbackCheckInterface(exchange, chain, subjectTypeCode, userId,
+            case CONFIG_FAULT -> writeServiceUnavailable(exchange, "鉴权配置故障");
+            case FALLBACK -> fallbackOnlineAdmission(exchange, chain, subjectTypeCode, userId,
                 serviceCode, httpMethod, path, clientIp, tenantId);
         };
     }
 
     /**
-     * 回退实时鉴权：含条件 entry 命中但 conditionRules 未下发 Gateway 时同步调 check-interface。
+     * 回退在线准入判定：条件候选不可本地评估（或 CONTEXT_DEFERRED）且无其他通过分支时
+     * 同步调 interface-admission（按相同规则与可信环境在线求值，N11）。
      * <p>
-     * access-service 不可达时固定 fail-closed（T-ACCESS-008）。
+     * access-service 不可达或返回错误信封（data=null，含 20070/20071 配置故障）固定
+     * fail-closed 503（T-ACCESS-008 形态沿承；新链失败不回落旧 API:ACCESS）。
      * </p>
      */
-    private Mono<Void> fallbackCheckInterface(ServerWebExchange exchange, GatewayFilterChain chain,
-                                              String subjectTypeCode, Long userId, String serviceCode,
-                                              String httpMethod, String path, String clientIp, Long tenantId) {
-        return wrapRemoteErrors(permissionClient.checkInterface(subjectTypeCode, userId, serviceCode, httpMethod, path, clientIp, tenantId))
+    private Mono<Void> fallbackOnlineAdmission(ServerWebExchange exchange, GatewayFilterChain chain,
+                                               String subjectTypeCode, Long userId, String serviceCode,
+                                               String httpMethod, String path, String clientIp, Long tenantId) {
+        return wrapRemoteErrors(permissionClient.interfaceAdmission(
+                subjectTypeCode, userId, serviceCode, httpMethod, path, clientIp, tenantId))
             .flatMap(result -> {
-                CheckInterfaceResp data = result != null ? result.getData() : null;
-                if (data != null && data.allowed()) {
+                InterfaceAdmissionResp data = result != null ? result.getData() : null;
+                if (data == null) {
+                    // 服务端错误信封（配置故障/技术故障）→ fail-closed 503
+                    return writeServiceUnavailable(exchange, "鉴权配置故障");
+                }
+                if ("MAY_ENTER".equals(data.decision())) {
                     return chain.filter(exchange);
                 }
-                String reason = data != null && data.reason() != null ? data.reason() : "无接口访问权限";
+                String reason = data.reason() != null ? data.reason() : "无接口访问权限";
                 return writeForbidden(exchange, reason);
             })
-            // 固定 fail-closed（T-ACCESS-008）
+            // 固定 fail-closed
             .onErrorResume(AccessServiceUnreachableException.class, e -> {
-                unreachableCheckInterfaceCounter.increment();
+                unreachableAdmissionCounter.increment();
                 fallbackClosedDeniedCounter.increment();
-                log.warn("Access-service unreachable in check-interface fallback ({}), fail-closed: {}",
+                log.warn("Access-service unreachable in online admission fallback ({}), fail-closed: {}",
                     serviceCode, e.getCause() == null ? e.getMessage() : e.getCause().getMessage());
                 return writeServiceUnavailable(exchange, "鉴权服务暂时不可用");
             })
             // 非远端异常固定 fail-closed
             .onErrorResume(e -> {
-                log.error("Unexpected error in fallback check-interface (serviceCode={}), failing closed", serviceCode, e);
+                log.error("Unexpected error in online admission fallback (serviceCode={}), failing closed",
+                    serviceCode, e);
                 return writeServiceUnavailable(exchange, "鉴权服务暂时不可用");
             });
     }
@@ -281,21 +297,11 @@ public class PermissionFilter implements GlobalFilter, Ordered {
      * 即使清洗配置被误删，网关自评也不采信可伪造头；下游 access-service 消费
      * Gateway 重建的 XFF（值同为本观测值）。
      * </p>
-     * 用于条件评估 IP_WHITELIST / IP_BLACKLIST 与 fallback check-interface 上下文。
+     * 用于条件评估 IP_WHITELIST / IP_BLACKLIST 与在线回源上下文。
      */
     private String resolveClientIp(ServerWebExchange exchange) {
         InetSocketAddress remote = exchange.getRequest().getRemoteAddress();
         return remote != null && remote.getAddress() != null ? remote.getAddress().getHostAddress() : null;
-    }
-
-    /**
-     * 从 R 提取快照数据
-     */
-    private InterfaceSnapshotResp extractSnapshot(R<InterfaceSnapshotResp> result) {
-        if (result == null || result.getData() == null) {
-            return null;
-        }
-        return result.getData();
     }
 
     /**
@@ -341,7 +347,7 @@ public class PermissionFilter implements GlobalFilter, Ordered {
     }
 
     /**
-     * 在 5 秒全链路硬截止内执行快照加载（T-ACCESS-008）。
+     * 在 5 秒全链路硬截止内执行快照加载。
      * <p>
      * 截止时刻在进入加载流程前一次确定；组合流（含失效竞争触发的一次重试）整体
      * 置于 {@code Mono.timeout} 之下——重试共享同一截止，不重新计时。写入缓存前
@@ -349,11 +355,10 @@ public class PermissionFilter implements GlobalFilter, Ordered {
      * {@link DeadlineExceededException} 计数后 503。
      * </p>
      */
-    private Mono<InterfaceSnapshotResp> loadSnapshotWithinDeadline(ServerWebExchange exchange,
-                                                                   String loadKey, String identifier,
-                                                                   String subjectTypeCode,
-                                                                   Long userId, String serviceCode,
-                                                                   Long tenantId) {
+    private Mono<InterfaceAdmissionSnapshotResp> loadSnapshotWithinDeadline(String loadKey, String identifier,
+                                                                           String subjectTypeCode,
+                                                                           Long userId, String serviceCode,
+                                                                           Long tenantId) {
         return Mono.defer(() -> {
             long deadlineNanos = System.nanoTime() + snapshotLoadDeadline.toNanos();
             return loadSnapshot(loadKey, identifier, subjectTypeCode, userId, serviceCode, tenantId,
@@ -366,29 +371,32 @@ public class PermissionFilter implements GlobalFilter, Ordered {
         });
     }
 
-    private Mono<InterfaceSnapshotResp> loadSnapshot(String loadKey, String identifier, String subjectTypeCode,
-                                                     Long userId, String serviceCode, Long tenantId,
-                                                     boolean retryWhenTokenInvalid, long deadlineNanos) {
+    private Mono<InterfaceAdmissionSnapshotResp> loadSnapshot(String loadKey, String identifier,
+                                                              String subjectTypeCode,
+                                                              Long userId, String serviceCode, Long tenantId,
+                                                              boolean retryWhenTokenInvalid, long deadlineNanos) {
         return loadRegistry.load(loadKey, () -> {
                 LoadToken token = invalidationMarker.beginLoad(loadKey);
                 // 仅对 WebClient 远端不可达错误包装为 AccessServiceUnreachableException；
-                // flatMap 内部错误（extractSnapshot / putSnapshotIfCurrent 等）不做包装，
-                // 由外层 catch-all 兜底 fail-closed
-                return wrapRemoteErrors(permissionClient.interfaceSnapshot(subjectTypeCode, userId, serviceCode, tenantId))
+                // flatMap 内部错误不做包装，由外层 catch-all 兜底 fail-closed
+                return wrapRemoteErrors(permissionClient.interfaceAdmissionSnapshot(
+                        subjectTypeCode, userId, serviceCode, tenantId))
                     .flatMap(result -> {
-                        InterfaceSnapshotResp snapshot = extractSnapshot(result);
+                        InterfaceAdmissionSnapshotResp snapshot = result == null ? null : result.getData();
                         if (snapshot == null) {
+                            // data=null：服务端错误信封（配置故障/技术故障）——空流触发
+                            // EmptySnapshotException → 上层 503（不缓存、不伪装用户无权限）
                             return Mono.empty();
                         }
-                        // 截止校验先于缓存写入：超时的结果不写缓存（T-ACCESS-008）
+                        // 截止校验先于缓存写入：超时的结果不写缓存
                         if (System.nanoTime() > deadlineNanos) {
                             deadlineExceededCounter.increment();
-                            log.warn("Interface snapshot load exceeded full-chain deadline ({}), discard without caching",
+                            log.warn("Admission snapshot load exceeded full-chain deadline ({}), discard without caching",
                                 loadKey);
-                            return Mono.<InterfaceSnapshotResp>error(new DeadlineExceededException());
+                            return Mono.<InterfaceAdmissionSnapshotResp>error(new DeadlineExceededException());
                         }
                         if (!putSnapshotIfCurrent(tenantId, identifier, loadKey, snapshot, token)) {
-                            return Mono.<InterfaceSnapshotResp>error(new StaleLoadDiscardedException());
+                            return Mono.error(new StaleLoadDiscardedException());
                         }
                         return Mono.just(snapshot);
                     });
@@ -411,9 +419,9 @@ public class PermissionFilter implements GlobalFilter, Ordered {
      * </p>
      */
     private boolean putSnapshotIfCurrent(Long tenantId, String identifier, String loadKey,
-                                         InterfaceSnapshotResp snapshot, LoadToken token) {
+                                         InterfaceAdmissionSnapshotResp snapshot, LoadToken token) {
         return invalidationMarker.commitIfCurrent(token, () -> {
-            cacheService.put(GatewayCacheCatalog.INTERFACE_SNAPSHOT, tenantId, identifier, snapshot);
+            cacheService.put(GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT, tenantId, identifier, snapshot);
             invalidator.track(tenantId, identifier);
         });
     }
@@ -473,7 +481,7 @@ public class PermissionFilter implements GlobalFilter, Ordered {
      * access-service 远端不可达异常。
      * <p>
      * 仅包装 WebClient / 网络超时 / 远端 5xx 等明确不可达错误；
-     * 其他异常（代码 bug、DTO 兼容等）不应包装。T-ACCESS-008：不可达固定 fail-closed。
+     * 其他异常（代码 bug、DTO 兼容等）不应包装。不可达固定 fail-closed。
      * </p>
      */
     static class AccessServiceUnreachableException extends RuntimeException {
@@ -485,7 +493,7 @@ public class PermissionFilter implements GlobalFilter, Ordered {
     private static class StaleLoadDiscardedException extends RuntimeException {
     }
 
-    /** 回源返回空快照（R.data 为 null）时抛出，触发 403 */
+    /** 回源返回空数据（R.data=null，服务端错误信封）时抛出，触发 503 配置故障响应 */
     private static class EmptySnapshotException extends RuntimeException {
     }
 

@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.gateway.cache;
 
-import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceAdmissionSnapshotResp;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
 
@@ -16,16 +16,16 @@ class InterfaceSnapshotLoadRegistryTest {
 
     @Test
     void shouldStartFreshLoadWhenDownstreamRetriesAfterTerminalSignal() {
-        InterfaceSnapshotResp snapshot = new InterfaceSnapshotResp(List.of());
+        InterfaceAdmissionSnapshotResp snapshot = new InterfaceAdmissionSnapshotResp(1, 1L, null, "svc", null, null, 0L, List.of(), List.of(), "OPERATION_ADMISSION", true);
         AtomicInteger calls = new AtomicInteger();
-        Supplier<Mono<InterfaceSnapshotResp>> loader = () -> {
+        Supplier<Mono<InterfaceAdmissionSnapshotResp>> loader = () -> {
             if (calls.incrementAndGet() == 1) {
                 return Mono.error(new RetryableLoadException());
             }
             return Mono.just(snapshot);
         };
 
-        InterfaceSnapshotResp result = registry.load("key-1", loader)
+        InterfaceAdmissionSnapshotResp result = registry.load("key-1", loader)
             .onErrorResume(RetryableLoadException.class, e -> registry.load("key-1", loader))
             .block();
 

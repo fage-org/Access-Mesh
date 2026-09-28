@@ -83,7 +83,9 @@ public class AccessBootstrapInitializer {
         // T-ADMIN-029：公告管理面五档类型级授权（VIEW/CREATE/UPDATE/DELETE/PUBLISH）
         ResourceTypeCode.ADMIN_NOTICE,
         // T-ACCESS-054：定时任务管理面最小运营三档（VIEW/TRIGGER/ENABLE）
-        ResourceTypeCode.ADMIN_JOB);
+        ResourceTypeCode.ADMIN_JOB,
+        // T-ACCESS-059：org-tree-config/page 开放读绑定（准入要求候选来源）
+        ResourceTypeCode.ADMIN_ORG_TREE_CONFIG);
 
     /** sys_user.user_type：本地用户管理展示值（与 createUser 链一致；权限域类型由投影链解析） */
     private static final int SYS_USER_TYPE_PERSON = 1;
@@ -267,7 +269,16 @@ public class AccessBootstrapInitializer {
             tenantId, resourceTypes.get(ResourceTypeCode.SERVICE),
             Set.of(BootstrapGraphDefinition.SERVICE_RESOURCE_CODE));
         boolean serviceResourcePresent = !serviceResources.isEmpty();
-        boolean serviceConfigPresent = seedWriter.findServiceConfig(tenantId) != null;
+        cn.ac.fage.accessmesh.access.resource.entity.ServiceConfig seedServiceConfig =
+            seedWriter.findServiceConfig(tenantId);
+        boolean serviceConfigPresent = seedServiceConfig != null;
+        // T-ACCESS-059 无迁移期拍板：固定图服务行必须为 OPERATION_ADMISSION——
+        // 存量库漂移（迁移脚本 059 未执行）fail-fast，避免准入端点以 20071 不可诊断地拒绝
+        if (seedServiceConfig != null && !"OPERATION_ADMISSION".equals(seedServiceConfig.getApiAuthMode())) {
+            conflicts.add("service_config(access-service) api_auth_mode 漂移为 "
+                + seedServiceConfig.getApiAuthMode() + "（期望 OPERATION_ADMISSION）——请执行迁移脚本 "
+                + "docs/ops/operation-admission-migrate-059.sql");
+        }
         Long serviceResourceId = serviceResourcePresent ? serviceResources.get(0).getId() : null;
         if (serviceResourcePresent && (serviceResources.get(0).getStatus() == null
                 || serviceResources.get(0).getStatus() != 1)) {
@@ -307,11 +318,25 @@ public class AccessBootstrapInitializer {
                 .map(apiResourceIds::get)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
-            Set<String> mappedKeys = seedWriter.findMappings(tenantId, mappedResourceIds).stream()
-                .filter(mapping -> Boolean.TRUE.equals(mapping.getEnabled()))
+            List<cn.ac.fage.accessmesh.access.resource.entity.ResourceApiMapping> enabledMappings =
+                seedWriter.findMappings(tenantId, mappedResourceIds).stream()
+                    .filter(mapping -> Boolean.TRUE.equals(mapping.getEnabled()))
+                    .toList();
+            Set<String> mappedKeys = enabledMappings.stream()
                 .map(mapping -> mappingKey(mapping.getServiceCode(),
                     mapping.getResourceEntityId(), mapping.getHttpMethod(), mapping.getPathPattern()))
                 .collect(Collectors.toSet());
+            // T-ACCESS-059：启用映射缺业务操作引用＝存量库未迁移——准入快照会整体 20071，
+            // 启动期 fail-fast 指向迁移脚本（属性漂移放行口径不适用于本列：它是准入构建的必要输入）
+            List<String> missingOperationRefs = enabledMappings.stream()
+                .filter(mapping -> mapping.getRequiredOperationId() == null)
+                .map(mapping -> mapping.getHttpMethod() + " " + mapping.getPathPattern())
+                .toList();
+            if (!missingOperationRefs.isEmpty()) {
+                conflicts.add("API 映射缺业务操作引用（serviceCode=" + BootstrapGraphDefinition.API_SERVICE_CODE
+                    + "，OPERATION_ADMISSION 必填）: " + missingOperationRefs
+                    + "——请执行 docs/ops/operation-admission-migrate-059.sql");
+            }
             List<String> missingMappings = mappedRoutes.stream()
                 .filter(route -> apiResourceIds.containsKey(
                     BootstrapGraphDefinition.apiResourceCode(route.method(), route.path())))
@@ -567,7 +592,8 @@ public class AccessBootstrapInitializer {
                 tenantId, resourceTypes.get(ResourceTypeCode.API), code, route.name());
             apiResourceIds.put(code, resourceId);
             if (route.withMapping()) {
-                mappingSeeds.add(new BootstrapSeedWriter.ApiMappingSeed(resourceId, route.method(), route.path()));
+                mappingSeeds.add(new BootstrapSeedWriter.ApiMappingSeed(resourceId, route.method(), route.path(),
+                    route.requiredTypeCode(), route.requiredOperationCode()));
                 mappingCount++;
             }
         }

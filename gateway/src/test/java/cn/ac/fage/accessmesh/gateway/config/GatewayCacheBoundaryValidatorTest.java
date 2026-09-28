@@ -38,7 +38,7 @@ class GatewayCacheBoundaryValidatorTest {
         CacheProperties properties = new CacheProperties();
         CacheProperties.CatalogOverride override = new CacheProperties.CatalogOverride();
         override.setL1Ttl(Duration.ofSeconds(16));
-        properties.getCatalogs().put("gw:interface-snapshot", override);
+        properties.getCatalogs().put("gw:interface-admission-snapshot", override);
 
         GatewayCacheBoundaryValidator validator =
             new GatewayCacheBoundaryValidator(properties, gatewayProperties(Duration.ofSeconds(5)));

@@ -107,9 +107,10 @@ gateway:
     paths:
       # T-GW-007：/actuator/** 已全部移出主端口白名单——actuator 经独立管理端口提供
       # （management.server.port，见下方 management 段），主端口 8080 不再暴露任何 /actuator/** 端点
-      # T-ACCESS-042（外评 P2 收窄）：会话入口族精确清单——运行时鉴权六端点
-      # （check/batch-check/check-interface/query-resources/query-scopes/interface-snapshot）
-      # 不放行（旧形态它们不匹配 /auth/**，非等价替换）；与 SecurityWebMvcConfig 密钥豁免同源
+      # T-ACCESS-042（外评 P2 收窄）：会话入口族精确清单——运行时鉴权端点
+      # （check/batch-check/check-interface/query-resources/query-scopes/interface-snapshot/
+      # interface-admission/interface-admission-snapshot，T-ACCESS-059 增后两席）
+      # 不放行；与 SecurityWebMvcConfig 密钥豁免同源
       - /api/access/auth/captcha
       - /api/access/auth/login
       - /api/access/auth/login/sms
@@ -143,7 +144,8 @@ gateway:
     passthrough-paths: []
 
   # T-ACCESS-008：快照缓存 TTL/容量统一由 GatewayCacheCatalog 声明（15s/50000），
-  # 运维覆盖走 accessmesh.cache.catalogs."[gw:interface-snapshot]".l1-ttl / l1-maximum-size；
+  # 运维覆盖走 accessmesh.cache.catalogs."[gw:interface-admission-snapshot]".l1-ttl / l1-maximum-size
+  # （T-ACCESS-059 起为操作准入快照目录；旧 gw:interface-snapshot 随切链退役）；
   # 原 gateway.cache.l1.*（ttl-seconds/stale-grace-seconds）随 stale-allow 删除废弃。
 
   header:
@@ -183,9 +185,10 @@ gateway:
   permission:
     # T-ACCESS-010：目标统一为 access-service
     service-url: lb://access-service
-    check-interface-path: /api/access/auth/check-interface
-    # T-PERM-001 快照模式：Gateway 拉取用户全量接口权限快照用于本地匹配
-    interface-snapshot-path: /api/access/auth/interface-snapshot
+    # T-ACCESS-059 操作准入：本地无通过分支回源在线判定（无迁移期切换，旧 check-interface/
+    # interface-snapshot 网关消费已删，服务端旧端点保留至 T-ACCESS-062 退役）
+    interface-admission-path: /api/access/auth/interface-admission
+    interface-admission-snapshot-path: /api/access/auth/interface-admission-snapshot
     unregistered-policy: DENY
     # T-ACCESS-008：快照加载全链路墙钟硬截止（服务发现/LB、连接、发送、处理、
     # 响应读取解码及失效竞争重试共享同一截止）；超时不写缓存固定 fail-closed 503。

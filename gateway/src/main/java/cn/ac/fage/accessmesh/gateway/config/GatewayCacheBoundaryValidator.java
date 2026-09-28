@@ -14,7 +14,7 @@ import java.time.Duration;
  * <p>
  * 强制校验两项预算上限，任一超限启动失败：
  * <ul>
- *   <li>权限快照 L1 有效 TTL（catalog 默认经 {@code accessmesh.cache.catalogs."gw:interface-snapshot".l1-ttl}
+ *   <li>权限快照 L1 有效 TTL（catalog 默认经 {@code accessmesh.cache.catalogs."gw:interface-admission-snapshot".l1-ttl}
  *       运维覆盖后的最终值）≤ 15 秒</li>
  *   <li>快照加载全链路墙钟硬截止 {@code gateway.permission.snapshot-load-deadline} ≤ 5 秒</li>
  * </ul>
@@ -48,8 +48,8 @@ public class GatewayCacheBoundaryValidator implements InitializingBean {
     @Override
     public void afterPropertiesSet() {
         Duration effectiveL1Ttl = cacheProperties.getEffectiveL1Ttl(
-            GatewayCacheCatalog.INTERFACE_SNAPSHOT.getCode(),
-            GatewayCacheCatalog.INTERFACE_SNAPSHOT.getL1Ttl());
+            GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT.getCode(),
+            GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT.getL1Ttl());
         if (effectiveL1Ttl == null || effectiveL1Ttl.isNegative()
             || effectiveL1Ttl.compareTo(MAX_SNAPSHOT_L1_TTL) > 0) {
             throw new IllegalStateException(

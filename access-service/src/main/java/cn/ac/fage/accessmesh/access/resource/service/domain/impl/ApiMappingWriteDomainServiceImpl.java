@@ -146,6 +146,9 @@ public class ApiMappingWriteDomainServiceImpl implements ApiMappingWriteDomainSe
                 mappings.update(patch);
             }
         }
+        // T-ACCESS-059：映射写入完成同事务递增配置代次（准入快照构建期自一致校验消费；
+        // 手工/同步/bootstrap 三来源共用本入口，单点覆盖）
+        services.incrementConfigGeneration(tenantId, serviceCode);
     }
 
     private BizException invalid(String message) {

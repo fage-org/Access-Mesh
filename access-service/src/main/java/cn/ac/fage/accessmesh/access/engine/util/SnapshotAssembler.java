@@ -2,16 +2,13 @@ package cn.ac.fage.accessmesh.access.engine.util;
 
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
 import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
-import cn.ac.fage.accessmesh.perm.common.util.ConditionEvalUtils;
 import cn.ac.fage.accessmesh.access.engine.query.GrantFact;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
-import cn.ac.fage.accessmesh.access.rule.entity.PermissionCondition;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -257,36 +254,7 @@ public class SnapshotAssembler {
      * @return conditionId → conditionRules JSON 映射；不可下发的不入 Map
      */
     private Map<Long, String> loadPushableRules(Long tenantId, Set<Long> conditionIds) {
-        if (conditionIds.isEmpty()) {
-            return Map.of();
-        }
-        List<PermissionCondition> conditions = conditionMapper.selectValidByIds(tenantId, conditionIds);
-        if (conditions.isEmpty()) {
-            return Map.of();
-        }
-        Map<Long, String> pushable = new HashMap<>();
-        for (PermissionCondition c : conditions) {
-            if (!Boolean.TRUE.equals(c.getGatewayEvaluable())) {
-                continue; // 不可下发：Gateway 走 fallback
-            }
-            String rules = c.getConditionRules();
-            if (rules == null || rules.isBlank()) {
-                continue;
-            }
-            // 防御性校验：即使 DB 误存 gateway_evaluable=true，类型不在白名单也拒绝内联
-            try {
-                JsonNode tree = objectMapper.readTree(rules);
-                if (!ConditionEvalUtils.isGatewayPushable(tree)) {
-                    log.warn("条件 [{}] gateway_evaluable=true 但规则含不可下发类型，"
-                        + "防御性过滤拒绝内联，将走 fallback。请检查 DB 数据完整性",
-                        c.getId());
-                    continue;
-                }
-                pushable.put(c.getId(), rules);
-            } catch (Exception e) {
-                log.warn("条件 [{}] 规则 JSON 解析失败，防御性过滤拒绝内联: {}", c.getId(), e.getMessage());
-            }
-        }
-        return pushable;
+        // T-ACCESS-059 抽取共享：与操作准入快照装配器共用同一内联判据（GatewayPushableRules）
+        return GatewayPushableRules.loadPushableRules(conditionMapper, objectMapper, tenantId, conditionIds);
     }
 }

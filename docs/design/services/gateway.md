@@ -15,7 +15,7 @@ last_reviewed: 2026-09-26
 - 作为系统唯一流量入口，负责路由、Token 校验、白名单、请求上下文注入和接口级鉴权。
 - **路由拓扑（T-ACCESS-042 单命名空间，2026-09-15；T-ACCESS-010 的 /admin+/perm 合并路由与 auth-routes 直通路由随之退役）**：`Path=/api/access/**` 单路由指向 `lb://access-service`（`metadata.serviceCode=access-service`，无 StripPrefix——外部路径=服务路径）；`Path=/api/example/**` 指向 `lb://example-service`（同规则）。旧服务发现目标 `lb://admin-service`、`lb://permission-center` 已删除，无别名兼容。外部服务经 service-config 声明接口不得占用 `/api/access` 命名空间（按第二段路由，天然不可达）。
 - 不直接读取业务库或权限中心数据库。
-- 鉴权采用**快照模式**（T-PERM-001）：调用权限服务（access-service）`POST /api/access/auth/interface-snapshot` 拉取用户全量接口权限快照，本地内存匹配，不再每请求打 RPC。
+- 鉴权采用**操作准入快照模式**（T-ACCESS-059 无迁移期切换；T-PERM-001 旧 API:ACCESS 快照链已删）：调用权限服务（access-service）`POST /api/access/auth/interface-admission-snapshot` 拉取该服务完整启用路由与主体候选分支投影，本地内存判定，不再每请求打 RPC。
 - 只处理入口安全和路由职责，不承载业务权限管理页面或授权配置。
 
 ## 核心链路
@@ -23,7 +23,7 @@ last_reviewed: 2026-09-26
 1. 接收客户端请求并匹配白名单（会话入口族精确清单——T-ACCESS-042 收窄后不整族放行 `/api/access/auth/**`：`/api/access/auth/{captcha,login,login/sms,logout,userinfo,user-menu}`、`/api/access/auth/oauth2/**`、`/api/access/user/reset-password`（T-GW-009 自助改密通道）、`/api/access/notice/my-notices`、`/api/access/notice/read`（T-ADMIN-029 公告自服务两端点——普通用户自服务面，端点边界=服务层门禁：Sa-Token 登录态+受众可见性校验；管理面 7 端点不在此列，走 ADMIN_NOTICE 类型级授权；密钥豁免四载体同步，见 §匿名白名单详注）、`/public/**`、`/captcha/**`；运行时鉴权六端点不放行，无 `/actuator/**`——actuator 经独立管理端口提供，T-GW-007）。
 2. 解析 Sa-Token / OAuth2 Token，得到主体信息。
 3. 清洗客户端伪造的安全 Header（含 IP 转发头，见下节 T-GW-008），再注入可信 `X-Tenant-Id`、`X-Request-Id`、`traceId`、主体标识等上下文。
-4. **快照鉴权**（T-PERM-001）：按 `(tenantId, subjectTypeCode, userId, serviceCode)` 查本地快照缓存——命中则本地匹配；未命中回源拉取 `interface-snapshot` 快照后缓存再匹配。
+4. **准入快照鉴权**（T-ACCESS-059）：按 `(tenantId, subjectTypeCode, userId, serviceCode)` 查本地准入快照缓存——命中则本地四态判定；未命中在 5 秒全链路硬截止内回源拉取 `interface-admission-snapshot` 快照后缓存再判定。
 5. 允许时转发到目标服务，拒绝时返回统一 403 错误响应。
 
 ## 请求头清洗与客户端 IP 重建（T-GW-008，2026-09-10）
@@ -58,34 +58,36 @@ last_reviewed: 2026-09-26
 
 > **平台超管跨租户（2026-06-20 审计 S-017）**：v3.5 **不支持**平台超级管理员跨租户操作。超管必须分别登录每个租户实例，`X-Tenant-Id` 始终对应当前登录租户。不支持双 Header（`X-Tenant-Id` + `X-Target-Tenant-Id`）跨租户切换；如未来需支持，作为 v3.5.1+ platform-admin 增量设计。`TenantManager.ignore()`（见 project-rules.md）仅用于内部测试/迁移场景，**非超管跨租户能力**，禁止用于生产跨租户访问。
 
-## 快照模式鉴权（T-PERM-001）
+## 操作准入快照鉴权（T-ACCESS-059；旧 API:ACCESS 快照链随无迁移期切换删除）
+
+> 旧链（`interface-snapshot` 拉取 / `InterfaceSnapshotMatcher` / `check-interface` 回退）网关侧消费已删，服务端旧端点保留至 T-ACCESS-062 退役；回退=回滚网关版本。协议与判定序权威＝[契约总册 §25](../access-service-api-contract.md#operation-admission-protocol)。
 
 ### 缓存模型
 
-| 项 | 旧（check-interface 单值） | 新（快照模式，T-ACCESS-008） |
-|---|---|---|
-| 缓存载体 | 裸 Caffeine Bean | 自身唯一 `CacheService`（L1_ONLY，catalog `gw:interface-snapshot`） |
-| 缓存 key | `(tenantId,subjectTypeCode,userId,serviceCode,httpMethod,path)` | identifier = `(subjectTypeCode,userId,serviceCode)`；完整键 `{tenantId}:gw:interface-snapshot:{identifier}` |
-| 缓存值 | `Boolean`（仅 true 入缓存） | `InterfaceSnapshotResp`（含 `allowedApis[]`） |
-| 鉴权方式 | 每请求打 RPC（未命中时） | 本地内存匹配，O(1) |
-| TTL | 10s | 15s 兜底（主靠 Redis pub/sub 主动广播；TTL/容量由 catalog 声明，`accessmesh.cache.catalogs."gw:interface-snapshot".*` 运维覆盖，有效 TTL>15s 启动失败） |
-| 未命中处理 | 调 check-interface | 5 秒全链路硬截止内回源拉 interface-snapshot 快照后缓存再匹配 |
+| 项 | 形态 |
+|---|---|
+| 缓存载体 | 自身唯一 `CacheService`（L1_ONLY，catalog `gw:interface-admission-snapshot`——与旧快照 schema 命名空间隔离，N22） |
+| 缓存 key | identifier = `(subjectTypeCode,userId,serviceCode)`；完整键 `{tenantId}:gw:interface-admission-snapshot:{identifier}` |
+| 缓存值 | `InterfaceAdmissionSnapshotResp`（schemaVersion / 时效 / configGeneration / `routes[]` 完整启用路由与要求 / `operationCandidates[]` 候选分支投影） |
+| 鉴权方式 | 本地内存判定（路由匹配→唯一要求→候选分支，O(1)），不再按用户权限裁剪规则集 |
+| TTL | 15s 兜底（主靠 Redis pub/sub 主动广播；TTL/容量由 catalog 声明，`accessmesh.cache.catalogs."gw:interface-admission-snapshot".*` 运维覆盖，有效 TTL>15s 启动失败；完整安全边界推导与启动校验归 T-ACCESS-060） |
+| 未命中处理 | 5 秒全链路硬截止内回源拉 interface-admission-snapshot 后缓存再判定；回源错误信封（data=null，20070/20071 等）→ 503 配置故障，不缓存不伪装用户无权限 |
 
-### 本地匹配规则（`InterfaceSnapshotMatcher`）
+### 本地判定序（`InterfaceAdmissionMatcher`，四态）
 
-对快照 `allowedApis` 遍历做 **OR 合并 + 三态判定**（ALLOW / FALLBACK / DENY）：
+固定顺序：**校验模式/版本/时效 → 完整路由匹配与歧义检测 → 取得唯一要求 → 评该要求的条件分支**（契约 §25.2）：
 
-1. `scopeMode=ALL` 且 `serviceCode` 匹配 → 该条目纳入候选（覆盖该服务全部接口）。
-2. `scopeMode=INSTANCE` 且 `httpMethod` 相等（条目为 null 视为通配）且 `pathPattern` 按 **Ant 风格**匹配请求路径 → 该条目纳入候选。
-3. 候选条目按 `hasCondition` 分支处理：
-   - `hasCondition=false`（无条件授权）→ 立即 `ALLOW`（"任一无条件授权放行"原则）。
-   - `hasCondition=true` 且 `conditionRules` 内联（`gateway_evaluable=true`）→ 用请求 `clientIp` + 本进程时钟本地评估：通过则 `ALLOW`，不通过继续遍历。
-   - `hasCondition=true` 但 `conditionRules` 未下发（`gateway_evaluable=false` 或防御过滤拒绝）→ 标记需要 `FALLBACK`，继续遍历（后续仍可能有无条件条目兜底）。
-4. 遍历结束：未命中 `ALLOW` 时，有 `FALLBACK` 标记 → 调 `/api/access/auth/check-interface` 同步回退实时鉴权（context 仅承载 `clientIp`）；否则 `DENY`。
+1. 校验：`schemaVersion` 已知、`authorizationStage=OPERATION_ADMISSION`、`expiresAt` 未过期、服务编码匹配——任一失败 `CONFIG_FAULT`（终端 503，不 stale-allow、不回落旧链）。
+2. 路由：从 `routes[]` 取全部 `httpMethod`＋Ant 路径匹配命中——无命中 `DENY`（未注册拒绝，ALL 不放行未注册，N15）；命中要求去重后多于一个 → `CONFIG_FAULT`（20070 等价本地检测，N14）。
+3. 候选分支（该要求的 `operationCandidates[]`，OR 语义）：
+   - 无条件主授权候选（`conditionId=null` 且非 `CONTEXT_DEFERRED`）→ `ALLOW`（MAY_ENTER，业务层做最终检查）。
+   - 条件候选内联规则本地评估（`clientIp` + 本进程时钟）通过 → `ALLOW`；不通过继续看其他分支。
+   - 条件不可下发（`gatewayEvaluable=false` / 内联缺失 / **规则解析失败＝不可用分支**）或 `CONTEXT_DEFERRED`（恒不可本地评估）→ 标记回源，继续遍历。
+4. 遍历结束：无通过分支但有回源标记 → `FALLBACK`（调 `/api/access/auth/interface-admission` 在线判定，context 仅承载 `clientIp`，MAY_ENTER 放行 / DENY 403 / 错误信封 503）；否则 `DENY`（403 正常准入拒绝）。
 
-> **条件权限混合评估（T-PERM-017，2026-06-24）**：废止"`hasCondition` 直接放行"。可下发条件（`IP_WHITELIST` / `IP_BLACKLIST` / `DATE_RANGE` / `TIME_RANGE` 四类）由权限中心 `SnapshotAssembler` 内联 `conditionRules` JSON 进 `ApiPermissionEntry`，Gateway 用 `ConditionEvalUtils`（已迁入 `perm-common`）本地重评。跨进程时钟一致性由 NTP 同步保证（亚秒漂移 < 业务粒度小时级），不通过 context 传递 `timestamp`。未来扩展类型（如 `ORG_SCOPE` / `DATA_OWNER`）默认 `gateway_evaluable=false`，由 fallback 通路回到 access-service 评估。`PermissionFilter` 提取 `clientIp`：直用 Gateway 自身观测的 `remoteAddr`（单一可信来源，T-GW-008——外部 XFF/X-Real-IP 已清洗且不作为评估输入；下游消费 Gateway 重建的 XFF）。
+> **条件内联判据（沿 T-PERM-017，双装配器共享 `GatewayPushableRules`）**：可下发条件（`IP_WHITELIST` / `IP_BLACKLIST` / `DATE_RANGE` / `TIME_RANGE` 四类）由服务端在 `gateway_evaluable=true` 且白名单内时内联 `conditionRules` JSON；缺失/解析失败＝不可用分支回源，不转为无条件。Gateway 用 `ConditionEvalUtils`（perm-common）本地重评；跨进程时钟一致性由部署统一时区保证。`PermissionFilter` 提取 `clientIp`：直用 Gateway 自身观测的 `remoteAddr`（单一可信来源，T-GW-008——外部 XFF/X-Real-IP 已清洗且不作为评估输入；下游消费 Gateway 重建的 XFF）。
 
-> **P1-② 多授权折叠修复**：`SnapshotAssembler` 实例级条目按 `(resourceEntityId, conditionId)` 组合展开；同一资源含条件+无条件多条授权各产出独立 `ApiPermissionEntry`，避免折叠后被错误统一处理。配合 Matcher OR 合并语义，保证"任一无条件条目存在即放行"。
+> **候选独立保留（沿 P1-② 语义）**：服务端投影按「type-operation＋条件身份＋候选类别」归并，无条件与各条件分支独立成条——一条分支评估失败不覆盖另一条已成立来源，配合 Matcher OR 语义保证"任一通过分支即 MAY_ENTER"。
 
 ### 主动失效（T-PERM-006 / T-ACCESS-008）
 
@@ -103,9 +105,9 @@ Gateway 启动后订阅 Redis topic `perm:invalidate`。access-service 写路径
 
 **显式失效与代际校验**：`InvalidationMarker` 以租户限定键（`tenantId:identifier`）维护 `keyGeneration` / `globalEpoch`。回源开始前记录 `LoadToken(keyGeneration, globalEpoch)`；完成时只有 token 仍有效才能写入快照缓存，否则丢弃结果并重试一次（重试共享同一截止时刻）或转 fail-closed——禁止旧回源结果复活已撤销权限。
 
-**Per-key 回源去重**：`InterfaceSnapshotLoadRegistry` 使同一快照 key 的并发请求共享同一个 `Mono<InterfaceSnapshotResp>`；回源完成后无论成功/失败都移除 in-flight key。
+**Per-key 回源去重**：`InterfaceSnapshotLoadRegistry` 使同一快照 key 的并发请求共享同一个 `Mono<InterfaceAdmissionSnapshotResp>`；回源完成后无论成功/失败都移除 in-flight key。
 
-**跟踪索引**：失效器维护本地 `tenantId:identifier → userId` 跟踪索引（Caffeine），TTL/容量跟随 `gw:interface-snapshot` 的有效配置（经 `accessmesh.cache` 覆盖后的最终值），与主缓存同步过期。仅用于用户级失效枚举；索引缺失（毫秒级定时器偏差）的残留条目与广播丢失同等语义——由快照自身 ≤15s TTL 兜底，在 30s 安全预算内（设计定案 2026-08-21：TTL 兜底，不降级租户级清理）。用户级失效候选同时包含在途回源注册表 key（首次回源尚未登记索引时撤权，在途回源被代际作废重试）。孤立标记按 60s 周期清理。
+**跟踪索引**：失效器维护本地 `tenantId:identifier → userId` 跟踪索引（Caffeine），TTL/容量跟随 `gw:interface-admission-snapshot` 的有效配置（经 `accessmesh.cache` 覆盖后的最终值），与主缓存同步过期。仅用于用户级失效枚举；索引缺失（毫秒级定时器偏差）的残留条目与广播丢失同等语义——由快照自身 ≤15s TTL 兜底，在 30s 安全预算内（设计定案 2026-08-21：TTL 兜底，不降级租户级清理）。用户级失效候选同时包含在途回源注册表 key（首次回源尚未登记索引时撤权，在途回源被代际作废重试）。孤立标记按 60s 周期清理。
 
 **订阅重连：重连即全量清空**：与 Redis 断线重连后，先递增 `globalEpoch`（在途回源作废重试），再执行 catalog 级跨租户 `evictAll`（`CacheService.evictAll(catalog)`，不依赖跟踪索引推导租户——索引与主缓存是独立 Caffeine，容量压力下索引会先于主缓存淘汰），后续请求按需回源。pub/sub 无持久化，断线期间事件不可追回，全量清空确保安全；惊群由 per-key in-flight 去重缓解。
 
@@ -115,10 +117,10 @@ Gateway 启动后订阅 Redis topic `perm:invalidate`。access-service 写路径
 |---|---|---|
 | `gateway.permission.snapshot-load-deadline` | `5s` | 快照加载全链路墙钟硬截止（含服务发现/LB、连接、发送、处理、响应读取解码及失效竞争重试）；同一授权请求内所有尝试共享同一截止，超时不写缓存并固定 fail-closed 503。上限 5s，超限启动失败 |
 | `gateway.permission.service-url` | `lb://access-service` | 权限服务地址（T-ACCESS-010：目标由 permission-center 切换） |
-| `gateway.permission.interface-snapshot-path` | `/api/access/auth/interface-snapshot` | 快照拉取端点 |
-| `gateway.permission.check-interface-path` | `/api/access/auth/check-interface` | 保留（单值鉴权，回退用） |
-| `accessmesh.cache.catalogs."[gw:interface-snapshot]".l1-ttl` | `15s`（catalog 声明） | 快照 TTL 兜底；有效值 >15s 启动失败（`GatewayCacheBoundaryValidator`） |
-| `accessmesh.cache.catalogs."[gw:interface-snapshot]".l1-maximum-size` | `50000`（catalog 声明） | 本地快照最大条目 |
+| `gateway.permission.interface-admission-path` | `/api/access/auth/interface-admission` | 在线准入判定（回退实时鉴权用，T-ACCESS-059） |
+| `gateway.permission.interface-admission-snapshot-path` | `/api/access/auth/interface-admission-snapshot` | 准入快照拉取（本地判定主路径，T-ACCESS-059） |
+| `accessmesh.cache.catalogs."[gw:interface-admission-snapshot]".l1-ttl` | `15s`（catalog 声明） | 准入快照 TTL 兜底；有效值 >15s 启动失败（`GatewayCacheBoundaryValidator`；完整边界推导归 T-ACCESS-060） |
+| `accessmesh.cache.catalogs."[gw:interface-admission-snapshot]".l1-maximum-size` | `50000`（catalog 声明） | 本地准入快照最大条目 |
 
 > T-ACCESS-008 已删除配置：`gateway.cache.l1.ttl-seconds` / `max-size`（统一到 catalog + `accessmesh.cache` 覆盖）、`gateway.cache.l1.stale-grace-seconds`（stale-allow 删除）、`gateway.permission.fail-mode`（固定 fail-closed，不可切换）。
 
@@ -148,7 +150,7 @@ Gateway 通过 Micrometer 暴露 Prometheus 指标。依赖 `spring-boot-starter
 | 指标名 | Tag | 含义 |
 |---|---|---|
 | `gateway.perm.unreachable` | `source=snapshot` | 快照回源不可达计数 |
-| `gateway.perm.unreachable` | `source=check_interface` | fallback check-interface 不可达计数 |
+| `gateway.perm.unreachable` | `source=interface_admission` | 在线准入回源不可达计数（T-ACCESS-059 起） |
 | `gateway.perm.fallback` | `mode=closed, reason=denied` | fail-closed 拒绝次数 |
 | `gateway.perm.fallback` | `mode=closed, reason=deadline_exceeded` | 快照加载超 5 秒硬截止次数 |
 

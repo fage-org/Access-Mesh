@@ -66,8 +66,13 @@ public interface BootstrapSeedWriter {
 
     /**
      * 写 resource_api_mapping（service_code=access-service、match_order=0、enabled=true）。
+     *
+     * @param requiredTypeCode       准入要求业务资源类型码（T-ACCESS-059：无迁移期统一
+     *                               OPERATION_ADMISSION，映射必绑业务操作引用）
+     * @param requiredOperationCode  准入要求操作码（与类型码成对）
      */
-    record ApiMappingSeed(Long resourceEntityId, String httpMethod, String pathPattern) {}
+    record ApiMappingSeed(Long resourceEntityId, String httpMethod, String pathPattern,
+                          String requiredTypeCode, String requiredOperationCode) {}
 
     void insertApiMappings(Long tenantId, List<ApiMappingSeed> mappings);
 

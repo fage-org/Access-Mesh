@@ -31,7 +31,7 @@ tasks:
   - T-ACCESS-062
   - T-PERM-054
 acceptance: "两个完成条件各自闭合：①T-PERM-092（旧执行体与四旧 DTO 退出）可在仍有 LEGACY_API 服务时完成——legacy 语义经新 execute 表达；②T-ACCESS-062（全服务迁完、API 独立授权与 legacy 协议退役）。设计 §11 最终完成定义逐条有对应项目测试与运行证据"
-last_updated: 2026-09-27
+last_updated: 2026-09-28
 ---
 
 # R2 权限查询引擎统一与操作准入（方案 A）
@@ -85,8 +85,8 @@ last_updated: 2026-09-27
 |---|---|---|
 | [T-ACCESS-056](../tasks/T-ACCESS-056.md) | 准入定案回写与协议落账（ADM-T01） | ✅ |
 | [T-ACCESS-057](../tasks/T-ACCESS-057.md) | OPERATION_ADMISSION 阶段与新结果（ADM-T02） | ✅ |
-| [T-ACCESS-058](../tasks/T-ACCESS-058.md) | 映射模型、服务模式与同步/管理面（ADM-T03） | 👀 |
-| [T-ACCESS-059](../tasks/T-ACCESS-059.md) | 新端点、快照与 SDK/网关链路（ADM-T04） | ⚙️ |
+| [T-ACCESS-058](../tasks/T-ACCESS-058.md) | 映射模型、服务模式与同步/管理面（ADM-T03） | ✅ |
+| [T-ACCESS-059](../tasks/T-ACCESS-059.md) | 新端点、快照与 SDK/网关链路（ADM-T04） | ✅ |
 | [T-ACCESS-060](../tasks/T-ACCESS-060.md) | 失效、TTL 边界与在途代次（ADM-T05） | ⚙️ |
 | [T-ACCESS-061](../tasks/T-ACCESS-061.md) | 逐服务业务最终检查与模式切换（ADM-T06） | ⚙️ |
 | [T-ACCESS-062](../tasks/T-ACCESS-062.md) | API 独立授权与 legacy 协议退役（ADM-T07） | ⚙️ |
@@ -115,6 +115,8 @@ last_updated: 2026-09-27
 - 2026-09-27 T-PERM-090 追加处置：advice 回归锁补强 HTTP 层（MockMvc standalone：400＋VALIDATION_FAILED 信封＋`@Order(0)` 优先级，双 advice 反序挂载使摘除即落 common 兜底 500）；rule/skill 旧引擎引导残留 6 处换 QueryGate（skill 双副本同步）；设计 §6.5 089 注与 089 卡定案口径行「保留键」补注已改 400；090 验收行删 091 归属两面、089 卡遗留行补记旧快照已随 090 交付。
 - 2026-09-27 T-PERM-091 完成：视图/转授两面切新 execute，旧引擎生产消费者清零（仅剩 092 删除动作；PermQuery 静态助手 inheritClosureOf 归 092 收编）。迁移形态、X03 差异、追加修正（视图面 clientIp 装配、装配器事实↔投影源关联）与回归证据见[任务卡](../tasks/T-PERM-091.md)。
 - 2026-09-27 T-PERM-092 完成：旧执行体与四旧 DTO＋TargetMode/ResolveContext 删除（X04 退役锁入 QueryBoundaryArchitectureTest；inheritClosureOf 收编 check 适配层私有）；characterization 五类清面改写（断言与事实集保留，服务面/直构 execute 驱动）；implementation.md §3 族整体重写为 R2 终态（设计稿 §2~§5 标注已并入）；指令面 rule/skill 双副本/AGENTS 与活文档现在时残留同批清扫；089/090 卡与进度区过程叙事按文档治理改终态事实。R2 入口统一完成条件闭合（计划第二完成条件=T-ACCESS-062）。迁移细节与验证证据见[任务卡](../tasks/T-PERM-092.md)。
+- 2026-09-28 T-ACCESS-057/058 收口补记（进度区此前滞后，同批归位）：057——OPERATION_ADMISSION 阶段落地（掩码语义对齐收口），终态见[任务卡](../tasks/T-ACCESS-057.md)；058——映射操作引用与独立维护来源落地（sync-v2 双身份、评审 P2×1+P3×8 处置、全量含 E2E/heavy BUILD SUCCESS），终态见[任务卡](../tasks/T-ACCESS-058.md)。
+- 2026-09-28 T-ACCESS-059 完成：无迁移期统一上线（用户六项拍板：①全部服务一次切 OPERATION_ADMISSION、网关单链无模式发现；②网关直接切新链删旧链（回退=回滚网关版本，服务端旧端点留 062）；③access-service 自身端点也接准入——固定图 105 路由按服务层门禁同码补操作引用+两笔补授；④端点身份=凭证+网关内部密钥并存（M2M 白名单扩两端点，凭证限自身服务）；⑤configGeneration=service_config 计数列（四挂点同事务 bump、快照构建独立语句复读自一致）；⑥SDK 只加 PermissionClient 两方法）。interface-admission 族两端点+快照装配（多要求一次 execute、候选归并、条件内联共享 GatewayPushableRules）、网关四态 matcher+过期缓存 miss 重载（评审 P1 修复+红跑实证）、迁移脚本 059、E2E 双切片同批改造；契约 §25/设计 §8.4/gateway.md/engine 册等十册回写+skill 双副本。N11/N12/N14/N15/N21/N22/N28 验收证据与全量 BUILD SUCCESS 见[任务卡](../tasks/T-ACCESS-059.md)。T-ACCESS-060 依赖解锁（TTL 边界推导与失效演练）。
 - 2026-09-27 T-ACCESS-056 完成：准入协议落契约总册 [§25](../design/access-service-api-contract.md#operation-admission-protocol)（OPERATION_ADMISSION／interface-admission 族目标契约：端点与快照 DTO、requiredPermission、候选/路由/迁移规则、N 系分配索引）；两配置故障错误码与 §20.2 词表增量随枚举落账（契约先行）；设计 §10.3 补验收归属列、§7/§8 章首补落账指针。落账拍板与外评处置见[任务卡](../tasks/T-ACCESS-056.md)。
 
 ## 附录 A：全仓旧执行体清点册（T-PERM-080 产出）

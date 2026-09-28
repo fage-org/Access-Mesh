@@ -132,6 +132,8 @@ CREATE TABLE service_credential (
 
 接口声明新版 `POST /api/access/service-config/sync-v2` 纳入凭证白名单（T-ACCESS-058，2026-09-27）：凭证只能维护自身租户/服务，同时保留管理员的 SERVICE:SYNC_INTERFACE 门禁；旧共享密钥的纯服务身份不进入该新端点。旧 `/sync` 仍按原协议保留，后续统一退役。
 
+操作准入两端点 `POST /api/access/auth/interface-admission` / `interface-admission-snapshot` 纳入凭证白名单（T-ACCESS-059，2026-09-28）：**运行时查询族首批凭证化端点（Q-040 收敛方向）**——凭证调用受「serviceCode=凭证所属服务」约束（sync-v2 先例）；网关沿用内部密钥平台信任域形态（无 X-Service-Code 自报头，§3.2 TLS 段口径），旧密钥＋自报服务头的纯服务调用拒绝 403（同 sync-v2 的拦截器按 URI 拒绝形态）。
+
 **上线序（服务端先行，向后兼容，替代"同批发布"旧口径）**：①先发布 access-service 仲裁器——无凭证头的存量调用方（Gateway 注入密钥、SDK 注入密钥+自报头）行为零变化（状态表第 3/4 行）；携带凭证头的请求直接走凭证链生效。②后发布 Gateway 改动（凭证头透传、`InternalSecretFilter` 收窄为「无凭证头才兜底注入」、M2M 放行链）与新版 SDK——窗口期"凭证头 + 注入密钥并存"由服务端仲裁器**凭证优先**规则消解（§3.2 状态表第 1 行），不存在"凭证绑定被旁路"的空窗，无需不可原子实现的同批发布。
 
 ---

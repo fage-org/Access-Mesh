@@ -3001,7 +3001,7 @@ schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正�
 
 ### 25.1 模式与两层判定（方案 A）
 
-`service_config` 增加每服务鉴权模式 `api_auth_mode = LEGACY_API / OPERATION_ADMISSION`（随 T-ACCESS-058 落地，NOT NULL DEFAULT 'LEGACY_API'；由可信服务配置控制，**不接受客户端模式头**）。迁移期两模式按服务并存；LEGACY_API 沿用 §18.3/§18.4 旧协议（check-interface / interface-snapshot，API:ACCESS 资源语义），终态退役见 T-ACCESS-062。
+`service_config` 增加每服务鉴权模式 `api_auth_mode = LEGACY_API / OPERATION_ADMISSION`（随 T-ACCESS-058 落地；**T-ACCESS-059 拍板无迁移期统一上线（2026-09-28）：全部服务（含 access-service 自身）一次切 OPERATION_ADMISSION，网关单链无模式发现，DDL 缺省改 OPERATION_ADMISSION，存量库经迁移脚本 `docs/ops/operation-admission-migrate-059.sql` 全量切换；LEGACY_API 值仅作 T-ACCESS-062 退役前的版本回退部署形态（服务端准入端点对 LEGACY_API 服务按配置故障 20071 拒绝），迁移期「按服务选择」口径不再适用**）。LEGACY_API 沿用 §18.3/§18.4 旧协议（check-interface / interface-snapshot，API:ACCESS 资源语义），终态退役见 T-ACCESS-062。
 
 OPERATION_ADMISSION 模式下接口检查为两层判定，**不生成第二份 API 授权**：
 
@@ -3026,7 +3026,7 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
 
 **映射管理与同步写入（T-ACCESS-058）**：
 
-- `service-config/save` 增加可选 `apiAuthMode`（LEGACY_API / OPERATION_ADMISSION）；创建缺省 LEGACY_API，更新缺省不修改。响应返回该模式；客户端请求头和同步清单均不能切换模式。
+- `service-config/save` 增加可选 `apiAuthMode`（LEGACY_API / OPERATION_ADMISSION）；**创建缺省 OPERATION_ADMISSION（T-ACCESS-059 无迁移期口径，与 DDL 缺省一致）**，更新缺省不修改；模式或启停变化同事务递增 `config_generation`。响应返回该模式；客户端请求头和同步清单均不能切换模式。
 - 映射 create/update 增加 `requiredPermission`；更新省略时保留已有要求，改绑时提交完整类型与操作。LEGACY_API 可提前配置要求，OPERATION_ADMISSION 保存时必须有有效要求。无要求不是公共接口。
 - 映射列表及 create/update 响应返回 `requiredPermission` 和映射自身的 `maintainSource`（MANUAL/SERVICE_SYNC/BOOTSTRAP）；不再从登记资源推断映射维护来源。类型取自操作定义，不重复持久化。
 - 新增 `POST /api/access/service-config/sync-v2`，顶层仍为 `{serviceCode, basePath?, syncMode:"FULL", groups:[{groupCode, groupName, apis:[]}]}`；ApiItem 仍有 `name/httpMethod/path/resourceCode/description?`，新增必填 `requiredPermission`。独立 DTO 与端点表达版本，旧 `/sync` 不接受新字段。整批任一必要引用无效则回滚，成功响应沿用同步新增/更新/删除计数。
@@ -3041,7 +3041,7 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
 | `POST /api/access/auth/interface-admission` | 在线操作准入判定（网关回源／灰度强制在线用） |
 | `POST /api/access/auth/interface-admission-snapshot` | 按服务+主体拉取准入快照（网关本地判定用） |
 
-两端点为 M2M 调用，SDK `PermissionClient` 显式按可信服务模式调用；**其身份形态（per-service 凭证 vs 旧全局密钥）须与 [Q-040](../pending-problems.md)（两套服务身份统一）收敛方向对齐**，避免扩大旧密钥面（登记注记沿 T-ACCESS-059）。新模式失败**不回落**旧 API:ACCESS 路径。
+两端点为 M2M 调用，SDK `PermissionClient` 显式按可信服务模式调用；**身份形态（T-ACCESS-059 落地，2026-09-28）：per-service 凭证 + 网关内部密钥并存——两端点入 `M2mCredentialEndpoints` 凭证白名单（Q-040 收敛方向：运行时查询族首批凭证化端点），凭证调用按 sync-v2 先例约束 `serviceCode=凭证所属服务`（服务端校验）；网关沿用 X-Internal-Secret 平台信任域形态（service-authentication §3.2），旧密钥 + 自报 X-Service-Code 的纯服务调用拒绝 403（sync-v2 先例，不扩大旧密钥面）**。新模式失败**不回落**旧 API:ACCESS 路径；**网关消费形态（T-ACCESS-059）：PermissionFilter 直接切新链（准入快照 + 本地四态判定 + interface-admission 回源），网关侧旧链消费（interface-snapshot 拉取/旧 matcher/check-interface 调用）删除，服务端旧端点保留至 T-ACCESS-062；回退=回滚网关版本**。两端点随 T-ACCESS-059 已实现（`PermissionAdmissionAppService`）。
 
 **interface-admission 请求**（沿 check-interface 形态）：
 
@@ -3112,10 +3112,10 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
 
 - `routes[]` 携带该服务**完整启用路由**与各自要求；不按用户权限裁剪规则（§25.5 完整配置优先）。
 - `operationCandidates[]` 为最终准入投影（原始 GrantFact 不去重合并）：**每个元素承载一个条件身份（无条件用 `conditionId: null`）＋一个具体 `candidateKind`（`ALL`/`INSTANCE`/`CONTEXT_DEFERRED` 三选一）**，同一 type-operation 的不同条件身份或候选类别分列多个元素（设计 §8.4 归并键：type-operation＋conditionId／无条件身份＋候选类别）；仅上下文子行提供的候选保留 `CONTEXT_DEFERRED`，不伪装成主授权。`gatewayEvaluable` 表示该分支条件可否本地评估（false＝需回源，不表示通过）。**条件候选（`conditionId` 非 null）在 `gatewayEvaluable=true` 且规则类型全在四类型白名单（DATE_RANGE/TIME_RANGE/IP_WHITELIST/IP_BLACKLIST）内时内联 `conditionRules`——String 规则原文，同 §15 `ConditionResp.conditionRules` 的 `{logic, items[]}` 形态，沿旧快照 `ApiPermissionEntry.conditionRules` 同构传输（§18.4）；其余情况省略该字段，网关按需回源分支处理**。`gatewayEvaluable=true` 但 `conditionRules` 缺失或解析失败＝不可用分支（不通过、不转为无条件），无其他通过分支时回源在线判定（N11，同旧快照 FALLBACK 形态）。
-- `configGeneration`＝构建期自一致校验（2026-09-25 拍板限定语义）：构建前后代次比对、变更即废弃重建，接收侧代次匹配检查；不承诺跨节点授权版本强一致。
-- 快照不携带用于绕过业务最终检查的「实例已授权」证明；客户端传入 `finalCheckRequired=false` 不能改变服务配置。
+- `configGeneration`＝构建期自一致校验（2026-09-25 拍板限定语义）：构建前后代次比对、变更即废弃重建，接收侧代次匹配检查；不承诺跨节点授权版本强一致。**载体（T-ACCESS-059 拍板，2026-09-28）：`service_config.config_generation` 计数列（BIGINT NOT NULL DEFAULT 0），该服务映射写路径（共用保存入口/删除/FULL 清理）与模式切换同事务 +1；快照构建以独立语句复读代次（绕开会话缓存假读），有限重试后仍不稳定按技术故障失败关闭。**
+- 快照不携带用于绕过业务最终检查的「实例已授权」证明；客户端传入 `finalCheckRequired=false` 不能改变服务配置。**候选投影与快照响应 DTO 已随 T-ACCESS-059 落地（`InterfaceAdmissionSnapshotResp`，schemaVersion=1）；routes 携带该服务完整启用路由（access-service 自身管理端点同样接入，各端点要求=服务层 QueryGate 门禁同码——开放读端点按所属类型 VIEW 绑定；`auth/query-scopes` M2M 种子映射移出固定图停用）。**
 
-**网关本地判定序**（固定顺序）：校验模式／版本／时效 → 完整路由匹配与歧义检测 → 取得唯一要求 → 评该要求的条件分支。存在无条件或条件通过分支即 MAY_ENTER；无通过分支但有需远端求值的候选则回源在线判定；其余拒绝。坏条件显式不可用（不能因空 rules 成为无条件）。新快照缺失、远端不可用、未知 schema 不得自动 OR 旧权限或 stale-allow，按现行失败关闭路径返回技术错误（§25.6）。
+**网关本地判定序**（固定顺序）：校验模式／版本／时效 → 完整路由匹配与歧义检测 → 取得唯一要求 → 评该要求的条件分支。存在无条件或条件通过分支即 MAY_ENTER；无通过分支但有需远端求值的候选则回源在线判定；其余拒绝。坏条件显式不可用（不能因空 rules 成为无条件；**内联规则解析失败同样按不可用分支回源，不转为无条件——T-ACCESS-059 实现口径**）；CONTEXT_DEFERRED 分支恒不可本地评估（父运行时判定归在线/业务）。本地四态（ALLOW／FALLBACK／DENY／CONFIG_FAULT）由 `InterfaceAdmissionMatcher` 实现：CONFIG_FAULT（路由歧义/未知 schema/时效或模式校验失败）对终端 503，不伪装用户无权限。新快照缺失、远端不可用、未知 schema 不得自动 OR 旧权限或 stale-allow，按现行失败关闭路径返回技术错误（§25.6）。
 
 ### 25.3 准入候选与子行规则
 

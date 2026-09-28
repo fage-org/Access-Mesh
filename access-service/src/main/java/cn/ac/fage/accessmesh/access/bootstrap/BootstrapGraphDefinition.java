@@ -67,9 +67,20 @@ public final class BootstrapGraphDefinition {
      * @param name           资源显示名（授权页资源树可见）
      * @param withMapping    是否预建 resource_api_mapping（目标接口 false，映射归 E2E 真实创建）
      * @param grantCanGrant  该 API 实例授权是否携带 canGrant=true（仅目标接口，授权传递用）
+     * @param requiredTypeCode    准入要求业务资源类型码（T-ACCESS-059：无迁移期统一 OPERATION_ADMISSION，
+     *                            每条映射必须绑定业务操作引用；null 仅目标接口合法）
+     * @param requiredOperationCode 准入要求操作码（与类型码成对）
      */
     public record ApiRoute(String method, String path, String name,
-                           boolean withMapping, boolean grantCanGrant) {}
+                           boolean withMapping, boolean grantCanGrant,
+                           String requiredTypeCode, String requiredOperationCode) {
+
+        /** 常规形态：预建映射 + 准入要求（管理端点按服务层 QueryGate 门禁同码绑定）。 */
+        public static ApiRoute route(String method, String path, String name,
+                                     String requiredTypeCode, String requiredOperationCode) {
+            return new ApiRoute(method, path, name, true, false, requiredTypeCode, requiredOperationCode);
+        }
+    }
 
     /**
      * 业务门禁授权条目（Gateway 层 API:ACCESS 实例授权由 {@link #apiRoutes()} 派生，不在此列）。
@@ -129,171 +140,178 @@ public final class BootstrapGraphDefinition {
 
     /**
      * bootstrap 管理 API 清单（§14.3；含目标接口，计数以清单本身为准）。
+     * <p>
+     * T-ACCESS-059（无迁移期统一 OPERATION_ADMISSION，2026-09-28 拍板）：每条预建映射绑定
+     * 业务操作引用——取值规则＝该端点服务层 QueryGate 门禁同码（接口→业务资源类型与操作，
+     * 契约 §25.1；网关准入候选来自固定图既有类型级业务授权，双层同码）。服务层无门禁的
+     * 开放读端点按所属类型 VIEW 绑定并同批补授（condition/list、org-tree-config/page），
+     * 维持「管理员可过、未授权者拒」的现行行为；无消费者的 M2M 种子端点移出固定图
+     * （auth/query-scopes——SDK 直连不经网关，排查页已随 T-PERM-059 删除，存量行由迁移
+     * 脚本 059 停用）。job/create|update|delete 绑定 ADMIN_JOB 对应操作但固定图不授——
+     * 网关 403 与现行服务层 403（拍板收窄形态）终端结果一致。
+     * </p>
      */
     public static List<ApiRoute> apiRoutes() {
         return List.of(
-            new ApiRoute("POST", "/api/access/abstract-role/tree", "bootstrap:授权页角色树", true, false),
-            new ApiRoute("POST", "/api/access/type-definition/list", "bootstrap:授权页类型定义列表", true, false),
-            new ApiRoute("POST", "/api/access/resource-entity/tree", "bootstrap:授权页资源树", true, false),
-            new ApiRoute("POST", "/api/access/operation-permission/list", "bootstrap:授权页操作列表", true, false),
-            new ApiRoute("POST", "/api/access/permission-condition/list", "bootstrap:授权页条件列表", true, false),
-            new ApiRoute("POST", "/api/access/role-resource-permission/list", "bootstrap:授权页既有授权查询", true, false),
-            new ApiRoute("POST", "/api/access/role-resource-permission/sub-perm-allowed-types", "bootstrap:授权页子权限类型查询", true, false),
-            new ApiRoute("POST", "/api/access/role-resource-permission/preview-grant-plan", "bootstrap:授撤影响预览", true, false),
-            new ApiRoute("POST", "/api/access/user/create", "bootstrap:创建用户", true, false),
-            new ApiRoute("POST", "/api/access/abstract-role/create", "bootstrap:创建角色", true, false),
-            new ApiRoute("POST", "/api/access/resource-api-mapping/create", "bootstrap:创建API映射", true, false),
-            new ApiRoute("POST", "/api/access/role-resource-permission/apply-grant-plan", "bootstrap:授权与回收", true, false),
-            new ApiRoute("POST", "/api/access/user-role/assign", "bootstrap:分配角色", true, false),
+            ApiRoute.route("POST", "/api/access/abstract-role/tree", "bootstrap:授权页角色树", ResourceTypeCode.ROLE, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/type-definition/list", "bootstrap:授权页类型定义列表", ResourceTypeCode.TYPE_DEFINITION, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/resource-entity/tree", "bootstrap:授权页资源树", ResourceTypeCode.RESOURCE, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/operation-permission/list", "bootstrap:授权页操作列表", ResourceTypeCode.OPERATION, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/permission-condition/list", "bootstrap:授权页条件列表", ResourceTypeCode.CONDITION, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/role-resource-permission/list", "bootstrap:授权页既有授权查询", ResourceTypeCode.ROLE, OperationCode.MANAGE),
+            ApiRoute.route("POST", "/api/access/role-resource-permission/sub-perm-allowed-types", "bootstrap:授权页子权限类型查询", ResourceTypeCode.ROLE, OperationCode.MANAGE),
+            ApiRoute.route("POST", "/api/access/role-resource-permission/preview-grant-plan", "bootstrap:授撤影响预览", ResourceTypeCode.ROLE, OperationCode.MANAGE),
+            ApiRoute.route("POST", "/api/access/user/create", "bootstrap:创建用户", ResourceTypeCode.USER, OperationCode.CREATE),
+            ApiRoute.route("POST", "/api/access/abstract-role/create", "bootstrap:创建角色", ResourceTypeCode.ROLE, OperationCode.CREATE),
+            ApiRoute.route("POST", "/api/access/resource-api-mapping/create", "bootstrap:创建API映射", ResourceTypeCode.SERVICE, OperationCode.MANAGE_API_MAPPING),
+            ApiRoute.route("POST", "/api/access/role-resource-permission/apply-grant-plan", "bootstrap:授权与回收", ResourceTypeCode.ROLE, OperationCode.MANAGE),
+            ApiRoute.route("POST", "/api/access/user-role/assign", "bootstrap:分配角色", ResourceTypeCode.ROLE, OperationCode.MANAGE),
             // T-FE-015：组织与用户页消费端点（Gateway 层逐端点精确注册——未映射路径
             // fail-closed 403，Phase 3 首次真实联调暴露的系统性缺口；端点级粒度对齐
             // 产品 API 级授权能力，后续联调任务按页同样扩展）。/api/access/user/create 已在上方清单
-            new ApiRoute("POST", "/api/access/org-tree-config/page", "bootstrap:组织树配置分页", true, false),
-            new ApiRoute("POST", "/api/access/org/tree", "bootstrap:组织树查询", true, false),
-            new ApiRoute("POST", "/api/access/org/page", "bootstrap:组织分页", true, false),
-            new ApiRoute("POST", "/api/access/org/create", "bootstrap:创建组织", true, false),
-            new ApiRoute("POST", "/api/access/org/update", "bootstrap:更新组织", true, false),
-            new ApiRoute("POST", "/api/access/org/delete", "bootstrap:删除组织", true, false),
-            new ApiRoute("POST", "/api/access/org/users", "bootstrap:组织成员查询", true, false),
-            new ApiRoute("POST", "/api/access/user/page", "bootstrap:用户分页", true, false),
-            new ApiRoute("POST", "/api/access/user/update", "bootstrap:更新用户", true, false),
-            new ApiRoute("POST", "/api/access/user/delete", "bootstrap:删除用户", true, false),
-            new ApiRoute("POST", "/api/access/user/enable", "bootstrap:用户启停", true, false),
+            ApiRoute.route("POST", "/api/access/org-tree-config/page", "bootstrap:组织树配置分页", ResourceTypeCode.ADMIN_ORG_TREE_CONFIG, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/org/tree", "bootstrap:组织树查询", ResourceTypeCode.ORG, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/org/page", "bootstrap:组织分页", ResourceTypeCode.ORG, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/org/create", "bootstrap:创建组织", ResourceTypeCode.ORG, OperationCode.CREATE),
+            ApiRoute.route("POST", "/api/access/org/update", "bootstrap:更新组织", ResourceTypeCode.ORG, OperationCode.UPDATE),
+            ApiRoute.route("POST", "/api/access/org/delete", "bootstrap:删除组织", ResourceTypeCode.ORG, OperationCode.DELETE),
+            ApiRoute.route("POST", "/api/access/org/users", "bootstrap:组织成员查询", ResourceTypeCode.ORG, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/user/page", "bootstrap:用户分页", ResourceTypeCode.USER, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/user/update", "bootstrap:更新用户", ResourceTypeCode.USER, OperationCode.UPDATE),
+            ApiRoute.route("POST", "/api/access/user/delete", "bootstrap:删除用户", ResourceTypeCode.USER, OperationCode.DELETE),
+            ApiRoute.route("POST", "/api/access/user/enable", "bootstrap:用户启停", ResourceTypeCode.USER, OperationCode.ENABLE),
             // T-GW-009（2026-09-19 用户拍板「保行+标注失效」）：该端点已入 Gateway 白名单
-            // （会话入口族）——本行的 API:ACCESS 位对 Gateway 放行不再生效（skipAuth 短路
-            // 先于快照鉴权），端点真实边界=服务层门禁（自身免门禁/非自身 USER:RESET_PASSWORD，
-            // T-PERM-067）；保留行作白名单回滚面（去白名单条目即恢复 Gateway 快照强制）。
-            new ApiRoute("POST", "/api/access/user/reset-password", "bootstrap:重置密码", true, false),
-            new ApiRoute("POST", "/api/access/user/member-candidates", "bootstrap:成员候选查询", true, false),
-            new ApiRoute("POST", "/api/access/user-org/list", "bootstrap:用户组织查询", true, false),
-            new ApiRoute("POST", "/api/access/user-org/assign", "bootstrap:分配组织", true, false),
-            new ApiRoute("POST", "/api/access/user-org/remove", "bootstrap:移除组织关联", true, false),
-            new ApiRoute("POST", "/api/access/user-org/set-primary", "bootstrap:设置主组织", true, false),
-            new ApiRoute("POST", "/api/access/user-role/view", "bootstrap:用户角色管理视图", true, false),
-            new ApiRoute("POST", "/api/access/user-role/revoke", "bootstrap:回收角色", true, false),
+            // （会话入口族）——准入要求对 Gateway 放行不再生效（skipAuth 短路先于准入判定），
+            // 端点真实边界=服务层门禁（自身免门禁/非自身 USER:RESET_PASSWORD，T-PERM-067）；
+            // 保留行作白名单回滚面（去白名单条目即恢复 Gateway 准入强制）。
+            ApiRoute.route("POST", "/api/access/user/reset-password", "bootstrap:重置密码", ResourceTypeCode.USER, OperationCode.RESET_PASSWORD),
+            ApiRoute.route("POST", "/api/access/user/member-candidates", "bootstrap:成员候选查询", ResourceTypeCode.ORG, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/user-org/list", "bootstrap:用户组织查询", ResourceTypeCode.ORG, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/user-org/assign", "bootstrap:分配组织", ResourceTypeCode.ORG, OperationCode.MANAGE_MEMBER),
+            ApiRoute.route("POST", "/api/access/user-org/remove", "bootstrap:移除组织关联", ResourceTypeCode.ORG, OperationCode.MANAGE_MEMBER),
+            ApiRoute.route("POST", "/api/access/user-org/set-primary", "bootstrap:设置主组织", ResourceTypeCode.ORG, OperationCode.MANAGE_MEMBER),
+            ApiRoute.route("POST", "/api/access/user-role/view", "bootstrap:用户角色管理视图", ResourceTypeCode.USER, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/user-role/revoke", "bootstrap:回收角色", ResourceTypeCode.ROLE, OperationCode.MANAGE),
             // /api/access/role/list 已退役（T-FE-058，2026-09-23）：功能角色候选迁
             // /abstract-role/list（角色管理页同端点，keyword+分页）；管理轨仅类型级 VIEW
             // 门禁且无分页的旧通道删除，存量库资源行/映射/授权惰性残留（runbook 订正语句）
             // T-FE-016：角色管理页消费端点（tree/create 已在上方清单）——update/remove/move
             // 写路径 + detail 编辑回显（树节点无 extra 字段，编辑表单按业务键拉 detail 回填，
             // role-manage.md §8 既定路径）。list 端点本页不消费（冲突规则页 T-FE-020 届时注册）
-            new ApiRoute("POST", "/api/access/abstract-role/update", "bootstrap:更新角色", true, false),
-            new ApiRoute("POST", "/api/access/abstract-role/remove", "bootstrap:删除角色", true, false),
-            new ApiRoute("POST", "/api/access/abstract-role/move", "bootstrap:移动角色", true, false),
-            new ApiRoute("POST", "/api/access/abstract-role/detail", "bootstrap:角色详情", true, false),
+            ApiRoute.route("POST", "/api/access/abstract-role/update", "bootstrap:更新角色", ResourceTypeCode.ROLE, OperationCode.MANAGE),
+            ApiRoute.route("POST", "/api/access/abstract-role/remove", "bootstrap:删除角色", ResourceTypeCode.ROLE, OperationCode.MANAGE),
+            ApiRoute.route("POST", "/api/access/abstract-role/move", "bootstrap:移动角色", ResourceTypeCode.ROLE, OperationCode.MANAGE),
+            ApiRoute.route("POST", "/api/access/abstract-role/detail", "bootstrap:角色详情", ResourceTypeCode.ROLE, OperationCode.VIEW),
             // T-FE-017：资源与操作定义页消费端点（tree、operation-permission/list 已在上方清单）。
-            // resource-entity/detail 编辑回显（树节点无 extra，按业务键拉 detail）；operation detail
+            // resource-entity/detail 编辑回显（树节点无 extra，按业务键拉 detail 回填）；operation detail
             // 与 resource list 本页不消费不注册（后续消费页按页注册）；remove 为批量端点（items 集合）
-            new ApiRoute("POST", "/api/access/resource-entity/detail", "bootstrap:资源详情", true, false),
-            new ApiRoute("POST", "/api/access/resource-entity/create", "bootstrap:创建资源", true, false),
-            new ApiRoute("POST", "/api/access/resource-entity/update", "bootstrap:更新资源", true, false),
-            new ApiRoute("POST", "/api/access/resource-entity/move", "bootstrap:移动资源", true, false),
-            new ApiRoute("POST", "/api/access/resource-entity/remove", "bootstrap:删除资源", true, false),
-            new ApiRoute("POST", "/api/access/operation-permission/create", "bootstrap:创建操作权限", true, false),
-            new ApiRoute("POST", "/api/access/operation-permission/update", "bootstrap:更新操作权限", true, false),
-            new ApiRoute("POST", "/api/access/operation-permission/remove", "bootstrap:删除操作权限", true, false),
+            ApiRoute.route("POST", "/api/access/resource-entity/detail", "bootstrap:资源详情", ResourceTypeCode.RESOURCE, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/resource-entity/create", "bootstrap:创建资源", ResourceTypeCode.RESOURCE, OperationCode.CREATE),
+            ApiRoute.route("POST", "/api/access/resource-entity/update", "bootstrap:更新资源", ResourceTypeCode.RESOURCE, OperationCode.MANAGE),
+            ApiRoute.route("POST", "/api/access/resource-entity/move", "bootstrap:移动资源", ResourceTypeCode.RESOURCE, OperationCode.MANAGE),
+            ApiRoute.route("POST", "/api/access/resource-entity/remove", "bootstrap:删除资源", ResourceTypeCode.RESOURCE, OperationCode.MANAGE),
+            ApiRoute.route("POST", "/api/access/operation-permission/create", "bootstrap:创建操作权限", ResourceTypeCode.OPERATION, OperationCode.CREATE),
+            ApiRoute.route("POST", "/api/access/operation-permission/update", "bootstrap:更新操作权限", ResourceTypeCode.OPERATION, OperationCode.MANAGE),
+            ApiRoute.route("POST", "/api/access/operation-permission/remove", "bootstrap:删除操作权限", ResourceTypeCode.OPERATION, OperationCode.MANAGE),
             // T-FE-020：条件与冲突规则页消费端点（condition/list、type-definition/list、
             // operation-permission/list 已在上方清单）。condition/detail 页面不消费不注册；
-            // abstract-role/list 为冲突规则页角色选择器消费（T-FE-016 登记的届时注册事项）；
-            // 业务门禁零新增（CONFLICT_RULE 四档与 CONDITION 写三档已在图，T-PERM-029/030 预置）
-            new ApiRoute("POST", "/api/access/abstract-role/list", "bootstrap:冲突规则页角色列表", true, false),
-            new ApiRoute("POST", "/api/access/permission-condition/create", "bootstrap:创建条件", true, false),
-            new ApiRoute("POST", "/api/access/permission-condition/update", "bootstrap:更新条件", true, false),
-            new ApiRoute("POST", "/api/access/permission-condition/remove", "bootstrap:删除条件", true, false),
-            new ApiRoute("POST", "/api/access/conflict-rule/list", "bootstrap:冲突规则列表", true, false),
-            new ApiRoute("POST", "/api/access/conflict-rule/create", "bootstrap:创建冲突规则", true, false),
-            new ApiRoute("POST", "/api/access/conflict-rule/update", "bootstrap:更新冲突规则", true, false),
-            new ApiRoute("POST", "/api/access/conflict-rule/remove", "bootstrap:删除冲突规则", true, false),
-            new ApiRoute("POST", "/api/access/conflict-rule/detect", "bootstrap:冲突检测", true, false),
-            // query-scopes 运行时 SDK 契约端点（§6.7，无排查门禁）——固定图注册维持空库 API 映射种子。
-            // 权限排查页及其消费的 effective-permissions/explain 已删除（T-PERM-059，2026-09-10 删除重设计定案）
-            new ApiRoute("POST", "/api/access/auth/query-scopes", "bootstrap:范围权限四态", true, false),
+            // abstract-role/list 为冲突规则页角色选择器消费（T-FE-016 登记的届时注册事项）
+            ApiRoute.route("POST", "/api/access/abstract-role/list", "bootstrap:冲突规则页角色列表", ResourceTypeCode.ROLE, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/permission-condition/create", "bootstrap:创建条件", ResourceTypeCode.CONDITION, OperationCode.CREATE),
+            ApiRoute.route("POST", "/api/access/permission-condition/update", "bootstrap:更新条件", ResourceTypeCode.CONDITION, OperationCode.UPDATE),
+            ApiRoute.route("POST", "/api/access/permission-condition/remove", "bootstrap:删除条件", ResourceTypeCode.CONDITION, OperationCode.DELETE),
+            ApiRoute.route("POST", "/api/access/conflict-rule/list", "bootstrap:冲突规则列表", ResourceTypeCode.CONFLICT_RULE, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/conflict-rule/create", "bootstrap:创建冲突规则", ResourceTypeCode.CONFLICT_RULE, OperationCode.CREATE),
+            ApiRoute.route("POST", "/api/access/conflict-rule/update", "bootstrap:更新冲突规则", ResourceTypeCode.CONFLICT_RULE, OperationCode.UPDATE),
+            ApiRoute.route("POST", "/api/access/conflict-rule/remove", "bootstrap:删除冲突规则", ResourceTypeCode.CONFLICT_RULE, OperationCode.DELETE),
+            ApiRoute.route("POST", "/api/access/conflict-rule/detect", "bootstrap:冲突检测", ResourceTypeCode.CONFLICT_RULE, OperationCode.VIEW),
             // T-FE-021：业务域配置页消费端点（biz-domain 5 + domain-config 4，T-PERM-026 实现）。
             // biz-domain list/detail 门禁 DOMAIN:VIEW、写操作与 domain-config 门禁 SYSTEM_CONFIG:VIEW/MANAGE
             // ——两类均已在固定图（OPERATION_LOG 先例/系统配置页门禁），业务门禁零新增
-            new ApiRoute("POST", "/api/access/biz-domain/list", "bootstrap:业务域列表", true, false),
-            new ApiRoute("POST", "/api/access/biz-domain/detail", "bootstrap:业务域详情", true, false),
-            new ApiRoute("POST", "/api/access/biz-domain/create", "bootstrap:创建业务域", true, false),
-            new ApiRoute("POST", "/api/access/biz-domain/update", "bootstrap:更新业务域", true, false),
-            new ApiRoute("POST", "/api/access/biz-domain/remove", "bootstrap:删除业务域", true, false),
-            new ApiRoute("POST", "/api/access/domain-config/list", "bootstrap:域配置列表", true, false),
-            new ApiRoute("POST", "/api/access/domain-config/detail", "bootstrap:域配置详情", true, false),
-            new ApiRoute("POST", "/api/access/domain-config/save", "bootstrap:保存域配置", true, false),
-            new ApiRoute("POST", "/api/access/domain-config/remove", "bootstrap:删除域配置", true, false),
+            ApiRoute.route("POST", "/api/access/biz-domain/list", "bootstrap:业务域列表", ResourceTypeCode.DOMAIN, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/biz-domain/detail", "bootstrap:业务域详情", ResourceTypeCode.DOMAIN, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/biz-domain/create", "bootstrap:创建业务域", ResourceTypeCode.SYSTEM_CONFIG, OperationCode.MANAGE),
+            ApiRoute.route("POST", "/api/access/biz-domain/update", "bootstrap:更新业务域", ResourceTypeCode.SYSTEM_CONFIG, OperationCode.MANAGE),
+            ApiRoute.route("POST", "/api/access/biz-domain/remove", "bootstrap:删除业务域", ResourceTypeCode.SYSTEM_CONFIG, OperationCode.MANAGE),
+            ApiRoute.route("POST", "/api/access/domain-config/list", "bootstrap:域配置列表", ResourceTypeCode.SYSTEM_CONFIG, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/domain-config/detail", "bootstrap:域配置详情", ResourceTypeCode.SYSTEM_CONFIG, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/domain-config/save", "bootstrap:保存域配置", ResourceTypeCode.SYSTEM_CONFIG, OperationCode.MANAGE),
+            ApiRoute.route("POST", "/api/access/domain-config/remove", "bootstrap:删除域配置", ResourceTypeCode.SYSTEM_CONFIG, OperationCode.MANAGE),
             // T-FE-022：系统/服务配置与日志五页消费端点（type-definition/list、
             // resource-api-mapping/create 已在上方清单）。type-definition/detail、system-config/detail、
             // service-config/detail 页面不消费不注册——类型定义编辑用行数据、系统配置 save 幂等无
             // detail 需要、服务详情由 list 行数据展开；业务门禁仅 TYPE_DEFINITION:CREATE/MANAGE
             // 需本任务补授（见下方），其余（SYSTEM_CONFIG/OPERATION_LOG/PERMISSION_CHANGE_LOG/
             // SERVICE 四条）已在图
-            new ApiRoute("POST", "/api/access/type-definition/create", "bootstrap:创建类型定义", true, false),
-            new ApiRoute("POST", "/api/access/type-definition/update", "bootstrap:更新类型定义", true, false),
-            new ApiRoute("POST", "/api/access/type-definition/remove", "bootstrap:删除类型定义", true, false),
-            new ApiRoute("POST", "/api/access/system-config/list", "bootstrap:系统配置列表", true, false),
-            new ApiRoute("POST", "/api/access/system-config/save", "bootstrap:保存系统配置", true, false),
-            new ApiRoute("POST", "/api/access/service-config/list", "bootstrap:服务配置列表", true, false),
-            new ApiRoute("POST", "/api/access/service-config/save", "bootstrap:保存服务配置", true, false),
-            new ApiRoute("POST", "/api/access/service-config/remove", "bootstrap:删除服务配置", true, false),
-            new ApiRoute("POST", "/api/access/service-config/apis", "bootstrap:服务接口映射查询", true, false),
-            new ApiRoute("POST", "/api/access/service-config/sync", "bootstrap:服务接口FULL同步", true, false),
-            new ApiRoute("POST", "/api/access/service-config/sync-v2", "bootstrap:服务接口操作准入同步", true, false),
-            new ApiRoute("POST", "/api/access/resource-api-mapping/list", "bootstrap:接口映射列表", true, false),
-            new ApiRoute("POST", "/api/access/resource-api-mapping/update", "bootstrap:更新接口映射", true, false),
-            new ApiRoute("POST", "/api/access/resource-api-mapping/remove", "bootstrap:删除接口映射", true, false),
-            new ApiRoute("POST", "/api/access/log/operation/list", "bootstrap:操作日志列表", true, false),
-            new ApiRoute("POST", "/api/access/log/operation/action-options", "bootstrap:操作类型字典", true, false),
-            new ApiRoute("POST", "/api/access/log/change/list", "bootstrap:权限变更日志列表", true, false),
+            ApiRoute.route("POST", "/api/access/type-definition/create", "bootstrap:创建类型定义", ResourceTypeCode.TYPE_DEFINITION, OperationCode.CREATE),
+            ApiRoute.route("POST", "/api/access/type-definition/update", "bootstrap:更新类型定义", ResourceTypeCode.TYPE_DEFINITION, OperationCode.MANAGE),
+            ApiRoute.route("POST", "/api/access/type-definition/remove", "bootstrap:删除类型定义", ResourceTypeCode.TYPE_DEFINITION, OperationCode.MANAGE),
+            ApiRoute.route("POST", "/api/access/system-config/list", "bootstrap:系统配置列表", ResourceTypeCode.SYSTEM_CONFIG, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/system-config/save", "bootstrap:保存系统配置", ResourceTypeCode.SYSTEM_CONFIG, OperationCode.MANAGE),
+            ApiRoute.route("POST", "/api/access/service-config/list", "bootstrap:服务配置列表", ResourceTypeCode.SERVICE, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/service-config/save", "bootstrap:保存服务配置", ResourceTypeCode.SERVICE, OperationCode.MANAGE),
+            ApiRoute.route("POST", "/api/access/service-config/remove", "bootstrap:删除服务配置", ResourceTypeCode.SERVICE, OperationCode.MANAGE),
+            ApiRoute.route("POST", "/api/access/service-config/apis", "bootstrap:服务接口映射查询", ResourceTypeCode.SERVICE, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/service-config/sync", "bootstrap:服务接口FULL同步", ResourceTypeCode.SERVICE, OperationCode.SYNC_INTERFACE),
+            ApiRoute.route("POST", "/api/access/service-config/sync-v2", "bootstrap:服务接口操作准入同步", ResourceTypeCode.SERVICE, OperationCode.SYNC_INTERFACE),
+            ApiRoute.route("POST", "/api/access/resource-api-mapping/list", "bootstrap:接口映射列表", ResourceTypeCode.SERVICE, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/resource-api-mapping/update", "bootstrap:更新接口映射", ResourceTypeCode.SERVICE, OperationCode.MANAGE_API_MAPPING),
+            ApiRoute.route("POST", "/api/access/resource-api-mapping/remove", "bootstrap:删除接口映射", ResourceTypeCode.SERVICE, OperationCode.MANAGE_API_MAPPING),
+            ApiRoute.route("POST", "/api/access/log/operation/list", "bootstrap:操作日志列表", ResourceTypeCode.OPERATION_LOG, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/log/operation/action-options", "bootstrap:操作类型字典", ResourceTypeCode.OPERATION_LOG, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/log/change/list", "bootstrap:权限变更日志列表", ResourceTypeCode.PERMISSION_CHANGE_LOG, OperationCode.VIEW),
             // T-FE-044：资源依赖页消费端点（引用数据 resource-entity/tree、operation-permission/list
             // 已在上方清单）。管理面仅保留 DEPENDENCY:VIEW；写入由独立 MANIFEST 通道承担。
-            new ApiRoute("POST", "/api/access/resource-dependency/list", "bootstrap:资源依赖列表", true, false),
-            new ApiRoute("POST", "/api/access/resource-dependency/graph", "bootstrap:资源依赖图", true, false),
-            new ApiRoute("POST", "/api/access/resource-dependency/check", "bootstrap:依赖循环检测", true, false),
+            ApiRoute.route("POST", "/api/access/resource-dependency/list", "bootstrap:资源依赖列表", ResourceTypeCode.DEPENDENCY, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/resource-dependency/graph", "bootstrap:资源依赖图", ResourceTypeCode.DEPENDENCY, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/resource-dependency/check", "bootstrap:依赖循环检测", ResourceTypeCode.DEPENDENCY, OperationCode.VIEW),
             // T-PERM-073：依赖诊断只读端点（explain 来源解释 / declaration-status 声明诊断），
             // 门禁同族 DEPENDENCY:VIEW（上方已有类型级授权），零新增业务门禁
-            new ApiRoute("POST", "/api/access/resource-dependency/explain", "bootstrap:自动授权来源解释", true, false),
-            new ApiRoute("POST", "/api/access/resource-dependency/declaration-status", "bootstrap:依赖声明诊断", true, false),
+            ApiRoute.route("POST", "/api/access/resource-dependency/explain", "bootstrap:自动授权来源解释", ResourceTypeCode.DEPENDENCY, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/resource-dependency/declaration-status", "bootstrap:依赖声明诊断", ResourceTypeCode.DEPENDENCY, OperationCode.VIEW),
             // T-PERM-070：服务凭证管理面（per-service M2M 凭证签发/轮换/吊销）。门禁挂
             // service-config 管理面同族——写 SERVICE:MANAGE、list SERVICE:VIEW，两条
             // 均已在固定图（T-PERM-027），业务门禁零新增；不设凭证端点白名单（管理面端点，
             // 走会话/密钥链，M2mCredentialEndpoints 白名单不含本组——凭证请求对其 403）
-            new ApiRoute("POST", "/api/access/service-credential/create", "bootstrap:签发服务凭证", true, false),
-            new ApiRoute("POST", "/api/access/service-credential/update", "bootstrap:更新服务凭证", true, false),
-            new ApiRoute("POST", "/api/access/service-credential/remove", "bootstrap:删除服务凭证", true, false),
-            new ApiRoute("POST", "/api/access/service-credential/list", "bootstrap:服务凭证列表", true, false),
+            ApiRoute.route("POST", "/api/access/service-credential/create", "bootstrap:签发服务凭证", ResourceTypeCode.SERVICE, OperationCode.MANAGE),
+            ApiRoute.route("POST", "/api/access/service-credential/update", "bootstrap:更新服务凭证", ResourceTypeCode.SERVICE, OperationCode.MANAGE),
+            ApiRoute.route("POST", "/api/access/service-credential/remove", "bootstrap:删除服务凭证", ResourceTypeCode.SERVICE, OperationCode.MANAGE),
+            ApiRoute.route("POST", "/api/access/service-credential/list", "bootstrap:服务凭证列表", ResourceTypeCode.SERVICE, OperationCode.VIEW),
             // T-ADMIN-029：公告管理面消费端点（状态机+受众生命周期闭合）。业务门禁五档
             // （VIEW/CREATE/UPDATE/DELETE/PUBLISH——操作位 DDL 已全预置）类型级补授见
             // businessGrants；ADMIN_NOTICE 无 resource_entity 投影，服务层门禁全档类型级
             //（实例级校验无资源可挂，原有 checkInstanceLevel 形态已随本卡收敛为类型级）
-            new ApiRoute("POST", "/api/access/notice/create", "bootstrap:创建公告", true, false),
-            new ApiRoute("POST", "/api/access/notice/update", "bootstrap:更新公告", true, false),
-            new ApiRoute("POST", "/api/access/notice/delete", "bootstrap:删除公告", true, false),
-            new ApiRoute("POST", "/api/access/notice/detail", "bootstrap:公告详情", true, false),
-            new ApiRoute("POST", "/api/access/notice/page", "bootstrap:公告分页", true, false),
-            new ApiRoute("POST", "/api/access/notice/publish", "bootstrap:发布公告", true, false),
-            new ApiRoute("POST", "/api/access/notice/revoke", "bootstrap:撤回公告", true, false),
+            ApiRoute.route("POST", "/api/access/notice/create", "bootstrap:创建公告", ResourceTypeCode.ADMIN_NOTICE, OperationCode.CREATE),
+            ApiRoute.route("POST", "/api/access/notice/update", "bootstrap:更新公告", ResourceTypeCode.ADMIN_NOTICE, OperationCode.UPDATE),
+            ApiRoute.route("POST", "/api/access/notice/delete", "bootstrap:删除公告", ResourceTypeCode.ADMIN_NOTICE, OperationCode.DELETE),
+            ApiRoute.route("POST", "/api/access/notice/detail", "bootstrap:公告详情", ResourceTypeCode.ADMIN_NOTICE, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/notice/page", "bootstrap:公告分页", ResourceTypeCode.ADMIN_NOTICE, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/notice/publish", "bootstrap:发布公告", ResourceTypeCode.ADMIN_NOTICE, OperationCode.PUBLISH),
+            ApiRoute.route("POST", "/api/access/notice/revoke", "bootstrap:撤回公告", ResourceTypeCode.ADMIN_NOTICE, OperationCode.PUBLISH),
             // T-ADMIN-029：公告自服务两端点（任何登录用户）——已入 Gateway 白名单
-            //（user/reset-password 先例形态），本行的 API:ACCESS 位对 Gateway 放行不再生效
-            //（skipAuth 短路先于快照鉴权），端点真实边界=服务层登录态+可见性校验
+            //（user/reset-password 先例形态），本行准入要求对 Gateway 放行不再生效
+            //（skipAuth 短路先于准入判定），端点真实边界=服务层登录态+可见性校验
             //（my-notices 受众过滤 / read 可见性前置）；保留行+映射作白名单回滚面
-            new ApiRoute("POST", "/api/access/notice/my-notices", "bootstrap:我的公告(白名单回滚面)", true, false),
-            new ApiRoute("POST", "/api/access/notice/read", "bootstrap:标记已读(白名单回滚面)", true, false),
+            ApiRoute.route("POST", "/api/access/notice/my-notices", "bootstrap:我的公告(白名单回滚面)", ResourceTypeCode.ADMIN_NOTICE, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/notice/read", "bootstrap:标记已读(白名单回滚面)", ResourceTypeCode.ADMIN_NOTICE, OperationCode.VIEW),
             // T-ACCESS-054（P2 处置，2026-09-24 拍板「补齐路由」）：定时任务管理面 8 端点——
-            // Gateway 快照只由 enabled 映射装配，未注册路径对所有人 DENY 403；只补 ADMIN_JOB
+            // 准入只由 enabled 映射装配，未注册路径对所有人 403；只补 ADMIN_JOB
             // 三档授权不注册路由则「按需触发/启用巡检」经 Gateway 人路径仍不可达（与授权无关）。
-            // 注册后可达性=Gateway API:ACCESS 实例行 + 服务层 ADMIN_JOB 门禁双层：detail/page/
+            // 注册后可达性=Gateway 准入业务操作候选 + 服务层 ADMIN_JOB 门禁双层：detail/page/
             // log/page 需 VIEW、trigger 需 TRIGGER、toggle 需 ENABLE（bootstrap-admin 三档已种）；
-            // create/update/delete 在服务层因无 ADMIN_JOB 种子恒 403（拍板收窄形态——真实消费者
-            // 零，任务管理 UI 立项再议），路由行仅保 Gateway 层面不缺映射
-            new ApiRoute("POST", "/api/access/job/create", "bootstrap:创建任务", true, false),
-            new ApiRoute("POST", "/api/access/job/update", "bootstrap:更新任务", true, false),
-            new ApiRoute("POST", "/api/access/job/delete", "bootstrap:删除任务", true, false),
-            new ApiRoute("POST", "/api/access/job/toggle", "bootstrap:启停任务", true, false),
-            new ApiRoute("POST", "/api/access/job/trigger", "bootstrap:触发任务", true, false),
-            new ApiRoute("POST", "/api/access/job/detail", "bootstrap:任务详情", true, false),
-            new ApiRoute("POST", "/api/access/job/page", "bootstrap:任务分页", true, false),
-            new ApiRoute("POST", "/api/access/job/log/page", "bootstrap:任务日志分页", true, false),
-            // 目标接口（§14.6）：仅预建资源 + API:ACCESS+canGrant，不建映射
-            new ApiRoute("POST", "/api/access/role/my-info", "bootstrap:目标接口(my-info)", false, true));
+            // create/update/delete 绑定对应操作但固定图不授——网关 403 与现行服务层 403
+            //（拍板收窄形态——真实消费者零，任务管理 UI 立项再议）终端结果一致，路由行保
+            // Gateway 层面不缺映射
+            ApiRoute.route("POST", "/api/access/job/create", "bootstrap:创建任务", ResourceTypeCode.ADMIN_JOB, OperationCode.CREATE),
+            ApiRoute.route("POST", "/api/access/job/update", "bootstrap:更新任务", ResourceTypeCode.ADMIN_JOB, OperationCode.UPDATE),
+            ApiRoute.route("POST", "/api/access/job/delete", "bootstrap:删除任务", ResourceTypeCode.ADMIN_JOB, OperationCode.DELETE),
+            ApiRoute.route("POST", "/api/access/job/toggle", "bootstrap:启停任务", ResourceTypeCode.ADMIN_JOB, OperationCode.ENABLE),
+            ApiRoute.route("POST", "/api/access/job/trigger", "bootstrap:触发任务", ResourceTypeCode.ADMIN_JOB, OperationCode.TRIGGER),
+            ApiRoute.route("POST", "/api/access/job/detail", "bootstrap:任务详情", ResourceTypeCode.ADMIN_JOB, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/job/page", "bootstrap:任务分页", ResourceTypeCode.ADMIN_JOB, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/job/log/page", "bootstrap:任务日志分页", ResourceTypeCode.ADMIN_JOB, OperationCode.VIEW),
+            // 目标接口（§14.6）：仅预建资源 + API:ACCESS+canGrant，不建映射（无准入要求）
+            new ApiRoute("POST", "/api/access/role/my-info", "bootstrap:目标接口(my-info)", false, true, null, null));
     }
 
     /**
@@ -353,6 +371,13 @@ public final class BootstrapGraphDefinition {
             new GrantSpec(ResourceTypeCode.CONDITION, OperationCode.CREATE, null, false),
             new GrantSpec(ResourceTypeCode.CONDITION, OperationCode.UPDATE, null, false),
             new GrantSpec(ResourceTypeCode.CONDITION, OperationCode.DELETE, null, false),
+            // T-ACCESS-059：condition/list 网关准入要求绑定 CONDITION:VIEW（无迁移期统一准入，
+            // 服务层开放读按所属类型 VIEW 绑定）——固定图同批补授维持「管理员可过、未授权者拒」
+            // 的现行 Gateway 层行为，并使该要求对后续自定义角色可授予
+            new GrantSpec(ResourceTypeCode.CONDITION, OperationCode.VIEW, null, false),
+            // T-ACCESS-059：org-tree-config/page 网关准入要求绑定 ADMIN_ORG_TREE_CONFIG:VIEW
+            //（服务层 page 无门禁，同款开放读绑定）；树配置页为前端组织身份目录消费端点（T-FE-015）
+            new GrantSpec(ResourceTypeCode.ADMIN_ORG_TREE_CONFIG, OperationCode.VIEW, null, false),
             // MANIFEST 独占写入；管理页仅提供 VIEW。
             new GrantSpec(ResourceTypeCode.DEPENDENCY, OperationCode.VIEW, null, false),
             // T-FE-015：组织与用户页读写门禁全档——固定图不持则空库上该页读写路径无授予起点

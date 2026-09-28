@@ -207,14 +207,14 @@ QueryExecutionEngine.execute(QueryRequest)
 
 ## 9. 场景六：Gateway 接口级鉴权
 
-目标：Gateway 在请求进入业务服务前完成接口级鉴权。**快照模式（T-PERM-001）为主链路**：Gateway 按 `(tenantId, subjectTypeCode, userId, serviceCode)` 拉取 `interface-snapshot` 全量接口权限快照后本地内存匹配（≤15s L1，Redis pub/sub 主动失效），条件不可本地评估或快照未覆盖时回退下表实时鉴权链路（check-interface，保留端点）。
+目标：Gateway 在请求进入业务服务前完成操作准入判定（T-ACCESS-059 无迁移期切换；旧 API:ACCESS 快照链已删）。**准入快照为主链路**：Gateway 按 `(tenantId, subjectTypeCode, userId, serviceCode)` 拉取 `interface-admission-snapshot`（完整启用路由＋候选分支投影，契约总册 §25）后本地四态判定（≤15s L1，Redis pub/sub 主动失效）：ALLOW 放行业务层做最终检查、条件不可本地评估等 FALLBACK 回源 `interface-admission` 在线判定、DENY 403、配置故障（路由歧义/未知 schema/时效失败）503。MAY_ENTER 仅表示存在候选资格，业务必须以实际目标做完整实例鉴权（方案 A 两层判定）。
 
 | 步骤 | 执行方            | 动作                                                                                           |
 | ---- | ----------------- | ---------------------------------------------------------------------------------------------- |
 | 1    | Gateway           | 解析 Token，得到 `subjectTypeCode + subjectExternalId` 和 `X-Tenant-Id`，并清洗外部伪造 Header |
 | 2    | Gateway           | 提取 `serviceCode + httpMethod + 原始 path`                                                    |
 | 3    | Gateway           | 查询本地 L1 缓存                                                                               |
-| 4    | Gateway           | 缓存未命中时调用 `POST /api/access/auth/check-interface`                                         |
+| 4    | Gateway           | 本地无通过分支时调用 `POST /api/access/auth/interface-admission` 在线准入判定（T-ACCESS-059）      |
 | 5    | 权限面（access-service） | 按租户、服务、方法、路径匹配 `resource_api_mapping`                                            |
 | 6    | 权限面（access-service） | 解析资源、操作、用户有效角色、条件和冲突规则                                                   |
 | 7    | 权限面（access-service） | 返回 `allowed/reason/matchedResources[]/cacheTtlSeconds`                                       |
@@ -408,7 +408,7 @@ resource_dependency.resource_entity_id 是源，depends_on_resource_entity_id �
 | 通用权限服务   | 外部系统只使用稳定业务键即可完成主体同步、授权和鉴权                                                  |
 | 接口规范统一   | 全部接口走 `/api/access/*`，无 RESTful Path 参数，无 body `tenantId`                                    |
 | SaaS 多租户    | 所有查询和写入都强制带 `X-Tenant-Id`，接口映射也按租户过滤                                            |
-| Gateway 可接入 | `check-interface` 使用 serviceCode、method、原始 path 判定                                            |
+| Gateway 可接入 | `interface-admission`/`interface-admission-snapshot` 使用 serviceCode、method、原始 path（T-ACCESS-059）；`check-interface` 为 LEGACY_API 旧协议（062 退役） |
 | SDK 可接入     | `auth/check`、`auth/batch-check`、`auth/query-resources`、`auth/query-scopes` 入参全部走业务键、不要求内部数据库 ID；响应面 check 族（含 Gateway 复用的 `check-interface`）按 T-API-003（2026-09-09 定案推翻 T-API-002 check 族裁剪）回传结果记录（matchedRoleIds/matchedPermissionIds/matchedResources[].resourceId），Query\* 响应族不泄漏内部 id（T-API-002 终态维持）   |
 | 管理端可解释   | 权限视图、操作日志、变更日志能解释授权来源和变更历史                                                  |
 | 数据权限可表达 | `depend_on` 子权限和直接范围权限共同表达主资源上下文内的有效范围，运行时通过 `auth/query-scopes` 查询 |

@@ -12,6 +12,7 @@ import cn.ac.fage.accessmesh.access.resource.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper;
+import cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper;
 import cn.ac.fage.accessmesh.access.resource.service.domain.MappingSyncHandler;
 import cn.ac.fage.accessmesh.access.sync.strategy.SyncContext;
 import cn.ac.fage.accessmesh.access.sync.strategy.SyncMappingsResult;
@@ -39,6 +40,7 @@ public class MappingSyncHandlerImpl implements MappingSyncHandler {
     private final ResourceApiMappingMapper resourceApiMappingMapper;
     private final ResourceEntityMapper resourceEntityMapper;
     private final ApiMappingWriteDomainService mappingWriter;
+    private final ServiceConfigMapper serviceConfigMapper;
 
     /**
      * 构造函数
@@ -47,10 +49,12 @@ public class MappingSyncHandlerImpl implements MappingSyncHandler {
      * @param resourceEntityMapper     资源实体Mapper
      */
     public MappingSyncHandlerImpl(ResourceApiMappingMapper resourceApiMappingMapper,
-                                   ResourceEntityMapper resourceEntityMapper, ApiMappingWriteDomainService mappingWriter) {
+                                   ResourceEntityMapper resourceEntityMapper, ApiMappingWriteDomainService mappingWriter,
+                                   ServiceConfigMapper serviceConfigMapper) {
         this.resourceApiMappingMapper = resourceApiMappingMapper;
         this.resourceEntityMapper = resourceEntityMapper;
         this.mappingWriter = mappingWriter;
+        this.serviceConfigMapper = serviceConfigMapper;
     }
 
     /**
@@ -173,6 +177,8 @@ public class MappingSyncHandlerImpl implements MappingSyncHandler {
         if (!idsToDelete.isEmpty()) {
             resourceApiMappingMapper.softDeleteBatch(tenantId, idsToDelete, now);
             deletedCount = idsToDelete.size();
+            // T-ACCESS-059：FULL 清理改变路由集，同事务递增配置代次（upsert 半边由 saveAll 覆盖）
+            serviceConfigMapper.incrementConfigGeneration(tenantId, serviceCode);
         }
 
         return deletedCount;

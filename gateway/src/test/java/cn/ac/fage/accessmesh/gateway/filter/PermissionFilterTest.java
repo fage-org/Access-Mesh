@@ -12,9 +12,8 @@ import cn.ac.fage.accessmesh.gateway.cache.InterfaceSnapshotCacheKeys;
 import cn.ac.fage.accessmesh.gateway.cache.InterfaceSnapshotLoadRegistry;
 import cn.ac.fage.accessmesh.gateway.config.GatewayProperties;
 import cn.ac.fage.accessmesh.gateway.service.PermissionClient;
-import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
-import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp.ApiPermissionEntry;
-import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.AdmissionRequirement;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceAdmissionSnapshotResp;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,7 +50,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * PermissionFilter 组合路径回归测试（T-PERM-008 / T-ACCESS-008）
+ * PermissionFilter 组合路径回归测试（T-PERM-008 / T-ACCESS-008 / T-ACCESS-059 操作准入链）
  * <p>
  * 覆盖高风险组合路径：回源写缓存+unmark、token失效丢弃、重试一次、
  * 二次失效fail-closed、缓存命中但marker标记→驱逐+回源、
@@ -140,20 +139,28 @@ class PermissionFilterTest {
         return InterfaceSnapshotCacheKeys.build(SUBJECT_TYPE_CODE, USER_ID, SERVICE_CODE);
     }
 
-    private InterfaceSnapshotResp cachedSnapshot() {
-        return cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, cacheKey());
+    private InterfaceAdmissionSnapshotResp cachedSnapshot() {
+        return cacheService.get(GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT, TENANT_ID, cacheKey());
     }
 
     /**
-     * 生成 ALLOW 快照：含一个 scopeMode=ALL 无条件条目，匹配器直接放行。
+     * 生成 ALLOW 快照（T-ACCESS-059）：请求路由 GET /api/test 命中唯一要求 EXAMPLE:VIEW，
+     * 候选含一条无条件 ALL 主授权分支 → 匹配器 MAY_ENTER 放行。
      */
-    private InterfaceSnapshotResp allowSnapshot() {
-        return new InterfaceSnapshotResp(List.of(
-            new ApiPermissionEntry(SERVICE_CODE, null, null, false, null, null, ScopeMode.ALL)
-        ));
+    private InterfaceAdmissionSnapshotResp allowSnapshot() {
+        AdmissionRequirement requirement = new AdmissionRequirement("EXAMPLE", "VIEW");
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        return new InterfaceAdmissionSnapshotResp(
+            InterfaceAdmissionSnapshotResp.CURRENT_SCHEMA_VERSION, TENANT_ID,
+            new InterfaceAdmissionSnapshotResp.Subject(SUBJECT_TYPE_CODE, String.valueOf(USER_ID)),
+            SERVICE_CODE, now, now.plusSeconds(60), 0L,
+            List.of(new InterfaceAdmissionSnapshotResp.RouteEntry("GET", "/api/test", requirement)),
+            List.of(new InterfaceAdmissionSnapshotResp.OperationCandidateEntry(
+                "EXAMPLE", "VIEW", null, true, "ALL", null)),
+            "OPERATION_ADMISSION", true);
     }
 
-    private R<InterfaceSnapshotResp> successResult(InterfaceSnapshotResp snapshot) {
+    private R<InterfaceAdmissionSnapshotResp> successResult(InterfaceAdmissionSnapshotResp snapshot) {
         return R.ok(snapshot);
     }
 
@@ -199,9 +206,9 @@ class PermissionFilterTest {
         void shouldWriteCacheAndUnmark_whenLoadSucceedsAndTokenCurrent()
             throws InterruptedException {
             String key = cacheKey();
-            InterfaceSnapshotResp snapshot = allowSnapshot();
+            InterfaceAdmissionSnapshotResp snapshot = allowSnapshot();
 
-            when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
+            when(permissionClient.interfaceAdmissionSnapshot(anyString(), anyLong(), anyString(), anyLong()))
                 .thenReturn(Mono.just(successResult(snapshot)));
 
             ServerWebExchange exchange = buildExchange();
@@ -223,17 +230,16 @@ class PermissionFilterTest {
         @Test
         void shouldReturn503_whenTokenInvalidatedMidFlight() throws InterruptedException {
             String key = cacheKey();
-            InterfaceSnapshotResp snapshot = allowSnapshot();
+            InterfaceAdmissionSnapshotResp snapshot = allowSnapshot();
 
             // 在 permissionClient 回调中标记 key，确保在 beginLoad 之后、commitIfCurrent 之前
-            when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
+            when(permissionClient.interfaceAdmissionSnapshot(anyString(), anyLong(), anyString(), anyLong()))
                 .thenAnswer(invocation -> {
                     marker.mark(TENANT_ID + ":" + key);
                     return Mono.just(successResult(snapshot));
                 });
 
             ServerWebExchange exchange = buildExchange();
-
             HttpStatus status = awaitCapturedStatus(exchange, 5);
 
             // 期望 503（固定 fail-closed）
@@ -251,10 +257,10 @@ class PermissionFilterTest {
         @Test
         void shouldRetryAndSucceed_whenFirstTokenStaleButSecondSucceeds() throws InterruptedException {
             String key = cacheKey();
-            InterfaceSnapshotResp snapshot = allowSnapshot();
+            InterfaceAdmissionSnapshotResp snapshot = allowSnapshot();
 
             AtomicInteger callCount = new AtomicInteger();
-            when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
+            when(permissionClient.interfaceAdmissionSnapshot(anyString(), anyLong(), anyString(), anyLong()))
                 .thenAnswer(invocation -> {
                     int call = callCount.incrementAndGet();
                     if (call == 1) {
@@ -281,10 +287,10 @@ class PermissionFilterTest {
         @Test
         void shouldReturn503_whenBothRetriesHaveStaleToken() throws InterruptedException {
             String key = cacheKey();
-            InterfaceSnapshotResp snapshot = allowSnapshot();
+            InterfaceAdmissionSnapshotResp snapshot = allowSnapshot();
 
             AtomicInteger callCount = new AtomicInteger();
-            when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
+            when(permissionClient.interfaceAdmissionSnapshot(anyString(), anyLong(), anyString(), anyLong()))
                 .thenAnswer(invocation -> {
                     marker.mark(TENANT_ID + ":" + key);
                     callCount.incrementAndGet();
@@ -308,14 +314,14 @@ class PermissionFilterTest {
         @Test
         void shouldEvictCacheAndReload_whenCachedButMarkedInvalid() throws InterruptedException {
             String key = cacheKey();
-            InterfaceSnapshotResp oldSnapshot = allowSnapshot();
-            InterfaceSnapshotResp newSnapshot = allowSnapshot();
+            InterfaceAdmissionSnapshotResp oldSnapshot = allowSnapshot();
+            InterfaceAdmissionSnapshotResp newSnapshot = allowSnapshot();
 
             // 预填快照缓存 + 标记失效
-            cacheService.put(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, key, oldSnapshot);
+            cacheService.put(GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT, TENANT_ID, key, oldSnapshot);
             marker.mark(TENANT_ID + ":" + key);
 
-            when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
+            when(permissionClient.interfaceAdmissionSnapshot(anyString(), anyLong(), anyString(), anyLong()))
                 .thenReturn(Mono.just(successResult(newSnapshot)));
 
             ServerWebExchange exchange = buildExchange();
@@ -324,6 +330,39 @@ class PermissionFilterTest {
             assertThat(completed).isTrue();
             // 旧缓存条目应被驱逐，新的回源结果写入
             assertThat(cachedSnapshot()).isNotNull();
+        }
+    }
+
+    // ─── T-ACCESS-059：缓存内快照过期 → 按未命中回源重载（不硬 503） ───
+
+    @Nested
+    class ExpiredCachedSnapshotReloads {
+
+        @Test
+        void shouldReloadInsteadOfConfigFault_whenCachedSnapshotExpired() throws InterruptedException {
+            String key = cacheKey();
+            // 预填已过期快照（expiresAt 在过去；缓存 TTL 未到——起点差=回源延迟的真实窗口形态）
+            java.time.LocalDateTime past = java.time.LocalDateTime.now().minusSeconds(60);
+            InterfaceAdmissionSnapshotResp expired = new InterfaceAdmissionSnapshotResp(
+                InterfaceAdmissionSnapshotResp.CURRENT_SCHEMA_VERSION, TENANT_ID,
+                new InterfaceAdmissionSnapshotResp.Subject(SUBJECT_TYPE_CODE, String.valueOf(USER_ID)),
+                SERVICE_CODE, past.minusSeconds(60), past, 0L, List.of(), List.of(),
+                "OPERATION_ADMISSION", true);
+            cacheService.put(GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT, TENANT_ID, key, expired);
+
+            when(permissionClient.interfaceAdmissionSnapshot(anyString(), anyLong(), anyString(), anyLong()))
+                .thenReturn(Mono.just(successResult(allowSnapshot())));
+
+            ServerWebExchange exchange = buildExchange();
+            HttpStatus status = awaitCapturedStatus(exchange, 5);
+
+            // 回归锁（旧实现下失败）：过期缓存曾被直接判 CONFIG_FAULT 写 503；
+            // 正确行为=按未命中回源重载 → 新快照 ALLOW 放行（未写任何错误状态）
+            assertThat(status)
+                .as("过期缓存必须按 miss 重载放行，不得写 503/403").isNull();
+            assertThat(cachedSnapshot()).isNotNull()
+                .extracting(InterfaceAdmissionSnapshotResp::expiresAt)
+                .isNotNull();
         }
     }
 
@@ -339,7 +378,7 @@ class PermissionFilterTest {
             filter = new PermissionFilter(permissionClient, cacheService, marker, loadRegistry,
                 invalidator, gatewayProperties, objectMapper, new SimpleMeterRegistry());
 
-            when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
+            when(permissionClient.interfaceAdmissionSnapshot(anyString(), anyLong(), anyString(), anyLong()))
                 .thenReturn(Mono.just(successResult(allowSnapshot()))
                     .delayElement(Duration.ofSeconds(1)));
 
@@ -360,9 +399,9 @@ class PermissionFilterTest {
                 invalidator, gatewayProperties, objectMapper, new SimpleMeterRegistry());
 
             String key = cacheKey();
-            InterfaceSnapshotResp snapshot = allowSnapshot();
+            InterfaceAdmissionSnapshotResp snapshot = allowSnapshot();
             AtomicInteger callCount = new AtomicInteger();
-            when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
+            when(permissionClient.interfaceAdmissionSnapshot(anyString(), anyLong(), anyString(), anyLong()))
                 .thenAnswer(invocation -> {
                     if (callCount.incrementAndGet() == 1) {
                         marker.mark(TENANT_ID + ":" + key);
@@ -384,7 +423,7 @@ class PermissionFilterTest {
 
         @Test
         void shouldCompleteWithinDeadline_whenLoadFast() throws InterruptedException {
-            when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
+            when(permissionClient.interfaceAdmissionSnapshot(anyString(), anyLong(), anyString(), anyLong()))
                 .thenReturn(Mono.just(successResult(allowSnapshot())));
 
             ServerWebExchange exchange = buildExchange();

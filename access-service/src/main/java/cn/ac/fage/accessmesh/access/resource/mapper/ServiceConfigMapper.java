@@ -60,4 +60,33 @@ public interface ServiceConfigMapper extends BaseMapper<ServiceConfig> {
      */
     List<ServiceConfig> selectValidByIds(@Param("tenantId") Long tenantId,
                                           @Param("ids") java.util.Set<Long> ids);
+
+    /**
+     * 递增服务准入快照配置代次（T-ACCESS-059 计数列载体）。
+     * <p>
+     * 由该服务映射写路径（共用保存入口/删除/FULL 清理）与模式切换在同事务调用；
+     * 准入快照构建以「构建前后代次比对、变更即废弃重建」消费（2026-09-25 拍板限定语义）。
+     * 服务行不存在时返回 0（新增映射行会因服务未登记先行失败，此处不重复校验）。
+     * </p>
+     *
+     * @param tenantId    租户ID
+     * @param serviceCode 服务编码
+     * @return 更新的行数
+     */
+    int incrementConfigGeneration(@Param("tenantId") Long tenantId,
+                                  @Param("serviceCode") String serviceCode);
+
+    /**
+     * 独立语句读取配置代次（T-ACCESS-059）。
+     * <p>
+     * 供准入快照构建的代次复读使用：与 {@link #selectByTenantAndServiceCode} 语句不同，
+     * 不命中 MyBatis 会话缓存同语句二次返回同实例的假读——同事务内两次调用各自落库。
+     * </p>
+     *
+     * @param tenantId    租户ID
+     * @param serviceCode 服务编码
+     * @return 配置代次；服务行不存在返回 null
+     */
+    Long selectConfigGeneration(@Param("tenantId") Long tenantId,
+                                @Param("serviceCode") String serviceCode);
 }

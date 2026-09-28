@@ -541,6 +541,8 @@ query-scopes 四态分组（T-PERM-009 契约维持）：AppService 只留线格
 | 范围权限查询 | `POST /api/access/auth/query-scopes`       | GRANT_LIST＋ParentRequirement＋RAW_AND_KEPT；四态组装=ScopeCoverageProjector |
 | 接口级判定   | `POST /api/access/auth/check-interface`    | LEGACY_API 共同集合：全部匹配 API 一个 TARGET_SET 单 item（SELF＋TypeFallback.ALLOW；空实体引用退 TYPE_LEVEL） |
 | 接口快照     | `POST /api/access/auth/interface-snapshot` | GRANT_LIST＋PRESERVE/ENFORCE＋KEPT；`SnapshotAssembler` 消费 `List<GrantFact>` |
+| 操作准入在线判定 | `POST /api/access/auth/interface-admission` | ADMISSION_CANDIDATES＋EVALUATE+SKIP＋ADMISSION（完整路由匹配/歧义 20070/悬空 20071→唯一要求；T-ACCESS-059） |
+| 操作准入快照 | `POST /api/access/auth/interface-admission-snapshot` | 全部去重要求一次 execute 多 admissionFacts item（PRESERVE+SKIP＋KEPT）；`InterfaceAdmissionSnapshotAssembler` 投影候选分支（条件内联共享 `GatewayPushableRules`），configGeneration 构建期自一致校验（T-ACCESS-059） |
 | 视图/权限串  | `POST /api/access/permission-view/**`      | GRANT_LIST＋EVALUATE/ENFORCE＋KEPT＋descriptions＋effectiveOperations（T-PERM-091） |
 | 转授校验     | `PermissionGrantDomainService.checkCanGrant` | GRANT_LIST＋PRESERVE+SKIP＋FACTS＋ListGrantRead.DATABASE（写校验面新鲜度；操作定义装载留领域侧） |
 
@@ -552,7 +554,8 @@ query-scopes 四态分组（T-PERM-009 契约维持）：AppService 只留线格
   回退到**同一新核心**的扫描；投影问题只回退投影；代码级故障退到最小正确性修复基线
   （本地 tag `r2-baseline-correctness`，T-PERM-083+095）；禁用安全检查不是回退方案。
 - **缓存边界**：ROLE_PERM_SNAPSHOT（=List\<RolePermEntry\>，L2_ONLY）/ OPERATION_PERMISSIONS_BY_TYPE /
-  EFFECTIVE_ROLES / 网关 gw:interface-snapshot 键与失效不因引擎切换改变；四旧 DTO 不进任何缓存载荷
+  EFFECTIVE_ROLES / 网关快照键与失效不因引擎切换改变（目录代码随 T-ACCESS-059 切换为
+  gw:interface-admission-snapshot，schema 隔离 N22）；四旧 DTO 不进任何缓存载荷
   （全仓核实零序列化点，随删除无需兼容动作）；ORG_VISIBILITY 由 PermissionChangeAspect 租户级
   evictAll 覆盖。
 - **OAuth2 委托链路显式排除**（2026-08-22 用户决策维持）：OAuth2 资源服务器链路

@@ -36,4 +36,22 @@
         </foreach>
     </select>
 
+    <!-- T-ACCESS-059：准入快照配置代次递增（映射写路径/模式切换同事务调用） -->
+    <update id="incrementConfigGeneration">
+        UPDATE service_config
+        SET config_generation = config_generation + 1,
+            updated_at = now()
+        WHERE tenant_id = #{tenantId}
+          AND service_code = #{serviceCode}
+          AND delete_flag = 0
+    </update>
+
+    <!-- T-ACCESS-059：独立语句复读代次（快照构建自一致校验；避开会话缓存同语句假读） -->
+    <select id="selectConfigGeneration" resultType="java.lang.Long">
+        SELECT config_generation FROM service_config
+        WHERE tenant_id = #{tenantId}
+          AND service_code = #{serviceCode}
+          AND delete_flag = 0
+    </select>
+
 </mapper>

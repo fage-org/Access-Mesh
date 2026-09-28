@@ -780,6 +780,8 @@ configGeneration 表示本次路由／模式配置代次。**（2026-09-25 拍�
 
 本地与在线使用同一类型／操作／条件／候选定义及同事实同环境测试。准入快照不携带用于绕过业务的“实例已授权”证明；客户端传入 finalCheckRequired=false 不能改变服务配置。
 
+T-ACCESS-059 已落地（2026-09-28，六项用户拍板与实现形态）：①**无迁移期统一上线**——全部服务（含 access-service 自身）一次切 OPERATION_ADMISSION，网关单链无模式发现，DDL 缺省与 service-config/save 创建缺省均改 OPERATION_ADMISSION，存量库经迁移脚本 `docs/ops/operation-admission-migrate-059.sql` 全量切换（含固定图映射补操作引用、query-scopes 种子映射停用、bootstrap 角色补 CONDITION:VIEW/ADMIN_ORG_TREE_CONFIG:VIEW 两笔类型级授权）；②网关直接切新链删旧链（服务端旧端点保留至 062，回退=回滚网关版本）；③access-service 自身管理端点也接准入——固定图约百条映射按「各端点服务层 QueryGate 门禁同码」补业务操作引用（开放读端点按所属类型 VIEW 绑定并同批补授，维持管理员现行可过行为；job 写三档绑码不授，网关 403 与现行服务层 403 终端一致）；④端点身份=凭证+网关内部密钥并存（两端点入 M2M 白名单，凭证限自身服务；旧密钥自报服务头拒绝）；⑤configGeneration=service_config.config_generation 计数列（写路径同事务 +1，快照构建独立语句复读自一致校验）；⑥SDK 只增 PermissionClient 两方法（Filter/Matcher 落网关侧）。网关本地判定四态 ALLOW/FALLBACK/DENY/CONFIG_FAULT（歧义/未知 schema/时效失败→终端 503；内联规则解析失败=不可用分支回源）；快照 TTL 沿 15s/5s 既有预算形态，完整边界推导归 T-ACCESS-060。N11/N12/N14/N15/N21/N22/N28 验收证据见[任务卡](../tasks/T-ACCESS-059.md)。
+
 ### 8.5 失效、时效与模式切换
 
 | 变化 | 必须维护 |

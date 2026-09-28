@@ -1019,8 +1019,9 @@ CREATE TABLE service_config (
     base_path    VARCHAR(512),
     description  VARCHAR(512),
     status       INT NOT NULL DEFAULT 1,
-    api_auth_mode VARCHAR(32) NOT NULL DEFAULT 'LEGACY_API'
+    api_auth_mode VARCHAR(32) NOT NULL DEFAULT 'OPERATION_ADMISSION'
         CHECK (api_auth_mode IN ('LEGACY_API', 'OPERATION_ADMISSION')),
+    config_generation BIGINT NOT NULL DEFAULT 0,
     extra        JSONB DEFAULT '{}',
     created_by   BIGINT,
     updated_by   BIGINT,
@@ -1035,7 +1036,8 @@ CREATE UNIQUE INDEX uk_service_config ON service_config (tenant_id, service_code
 
 COMMENT ON TABLE service_config IS '接入服务配置：全量同步策略，支持手动增删改接口映射。extra.syncTypes 声明服务可同步的类型白名单（见 api-contract §19.9）；停用(status=0)后其接口不参与授权且 sync/full-sync 全部拒绝';
 COMMENT ON COLUMN service_config.service_code IS '服务编码，租户内唯一';
-COMMENT ON COLUMN service_config.api_auth_mode IS '可信服务配置控制的鉴权模式 LEGACY_API/OPERATION_ADMISSION；不接受客户端模式头，切换须满足逐路由业务最终检查与反向拒绝测试的迁移门槛';
+COMMENT ON COLUMN service_config.api_auth_mode IS '可信服务配置控制的鉴权模式 LEGACY_API/OPERATION_ADMISSION；不接受客户端模式头。T-ACCESS-059 拍板无迁移期统一上线：全部服务（含 access-service 自身）默认 OPERATION_ADMISSION，LEGACY_API 值仅作 062 退役前的版本回退部署形态（服务端准入端点对 LEGACY_API 服务按配置故障拒绝）';
+COMMENT ON COLUMN service_config.config_generation IS '准入快照配置代次（T-ACCESS-059 计数列载体，2026-09-28 拍板）：该服务映射写路径（共用保存入口/删除/FULL 清理）与模式切换同事务 +1；准入快照构建事务内先读代次→构建→复读比对，变更即废弃重建（2026-09-25 拍板限定语义：构建期自一致校验+接收侧匹配检查，不承诺跨节点强一致）';
 COMMENT ON COLUMN service_config.base_path IS '基础路径前缀';
 COMMENT ON COLUMN service_config.extra IS '扩展属性(JSON)：syncTypes 声明同步类型白名单（subjectTypeCodes/roleTypeCodes/sourceTypes 字符串数组，缺失分类=无权限；资源维度已随 T-PERM-052 类型级所有权退役，保存含 resourceTypeCodes 拒绝）；保存时校验结构，运行时 fail-closed';
 COMMENT ON COLUMN service_config.status IS '状态：0=停用 1=启用。停用后该服务的接口不参与授权；资源/依赖同步通道（sync/full-sync、manifest）拒绝（SECURITY_DENIED），接口声明同步（service-config/sync、sync-v2）拒绝 20025（T-ACCESS-058）';

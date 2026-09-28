@@ -8,9 +8,7 @@ import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.gateway.config.GatewayProperties;
 import cn.ac.fage.accessmesh.gateway.filter.PermissionFilter;
 import cn.ac.fage.accessmesh.gateway.service.PermissionClient;
-import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
-import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp.ApiPermissionEntry;
-import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceAdmissionSnapshotResp;
 import cn.ac.fage.accessmesh.perm.common.event.PermInvalidateEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -127,10 +125,9 @@ class GatewayInvalidationRaceTest {
         return exchange;
     }
 
-    private InterfaceSnapshotResp snapshot(String marker) {
-        return new InterfaceSnapshotResp(List.of(
-            new ApiPermissionEntry(SERVICE_CODE + ":" + marker, null, null, false, null, null, ScopeMode.ALL)
-        ));
+    private InterfaceAdmissionSnapshotResp snapshot(String marker) {
+        return new InterfaceAdmissionSnapshotResp(1, TENANT_ID, null, SERVICE_CODE + ":" + marker,
+            null, null, 0L, List.of(), List.of(), "OPERATION_ADMISSION", true);
     }
 
     private String identifier() {
@@ -156,11 +153,11 @@ class GatewayInvalidationRaceTest {
             return inv.callRealMethod();
         }).when(cacheService).evictAll(any(), any());
 
-        InterfaceSnapshotResp stale = snapshot("stale");
-        InterfaceSnapshotResp fresh = snapshot("fresh");
+        InterfaceAdmissionSnapshotResp stale = snapshot("stale");
+        InterfaceAdmissionSnapshotResp fresh = snapshot("fresh");
         AtomicInteger calls = new AtomicInteger();
         CountDownLatch loadStarted = new CountDownLatch(1);
-        when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
+        when(permissionClient.interfaceAdmissionSnapshot(anyString(), anyLong(), anyString(), anyLong()))
             .thenAnswer(inv -> {
                 loadStarted.countDown();
                 if (calls.incrementAndGet() == 1) {
@@ -190,10 +187,10 @@ class GatewayInvalidationRaceTest {
 
         // 旧快照被作废（重试发生）；新快照在清理完成后写入并保留
         assertThat(calls.get()).isEqualTo(2);
-        InterfaceSnapshotResp cached =
-            cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier());
+        InterfaceAdmissionSnapshotResp cached =
+            cacheService.get(GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT, TENANT_ID, identifier());
         assertThat(cached).isNotNull();
-        assertThat(cached.allowedApis().get(0).serviceCode()).isEqualTo(SERVICE_CODE + ":fresh");
+        assertThat(cached.serviceCode()).isEqualTo(SERVICE_CODE + ":fresh");
     }
 
     /**
@@ -218,14 +215,14 @@ class GatewayInvalidationRaceTest {
         // 预置同租户另一用户的已跟踪快照：clearAll 据索引执行（慢）evictAll，
         // 同时保证当前请求用户未命中缓存、必然走回源
         String otherUserId = InterfaceSnapshotCacheKeys.build(SUBJECT_TYPE_CODE, 99L, SERVICE_CODE);
-        cacheService.put(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, otherUserId, snapshot("old"));
+        cacheService.put(GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT, TENANT_ID, otherUserId, snapshot("old"));
         invalidator.track(TENANT_ID, otherUserId);
 
-        InterfaceSnapshotResp stale = snapshot("stale");
-        InterfaceSnapshotResp fresh = snapshot("fresh");
+        InterfaceAdmissionSnapshotResp stale = snapshot("stale");
+        InterfaceAdmissionSnapshotResp fresh = snapshot("fresh");
         AtomicInteger calls = new AtomicInteger();
         CountDownLatch loadStarted = new CountDownLatch(1);
-        when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
+        when(permissionClient.interfaceAdmissionSnapshot(anyString(), anyLong(), anyString(), anyLong()))
             .thenAnswer(inv -> {
                 loadStarted.countDown();
                 if (calls.incrementAndGet() == 1) {
@@ -249,10 +246,10 @@ class GatewayInvalidationRaceTest {
         }
 
         assertThat(calls.get()).isEqualTo(2);
-        InterfaceSnapshotResp cached =
-            cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier());
+        InterfaceAdmissionSnapshotResp cached =
+            cacheService.get(GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT, TENANT_ID, identifier());
         assertThat(cached).isNotNull();
-        assertThat(cached.allowedApis().get(0).serviceCode()).isEqualTo(SERVICE_CODE + ":fresh");
+        assertThat(cached.serviceCode()).isEqualTo(SERVICE_CODE + ":fresh");
     }
 
     /**
@@ -262,8 +259,8 @@ class GatewayInvalidationRaceTest {
     @Test
     void userLevelEvictDuringFirstLoad_shouldMarkInFlightKeyAndDiscardStaleCommit()
         throws Exception {
-        InterfaceSnapshotResp stale = snapshot("stale");
-        InterfaceSnapshotResp fresh = snapshot("fresh");
+        InterfaceAdmissionSnapshotResp stale = snapshot("stale");
+        InterfaceAdmissionSnapshotResp fresh = snapshot("fresh");
         AtomicInteger calls = new AtomicInteger();
         CountDownLatch loadStarted = new CountDownLatch(1);
         // 首次回源提交闸门：撤权事件先发出、再放行 stale——「已开始（注册表在途）、未提交」
@@ -271,7 +268,7 @@ class GatewayInvalidationRaceTest {
         // 主线程调度延迟击穿（T-ACCESS-031 -T 模块并行日常形态下实证失败：evict 落到
         // stale 提交之后，无在途 key 可标、不触发重试）
         CompletableFuture<Void> staleCommitGate = new CompletableFuture<>();
-        when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
+        when(permissionClient.interfaceAdmissionSnapshot(anyString(), anyLong(), anyString(), anyLong()))
             .thenAnswer(inv -> {
                 loadStarted.countDown();
                 if (calls.incrementAndGet() == 1) {
@@ -301,9 +298,9 @@ class GatewayInvalidationRaceTest {
 
         // 修复后：在途 key 被标记 → 旧回源作废 → 重试新快照入缓存
         assertThat(calls.get()).isEqualTo(2);
-        InterfaceSnapshotResp cached =
-            cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier());
+        InterfaceAdmissionSnapshotResp cached =
+            cacheService.get(GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT, TENANT_ID, identifier());
         assertThat(cached).isNotNull();
-        assertThat(cached.allowedApis().get(0).serviceCode()).isEqualTo(SERVICE_CODE + ":fresh");
+        assertThat(cached.serviceCode()).isEqualTo(SERVICE_CODE + ":fresh");
     }
 }

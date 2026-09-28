@@ -223,7 +223,10 @@ class ExplicitClearFieldsPgIT {
     @Test
     @DisplayName("接口映射 extra 清空真实落 NULL（JSONB 列显式 NULL 写入）")
     void apiMappingExtraClearPersistsNull() {
-        jdbc.update("INSERT INTO service_config(tenant_id, service_code, name) VALUES (?, 'it-clear-map-svc', '映射服务')", TENANT);
+        // T-ACCESS-059：DDL 缺省已改 OPERATION_ADMISSION（无迁移期口径）——本用例测 extraClear
+        // 语义与准入无关，钉 LEGACY_API 维持旧协议形态夹具
+        jdbc.update("INSERT INTO service_config(tenant_id, service_code, name, api_auth_mode) "
+            + "VALUES (?, 'it-clear-map-svc', '映射服务', 'LEGACY_API')", TENANT);
         jdbc.update(
             "INSERT INTO resource_entity(tenant_id, resource_type, code, code_type, name, path, status, extra) "
                 + "VALUES (?, 3, 'it-clear-api-1', 'default', '清空映射资源', '/it/clear', 1, '{}')", TENANT);
