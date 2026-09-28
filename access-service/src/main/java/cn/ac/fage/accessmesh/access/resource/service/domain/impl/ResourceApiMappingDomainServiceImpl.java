@@ -2,6 +2,8 @@ package cn.ac.fage.accessmesh.access.resource.service.domain.impl;
 
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
+import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceApiMappingDomainService;
 import org.springframework.stereotype.Service;
 
@@ -22,6 +24,20 @@ public class ResourceApiMappingDomainServiceImpl implements ResourceApiMappingDo
 
     public ResourceApiMappingDomainServiceImpl(ResourceApiMappingMapper resourceApiMappingMapper) {
         this.resourceApiMappingMapper = resourceApiMappingMapper;
+    }
+
+    @Override
+    public void assertOperationsUnreferenced(Long tenantId, Set<Long> operationIds) {
+        if (!operationIds.isEmpty() && !resourceApiMappingMapper.selectByRequiredOperationIds(tenantId, operationIds).isEmpty()) {
+            throw new BizException(AccessErrorCode.OPERATION_REFERENCED_BY_GRANTS.getCode(),
+                "操作被接口映射引用，请先改绑或删除映射");
+        }
+    }
+
+    @Override
+    public Set<String> selectServiceCodesByRequiredOperationTypes(Long tenantId, Set<Integer> resourceTypes) {
+        return resourceTypes.isEmpty() ? Set.of()
+            : resourceApiMappingMapper.selectServiceCodesByRequiredOperationTypes(tenantId, resourceTypes);
     }
 
     @Override

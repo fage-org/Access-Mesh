@@ -81,6 +81,14 @@ import cn.ac.fage.accessmesh.access.type.service.impl.TypeDefinitionAppServiceIm
     "logging.level.cn.ac.fage.accessmesh=WARN",
 })
 class ResourceOperationKeyPgIT {
+    @org.springframework.beans.factory.annotation.Autowired
+    private cn.ac.fage.accessmesh.access.resource.service.domain.ResourceApiMappingDomainService admMappingFacts;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private cn.ac.fage.accessmesh.access.resource.service.domain.ApiMappingWriteDomainService admMappingWriter;
+    @org.springframework.beans.factory.annotation.Autowired
+    private cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomainService admOperations;
+
 
     private static final Long TENANT = 1L;
 
@@ -131,7 +139,7 @@ class ResourceOperationKeyPgIT {
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper.class),
             resourceEntityDomainService, typeResolutionService, domainClassifyService,
             engine, rolePermMapper, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService.class), ownershipGuard(),
-            mock(TreeWriteLockSupport.class));
+            mock(TreeWriteLockSupport.class), admMappingWriter, admOperations);
     }
 
     private OperationAppServiceImpl newOperationAppService(QueryGate engine) {
@@ -140,7 +148,7 @@ class ResourceOperationKeyPgIT {
             typeDefinitionMapper,
             mock(cn.ac.fage.accessmesh.access.grant.service.domain.GrantOriginDomainService.class),
             mock(TreeWriteLockSupport.class), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.DependencyCompilationDomainService.class),
-            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService.class), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService.class));
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService.class), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService.class), admMappingFacts);
     }
 
     @BeforeEach

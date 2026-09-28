@@ -72,6 +72,11 @@ import static org.mockito.Mockito.mockStatic;
     "logging.level.cn.ac.fage.accessmesh=WARN",
 })
 class ServiceConfigCascadePgIT {
+    @org.springframework.beans.factory.annotation.Autowired
+    private cn.ac.fage.accessmesh.access.resource.service.domain.ApiMappingWriteDomainService admMappingWriter;
+    @org.springframework.beans.factory.annotation.Autowired
+    private cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomainService admOperations;
+
 
     private static final Long TENANT = 1L;
 
@@ -120,7 +125,7 @@ class ServiceConfigCascadePgIT {
     private ServiceConfigAppServiceImpl newServiceConfigAppService(QueryGate engine) {
         return new ServiceConfigAppServiceImpl(serviceConfigMapper, engine,
             resourceApiMappingMapper, syncTypeGuard, resourceSyncHandler,
-            typeResolutionService, mock(ResourceManageAppService.class));
+            typeResolutionService, mock(ResourceManageAppService.class), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class));
     }
 
     private ResourceManageAppService newResourceManageAppService(QueryGate engine) {
@@ -128,7 +133,7 @@ class ServiceConfigCascadePgIT {
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper.class),
             resourceEntityDomainService, typeResolutionService, domainClassifyService,
             engine, rolePermMapper, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService.class), ownershipGuard(),
-            mock(TreeWriteLockSupport.class));
+            mock(TreeWriteLockSupport.class), admMappingWriter, admOperations);
     }
 
     private final LocalDateTime now = LocalDateTime.now();
@@ -239,7 +244,7 @@ class ServiceConfigCascadePgIT {
             assertThat(resp.resourceCode()).isEqualTo("PGIT27_RESC");
             assertThat(resp.resourceName()).isEqualTo("PGIT27_RESC 资源");
             assertThat(resp.resourceTypeCode()).isEqualTo(ResourceTypeCode.API);
-            assertThat(resp.maintainSource()).isEqualTo("SERVICE_SYNC");
+            assertThat(resp.maintainSource()).isEqualTo("MANUAL");
         }
     }
 
@@ -276,6 +281,7 @@ class ServiceConfigCascadePgIT {
      */
     @Test
     @DisplayName("updateApiMapping 首查参数序在真实库走通（换参修复回归锁）")
+    @org.springframework.transaction.annotation.Transactional
     void shouldUpdateMappingWithCorrectArgumentOrderOnRealPostgres() {
         insertService("PGIT27SVC_D");
         ResourceEntity resource = insertApiResource("PGIT27_RESD", "PGIT27SVC_D", "MANUAL");
@@ -286,7 +292,7 @@ class ServiceConfigCascadePgIT {
             ResourceManageAppService manageService = newResourceManageAppService(permitAllEngine());
 
             var resp = manageService.updateApiMapping(TENANT, new cn.ac.fage.accessmesh.access.resource.dto.req.ApiMappingUpdateReq(
-                resource.getId(), mapping.getId(), "PUT", "/pgit27/d/1-v2", 5, true, null, null));
+                resource.getId(), mapping.getId(), "PUT", "/pgit27/d/1-v2", 5, true, null, null, null));
 
             assertThat(resp.httpMethod()).isEqualTo("PUT");
             assertThat(resp.pathPattern()).isEqualTo("/pgit27/d/1-v2");

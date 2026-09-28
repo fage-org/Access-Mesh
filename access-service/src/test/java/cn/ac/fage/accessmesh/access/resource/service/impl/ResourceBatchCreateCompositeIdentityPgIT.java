@@ -66,6 +66,11 @@ import static org.mockito.Mockito.mockStatic;
     "logging.level.cn.ac.fage.accessmesh=WARN",
 })
 class ResourceBatchCreateCompositeIdentityPgIT {
+    @org.springframework.beans.factory.annotation.Autowired
+    private cn.ac.fage.accessmesh.access.resource.service.domain.ApiMappingWriteDomainService admMappingWriter;
+    @org.springframework.beans.factory.annotation.Autowired
+    private cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomainService admOperations;
+
 
     private static final Long TENANT = 1L;
 
@@ -113,7 +118,7 @@ class ResourceBatchCreateCompositeIdentityPgIT {
             new cn.ac.fage.accessmesh.access.type.service.domain.ResourceTypeOwnershipGuard(
                 typeDefinitionMapper, serviceConfigDomainService, resourceEntityDomainService,
                 new com.fasterxml.jackson.databind.ObjectMapper()),
-            mock(TreeWriteLockSupport.class));
+            mock(TreeWriteLockSupport.class), admMappingWriter, admOperations);
     }
 
     @BeforeEach

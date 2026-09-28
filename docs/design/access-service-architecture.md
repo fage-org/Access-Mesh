@@ -4,7 +4,7 @@ title: access-service 目标架构与归并约束
 status: adopted
 domain: cross-service
 supersedes: docs/archive/2026-08-15/admin-permission-sync.md
-last_reviewed: 2026-09-26
+last_reviewed: 2026-09-27
 ---
 
 # access-service 目标架构与归并约束
@@ -460,6 +460,7 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
   - 首管理员：`username=admin`（租户 1 内唯一）；`abstract_user(user_type=LOCAL_USER, external_id=主体 ID)`（§12.2）；`sys_user.id=主体 ID`；`resource_entity(USER).code=主体 ID`（§12.3）。
   - 管理用功能角色：`roleTypeCode=BASIC_ROLE`、`domainCode=null`（全局域）、`externalId=bootstrap-admin`；首管理员经 `user_role` 绑定该角色。
   - `resource_entity(SERVICE, code=access-service)`（固定图对象 1）。
+  - `service_config(service_code=access-service)`：空库初始化为 LEGACY_API、启用；配置身份纳入固定图检查，名称、模式与状态由可信管理面维护，不在重启时覆盖（T-ACCESS-058）。旧库先执行 `docs/ops/operation-admission-migrate-058.sql` 补齐配置；新增接口的固定图升级仍沿下述升级边界处理。
   - 管理 API 与目标接口的 API 资源：`resource_entity(API).code = {METHOD}:{外部路径}`（如 `POST:/api/access/role/my-info`、`POST:/api/access/abstract-role/tree`；T-ACCESS-042 起外部路径=服务路径），`code_type=default`；`resource_api_mapping.serviceCode=access-service`、`httpMethod/pathPattern` 与外部路径的方法和路径一致。
   - 幂等三状态的「完整匹配」按上述键定位对象后比对身份、角色、关联与授权；「业务键被占用」= 任一键被非本图数据持有（fail-fast 报告具体冲突）。
 - **幂等三状态**：① 固定图完全不存在——单事务创建完整固定图；② 完整存在且身份、角色、关联与授权行齐全——整体 no-op，绝不重置密码；③ 部分存在（含授权行缺失；授权缺行处置例外见下方「收缩通道」条）、关联缺失或固定业务键被其他数据占用——启动失败并报告具体冲突，不自动修复、不补权、不扩权。**授权属性漂移放行（2026-09-02 口径定案，T-FE-018 联调暴露）**：canGrant/conditionId/grantedBits/dependOn/grantSource 等授权可变属性的管理端运营修改是产品正常能力——身份行（资源实体/范围 + 类型）存在而属性不符仅 warn 告警放行，不构成冲突、不重种覆盖（区分「种子半成品/授权行被删」与「运营修改」两种情况）。不新增 ownership 字段、种子版本表或通用 bootstrap 框架；唯一约束仅并发兜底（仅单实例启用）。

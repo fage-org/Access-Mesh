@@ -4,7 +4,7 @@ title: 权限依赖声明与自动授权（简化方案）
 status: adopted
 domain: access-service
 supersedes: docs/archive/2026-09-20/dependency-auto-grant-path-design.md
-last_reviewed: 2026-09-26
+last_reviewed: 2026-09-27
 ---
 
 # 权限依赖声明与自动授权（简化方案）
@@ -250,7 +250,7 @@ INLINE 维持“一个 MANUAL 属主 + 多个系统派生引用”，用户不�
 | 条件编辑/删除 | 维护引用与受影响结果，条件判定保持运行时语义 |
 | 操作定义/类型所有权变更 | 按引用规则拒绝或重编译、重算 |
 
-binaryBit 变更/操作删除存在有效 MANUAL/AUTO_DEP 授权引用时拒绝；AUTHORITY_ROOT 专属基座仍按现役 T-PERM-062 的同事务迁移/删除处理，不将系统基座误算为用户引用而锁死所有自定义操作。声明的操作编码引用在定义变更时重编译：删除后按 OPERATION_INVALID 降级，位变更无有效授权引用时按新位重编译，inheritMask 变更重编译/重算。引用拒绝码 20069 已随 072 在正式契约 §12.1 登记（granted_bits 等值口径，AUTHORITY_ROOT 豁免）。非 manifest 入口影响声明/图时置 dirty；仅资源 status 切换不因自动授权置 dirty。
+binaryBit 变更/操作删除存在有效 MANUAL/AUTO_DEP 授权引用时拒绝；AUTHORITY_ROOT 专属基座仍按现役 T-PERM-062 的同事务迁移/删除处理，不将系统基座误算为用户引用而锁死所有自定义操作。声明的操作编码引用在定义变更时重编译：删除后按 OPERATION_INVALID 降级，位变更无有效授权引用时按新位重编译，inheritMask 变更重编译/重算。引用拒绝码 20069 已随 072 在正式契约 §12.1 登记（granted_bits 等值口径，AUTHORITY_ROOT 豁免）。接口准入映射的操作引用也纳入该守卫（T-ACCESS-058，含类型删除路径），引用处置与服务投影失效见[契约总册 §25](access-service-api-contract.md#operation-admission-protocol)。非 manifest 入口影响声明/图时置 dirty；仅资源 status 切换不因自动授权置 dirty。
 
 **资源停用/恢复已定（M1，2026-09-20）**：停用不充当自动撤权动作。源、目标或中间资源停用均不暂停传播，既有自动授权保留；恢复无需重建自动权限或额外发布 manifest。撤销显式种子、删除资源或修改依赖时仍按完整 desired 重算收缩。此决定只规定自动授权事实与传播，不改变资源自身的运行时鉴权语义，不承诺停用即所有鉴权入口拒绝访问，也不放宽来源服务停用后的同步入口门禁。
 

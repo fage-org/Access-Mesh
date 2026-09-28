@@ -1,9 +1,12 @@
 package cn.ac.fage.accessmesh.access.resource.service.domain.impl;
 
 import cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtil;
+import cn.ac.fage.accessmesh.access.resource.enums.ApiMappingSource;
+import cn.ac.fage.accessmesh.access.resource.service.domain.ApiMappingWriteDomainService;
+import cn.ac.fage.accessmesh.access.resource.service.domain.ApiMappingWriteDomainService.Write;
 import cn.ac.fage.accessmesh.common.exception.SystemException;
 import cn.ac.fage.accessmesh.access.projection.PermConstants;
-import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigSyncReq;
+
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
@@ -12,7 +15,6 @@ import cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.access.resource.service.domain.MappingSyncHandler;
 import cn.ac.fage.accessmesh.access.sync.strategy.SyncContext;
 import cn.ac.fage.accessmesh.access.sync.strategy.SyncMappingsResult;
-import cn.ac.fage.accessmesh.access.sync.SyncKeyCodecUtil;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -36,6 +38,7 @@ public class MappingSyncHandlerImpl implements MappingSyncHandler {
 
     private final ResourceApiMappingMapper resourceApiMappingMapper;
     private final ResourceEntityMapper resourceEntityMapper;
+    private final ApiMappingWriteDomainService mappingWriter;
 
     /**
      * 构造函数
@@ -44,9 +47,10 @@ public class MappingSyncHandlerImpl implements MappingSyncHandler {
      * @param resourceEntityMapper     资源实体Mapper
      */
     public MappingSyncHandlerImpl(ResourceApiMappingMapper resourceApiMappingMapper,
-                                   ResourceEntityMapper resourceEntityMapper) {
+                                   ResourceEntityMapper resourceEntityMapper, ApiMappingWriteDomainService mappingWriter) {
         this.resourceApiMappingMapper = resourceApiMappingMapper;
         this.resourceEntityMapper = resourceEntityMapper;
+        this.mappingWriter = mappingWriter;
     }
 
     /**
@@ -61,66 +65,51 @@ public class MappingSyncHandlerImpl implements MappingSyncHandler {
      */
     @Override
     public SyncMappingsResult syncMappings(SyncContext context) {
+        Set<String> codes = context.req().groups().stream().flatMap(g -> g.apis().stream())
+            .map(a -> a.resourceCode()).collect(Collectors.toSet());
+        Map<String, ResourceEntity> resourceByCode = codes.isEmpty() ? Map.of()
+            : resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(context.tenantId(), context.apiType(), codes,
+                Set.of(PermConstants.CodeType.DEFAULT)).stream().collect(Collectors.toMap(ResourceEntity::getCode, r -> r));
+        Map<String, ResourceApiMapping> byRoute = new java.util.HashMap<>();
+        for (ResourceApiMapping row : resourceApiMappingMapper.selectByTenantAndServiceCode(context.tenantId(), context.req().serviceCode())) {
+            byRoute.put(BusinessKeyUtil.apiRouteResourceKey(row.getHttpMethod(), row.getPathPattern(),
+                String.valueOf(row.getResourceEntityId())), row);
+        }
+        List<Write> writes = new ArrayList<>();
         int createdCount = 0;
         int updatedCount = 0;
         Set<String> incomingKeys = new HashSet<>();
-
-        // 首先同步资源以获取活跃的资源ID
-        // 需要再次获取资源，以便将resourceCode映射到resourceId
-        for (ServiceConfigSyncReq.GroupItem group : context.req().groups()) {
-            for (ServiceConfigSyncReq.ApiItem api : group.apis()) {
+        for (var group : context.req().groups()) {
+            for (var api : group.apis()) {
                 String fullPath = joinPath(context.basePath(), api.path());
-                String routeResourceKey = BusinessKeyUtil.apiRouteResourceKey(
-                    api.httpMethod().toUpperCase(), fullPath, api.resourceCode());
-                incomingKeys.add(routeResourceKey);
-                String syncKey = SyncKeyCodecUtil.apiMappingSyncKey(context.req().serviceCode(), api.resourceCode());
-
-                // 获取资源实体
-                ResourceEntity resource = resourceEntityMapper.selectByTypeCodeAndCodeType(
-                    context.tenantId(), context.apiType(), api.resourceCode(), PermConstants.CodeType.DEFAULT);
-
+                String method = api.httpMethod().toUpperCase(java.util.Locale.ROOT);
+                incomingKeys.add(BusinessKeyUtil.apiRouteResourceKey(method, fullPath, api.resourceCode()));
+                ResourceEntity resource = resourceByCode.get(api.resourceCode());
                 if (resource == null) {
-                    // 应该已由ResourceSyncHandler创建
-                    // 如果不存在，抛出异常
                     throw new SystemException(AccessErrorCode.SYNC_RESOURCE_NOT_FOUND.getCode(), "资源未找到: " + api.resourceCode());
                 }
-
-                // 查找已有映射
-                ResourceApiMapping mapping = resourceApiMappingMapper.selectByUniqueKey(
-                    context.tenantId(), resource.getId(),
-                    context.req().serviceCode(),
-                    api.httpMethod().toUpperCase(),
-                    fullPath);
-
+                String key = BusinessKeyUtil.apiRouteResourceKey(method, fullPath, String.valueOf(resource.getId()));
+                ResourceApiMapping mapping = byRoute.get(key);
                 if (mapping == null) {
-                    // 创建新映射
                     mapping = new ResourceApiMapping();
                     mapping.setTenantId(context.tenantId());
                     mapping.setResourceEntityId(resource.getId());
                     mapping.setServiceCode(context.req().serviceCode());
-                    mapping.setHttpMethod(api.httpMethod().toUpperCase());
+                    mapping.setHttpMethod(method);
                     mapping.setPathPattern(fullPath);
                     mapping.setMatchOrder(0);
-                    mapping.setEnabled(true);
-                    mapping.setExtra("{\"syncKey\":\"" + syncKey + "\"}");
                     mapping.setCreatedBy(context.operatorId());
-                    LocalDateTime now = LocalDateTime.now();
-                    mapping.setCreatedAt(now);
-                    mapping.setUpdatedAt(now);
-                    mapping.setDeleteFlag(0L);
-                    resourceApiMappingMapper.insert(mapping);
                     createdCount++;
+                    byRoute.put(key, mapping);
                 } else {
-                    // 更新已有映射
-                    mapping.setEnabled(true);
-                    mapping.setExtra("{\"syncKey\":\"" + syncKey + "\"}");
-                    mapping.setUpdatedAt(LocalDateTime.now());
-                    resourceApiMappingMapper.update(mapping);
                     updatedCount++;
                 }
+                mapping.setEnabled(true);
+                mapping.setUpdatedBy(context.operatorId());
+                writes.add(new Write(mapping, api.requiredPermission()));
             }
         }
-
+        mappingWriter.saveAll(context.tenantId(), context.req().serviceCode(), ApiMappingSource.SERVICE_SYNC, writes);
         return new SyncMappingsResult(createdCount, updatedCount, incomingKeys);
     }
 
@@ -161,14 +150,15 @@ public class MappingSyncHandlerImpl implements MappingSyncHandler {
         LocalDateTime now = LocalDateTime.now();
         List<Long> idsToDelete = new ArrayList<>();
         for (ResourceApiMapping mapping : existingMappings) {
-            ResourceEntity resource = resourceMap.get(mapping.getResourceEntityId());
-            if (resource == null) {
+            // 映射拥有独立来源，不能从绑定资源的来源推断清理权。
+            if (!PermConstants.MaintainSource.SERVICE_SYNC.equals(mapping.getMaintainSource())
+                || !serviceCode.equals(mapping.getServiceCode())) {
                 continue;
             }
 
-            // 仅删除由SERVICE_SYNC维护且属于当前服务的资源映射
-            if (!PermConstants.MaintainSource.SERVICE_SYNC.equals(resource.getMaintainSource())
-                || !serviceCode.equals(resource.getOwnerServiceCode())) {
+            ResourceEntity resource = resourceMap.get(mapping.getResourceEntityId());
+            if (resource == null) {
+                idsToDelete.add(mapping.getId());
                 continue;
             }
 

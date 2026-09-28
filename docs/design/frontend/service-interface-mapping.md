@@ -3,7 +3,7 @@ doc_type: design
 title: 5.2 服务与接口映射页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-09-24（T-API-004：服务保存/更新映射两行补显式清空括注——basePathClear/descriptionClear/extraClear 与 extraClear 公式）2026-09-15   # 2026-09-05 T-PERM-053 锁步补正（§3.2 同步必填字段清单删 operationCode——接口权限无操作粒度，随契约 §6.3 字段退役）；2026-09-03   # 2026-09-03 T-FE-022 联调收口（mock 退役/api 切 Gateway /perm 前缀/浏览器冒烟全过）——Gateway +8 端点（service-config 5 + api-mapping 3，detail 不消费）；2026-08-29   # 2026-08-29 §7.6 资源选择器收口（T-PERM-028：类型下拉+树选落地、裸 ID 输入删除）；同日 T-PERM-027 后端收口终态化（删除级联/资源业务字段/FULL-only/mapping list 门禁/updatedAt/bootstrap SERVICE 授权；§7 七项收口标注）；原文 2026-07-11 Phase 1 前端设计定稿
+last_reviewed: 2026-09-27
 ---
 
 # 5.2 服务与接口映射页 前端设计
@@ -55,14 +55,14 @@ last_reviewed: 2026-09-24（T-API-004：服务保存/更新映射两行补显式
 
 - 「同步接口」只在拥有 `SERVICE:SYNC_INTERFACE` 时展示。
 - 弹窗固定 `syncMode: "FULL"`，基础路径可调整，分组 JSON 在前端校验 `groups[] → apis[]` 的必要字段。
-- 每条 API 要求 `name/httpMethod/path/resourceCode`，`path` 必须以 `/` 开头（`operationCode` 已删除：接口权限无操作粒度，T-PERM-053，2026-09-05）。
-- mock 保留 `SERVICE_SYNC` 与 `MANUAL` 维护来源：FULL 同步只删除当前服务缺失的 `SERVICE_SYNC` 映射，绝不删除 `MANUAL` 映射；成功消息展示新增、更新、清理数量。
+- 每条 API 要求 `name/httpMethod/path/resourceCode`，`path` 必须以 `/` 开头。表单显式选择旧接口登记或新版业务操作声明；新版走独立 `sync-v2`，每项必须有 `requiredPermission={resourceTypeCode, operationCode}`，不允许 API:ACCESS，不自动切换服务鉴权模式。旧 ApiItem 顶层 operationCode 仍已退役。
+- 显示映射自身的 `MANUAL/SERVICE_SYNC/BOOTSTRAP` 来源：FULL 只清当前服务的 SERVICE_SYNC 映射；保留映射仍引用的 API 登记实体不回收。成功消息展示新增、更新、清理数量。
 
 ### 3.3 手工 API 映射
 
 - 映射表显示 HTTP 方法、Gateway 路径、资源业务编码（`resourceCode`，T-PERM-027 已补；资源已删时回退 `#资源实体ID`）、匹配顺序、状态和更新时间，支持路径/资源、方法、状态三维过滤（资源过滤同时匹配 resourceCode 与实体 ID）。
 - 新增和编辑用独立表单：路径以 `/` 开头，顺序为非负整数，`extra` 若填写必须为合法 JSON。
-- 映射 create/update 以 `resourceId` 内部主键提交（api-contract §5.4 定案不随业务键切换）；表单资源选取已升级为「类型下拉 + 资源树选择」（T-PERM-028 联动落地，选中取树节点内部 id，数据源 `resource-entity/tree`），裸数字输入形态已删除（见 §7.6）。
+- 映射 create/update 以 `resourceId` 内部主键提交（api-contract §5.4 定案不随业务键切换）；登记实体固定从 API 资源树选择，业务资源类型与准入操作使用独立下拉；编辑态登记实体只读，操作要求可改绑。列表展示准入要求与映射自身的维护来源。类型/操作切换遵守最新请求生效与清空旧选择规则。
 - 创建、编辑、移除仅在拥有 `SERVICE:MANAGE_API_MAPPING` 时展示；无写权限时表格保留只读状态，不发送写请求。
 
 ## 4. 数据与 API 依赖
@@ -76,13 +76,14 @@ last_reviewed: 2026-09-24（T-API-004：服务保存/更新映射两行补显式
 | 服务保存 | `POST /api/access/service-config/save` | `serviceCode/name/basePath/...` | `ServiceConfigResp` | ✅（Resp 含 updatedAt，§7.7；T-API-004：编辑态 basePath/description/extra 清空走 `basePathClear`/`descriptionClear`/`extraClear`〔公式=原值非 null 且表单清空〕，创建分支携带拒绝——统一协议契约 §2.7） |
 | 服务删除 | `POST /api/access/service-config/remove` | `{ids}` | `void` | ✅（T-PERM-027 级联清理落地，§7.2） |
 | 服务接口清单 | `POST /api/access/service-config/apis` | `{serviceCode}` | `ItemsResp<ApiMappingResp>` | ✅（T-PERM-027 补资源业务字段，§7.3） |
+| 新版完整同步 | `POST /api/access/service-config/sync-v2` | `ServiceConfigSyncV2Req(FULL)` | `ServiceConfigSyncResp` | 业务操作要求落库；来源冲突及无效引用整批回滚 |
 | 完整同步 | `POST /api/access/service-config/sync` | `ServiceConfigSyncReq(FULL)` | `ServiceConfigSyncResp` | ✅（T-PERM-027 后端 FULL-only 校验，§7.4） |
 | 映射列表（计数） | `POST /api/access/resource-api-mapping/list` | `{resourceId?,serviceCode?}` | `ItemsResp<ApiMappingResp>` | ✅（T-PERM-027 补 SERVICE:VIEW 门禁+服务维裁剪，§7.5；T-ACCESS-055：不带 serviceCode 的全量列表改实例准入——类型级不过时持任一 SERVICE 实例 VIEW 进入+结果按可见服务裁剪） |
 | 新增映射 | `POST /api/access/resource-api-mapping/create` | `resourceId/serviceCode/method/path/...` | `ApiMappingResp` | ✅（§6.10.4；资源键 T-PERM-028 联动，§7.6） |
 | 更新映射 | `POST /api/access/resource-api-mapping/update` | `resourceId/mappingId/...` | `ApiMappingResp` | ✅（§6.10.4；同上；T-API-004：extra 清空走 `extraClear`〔公式=原 extra 非空且表单清空〕） |
 | 移除映射 | `POST /api/access/resource-api-mapping/remove` | `{ids}` | `void` | ✅ |
 
-所有接口由 `src/api/service-interface.ts` 解包统一 `R<T>` 信封；请求体不传 `tenantId`。
+服务表单展示并编辑 `apiAuthMode`，切换提示指向逐路由最终鉴权与反向测试的迁移门槛；同步不代替模式切换。所有接口由 `src/api/service-interface.ts` 解包统一 `R<T>` 信封；请求体不传 `tenantId`。
 
 ## 5. 组件与权限接线
 
@@ -103,7 +104,7 @@ views/system/service-interface/
 |---|---|---|
 | `SERVICE:VIEW` | 服务 list/detail/apis；映射 list（T-ACCESS-055 起全量列表实例准入） | 页面加载；类型级+实例均无权限时显示空态，不触发加载 |
 | `SERVICE:MANAGE` | 服务 save/remove | 登记、编辑、删除服务 |
-| `SERVICE:SYNC_INTERFACE` | `service-config/sync` | FULL 同步入口 |
+| `SERVICE:SYNC_INTERFACE` | `service-config/sync`、`sync-v2` 的管理员通道 | FULL 同步入口 |
 | `SERVICE:MANAGE_API_MAPPING` | 映射 create/update/remove | 新增、编辑、移除映射 |
 
 `router/modules/system.ts` 的 `meta.auths` 从 `SERVICE_INTERFACE_PERM_LIST` 派生；`mock/login.ts` 反向复用同一 SSOT：admin 与 sec 全权，hr 与 auditor 只读。
@@ -122,10 +123,10 @@ Phase 1 不修改后端；以下项目登记到 T-PERM-027 并已随其收口（
 
 1. ~~**服务列表缺少分页与筛选**~~（已收口为设计定案，2026-08-29）：`list` 维持 `{}` 全量返回——服务登记数量有界（租户内微服务个数），左栏目录面板无分页 UI、本地过滤已可用，补无人消费的分页参数属死契约面；契约口径见 api-contract §5.4。
 2. ~~**服务删除未级联处理映射**~~（已收口，2026-08-29）：`deleteServiceConfigsByIds` 同事务级联软删该服务全部映射（含 MANUAL）+ 该服务 SERVICE_SYNC 自动维护的孤立 API 资源（FULL diff 同清理边界；被其他服务跨服务手工映射引用的资源保留），并 `markServiceCodes` 广播 Gateway 快照失效；Controller 注释与实现一致。ServiceConfigCascadePgIT 真库锁定。
-3. ~~**`service-config/apis` 并非资源树**~~（已收口，2026-08-29）：维持扁平 `ApiMappingResp`（页面形态即扁平映射表，无树形诉求），但补齐 `resourceCode/resourceName/resourceTypeCode/maintainSource` 资源业务字段（批量补全，资源已删为 null，前端回退展示 `#实体ID`）；映射表「资源实体」列升级为「资源」列展示业务编码。
+3. ~~**`service-config/apis` 并非资源树**~~（已收口，2026-08-29）：维持扁平 `ApiMappingResp`（页面形态即扁平映射表，无树形诉求），但补齐 `resourceCode/resourceName/resourceTypeCode` 资源业务字段（批量补全，资源已删为 null，前端回退展示 `#实体ID`）；maintainSource 为映射自身来源，资源删除不清空该展示值（T-ACCESS-058）；映射表「资源实体」列升级为「资源」列展示业务编码。
 4. ~~**同步模式设计与 DTO 漂移**~~（已收口，2026-08-29）：`ServiceConfigSyncReq.syncMode` 校验层 `@Pattern("FULL")` 拒绝其他值（HTTP 400，body `code=90001` 参数校验失败），零调用的 `IncrementalSyncStrategy` 删除；后端与权威契约 §6.3、前端与 mock 三方一致。
 5. ~~**映射列表缺少权限校验**~~（已收口，2026-08-29）：`listApiMappings` 补 SERVICE:VIEW 门禁——带 `serviceCode` 按该服务实例校验，不带按类型级校验并对结果做服务维裁剪（`getDeniedResourceCodes` 批量判权，拒绝服务的映射不外泄）；`service-config/apis` 委托同一实现（门禁与补全单点）。
-6. ~~**手工映射使用内部资源 ID**~~ **已收口（T-PERM-028，2026-08-29 用户决策实现）**：create/update 仍以 `resourceId` 内部主键提交（api-contract §5.4 定案）；前端资源选择器已落地——MappingForm 裸「资源实体 ID」数字输入替换为「资源类型下拉 + el-tree-select 资源树选择」，选中取节点内部 id 提交，编辑态只读展示行内资源业务字段（`resourceCode·resourceName`）。
+6. ~~**手工映射使用内部资源 ID**~~ **已收口（T-PERM-028，2026-08-29 用户决策实现）**：create/update 仍以 `resourceId` 内部主键提交（api-contract §5.4 定案）；前端登记实体固定从 API 资源树选择，业务准入类型与操作独立选择（T-ACCESS-058），选中取节点内部 id 提交，编辑态只读展示行内资源业务字段（`resourceCode·resourceName`）。
 7. ~~**同步状态不可追溯**~~（已收口，2026-08-29）：`ServiceConfigResp` 补 `updatedAt`（列已有，保存与 FULL 同步回写 basePath 时刷新），服务信息条展示「更新于」；`lastSyncedAt` 不设——无现成列且按映射 MAX(updated_at) 聚合推导语义模糊（行更新≠最近一次成功同步），登记不做。
 
 ## 8. 验收记录

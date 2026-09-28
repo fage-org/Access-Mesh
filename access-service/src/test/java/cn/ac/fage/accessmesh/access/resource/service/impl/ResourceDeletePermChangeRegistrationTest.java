@@ -65,7 +65,7 @@ class ResourceDeletePermChangeRegistrationTest {
             typeResolutionService, domainClassifyService, engine, rolePermMapper,
             conditionDomainService,
             resourceTypeOwnershipGuard,
-            treeWriteLockSupport);
+            treeWriteLockSupport, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.ApiMappingWriteDomainService.class), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomainService.class));
         // 模拟 @PermissionChange AOP 绑定 context（owner）
         PermissionChangeContext.bindIfAbsent();
     }

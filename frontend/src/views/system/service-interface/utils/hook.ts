@@ -12,6 +12,7 @@ import {
   removeServiceConfigs,
   saveServiceConfig,
   syncServiceInterfaces,
+  syncServiceInterfacesV2,
   updateApiMapping,
   type ApiMappingResp,
   type ServiceConfigSyncResp
@@ -210,6 +211,7 @@ export function useServiceInterface() {
         basePath: form.basePath || null,
         description: form.description || null,
         status: form.status,
+        apiAuthMode: form.apiAuthMode,
         extra: form.extra.trim() || null,
         basePathClear: original?.basePath != null && !form.basePath,
         descriptionClear: original?.description != null && !form.description,
@@ -292,9 +294,21 @@ export function useServiceInterface() {
       });
       return false;
     }
+    const requiredPermission =
+      form.requiredResourceTypeCode && form.requiredOperationCode
+        ? {
+            resourceTypeCode: form.requiredResourceTypeCode,
+            operationCode: form.requiredOperationCode
+          }
+        : undefined;
+    if (!!form.requiredResourceTypeCode !== !!form.requiredOperationCode) {
+      message("请选择完整的业务资源类型与操作", { type: "warning" });
+      return false;
+    }
     try {
       if (mode === "create") {
         await createApiMapping({
+          requiredPermission,
           resourceId: form.resourceEntityId,
           serviceCode,
           httpMethod: form.httpMethod,
@@ -313,6 +327,7 @@ export function useServiceInterface() {
           return false;
         }
         await updateApiMapping({
+          requiredPermission,
           resourceId: editing.resourceEntityId,
           mappingId: editing.id,
           httpMethod: form.httpMethod,
@@ -374,10 +389,13 @@ export function useServiceInterface() {
   }
 
   async function runFullSync(
-    request: ServiceConfigSyncReq
+    submission: import("./types").SyncSubmission
   ): Promise<ServiceConfigSyncResp | null> {
     try {
-      const result = await syncServiceInterfaces(request);
+      const result =
+        submission.version === 2
+          ? await syncServiceInterfacesV2(submission.request)
+          : await syncServiceInterfaces(submission.request);
       await loadDirectory();
       return result;
     } catch (error: unknown) {

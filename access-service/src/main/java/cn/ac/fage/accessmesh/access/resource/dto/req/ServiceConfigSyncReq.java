@@ -50,7 +50,7 @@ public record ServiceConfigSyncReq(
      * 表示单个API接口的详细信息，包括方法、路径、权限关联等。
      * </p>
      * <p>
-     * operationCode 已删除（T-PERM-053，2026-09-05）：接口权限模型为「API 资源实例 ×
+     * operationCode 已删除（T-PERM-053，2026-09-05）：本旧协议权限模型为「API 资源实例 ×
      * ACCESS 单操作」，无操作粒度，运行时固定按 ACCESS 判定；原字段既不落库也不参与
      * 鉴权，属契约性空壳。仍携带该字段的旧请求体经全局严格 ObjectMapper 反序列化 400。
      * </p>

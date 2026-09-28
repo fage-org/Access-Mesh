@@ -72,7 +72,7 @@ class ResourceManageAppServiceImplTest {
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService.class),
             resourceTypeOwnershipGuard,
             treeWriteLockSupport
-        );
+        , org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.ApiMappingWriteDomainService.class), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomainService.class));
     }
 
     @Test
@@ -658,7 +658,8 @@ class ResourceManageAppServiceImplTest {
                 .thenReturn(List.of(mapping(301L, 1001L, "svc-a")));
             ResourceEntity resource = resource(1001L);
             when(resourceEntityMapper.selectValidByIds(eq(1L), any())).thenReturn(List.of(resource));
-            when(typeResolutionService.resolveTypeCode(1L, "resource_type", 3)).thenReturn("API");
+            when(typeResolutionService.batchResolveTypeCodes(1L, "resource_type", Set.of(3)))
+                .thenReturn(java.util.Map.of(3, "API"));
 
             var result = service.listApiMappings(1L, null, "svc-a");
 
@@ -666,7 +667,7 @@ class ResourceManageAppServiceImplTest {
             assertEquals("res:x", result.get(0).resourceCode());
             assertEquals("资源X", result.get(0).resourceName());
             assertEquals("API", result.get(0).resourceTypeCode());
-            assertEquals("SERVICE_SYNC", result.get(0).maintainSource());
+            assertEquals("MANUAL", result.get(0).maintainSource());
         }
     }
 
@@ -685,7 +686,7 @@ class ResourceManageAppServiceImplTest {
 
             assertEquals(1, result.size());
             assertEquals(null, result.get(0).resourceCode());
-            assertEquals(null, result.get(0).maintainSource());
+            assertEquals("MANUAL", result.get(0).maintainSource());
         }
     }
 

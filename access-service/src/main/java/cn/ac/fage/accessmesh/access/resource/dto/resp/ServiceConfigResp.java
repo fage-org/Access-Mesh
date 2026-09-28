@@ -30,5 +30,6 @@ public record ServiceConfigResp(
     Integer status,
     String extra,
     LocalDateTime createdAt,
-    LocalDateTime updatedAt
+    LocalDateTime updatedAt,
+    String apiAuthMode
 ) {}

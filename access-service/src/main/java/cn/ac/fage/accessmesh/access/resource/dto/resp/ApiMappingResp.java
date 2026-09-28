@@ -23,7 +23,8 @@ import java.time.LocalDateTime;
  * @param resourceCode     资源业务编码（T-PERM-027：关联 resource_entity 的展示字段，资源已软删时为 null）
  * @param resourceName     资源名称（同上）
  * @param resourceTypeCode 资源类型编码（同上）
- * @param maintainSource   资源维护来源 MANUAL/SERVICE_SYNC（同上）
+ * @param maintainSource   映射自身维护来源 MANUAL/SERVICE_SYNC/BOOTSTRAP
+ * @param requiredPermission 业务准入要求（旧模式尚未配置时为空）
  */
 public record ApiMappingResp(
     Long id,
@@ -40,5 +41,6 @@ public record ApiMappingResp(
     String resourceCode,
     String resourceName,
     String resourceTypeCode,
-    String maintainSource
+    String maintainSource,
+    cn.ac.fage.accessmesh.access.resource.dto.RequiredPermission requiredPermission
 ) {}

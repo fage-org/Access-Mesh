@@ -54,7 +54,7 @@ class OperationAppServiceImplTest {
         // 测试简化：投影主体 = 传入 operatorId
         service = new OperationAppServiceImpl(operationPermissionMapper, typeResolutionService, engine,
             cacheService, typeDefinitionMapper, grantOriginDomainService, treeWriteLockSupport, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.DependencyCompilationDomainService.class),
-            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService.class), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService.class));
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService.class), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService.class), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.ResourceApiMappingDomainService.class));
     }
 
     @Test
@@ -151,6 +151,7 @@ class OperationAppServiceImplTest {
 
     private static OperationPermission op(Integer resourceType, String code) {
         OperationPermission o = new OperationPermission();
+        o.setId(1001L);
         o.setTenantId(1L);
         o.setResourceType(resourceType);
         o.setCode(code);
@@ -415,6 +416,7 @@ class OperationAppServiceImplTest {
             isNull(), eq(OperationCode.MANAGE))).thenReturn(true);
         cn.ac.fage.accessmesh.access.type.entity.OperationPermission op =
             new cn.ac.fage.accessmesh.access.type.entity.OperationPermission();
+        op.setId(1002L);
         op.setResourceType(12);
         op.setCode("EXPORT");
         op.setBinaryBit(16L);
@@ -439,6 +441,7 @@ class OperationAppServiceImplTest {
             isNull(), eq(OperationCode.MANAGE))).thenReturn(true);
         cn.ac.fage.accessmesh.access.type.entity.OperationPermission op =
             new cn.ac.fage.accessmesh.access.type.entity.OperationPermission();
+        op.setId(1002L);
         op.setResourceType(12);
         op.setCode("EXPORT");
         op.setBinaryBit(16L);

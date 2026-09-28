@@ -2,12 +2,17 @@
 doc_type: task
 id: T-ACCESS-058
 title: （ADM-T03）映射模型、服务模式与同步/管理面
-status: proposed
+status: done
 plan: docs/plans/r2-query-engine-and-admission-plan.md
 domain: access-service
 design_refs:
   - docs/design/r2-unified-query-and-admission.md §8.1/§8.3
   - docs/design/schema/access-service.sql
+  - docs/design/access-service-api-contract.md §12.2/§24/§25
+  - docs/design/service-authentication.md §3.5
+  - docs/design/access-service-architecture.md §14
+  - docs/design/frontend/service-interface-mapping.md
+  - docs/design/dependency-auto-grant.md §7
 depends_on:
   - T-ACCESS-056
 blocks: []
@@ -17,15 +22,15 @@ acceptance:
   - "FULL 只收敛该服务 SERVICE_SYNC 自有映射；清理归属按映射来源判定（修复 MANUAL 映射绑 SERVICE_SYNC 实体被 FULL 误清的现行缺口——MappingSyncHandlerImpl 按实体 maintain_source/owner 推断）；登记实体回收不使保留映射悬挂（N16/N17/N18）；同路由跨 owner 争写拒绝"
 design_writeback:
   required: true
-  status: pending
-last_updated: 2026-09-25
+  status: done
+last_updated: 2026-09-28
 ---
 
 # T-ACCESS-058 （ADM-T03）映射模型、服务模式与同步/管理面
 
 ## 背景
 
-设计 §8.1/§8.3（报告临时编号 ADM-T03）。现行 ResourceApiMapping 无业务操作引用；清理归属按绑定 API 实体推断（已核实的误清缺口）；旧同步 DTO operationCode 已于 T-PERM-053 删除。
+设计 §8.1/§8.3（报告临时编号 ADM-T03）。改造前 ResourceApiMapping 无业务操作引用，清理归属按绑定 API 实体推断；本任务补齐操作引用和映射独立来源。旧同步 DTO operationCode 已于 T-PERM-053 删除。
 
 ## 范围
 
@@ -34,3 +39,16 @@ last_updated: 2026-09-25
 ## 非目标 / 遗留
 
 - 存量运行库盘点与补操作处置在 T-ACCESS-061/T-PERM-054；网关消费在 T-ACCESS-059。
+
+## 当前口径
+
+- 映射操作引用、独立来源与可信服务模式按[契约总册 §25](../design/access-service-api-contract.md#operation-admission-protocol)实现；存量来源保守 MANUAL，迁移脚本为 `docs/ops/operation-admission-migrate-058.sql`。
+- 新同步采用独立 sync-v2，支持自身服务凭证及管理员门禁；旧同步不新增混用限制，退役由 T-ACCESS-062 承接。
+- 手工、同步和 bootstrap 共用保存校验，bootstrap 同事务创建服务配置并纳入固定图；映射引用与操作/类型生命周期共锁。
+- 操作覆盖变更按类型安全超集登记服务失效；快照端点与完整失效消费分别由 T-ACCESS-059/060 接线，不新增角色—API 授权或 AUTO_DEP。
+
+## 验收对照
+
+- DDL、迁移、实体、DTO、管理接口与前端已接线，准入要求真实落库并由映射读侧返回。
+- N16/N17/N18 的整批回滚、来源隔离、登记实体保留、操作/类型引用守卫和凭证边界由 AdmissionMappingPgIT 验证。
+- 2026-09-28 收口：全量回归（`mvn test -T 1C`，含 E2E 与 heavy 容器组）BUILD SUCCESS 零失败。评审处置同批落库：手工 update 读行移入 RESOURCE_ENTITY 树写锁内（防锁外快照覆盖并发改绑）、服务凭证同步不再抹空 updated_by、httpMethod 统一大写归一（防小写绕过同路由跨来源占用检查）、随唯一调用方退役清除 selectByUniqueKey/apiMappingSyncKey、FULL 清理与 extra.syncKey 相关五处文档残留改映射自身来源口径、schema service_config.status 注释与迁移脚本对齐接口声明同步 20025、前端 sync-v2 独立 DTO 类型；新增三例回归（OPERATION_ADMISSION 强制要求、updated_by 防抹、小写方法拒绝，后两例经红跑取证在旧实现下失败）。

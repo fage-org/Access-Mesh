@@ -62,6 +62,9 @@ public class ServiceConfig {
      */
     private Integer status;
 
+    /** 可信配置控制的接口鉴权模式。 */
+    private String apiAuthMode = "LEGACY_API";
+
     /**
      * 扩展信息（JSON格式），存储额外属性
      */

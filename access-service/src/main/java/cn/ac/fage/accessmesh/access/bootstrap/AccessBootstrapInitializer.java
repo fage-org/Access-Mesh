@@ -267,6 +267,7 @@ public class AccessBootstrapInitializer {
             tenantId, resourceTypes.get(ResourceTypeCode.SERVICE),
             Set.of(BootstrapGraphDefinition.SERVICE_RESOURCE_CODE));
         boolean serviceResourcePresent = !serviceResources.isEmpty();
+        boolean serviceConfigPresent = seedWriter.findServiceConfig(tenantId) != null;
         Long serviceResourceId = serviceResourcePresent ? serviceResources.get(0).getId() : null;
         if (serviceResourcePresent && (serviceResources.get(0).getStatus() == null
                 || serviceResources.get(0).getStatus() != 1)) {
@@ -452,16 +453,17 @@ public class AccessBootstrapInitializer {
         }
 
         boolean apiResourcesComplete = apiResourceIds.size() == expectedApiCodes.size();
-        boolean complete = adminPresent && rolePresent && serviceResourcePresent && apiResourcesComplete
+        boolean complete = adminPresent && rolePresent && serviceResourcePresent && serviceConfigPresent && apiResourcesComplete
             && menusComplete && defaultTreePresent;
         if (!complete) {
             // 状态③而非①：任一固定图对象已存在而其余缺失时按"部分存在"报告，
             // 避免走创建链撞唯一约束（报不可诊断的数据库异常）
-            boolean anyPresent = adminPresent || rolePresent || serviceResourcePresent
+            boolean anyPresent = adminPresent || rolePresent || serviceResourcePresent || serviceConfigPresent
                 || !apiResourceIds.isEmpty() || menusPresent || defaultTreePresent;
             if (anyPresent) {
                 conflicts.add("固定图部分存在: admin=" + adminPresent + ", 管理角色=" + rolePresent
                     + ", SERVICE资源=" + serviceResourcePresent
+                    + ", service_config=" + serviceConfigPresent
                     + ", API资源=" + apiResourceIds.size() + "/" + expectedApiCodes.size()
                     + ", 菜单种子=" + menusMatched + "/" + BootstrapGraphDefinition.menuSeeds().size()
                     + ", 默认树=" + defaultTreePresent);
@@ -550,6 +552,7 @@ public class AccessBootstrapInitializer {
         seedWriter.insertRoleBinding(tenantId, subjectId, roleId);
 
         // SERVICE 资源（固定图种子对象；MANAGE_API_MAPPING 已类型级，保留供未来实例级授权）
+        seedWriter.insertServiceConfig(tenantId);
         Long serviceResourceId = seedWriter.insertResource(tenantId,
             resourceTypes.get(ResourceTypeCode.SERVICE),
             BootstrapGraphDefinition.SERVICE_RESOURCE_CODE, BootstrapGraphDefinition.SERVICE_RESOURCE_NAME);
@@ -557,16 +560,19 @@ public class AccessBootstrapInitializer {
         // API 资源 + 映射（目标接口仅资源、无映射）
         Map<String, Long> apiResourceIds = new LinkedHashMap<>();
         int mappingCount = 0;
+        List<BootstrapSeedWriter.ApiMappingSeed> mappingSeeds = new ArrayList<>();
         for (BootstrapGraphDefinition.ApiRoute route : BootstrapGraphDefinition.apiRoutes()) {
             String code = BootstrapGraphDefinition.apiResourceCode(route.method(), route.path());
             Long resourceId = seedWriter.insertResource(
                 tenantId, resourceTypes.get(ResourceTypeCode.API), code, route.name());
             apiResourceIds.put(code, resourceId);
             if (route.withMapping()) {
-                seedWriter.insertApiMapping(tenantId, resourceId, route.method(), route.path());
+                mappingSeeds.add(new BootstrapSeedWriter.ApiMappingSeed(resourceId, route.method(), route.path()));
                 mappingCount++;
             }
         }
+
+        seedWriter.insertApiMappings(tenantId, mappingSeeds);
 
         // 授权（业务门禁全 scopeAll + 实例级 API:ACCESS；清单见 BootstrapGraphDefinition，计数以 AccessBootstrapPgIT 断言为准）
         List<RoleResourcePermission> grants = buildExpectedGrants(

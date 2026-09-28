@@ -121,6 +121,12 @@ public class ServiceConfigController {
         return R.ok(serviceSyncAppService.syncInterfaces(TenantContextHolder.getTenantId(), req));
     }
 
+    @PostMapping("/sync-v2")
+    public R<ServiceConfigSyncResp> syncServiceConfigV2(
+            @Valid @RequestBody cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigSyncV2Req req) {
+        return R.ok(serviceSyncAppService.syncInterfacesV2(TenantContextHolder.getTenantId(), req));
+    }
+
     /**
      * 查询服务的API列表
      * <p>

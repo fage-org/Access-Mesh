@@ -47,6 +47,12 @@ public class ResourceApiMapping {
      */
     private String serviceCode;
 
+    /** 业务准入操作引用；LEGACY_API 存量可为空。 */
+    private Long requiredOperationId;
+
+    /** 映射维护来源；所属服务由 serviceCode 表达。 */
+    private String maintainSource = "MANUAL";
+
     /**
      * HTTP方法（GET/POST/PUT/DELETE等）
      */

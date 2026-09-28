@@ -18,6 +18,12 @@ import java.util.Set;
  */
 public interface ResourceApiMappingMapper extends BaseMapper<ResourceApiMapping> {
 
+    List<ResourceApiMapping> selectByRequiredOperationIds(@Param("tenantId") Long tenantId,
+                                                         @Param("operationIds") Set<Long> operationIds);
+
+    Set<String> selectServiceCodesByRequiredOperationTypes(@Param("tenantId") Long tenantId,
+                                                          @Param("resourceTypes") Set<Integer> resourceTypes);
+
     /**
      * 批量软删除资源API映射
      *
@@ -131,19 +137,4 @@ public interface ResourceApiMappingMapper extends BaseMapper<ResourceApiMapping>
                                                         @Param("serviceCodes") Set<String> serviceCodes);
 
 
-    /**
-     * 根据租户ID、资源实体ID、服务编码、HTTP方法和路径模式查询有效映射
-     *
-     * @param tenantId        租户ID
-     * @param resourceEntityId 资源实体ID
-     * @param serviceCode     服务编码
-     * @param httpMethod      HTTP方法
-     * @param pathPattern     路径模式
-     * @return 映射实体，不存在返回null
-     */
-    ResourceApiMapping selectByUniqueKey(@Param("tenantId") Long tenantId,
-                                         @Param("resourceEntityId") Long resourceEntityId,
-                                         @Param("serviceCode") String serviceCode,
-                                         @Param("httpMethod") String httpMethod,
-                                         @Param("pathPattern") String pathPattern);
 }

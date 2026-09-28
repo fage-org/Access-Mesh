@@ -55,7 +55,9 @@ class ServiceSyncAppServiceImplTest {
             when(engine.hasPermissionByCode(eq(1L), eq(100L),
                 eq(ResourceTypeCode.SERVICE), eq("my-svc"), eq(OperationCode.SYNC_INTERFACE)))
                 .thenReturn(true);
-            when(serviceConfigMapper.selectByTenantAndServiceCode(1L, "my-svc")).thenReturn(new cn.ac.fage.accessmesh.access.resource.entity.ServiceConfig());
+            ServiceConfig activeService = new ServiceConfig();
+            activeService.setStatus(1);
+            when(serviceConfigMapper.selectByTenantAndServiceCode(1L, "my-svc")).thenReturn(activeService);
             when(typeResolutionService.resolveTypeValue(1L, "resource_type", ResourceTypeCode.API))
                 .thenReturn(null);
 

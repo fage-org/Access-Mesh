@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.access.resource.service.domain.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.projection.PermConstants;
-import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigSyncReq;
+
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
@@ -62,13 +62,17 @@ public class ResourceSyncHandlerImpl implements ResourceSyncHandler {
         int updatedCount = 0;
         Set<Long> activeResourceIds = new HashSet<>();
 
-        for (ServiceConfigSyncReq.GroupItem group : context.req().groups()) {
-            for (ServiceConfigSyncReq.ApiItem api : group.apis()) {
+        Set<String> codes = context.req().groups().stream().flatMap(g -> g.apis().stream())
+            .map(a -> a.resourceCode()).collect(Collectors.toSet());
+        Map<String, ResourceEntity> byCode = codes.isEmpty() ? new java.util.HashMap<>()
+            : resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(context.tenantId(), context.apiType(), codes,
+                Set.of(PermConstants.CodeType.DEFAULT)).stream().collect(Collectors.toMap(ResourceEntity::getCode, r -> r));
+        for (var group : context.req().groups()) {
+            for (var api : group.apis()) {
                 String fullPath = joinPath(context.basePath(), api.path());
 
                 // 查找已有资源
-                ResourceEntity resource = resourceEntityMapper.selectByTypeCodeAndCodeType(
-                    context.tenantId(), context.apiType(), api.resourceCode(), PermConstants.CodeType.DEFAULT);
+                ResourceEntity resource = byCode.get(api.resourceCode());
 
                 if (resource == null) {
                     // 创建新资源
@@ -89,6 +93,7 @@ public class ResourceSyncHandlerImpl implements ResourceSyncHandler {
                     resource.setUpdatedAt(now);
                     resource.setDeleteFlag(0L);
                     resourceEntityMapper.insert(resource);
+                    byCode.put(api.resourceCode(), resource);
                     createdCount++;
                 } else {
                     // 验证所有权

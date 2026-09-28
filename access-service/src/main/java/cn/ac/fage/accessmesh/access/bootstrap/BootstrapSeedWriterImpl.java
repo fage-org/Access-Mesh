@@ -5,6 +5,10 @@ import cn.ac.fage.accessmesh.access.projection.PermConstants;
 import cn.ac.fage.accessmesh.access.role.entity.AbstractRole;
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceApiMapping;
+import cn.ac.fage.accessmesh.access.resource.entity.ServiceConfig;
+import cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper;
+import cn.ac.fage.accessmesh.access.resource.service.domain.ApiMappingWriteDomainService;
+import cn.ac.fage.accessmesh.access.resource.enums.ApiMappingSource;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.access.role.entity.UserRole;
@@ -32,8 +36,8 @@ import java.util.Set;
  * {@link BootstrapSeedWriter} 实现（包内可见——bootstrap 专用，仅经接口被
  * access.bootstrap initializer 注入，禁止业务调用方直接引用实现类）。
  * <p>
- * 写入语义对齐现有链路：资源/映射与 RESOURCE_SYNC 链路同款唯一键定位语义但走 MANUAL
- * 维护来源（bootstrap 是内部种子而非服务同步）；绑定与管理链路 assignRole 直插形态一致；
+ * 写入语义对齐现有链路：资源仍使用 MANUAL 行来源，映射通过共同写侧保存为 BOOTSTRAP；
+ * 绑定与管理链路 assignRole 直插形态一致；
  * 授权复用 {@link PermissionGrantPlanDomainService#apply} 的 MANUAL 落库管线（单操作位
  * CHECK、子权限级联等不变量全部生效；注意 apply 不经 prevalidate，20042 条件启用校验
  * 不在本路径——固定图从不携带条件授权，无适用面）。
@@ -51,6 +55,8 @@ class BootstrapSeedWriterImpl implements BootstrapSeedWriter {
     private final PermissionGrantDomainService permissionGrantDomainService;
     private final PermissionGrantPlanDomainService permissionGrantPlanDomainService;
     private final SysJobMapper sysJobMapper;
+    private final ApiMappingWriteDomainService mappingWriter;
+    private final ServiceConfigMapper serviceConfigMapper;
 
     BootstrapSeedWriterImpl(AbstractRoleMapper abstractRoleMapper,
                             ResourceEntityMapper resourceEntityMapper,
@@ -60,7 +66,8 @@ class BootstrapSeedWriterImpl implements BootstrapSeedWriter {
                             OperationPermissionMapper operationPermissionMapper,
                             PermissionGrantDomainService permissionGrantDomainService,
                             PermissionGrantPlanDomainService permissionGrantPlanDomainService,
-                            SysJobMapper sysJobMapper) {
+                            SysJobMapper sysJobMapper, ApiMappingWriteDomainService mappingWriter,
+                            ServiceConfigMapper serviceConfigMapper) {
         this.abstractRoleMapper = abstractRoleMapper;
         this.resourceEntityMapper = resourceEntityMapper;
         this.resourceApiMappingMapper = resourceApiMappingMapper;
@@ -70,6 +77,27 @@ class BootstrapSeedWriterImpl implements BootstrapSeedWriter {
         this.permissionGrantDomainService = permissionGrantDomainService;
         this.permissionGrantPlanDomainService = permissionGrantPlanDomainService;
         this.sysJobMapper = sysJobMapper;
+        this.mappingWriter = mappingWriter;
+        this.serviceConfigMapper = serviceConfigMapper;
+    }
+
+    @Override
+    public ServiceConfig findServiceConfig(Long tenantId) {
+        return serviceConfigMapper.selectByTenantAndServiceCode(tenantId, LocalProjectionOwner.SERVICE_CODE);
+    }
+
+    @Override
+    public void insertServiceConfig(Long tenantId) {
+        ServiceConfig config = new ServiceConfig();
+        config.setTenantId(tenantId);
+        config.setServiceCode(LocalProjectionOwner.SERVICE_CODE);
+        config.setName(BootstrapGraphDefinition.SERVICE_RESOURCE_NAME);
+        config.setApiAuthMode("LEGACY_API");
+        config.setStatus(1);
+        config.setCreatedAt(LocalDateTime.now());
+        config.setUpdatedAt(config.getCreatedAt());
+        config.setDeleteFlag(0L);
+        serviceConfigMapper.insert(config);
     }
 
     @Override
@@ -141,20 +169,19 @@ class BootstrapSeedWriterImpl implements BootstrapSeedWriter {
     }
 
     @Override
-    public void insertApiMapping(Long tenantId, Long resourceEntityId, String httpMethod, String pathPattern) {
-        LocalDateTime now = LocalDateTime.now();
-        ResourceApiMapping mapping = new ResourceApiMapping();
-        mapping.setTenantId(tenantId);
-        mapping.setResourceEntityId(resourceEntityId);
-        mapping.setServiceCode(LocalProjectionOwner.SERVICE_CODE);
-        mapping.setHttpMethod(httpMethod.toUpperCase());
-        mapping.setPathPattern(pathPattern);
-        mapping.setMatchOrder(0);
-        mapping.setEnabled(true);
-        mapping.setCreatedAt(now);
-        mapping.setUpdatedAt(now);
-        mapping.setDeleteFlag(0L);
-        resourceApiMappingMapper.insert(mapping);
+    public void insertApiMappings(Long tenantId, List<ApiMappingSeed> mappings) {
+        List<ApiMappingWriteDomainService.Write> writes = mappings.stream().map(seed -> {
+            ResourceApiMapping mapping = new ResourceApiMapping();
+            mapping.setTenantId(tenantId);
+            mapping.setResourceEntityId(seed.resourceEntityId());
+            mapping.setServiceCode(LocalProjectionOwner.SERVICE_CODE);
+            mapping.setHttpMethod(seed.httpMethod().toUpperCase(java.util.Locale.ROOT));
+            mapping.setPathPattern(seed.pathPattern());
+            mapping.setMatchOrder(0);
+            mapping.setEnabled(true);
+            return new ApiMappingWriteDomainService.Write(mapping, null);
+        }).toList();
+        mappingWriter.saveAll(tenantId, LocalProjectionOwner.SERVICE_CODE, ApiMappingSource.BOOTSTRAP, writes);
     }
 
     @Override

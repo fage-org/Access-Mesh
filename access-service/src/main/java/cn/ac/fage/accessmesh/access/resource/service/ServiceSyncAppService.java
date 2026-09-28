@@ -11,6 +11,9 @@ import cn.ac.fage.accessmesh.access.resource.dto.resp.ServiceConfigSyncResp;
  */
 public interface ServiceSyncAppService {
 
+    cn.ac.fage.accessmesh.access.resource.dto.resp.ServiceConfigSyncResp syncInterfacesV2(
+        Long tenantId, cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigSyncV2Req req);
+
     /**
      * 同步服务接口
      *

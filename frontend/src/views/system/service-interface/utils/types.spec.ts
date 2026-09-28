@@ -11,7 +11,7 @@ import { describe, it, expect, vi } from "vitest";
 vi.mock("@/utils/http", () => ({ http: { request: vi.fn() } }));
 
 import type { ServiceConfigResp } from "@/api/service-interface";
-import { createSyncPayload, parseSyncGroups } from "./types";
+import { createSyncPayload, parseSyncGroups, mappingToForm } from "./types";
 
 const service: ServiceConfigResp = {
   id: 1,
@@ -20,6 +20,45 @@ const service: ServiceConfigResp = {
   basePath: "/",
   status: 1
 };
+
+describe("操作准入映射", () => {
+  it("新版清单缺少业务操作要求时拒绝", () => {
+    const raw = createSyncPayload(service).groupsJson;
+    expect(parseSyncGroups(raw, 2).error).toContain("requiredPermission");
+  });
+
+  it("新版清单保留业务类型与操作配对", () => {
+    const groups = JSON.parse(createSyncPayload(service).groupsJson);
+    groups[0].apis[0].requiredPermission = {
+      resourceTypeCode: "REPORT",
+      operationCode: "VIEW"
+    };
+    expect(
+      parseSyncGroups(JSON.stringify(groups), 2).groups?.[0].apis[0]
+        .requiredPermission
+    ).toEqual({ resourceTypeCode: "REPORT", operationCode: "VIEW" });
+  });
+
+  it("编辑映射回显业务准入要求", () => {
+    expect(
+      mappingToForm({
+        id: 1,
+        resourceEntityId: 2,
+        serviceCode: "svc-a",
+        httpMethod: "GET",
+        pathPattern: "/base/demo",
+        enabled: true,
+        requiredPermission: {
+          resourceTypeCode: "REPORT",
+          operationCode: "VIEW"
+        }
+      })
+    ).toMatchObject({
+      requiredResourceTypeCode: "REPORT",
+      requiredOperationCode: "VIEW"
+    });
+  });
+});
 
 describe("服务接口同步 operationCode 退役（T-PERM-053）", () => {
   it("锁步后载荷：不含 operationCode 的接口条目解析通过", () => {

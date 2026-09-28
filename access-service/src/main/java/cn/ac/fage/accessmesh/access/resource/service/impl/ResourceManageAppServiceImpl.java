@@ -1,6 +1,12 @@
 package cn.ac.fage.accessmesh.access.resource.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
+import cn.ac.fage.accessmesh.access.resource.dto.RequiredPermission;
+import cn.ac.fage.accessmesh.access.resource.enums.ApiMappingSource;
+import cn.ac.fage.accessmesh.access.resource.service.domain.ApiMappingWriteDomainService;
+import cn.ac.fage.accessmesh.access.resource.service.domain.ApiMappingWriteDomainService.Write;
+import cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomainService;
+import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
@@ -134,6 +140,8 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
     private final cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService conditionDomainService;
     private final ResourceTypeOwnershipGuard resourceTypeOwnershipGuard;
     private final TreeWriteLockSupport treeWriteLockSupport;
+    private final ApiMappingWriteDomainService mappingWriter;
+    private final OperationPermissionDomainService operations;
 
     /**
      * 构造函数注入依赖
@@ -157,7 +165,8 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
                                      RoleResourcePermissionDomainService roleResourcePermissionDomainService,
                                      cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService conditionDomainService,
                                      ResourceTypeOwnershipGuard resourceTypeOwnershipGuard,
-                                     TreeWriteLockSupport treeWriteLockSupport) {
+                                     TreeWriteLockSupport treeWriteLockSupport, ApiMappingWriteDomainService mappingWriter,
+                                     OperationPermissionDomainService operations) {
         this.resourceEntityMapper = resourceEntityMapper;
         this.apiMappingMapper = apiMappingMapper;
         this.serviceConfigMapper = serviceConfigMapper;
@@ -169,6 +178,8 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         this.conditionDomainService = conditionDomainService;
         this.resourceTypeOwnershipGuard = resourceTypeOwnershipGuard;
         this.treeWriteLockSupport = treeWriteLockSupport;
+        this.mappingWriter = mappingWriter;
+        this.operations = operations;
     }
 
     /**
@@ -894,10 +905,11 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         mapping.setCreatedAt(now);
         mapping.setUpdatedAt(now);
         mapping.setDeleteFlag(0L);
-        apiMappingMapper.insert(mapping);
+        mapping.setCreatedBy(operatorId);
+        mappingWriter.saveAll(tenantId, req.serviceCode(), ApiMappingSource.MANUAL, List.of(new Write(mapping, req.requiredPermission())));
         // API mapping 变更不影响 ROLE_PERM_SNAPSHOT（perm 记录未变），仅影响 Gateway 本地快照 → 广播 serviceCodes
         PermissionChangeContext.markServiceCodes(tenantId, req.serviceCode());
-        return toApiMappingResp(mapping, entity);
+        return toEnrichedApiMappingResps(tenantId, List.of(mapping)).get(0);
     }
 
     @Override
@@ -1018,6 +1030,9 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
     public ApiMappingResp updateApiMapping(Long tenantId, ApiMappingUpdateReq req) {
         Long operatorId = OperatorContext.getOperatorId();
 
+        // 读行必须晚于树写锁：saveAll 按调用方实体回写省略字段（含 requiredOperationId 保留），
+        // 锁外快照会把并发提交的改绑/路径变更盖回旧值（T-ACCESS-058 评审 P2；saveAll 再锁为重入）
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         ResourceApiMapping mapping = apiMappingMapper.selectValidById(req.mappingId(), tenantId);
         if (mapping == null || !Objects.equals(mapping.getResourceEntityId(), req.resourceId())) {
             throw new BizException(AccessErrorCode.RESOURCE_NOT_FOUND.getCode(), "API映射不存在: " + req.mappingId());
@@ -1046,28 +1061,15 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
             mapping.setExtra(req.extra());
         }
         mapping.setUpdatedAt(LocalDateTime.now());
-        if (extraClear) {
-            // 清空须强制写列（T-API-004）：update(entity) 默认忽略 null 字段，
-            // UpdateEntity 代理记录 set(null) 为显式更新列（role extraClear 同款）
-            ResourceApiMapping patch = com.mybatisflex.core.util.UpdateEntity.of(ResourceApiMapping.class);
-            patch.setId(mapping.getId());
-            patch.setHttpMethod(mapping.getHttpMethod());
-            patch.setPathPattern(mapping.getPathPattern());
-            patch.setMatchOrder(mapping.getMatchOrder());
-            patch.setEnabled(mapping.getEnabled());
-            patch.setExtra(null);
-            patch.setUpdatedAt(mapping.getUpdatedAt());
-            apiMappingMapper.update(patch);
-        } else {
-            apiMappingMapper.update(mapping);
-        }
+        mapping.setUpdatedBy(operatorId);
+        mappingWriter.saveAll(tenantId, mapping.getServiceCode(), ApiMappingSource.MANUAL,
+            List.of(new Write(mapping, req.requiredPermission())));
 
         // API mapping 变更影响 Gateway 本地快照 → 广播 serviceCode（perm 未变，不 markRoles）
         PermissionChangeContext.markServiceCodes(tenantId, mapping.getServiceCode());
 
         ResourceApiMapping updated = apiMappingMapper.selectValidById(req.mappingId(), tenantId);
-        ResourceEntity updatedResource = resourceEntityDomainService.selectValidById(tenantId, updated.getResourceEntityId());
-        return toApiMappingResp(updated, updatedResource);
+        return toEnrichedApiMappingResps(tenantId, List.of(updated)).get(0);
     }
 
     /**
@@ -1177,7 +1179,8 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
      * @param mapping  映射实体
      * @param resource 关联资源实体，可为 null（资源已软删时字段置 null）
      */
-    private ApiMappingResp toApiMappingResp(ResourceApiMapping mapping, ResourceEntity resource) {
+    private ApiMappingResp toApiMappingResp(ResourceApiMapping mapping, ResourceEntity resource,
+                                             RequiredPermission requiredPermission, Map<Integer, String> typeCodes) {
         return new ApiMappingResp(
             mapping.getId(), mapping.getTenantId(),
             mapping.getResourceEntityId(), mapping.getServiceCode(),
@@ -1187,9 +1190,9 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
             resource != null ? resource.getCode() : null,
             resource != null ? resource.getName() : null,
             resource != null && resource.getResourceType() != null
-                ? typeResolutionService.resolveTypeCode(mapping.getTenantId(), "resource_type", resource.getResourceType())
+                ? typeCodes.get(resource.getResourceType())
                 : null,
-            resource != null ? resource.getMaintainSource() : null
+            mapping.getMaintainSource(), requiredPermission
         );
     }
 
@@ -1204,8 +1207,24 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         Map<Long, ResourceEntity> resourceMap = resourceIds.isEmpty() ? Map.of()
             : resourceEntityMapper.selectValidByIds(tenantId, resourceIds).stream()
                 .collect(Collectors.toMap(ResourceEntity::getId, r -> r));
+        Set<Long> operationIds = mappings.stream().map(ResourceApiMapping::getRequiredOperationId)
+            .filter(Objects::nonNull).collect(Collectors.toSet());
+        Map<Long, OperationPermission> operationMap = operationIds.isEmpty() ? Map.of()
+            : operations.selectValidByIds(tenantId, operationIds).stream()
+                .collect(Collectors.toMap(OperationPermission::getId, op -> op));
+        Set<Integer> typeValues = resourceMap.values().stream().map(ResourceEntity::getResourceType)
+            .filter(Objects::nonNull).collect(Collectors.toSet());
+        operationMap.values().forEach(op -> typeValues.add(op.getResourceType()));
+        Map<Integer, String> typeCodes = typeValues.isEmpty() ? Map.of()
+            : typeResolutionService.batchResolveTypeCodes(tenantId, "resource_type", typeValues);
         return mappings.stream()
-            .map(mapping -> toApiMappingResp(mapping, resourceMap.get(mapping.getResourceEntityId())))
+            .map(mapping -> {
+                OperationPermission op = mapping.getRequiredOperationId() == null ? null
+                    : operationMap.get(mapping.getRequiredOperationId());
+                RequiredPermission requirement = op == null || !typeCodes.containsKey(op.getResourceType()) ? null
+                    : new RequiredPermission(typeCodes.get(op.getResourceType()), op.getCode());
+                return toApiMappingResp(mapping, resourceMap.get(mapping.getResourceEntityId()), requirement, typeCodes);
+            })
             .collect(Collectors.toList());
     }
 }

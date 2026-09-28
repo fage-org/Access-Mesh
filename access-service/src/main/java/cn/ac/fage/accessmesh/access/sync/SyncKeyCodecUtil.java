@@ -188,14 +188,6 @@ public final class SyncKeyCodecUtil {
         return sourceService + "|" + entityKind + "|" + businessKey;
     }
 
-    /**
-     * resource_api_mapping.extra.syncKey：{@code serviceCode|resourceCode} 映射行同步来源标记。
-     * <p>MappingSyncHandlerImpl 映射创建/更新时写入 extra JSON。</p>
-     */
-    public static String apiMappingSyncKey(String serviceCode, String resourceCode) {
-        return serviceCode + "|" + resourceCode;
-    }
-
     // ---------------------------------------------------------------------
     // private helpers
     // ---------------------------------------------------------------------

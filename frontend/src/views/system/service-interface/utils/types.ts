@@ -45,6 +45,7 @@ export function methodTagType(
 }
 
 export interface ServiceConfigFormData {
+  apiAuthMode?: "LEGACY_API" | "OPERATION_ADMISSION";
   serviceCode: string;
   name: string;
   basePath: string;
@@ -54,6 +55,8 @@ export interface ServiceConfigFormData {
 }
 
 export interface MappingFormData {
+  requiredResourceTypeCode?: string;
+  requiredOperationCode?: string;
   resourceEntityId: number | null;
   httpMethod: HttpMethod;
   pathPattern: string;
@@ -63,9 +66,14 @@ export interface MappingFormData {
 }
 
 export interface SyncFormData {
+  version: 1 | 2;
   basePath: string;
   groupsJson: string;
 }
+
+export type SyncSubmission =
+  | { version: 1; request: import("@/api/service-interface").ServiceConfigSyncReq }
+  | { version: 2; request: import("@/api/service-interface").ServiceConfigSyncV2Req };
 
 export interface ServiceSummary extends ServiceConfigResp {
   apiCount: number;
@@ -73,6 +81,7 @@ export interface ServiceSummary extends ServiceConfigResp {
 }
 
 export const createEmptyServiceForm = (): ServiceConfigFormData => ({
+  apiAuthMode: "LEGACY_API",
   serviceCode: "",
   name: "",
   basePath: "/",
@@ -82,6 +91,8 @@ export const createEmptyServiceForm = (): ServiceConfigFormData => ({
 });
 
 export const createEmptyMappingForm = (): MappingFormData => ({
+  requiredResourceTypeCode: "",
+  requiredOperationCode: "",
   resourceEntityId: null,
   httpMethod: "POST",
   pathPattern: "/api/",
@@ -106,7 +117,15 @@ export function createSyncPayload(service: ServiceConfigResp): SyncFormData {
       ]
     }
   ];
+  const version = service.apiAuthMode === "OPERATION_ADMISSION" ? 2 : 1;
+  if (version === 2) {
+    sampleGroups[0].apis[0].requiredPermission = {
+      resourceTypeCode: "REPORT",
+      operationCode: "VIEW"
+    };
+  }
   return {
+    version,
     basePath: service.basePath || "/",
     groupsJson: JSON.stringify(sampleGroups, null, 2)
   };
@@ -124,7 +143,10 @@ export function validateOptionalJson(raw: string): string | null {
   }
 }
 
-export function parseSyncGroups(raw: string): {
+export function parseSyncGroups(
+  raw: string,
+  version: 1 | 2 = 1
+): {
   groups?: SyncApiGroup[];
   error?: string;
 } {
@@ -149,6 +171,22 @@ export function parseSyncGroups(raw: string): {
         return { error: "每个分组必须包含 groupCode、groupName 和 apis" };
       }
       for (const api of group.apis) {
+        if (version === 2) {
+          const requirement = api?.requiredPermission;
+          const code = /^[A-Z][A-Z0-9_]*$/;
+          if (
+            !requirement ||
+            !code.test(requirement.resourceTypeCode ?? "") ||
+            !code.test(requirement.operationCode ?? "") ||
+            (requirement.resourceTypeCode === "API" &&
+              requirement.operationCode === "ACCESS")
+          ) {
+            return {
+              error:
+                "每条新版接口须提供 requiredPermission（业务资源类型与操作），不允许 API:ACCESS"
+            };
+          }
+        }
         if (
           !api ||
           typeof api !== "object" ||
@@ -182,6 +220,8 @@ export function mappingToForm(row: ApiMappingResp): MappingFormData {
     ? (row.httpMethod as HttpMethod)
     : "POST";
   return {
+    requiredResourceTypeCode: row.requiredPermission?.resourceTypeCode ?? "",
+    requiredOperationCode: row.requiredPermission?.operationCode ?? "",
     resourceEntityId: row.resourceEntityId,
     httpMethod: method,
     pathPattern: row.pathPattern,

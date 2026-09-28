@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.type.service.impl;
 
 import cn.ac.fage.accessmesh.access.resource.service.domain.DependencyCompilationDomainService;
+import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceApiMappingDomainService;
 import cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtil;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
@@ -53,6 +54,7 @@ import java.util.stream.Collectors;
 public class OperationAppServiceImpl implements OperationAppService {
 
     private final DependencyCompilationDomainService compilation;
+    private final ResourceApiMappingDomainService apiMappings;
     private final OperationPermissionMapper operationPermissionMapper;
     private final TypeResolutionService typeResolutionService;
     private final QueryGate queryGate;
@@ -83,8 +85,9 @@ public class OperationAppServiceImpl implements OperationAppService {
                                       TreeWriteLockSupport treeWriteLockSupport,
                                       DependencyCompilationDomainService compilation,
                                       RoleResourcePermissionDomainService roleResourcePermissionDomainService,
-                                      AutoGrantMaterializationDomainService autoGrantMaterializationDomainService) {
+                                      AutoGrantMaterializationDomainService autoGrantMaterializationDomainService, ResourceApiMappingDomainService apiMappings) {
         this.compilation = compilation;
+        this.apiMappings = apiMappings;
         this.operationPermissionMapper = operationPermissionMapper;
         this.typeResolutionService = typeResolutionService;
         this.queryGate = queryGate;
@@ -164,6 +167,8 @@ public class OperationAppServiceImpl implements OperationAppService {
         op.setUpdatedAt(now);
         op.setDeleteFlag(0L);
         operationPermissionMapper.insert(op);
+        PermissionChangeContext.markServiceCodes(tenantId,
+            apiMappings.selectServiceCodesByRequiredOperationTypes(tenantId, Set.of(resourceType)));
         // T-PERM-062：自定义 resource_type 追加操作同事务向类型所有者补种该操作位首授行——
         // 不钩则死锁转移到第五个操作（EXPORT 位 16 先例：类型创建只种 CRUD 四位）；is_system
         // 类型不钩（内置类型转授链收窄是既有产品选择，T-PERM-027 口径维持）。所有者以
@@ -311,6 +316,7 @@ public class OperationAppServiceImpl implements OperationAppService {
         // T-PERM-072 操作生命周期守卫（设计 §7）：位变更存在有效 MANUAL/AUTO_DEP 引用时拒绝（写库前零副作用）；
         // AUTHORITY_ROOT 基座不算用户引用，走既有 T-PERM-062 同事务迁移
         boolean bitChanged = req.binaryBit() != null && !req.binaryBit().equals(fromBit);
+        if (bitChanged) apiMappings.assertOperationsUnreferenced(tenantId, Set.of(op.getId()));
         if (bitChanged && !roleResourcePermissionDomainService
                 .selectReferencedOperationBits(tenantId, op.getResourceType(), Set.of(fromBit)).isEmpty()) {
             throw new BizException(AccessErrorCode.OPERATION_REFERENCED_BY_GRANTS.getCode(),
@@ -336,6 +342,8 @@ public class OperationAppServiceImpl implements OperationAppService {
             PermissionChangeContext.markRoles(tenantId, ownerRoleId);
         }
         if (bitChanged || req.inheritMask() != null && !Objects.equals(fromInheritMask, req.inheritMask())) {
+            PermissionChangeContext.markServiceCodes(tenantId,
+                apiMappings.selectServiceCodesByRequiredOperationTypes(tenantId, Set.of(op.getResourceType())));
             // 位/继承掩码变更触发面（§7/T-PERM-072）：声明重编译后同事务重算受影响角色 AUTO_DEP
             //（有效位变化改变触发匹配与覆盖判定输入）
             Set<Long> affectedEntities = compilation.typesChanged(tenantId, Set.of(req.resourceTypeCode()), false, LocalDateTime.now());
@@ -413,6 +421,9 @@ public class OperationAppServiceImpl implements OperationAppService {
             }
         }
 
+        apiMappings.assertOperationsUnreferenced(tenantId, validIds);
+        PermissionChangeContext.markServiceCodes(tenantId,
+            apiMappings.selectServiceCodesByRequiredOperationTypes(tenantId, bitsByTypeValue.keySet()));
         // 批量软删除（性能修复：使用单条SQL代替循环）
         LocalDateTime now = LocalDateTime.now();
         operationPermissionMapper.softDeleteBatch(tenantId, new java.util.ArrayList<>(validIds), now);

@@ -12,7 +12,14 @@ export type ItemsResp<T> = {
   items: T[];
 };
 
+export type ApiAuthMode = "LEGACY_API" | "OPERATION_ADMISSION";
+export type RequiredPermission = {
+  resourceTypeCode: string;
+  operationCode: string;
+};
+
 export type ServiceConfigResp = {
+  apiAuthMode?: ApiAuthMode;
   id: number;
   tenantId?: number;
   serviceCode: string;
@@ -28,6 +35,7 @@ export type ServiceConfigResp = {
 };
 
 export type ServiceConfigSaveReq = {
+  apiAuthMode?: ApiAuthMode;
   serviceCode: string;
   name: string;
   basePath?: string | null;
@@ -43,6 +51,7 @@ export type ServiceConfigSaveReq = {
 };
 
 export type ApiMappingResp = {
+  requiredPermission?: RequiredPermission | null;
   id: number;
   tenantId?: number;
   resourceEntityId: number;
@@ -60,11 +69,12 @@ export type ApiMappingResp = {
   resourceName?: string | null;
   /** 关联资源类型编码（如 "API"） */
   resourceTypeCode?: string | null;
-  /** 关联资源维护来源 MANUAL/SERVICE_SYNC */
+  /** 映射自身维护来源 MANUAL/SERVICE_SYNC/BOOTSTRAP */
   maintainSource?: string | null;
 };
 
 export type ApiMappingCreateReq = {
+  requiredPermission?: RequiredPermission | null;
   resourceId: number;
   serviceCode: string;
   httpMethod: string;
@@ -75,6 +85,7 @@ export type ApiMappingCreateReq = {
 };
 
 export type ApiMappingUpdateReq = {
+  requiredPermission?: RequiredPermission | null;
   resourceId: number;
   mappingId: number;
   httpMethod?: string;
@@ -86,8 +97,9 @@ export type ApiMappingUpdateReq = {
   extraClear?: boolean;
 };
 
-/** operationCode 已退役（T-PERM-053，2026-09-05）：接口权限模型无操作粒度，运行时固定 ACCESS。 */
+/** operationCode 已退役（T-PERM-053，2026-09-05）：旧同步协议无业务操作要求；新版要求通过 requiredPermission 提交。 */
 export type SyncApiItem = {
+  requiredPermission?: RequiredPermission | null;
   name: string;
   httpMethod: string;
   path: string;
@@ -107,6 +119,18 @@ export type ServiceConfigSyncReq = {
   /** 当前权威契约仅允许 FULL。 */
   syncMode: "FULL";
   groups: SyncApiGroup[];
+};
+
+/** sync-v2 条目：业务准入要求必填（对齐后端 @NotNull @Valid）。 */
+export type SyncV2ApiItem = Omit<SyncApiItem, "requiredPermission"> & {
+  requiredPermission: RequiredPermission;
+};
+
+export type ServiceConfigSyncV2Req = Omit<
+  ServiceConfigSyncReq,
+  "groups"
+> & {
+  groups: Array<Omit<SyncApiGroup, "apis"> & { apis: SyncV2ApiItem[] }>;
 };
 
 export type ServiceConfigSyncResp = {
@@ -222,6 +246,18 @@ export const syncServiceInterfaces = async (
   const res = await http.request<R<ServiceConfigSyncResp>>(
     "post",
     "/api/access/service-config/sync",
+    { data }
+  );
+  return unwrap(res);
+};
+
+/** 新版声明独立端点，不自动改变服务鉴权模式。 */
+export const syncServiceInterfacesV2 = async (
+  data: ServiceConfigSyncV2Req
+): Promise<ServiceConfigSyncResp> => {
+  const res = await http.request<R<ServiceConfigSyncResp>>(
+    "post",
+    "/api/access/service-config/sync-v2",
     { data }
   );
   return unwrap(res);

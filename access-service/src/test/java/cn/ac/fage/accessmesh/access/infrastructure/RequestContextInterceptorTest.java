@@ -80,6 +80,18 @@ class RequestContextInterceptorTest {
     }
 
     @Test
+    void should_rejectLegacyServiceIdentity_whenCallingV2InterfaceSync() throws Exception {
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/service-config/sync-v2");
+        req.setAttribute(SecurityAttributes.ATTR_INTERNAL_AUTHENTICATED, true);
+        req.addHeader("X-Tenant-Id", "1");
+        req.addHeader("X-Service-Code", "svc-a");
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        assertThat(interceptor.preHandle(req, resp, new Object())).isFalse();
+        assertThat(resp.getStatus()).isEqualTo(403);
+        assertThat(AccessRequestContext.get()).isNull();
+    }
+
+    @Test
     @DisplayName("评审 P1-1：ERROR dispatch（/error 转发）→ 放行且不绑定、不 401 掩蔽真实错误")
     void shouldPassThrough_whenErrorDispatch() throws Exception {
         MockHttpServletRequest req = new MockHttpServletRequest("GET", "/error");

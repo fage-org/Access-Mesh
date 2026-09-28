@@ -24,6 +24,10 @@ import java.util.Set;
  */
 public interface BootstrapSeedWriter {
 
+    cn.ac.fage.accessmesh.access.resource.entity.ServiceConfig findServiceConfig(Long tenantId);
+
+    void insertServiceConfig(Long tenantId);
+
     /** 按 externalId 定位有效角色（跨角色类型——固定业务键被其他类型占用属冲突，需完整检出）。 */
     AbstractRole findRoleByExternalId(Long tenantId, String externalId);
 
@@ -63,7 +67,9 @@ public interface BootstrapSeedWriter {
     /**
      * 写 resource_api_mapping（service_code=access-service、match_order=0、enabled=true）。
      */
-    void insertApiMapping(Long tenantId, Long resourceEntityId, String httpMethod, String pathPattern);
+    record ApiMappingSeed(Long resourceEntityId, String httpMethod, String pathPattern) {}
+
+    void insertApiMappings(Long tenantId, List<ApiMappingSeed> mappings);
 
     /**
      * 写 user_role 绑定（target_type=ROLE、relation_id=null，字段形态与管理链路 assignRole 一致）。

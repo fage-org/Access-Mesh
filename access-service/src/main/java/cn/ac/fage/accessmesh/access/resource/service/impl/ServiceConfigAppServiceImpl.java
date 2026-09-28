@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.resource.service.impl;
 
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
+import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLogRuntimeContext;
@@ -49,6 +50,7 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
     private static final Logger log = LoggerFactory.getLogger(ServiceConfigAppServiceImpl.class);
 
     private final ServiceConfigMapper serviceConfigMapper;
+    private final TreeWriteLockSupport locks;
     private final QueryGate queryGate;
     private final ResourceApiMappingMapper resourceApiMappingMapper;
     private final SyncTypeGuard syncTypeGuard;
@@ -73,8 +75,9 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
                                         SyncTypeGuard syncTypeGuard,
                                         ResourceSyncHandler resourceSyncHandler,
                                         TypeResolutionService typeResolutionService,
-                                        ResourceManageAppService resourceManageAppService) {
+                                        ResourceManageAppService resourceManageAppService, TreeWriteLockSupport locks) {
         this.serviceConfigMapper = serviceConfigMapper;
+        this.locks = locks;
         this.queryGate = queryGate;
         this.resourceApiMappingMapper = resourceApiMappingMapper;
         this.syncTypeGuard = syncTypeGuard;
@@ -100,12 +103,15 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "PERMISSION", action = "SERVICE_CONFIG_SAVE", targetType = "service_config", targetId = "#req.serviceCode()", summary = "'save service config ' + #req.serviceCode()")
+    @PermissionChange
     public ServiceConfigResp saveServiceConfig(Long tenantId, ServiceConfigReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCode.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on SERVICE");
         }
+
+        locks.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
 
         // 保存边界校验：extra.syncTypes 结构不合法会在运行时被解释为空白名单导致全部同步 SECURITY_DENIED
         // （fail-closed 的必要运行配置，写入时尽早暴露；运行时校验仍保留，防止绕过接口改库）
@@ -137,6 +143,7 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
             config.setBasePath(req.basePath());
             config.setDescription(req.description());
             config.setStatus(req.status() != null ? req.status() : 1);
+            config.setApiAuthMode(req.apiAuthMode() == null ? "LEGACY_API" : req.apiAuthMode().name());
             config.setExtra(req.extra());
             config.setCreatedBy(operatorId);
             LocalDateTime now = LocalDateTime.now();
@@ -144,6 +151,7 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
             config.setUpdatedAt(now);
             config.setDeleteFlag(0L);
             serviceConfigMapper.insert(config);
+            PermissionChangeContext.markServiceCodes(tenantId, req.serviceCode());
             return toServiceConfigResp(config);
         }
         boolean basePathClear = Boolean.TRUE.equals(req.basePathClear());
@@ -161,6 +169,7 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
             config.setDescription(req.description());
         }
         if (req.status() != null) config.setStatus(req.status());
+        if (req.apiAuthMode() != null) config.setApiAuthMode(req.apiAuthMode().name());
         if (extraClear) {
             // extra 清空语义（U006 拍板）=撤销 extra.syncTypes 同步白名单声明：
             // 该服务 user/role 同步通道全拒（fail-closed），可逆（重新提交 extra 即恢复）
@@ -178,12 +187,14 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
             patch.setBasePath(config.getBasePath());
             patch.setDescription(config.getDescription());
             patch.setStatus(config.getStatus());
+            patch.setApiAuthMode(config.getApiAuthMode());
             patch.setExtra(config.getExtra());
             patch.setUpdatedAt(config.getUpdatedAt());
             serviceConfigMapper.update(patch);
         } else {
             serviceConfigMapper.update(config);
         }
+        PermissionChangeContext.markServiceCodes(tenantId, req.serviceCode());
         return toServiceConfigResp(config);
     }
 
@@ -272,6 +283,8 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
         if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCode.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on SERVICE");
         }
+
+        locks.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
 
         if (ids == null || ids.isEmpty()) {
             OperationLogRuntimeContext.markSkip();
@@ -364,7 +377,7 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
         return new ServiceConfigResp(
             c.getId(), c.getTenantId(), c.getServiceCode(),
             c.getName(), c.getBasePath(), c.getDescription(),
-            c.getStatus(), c.getExtra(), c.getCreatedAt(), c.getUpdatedAt()
+            c.getStatus(), c.getExtra(), c.getCreatedAt(), c.getUpdatedAt(), c.getApiAuthMode()
         );
     }
 }

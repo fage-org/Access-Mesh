@@ -30,7 +30,8 @@ public record ApiMappingUpdateReq(
     Boolean enabled,
     @Pattern(regexp = "(?s)(?U).*\\S.*", message = "extra 不能为空白；清空请传 extraClear=true")
     String extra,
-    Boolean extraClear
+    Boolean extraClear,
+    @jakarta.validation.Valid cn.ac.fage.accessmesh.access.resource.dto.RequiredPermission requiredPermission
 ) {
     /**
      * T-API-004（U006 拍板：全端点冲突拒绝）：新值与 Clear 同传拒绝。

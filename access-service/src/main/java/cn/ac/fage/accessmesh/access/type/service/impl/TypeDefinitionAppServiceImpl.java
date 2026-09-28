@@ -779,6 +779,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
                 .map(OperationPermission::getId)
                 .toList();
             if (!operationIds.isEmpty()) {
+                apiMappingDomainService.assertOperationsUnreferenced(tenantId, new HashSet<>(operationIds));
                 operationPermissionMapper.softDeleteBatch(tenantId, operationIds, now);
             }
             // 正常流仅剩 scope_all 类型级行（资源行被行数守卫拒绝、实例级授权随资源删除级联）；

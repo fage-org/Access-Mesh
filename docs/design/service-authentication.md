@@ -3,7 +3,7 @@ doc_type: design
 title: 公共服务认证模块（per-service credential）
 status: adopted
 domain: access-service
-last_reviewed: 2026-09-26
+last_reviewed: 2026-09-27
 ---
 
 # 公共服务认证模块（per-service credential）设计
@@ -125,10 +125,12 @@ CREATE TABLE service_credential (
 阶段二（端点逐个迁移）：白名单从阶段一端点集（resource-entity/sync、full-sync、
                         permission-manifest/full-sync）逐端点扩展至全部 sync 族
                         （abstract-user / abstract-role / user-role 的 sync+full-sync、
-                        service-config/sync——主体/角色/成员/接口声明同步全部纳入凭证）；
+                        service-config 的接口声明同步——主体/角色/成员/接口声明同步全部纳入凭证）；
                         退役判据=**仍依赖旧密钥的端点清零**（原「全部服务持凭证」判据在白名单
                         不含全部 sync 端点时永不可达）；SDK 拦截器默认注入凭证头
 ```
+
+接口声明新版 `POST /api/access/service-config/sync-v2` 纳入凭证白名单（T-ACCESS-058，2026-09-27）：凭证只能维护自身租户/服务，同时保留管理员的 SERVICE:SYNC_INTERFACE 门禁；旧共享密钥的纯服务身份不进入该新端点。旧 `/sync` 仍按原协议保留，后续统一退役。
 
 **上线序（服务端先行，向后兼容，替代"同批发布"旧口径）**：①先发布 access-service 仲裁器——无凭证头的存量调用方（Gateway 注入密钥、SDK 注入密钥+自报头）行为零变化（状态表第 3/4 行）；携带凭证头的请求直接走凭证链生效。②后发布 Gateway 改动（凭证头透传、`InternalSecretFilter` 收窄为「无凭证头才兜底注入」、M2M 放行链）与新版 SDK——窗口期"凭证头 + 注入密钥并存"由服务端仲裁器**凭证优先**规则消解（§3.2 状态表第 1 行），不存在"凭证绑定被旁路"的空窗，无需不可原子实现的同批发布。
 

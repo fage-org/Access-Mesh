@@ -134,6 +134,7 @@ class HttpApiPathSnapshotTest {
 /api/access/service-config/remove
 /api/access/service-config/save
 /api/access/service-config/sync
+/api/access/service-config/sync-v2
 /api/access/service-credential/create
 /api/access/service-credential/list
 /api/access/service-credential/remove
@@ -321,6 +322,7 @@ class HttpApiPathSnapshotTest {
 /api/access/service-credential/remove|common.model.IdReq|common.model.R<Void>
 /api/access/service-credential/update|access.infrastructure.credential.dto.req.ServiceCredentialUpdateReq|common.model.R<access.infrastructure.credential.dto.resp.ServiceCredentialResp>
 /api/access/service-config/sync|access.resource.dto.req.ServiceConfigSyncReq|common.model.R<access.resource.dto.resp.ServiceConfigSyncResp>
+/api/access/service-config/sync-v2|access.resource.dto.req.ServiceConfigSyncV2Req|common.model.R<access.resource.dto.resp.ServiceConfigSyncResp>
 /api/access/system-config/detail|access.platform.dto.req.SystemConfigGetReq|common.model.R<access.platform.dto.resp.SystemConfigResp>
 /api/access/system-config/list|access.platform.dto.req.SystemConfigListReq|common.model.R<perm.common.dto.resp.PageResp<access.platform.dto.resp.SystemConfigResp>>
 /api/access/system-config/save|access.platform.dto.req.SystemConfigReq|common.model.R<access.platform.dto.resp.SystemConfigResp>

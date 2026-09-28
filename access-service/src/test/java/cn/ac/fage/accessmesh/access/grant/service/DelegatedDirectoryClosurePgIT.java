@@ -102,16 +102,12 @@ class DelegatedDirectoryClosurePgIT {
             Long.class, TENANT, BootstrapGraphDefinition.ADMIN_USERNAME);
         String marker = UUID.randomUUID().toString().substring(0, 8);
 
-        // —— 阶段 1：服务面数据——SERVICE:access-service 资源行为 bootstrap 固定图所种；
-        //     service_config 表行由管理面手工建（MANAGED，固定图不种配置行）：补 access-service
-        //     既有行 + 第二服务 review-b（资源行经管理面 create + 配置行 jdbc 直插同形态） ——
+        // —— 阶段 1：access-service 的 SERVICE 资源与服务配置均由 bootstrap 创建；
+        //     仅补第二服务 review-b（资源行经管理面 create + 配置行 jdbc 直插同形态） ——
         postAsAdmin("/api/access/resource-entity/create", adminUserId,
             JSON.objectNode()
                 .put("resourceTypeCode", "SERVICE").put("code", "review-b-" + marker)
                 .put("name", "评审服务B"));
-        jdbc.update("INSERT INTO service_config (tenant_id, service_code, name, base_path, status, created_by, delete_flag) "
-            + "VALUES (?, ?, 'access-service', '/api', 1, ?, 0)",
-            TENANT, BootstrapGraphDefinition.SERVICE_RESOURCE_CODE, adminUserId);
         jdbc.update("INSERT INTO service_config (tenant_id, service_code, name, base_path, status, created_by, delete_flag) "
             + "VALUES (?, ?, '评审服务B', '/api', 1, ?, 0)",
             TENANT, "review-b-" + marker, adminUserId);

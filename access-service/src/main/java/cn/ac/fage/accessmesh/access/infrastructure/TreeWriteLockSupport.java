@@ -33,7 +33,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  * </p>
  * <p>
  * 锁 key：{@code accessmesh:tree-write-lock:{treeKey}:{tenantId}}（Redisson 可重入锁，
- * 每事务对同一 (树, 租户) 至多调用一次——当前全部写入口均满足；每次调用各自注册独立的
+ * 同一事务可能嵌套调用（如 sync 编排层与共同保存入口 {@code saveAll} 各调一次，T-ACCESS-058 起）；
+ * 每次调用各自注册独立的
  * afterCompletion 释放（N 次加锁 N 次解锁，天然配平），但语义上锁保护窗口以首次调用起、
  * 事务结束止，勿在嵌套调用中依赖重入叠加保护范围。
  * </p>

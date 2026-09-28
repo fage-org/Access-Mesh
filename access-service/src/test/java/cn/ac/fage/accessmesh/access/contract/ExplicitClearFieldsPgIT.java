@@ -188,12 +188,12 @@ class ExplicitClearFieldsPgIT {
     void serviceConfigClearPersistsAndCreateRejected() {
         serviceConfigAppService.saveServiceConfig(TENANT,
             new cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigReq(
-                "it-clear-svc", "清空协议服务", "/it-clear", "旧描述", null, "{\"syncTypes\":{}}", null, null, null),
+                "it-clear-svc", "清空协议服务", "/it-clear", "旧描述", null, "{\"syncTypes\":{}}", null, null, null, null),
             null);
 
         serviceConfigAppService.saveServiceConfig(TENANT,
             new cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigReq(
-                "it-clear-svc", "清空协议服务", null, null, null, null, true, true, true),
+                "it-clear-svc", "清空协议服务", null, null, null, null, true, true, true, null),
             null);
 
         assertThat(jdbc.queryForObject(
@@ -210,7 +210,7 @@ class ExplicitClearFieldsPgIT {
 
         assertThatThrownBy(() -> serviceConfigAppService.saveServiceConfig(TENANT,
             new cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigReq(
-                "it-clear-svc-new", "新服务", null, null, null, null, true, null, null),
+                "it-clear-svc-new", "新服务", null, null, null, null, true, null, null, null),
             null))
             .isInstanceOf(BizException.class)
             .hasMessageContaining("创建服务配置不接受");
@@ -237,7 +237,7 @@ class ExplicitClearFieldsPgIT {
 
         resourceManageAppService.updateApiMapping(TENANT,
             new cn.ac.fage.accessmesh.access.resource.dto.req.ApiMappingUpdateReq(
-                resourceId, mappingId, null, null, null, null, null, true));
+                resourceId, mappingId, null, null, null, null, null, true, null));
 
         assertThat(jdbc.queryForObject(
             "SELECT extra FROM resource_api_mapping WHERE id = ?", String.class, mappingId))

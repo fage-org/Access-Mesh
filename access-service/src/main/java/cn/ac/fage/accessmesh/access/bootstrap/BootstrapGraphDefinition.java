@@ -236,6 +236,7 @@ public final class BootstrapGraphDefinition {
             new ApiRoute("POST", "/api/access/service-config/remove", "bootstrap:删除服务配置", true, false),
             new ApiRoute("POST", "/api/access/service-config/apis", "bootstrap:服务接口映射查询", true, false),
             new ApiRoute("POST", "/api/access/service-config/sync", "bootstrap:服务接口FULL同步", true, false),
+            new ApiRoute("POST", "/api/access/service-config/sync-v2", "bootstrap:服务接口操作准入同步", true, false),
             new ApiRoute("POST", "/api/access/resource-api-mapping/list", "bootstrap:接口映射列表", true, false),
             new ApiRoute("POST", "/api/access/resource-api-mapping/update", "bootstrap:更新接口映射", true, false),
             new ApiRoute("POST", "/api/access/resource-api-mapping/remove", "bootstrap:删除接口映射", true, false),

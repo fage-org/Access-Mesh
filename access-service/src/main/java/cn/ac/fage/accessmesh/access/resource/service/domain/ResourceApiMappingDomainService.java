@@ -14,6 +14,12 @@ import java.util.Set;
  */
 public interface ResourceApiMappingDomainService {
 
+    /** 停用映射仍有引用；改绑或删除映射后才允许操作删除/位变更。 */
+    void assertOperationsUnreferenced(Long tenantId, Set<Long> operationIds);
+
+    /** 按操作所属类型取服务安全超集，覆盖继承掩码同 ID 变更。 */
+    Set<String> selectServiceCodesByRequiredOperationTypes(Long tenantId, Set<Integer> resourceTypes);
+
     /**
      * 按资源实体 ID 集合查询 API 映射行（删除级联登记 markServiceCodes 消费）。
      *

@@ -751,7 +751,7 @@ public enum AccessErrorCode {
      * AUTHORITY_ROOT 基座行不算用户引用（按 T-PERM-062 既有同事务迁移/级联处理）。
      * 处置=先撤销相关授权（依赖来源须由所属服务重发 manifest 收缩）。
      */
-    OPERATION_REFERENCED_BY_GRANTS(20069, "操作被有效授权引用，不可变更位值或删除：请先撤销相关授权（类型授权根种子除外）"),
+    OPERATION_REFERENCED_BY_GRANTS(20069, "操作被有效授权或接口映射引用，不可变更位值或删除：请先撤销授权或改绑/删除映射（类型授权根种子除外）"),
 
     // ===== 操作准入协议 OPERATION_ADMISSION（20070-20079，T-ACCESS-056，契约总册 §25） =====
 

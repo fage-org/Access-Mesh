@@ -155,6 +155,11 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
                 setMdc(requestId, String.valueOf(operatorId), String.valueOf(tenantId), null);
                 return true;
             }
+            // 新接口声明仅开放 per-service 凭证和用户身份，不扩展旧共享密钥的纯服务通道。
+            if ("/api/access/service-config/sync-v2".equals(uri)) {
+                writeJson(response, HttpServletResponse.SC_FORBIDDEN, "接口声明同步需要服务凭证或用户身份");
+                return false;
+            }
             // 纯服务调用：serviceCode 在凭证通过后绑定（防无凭证外部伪造）
             String serviceCode = request.getHeader(HEADER_SERVICE_CODE);
             Long tenantId = signatureVerifier.parseTenantId(request);

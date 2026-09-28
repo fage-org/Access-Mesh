@@ -31,7 +31,7 @@ public record SyncContext(
     /**
      * 同步请求参数
      */
-    ServiceConfigSyncReq req,
+    InterfaceSyncDefinition req,
 
     /**
      * 操作者ID
@@ -61,6 +61,6 @@ public record SyncContext(
      */
     public static SyncContext of(Long tenantId, ServiceConfig config, ServiceConfigSyncReq req,
                                   Long operatorId, String basePath, Integer apiType) {
-        return new SyncContext(tenantId, config, req, operatorId, basePath, apiType);
+        return new SyncContext(tenantId, config, InterfaceSyncDefinition.from(req), operatorId, basePath, apiType);
     }
 }

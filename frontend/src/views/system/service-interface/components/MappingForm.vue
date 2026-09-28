@@ -5,6 +5,8 @@ import type { ApiMappingResp } from "@/api/service-interface";
 import { getTypeDefList, TYPE_KEY, type TypeDefResp } from "@/api/type-def";
 import {
   getResourceTree,
+  getOperationList,
+  type OperationPermissionResp,
   type ResourceTreeNode
 } from "@/api/resource-operation";
 import { useListLoad } from "@/utils/list-load";
@@ -21,6 +23,7 @@ defineOptions({ name: "ServiceInterfaceMappingForm" });
 const props = defineProps<{
   mode: "create" | "edit";
   serviceCode: string;
+  apiAuthMode?: "LEGACY_API" | "OPERATION_ADMISSION";
   initialData?: ApiMappingResp | null;
 }>();
 
@@ -30,7 +33,7 @@ const isEdit = computed(() => props.mode === "edit");
 
 // ========== 资源选择器（T-PERM-027 §7.6 / T-PERM-028 联动落地） ==========
 // 映射 create/update 仍以内部 resourceId 提交（api-contract §5.4 定案）；
-// 选取 UI 从裸数字输入升级为「类型下拉 + 资源树选择」，数据源 resource-entity/tree。
+// 登记实体固定选择 API 树，业务准入操作独立选择。
 
 type TreeSelectNode = {
   value: number;
@@ -39,12 +42,31 @@ type TreeSelectNode = {
 };
 
 const resourceTypes = ref<TypeDefResp[]>([]);
-const selectedResourceTypeCode = ref<string | null>(null);
+const {
+  list: operationOptions,
+  loading: operationLoading,
+  load: loadOperations,
+  clear: clearOperations
+} = useListLoad<OperationPermissionResp>({
+  errorText: "加载操作列表失败",
+  contextKey: () => formData.requiredResourceTypeCode,
+  fetcher: async () => {
+    const code = formData.requiredResourceTypeCode;
+    if (!code) return [];
+    const result = await getOperationList({ resourceTypeCode: code });
+    return result.items.filter(
+      op => !(op.resourceTypeCode === "API" && op.code === "ACCESS")
+    );
+  }
+});
 
-// T-FE-051：treeRequestSeq 代际守卫先例收敛到 useListLoad（latest-wins——快速切换类型时
-// 丢弃过期响应，旧请求后返回不得覆盖当前类型的树，否则用户可能为 B 类型选中实际属于 A
-// 的资源，T-PERM-028 复评 P2）；onResourceTypeChange 切换时预清空选项，失败保留空集不残留旧类型树。
-// 本次加载的目标类型（loadResourceTree 带参调用时由包装层写入，fetcher 闭包读取）
+function onRequiredTypeChange() {
+  formData.requiredOperationCode = "";
+  clearOperations();
+  if (formData.requiredResourceTypeCode) void loadOperations();
+}
+
+// 登记资源固定加载 API 树；异步响应由 useListLoad 管理。
 let treeTargetTypeCode = "";
 const {
   list: resourceTreeOptions,
@@ -86,13 +108,6 @@ function loadResourceTree(typeCode: string) {
   return loadResourceTreeCore();
 }
 
-function onResourceTypeChange(typeCode: string) {
-  // 切换类型后原选中资源不再属于该类型，清空重选；并预清空旧类型树选项
-  formData.resourceEntityId = null;
-  resourceTreeOptions.value = [];
-  loadResourceTree(typeCode);
-}
-
 /** 编辑态资源展示（树节点不含 extra 之外的展示问题——直接用映射行的资源业务字段） */
 const editingResourceDisplay = computed(() => {
   const row = props.initialData;
@@ -106,6 +121,22 @@ const editingResourceDisplay = computed(() => {
 });
 
 const rules = computed<FormRules>(() => ({
+  requiredResourceTypeCode: [
+    {
+      required:
+        props.apiAuthMode === "OPERATION_ADMISSION" ||
+        !!props.initialData?.requiredPermission,
+      message: "请选择业务资源类型",
+      trigger: "change"
+    }
+  ],
+  requiredOperationCode: [
+    {
+      required: !!formData.requiredResourceTypeCode,
+      message: "请选择业务操作",
+      trigger: "change"
+    }
+  ],
   resourceEntityId: [
     {
       required: true,
@@ -166,9 +197,10 @@ function initForm() {
       ? mappingToForm(props.initialData)
       : createEmptyMappingForm()
   );
-  if (props.mode === "create") {
-    loadResourceTypes();
-  }
+  void loadResourceTypes();
+  if (props.mode === "create") void loadResourceTree("API");
+  clearOperations();
+  if (formData.requiredResourceTypeCode) void loadOperations();
 }
 
 async function validate(): Promise<boolean> {
@@ -202,24 +234,12 @@ defineExpose({ validate, getFormData });
       <el-input :model-value="serviceCode" readonly class="font-mono" />
     </el-form-item>
     <template v-if="!isEdit">
-      <el-form-item label="资源类型">
-        <el-select
-          v-model="selectedResourceTypeCode"
-          placeholder="选择资源类型"
-          class="w-full!"
-          @change="onResourceTypeChange"
-        >
-          <el-option
-            v-for="t in resourceTypes"
-            :key="t.typeCode"
-            :label="t.name"
-            :value="t.typeCode"
-          />
-        </el-select>
+      <el-form-item label="登记类型">
+        <el-input model-value="API" readonly />
       </el-form-item>
       <el-form-item label="关联资源" prop="resourceEntityId">
         <!-- 映射接口仍以 resourceId 内部主键提交（api-contract §5.4 定案）；
-             选取 UI 为资源树选择（T-PERM-027 §7.6 / T-PERM-028 联动）。 -->
+             登记实体为 API，业务类型与操作独立配置。 -->
         <el-tree-select
           v-model="formData.resourceEntityId"
           :data="resourceTreeOptions"
@@ -228,11 +248,12 @@ defineExpose({ validate, getFormData });
           :render-after-expand="false"
           default-expand-all
           clearable
-          placeholder="先选资源类型，再选资源"
+          placeholder="选择已登记 API"
           class="w-full!"
-          :disabled="!selectedResourceTypeCode"
         />
-        <div class="form-help">与资源实体建立接口级鉴权关联</div>
+        <div class="form-help">
+          API 实体用于接口登记，业务准入要求在下方单独选择
+        </div>
       </el-form-item>
     </template>
     <el-form-item v-else label="关联资源">
@@ -241,6 +262,42 @@ defineExpose({ validate, getFormData });
         readonly
         class="w-full!"
       />
+    </el-form-item>
+    <el-form-item label="业务资源类型" prop="requiredResourceTypeCode">
+      <el-select
+        v-model="formData.requiredResourceTypeCode"
+        class="w-full!"
+        :clearable="
+          !initialData?.requiredPermission &&
+          apiAuthMode !== 'OPERATION_ADMISSION'
+        "
+        placeholder="选择业务资源类型"
+        @change="onRequiredTypeChange"
+      >
+        <el-option
+          v-for="type in resourceTypes"
+          :key="type.typeCode"
+          :label="type.name"
+          :value="type.typeCode"
+        />
+      </el-select>
+    </el-form-item>
+    <el-form-item label="准入操作" prop="requiredOperationCode">
+      <el-select
+        v-model="formData.requiredOperationCode"
+        class="w-full!"
+        :disabled="!formData.requiredResourceTypeCode"
+        :loading="operationLoading"
+        placeholder="选择业务操作"
+      >
+        <el-option
+          v-for="op in operationOptions"
+          :key="op.code"
+          :value="op.code"
+          :label="`${op.name}（${op.code}）`"
+        />
+      </el-select>
+      <div class="form-help">准入通过后，业务接口仍须检查实际资源权限</div>
     </el-form-item>
     <el-form-item label="请求方法" prop="httpMethod">
       <el-select v-model="formData.httpMethod" class="w-full!">
@@ -267,7 +324,7 @@ defineExpose({ validate, getFormData });
         :precision="0"
         class="w-full!"
       />
-      <div class="form-help">数值越小，Gateway 匹配优先级越高</div>
+      <div class="form-help">顺序用于展示；操作准入会检查全部匹配路由</div>
     </el-form-item>
     <el-form-item label="映射状态">
       <el-switch

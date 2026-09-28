@@ -15,12 +15,10 @@ import {
   methodTagType,
   type MappingFormData,
   type ServiceConfigFormData,
+  type SyncSubmission,
   type ServiceSummary
 } from "./utils/types";
-import type {
-  ApiMappingResp,
-  ServiceConfigSyncReq
-} from "@/api/service-interface";
+import type { ApiMappingResp } from "@/api/service-interface";
 import AddFill from "~icons/ri/add-circle-line";
 import EditPen from "~icons/ep/edit-pen";
 import Delete from "~icons/ep/delete";
@@ -79,6 +77,16 @@ const mappingColumns = [
     width: 168,
     slot: "resource"
   },
+  {
+    label: "准入要求",
+    prop: "requiredPermission",
+    minWidth: 140,
+    formatter: row =>
+      row.requiredPermission
+        ? `${row.requiredPermission.resourceTypeCode}:${row.requiredPermission.operationCode}`
+        : "未配置"
+  },
+  { label: "维护来源", prop: "maintainSource", width: 116 },
   { label: "顺序", prop: "matchOrder", width: 58 },
   { label: "状态", prop: "enabled", width: 70, slot: "enabled" },
   { label: "更新时间", prop: "updatedAt", width: 138, slot: "updatedAt" },
@@ -167,6 +175,7 @@ function openMappingForm(mode: "create" | "edit", row?: ApiMappingResp) {
         },
         mode,
         serviceCode: service.serviceCode,
+        apiAuthMode: service.apiAuthMode,
         initialData: row || null
       }),
     beforeSure: async (done, { closeLoading }) => {
@@ -199,14 +208,14 @@ function openMappingForm(mode: "create" | "edit", row?: ApiMappingResp) {
 function openSyncForm() {
   const service = currentService.value;
   if (!service) return;
-  let formRef: DialogForm<ServiceConfigSyncReq | null> | null = null;
+  let formRef: DialogForm<SyncSubmission | null> | null = null;
   addDialog({
     title: `同步接口清单 · ${service.serviceCode}`,
     width: "720px",
     contentRenderer: () =>
       h(SyncForm, {
         ref: element => {
-          formRef = getDialogForm<ServiceConfigSyncReq | null>(element);
+          formRef = getDialogForm<SyncSubmission | null>(element);
         },
         service
       }),
@@ -215,7 +224,7 @@ function openSyncForm() {
         closeLoading();
         return;
       }
-      const request = formRef.getFormData() as ServiceConfigSyncReq | null;
+      const request = formRef.getFormData() as SyncSubmission | null;
       if (!request) {
         closeLoading();
         return;

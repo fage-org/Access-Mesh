@@ -24,10 +24,11 @@ public final class M2mCredentialEndpoints {
     /** M2M 凭证端点条目（method + 精确路径，无通配）。 */
     public record M2mEndpoint(String method, String path) {}
 
-    /** 阶段一端点集（service-authentication.md §3.5）。 */
+    /** 当前已接入凭证的端点集（service-authentication.md §3.5）。 */
     private static final List<M2mEndpoint> ENDPOINTS = List.of(
         new M2mEndpoint("POST", "/api/access/resource-entity/sync"),
         new M2mEndpoint("POST", "/api/access/resource-entity/full-sync"),
+        new M2mEndpoint("POST", "/api/access/service-config/sync-v2"),
         new M2mEndpoint("POST", "/api/access/integration/permission-manifest/full-sync"));
 
     /** 不可变端点清单（消费方遍历/测试断言用）。 */

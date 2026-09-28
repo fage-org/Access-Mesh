@@ -7,6 +7,11 @@ import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigSyncReq;
+import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigSyncV2Req;
+import cn.ac.fage.accessmesh.access.sync.strategy.InterfaceSyncDefinition;
+import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
+import cn.ac.fage.accessmesh.access.infrastructure.CallerType;
+import java.util.Objects;
 import cn.ac.fage.accessmesh.access.resource.dto.resp.ServiceConfigSyncResp;
 import cn.ac.fage.accessmesh.access.resource.entity.ServiceConfig;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
@@ -90,16 +95,35 @@ public class ServiceSyncAppServiceImpl implements ServiceSyncAppService {
     @PermissionChange
     @OperationLog(module = "PERMISSION", action = "SERVICE_INTERFACE_SYNC", targetType = "service_config", targetId = "#req.serviceCode()", summary = "'sync result: createdResources=' + #result.createdResources() + ', createdMappings=' + #result.createdMappings() + ', updatedMappings=' + #result.updatedMappings() + ', deletedResources=' + #result.deletedResources() + ', deletedMappings=' + #result.deletedMappings()")
     public ServiceConfigSyncResp syncInterfaces(Long tenantId, ServiceConfigSyncReq req) {
-        Long operatorId = OperatorContext.getOperatorId();
+        return sync(tenantId, InterfaceSyncDefinition.from(req));
+    }
 
-        validatePermission(tenantId, operatorId, req);
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    @PermissionChange
+    @OperationLog(module = "PERMISSION", action = "SERVICE_INTERFACE_SYNC_V2", targetType = "service_config",
+        targetId = "#req.serviceCode()", summary = "'sync operation admission declarations for ' + #req.serviceCode()")
+    public ServiceConfigSyncResp syncInterfacesV2(Long tenantId, ServiceConfigSyncV2Req req) {
+        return sync(tenantId, InterfaceSyncDefinition.from(req));
+    }
 
-        ServiceConfig config = prepareServiceConfig(tenantId, req, operatorId);
+    private ServiceConfigSyncResp sync(Long tenantId, InterfaceSyncDefinition req) {
+        Long operatorId = null;
+        if (req.version() == 2 && AccessRequestContext.getCallerType() == CallerType.SERVICE) {
+            if (!Objects.equals(tenantId, AccessRequestContext.getTenantId())
+                || !Objects.equals(req.serviceCode(), AccessRequestContext.getServiceCode())) {
+                throw new SecurityException("Service identity does not own requested service");
+            }
+        } else {
+            operatorId = OperatorContext.getOperatorId();
+            validatePermission(tenantId, operatorId, req);
+        }
 
         // T-PERM-044 外部评审 P1：接口同步批量 upsert 资源（全列回写含 parent），与
         // moveResource/资源实体同步共持 (resource_entity, 租户) 树写锁——无锁时并发移动会被
         // 批量回写静默回滚、经两步合法移动+回写可闭合成环
         treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
+        ServiceConfig config = prepareServiceConfig(tenantId, req, operatorId);
 
         String basePath = normalizeBasePath(
             req.basePath() != null && !req.basePath().isBlank() ? req.basePath() : config.getBasePath()
@@ -110,7 +134,7 @@ public class ServiceSyncAppServiceImpl implements ServiceSyncAppService {
             throw new BizException(AccessErrorCode.TYPE_CODE_NOT_FOUND.getCode(), "resource_type API not found");
         }
 
-        SyncContext context = SyncContext.of(tenantId, config, req, operatorId, basePath, apiType);
+        SyncContext context = new SyncContext(tenantId, config, req, operatorId, basePath, apiType);
 
         SyncModeStrategy strategy = strategyFactory.getStrategy(req.syncMode());
         SyncResult result = strategy.execute(context, resourceSyncHandler, mappingSyncHandler);
@@ -130,7 +154,7 @@ public class ServiceSyncAppServiceImpl implements ServiceSyncAppService {
      * @param req 同步请求
      * @throws SecurityException 无权限时抛出
      */
-    private void validatePermission(Long tenantId, Long operatorId, ServiceConfigSyncReq req) {
+    private void validatePermission(Long tenantId, Long operatorId, InterfaceSyncDefinition req) {
         if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, req.serviceCode(), OperationCode.SYNC_INTERFACE)) {
             throw new SecurityException("Permission denied: SYNC_INTERFACE on SERVICE:" + req.serviceCode());
         }
@@ -148,13 +172,16 @@ public class ServiceSyncAppServiceImpl implements ServiceSyncAppService {
      * @return 服务配置实体
      * @throws BizException 服务配置不存在时抛出
      */
-    private ServiceConfig prepareServiceConfig(Long tenantId, ServiceConfigSyncReq req, Long operatorId) {
+    private ServiceConfig prepareServiceConfig(Long tenantId, InterfaceSyncDefinition req, Long operatorId) {
         ServiceConfig config = serviceConfigMapper.selectByTenantAndServiceCode(tenantId, req.serviceCode());
 
         if (config == null) {
             throw new BizException(AccessErrorCode.RESOURCE_NOT_FOUND.getCode(), "ServiceConfig not found: " + req.serviceCode());
         }
 
+        if (!cn.ac.fage.accessmesh.access.resource.service.domain.ServiceConfigDomainService.isRegisteredAndEnabled(config)) {
+            throw new BizException(AccessErrorCode.RESOURCE_STATE_CONFLICT.getCode(), "服务已停用，不可同步接口声明");
+        }
         if (req.basePath() != null && !req.basePath().isBlank()) {
             config.setBasePath(req.basePath());
             config.setUpdatedAt(LocalDateTime.now());

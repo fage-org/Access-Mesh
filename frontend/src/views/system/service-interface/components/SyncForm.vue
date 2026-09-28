@@ -1,14 +1,12 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
 import type { FormInstance, FormRules } from "element-plus";
-import type {
-  ServiceConfigResp,
-  ServiceConfigSyncReq
-} from "@/api/service-interface";
+import type { ServiceConfigResp } from "@/api/service-interface";
 import {
   createSyncPayload,
   parseSyncGroups,
-  type SyncFormData
+  type SyncFormData,
+  type SyncSubmission
 } from "../utils/types";
 
 defineOptions({ name: "ServiceInterfaceSyncForm" });
@@ -30,7 +28,7 @@ const rules = computed<FormRules>(() => ({
   groupsJson: [
     {
       validator: (_rule, value: string, callback) => {
-        const { error } = parseSyncGroups(value);
+        const { error } = parseSyncGroups(value, formData.version);
         callback(error ? new Error(error) : undefined);
       },
       trigger: "blur"
@@ -52,15 +50,32 @@ async function validate(): Promise<boolean> {
   }
 }
 
-function getFormData(): ServiceConfigSyncReq | null {
-  const { groups } = parseSyncGroups(formData.groupsJson);
+function getFormData(): SyncSubmission | null {
+  const { groups } = parseSyncGroups(formData.groupsJson, formData.version);
   if (!groups) return null;
-  return {
+  const request = {
     serviceCode: props.service.serviceCode,
     basePath: formData.basePath.trim(),
-    syncMode: "FULL",
+    syncMode: "FULL" as const,
     groups
   };
+  return formData.version === 2
+    ? {
+        version: 2,
+        request: {
+          ...request,
+          // parseSyncGroups v2 分支已逐项校验 requiredPermission 非空且格式合法
+          groups: groups.map(g => ({
+            groupCode: g.groupCode,
+            groupName: g.groupName,
+            apis: g.apis.map(a => ({
+              ...a,
+              requiredPermission: a.requiredPermission!
+            }))
+          }))
+        }
+      }
+    : { version: 1, request };
 }
 
 watch(() => props.service, reset);
@@ -91,6 +106,12 @@ defineExpose({ validate, getFormData });
           class="font-mono"
         />
       </el-form-item>
+      <el-form-item label="同步内容">
+        <el-select v-model="formData.version" class="w-full!">
+          <el-option label="仅接口登记（旧协议）" :value="1" />
+          <el-option label="接口与业务准入操作" :value="2" />
+        </el-select>
+      </el-form-item>
       <el-form-item label="同步模式">
         <el-tag type="warning" effect="plain">FULL</el-tag>
       </el-form-item>
@@ -107,7 +128,9 @@ defineExpose({ validate, getFormData });
         />
         <div class="sync-help">
           使用 groups → apis 结构；每条接口须提供名称、HTTP
-          方法、相对路径和资源编码。
+          方法、相对路径和资源编码。新版还须提供
+          requiredPermission：resourceTypeCode 与
+          operationCode；不会自动切换服务鉴权模式。
         </div>
       </el-form-item>
     </el-form>

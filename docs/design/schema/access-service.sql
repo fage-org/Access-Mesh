@@ -979,6 +979,9 @@ CREATE TABLE resource_api_mapping (
     tenant_id          BIGINT NOT NULL,
     resource_entity_id BIGINT NOT NULL,
     service_code       VARCHAR(128) NOT NULL,
+    required_operation_id BIGINT,
+    maintain_source    VARCHAR(32) NOT NULL DEFAULT 'MANUAL'
+        CHECK (maintain_source IN ('MANUAL', 'SERVICE_SYNC', 'BOOTSTRAP')),
     http_method        VARCHAR(16) NOT NULL,
     path_pattern       VARCHAR(512) NOT NULL,
     match_order        INT NOT NULL DEFAULT 0,
@@ -996,9 +999,12 @@ CREATE TABLE resource_api_mapping (
 CREATE UNIQUE INDEX uk_resource_api_mapping_route ON resource_api_mapping (tenant_id, resource_entity_id, service_code, http_method, path_pattern) WHERE delete_flag = 0;
 CREATE INDEX idx_resource_api_mapping_lookup ON resource_api_mapping (tenant_id, service_code, http_method, match_order) WHERE delete_flag = 0 AND enabled = true;
 CREATE INDEX idx_resource_api_mapping_resource ON resource_api_mapping (resource_entity_id) WHERE delete_flag = 0;
+CREATE INDEX idx_resource_api_mapping_operation ON resource_api_mapping (tenant_id, required_operation_id) WHERE delete_flag = 0 AND required_operation_id IS NOT NULL;
 
-COMMENT ON TABLE resource_api_mapping IS '接口资源映射：API 类资源到 service_code + http_method + path_pattern 的显式映射；同一路径允许映射多个资源，接口级鉴权采用 OR 语义';
+COMMENT ON TABLE resource_api_mapping IS '接口登记映射：resource_entity_id 引用 API 登记实体，required_operation_id 引用业务准入操作；LEGACY_API 沿用共同候选鉴权，OPERATION_ADMISSION 完整匹配路由后同要求去重、不同要求报配置故障';
 COMMENT ON COLUMN resource_api_mapping.service_code IS '所属服务编码';
+COMMENT ON COLUMN resource_api_mapping.required_operation_id IS '业务准入操作 ID，类型从操作定义取得；LEGACY_API 存量可为空，不得将 API:ACCESS 作为准入要求；有效引用阻止操作删除和位变更';
+COMMENT ON COLUMN resource_api_mapping.maintain_source IS '映射独立维护来源 MANUAL/SERVICE_SYNC/BOOTSTRAP；FULL 仅清所属服务的 SERVICE_SYNC 映射，不从资源来源或 extra 推断；存量迁移保守回填 MANUAL';
 COMMENT ON COLUMN resource_api_mapping.http_method IS 'HTTP 方法，如 GET/POST/PUT/DELETE';
 COMMENT ON COLUMN resource_api_mapping.path_pattern IS '接口路径模式（完整路径含前缀）';
 
@@ -1013,6 +1019,8 @@ CREATE TABLE service_config (
     base_path    VARCHAR(512),
     description  VARCHAR(512),
     status       INT NOT NULL DEFAULT 1,
+    api_auth_mode VARCHAR(32) NOT NULL DEFAULT 'LEGACY_API'
+        CHECK (api_auth_mode IN ('LEGACY_API', 'OPERATION_ADMISSION')),
     extra        JSONB DEFAULT '{}',
     created_by   BIGINT,
     updated_by   BIGINT,
@@ -1027,9 +1035,10 @@ CREATE UNIQUE INDEX uk_service_config ON service_config (tenant_id, service_code
 
 COMMENT ON TABLE service_config IS '接入服务配置：全量同步策略，支持手动增删改接口映射。extra.syncTypes 声明服务可同步的类型白名单（见 api-contract §19.9）；停用(status=0)后其接口不参与授权且 sync/full-sync 全部拒绝';
 COMMENT ON COLUMN service_config.service_code IS '服务编码，租户内唯一';
+COMMENT ON COLUMN service_config.api_auth_mode IS '可信服务配置控制的鉴权模式 LEGACY_API/OPERATION_ADMISSION；不接受客户端模式头，切换须满足逐路由业务最终检查与反向拒绝测试的迁移门槛';
 COMMENT ON COLUMN service_config.base_path IS '基础路径前缀';
 COMMENT ON COLUMN service_config.extra IS '扩展属性(JSON)：syncTypes 声明同步类型白名单（subjectTypeCodes/roleTypeCodes/sourceTypes 字符串数组，缺失分类=无权限；资源维度已随 T-PERM-052 类型级所有权退役，保存含 resourceTypeCodes 拒绝）；保存时校验结构，运行时 fail-closed';
-COMMENT ON COLUMN service_config.status IS '状态：0=停用 1=启用。停用后该服务的接口不参与授权，且 sync/full-sync 全部拒绝（SECURITY_DENIED）';
+COMMENT ON COLUMN service_config.status IS '状态：0=停用 1=启用。停用后该服务的接口不参与授权；资源/依赖同步通道（sync/full-sync、manifest）拒绝（SECURITY_DENIED），接口声明同步（service-config/sync、sync-v2）拒绝 20025（T-ACCESS-058）';
 
 -- -----------------------------------------------------------------------------
 -- 25. permission_condition - 权限条件表（JSONB 规则字段，一行=一个完整条件定义）

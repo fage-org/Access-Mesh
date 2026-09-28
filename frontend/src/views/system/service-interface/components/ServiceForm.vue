@@ -56,6 +56,7 @@ function initForm() {
       basePath: props.initialData.basePath || "/",
       description: props.initialData.description || "",
       status: props.initialData.status,
+      apiAuthMode: props.initialData.apiAuthMode ?? "LEGACY_API",
       extra: props.initialData.extra || ""
     });
     return;
@@ -120,6 +121,15 @@ defineExpose({ validate, getFormData });
         maxlength="256"
         class="font-mono"
       />
+    </el-form-item>
+    <el-form-item label="鉴权模式">
+      <el-select v-model="formData.apiAuthMode" class="w-full!">
+        <el-option label="API 资源鉴权" value="LEGACY_API" />
+        <el-option label="业务操作准入" value="OPERATION_ADMISSION" />
+      </el-select>
+      <div>
+        切换前须完成各接口的业务最终鉴权及无权限拒绝测试，并按服务迁移流程切换。
+      </div>
     </el-form-item>
     <el-form-item label="服务状态">
       <el-radio-group v-model="formData.status">

@@ -18,6 +18,7 @@ class M2mCredentialEndpointsTest {
         assertThat(M2mCredentialEndpoints.matches("POST", "/api/access/resource-entity/sync")).isTrue();
         assertThat(M2mCredentialEndpoints.matches("POST", "/api/access/resource-entity/full-sync")).isTrue();
         assertThat(M2mCredentialEndpoints.matches("POST", "/api/access/integration/permission-manifest/full-sync")).isTrue();
+        assertThat(M2mCredentialEndpoints.matches("POST", "/api/access/service-config/sync-v2")).isTrue();
         // method 大小写不敏感
         assertThat(M2mCredentialEndpoints.matches("post", "/api/access/resource-entity/sync")).isTrue();
     }
@@ -42,14 +43,15 @@ class M2mCredentialEndpointsTest {
     }
 
     @Test
-    @DisplayName("清单不可变且恰三条（阶段一基线计数锁）")
+    @DisplayName("清单保持精确端点边界")
     void shouldExposeImmutableBaseline() {
-        assertThat(M2mCredentialEndpoints.endpoints()).hasSize(3);
+        assertThat(M2mCredentialEndpoints.endpoints()).hasSize(4);
         assertThat(M2mCredentialEndpoints.endpoints())
             .extracting(M2mCredentialEndpoints.M2mEndpoint::path)
             .containsExactlyInAnyOrder(
                 "/api/access/resource-entity/sync",
                 "/api/access/resource-entity/full-sync",
-                "/api/access/integration/permission-manifest/full-sync");
+                "/api/access/integration/permission-manifest/full-sync",
+                "/api/access/service-config/sync-v2");
     }
 }

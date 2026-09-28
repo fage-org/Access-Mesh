@@ -24,5 +24,6 @@ public record ApiMappingAddReq(
     @NotBlank String pathPattern,
     Integer matchOrder,
     Boolean enabled,
-    String extra
+    String extra,
+    @jakarta.validation.Valid cn.ac.fage.accessmesh.access.resource.dto.RequiredPermission requiredPermission
 ) {}

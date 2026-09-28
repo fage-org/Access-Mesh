@@ -59,10 +59,10 @@ class ClearFieldProtocolValidationTest {
     @DisplayName("值与 Clear 同传拒绝——type description / service 三字段 / mapping extra / abstract-user extra")
     void conflictMustBeRejectedAcrossTargets() {
         assertFalse(validator.validate(new TypeUpdateReq(1L, null, "描述", null, null, true, null)).isEmpty());
-        assertFalse(validator.validate(new ServiceConfigReq("svc", "名", "/api", null, null, null, true, null, null)).isEmpty());
-        assertFalse(validator.validate(new ServiceConfigReq("svc", "名", null, "描述", null, null, null, true, null)).isEmpty());
-        assertFalse(validator.validate(new ServiceConfigReq("svc", "名", null, null, null, "{\"k\":1}", null, null, true)).isEmpty());
-        assertFalse(validator.validate(new ApiMappingUpdateReq(1L, 2L, null, null, null, null, "{\"k\":1}", true)).isEmpty());
+        assertFalse(validator.validate(new ServiceConfigReq("svc", "名", "/api", null, null, null, true, null, null, null)).isEmpty());
+        assertFalse(validator.validate(new ServiceConfigReq("svc", "名", null, "描述", null, null, null, true, null, null)).isEmpty());
+        assertFalse(validator.validate(new ServiceConfigReq("svc", "名", null, null, null, "{\"k\":1}", null, null, true, null)).isEmpty());
+        assertFalse(validator.validate(new ApiMappingUpdateReq(1L, 2L, null, null, null, null, "{\"k\":1}", true, null)).isEmpty());
         assertFalse(validator.validate(new AbstractUserUpdateReq(1L, null, null, "{\"k\":1}", true)).isEmpty());
     }
 
@@ -84,10 +84,10 @@ class ClearFieldProtocolValidationTest {
         assertFalse(validator.validate(new UserUpdateReq(1L, null, null, "", null, null, null)).isEmpty());
         assertFalse(validator.validate(new TypeUpdateReq(1L, null, "", null, null, null, null)).isEmpty());
         assertFalse(validator.validate(new TypeUpdateReq(1L, null, null, null, " ", null, null)).isEmpty());
-        assertFalse(validator.validate(new ServiceConfigReq("svc", "名", "", null, null, null, null, null, null)).isEmpty());
-        assertFalse(validator.validate(new ServiceConfigReq("svc", "名", null, " ", null, null, null, null, null)).isEmpty());
-        assertFalse(validator.validate(new ServiceConfigReq("svc", "名", null, null, null, "", null, null, null)).isEmpty());
-        assertFalse(validator.validate(new ApiMappingUpdateReq(1L, 2L, null, null, null, null, " ", null)).isEmpty());
+        assertFalse(validator.validate(new ServiceConfigReq("svc", "名", "", null, null, null, null, null, null, null)).isEmpty());
+        assertFalse(validator.validate(new ServiceConfigReq("svc", "名", null, " ", null, null, null, null, null, null)).isEmpty());
+        assertFalse(validator.validate(new ServiceConfigReq("svc", "名", null, null, null, "", null, null, null, null)).isEmpty());
+        assertFalse(validator.validate(new ApiMappingUpdateReq(1L, 2L, null, null, null, null, " ", null, null)).isEmpty());
     }
 
     // ---- false/缺省无清空作用；单用形态放行（拍板③；既有正常 extraClear 消费者不回退） ----
@@ -98,8 +98,8 @@ class ClearFieldProtocolValidationTest {
         assertTrue(validator.validate(new UserUpdateReq(1L, null, null, null, null, true, null)).isEmpty());
         assertTrue(validator.validate(new UserUpdateReq(1L, "名", "13800000000", "a@b.c", null, false, false)).isEmpty());
         assertTrue(validator.validate(new TypeUpdateReq(1L, "名", null, null, null, true, null)).isEmpty());
-        assertTrue(validator.validate(new ServiceConfigReq("svc", "名", null, null, null, null, true, true, true)).isEmpty());
-        assertTrue(validator.validate(new ApiMappingUpdateReq(1L, 2L, null, null, null, null, null, true)).isEmpty());
+        assertTrue(validator.validate(new ServiceConfigReq("svc", "名", null, null, null, null, true, true, true, null)).isEmpty());
+        assertTrue(validator.validate(new ApiMappingUpdateReq(1L, 2L, null, null, null, null, null, true, null)).isEmpty());
         assertTrue(validator.validate(new RoleUpdateReq(1L, null, null, null, null, true)).isEmpty());
         assertTrue(validator.validate(new RoleUpdateReq(1L, "名", 1, 0, "{\"k\":1}", false)).isEmpty());
         // abstract-user：extraClear 单用=合法业务载荷放行（空 patch 计入）；与值同传见冲突用例
@@ -163,8 +163,8 @@ class ClearFieldProtocolValidationTest {
         assertFalse(validator.validate(new UserUpdateReq(1L, null, "　　", null, null, null, null)).isEmpty());
         assertFalse(validator.validate(new UserUpdateReq(1L, null, null, " ", null, null, null)).isEmpty());
         assertFalse(validator.validate(new TypeUpdateReq(1L, null, "　", null, null, null, null)).isEmpty());
-        assertFalse(validator.validate(new ServiceConfigReq("svc", "名", " ", null, null, null, null, null, null)).isEmpty());
-        assertFalse(validator.validate(new ApiMappingUpdateReq(1L, 2L, null, null, null, null, "　", null)).isEmpty());
+        assertFalse(validator.validate(new ServiceConfigReq("svc", "名", " ", null, null, null, null, null, null, null)).isEmpty());
+        assertFalse(validator.validate(new ApiMappingUpdateReq(1L, 2L, null, null, null, null, "　", null, null)).isEmpty());
         assertFalse(validator.validate(new AbstractUserUpdateReq(1L, null, null, " ", null)).isEmpty());
     }
 }

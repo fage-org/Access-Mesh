@@ -46,6 +46,25 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class ServiceConfigAppServiceImplTest {
 
+    @Test
+    void should_saveTrustedModeAndMarkService_whenModeChanges() {
+        when(engine.hasPermissionByCode(any(), any(), any(), any(), any())).thenReturn(true);
+        ServiceConfig existing = new ServiceConfig();
+        existing.setServiceCode("my-service");
+        when(serviceConfigMapper.selectByTenantAndServiceCode(1L, "my-service")).thenReturn(existing);
+        cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext.bindIfAbsent();
+        try {
+            var result = service.saveServiceConfig(1L,
+                new ServiceConfigReq("my-service", "MyService", null, null, null, null, null, null, null,
+                    cn.ac.fage.accessmesh.access.resource.enums.ApiAuthMode.OPERATION_ADMISSION), 100L);
+            assertEquals("OPERATION_ADMISSION", result.apiAuthMode());
+            assertEquals(java.util.Set.of("my-service"),
+                cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext.snapshot().serviceCodes());
+        } finally {
+            cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext.clear();
+        }
+    }
+
     @Mock private ServiceConfigMapper serviceConfigMapper;
     @Mock private QueryGate engine;
     @Mock private ResourceApiMappingMapper resourceApiMappingMapper;
@@ -61,7 +80,7 @@ class ServiceConfigAppServiceImplTest {
         //（guard 依赖的 ServiceConfigDomainService 用真实实现包 mock mapper——域服务零逻辑纯委托）
         service = new ServiceConfigAppServiceImpl(serviceConfigMapper, engine, resourceApiMappingMapper,
                 new SyncTypeGuard(new ServiceConfigDomainServiceImpl(serviceConfigMapper), new ObjectMapper()),
-                resourceSyncHandler, typeResolutionService, resourceManageAppService);
+                resourceSyncHandler, typeResolutionService, resourceManageAppService, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class));
     }
 
     /**
@@ -75,7 +94,7 @@ class ServiceConfigAppServiceImplTest {
             .thenReturn(true);
         when(serviceConfigMapper.selectByTenantAndServiceCode(1L, "my-service")).thenReturn(null);
 
-        ServiceConfigReq req = new ServiceConfigReq("my-service", "MyService", "/api", "desc", 1, null, null, null, null);
+        ServiceConfigReq req = new ServiceConfigReq("my-service", "MyService", "/api", "desc", 1, null, null, null, null, null);
         ServiceConfigResp result = service.saveServiceConfig(1L, req, 100L);
 
         ArgumentCaptor<ServiceConfig> captor = ArgumentCaptor.forClass(ServiceConfig.class);
@@ -94,7 +113,7 @@ class ServiceConfigAppServiceImplTest {
             eq(ResourceTypeCode.SERVICE), eq((String) null), eq(OperationCode.MANAGE)))
             .thenReturn(false);
 
-        ServiceConfigReq req = new ServiceConfigReq("my-service", "MyService", "/api", "desc", 1, null, null, null, null);
+        ServiceConfigReq req = new ServiceConfigReq("my-service", "MyService", "/api", "desc", 1, null, null, null, null, null);
         assertThrows(SecurityException.class, () -> service.saveServiceConfig(1L, req, 100L));
     }
 
@@ -104,7 +123,7 @@ class ServiceConfigAppServiceImplTest {
 
         // 结构校验在查询/写入前抛错（不 stub select——校验先于 DB 访问）
         ServiceConfigReq req = new ServiceConfigReq("my-service", "MyService", "/api", "desc", 1,
-            "{\"syncTypes\": \"EMP\"}", null, null, null);
+            "{\"syncTypes\": \"EMP\"}", null, null, null, null);
 
         BizException ex = assertThrows(BizException.class, () -> service.saveServiceConfig(1L, req, 100L));
         assertEquals(20044, ex.getErrorCode());
@@ -117,7 +136,7 @@ class ServiceConfigAppServiceImplTest {
 
         // 合法 JSON 但错误结构（分类为字符串而非数组）——保存时必须拒绝，避免运行时空白名单
         ServiceConfigReq req = new ServiceConfigReq("my-service", "MyService", "/api", "desc", 1,
-            "{\"syncTypes\": {\"subjectTypeCodes\": \"EMP\"}}", null, null, null);
+            "{\"syncTypes\": {\"subjectTypeCodes\": \"EMP\"}}", null, null, null, null);
 
         assertThrows(BizException.class, () -> service.saveServiceConfig(1L, req, 100L));
         verify(serviceConfigMapper, never()).insert(any());
@@ -129,10 +148,10 @@ class ServiceConfigAppServiceImplTest {
 
         assertThrows(BizException.class, () -> service.saveServiceConfig(1L,
             new ServiceConfigReq("my-service", "MyService", "/api", "desc", 1,
-                "{\"syncTypes\": {\"subjectTypeCodes\": [\"  \"]}}", null, null, null), 100L));
+                "{\"syncTypes\": {\"subjectTypeCodes\": [\"  \"]}}", null, null, null, null), 100L));
         assertThrows(BizException.class, () -> service.saveServiceConfig(1L,
             new ServiceConfigReq("my-service", "MyService", "/api", "desc", 1,
-                "{\"syncTypes\": {\"roleTypeCodes\": [123]}}", null, null, null), 100L));
+                "{\"syncTypes\": {\"roleTypeCodes\": [123]}}", null, null, null, null), 100L));
         verify(serviceConfigMapper, never()).insert(any());
     }
 
@@ -143,10 +162,10 @@ class ServiceConfigAppServiceImplTest {
         // 拼写错误字段（subjectTypesCode）与多余字段必须拒绝，防止错误结构保存后解释为空白名单
         assertThrows(BizException.class, () -> service.saveServiceConfig(1L,
             new ServiceConfigReq("my-service", "MyService", "/api", "desc", 1,
-                "{\"syncTypes\": {\"subjectTypesCode\": [\"EMP\"]}}", null, null, null), 100L));
+                "{\"syncTypes\": {\"subjectTypesCode\": [\"EMP\"]}}", null, null, null, null), 100L));
         assertThrows(BizException.class, () -> service.saveServiceConfig(1L,
             new ServiceConfigReq("my-service", "MyService", "/api", "desc", 1,
-                "{\"syncTypes\": {\"subjectTypeCodes\": [\"EMP\"], \"extra\": \"x\"}}", null, null, null), 100L));
+                "{\"syncTypes\": {\"subjectTypeCodes\": [\"EMP\"], \"extra\": \"x\"}}", null, null, null, null), 100L));
         verify(serviceConfigMapper, never()).insert(any());
     }
 
@@ -157,7 +176,7 @@ class ServiceConfigAppServiceImplTest {
 
         ServiceConfigReq req = new ServiceConfigReq("my-service", "MyService", "/api", "desc", 1,
             "{\"syncTypes\": {\"subjectTypeCodes\": [\"EMP\"], \"roleTypeCodes\": [\"TEAM_ROLE\"],"
-                + " \"sourceTypes\": [\"HR_MEMBER\"]}}", null, null, null);
+                + " \"sourceTypes\": [\"HR_MEMBER\"]}}", null, null, null, null);
 
         ServiceConfigResp result = service.saveServiceConfig(1L, req, 100L);
 
@@ -171,7 +190,7 @@ class ServiceConfigAppServiceImplTest {
         when(serviceConfigMapper.selectByTenantAndServiceCode(1L, "my-service")).thenReturn(null);
 
         ServiceConfigReq req = new ServiceConfigReq("my-service", "MyService", "/api", "desc", 1,
-            "{\"region\": \"CN\"}", null, null, null);
+            "{\"region\": \"CN\"}", null, null, null, null);
 
         ServiceConfigResp result = service.saveServiceConfig(1L, req, 100L);
 
@@ -233,7 +252,7 @@ class ServiceConfigAppServiceImplTest {
     @DisplayName("listServiceApis 委托 ResourceManageAppService.listApiMappings（同层复用，门禁/补全单点）")
     void shouldDelegateListServiceApisToMappingList() {
         ApiMappingResp resp = new ApiMappingResp(1L, 1L, 100L, "svc-a", "POST", "/api/x",
-            0, true, null, null, null, "res:x", "资源X", "API", "SERVICE_SYNC");
+            0, true, null, null, null, "res:x", "资源X", "API", "SERVICE_SYNC", null);
         when(resourceManageAppService.listApiMappings(1L, null, "svc-a")).thenReturn(List.of(resp));
 
         List<ApiMappingResp> result = service.listServiceApis(1L, "svc-a");

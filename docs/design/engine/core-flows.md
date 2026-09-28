@@ -78,8 +78,8 @@ flowchart LR
 - 权限中心用 `basePath + api.path` 生成 Gateway 原始路径并写入 `resource_api_mapping.path_pattern`。
 - 新接口自动创建 API 类型 `resource_entity` 和 `resource_api_mapping`。
 - 自动创建的 API 资源必须标记 `ownerServiceCode=serviceCode`、`maintainSource=SERVICE_SYNC`（`resource_entity.sync_key` 列已删除，2026-09-05 T-PERM-052）。
-- 上报中缺失的旧接口会被软删除映射；若资源是同一 `ownerServiceCode + maintainSource=SERVICE_SYNC` 下自动创建的 API 资源，也可同步软删除。
-- FULL diff 不得删除人工维护或其他维护来源的资源。
+- 上报中缺失的旧映射按 `resource_api_mapping.maintain_source=SERVICE_SYNC` 且属于本服务判定清理（T-ACCESS-058 起按映射自身维护来源，不从绑定资源推断）；登记实体已软删时该类映射一并清理。
+- 映射清理后无剩余有效映射引用的 SERVICE_SYNC 自动创建 API 资源可同步软删除；MANUAL/BOOTSTRAP 映射与仍被引用的登记实体不删除。
 - Gateway 鉴权使用客户端原始请求路径匹配（T-ACCESS-042 起无 StripPrefix，外部路径=服务路径，注册值即控制器真实路径）。
 
 ## 5. 场景三：同步主体、创建角色、分配角色
