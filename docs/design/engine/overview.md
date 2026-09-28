@@ -107,7 +107,7 @@ effectiveScopes = DIRECT 直接范围权限 ∪ DEPENDENT 子权限范围权限
 - `DIRECT`：`depend_on IS NULL` 的独立范围资源授权，例如 A 部门主管拥有 `dept:A + DATA_READ`。
 - `DEPENDENT`：`depend_on` 指向当前主权限的子权限，只在该主资源上下文内生效，例如用户只在销售报表下额外拥有 `dept:B + DATA_READ`。
 - `scope_all=true`：内部存储的一等权限维度，不展开为 N 个具体资源条目；对外协议统一映射为 `scopeMode=ALL`。例如 `DATA_EDIT + DEPT + scopeMode=ALL` 表示可编辑全部部门范围。
-  - `SnapshotAssembler`：内部 `scope_all` 条目不展开，对外快照项返回 `scopeMode=ALL`；实例级条目返回 `scopeMode=INSTANCE`。
+  - `SnapshotAssembler`：API 类型 `scope_all` 条目展开为该 serviceCode 全部 enabled 注册路由的 `scopeMode=INSTANCE` 条目（例外——不输出 ALL 通配，类型级 API 授权语义=「全部已注册 API」，未注册接口默认拒绝）；实例级条目返回 `scopeMode=INSTANCE`。
   - `PermViewAssembler`：按 `resourceType` 分组输出全量范围视图项，对外使用 `scopeMode=ALL`。
   - 空范围结果不代表全量，必须通过 `scopeMode=ALL` 显式表达。
 

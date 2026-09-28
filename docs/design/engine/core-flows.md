@@ -171,7 +171,7 @@ QueryExecutionEngine.execute(QueryRequest)
 
 **内部 `scopeAll` 作为一等权限维度，对外统一映射为 `scopeMode`**：
 
-- `SnapshotAssembler`：内部 `scopeAll` 条目不展开为 N 个 API 资源，对外快照项返回 `scopeMode=ALL` 且 `httpMethod=null, pathPattern=null`；实例级条目返回 `scopeMode=INSTANCE`。
+- `SnapshotAssembler`：内部 `scopeAll` 条目展开为该 serviceCode 全部 enabled 注册路由的 `scopeMode=INSTANCE` 条目（不输出 ALL 通配——类型级 API 授权语义=「全部已注册 API」，未注册接口维持默认拒绝，S02）；实例级条目经 API 映射组装 `scopeMode=INSTANCE`。
 - `PermViewAssembler`：按 `resourceType` 分组输出全量范围视图项，对外使用 `scopeMode=ALL`，例如 `DATA_EDIT + DEPT + scopeMode=ALL` 表示可编辑全部部门范围。
 
 **两语义拆分**（T-PERM-057，Q1 定案）：

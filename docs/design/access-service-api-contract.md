@@ -2046,6 +2046,8 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
 
 > **令牌移除（T-PERM-018，2026-06-20）**：`permissionVersion` / `notModified` 字段已移除——令牌「唯一真正作用是 INTERFACE_SNAPSHOT 缓存 key」已核实，permission-center 侧该 L2 缓存已删，令牌随之失效，连带 304/notModified 死代码一并清除。permission-center 正确性改由 engine `ROLE_PERM_SNAPSHOT` 读缓存（per-role 精确失效）保证；Gateway 本地陈旧由广播 + TTL 兜底。
 
+> **快照展开口径修订（2026-09-28 外评处置对齐，T-PERM-090 登记的存量陈旧）**：本节曾按「`scopeMode=ALL` 通配、服务端不展开」描述——实现自 T-PERM-017 起即为 enabled 注册路由展开、条目恒 `INSTANCE`（设计 S02）；本节示例与规则随 engine 三册同批对齐。`conditionRules` 字段（T-PERM-017 C3 内联）此前未入示例，一并补齐（§25.2 准入快照对该字段形态的交叉引用以本节为准）。仓库内消费方 Gateway 已随 T-ACCESS-059 切换 `interface-admission-snapshot`（§25.2），本端点保留供外部消费。
+
 请求：
 
 ```json
@@ -2067,15 +2069,17 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
       "pathPattern": "/api/user/list",
       "hasCondition": false,
       "conditionId": null,
+      "conditionRules": null,
       "scopeMode": "INSTANCE"
     },
     {
       "serviceCode": "access-service",
-      "httpMethod": null,
-      "pathPattern": null,
+      "httpMethod": "POST",
+      "pathPattern": "/api/role/list",
       "hasCondition": true,
       "conditionId": 5,
-      "scopeMode": "ALL"
+      "conditionRules": "{\"logic\":\"AND\",\"items\":[{\"type\":\"TIME_RANGE\",\"params\":{\"start\":\"09:00:00\",\"end\":\"18:00:00\"}}]}",
+      "scopeMode": "INSTANCE"
     }
   ]
 }
@@ -2084,7 +2088,9 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
 规则：
 
 - permission-center 每次实时构建全量快照返回，不再有令牌比较 / 304 短路路径；无有效角色时返回 `allowedApis=[]`。
-- `scopeMode=ALL` 的条目表示角色对该服务全部 API 拥有权限，`httpMethod` 和 `pathPattern` 为 null。调用方自行根据 `hasCondition`/`conditionId` 决定是否放行——服务端不展开全量权限为逐条 API。实例级条目（`scopeMode=INSTANCE`）仍按 `httpMethod + pathPattern` 精确匹配。
+- **快照条目恒 `scopeMode=INSTANCE`，不输出 ALL 通配**：API 类型级授权（内部 `scope_all=true`）由服务端展开为该 `serviceCode` 全部 enabled 注册路由的逐条 INSTANCE 条目——类型级 API 授权语义=「全部**已注册** API」，未注册接口维持默认拒绝，新增路由经调用方快照 TTL/广播窗口后生效。实例级授权条目按 `httpMethod + pathPattern` 精确匹配。
+- **条件分支成条口径**：含条件的类型级授权逐路由保留条件身份，不同条件身份（`conditionId`）各自独立成条、同一条件身份多角色合并——调用方按 OR 语义合并评估，任一分支放行即允许（不因某条件分支评估失败误拒无条件授权）。
+- **条件内联（T-PERM-017 C3）**：`hasCondition=true` 条目在条件 `gatewayEvaluable=true` 且规则类型全在四类型白名单（DATE_RANGE/TIME_RANGE/IP_WHITELIST/IP_BLACKLIST）内时内联 `conditionRules`（String 规则原文，同 §15 `ConditionResp.conditionRules` 的 `{logic, items[]}` 形态）——调用方本地用请求 context 重评；其余情况 `conditionRules=null`，命中该条目后回退 `check-interface` 实时鉴权。
 - Gateway 本地缓存 key 为 `(tenantId,subjectTypeCode,userId,serviceCode)`；API mapping / 资源 / syncInterfaces 变更触发 `PermInvalidateEvent`（含 `serviceCodes`），Gateway 订阅后按 tenant+serviceCodes evict 本地快照（T-PERM-006）。
 
 ### 18.5 通用资源权限查询 query-resources

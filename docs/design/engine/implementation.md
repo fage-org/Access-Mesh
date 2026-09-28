@@ -432,7 +432,9 @@ QueryExecutionEngine.execute(QueryRequest)
     │          DEPENDENT_NOT_IN_PARENT_CONTEXT 与无授权区分）
     │
     ├─ GRANT_LIST 阶段（清单/事实面：ReadOptions 读来源=ROLE_SNAPSHOT 缓存或 DATABASE 直查）
-    │     ├─ ParentRequirement 给出时父阶段独立判定（不缺不补：父 scopeAll/INSTANCE 各读一次）
+    │     ├─ ParentRequirement 给出时父阶段独立判定（不缺不补：父按普通 DECISION item 走
+    │     │     TYPE_GRANT→INSTANCE，scopeAll 命中即短路跳过实例读取——P05 不扩读父实例，
+    │     │     绑定集来自真实命中权限 ID）
     │     └─ 评估（EVALUATE/PRESERVE）→ raw/retained 分阶段事实（四态组装=ScopeCoverageProjector 纯投影）
     │
     ├─ ADMISSION_CANDIDATES 阶段（OPERATION_ADMISSION 独占用途，不与普通项混批）
@@ -524,7 +526,7 @@ scopeAll 条目不参与展开；query-resources 的树扩展（原 `expandResou
 
 | 装配器              | 映射方式 |
 | ------------------- | -------- |
-| `SnapshotAssembler` | 内部 `scopeAll=true` 条目不展开，直接返回 `ApiPermissionEntry(scopeMode=ALL, httpMethod=null, pathPattern=null)`；实例级条目返回 `scopeMode=INSTANCE` |
+| `SnapshotAssembler` | API 类型 `scopeAll=true` 条目展开为该 serviceCode 全部 enabled 注册映射的 `scopeMode=INSTANCE` 条目（不输出 ALL 通配——类型级 API 授权语义=「全部已注册 API」，未注册接口维持默认拒绝，S02；T-PERM-017 C4 多条件分支保留）；实例级条目照常经 API 映射组装 `scopeMode=INSTANCE` |
 | `PermViewAssembler` | 按 `resourceType` 分组输出全量范围视图项，对外使用 `scopeMode=ALL` |
 
 query-scopes 四态分组（T-PERM-009 契约维持）：AppService 只留线格式组装——raw 无覆盖条目 DENIED、
