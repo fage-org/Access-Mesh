@@ -31,7 +31,7 @@ tasks:
   - T-ACCESS-062
   - T-PERM-054
 acceptance: "两个完成条件各自闭合：①T-PERM-092（旧执行体与四旧 DTO 退出）可在仍有 LEGACY_API 服务时完成——legacy 语义经新 execute 表达；②T-ACCESS-062（全服务迁完、API 独立授权与 legacy 协议退役）。设计 §11 最终完成定义逐条有对应项目测试与运行证据"
-last_updated: 2026-09-28
+last_updated: 2026-09-29
 ---
 
 # R2 权限查询引擎统一与操作准入（方案 A）
@@ -75,7 +75,7 @@ last_updated: 2026-09-28
 | [T-PERM-090](../tasks/T-PERM-090.md) | 迁移范围与 LEGACY_API 接口集合（R2-T11） | ✅ |
 | [T-PERM-091](../tasks/T-PERM-091.md) | 迁移旧快照、转授、视图与配置（R2-T12） | ✅ |
 | [T-PERM-092](../tasks/T-PERM-092.md) | 删除旧执行体与四旧 DTO（R2-T13） | ✅ |
-| [T-PERM-093](../tasks/T-PERM-093.md) | 候选/规则索引与性能测量（R2-T14） | ⚙️ |
+| [T-PERM-093](../tasks/T-PERM-093.md) | 候选/规则索引与性能测量（R2-T14） | ✅ |
 | [T-PERM-094](../tasks/T-PERM-094.md) | 灰度、故障、缓存与发布演练（R2-T15） | ⚙️ |
 | [T-PERM-095](../tasks/T-PERM-095.md) | （基线补卡，无报告编号）getDenied* 跨 item 互斥最小修复——与 T-PERM-083 构成回退基线 | ✅ |
 
@@ -243,5 +243,5 @@ last_updated: 2026-09-28
 ### A.9 容量与上限盘点
 
 - **外部 batch 上限（协议面）**：引擎批量入口 DTO `@Size(max=1000)` Bean Validation、HTTP 层 `@Valid` 拒 400（`BatchEntrySizeValidationTest` 锁定，perm-common 单源——服务端与 SDK 共用）。三类放大面：① 判定面闭包 CTE 入参（`UserAssignRoleReq`/`UserRoleBatchRevokeReq` 角色集→getDeniedResourceCodes；`ResourceKeysReq`/`IdsReq`→getDenied* 直连）；② 逐项完整引擎管线（`BatchAuthCheckReq.items`）；③ 内存网格笛卡尔组装（`QueryScopesReq` 三列表）。
-- **内部 getDenied 容量（引擎面）**：`getDenied*` 与 `TypeResolutionService.batchResolve*` **无独立容量约束/无 IN 分批**（无 partition/chunk 逻辑，全仓核实）——容量完全委托外部 DTO 层上限；`getDeniedResourceCodes` 入参做 LinkedHashSet 去重但无上限。此现状落账给 T-PERM-085/093（候选/预算与性能测量卡）：新 execute 是否引入内部预算以书面结论为准，不由本清点预设。
-- 输出面既有口径：checkInterface `toCheckInterfaceResp(q, 30)` 的 30 是 **cacheTtlSeconds（快照缓存有效期 30 秒）**，matched 结果记录全量回传（T-API-003 定案口径，无截断）——LEGACY_API 兼容口径，迁移时原样保留。
+- **内部 getDenied 容量（引擎面）**：QueryReadSupport 复用 SqlBatches 分批装载，批间合并后按原 item 评估；T-PERM-093 的执行预算见[设计 §5.5](../design/r2-unified-query-and-admission.md#55-sql候选算法与预算)。内部资源目录读取可能覆盖全租户对象，不能把外部 DTO 的 1000 项限制当成内部规模上限。
+- 输出面既有口径：事实与新准入快照不静默截断，容量超限整体失败。旧 checkInterface/legacy 快照及其 TTL 字段已随 T-ACCESS-062 退役。

@@ -3,7 +3,7 @@ doc_type: design
 title: R2 权限查询引擎统一与操作准入（方案 A）设计
 status: adopted
 domain: access-service
-last_reviewed: 2026-09-28
+last_reviewed: 2026-09-29
 ---
 
 # Access-Mesh：R2 权限查询引擎与 T-PERM-054 统一设计
@@ -266,7 +266,7 @@ TRACE 解释真实执行，不是全面配置扫描；scopeAll 短路的 INSTANC
 
 TARGET_SET 实例未解析时，仍保留之前 TYPE_GRANT 曾被条件／冲突清空的原因，不一律覆盖为 NO_PERMISSION。损坏条件规则按既有四态失败关闭；数据库读取失败则是技术故障，两者分别记录。新内部原因不未经版本化直接扩散到普通 SDK。
 
-**（T-PERM-088 就地实施注，2026-09-26）**：运行态内技术故障（DB／缓存回源／规则装载／描述读取）统一包装 `QueryExecutionException`（cause 保留原异常）；`QueryValidationException` 为结构错误、原样抛出；已分类的 `QueryExecutionException`（含 `AdmissionConfigurationException`）保留具体类型。选择阶段已全部接入，不再保留未实现阶段的特殊异常分支。执行中途失败只提交此前已确认阶段的证据并标 `EXECUTION_ERROR_AFTER_CONFIRMED_STAGE`，不返回半份 FACTS 或未经完整评估的 ALLOW（X01/X02）。EngineLimits（预算／deadline 配置本体）按计划附录 A.9 归 T-PERM-093，届时超限抛出走同一整体失败边界。
+**运行态技术故障边界（T-PERM-088/093）**：DB／缓存回源／规则装载／描述读取故障统一包装 `QueryExecutionException`（cause 保留原异常）；`QueryValidationException` 为结构错误、原样抛出；已分类的 `QueryExecutionException`（含 `AdmissionConfigurationException`）保留具体类型。选择阶段已全部接入，不保留未实现阶段的特殊异常分支。执行中途失败只提交此前已确认阶段的证据并标 `EXECUTION_ERROR_AFTER_CONFIRMED_STAGE`，不返回半份 FACTS 或未经完整评估的 ALLOW（X01/X02）。EngineLimits 的预算／deadline 超限同样走整体失败边界，配置与计量口径见 §5.5。
 
 **类型级子授权的原因口径（2026-09-26 用户确认）**：TYPE_LEVEL 没有父资源上下文，depend_on 子行不属于其有效候选；仅有此类行时返回 `NO_PERMISSION`，沿用旧单条/批量类型级门禁口径。有主授权候选但被条件/互斥清空时仍返回 `CONDITION_NOT_MET_OR_CONFLICT`。`DEPENDENT_NOT_IN_PARENT_CONTEXT` 适用于 TARGET_SET 的父上下文排除，不因类型级选择排除子行而产生。
 
@@ -485,7 +485,29 @@ PQ-02 使用已有多类型 IN 查询：过滤 null，预建请求类型空桶�
 
 二者只在同一个 Selector 内切换，不做新策略框架，也不在不同接口各写“优化版”。索引拼桶保留原始行序或明确采用经契约验证的稳定顺序；不能改变展示“第一条”的来源。规则索引同样仅在测量支持时加入。
 
+**候选索引启用策略（T-PERM-093，2026-09-28 用户确认）**：一个装载批至少有 100 个待选择 item、400 条授权时才尝试建索引；相关桶预计访问量加一次建索引遍历成本，严格小于顺序扫描访问量的 1/4 才使用索引，否则回到扫描。估计按原始行引用计数，重叠 clause 可重复计入而保守回退；选择结果仍按 permissionId 去重并保留原始首匹配行序。小批不建索引，密集批继续扫描；服务端开关允许整体回退同一引擎的扫描路径。门槛依据候选微基准及真实数据库测量选定，变更须重新测量，不能凭大批收益放宽 N=1 保护。
+
 EngineLimits 是服务端配置，覆盖授权行、闭包规模、内存、上下文深度／大小、deadline、审计与快照载荷；数值需观察和批准，不把参考代码的深度 64 当项目已定限制。外部 batch 上限与内部 getDenied 容量分别盘点。分块不改变候选集合，超限整体技术失败，不能返回半份 FACTS 或尚未完成集合评估的 ALLOW。
+
+**内存预算口径（T-PERM-093，2026-09-28 用户确认）**：按数据结构规模控制，分别约束原始授权行、闭包及请求项与候选授权的累计配对数量等；扫描与索引使用同一语义计数。线程累计分配字节仅用于测量定档，不作为请求拒绝条件，它包含可回收临时对象及驱动分配，不能代表同时存活内存。结构预算限制引擎保留的数据规模，不承诺整个 JVM 的精确内存峰值。
+
+**初始默认限额（T-PERM-093，2026-09-29 用户批准）**：服务端配置前缀 `accessmesh.query.limits`；计数每次 execute 独立，数量等于限额允许，超过整体抛 `QueryBudgetExceededException`，不返回半份事实。零表示该项不设限，负数配置拒绝启动。数值基于本机测量，不表示任意维度组合均有相同时延保证。
+
+| 配置项 | 默认值 | 计数边界 |
+|---|---:|---|
+| `max-items` | 10000 | 独立 item 数及累计目标/额外操作选择数分别受限，共享父要求计一次；外部 batch 原有 1000 项协议上限不变 |
+| `max-grant-rows` | 50000 | 累计 DB 授权返回行及角色快照命中行；读取记忆命中不重复计数，不跨来源假定同一版本 |
+| `max-closure-entries` | 200000 | 读取的祖先/后代闭包关联；祖先自身行计入 |
+| `max-candidate-pairs` | 250000 | 每 item/阶段切回的候选数量累计；共享授权在不同 item 中分别计数，父执行也使用同一预算 |
+| `max-output-entries` | 250000 | 展示条目、有效操作与描述条目累计；原始/保留事实由候选预算覆盖 |
+| `max-context-depth` / `max-context-nodes` / `max-context-characters` | 32 / 10000 / 262144 | 规范化后的 attributes 根为第 1 层；容器和标量计元素；键、文本及数值文本按 String.length 计字符，含 clientIp |
+| `max-audit-evidence` | 10000 | 根、父和角色互斥证据累计；超限前已确认阶段仍走既有失败证据提交，提交异常不覆盖主异常 |
+| `max-snapshot-routes` / `max-snapshot-bytes` | 10000 / 245760 | 整份准入快照路由及 data 正文 JSON UTF-8 字节；越限不截断 routes/candidates |
+| `deadline` | 5s | RunState 生命周期内的协作式期限，按步骤检查；到期整体失败，DB 调用中的等待依赖 DB/网络自身超时，不承诺到点强行取消 SQL |
+
+候选开关为 `accessmesh.query.candidate-index-enabled`，默认 true；false 在同一执行器回退 S。授权读取限额在数据批返回后、纳入读取记忆前检查；不能把该保护理解成数据库结果集或整个 JVM 的精确内存硬隔离。预算调整须重跑对应容量/行为用例，不能通过分块返回半批结果规避限额。
+
+快照正文默认 240 KiB，为统一 R 信封预留 16 KiB，配合当前网关客户端 256 KiB 解码边界（T-PERM-093，2026-09-29 推荐方案经用户授权采纳，取代初始 8 MiB 建议）。该值计量不含 R 外层；提高上限必须同时核对网关接收与缓存容量，不能只改服务端。属性在启动时绑定，配置调整后重启相应服务生效。
 
 ## 6. 审计、范围及各消费方的完整落地
 
@@ -828,7 +850,7 @@ T-ACCESS-059 已落地（2026-09-28，六项用户拍板与实现形态）：①
 - **example-service 参考路由族**：`ReportController` 七路由覆盖检查表全部七行（查看/独立批量/列表搜索/CREATE=TYPE_LEVEL/上下文子权限真实父/异步作业提交与执行时点双鉴权/直连身份链），既有 `/hello` 最终检查定位=身份头存在性。反向拒绝测试=`ReportControllerTest` 20 用例（查 A 不按 B 取数逐参核对、批量拒绝项零数据、TYPE_LEVEL resourceCode=null、错父拒绝、撤权窗口执行时点拒绝、作业归属校验、业务数据租户隔离）+`ReportControllerValidationTest` 3 用例（HTTP 层 @Valid 反例）——迁移资格的「代码位置+反向测试」双证明载体。
 - **检查客户端**：业务服务消费 `perm-client` SDK starter（Feign）调 `auth/check` 族端点；内部密钥通道认证（SDK 既有 `FeignInternalSyncInterceptor`），租户头业务侧注入，主体恒取自已验签身份头（请求 DTO 无主体/租户字段，N25）。fail-closed：信封非 200/data=null/传输异常一律 30005 拒绝。
 - **两层判定实证（N01）**：E2E `ExampleBusinessFinalCheckE2EIT`——用户仅持 report-1 的 EXAMPLE:VIEW 时，网关对 `/report/view` 恒 MAY_ENTER（类型-操作候选），业务最终检查 report-1 放行/report-2 拒绝（30004 信封）；准入与业务检查跨 HTTP 两次执行、不共享运行状态。N04/N05 业务半边同用例：PERM_MUTEX 规则下跨实例不误拒、同实例真互斥由业务 check 拒绝（准入恒 MAY_ENTER——准入不做互斥判定，057 定案的运行时对偶）。
-- **N27 规模（不新增数值上限常量）**：`InterfaceAdmissionHeavyPgIT`（testcontainers-heavy）300 启用路由×2001 授权行——routes 全量不截断、候选按「类型-操作×条件身份×候选类别」合并恰 3 分支（不逐实例展开）、在线准入按候选存在性一次判定；「超限显式技术失败」由既有网关 256KB 解码上限+5s 回源截止+构建重试 3 次承载（静默截断不存在）。
+- **N27 规模**：`InterfaceAdmissionHeavyPgIT`（testcontainers-heavy）锁定 routes 全量、不逐实例展开及在线候选存在性判定。T-ACCESS-061 实施时使用网关解码边界、回源截止和构建重试保护；T-PERM-093 已在服务端增加 §5.5 结构预算及快照正文限额，网关 256 KiB 解码、5s 回源截止与构建重试保护继续有效，不静默截断。
 - **运行库盘点与切换 runbook**：`docs/ops/runbook-service-mode-switch.md`（六类盘点查询+暂停切换五步）；dev 运行库重建到 HEAD 后执行盘点（记录见任务卡）；E2E 步骤⑪ 为暂停→切模式→恢复演练证据（代次单调递增、空快照 DENY、恢复以库为准）。
 - **「临时强制在线」灰度**：T-ACCESS-060 拍板不落地，本卡范围行的「如使用」条件不成立，无容量预算项。
 
@@ -1032,6 +1054,8 @@ R2 至少比较：旧版用于定位开销、**已修正确性且扫描的新基
 记录 Mapper 调用、实际 SQL、行数、候选访问、条件预载、规则／父执行、缓存 get／put／载荷、分配与 GC、P50／P95／P99、审计失败、快照构建与回源错误。具体预算基于实测审批，不预填提速比例，也不以 N=1000 的提升掩盖 N=1 回退。
 
 可硬性验收的是：多类型正常规模不逐类型查询；无规则不装载互斥专用操作；最小输出不做展示专用读取；准入不做逐资源最终鉴权；独立 item 不混集合；FACTS 与 routes 不静默截断；旧完整执行体不存在。新安全目录／普通目录分工与每个失效触发都有反向测试。
+
+T-PERM-093 已落实候选 S/I 测量、选择性启用及结构限额，采用适用场景覆盖。结果摘要见[任务卡](../tasks/T-PERM-093.md)，选择门槛与默认预算见 §5.5。额外规则候选索引未获得独立收益证据，维持请求级装载与既有操作位索引。灰度、故障和发布门槛仍由 T-PERM-094 承接。
 
 ### 10.5 上线门槛与观测
 

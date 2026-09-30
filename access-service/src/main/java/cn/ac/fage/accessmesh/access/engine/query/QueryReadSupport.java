@@ -271,7 +271,7 @@ final class QueryReadSupport {
     private List<RoleResourcePermission> loadRoleRows(RunState run, Set<Long> roleIds) {
         List<RoleResourcePermission> loaded = new ArrayList<>();
         SqlBatches.forEach(List.copyOf(roleIds), batch -> loaded.addAll(
-            grants.selectValidByRoleIds(run.request().tenantId(), new LinkedHashSet<>(batch))));
+            checkedGrantRows(run, grants.selectValidByRoleIds(run.request().tenantId(), new LinkedHashSet<>(batch)))));
         return loaded;
     }
 
@@ -282,7 +282,10 @@ final class QueryReadSupport {
         unloaded.forEach(role -> {
             List<RolePermEntry> hit = cached.get(role);
             if (hit == null) misses.add(role);
-            else memory.listByRole.put(role, hit.stream().map(GrantFact::from).toList());
+            else {
+                run.budget().grants(hit.size());
+                memory.listByRole.put(role, hit.stream().map(GrantFact::from).toList());
+            }
         });
         if (misses.isEmpty()) return;
         if (memory.snapshotToken == null) {
@@ -309,7 +312,7 @@ final class QueryReadSupport {
             .filter(e -> e.getKey() != null && e.getValue() != null && e.getValue() != 0)
             .map(e -> new BitMaskEntry(e.getKey(), e.getValue())).toList();
         SqlBatches.forEach(List.copyOf(run.roles()), roleBatch -> SqlBatches.forEach(bits, maskBatch ->
-            grants.selectAdmissionCandidatesByTypeMasks(run.request().tenantId(), new LinkedHashSet<>(roleBatch), maskBatch)
+            checkedGrantRows(run, grants.selectAdmissionCandidatesByTypeMasks(run.request().tenantId(), new LinkedHashSet<>(roleBatch), maskBatch))
                 .forEach(row -> loaded.putIfAbsent(row.getId(), databaseFact(run.readMemory(), row)))));
         return List.copyOf(loaded.values());
     }
@@ -317,8 +320,8 @@ final class QueryReadSupport {
     Map<Long, GrantFact> admissionParents(RunState run, Set<Long> ids) {
         Memory memory = run.readMemory();
         Set<Long> missing = missing(ids, memory.admissionParents);
-        SqlBatches.forEach(List.copyOf(missing), batch -> grants.selectAdmissionParentsByIds(
-            run.request().tenantId(), new LinkedHashSet<>(batch)).forEach(row ->
+        SqlBatches.forEach(List.copyOf(missing), batch -> checkedGrantRows(run, grants.selectAdmissionParentsByIds(
+            run.request().tenantId(), new LinkedHashSet<>(batch))).forEach(row ->
                 memory.admissionParents.put(row.getId(), Optional.of(databaseFact(memory, row)))));
         missing.forEach(id -> memory.admissionParents.putIfAbsent(id, Optional.empty()));
         return present(memory.admissionParents, ids);
@@ -331,11 +334,15 @@ final class QueryReadSupport {
         Set<Long> missing = missing(targets, memory.ancestorClosures);
         if (!missing.isEmpty()) {
             Map<Long, Set<Long>> loaded = new LinkedHashMap<>();
+            run.budget().closures(missing.size());
             missing.forEach(id -> loaded.put(id, new LinkedHashSet<>(Set.of(id))));
             SqlBatches.forEach(List.copyOf(missing), batch -> mapper.selectSelfAndAncestorClosureBatch(
                 run.request().tenantId(), new LinkedHashSet<>(batch)).forEach(row -> {
                     Set<Long> closure = loaded.get(row.getTargetId());
-                    if (closure != null && row.getClosureId() != null) closure.add(row.getClosureId());
+                    if (closure != null && row.getClosureId() != null && !closure.contains(row.getClosureId())) {
+                        run.budget().closures(1);
+                        closure.add(row.getClosureId());
+                    }
                 }));
             loaded.forEach((id, closure) -> memory.ancestorClosures.put(id, Set.copyOf(closure)));
         }
@@ -358,7 +365,10 @@ final class QueryReadSupport {
                 run.request().tenantId(), new LinkedHashSet<>(batch)).forEach(row -> {
                     Set<Long> descendants = loaded.get(row.getResourceId());
                     if (descendants != null && row.getDescendantId() != null
-                        && !row.getResourceId().equals(row.getDescendantId())) descendants.add(row.getDescendantId());
+                        && !row.getResourceId().equals(row.getDescendantId()) && !descendants.contains(row.getDescendantId())) {
+                        run.budget().closures(1);
+                        descendants.add(row.getDescendantId());
+                    }
                 }));
             loaded.forEach((id, descendants) -> memory.descendantClosures.put(id, Set.copyOf(descendants)));
         }
@@ -382,10 +392,10 @@ final class QueryReadSupport {
             SqlBatches.forEach(List.copyOf(roleSet), roleBatch -> SqlBatches.forEach(bits, maskBatch -> {
                 Set<Long> batchRoles = new LinkedHashSet<>(roleBatch);
                 if (scopeAll) {
-                    loaded.addAll(grants.selectScopeAllPermsByBitsBatch(run.request().tenantId(), batchRoles, maskBatch));
+                    loaded.addAll(checkedGrantRows(run, grants.selectScopeAllPermsByBitsBatch(run.request().tenantId(), batchRoles, maskBatch)));
                 } else {
-                    SqlBatches.forEach(List.copyOf(entitySet), entityBatch -> loaded.addAll(grants.selectInstancePermsByBitsBatch(
-                        run.request().tenantId(), batchRoles, new LinkedHashSet<>(entityBatch), maskBatch)));
+                    SqlBatches.forEach(List.copyOf(entitySet), entityBatch -> loaded.addAll(checkedGrantRows(run, grants.selectInstancePermsByBitsBatch(
+                        run.request().tenantId(), batchRoles, new LinkedHashSet<>(entityBatch), maskBatch))));
                 }
             }));
             // 块只负责装载，候选全部就绪后交 Selector/Evaluator，不在块内评估或短路。
@@ -398,6 +408,12 @@ final class QueryReadSupport {
 
     private GrantFact databaseFact(Memory memory, RoleResourcePermission row) {
         return memory.databaseFacts.computeIfAbsent(row.getId(), ignored -> GrantFact.from(entries.toEntry(row)));
+    }
+
+    private static <T> List<T> checkedGrantRows(RunState run, List<T> rows) {
+        run.budget().checkpoint();
+        run.budget().grants(rows.size());
+        return rows;
     }
 
     private static <K, V> void rememberRows(Map<K, Optional<V>> memory, Set<K> requested,

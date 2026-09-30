@@ -8,7 +8,7 @@ package cn.ac.fage.accessmesh.access.engine.query;
  * （{@link QueryValidationException}）原样抛出、不包装；已分类的准入配置故障保留
  * {@link AdmissionConfigurationException} 子类型。外部错误映射保留在适配层——本异常为引擎内部
  * 契约，不未经版本化扩散到普通 SDK。预算／deadline 超限（EngineLimits，设计 §5.5）
- * 由 T-PERM-093 引入配置后走同一失败边界：整体技术失败，不返回半份事实。
+ * 通过 T-PERM-093 的 EngineLimits 走同一失败边界：整体技术失败，不返回半份事实。
  * </p>
  */
 public class QueryExecutionException extends RuntimeException {

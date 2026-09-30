@@ -14,6 +14,8 @@ import cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomai
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 
 import java.time.Clock;
 
@@ -27,6 +29,7 @@ import java.time.Clock;
  * </p>
  */
 @Configuration
+@EnableConfigurationProperties(EngineLimits.class)
 public class QueryEngineConfiguration {
 
     @Bean
@@ -42,13 +45,15 @@ public class QueryEngineConfiguration {
             PermissionConditionDomainService permissionConditionDomainService,
             PermissionConflictDomainService permissionConflictDomainService,
             ResourceEntityMapper resourceEntityMapper,
-            AuditDomainService auditDomainService) {
+            AuditDomainService auditDomainService,
+            @Value("${accessmesh.query.candidate-index-enabled:true}") boolean candidateIndexEnabled,
+            EngineLimits limits) {
         QueryReadSupport readSupport = new QueryReadSupport(typeResolutionService,
             operationPermissionDomainService, resourceEntityDomainService, abstractRoleMapper,
             roleResourcePermissionMapper, cacheService, rolePermEntryMapper);
         QueryAuditCollector auditCollector = new QueryAuditCollector(auditDomainService, QueryEngineMetrics.noop());
         return new QueryExecutionEngine(Clock.systemDefaultZone(), readSupport, subjectDomainService,
             permissionConditionDomainService, permissionConflictDomainService, resourceEntityMapper,
-            auditCollector, QueryEngineMetrics.noop());
+            auditCollector, QueryEngineMetrics.noop(), candidateIndexEnabled, limits);
     }
 }

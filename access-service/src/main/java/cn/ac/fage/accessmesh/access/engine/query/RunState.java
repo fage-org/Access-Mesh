@@ -30,6 +30,7 @@ final class RunState {
     private final String executionId = UUID.randomUUID().toString();
     private final LocalDateTime evaluatedAt;
     private final QueryRequest request;
+    private final EngineLimits.Budget budget;
     private Set<Long> roles;
     private SubjectResolution subjectResolution;
     private QueryReadSupport.Memory readMemory;
@@ -43,9 +44,16 @@ final class RunState {
     private int parentSequence;
 
     RunState(QueryRequest request, Clock clock) {
+        this(request, clock, EngineLimits.unlimited());
+    }
+
+    RunState(QueryRequest request, Clock clock, EngineLimits limits) {
         this.request = request;
         this.evaluatedAt = LocalDateTime.now(clock);
+        this.budget = limits.openBudget(System::nanoTime);
     }
+
+    EngineLimits.Budget budget() { return budget; }
 
     String executionId() {
         return executionId;
@@ -76,7 +84,10 @@ final class RunState {
     Map<ParentRequirement, ParentExecution> parents() { return parents; }
     CandidateEvaluator evaluator() { return evaluator; }
     void evaluator(CandidateEvaluator evaluator) { this.evaluator = evaluator; }
-    void roleHits(List<RolePairRef> hits) { this.roleHits = List.copyOf(hits); }
+    void roleHits(List<RolePairRef> hits) {
+        budget.evidence(hits.size());
+        this.roleHits = List.copyOf(hits);
+    }
     List<RolePairRef> roleHits() { return roleHits; }
 
     /** 记录执行中途技术失败（§4.1：证据按 EXECUTION_ERROR_AFTER_CONFIRMED_STAGE 提交，主异常不被覆盖）。 */
@@ -140,6 +151,7 @@ final class RunState {
 
     /** 读取记忆只属于本次执行；释放后不能重新装载。 */
     QueryReadSupport.Memory readMemory() {
+        budget.checkpoint();
         if (released) {
             throw new IllegalStateException("RunState 已释放");
         }

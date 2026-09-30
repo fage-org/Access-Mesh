@@ -45,7 +45,7 @@ final class QueryProjector {
         Map<Long, Set<Long>> descendantIds = reads.descendantClosures(run, mapper, children);
         Map<QueryItem, List<PresentationEntry>> presentations = new LinkedHashMap<>();
         run.items().forEach((item, state) -> {
-            List<PresentationEntry> entries = present(item.output(), allFacts(state, false), ancestorIds, descendantIds);
+            List<PresentationEntry> entries = present(run, item.output(), allFacts(state, false), ancestorIds, descendantIds);
             presentations.put(item, entries);
             if (item.output().descriptions()) entries.stream().map(PresentationEntry::displayedEntityId)
                 .filter(Objects::nonNull).forEach(resourceIds::add);
@@ -97,13 +97,14 @@ final class QueryProjector {
                 roleDescriptions.put(id, ResultDetails.RoleDescription.from(row)));
             Map<Long, OperationDefinition> definitions = new LinkedHashMap<>();
             operations.values().forEach(values -> values.forEach(op -> definitions.put(op.id(), op)));
+            run.budget().outputs((long) resources.size() + roleDescriptions.size() + definitions.size());
             descriptions = new ResultDetails.Descriptions(resources, roleDescriptions, definitions,
                 reads.resolveOperations(run, output.extraOperationKeys()));
         }
         List<ResultDetails.EffectiveOperationEntry> effective = List.of();
         if (output.effectiveOperations()) {
             sections.add(ResultDetails.DetailSection.EFFECTIVE_OPERATIONS);
-            effective = effectiveOperations(kept, presentation, operations);
+            effective = effectiveOperations(run, kept, presentation, operations);
         }
         if (output.presentationExpansion() != PresentationExpansion.NONE) sections.add(ResultDetails.DetailSection.PRESENTATION);
         ResultDetails.ExecutionTrace trace = ResultDetails.ExecutionTrace.empty();
@@ -166,24 +167,31 @@ final class QueryProjector {
         return ids;
     }
 
-    private static List<PresentationEntry> present(OutputSpec output, List<GrantFact> facts,
+    private static List<PresentationEntry> present(RunState run, OutputSpec output, List<GrantFact> facts,
         Map<Long, Set<Long>> parents, Map<Long, Set<Long>> children) {
         if (output.presentationExpansion() == PresentationExpansion.NONE && !output.effectiveOperations()) return List.of();
         Set<PresentationEntry> entries = new LinkedHashSet<>();
         for (GrantFact fact : facts) {
+            run.budget().checkpoint();
             Long id = fact.resourceEntityId();
+            run.budget().outputs(1);
             entries.add(new PresentationEntry(fact.permissionId(), fact.roleId(), id, ORIGINAL));
             if (id == null || Boolean.TRUE.equals(fact.scopeAll())) continue;
             if (output.presentationExpansion().parents()) parents.getOrDefault(id, Set.of()).stream()
-                .filter(parent -> !id.equals(parent)).sorted().forEach(parent ->
-                    entries.add(new PresentationEntry(fact.permissionId(), fact.roleId(), parent, PARENT)));
+                .filter(parent -> !id.equals(parent)).sorted().forEach(parent -> {
+                    run.budget().outputs(1);
+                    entries.add(new PresentationEntry(fact.permissionId(), fact.roleId(), parent, PARENT));
+                });
             if (output.presentationExpansion().children()) children.getOrDefault(id, Set.of()).stream()
-                .sorted().forEach(child -> entries.add(new PresentationEntry(fact.permissionId(), fact.roleId(), child, CHILD)));
+                .sorted().forEach(child -> {
+                    run.budget().outputs(1);
+                    entries.add(new PresentationEntry(fact.permissionId(), fact.roleId(), child, CHILD));
+                });
         }
         return List.copyOf(entries);
     }
 
-    private static List<ResultDetails.EffectiveOperationEntry> effectiveOperations(List<GrantFact> facts,
+    private static List<ResultDetails.EffectiveOperationEntry> effectiveOperations(RunState run, List<GrantFact> facts,
         List<PresentationEntry> presentation, Map<Integer, List<OperationDefinition>> definitions) {
         Map<Long, GrantFact> sources = new LinkedHashMap<>();
         facts.forEach(f -> sources.put(f.permissionId(), f));
@@ -191,6 +199,7 @@ final class QueryProjector {
         definitions.forEach((type, values) -> operations.put(type, values.stream().map(OperationDefinition::toCacheRow).toList()));
         List<ResultDetails.EffectiveOperationEntry> result = new ArrayList<>();
         for (PresentationEntry entry : presentation) {
+            run.budget().checkpoint();
             GrantFact fact = sources.get(entry.sourcePermissionId());
             List<OperationPermission> catalog = operations.getOrDefault(fact.resourceType(), List.of());
             OperationPermission granted = OperationPermissionUtils.findByResourceTypeAndBinaryBit(catalog,
@@ -200,6 +209,7 @@ final class QueryProjector {
                 if (covered.getCode() == null || covered.getBinaryBit() == null) continue;
                 var derivation = entry.derivation() == ORIGINAL && !Objects.equals(granted.getId(), covered.getId())
                     ? OPERATION_COVERAGE : entry.derivation();
+                run.budget().outputs(1);
                 result.add(new ResultDetails.EffectiveOperationEntry(fact.permissionId(), fact.roleId(),
                     entry.displayedEntityId(), derivation, fact.resourceType(), fact.grantedBits(), granted.getCode(),
                     OperationPermissionUtils.effectiveBits(granted), covered.getCode(), covered.getBinaryBit()));

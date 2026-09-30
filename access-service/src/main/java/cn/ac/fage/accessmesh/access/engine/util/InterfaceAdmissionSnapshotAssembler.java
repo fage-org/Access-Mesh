@@ -2,6 +2,9 @@ package cn.ac.fage.accessmesh.access.engine.util;
 
 import cn.ac.fage.accessmesh.access.engine.query.GrantFact;
 import cn.ac.fage.accessmesh.access.engine.query.GrantSetResult;
+import cn.ac.fage.accessmesh.access.engine.query.EngineLimits;
+import cn.ac.fage.accessmesh.access.engine.query.QueryBudgetExceededException;
+import cn.ac.fage.accessmesh.access.engine.query.QueryExecutionException;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.access.rule.entity.PermissionCondition;
@@ -20,6 +23,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -46,15 +51,17 @@ public class InterfaceAdmissionSnapshotAssembler {
     private final PermissionConditionMapper conditionMapper;
     private final TypeResolutionService typeResolutionService;
     private final ObjectMapper objectMapper;
+    private final EngineLimits limits;
 
     public InterfaceAdmissionSnapshotAssembler(OperationPermissionMapper operationPermissionMapper,
                                                PermissionConditionMapper conditionMapper,
                                                TypeResolutionService typeResolutionService,
-                                               ObjectMapper objectMapper) {
+                                               ObjectMapper objectMapper, EngineLimits limits) {
         this.operationPermissionMapper = operationPermissionMapper;
         this.conditionMapper = conditionMapper;
         this.typeResolutionService = typeResolutionService;
         this.objectMapper = objectMapper;
+        this.limits = limits;
     }
 
     /** 路由与解析后要求的配对。 */
@@ -67,6 +74,7 @@ public class InterfaceAdmissionSnapshotAssembler {
      * 写侧共用保存入口已拒绝，此处兜底存量/直写脏数据，2026-09-28 拍板收窄）。
      */
     public List<RouteRequirement> resolveRouteRequirements(Long tenantId, List<ResourceApiMapping> mappings) {
+        limits.snapshotRoutes(mappings.size());
         if (mappings.isEmpty()) {
             return List.of();
         }
@@ -163,10 +171,11 @@ public class InterfaceAdmissionSnapshotAssembler {
                                                    long configGeneration, LocalDateTime generatedAt,
                                                    LocalDateTime expiresAt, List<RouteRequirement> routes,
                                                    List<OperationCandidateEntry> candidates) {
+        limits.snapshotRoutes(routes.size());
         List<RouteEntry> routeEntries = routes.stream()
             .map(route -> new RouteEntry(route.httpMethod(), route.pathPattern(), route.requirement()))
             .toList();
-        return new InterfaceAdmissionSnapshotResp(
+        InterfaceAdmissionSnapshotResp response = new InterfaceAdmissionSnapshotResp(
             InterfaceAdmissionSnapshotResp.CURRENT_SCHEMA_VERSION,
             tenantId,
             new InterfaceAdmissionSnapshotResp.Subject(req.subjectTypeCode(), req.subjectExternalId()),
@@ -178,6 +187,28 @@ public class InterfaceAdmissionSnapshotAssembler {
             candidates,
             "OPERATION_ADMISSION",
             true);
+        checkPayloadSize(response);
+        return response;
+    }
+
+    private void checkPayloadSize(InterfaceAdmissionSnapshotResp response) {
+        if (limits.maxSnapshotBytes() == 0) return;
+        // 使用实际响应 ObjectMapper 计 UTF-8 字节；流式丢弃输出，不先分配完整 byte[]。
+        try {
+            objectMapper.writeValue(new OutputStream() {
+                private long bytes;
+                @Override public void write(int value) { limits.snapshotBytes(++bytes); }
+                @Override public void write(byte[] value, int offset, int length) {
+                    bytes += length;
+                    limits.snapshotBytes(bytes);
+                }
+            }, response);
+        } catch (IOException error) {
+            for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+                if (cause instanceof QueryBudgetExceededException budget) throw budget;
+            }
+            throw new QueryExecutionException("准入快照载荷计量失败", error);
+        }
     }
 
     /** 类型值 → 类型码反查（一次批量；resource_type 字典）。 */

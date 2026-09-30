@@ -5,6 +5,9 @@ import cn.ac.fage.accessmesh.access.infrastructure.util.HttpRequestUtils;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.ArrayDeque;
+import java.util.IdentityHashMap;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -91,7 +94,7 @@ public record CallerContext(String clientIp, Map<String, Object> attributes) {
             if (RESERVED_KEYS.contains(key)) {
                 throw new QueryValidationException("attributes 保留键不可覆盖: " + key);
             }
-            Object value = deepJsonCopy(entry.getValue(), new ArrayList<>());
+            Object value = deepJsonCopy(entry.getValue());
             if (value != null) {
                 copy.put(key, value);
             }
@@ -103,10 +106,76 @@ public record CallerContext(String clientIp, Map<String, Object> attributes) {
      * 深度校验并复制 JSON 值。
      *
      * @param value 待校验值
-     * @param path 当前引用路径（身份判等检测循环）
      * @return 不可变深拷贝；null 表示该值被过滤
      */
-    private static Object deepJsonCopy(Object value, List<Object> path) {
+    private static Object deepJsonCopy(Object value) {
+        if (!(value instanceof List<?>) && !(value instanceof Map<?, ?>)) return scalarCopy(value);
+        // 用堆上迭代帧代替 Java 递归栈，使深上下文能到达服务端预算检查。
+        ArrayDeque<JsonFrame> frames = new ArrayDeque<>();
+        IdentityHashMap<Object, Boolean> activePath = new IdentityHashMap<>();
+        frames.push(new JsonFrame(value, null));
+        activePath.put(value, true);
+        while (true) {
+            JsonFrame frame = frames.peek();
+            if (!frame.iterator.hasNext()) {
+                Object copy = frame.finish();
+                frames.pop();
+                activePath.remove(frame.source);
+                if (frames.isEmpty()) return copy;
+                frames.peek().add(frame.parentKey, copy);
+                continue;
+            }
+            Object child = frame.iterator.next();
+            String key = null;
+            if (frame.map != null) {
+                Map.Entry<?, ?> entry = (Map.Entry<?, ?>) child;
+                if (!(entry.getKey() instanceof String text)) {
+                    throw new QueryValidationException("attributes 嵌套 Map 键必须为 String: " + entry.getKey());
+                }
+                key = text;
+                child = entry.getValue();
+            }
+            if (child instanceof List<?> || child instanceof Map<?, ?>) {
+                if (activePath.put(child, true) != null) throw new QueryValidationException("attributes 拒绝循环引用");
+                frames.push(new JsonFrame(child, key));
+            } else {
+                frame.add(key, scalarCopy(child));
+            }
+        }
+    }
+
+    private static final class JsonFrame {
+        final Object source;
+        final String parentKey;
+        final Iterator<?> iterator;
+        final Map<String, Object> map;
+        final List<Object> list;
+
+        JsonFrame(Object source, String parentKey) {
+            this.source = source;
+            this.parentKey = parentKey;
+            if (source instanceof Map<?, ?> values) {
+                iterator = values.entrySet().iterator();
+                map = new LinkedHashMap<>(values.size());
+                list = null;
+            } else {
+                List<?> values = (List<?>) source;
+                iterator = values.iterator();
+                map = null;
+                list = new ArrayList<>(values.size());
+            }
+        }
+
+        void add(String key, Object value) {
+            if (value == null) return;
+            if (map != null) map.put(key, value);
+            else list.add(value);
+        }
+
+        Object finish() { return map != null ? Map.copyOf(map) : List.copyOf(list); }
+    }
+
+    private static Object scalarCopy(Object value) {
         if (value == null) {
             return null;
         }
@@ -124,41 +193,6 @@ public record CallerContext(String clientIp, Map<String, Object> attributes) {
         if (isImmutableJsonNumber(value)) {
             return value;
         }
-        if (value instanceof List<?> list) {
-            requireAcyclic(value, path);
-            path.add(value);
-            try {
-                List<Object> copy = new ArrayList<>(list.size());
-                for (Object element : list) {
-                    Object copied = deepJsonCopy(element, path);
-                    if (copied != null) {
-                        copy.add(copied);
-                    }
-                }
-                return List.copyOf(copy);
-            } finally {
-                path.remove(path.size() - 1);
-            }
-        }
-        if (value instanceof Map<?, ?> map) {
-            requireAcyclic(value, path);
-            path.add(value);
-            try {
-                Map<String, Object> copy = new LinkedHashMap<>(map.size());
-                for (Map.Entry<?, ?> entry : map.entrySet()) {
-                    if (!(entry.getKey() instanceof String key)) {
-                        throw new QueryValidationException("attributes 嵌套 Map 键必须为 String: " + entry.getKey());
-                    }
-                    Object copied = deepJsonCopy(entry.getValue(), path);
-                    if (copied != null) {
-                        copy.put(key, copied);
-                    }
-                }
-                return Map.copyOf(copy);
-            } finally {
-                path.remove(path.size() - 1);
-            }
-        }
         throw new QueryValidationException("attributes 仅接受 JSON 值，拒绝: " + value.getClass().getName());
     }
 
@@ -168,14 +202,6 @@ public record CallerContext(String clientIp, Map<String, Object> attributes) {
         return value instanceof Integer || value instanceof Long || value instanceof Short
             || value instanceof Byte
             || value.getClass() == BigInteger.class || value.getClass() == BigDecimal.class;
-    }
-
-    private static void requireAcyclic(Object value, List<Object> path) {
-        for (Object ancestor : path) {
-            if (ancestor == value) {
-                throw new QueryValidationException("attributes 拒绝循环引用");
-            }
-        }
     }
 
     private static void requireFinite(double d) {

@@ -73,6 +73,11 @@ class QueryStagesTest {
 
     @BeforeEach
     void setup() {
+        setup(EngineLimits.unlimited());
+    }
+
+    private void setup(EngineLimits limits) {
+        definitions.clear();
         definitions.add(op(11, 1, "VIEW", 2, 0));
         definitions.add(op(12, 1, "UPDATE", 4, 2));
         definitions.add(op(21, 2, "VIEW", 2, 0));
@@ -98,7 +103,49 @@ class QueryStagesTest {
         engine = new QueryExecutionEngine(clock,
             new QueryReadSupport(types, operations, resources, roleMapper, grants, cache, new RolePermEntryMapper()),
             subjects, conditions, conflicts, resourceMapper,
-            new QueryAuditCollector(audit, QueryEngineMetrics.noop()), QueryEngineMetrics.noop());
+            new QueryAuditCollector(audit, QueryEngineMetrics.noop()), QueryEngineMetrics.noop(), true, limits);
+    }
+
+    @Test
+    void should_failWholeFactsRatherThanReturnFirstItem_whenCandidateBudgetIsExceeded() {
+        setup(budgetLimits(0, 1, 0));
+        instanceRows.add(grant(101, 1, 1L, 2));
+        instanceRows.add(grant(102, 1, 2L, 2));
+        var first = QueryItem.facts("first", target(Inheritance.SELF, TypeFallback.DISALLOW, clause(1)),
+            Evaluation.full(), OutputSpec.rawAndKept());
+        var second = QueryItem.facts("second", target(Inheritance.SELF, TypeFallback.DISALLOW, clause(2)),
+            Evaluation.full(), OutputSpec.rawAndKept());
+        assertThatThrownBy(() -> execute(first, second)).isInstanceOf(QueryBudgetExceededException.class)
+            .hasMessageContaining("CANDIDATE_PAIRS");
+    }
+
+    @Test
+    void should_keepConfirmedAuditAndFailWholeExecution_whenLaterGrantLoadExceedsBudget() {
+        setup(budgetLimits(2, 0, 0));
+        scopeRows.add(grant(101, 1, null, 2));
+        scopeRows.add(grant(102, 1, null, 4));
+        instanceRows.add(grant(103, 1, 1L, 2));
+        mutex();
+        assertThatThrownBy(() -> execute(QueryItem.facts("facts", target(Inheritance.SELF, TypeFallback.ALLOW, clause(1)),
+            Evaluation.full(), OutputSpec.rawAndKept()))).isInstanceOf(QueryBudgetExceededException.class)
+            .hasMessageContaining("GRANT_ROWS");
+        verify(audit).asyncRecordLog(argThat(entry -> entry.summary().contains("EXECUTION_ERROR_AFTER_CONFIRMED_STAGE")));
+    }
+
+    @Test
+    void should_startNewBudgetEachTimeAndAvoidDisplayWork_whenMinimalOutputRequested() {
+        setup(budgetLimits(1, 1, 1));
+        instanceRows.add(grant(101, 1, 1L, 2));
+        assertThat(decision(execute(item("first", clause(1))), 0).outcome()).isEqualTo(DecisionResult.Decision.ALLOW);
+        assertThat(decision(execute(item("second", clause(1))), 0).outcome()).isEqualTo(DecisionResult.Decision.ALLOW);
+        verifyNoInteractions(resources, roleMapper);
+        assertThatThrownBy(() -> execute(QueryItem.facts("full", target(Inheritance.SELF, TypeFallback.DISALLOW, clause(1)),
+            Evaluation.full(), OutputSpec.full()))).isInstanceOf(QueryBudgetExceededException.class)
+            .hasMessageContaining("OUTPUT_ENTRIES");
+    }
+
+    private static EngineLimits budgetLimits(long grants, long candidates, long output) {
+        return new EngineLimits(0, grants, 0, candidates, output, 0, 0, 0, 0, 0, 0, Duration.ZERO);
     }
 
     static OperationPermission op(long id, int type, String code, long bit, long inherit) {

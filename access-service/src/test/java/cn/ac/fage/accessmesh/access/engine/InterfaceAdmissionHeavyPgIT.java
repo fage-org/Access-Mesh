@@ -29,8 +29,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 /**
- * 操作准入大规模验证（T-ACCESS-061 N27，设计 §10.3；候选规模上限拍板=不新增数值上限常量，
- * 超限显式技术失败由网关侧 256KB 解码上限＋5s 回源截止＋构建重试 3 次既有机制承载）。
+ * 操作准入大规模验证（T-ACCESS-061 N27，设计 §10.3）。服务端执行/快照预算由
+ * EngineLimits 控制（T-PERM-093），网关解码及回源截止、构建重试保护继续有效。
  * <p>
  * 规模面：300 启用路由（两种要求交替）×2001 授权行（1000 实例 VIEW＋1000 实例 EXPORT＋
  * 1 类型级 EXPORT）。锁定三条结构性质：①快照 routes 全量携带不截断；②候选投影按

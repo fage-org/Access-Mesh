@@ -43,11 +43,21 @@ public final class QueryExecutionEngine {
     private final ResourceEntityMapper resourceMapper;
     private final QueryAuditCollector audit;
     private final QueryEngineMetrics metrics;
+    private final boolean indexedCandidates;
+    private final EngineLimits limits;
 
     QueryExecutionEngine(Clock clock, QueryReadSupport reads, SubjectDomainService subjects,
                          PermissionConditionDomainService conditions, PermissionConflictDomainService conflicts,
                          ResourceEntityMapper resourceMapper, QueryAuditCollector audit,
                          QueryEngineMetrics metrics) {
+        this(clock, reads, subjects, conditions, conflicts, resourceMapper, audit, metrics,
+            true, EngineLimits.unlimited());
+    }
+
+    QueryExecutionEngine(Clock clock, QueryReadSupport reads, SubjectDomainService subjects,
+                         PermissionConditionDomainService conditions, PermissionConflictDomainService conflicts,
+                         ResourceEntityMapper resourceMapper, QueryAuditCollector audit,
+                         QueryEngineMetrics metrics, boolean indexedCandidates, EngineLimits limits) {
         this.clock = Objects.requireNonNull(clock);
         this.reads = Objects.requireNonNull(reads);
         this.subjects = Objects.requireNonNull(subjects);
@@ -55,6 +65,8 @@ public final class QueryExecutionEngine {
         this.conflicts = Objects.requireNonNull(conflicts);
         this.resourceMapper = Objects.requireNonNull(resourceMapper);
         this.audit = Objects.requireNonNull(audit);
+        this.indexedCandidates = indexedCandidates;
+        this.limits = Objects.requireNonNull(limits);
         // 打点失败不得放大为查询故障或覆盖主异常/跳过 release（外评 P3：Micrometer 绑定 089+ 接线后的防御面）
         QueryEngineMetrics target = metrics == null ? QueryEngineMetrics.noop() : metrics;
         this.metrics = new QueryEngineMetrics() {
@@ -88,14 +100,20 @@ public final class QueryExecutionEngine {
         if (request.items().isEmpty()) {
             return new QueryResult(UUID.randomUUID().toString(), LocalDateTime.now(clock), List.of());
         }
-        RunState run = new RunState(request, clock);
+        RunState run = new RunState(request, clock, limits);
         try {
+            run.budget().input(request);
             request.items().forEach(item -> run.items().put(item, new RunState.ItemExecution()));
             resolveSubject(run);
+            run.budget().checkpoint();
             boolean admission = request.items().getFirst().selection() instanceof OperationAdmission;
             // 准入配置故障优先于 NO_ROLE；普通查询保持主体短路。
             Map<QueryItem, List<CandidateSelector.Clause>> admissionClauses = admission ? prepareAdmissionClauses(run) : Map.of();
-            if (run.roles().isEmpty()) return noRoleResults(run, QueryProjector.project(run, reads, resourceMapper));
+            if (run.roles().isEmpty()) {
+                QueryResult result = noRoleResults(run, QueryProjector.project(run, reads, resourceMapper));
+                run.budget().checkpoint();
+                return result;
+            }
             run.evaluator(new CandidateEvaluator(run, reads, conditions, conflicts));
             if (admission) {
                 processAdmissionStage(run, admissionClauses);
@@ -106,8 +124,11 @@ public final class QueryExecutionEngine {
                 processGrantListStage(run);
             }
             Map<QueryItem, ResultDetails> details = QueryProjector.project(run, reads, resourceMapper);
-            return new QueryResult(run.executionId(), run.evaluatedAt(), request.items().stream()
+            run.budget().checkpoint();
+            QueryResult result = new QueryResult(run.executionId(), run.evaluatedAt(), request.items().stream()
                 .map(item -> complete(item, run, details.get(item))).toList());
+            run.budget().checkpoint();
+            return result;
         } catch (RuntimeException error) {
             run.recordExecutionFailure(error);
             throw technicalFailure(error);
@@ -193,8 +214,15 @@ public final class QueryExecutionEngine {
             return valid;
         }).toList();
         Map<QueryItem, List<GrantFact>> rawByItem = new LinkedHashMap<>();
-        clauses.forEach((item, paired) -> rawByItem.put(item,
-            CandidateSelector.select(structured, paired, Stage.ADMISSION_CANDIDATES)));
+        CandidateSelector selector = indexedCandidates
+            ? CandidateSelector.prepare(structured, Stage.ADMISSION_CANDIDATES, clauses.values()) : null;
+        clauses.forEach((item, paired) -> {
+            run.budget().checkpoint();
+            List<GrantFact> selected = selector == null
+                ? CandidateSelector.select(structured, paired, Stage.ADMISSION_CANDIDATES) : selector.select(paired);
+            run.budget().candidates(selected.size());
+            rawByItem.put(item, selected);
+        });
         run.evaluator().preload(rawByItem);
         rawByItem.forEach((item, raw) -> recordEvaluation(run, item, run.items().get(item),
             Stage.ADMISSION_CANDIDATES, clauses.get(item), raw));
@@ -307,8 +335,12 @@ public final class QueryExecutionEngine {
         Map<QueryItem, List<CandidateSelector.Clause>> clauses, List<GrantFact> loaded,
         Map<QueryItem, RunState.ItemExecution> executions) {
         Map<QueryItem, List<GrantFact>> rawByItem = new LinkedHashMap<>();
+        CandidateSelector selector = indexedCandidates ? CandidateSelector.prepare(loaded, stage, clauses.values()) : null;
         clauses.forEach((item, paired) -> {
-            List<GrantFact> candidates = CandidateSelector.select(loaded, paired, stage);
+            run.budget().checkpoint();
+            List<GrantFact> candidates = selector == null ? CandidateSelector.select(loaded, paired, stage)
+                : selector.select(paired);
+            run.budget().candidates(candidates.size());
             RunState.ItemExecution state = executions.get(item);
             ParentRequirement requirement = parentRequirement(item.selection());
             boolean hasDependent = candidates.stream().anyMatch(f -> f.dependOn() != null);
@@ -332,6 +364,7 @@ public final class QueryExecutionEngine {
             if (!(item.selection() instanceof GrantList selection)) continue;
             RunState.ItemExecution state = run.items().get(item);
             List<GrantFact> raw = reads.listGrants(run, run.roles());
+            run.budget().candidates(raw.size());
             if (!raw.isEmpty() && selection.requiredParent() != null) {
                 RunState.ParentExecution parent = resolveParent(run, item, state, selection.requiredParent());
                 if (!parent.execution.retained()) {
@@ -381,8 +414,11 @@ public final class QueryExecutionEngine {
 
     private static void recordEvaluation(RunState run, QueryItem item, RunState.ItemExecution state,
                                          Stage stage, List<CandidateSelector.Clause> clauses, List<GrantFact> raw) {
+        run.budget().checkpoint();
         Set<Long> parentIds = state.parent == null ? Set.of() : state.parent.matchedPermissionIds();
         var evaluated = run.evaluator().evaluate(item, stage, clauses, raw, parentIds);
+        run.budget().checkpoint();
+        run.budget().evidence(evaluated.triggeredRules().size());
         StageFacts.Status status = !evaluated.retained().isEmpty() ? StageFacts.Status.PRESENT
             : raw.isEmpty() ? StageFacts.Status.NO_MATCH : StageFacts.Status.FILTERED_EMPTY;
         state.stages.put(stage, new StageFacts(stage, raw, evaluated.retained(), status));

@@ -6,7 +6,7 @@ domain: cross-service
 supersedes:
   - docs/design/permission-center/api-contract.md
   - docs/design/services/admin-service-api-contract.md
-last_reviewed: 2026-09-28
+last_reviewed: 2026-09-29
 ---
 
 # access-service API 契约总册
@@ -1948,6 +1948,8 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
 
 > **SDK 入口清单（T-API-002 收口 2026-09-06；T-API-003 check 族改写 2026-09-10）**：`check` / `batch-check` / `query-resources` / `query-scopes` 四件套已全部进入 perm-sdk `PermissionFeignClient`（Query* DTO 迁入 perm-common，接入方不再手写 HTTP + 自造 DTO 副本）；Gateway 消费 §25 新准入协议，旧检查与快照端点已退役。**内部数据库 id 字段族口径分族**：check/batch-check结果记录全量回传（`matchedRoleIds`/`matchedPermissionIds`，T-API-003 推翻 T-API-002 的 check 族裁剪——统一引擎消费方模型「调用方根据结果记录判定」需要记录在场，详见 §18.2/§18.3 注记）；Query\* 响应族（query-resources/query-scopes）六字段裁剪维持 T-API-002 终态（详见 §18.5/§18.6 各节注记）。
 
+> **执行容量（T-PERM-093）**：已通过结构校验的请求仍受服务端 [EngineLimits](r2-unified-query-and-admission.md#55-sql候选算法与预算) 约束；预算或执行期限超限按技术失败返回 HTTP 500 + `99999 SYSTEM_ERROR`，不冒充 `NO_PERMISSION`，不返回半批/部分 FACTS。外部 batch 的 1000 项输入上限、结构错误 400 及既有 reason 词表保持各自语义；服务端限额不作为客户端可覆盖字段。
+
 ### 18.2 单次鉴权 check
 
 `POST /api/access/auth/check`
@@ -3048,6 +3050,8 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
 | 网关→终端 | 503 | 配置故障／快照不可用且回源失败（fail-closed 技术错误，沿现行失联兜底形态；不伪装用户无权限） |
 
 两层响应语义（T-ACCESS-056，2026-09-27 确认）：「技术错误 503」定义为**网关→终端层**；access-service 在线端点的错误（20070/20071）维持现行统一信封（HTTP 200 + body 数值码），网关按「响应非成功即 fail-closed」消费，不依赖 HTTP 状态码分流。两码已落 `AccessErrorCode`（20070/20071，Javadoc 指向本章）；20071 由 T-ACCESS-057 的准入操作核查抛出并经接口层映射，路由歧义与协议检查随 T-ACCESS-058/059 接线。
+
+执行预算和快照容量越限属于技术故障：access-service 返回 HTTP 500 + `99999 SYSTEM_ERROR`，网关按既有失败关闭链路处理；不映射为普通准入 DENY，也不裁剪 routes/candidates 后返回成功。限额及计量口径见 [EngineLimits](r2-unified-query-and-admission.md#55-sql候选算法与预算)。
 
 ### 25.7 服务迁移门槛
 
