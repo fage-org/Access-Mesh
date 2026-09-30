@@ -2,7 +2,7 @@
 name: external-review
 description: >-
   外部 AI 评审执行规范（claude / grok / codex 三通道；未点名时使用 CLI 当前配置的默认模型，不检查模型漂移；
-  codex 默认配置示例 gpt-6-luna max，点名 gpt-6-sol 封顶 xhigh；grok 默认 grok-4.7；
+  codex 默认配置示例 gpt-6-luna max，点名 sol 使用 gpt-6.1-sol max；grok 默认 grok-4.7；
   全程禁止子代理；本机运行或用户贴回结论两种形态）。
   TRIGGER when: 用户显式要求外部 AI 评审/复评（「用codex/claude/grok评审」「codex 复评」、逐字给出提示词、
   贴回外部 AI 结论要求「核实并修复」）；仅用户触发，收口流程不得自动串联。
@@ -10,7 +10,7 @@ disable-model-invocation: true
 origin: project
 metadata:
   project: AccessMesh
-  version: "2.6.0"
+  version: "2.7.0"
 ---
 
 # 外部 AI 评审（claude / grok / codex；仅用户触发；全程禁止子代理）
@@ -18,7 +18,7 @@ metadata:
 ## 触发纪律（2026-09-06 用户定案）
 
 - **仅当用户显式指令时执行**：如「用codex评审」「claude/grok 复评」、用户逐字给出提示词、用户贴回外部 AI 结论并要求核实修复（此形态不必本机运行 CLI）。
-- **通道由用户点名，模型与推理档优先采用用户本次指定值**：可单通道也可多通道并行；未指定的项沿用对应 CLI 当前配置，不用技能中的示例覆盖配置。Codex 默认配置示例为 `gpt-6-luna` + `max`，用户可指定 `gpt-6-sol`（封顶 `xhigh`）；Grok 默认模型为 `grok-4.7`。
+- **通道由用户点名，模型与推理档优先采用用户本次指定值**：可单通道也可多通道并行；未点名模型时沿用对应 CLI 当前配置，不用技能中的示例覆盖配置。Codex 默认配置示例为 `gpt-6-luna` + `max`；点名 sol 时使用 `gpt-6.1-sol`，未单独指定推理档时使用 `max`（2026-09-30 更新）。Grok 默认模型为 `grok-4.7`。
 - **不再检查模型漂移（2026-09-26 用户定案）**：不比对配置、启动 banner 与会话返回的模型身份，不为此运行探针、停机、重跑或要求用户决策。报告按调用通道及已指定参数说明即可，不把配置名宣称为已验证的后端模型身份。本条取代原强制注入默认模型、启动核对及返回模型身份核验要求。
 - 收口流程（`dual-track-local-review`）不得自动串联本轨道；复评是否续跑、跑几轮**由用户拍板**，无自动收敛轮数——每轮报告后停下等指令，不自行发起下一轮。
 
@@ -41,7 +41,7 @@ metadata:
 - 三通道可同批并行：各自后台跑 + 输出整文件落盘，互不干扰。
 - **后台跑的 stdin 语义（codex）**：argv 传短提示词且后台运行时必须 `< /dev/null`（run_in_background 的 stdin 是永不关闭的管道，codex 打印 `Reading additional input from stdin...` 后无限等待）；用 `- < prompt.md` 投喂时 stdin 即提示词文件、EOF 正常到达，无需 `< /dev/null`。
 
-### codex（未点名时沿用当前配置；点名形态如 sol xhigh）
+### codex（未点名时沿用当前配置；点名形态如 sol max）
 
 未点名模型与推理档时，不传 `-m` 或 `model_reasoning_effort` 覆盖项。当前配置为 luna 时，保留既有上下文参数：
 
@@ -57,16 +57,16 @@ codex exec -c model_context_window=872000 --disable multi_agent -s read-only --c
   | 模型 | reasoning effort | 上下文注入 |
   | ---- | ---------------- | ---------- |
   | luna（`gpt-6-luna`） | 未点名沿用配置（默认示例 `max`） | `-c model_context_window=872000`（800k 级写法） |
-  | sol（`gpt-6-sol`） | 点名时**封顶 `xhigh`**，用户指定更低档则按指定值 | **不注入** |
+  | sol（`gpt-6.1-sol`） | 点名时默认 `max`；用户单独指定推理档则按指定值 | **不注入** |
   | 其他当前配置模型 | 沿用配置或用户指定值 | 不套用 luna 覆盖参数 |
 
 - 点名 sol 的调用示例：
 
   ```bash
-  codex exec -m gpt-6-sol -c 'model_reasoning_effort="xhigh"' --disable multi_agent -s read-only --color never - < prompt.md
+  codex exec -m gpt-6.1-sol -c 'model_reasoning_effort="max"' --disable multi_agent -s read-only --color never - < prompt.md
   ```
 
-- luna 上下文仍用 `872000`，不是 `800000`：按既有 95% 有效窗口折扣，分别为 828.4k 与 760k。sol 仍沿用用户确认的封顶 `xhigh`、不注入上下文分档；不因工具支持更高档而自行解封。
+- luna 上下文仍用 `872000`，不是 `800000`：按既有 95% 有效窗口折扣，分别为 828.4k 与 760k。sol 使用 `gpt-6.1-sol` + `max`，不注入上下文分档；用户明确指定的推理档优先。
 
 #### 运行注意
 
