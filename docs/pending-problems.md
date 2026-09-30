@@ -1,8 +1,8 @@
 ---
 doc_type: problems
 title: 待解决问题清单
-counter: Q-046           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-28
+counter: Q-055           # 已分配最大问题号；分配后冻结，不复用不重排
+last_updated: 2026-09-30
 ---
 
 # 待解决问题清单（pending problems）
@@ -13,336 +13,380 @@ last_updated: 2026-09-28
 
 ## 未收敛问题
 
-## Q-045 新引擎 TRACE 块敏感字段无门禁——089+ 应用层接线时必须补诊断授权
+**阅读约定**：按根因或可共同处理的范围合并，子项各自保留证据、影响与既有边界。旧编号的去向见文末索引；编号合并不代表缺陷修复。原始登记细节见 [合并前快照](archive/2026-09-30/pending-problems-before-consolidation.md)，外部报告核实见 [核实记录](archive/2026-09-30/logic-review-verification.md)。本次整理没有重新运行业务复现。
+
+<a id="q-050"></a>
+## Q-050 操作位写入与准入目录校验边界不一致
+
+- **状态**：open
+- **登记**：2026-09-30
+- **来源**：外部逻辑报告 B-6；[核实记录](archive/2026-09-30/logic-review-verification.md)
+- **关联**：[T-PERM-077](archive/2026-09-24/tasks/T-PERM-077.md)；[准入协议](design/access-service-api-contract.md#operation-admission-protocol)；P2
+
+**现象与证据**：[OperationAppServiceImpl.createOperation/updateOperation](../access-service/src/main/java/cn/ac/fage/accessmesh/access/type/service/impl/OperationAppServiceImpl.java) 未限制 binaryBit 为单比特，operation_permission 表也无对应 CHECK。自定义类型同事务补种 AUTHORITY_ROOT，会被其单比特 CHECK 拦住；内置类型跳过补种，可追加不重复的非幂位。[QueryExecutionEngine.prepareAdmissionClauses](../access-service/src/main/java/cn/ac/fage/accessmesh/access/engine/query/QueryExecutionEngine.java) 则拒绝覆盖当前要求的坏位行。
+
+**影响与边界**：直接 API 向内置类型写位 3 后，与其有效位相交的准入要求可能触发 20071，相关快照构建失败；不影响所有类型或所有要求。前端已有幂位校验。T-PERM-077 的“不新增数值校验”取舍仍有效，本项是之后新增严格准入消费的影响；inheritMask 的负数表示不是错误。
+
+**设想方向（未定案）**：明确目录写入与准入消费的一致性边界；调整写约束前须核对原取舍并修订契约。
+
+<a id="q-049"></a>
+## Q-049 非法 cron 保存成功但调度失败
+
+- **状态**：open
+- **登记**：2026-09-30
+- **来源**：外部逻辑报告 B-5；[核实记录](archive/2026-09-30/logic-review-verification.md)
+- **关联**：T-ACCESS-054 job 最小运营边界；P2
+
+**现象与证据**：[JobAppServiceImpl.createJob/updateJob](../access-service/src/main/java/cn/ac/fage/accessmesh/access/platform/service/impl/JobAppServiceImpl.java) 未在写入前解析 cron；scheduleJob 构造 trigger 失败只记日志。Spring 6.1.5 CronTrigger 构造时立即解析，JobCreateReq 的 @NotBlank 仅拒空白、不验语法。
+
+**影响与边界**：运维调用创建启用任务时传非空非法 cron，API 成功、库中启用，但未注册调度；对账也无法修正。更新会先取消当前实例旧调度，其他实例可能仍按旧 cron 执行。默认种子只开放 VIEW/TRIGGER/ENABLE，无任务管理 UI。
+
+**设想方向（未定案）**：在写入及撤销旧调度前校验 cron，明确注册失败的可观测结果。
+
+<a id="q-048"></a>
+## Q-048 菜单创建、删除缺树写互斥
+
+- **状态**：open
+- **登记**：2026-09-30
+- **来源**：外部逻辑报告 B-4；[核实记录](archive/2026-09-30/logic-review-verification.md)
+- **关联**：[树写锁约束](design/access-service-architecture.md#tree-write-lock)；P2
+
+**现象与证据**：[MenuWriteAppServiceImpl](../access-service/src/main/java/cn/ac/fage/accessmesh/access/menu/service/impl/MenuWriteAppServiceImpl.java) createMenu 读父后插入、deleteMenu 查子后软删，均无 SYS_MENU 锁；updateMenu 已在首次读取前持锁。DomainService 未补锁，Controller 写入口仍存在。
+
+**影响**：有写权限的并发删父、挂子调用可留下指向软删父的存活子节点，正常树无法从根到达。当前无菜单管理 UI，风险限于满足门禁的写调用；未做并发复现。
+
+**设想方向（未定案）**：创建、删除与更新统一在首次树读取前持 SYS_MENU 锁。
+
+<a id="q-047"></a>
+## Q-047 角色重新指派静默忽略窗口或关系变更
+
+- **状态**：open
+- **登记**：2026-09-30
+- **来源**：外部逻辑报告 B-3；[核实记录](archive/2026-09-30/logic-review-verification.md)
+- **关联**：契约总册 §10 user-role 分配；P2
+
+**现象与证据**：[UserManageAppServiceImpl.assignRole/assignRolesBatch](../access-service/src/main/java/cn/ac/fage/accessmesh/access/user/service/impl/UserManageAppServiceImpl.java) 按 userId+roleId 去重，命中即跳过。[UserRoleMapper.xml](../access-service/src/main/resources/mapper/role/UserRoleMapper.xml) 装载既有绑定不滤有效期；uk_user_role 含 relationId，但内存去重未区分。assign 接收窗口，batch-assign 新建固定无限期，均不更新旧行。
+
+**影响**：过期绑定重新指派返回成功但仍失效，未来窗口及 relationId 变更也可能被吞；先撤销再分配可恢复。不能据 sync 多重集推导管理面必须支持多窗口。
+
+**设想方向（未定案）**：区分相同绑定重试与窗口/关系变更，明确更新或拒绝语义。
+
+<a id="q-045"></a>
+## Q-045 TRACE 敏感诊断输出缺授权门禁
 
 - **状态**：open
 - **登记**：2026-09-26
-- **来源**：T-PERM-088 实施期用户拍板（「本项目暂时不考虑敏感字段问题，先记录问题」）
-- **关联**：[T-PERM-088](tasks/T-PERM-088.md)；r2-unified-query-and-admission.md §3.3/§6.1（敏感披露口径）
+- **来源**：[T-PERM-088](tasks/T-PERM-088.md) 的诊断门禁暂缓安排
+- **关联**：r2-unified-query-and-admission.md §3.3/§6.1
 
-**现象与证据**：T-PERM-088 已交付 TRACE 输出（`ResultDetails.ExecutionTrace`：主体解析后角色集、角色互斥删除对、各阶段 raw/retained 授权事实〔含 permissionId/roleId〕、真实命中互斥规则、父命中权限 ID）——设计 §6.1 要求「敏感角色／授权 ID、IP 规则只向经门禁的诊断开放」，但引擎侧门禁机制（如双入口 `executeDiagnostic`＋门禁回调）经用户拍板暂缓实施，当前普通 `execute(trace=true)` 即返回完整敏感内容。引擎零生产消费者期间无实际暴露面。
+**现象与证据**：普通 execute(trace=true) 可返回真实角色、权限 ID、互斥命中和父绑定证据；设计要求敏感诊断授权，门禁交付按 T-PERM-088 安排暂缓。
 
-**影响**：T-PERM-089 起消费者接线后，若适配层未先做诊断授权就把 trace 映射到外部请求参数，任何调用方可探测他人角色/授权 ID 与 IP 条件归属（提权侦察材料）；087 任务卡原验收「TRACE 输出与敏感字段门禁一并交付」已按本拍板改为门禁暂缓。
+**影响与边界**：若适配层把 trace 参数直通外部请求且未授权，调用方可探测他人授权结构及条件归属。早期引擎无生产消费者时无该暴露面；后续接线不自动证明门禁已补齐。
 
-**设想方向（未定案）**：随 T-PERM-089+ 适配层接线补引擎侧或应用层门禁（双入口或应用层显式鉴权后构造 trace 请求），届时把本 Q 转入对应任务并回填；接线前契约面（外部 DTO）不得出现 trace 直通字段。
+**设想方向（未定案）**：在引擎或适配层显式诊断鉴权，避免外部 DTO 无门禁直通；暂缓安排保持原范围。
 
-## Q-044 旧共享批量资源解析使用拼接键——code/codeType 含冒号时可绑定到另一资源
+<a id="q-044"></a>
+## Q-044 资源复合拼接键碰撞
 
 - **状态**：open
 - **登记**：2026-09-26
-- **来源**：T-PERM-084 外部评审与同型调用链核对
-- **关联**：[T-PERM-084](tasks/T-PERM-084.md)；engine/implementation.md 业务键内存元组边界
+- **来源**：T-PERM-084 同型核对；外部报告 B-9；[核实记录](archive/2026-09-30/logic-review-verification.md)
+- **关联**：[T-PERM-084](tasks/T-PERM-084.md)；engine/implementation.md 业务键元组边界；P2
 
-**现象与证据**：`TypeResolutionServiceImpl.batchResolveResourceIds` 的 resourceLookup 使用 `BusinessKeyUtil.resourceCodeTypeKey`（`resourceCode + ":" + codeType`）。同类型下 `("sys:user","default")` 与 `("sys","user:default")` 同为 `sys:user:default`，两编码同批查询时可互相覆盖。`ResourceManageAppServiceImpl.TripleKey` 已明确 code/codeType 可含冒号，采用字段元组。084 新 QueryReadSupport 已独立修正该形态；旧共享入口仍被 PermissionGrantDomainServiceImpl、PermissionGrantPlanDomainServiceImpl、UserMenuQueryAppServiceImpl、ResourceEntitySyncAppServiceImpl 和 ResourceManageAppServiceImpl 的父资源解析消费（原消费方 PermQueryEngine 已随 T-PERM-092 删除）。
+**现象与证据**：code/codeType 可含分隔符，但内存索引把字段直接拼成字符串；不同元组因此同键，数据库完整元组唯一性不拦此形态。
 
-**影响**：命中上述同批数据形态时可能将资源键绑定到另一资源 ID，影响旧鉴权/转授/授权计划或父资源解析。R2 迁移只替换旧引擎消费面，不能据此认为共享解析服务的全部消费方已修复。未宣称已发生线上事故。
+| 消费面 | 证据与碰撞后果 |
+|---|---|
+| 共享批量解析 | TypeResolutionServiceImpl.batchResolveResourceIds 使用 BusinessKeyUtil.resourceCodeTypeKey；`(sys:user,default)` 与 `(sys,user:default)` 同键，可能错取资源 ID。消费者含授权域/计划、UserMenuQueryAppServiceImpl、ResourceEntitySyncAppServiceImpl、ResourceManageAppServiceImpl 父解析。 |
+| 转授资格 | PermissionGrantDomainServiceImpl 使用 resourceTripleCodeKey 和 grantCheckKey 索引实例、结果，PermissionGrantPlanDomainServiceImpl.verifyDelegation 按串回读；`(TD:alpha,default)` 与 `(TD,alpha:default)` 可串扰资格或被误拒。 |
+| 前端授权决策 | grant-plan.ts 的 groupKeyOf/slotKeyOf/resourceGroupKeyOf 拼 `|`；computePreset 与 GrantDialog.vue 的节点映射拼 `:`。碰撞可错预填、使 uncheckSlot 的 suspended 去重吞撤销，也影响 GrantChildConfigurator 子权限反查。 |
+| 前端展示 | source-chain.ts.instanceRowKey 可混并矩阵来源；subject-tree.ts 的 `role:${externalId ?? id}` 回退键可撞数字 externalId，影响高亮。 |
 
-**设想方向（未定案）**：在共享解析入口使用结构化内存键并验证全部消费方，保持跨层 BusinessKeyUtil 编码格式不变；具体范围和验收需单独确定。本卡仅改新读取部件，不扩修旧路径。
+**影响与边界**：MANAGED 资源可合法建碰撞对；写错目标或转授错判还受请求集合、遍历及权限前提影响，不是每次碰撞都必然越权。单条 resolveResourceId 为精确列查询，新 QueryReadSupport 已用元组；旧 applyDialogResult(s)ToDraft 无生产外部调用，不作为生产丢变更的依据。
 
-## Q-043 显式清空协议同型字段未覆盖——condition description、menu path/icon、OAuth2 client 字段族仍无清空通道
+**设想方向（未定案）**：共享映射改结构化元组、前端用无歧义值编码；覆盖全部活跃消费者。BusinessKeyUtil 格式 golden 锁继续有效，内部消费者迁移与格式改动分开评估。
 
-- **状态**：open
-- **登记**：2026-09-24（T-API-004 写读矩阵结论：U006 拍板范围=六字段+perm 轨 abstract-user extra，其余同型字段登记不实施）
-- **来源**：T-API-004 实施期同型盘点
-- **关联**：T-API-004；Q-018（org orgName 空串问题——同族但独立登记，处置时顺带对齐协议）
-
-**现象与证据**：与 F009 同形态（null=跳过、无清空通道、表单清空→发 null→清不掉且返回 200）的可选字符串字段仍存在于：`ConditionUpdateReq.description`（rule 域条件描述）、`MenuUpdateReq` 的 path/icon 等展示字段、`Oauth2ClientUpdateReq` 的 grantTypes/redirectUris/scopes/audiences 等（客户端配置族）；org orgName 见 Q-018（update 通道空串可入库——清空协议化时一并收口）。T-API-004 已把协议模板落为契约总册 §2.7 + project-rules §7.6（xxxClear 冲突锁/空白拒绝/UpdateEntity 显式 NULL/前端公式）。
-
-**影响**：这些字段的消费表单当前无人真正清空过（与 F009 同为「静默 no-op」形态——清空提交返回 200、值不变、无报错）；OAuth2 client 族字段清空语义可能需要单独设计（redirectUris 清空=禁止任何重定向，安全语义与服务 extra 白名单类似需按域定夺）。
-
-**设想方向（未定案）**：沿 Q-015 先例，随下次触达对应域的任务按 §2.7 模板顺带收敛（每域=DTO 冲突锁+空白拒绝+UpdateEntity 写入+表单公式+契约行）；OAuth2 client 族触及时先按域拍板各字段清空语义再实施。
-
-## Q-042 org-user-permission-contract 三处 `/user-role/list` 旧指代——T-ACCESS-042 改名（list→view）后语义漂移
+<a id="q-043"></a>
+## Q-043 可选字段缺显式清空通道
 
 - **状态**：open
-- **登记**：2026-09-23（T-FE-058 文档轨双轨评审范围外存量——非本卡退役符号，本卡未触达该册）
-- **来源**：T-FE-058 文档轨双轨评审
-- **关联**：T-ACCESS-042（改名定案）；契约总册 §4 快照（`/user-role/list`=权限轨 `R<UserRolesResp>`、`/user-role/view`=管理轨 `R<ItemsResp<UserRoleItemResp>>`）
+- **登记**：2026-09-24
+- **来源**：T-API-004 同型盘点；外部报告 B-11；[核实记录](archive/2026-09-30/logic-review-verification.md)
+- **关联**：契约总册 §2.7、project-rules §7.6；字段校验见 [Q-018](#q-018)
 
-**现象与证据**：`docs/design/org-user-permission-contract.md:146`「查看用户角色 `USER:VIEW`（`/api/access/user-role/list`）」与 `:147/:230`「`/user-role/list` 保留经 role.service 聚合」——按 T-ACCESS-042 管理轨改名 view 后，经 `UserRoleQueryAppService`（role.service）聚合、返回 ItemsResp 的是 `/user-role/view`；`/user-role/list` 现为权限轨持有角色查询端点（返回 UserRolesResp，HttpApiPathSnapshotTest:334/:406 快照实证）。同款半句已在 T-FE-058 触达行中修正（契约 §8.1 org/users ItemsResp 先例句、OrgController:130 注释）。
+**现象与证据**：
 
-**影响**：纯文档指代漂移（读者按旧指代找到的是另一个在役端点，形状不同）；无运行时缺陷。
+| 字段族 | 未覆盖点 |
+|---|---|
+| condition / menu | ConditionUpdateReq.description、MenuUpdateReq.path/icon 等：null 跳过，无清空通道。 |
+| OAuth2 client | grantTypes/redirectUris/scopes/audiences 等：清空通道和各字段的清空安全语义待明确。 |
+| system-config | config hook 将空描述发 null；SystemConfigAppServiceImpl.upsertSystemConfig 以 update(entity) 回写。MyBatis-Flex 1.11.7 默认忽略 null，旧描述保留，内存组装的保存响应还可能与重新查询不同。 |
 
-**设想方向（未定案）**：三处 `/user-role/list` 改 `/user-role/view`；随下次触达该册的任务顺手收敛（本册不在 T-FE-058 design_refs，登记不扩面——Q-015 先例）。
+**影响与边界**：清空提交可能成功却保留旧值；未断言实际用户是否操作过。T-API-004 已交付范围不扩撤；system-config 契约 §17.2 未定义清空语义，不能预定为空串协议。
 
-## Q-041 architecture.md SDK 表未反映凭证拦截器——两套身份口径在架构总览缺一行
+**设想方向（未定案）**：按各域确定字段语义，再贯通 DTO、真实 NULL 写入、表单与契约；OAuth2 客户端字段须逐项核对安全后果。
 
-- **状态**：open
-- **登记**：2026-09-23（T-ACCESS-053 双轨评审文档轨存量观察，非本批引入）
-- **来源**：T-ACCESS-053 双轨评审
-- **关联**：T-PERM-070（FeignCredentialInterceptor 交付）；extension-guide §2.2/§2.3（两套身份导引载体）
-
-**现象与证据**：`docs/design/architecture.md:349` perm-client starter 行仅列「`X-Internal-Secret`/`X-Service-Code` 身份透传拦截器」，未提 T-PERM-070 的 `FeignCredentialInterceptor`（perm.credential-id/secret/allow-insecure 三键）——两套身份并存口径在架构总览 SDK 表缺一行（`access-service-architecture.md` 的 ServiceAuthArbiter 双策略行已正确，不矛盾，纯总览层漂移）。
-
-**影响**：纯文档漂移，无运行时缺陷；架构总览读者会以为 SDK 只有旧密钥注入形态。
-
-**设想方向（未定案）**：SDK 表 perm-client 行补半句凭证拦截器；architecture.md 不在 T-ACCESS-053 design_refs（超边界不顺带修，Q-015 先例），随下次触达该册的任务顺手收敛。
-
-## Q-040 两套服务身份覆盖面统一——凭证不含运行时权限查询族（auth/check 等），接入方双身份并存
+<a id="q-040"></a>
+## Q-040 服务凭证与运行时查询仍需两套身份
 
 - **状态**：open
-- **登记**：2026-09-23（T-ACCESS-053 U008 启动拍板：维持现状、记录问题后续解决）
-- **来源**：[T-ACCESS-053](archive/2026-09-24/tasks/T-ACCESS-053.md) 启动决策（用户 AskUserQuestion 拍板）
-- **关联**：T-ACCESS-053；[service-authentication.md](design/service-authentication.md) §3.5（阶段二规划）；extension-guide §2.2（对照表载体）；T-ACCESS-059（2026-09-25 R2 计划立项核对注记：新准入端点身份形态须与本 Q 收敛方向对齐——本 Q 仍 open，不因该任务收敛）
+- **登记**：2026-09-23
+- **来源**：[T-ACCESS-053](archive/2026-09-24/tasks/T-ACCESS-053.md) 维持现状、后续处理安排
+- **关联**：[service-authentication.md §3.5](design/service-authentication.md)；extension-guide §2.2；T-ACCESS-059
 
-**现象与证据**：per-service 凭证（T-PERM-070）仅覆盖 M2M 白名单三端点（`resource-entity/sync`、`resource-entity/full-sync`、`integration/permission-manifest/full-sync`）；服务调运行时权限查询（`auth/check`、`batch-check`、`query-resources`、`query-scopes`）仍必须用旧全局密钥（`X-Internal-Secret` + 自报 `X-Service-Code`/`X-Tenant-Id`）——凭证调 check 被白名单拒 403。接入方须同时维护两套身份（适用面对照表已随 T-ACCESS-053 落 extension-guide §2.2）。
+**现象与证据**：per-service 凭证覆盖同步/manifest 通道，auth/check、batch-check、query-resources、query-scopes 仍要求 X-Internal-Secret 与服务/租户头；凭证不能直接替代该查询身份。
 
-**影响**：接入体验成本（两套配置/两套失效语义并存）；安全面上旧密钥全局共享的单点失陷半径在运行时查询族仍存在（凭证化改造动机只覆盖了同步族）。
+**影响与边界**：接入方维护两套配置与失效语义，查询面仍承担全局共享密钥失陷风险。新准入端点接线不代表本项自动收敛；T-ACCESS-053 的阶段边界保持。
 
-**设想方向（未定案）**：阶段二把 auth 查询族逐端点纳入凭证白名单（service-authentication §3.5 既有规划）——须先定义凭证形态下允许查询的主体/资源范围（凭证代表服务，check 请求带 subjectExternalId——服务可查任意租户内主体？范围如何限定）、租户派生与调用方能力语义；属设计+实现工作，届时另立任务卡。
+**设想方向（未定案）**：按阶段二规划逐端点凭证化，先定义服务可查询的主体/资源范围、租户派生及调用能力。
 
-## Q-039 资源树查询 status=1 与资源列表/计数不过滤 status——同实体树/列表可见口径分叉
-
-- **状态**：open
-- **登记**：2026-09-23（T-ACCESS-052 claude 外评存量观察，本批实例过滤叠加在两种口径上未改变分叉形态）
-- **来源**：T-ACCESS-052 claude 外评
-- **关联**：T-ACCESS-052
-
-**现象与证据**：`ResourceEntityMapper.xml` selectResourceTree 固定 `status=1`（禁用资源不进树），selectResourceListPaged/selectResourceListCount 不过滤 status（禁用资源在列表可见）——同一实体在授权页资源树与资源列表页的可见口径分叉；实例准入过滤（visibleEntityIds）叠加后分叉形态不变。
-
-**影响**：纯口径分叉（禁用资源「树上不见、列表可见」）；无越权面；触发面=资源停用后的授权页选资源 vs 列表管理两条链路。
-
-**设想方向（未定案）**：统一口径（树含禁用+标识，对齐角色树「禁用可见可再启用」先例；或列表同步过滤）——涉及授权页选择器语义，随 T-ACCESS-055 组合验收或触达资源页的任务定夺。
-
-## Q-038 TreeBuilder 只从 parentId==null 起建树——父节点被前置过滤时可见子节点整支静默消失
+<a id="q-038"></a>
+## Q-038 树过滤后的节点完整性与展示不一致
 
 - **状态**：open
-- **登记**：2026-09-23（T-ACCESS-052 claude 外评存量观察；实例裁剪的祖先链保留恰好规避了本形态在实例过滤面的触发，但类型/状态过滤仍可达）
-- **来源**：T-ACCESS-052 claude 外评
-- **关联**：T-ACCESS-052；Q-039（同族可见口径面）
+- **登记**：2026-09-23
+- **来源**：T-ACCESS-052、T-FE-050 存量观察；合并 Q-039、Q-019（原登记见 [快照](archive/2026-09-30/pending-problems-before-consolidation.md)）
+- **关联**：T-ACCESS-052、T-FE-050
 
-**现象与证据**：`TreeBuilder.buildTrees`（infrastructure/util/TreeBuilder.java:57-67）仅从 `parentId==null` 的根递归；当父节点被上游过滤剔除（selectResourceTree 的 `status=1`、selectValidRoleTree 的 `enabledOnly）而子节点保留时，子节点因父不在已过滤集合中不进任何 roots 子树——静默消失（无错误无日志）。T-ACCESS-052 树形实例裁剪（V∪祖先链）在实例过滤面规避了该形态（可见节点的祖先链被显式保留），但 status/enabledOnly 维度过滤仍可达。
+**现象与证据**：
 
-**影响**：边缘数据形态（父停用子启用）下树内容静默缺失；无越权面（少显示不多显示）。
+| 子问题 | 证据与实际后果 |
+|---|---|
+| 父缺失导致子树丢失 | TreeBuilder.buildTrees（infrastructure/util/TreeBuilder.java:57-67）只从 parentId==null 起建树；父被 status/enabledOnly 过滤而子保留时，子支不可达。实例裁剪的 V∪祖先链已规避该维度，状态/类型过滤仍可触发。 |
+| 树与列表状态不同 | ResourceEntityMapper.xml 的 selectResourceTree 固定 status=1，selectResourceListPaged/Count 不滤状态；停用资源在管理列表可见、授权树不可见。 |
+| 父组织名依赖过滤后树 | user/index.vue 信息卡与 openOrgForm 从 orgTreePanelRef.orgTree 查父名；orgType=1 筛选或权限排除父节点时，显示“未知”。OrgResp 未提供 parentOrgName。 |
 
-**设想方向（未定案）**：TreeBuilder 增加「父缺失节点提升为根」或「父缺失告警日志」形态；属公共工具行为变化，触达三棵树的消费语义，随轻量清扫批次定夺。
+**影响与边界**：数据和权限过滤后的展示不完整，可能隐藏启用子节点或丢失父名；未发现由这些路径产生的越权。状态是否应统一、父缺失是否提升为根属不同子项，不能用一次修改假称全部解决。
 
-## Q-037 授予页入口死路族：停用主体入口 preset 必 !found 且草稿被静默清空（不经 confirmDiscardIfDirty）
+**设想方向（未定案）**：共同核对过滤、祖先保留、树构建及父名回退；逐子项确定策略，公共 TreeBuilder 改动须覆盖各消费树。
 
-- **状态**：open
-- **登记**：2026-09-22（T-FE-057 claude 外评 P3-1 类推面——本卡 PositionTab 停用岗位入口已随拍板入口侧收敛〔禁用态+tooltip〕，其余两处为存量）
-- **来源**：T-FE-057 claude 外评
-- **关联**：2026-09-04 主体树 status=1/enabledOnly 过滤定案（T-PERM-022 面）；T-FE-057 [历史定案原文](archive/2026-09-26/decision-registry-before.md) 行（拍板=入口侧收敛）
-
-**现象与证据**：授予页主体树请求层过滤停用主体（组织入口 `getOrgTree({includePositions:true,status:1})`、角色入口 `getRoleTree({enabledOnly:true})`，SubjectTreePanel.vue:92/111），而三处管理页入口的源列表含停用主体且入口无状态门禁：角色管理页停用角色行（role/index.vue:185/322 入口 vs 页面树含禁用角色）、组织信息卡停用组织入口（user/index.vue）——点击后授予页 `hook.ts` preset 分支 `findNode` 必不命中 → `grantStore.resetAll()` + 「未找到指定角色/组织」提示；该分支不经 `confirmDiscardIfDirty`（confirm 只挂 handleSelectSubject/refresh 路径，hook.ts:419/632/954），keep-alive 授予页在途草稿静默丢失。
-
-**影响**：误导性提示（主体存在仅停用）+ 草稿静默清空；触发面=两处存量入口（PositionTab 岗位面已收敛）。
-
-**设想方向（未定案）**：入口侧类推收敛（停用主体入口禁用态+tooltip，对齐 T-FE-057 PositionTab 拍板形态）；或授予页 preset !found 分支补 confirmDiscardIfDirty（护草稿，属授予页 hook 面改动，与入口侧收敛不互斥）；可随下一张触达角色管理页/授予页的任务顺手收敛。
-
-## Q-034 可见性裁剪对岗位节点不按 VIEW_POSITION 精化——与读面 VIEW/VIEW_POSITION 分发分叉
+<a id="q-037"></a>
+## Q-037 停用主体入口失败并静默清空授权草稿
 
 - **状态**：open
-- **登记**：2026-09-22（T-ORG-003 双轨评审代码轨类推发现，同 Q-032「精化码未覆盖判定面」族）
-- **来源**：T-ORG-003 双轨评审
-- **关联**：Q-032（精化码覆盖族）；org-user-permission-contract v1.4「看普通组织 ≠ 看岗位」口径
+- **登记**：2026-09-22
+- **来源**：T-FE-057 入口侧同型盘点
+- **关联**：T-PERM-022 主体树过滤边界；T-FE-057
 
-**现象与证据**：`OrgVisibilityQueryAppServiceImpl.java:35,69` `filterVisibleOrgIds` 固定 `OPERATION_VIEW="VIEW"` 对全部 org（含 orgType=2 岗位节点）判可见；org 树读面（`OrgAppServiceImpl`）按 orgType 分发 VIEW/VIEW_POSITION（v1.4 细化）。消费面=member-candidates 候选池裁剪与 user/delete 等默认树可见性二次校验。
+**现象与证据**：角色管理页、组织信息卡允许点击停用主体的授予入口，而 SubjectTreePanel 过滤停用主体；授予 hook 的 preset 找不到节点后 resetAll，未经过 confirmDiscardIfDirty。
 
-**影响**：双向均为过严/过宽非越权——仅持 VIEW_POSITION 者在候选/删除可见面看不到岗位子树（过严）；持 VIEW 者可见岗位节点下用户进候选池（候选门禁另挡，无越权）。T-ORG-003 §7.2 验收句按实现写成「ORG:VIEW 的组织范围」后该分叉由隐性变契约明示。
+**影响与边界**：提示“未找到”而非“已停用”，keep-alive 页在途草稿可能丢失。PositionTab 岗位入口已用禁用态和 tooltip 收敛，本项保留其余入口。
 
-**拍板结果（2026-09-24，T-ACCESS-055）**：**维持现状+登记**（用户拍板）——双向过严/过宽非越权，验收卡不夹带候选池语义变更（分发精化会使持 VIEW@组织者的候选池不再见其下岗位子节点成员——影响所有按 VIEW 配权的部门管理员预期）；本卡按现状口径验收，语义变更留专门任务拍板（[历史定案原文](archive/2026-09-26/decision-registry-before.md) 同日行）。
+**设想方向（未定案）**：入口状态提示对齐既有先例，并评估 preset 失败前的草稿保护。
 
-## Q-032 /user/create 带 orgId 的挂载门禁仍用裸 ORG:UPDATE——与成员动作码族语义分叉
-
-- **状态**：open
-- **登记**：2026-09-22（T-ORG-003 契约校准面新发现，按任务卡非目标边界登记）
-- **来源**：T-ORG-003 文档回写
-- **关联**：T-ORG-003（同族门禁——member-candidates/assign/remove/set-primary 已按成员码解析）
-
-**现象与证据**：`UserWriteAppServiceImpl.java:140-141`（createUser orgId 非空分支）`checkInstanceLevel(ORG, orgId, OperationCode.UPDATE)` 用裸 UPDATE；契约总表 `/user/create` 行「若入参带 orgId, 同时需 `ORG:UPDATE@orgId`」与实现一致无漂移，但与 v1.4 起挂载族统一经 `resolveForUserOrg` 解析 `MANAGE_MEMBER`/`ASSIGN_POSITION_USER` 的口径分叉——仅持 MANAGE_MEMBER 的有限管理员可给已有用户挂组织（assign），却不能在创建用户时一步挂载（create）。
-
-**影响**：触发面=有限管理员创建用户并指定 orgId（403）；org-user-permission-contract v1.5 变更行「用户页挂载门禁 ORG:UPDATE→ORG:MANAGE_MEMBER/ASSIGN_POSITION_USER 对齐 OrgOperationCodeMapper」未覆盖该入口；首管理员全码掩盖。
-
-**设想方向（未定案）**：createUser orgId 分支换 `resolveForUserOrg(targetOrg.orgType, UPDATE)`（一处替换+单测锁，需先解析 org）；收敛时机建议随 T-ACCESS-055 有限管理员组合验收前由用户拍板（改动会移动 user/create 权限面）。
-
-## Q-031 资源同步通道 codeType 归一不 trim——带空白 codeType 的同步行业务键不可达
+<a id="q-032"></a>
+## Q-032 组织、岗位动作码未覆盖全部判定入口
 
 - **状态**：open
-- **登记**：2026-09-22（T-PERM-076 claude 外评存量观察①，按登记处置）
-- **来源**：T-PERM-076 claude 外评
-- **关联**：T-PERM-076（管理面归一 trim 的对称缺口）
+- **登记**：2026-09-22
+- **来源**：T-ORG-003 同型核对；合并 Q-034（原登记见 [快照](archive/2026-09-30/pending-problems-before-consolidation.md)）
+- **关联**：org-user-permission-contract；[T-ACCESS-055](archive/2026-09-24/tasks/T-ACCESS-055.md)
 
-**现象与证据**：`ResourceEntitySyncAppServiceImpl` 三处（sync item×2/full-sync item/单条 sync）codeType 归一仅做「null/空白→default」，**不 trim**；而业务键寻址侧（`ResourceKeyReq.normalizedCodeType` 与管理面 create/batch-create 的 `normalizedCodeType`）trim——同步通道写入 `" BIZ "` 形态的行，经 detail/update/remove 业务键（trim 后 `BIZ`）不可达，仅 sync 自查找（同样不 trim）可达。
+**现象与证据**：
 
-**影响**：外部来源服务若提交带首尾空白的 codeType，产出的资源行在管理面业务键链路上静默不可寻址（创建侧同码不判重、编辑/删除侧 20004）；存量、非本次变更引入。
+| 入口 | 差异与后果 |
+|---|---|
+| 创建用户并挂组织 | UserWriteAppServiceImpl.createUser 带 orgId 时用 ORG:UPDATE；已有用户挂载经成员动作码解析。仅持 MANAGE_MEMBER 的管理员可挂已有用户，却不能一步创建并挂载；契约该入口当前与裸 UPDATE 实现一致。 |
+| 岗位可见性裁剪 | OrgVisibilityQueryAppServiceImpl.filterVisibleOrgIds 固定 VIEW，org 树读面则按 orgType 分发 VIEW/VIEW_POSITION；影响成员候选池及 user/delete 默认树可见性校验。 |
 
-**设想方向（未定案）**：sync 通道三处归一补 trim 对齐寻址侧（写入侧归一，存量行不受影响）；或 DTO 层统一 codeType 规范约束（两轨同批）。
+**影响与边界**：有限管理员操作可能过严；VIEW 裁剪也可能让岗位成员进入候选池，但另有候选门禁，不直接推导越权。T-ACCESS-055 已明确维持岗位裁剪现状并留待专门处理：改为精化码会改变按 VIEW 配权的部门管理员候选池，不能把该安排当作未决选项重新选择。
 
-## Q-030 /authorize 不比对客户端 tenant_id 与会话租户——他租户客户端可获本租户会话的授权码与令牌
+**设想方向（未定案）**：统一盘点 OrgOperationCodeMapper 的入口覆盖；创建挂载与岗位裁剪分别明确契约、验证影响，再实施。
 
-- **状态**：open
-- **登记**：2026-09-22（T-ADMIN-028 claude 外评存量观察③，按登记处置）
-- **来源**：T-ADMIN-028 claude 外评
-- **关联**：T-ADMIN-028
-
-**现象与证据**：`OAuth2AppServiceImpl.authorize` 只做 `getValidClient`（`findActiveByClientId` 全局 clientId 点查，`OAuth2ClientDomainServiceImpl` 明示不限租户），码记录租户取会话租户（`TenantContextHolder`）——他租户注册的合法客户端可获该会话租户的码/令牌（令牌 tenant_id=会话租户、client_id=他租户客户端）。
-
-**影响**：跨租户客户端可被授权访问本租户用户上下文（scope 委托面）；仓内无该端点前端调用方（frontend 零 oauth2 authorize 调用），实际暴露面=直连 API + 平台会话手工发起。
-
-**设想方向（未定案）**：authorize 校验 `client.tenantId` 与会话租户一致（不一致拒绝，错误信封选型随实施定）；与 token/refresh 匿名端点全局查询的正当性（无会话租户可取）区分处理，勿一刀切改 `findActiveByClientId`。
-
-## Q-029 OAuth2 委托令牌不随用户禁用/删除即时失效——TTL 内继续可用
+<a id="q-031"></a>
+## Q-031 同步资源 codeType 与业务键归一不一致
 
 - **状态**：open
-- **登记**：2026-09-22（T-ADMIN-028 claude 外评存量观察②，按登记处置）
-- **来源**：T-ADMIN-028 claude 外评
-- **关联**：T-ADMIN-028（客户端启用即时校验先例的对称缺口）
+- **登记**：2026-09-22
+- **来源**：T-PERM-076 存量观察
+- **关联**：ResourceEntitySyncAppServiceImpl、ResourceKeyReq
 
-**现象与证据**：资源端 `RequestContextInterceptor.authenticateOAuth2Jwt` 恒定校验清单只含客户端启用动态校验（`findActiveByClientId` 点查、禁用立即 401），不校验被委托用户状态；兑换（`tokenByAuthorizationCode`）与刷新（`refreshToken`）侧同样不校验码/令牌记录中的 user 有效性。access token TTL 默认 86400s、refresh 默认 604800s（客户端可配 60-86400 / 60-604800）。
+**现象与证据**：sync/full-sync 的 codeType 仅归一空值，不 trim；管理创建和 ResourceKeyReq.normalizedCodeType 会 trim。同步写入 `" BIZ "` 后，管理面按 `BIZ` 查询不到。
 
-**影响**：用户被禁用/删除后，其已签发 OAuth2 委托令牌在 TTL 内（刷新链可到刷新令牌过期）仍可访问开放路径——撤权即时性缺口；现役开放路径默认仅 userinfo，暴露面随 `access.oauth2.resource-paths` 配置扩大。
+**影响**：同步自查找仍可达，detail/update/remove 业务键不可达，可能返回 20004或另建同码资源。
 
-**设想方向（未定案）**：恒定校验清单加用户状态点查（对齐客户端启用点查先例——不缓存保证即时失效，代价=每请求一次点查）；或接受 TTL 边界并文档化；刷新侧拒发需另定（刷新令牌记录含 userId，可校验后再轮换）。
+**设想方向（未定案）**：统一写入/寻址归一，单独核对已有带空白行的处理，不能只修新写入就视为存量消失。
 
-## Q-028 SubjectDomainServiceImpl 组展开两套遍历约 100 行重复（expandAllSubtree vs expandInMemory）
-
-- **状态**：open
-- **登记**：2026-09-22（T-PERM-075 双轨评审可裁剪项，用户拍板本批不动、后续轻量清扫）
-- **来源**：T-PERM-075 双轨评审
-- **关联**：T-PERM-075
-
-**现象与证据**：`expandAllSubtree`/`resolveGroupRolesAllSubtreeBatch`（原始候选·不剪禁用）与 `expandInMemory`/`resolveGroupRolesBatch`（有效角色解析·fail-closed 剪枝）遍历形态重复，差异仅禁用剪枝一处。语义刻意相反（写守卫原始候选 vs 运行时过滤集），合并需参数化并搬动热路径剪枝逻辑。
-
-**影响**：纯代码重复，无行为缺陷。
-
-**设想方向（未定案）**：轻量清扫批次参数化合并（如传入空 disabledRoleIds 得全子树行为），须补禁用剪枝/不剪枝两形态等价回归锁。
-
-## Q-027 写守卫「新增侧组目标」不展开成员——绑分组角色可绕过互斥写时拦截（运行时双删兜底）
+<a id="q-029"></a>
+## Q-029 OAuth2 委托链的租户与用户状态校验缺口
 
 - **状态**：open
-- **登记**：2026-09-22（T-PERM-075 双轨评审代码轨 Q-1，用户拍板登记留观）
-- **来源**：T-PERM-075 双轨评审
-- **关联**：T-PERM-075（持有侧组展开已进候选 batchResolveRawHoldings；缺口仅新增侧）
+- **登记**：2026-09-22
+- **来源**：T-ADMIN-028 存量观察；合并 Q-030（原登记见 [快照](archive/2026-09-30/pending-problems-before-consolidation.md)）
+- **关联**：[T-ADMIN-028](archive/2026-09-24/tasks/T-ADMIN-028.md)
 
-**现象与证据**：互斥规则 (X,Y) 存在、用户持有 Y 时绑定子树含 X 的分组角色 G——写守卫 postState={Y, G}（`UserManageAppServiceImpl.rejectRoleMutexOnAssign` 新增行按 targetId 直接入候选，G≠X 不命中）→ 保存成功；运行时 effectiveRoles 组展开后 {X,Y} 同场 → 双删（含原有 Y 端同时失效）。sync/full-sync BIND 同形态。T-PERM-063 起即此形态（本卡未引入回归），U002 拍板文字未覆盖「新增组目标展开」面。
+**现象与证据**：
 
-**影响**：绕过方向=静默双删失权（写时无提示）；安全方向无暴露（fail-closed）。
+| 校验面 | 证据与实际后果 |
+|---|---|
+| 授权时租户匹配 | OAuth2AppServiceImpl.authorize 全局解析 clientId，不比对客户端租户与会话租户；码/令牌租户取会话，其他租户合法客户端可得到本租户用户委托。实际入口为平台会话发起的 API，仓内无 authorize 前端消费者。 |
+| 委托用户有效性 | RequestContextInterceptor.authenticateOAuth2Jwt 动态检查客户端启用、不查用户状态；授权码兑换及 refresh 也未查记录中的用户有效性。禁用/删除用户后，已签令牌可在 TTL 内继续用，刷新链可延长至刷新令牌到期。 |
 
-**设想方向（未定案）**：新增侧 GROUP_ROLE 目标做子树展开+窗口继承（复用 expandAllSubtree），assign/batch-assign/sync 三入口同步；需补回归锁。
+**影响与边界**：分别影响委托租户隔离与撤权即时性；开放资源路径默认仅 userinfo，配置扩展会扩大暴露面。token/refresh 匿名入口全局查客户端有其前提，不能一律改为按会话租户过滤。
 
-## Q-026 sys_org.parent_id DDL 注释「NULL=根节点」与实现顶级口径（0）相反
+**设想方向（未定案）**：分别确定 authorize 租户约束、资源访问/兑换/刷新用户状态校验及 TTL 接受边界；合并承载不替代各子项验收。
 
-- **状态**：open
-- **登记**：2026-09-22（T-ORG-002 claude 外评存量观察①，按登记处置）
-- **来源**：T-ORG-002 claude 外评
-- **关联**：T-ORG-002（新 PgIT 夹具注释曾按 DDL 注释写错、已改按实现口径 0）
-
-**现象与证据**：`docs/design/schema/access-service.sql:220` 注释称 parent_id「NULL=根节点」，而生产实现三处一致写 `0`——bootstrap 固定图根 `setParentId(0L)` 且启动校验要求 `parentId == 0`（不符即 tenant 1 重启冲突）、createOrg 顶级缺省 `0`、级联/子节点查询按 parent_id 关联（0 与 NULL 等价地无父行）。
-
-**影响**：纯注释漂移，无运行时缺陷；误导按 DDL 注释理解/实现的后续改动（T-ORG-002 PgIT 夹具注释即被带偏一次）。
-
-**设想方向（未定案）**：DDL 注释改为「0=根节点（历史语义 NULL 亦无父行，新写一律 0）」；注意 schema COMMENT/注释改动须同步迁移脚本核对（AutoGrant 迁移快照比对含注释的先例）。
-
-## Q-024 createOrgTreeConfig 不校验新根与现有树根的祖先/后代重叠
+<a id="q-028"></a>
+## Q-028 主体组展开存在重复遍历
 
 - **状态**：open
-- **登记**：2026-09-21（T-ORG-002 树配置守卫拍板「最小面」——本项为选项 B 未采纳部分，按拍板登记留观）
-- **来源**：T-ORG-002 启动决策（AskUserQuestion 拍板）
-- **关联**：T-ORG-002（树配置守卫最小面）
+- **登记**：2026-09-22
+- **来源**：T-PERM-075 可裁剪项，安排后续轻量处理
+- **关联**：SubjectDomainServiceImpl
 
-**现象与证据**：`OrgTreeConfigAppServiceImpl.createOrgTreeConfig` 的 `rootOrgId` 可指向任意有效组织，包括现有树（含默认树）的中间节点——两棵树形成祖先/后代重叠，违反 `default-org-tree-user-lifecycle.md` §7「默认组织树根节点不能与其他组织树根节点形成祖先/后代重叠」约束；§7.1 resolver 对命中多个 rootOrgId 的组织（自身或祖先链同时命中两棵树的根）反查结果取决于遍历顺序，行为未定义。
+**现象与证据**：expandAllSubtree/resolveGroupRolesAllSubtreeBatch 与 expandInMemory/resolveGroupRolesBatch 遍历重复，差异在禁用剪枝：写守卫要原始持有，运行时解析要有效持有。
 
-**影响**：新建配置非默认、不改变现有默认身份池（T-ORG-002 守卫面之外）；但重叠树一旦建成，resolveTreeRootExternalId/resolveTreeRootExternalIds 对重叠范围内 org 的解析唯一性被破坏（sync 链路 treeRootExternalId 对账可能错桶）。
+**影响与边界**：维护重复，无行为缺陷；相反的剪枝语义必须保留。
 
-**设想方向（未定案）**：create 时校验新根与租户全部现有树根的祖先/后代重叠（逐根 descendants 判定或统一 CTE）；触发面=树配置管理面（前端现仅消费 page 端点，无 create UI——实际暴露面为直连 API）。处理时机可等树配置管理 UI 立项时一并落地。
+**设想方向（未定案）**：参数化共享遍历，验证剪枝/不剪枝两种结果等价。
 
-## Q-023 删除类型所有者角色（grantOriginRole）无守卫——删后类型授权能力锁死且无提示
-
-- **状态**：open
-- **登记**：2026-09-21（T-PERM-072 启动决策：用户拍板登记留观、不随 072 处理）
-- **来源**：[T-PERM-072](archive/2026-09-24/tasks/T-PERM-072.md) 启动决策
-- **关联**：T-PERM-072（角色删除回收范围拍板 A 的伴生发现）
-
-**现象与证据**：`RoleManageAppServiceImpl.deleteRoles` 全链路无 `grantOriginRole` 守卫（rg 核实零命中）；自定义类型的所有者角色被删除时：072 拍板 A 下其 AUTHORITY_ROOT 行随角色软删（角色删除成为授权根第二回收路径）→ 类型仍在（`type_definition` 行未删），但授权根持有者消失 → apply-grant-plan 的 verifyDelegation/checkCanGrant（授权根委托判定）无人可通过 → **该类型无人能再被授予/转授任何权限**。
-
-**影响**：锁死可恢复（updateType 把 `extra.grantOriginRole` 迁到新角色即 rematerialize 先清后种重建授权根），但删角色时无任何提示/守卫——管理员不知道自己锁死了类型的授权入口；发现依赖事后排障。
-
-**设想方向（未定案）**：deleteRoles 校验 `grantOriginRole` 引用并拒绝（提示先迁移所有者），或警告放行；涉及跨包读（type→role）与错误码登记，待后续立项。
-
-## Q-022 role_resource_permission.grant_dep_id 死列（072 定案保留不写不读）
+<a id="q-027"></a>
+## Q-027 新增分组角色未展开成员检查互斥
 
 - **状态**：open
-- **登记**：2026-09-21（T-PERM-072 启动拍板：保留列、物化永不写入，死列事实计入问题清单留观）
-- **来源**：[T-PERM-072](archive/2026-09-24/tasks/T-PERM-072.md) 启动决策
-- **关联**：T-PERM-072（定案载体；[历史定案原文](archive/2026-09-26/decision-registry-before.md) 2026-09-21 行）
+- **登记**：2026-09-22
+- **来源**：T-PERM-075 写守卫留观项
+- **关联**：UserManageAppServiceImpl.rejectRoleMutexOnAssign；sync/full-sync BIND
 
-**现象与证据**：`docs/design/schema/access-service.sql` grant_dep_id 列（登记时注释为「grant_source=AUTO_DEP 时记录触发的 resource_dependency.id」，已随 072 修正为保留诊断列口径）+ 实体 `RoleResourcePermission.grantDepId`——全代码库零读零写。设计 §3.4 定案「单字段不能表达多来源（同一 AUTO_DEP 行由多条边+多个种子共同支持），不作存续或清理依据」；072 物化实施后该列也永远不填（例：声明 A→B 与 D→B 共同推出 B:READ 一行，无单一触发边可写）。
+**现象与证据**：已有角色 Y、规则互斥 X/Y 时，绑定子树含 X 的组 G；新增侧只把 G 入 postState，未展开 X，写守卫放行。持有侧组展开已覆盖，本项只缺新增侧。
 
-**影响**：纯死列占位，无功能影响；DDL 注释与实际行为（永不写入）已随 072 修正对齐。
+**影响与边界**：运行时展开后 X/Y 同场被双删，保存时无提示并使原有 Y 失效；运行时 fail-closed 兜底，不构成放行越权。
 
-**设想方向（未定案）**：沿 sync_key 先例（[历史定案原文](archive/2026-09-26/decision-registry-before.md) 2026-09-21，「不趁未部署窗口删除」）保留；若未来需要单边诊断或 schema 清理窗口，再评估退役。
+**设想方向（未定案）**：新增组目标展开子树并继承窗口，assign/batch-assign/sync/full-sync 同步核对。
 
-## Q-021 后端菜单种子 icon 多数未注册离线图标表——侧栏菜单图标渲染为空（ep/* 斜杠形态 × IconifyIconOffline storage 查找）
-
-- **状态**：open
-- **登记**：2026-09-19（T-FE-049 claude 外评存量观察①，主代理代码级核实机制链成立后登记）
-- **来源**：T-FE-049 claude 外评
-- **关联**：—（本次仅顺带注册占位项两态 2 枚 ep/warning-filled、ep/menu；侧栏种子面未触达）
-
-**现象与证据**：`BootstrapGraphDefinition.java` 菜单种子 icon 全为 `ep/xxx` 斜杠形态（coins/connection/document/files/history/key/office-building/setting/share + home-filled）；侧栏 icon 经 useRenderIcon 无冒号即走 IconifyIconOffline（storage 查找），而 `frontend/src/components/ReIcon/src/offlineIcon.ts` 仅注册 5 枚（ep/home-filled、ep/warning-filled、ep/menu、ri/search-line、ri/information-line）——除 home-filled 外 8 个种子图标按机制渲染为空（@iconify/vue offline Icon 未命中 storage 渲染空；未做浏览器侧运行时验证，机制链完整）。
-
-**影响**：侧栏菜单项有标题无图标（纯视觉缺失，无功能/权限影响）；存量面非 T-FE-049 引入（本次两态占位项触达的 2 枚已顺带注册生效）。
-
-**设想方向（未定案）**：种子 icon 全量注册进 offlineIcon.ts（前端单侧）或后端种子收敛到已注册集合/在线形态；处置前建议先浏览器侧运行时验证存量实际形态（机制推断 vs 实际渲染）。
-
-## Q-019 父组织名解析依赖当前已加载树（父节点被过滤/权限排除时回退「未知」）
+<a id="q-024"></a>
+## Q-024 组织树配置允许根节点范围重叠
 
 - **状态**：open
-- **登记**：2026-09-19（T-FE-050 claude 外评存量观察②，用户拍板登记）
-- **来源**：T-FE-050 claude 外评
-- **关联**：T-FE-050（发现载体；orgTree.ts 提取后解析入口集中）
+- **登记**：2026-09-21
+- **来源**：T-ORG-002 最小守卫范围之外的留观项
+- **关联**：default-org-tree-user-lifecycle.md §7/§7.1
 
-**现象与证据**：user/index.vue 两处父名解析（信息卡模板 + openOrgForm）均从 `orgTreePanelRef.orgTree` 递归查找（utils/orgTree.ts），树面板带 `:org-type-filter="[1]"`（只显 orgType=1 普通组织）；后端 OrgResp 只有 parentOrgId 无 parentOrgName——父节点被类型过滤或权限范围排除在已加载树外时显示「未知」。
+**现象与证据**：createOrgTreeConfig 可把现有树的中间节点设为另一树根，未检查祖先/后代重叠。多个根同时命中时，resolveTreeRootExternalId(s) 的结果依赖遍历顺序。
 
-**影响**：显示回退「未知」无数据错、无写路径副作用；触发面=父节点被过滤/排除的边缘数据形态（如 orgType≠1 的父节点）。
+**影响与边界**：同步树归属解析可能错桶；创建非默认配置不直接改变默认身份池。当前无 create UI，入口为有权限的 API；T-ORG-002 最小守卫安排保持。
 
-**设想方向（未定案）**：后端响应体附带 parentOrgName（契约变更）或前端回退策略统一（回退展示与触发边界明确化）；T-FE-051 composable 化/树改造时可能自然重估。
+**设想方向（未定案）**：新建时统一核对所有现有树根的祖先/后代关系，确定存量重叠的处理。
 
-## Q-018 后端 /org/update 通道可置空组织名（OrgUpdateReq.orgName 无非空校验）
-
-- **状态**：open
-- **登记**：2026-09-19（T-FE-050 双轨评审代码轨 P3-2，用户拍板登记）
-- **来源**：T-FE-050 双轨评审
-- **关联**：—
-
-**现象与证据**：`OrgCreateReq.orgName` 有 `@NotBlank`，`OrgUpdateReq.orgName` 无任何校验注解（javadoc 自称「可选」），`OrgWriteAppServiceImpl:180` update 分支只判 `req.orgName() != null` 即 `setName(...)`——直连 POST /api/access/org/update 传 `orgName=""` 可将组织名写成空串入库。前端 UI 通道封死（OrgForm required + min 2）。
-
-**影响**：入参校验缺口（「组织名非空」约定 update 通道未强制）；空名组织显示面为空串（树节点/信息卡），前端 findParentOrgName 对空名跳过（新旧实现等价）；无越权面。
-
-**关联现象（T-FE-050 claude 外评存量观察①，用户拍板注记）**：空名数据态下 OrgForm.parentOrgDisplay 三段 fallback（OrgForm.vue:106-114）把空串父名渲染为「根组织」，与信息卡空白显示不一致——本 Q 修复（update 通道拒空串）后该数据态不可再造，渲染差异自然消失，无需独立动作。
-
-**设想方向（未定案）**：update 通道补「null 跳过、空串拒绝」校验——注意直接加 `@NotBlank` 会连 null（=不更新语义）一起拒（Hibernate Validator 对 null 也判 invalid），须选 null 视为合法的约束（如 `@Pattern` 非空白）或服务层显式空串拒绝；配直连 API 回归锁。
-
-## Q-015 设计文档两处白名单「整族 /api/access/auth/**」陈旧口径（T-ACCESS-042 收窄漏改存量）
+<a id="q-023"></a>
+## Q-023 删除类型所有者角色缺引用守卫或提示
 
 - **状态**：open
-- **登记**：2026-09-19（T-GW-009 双轨评审发现，按登记默认处置——两册不在任务 design_refs，不顺带修超边界）
-- **来源**：T-GW-009 双轨评审（文档轨 P3-3/P3-4）
-- **关联**：T-GW-009（本批已同步修 gateway.md/application.yml/GatewayProperties 同款句）
+- **登记**：2026-09-21
+- **来源**：[T-PERM-072](archive/2026-09-24/tasks/T-PERM-072.md) 留观项
+- **关联**：RoleManageAppServiceImpl.deleteRoles；type_definition.extra.grantOriginRole
 
-**现象与证据**：T-ACCESS-042（2026-09-15）将 Gateway 白名单从整族 `/api/access/auth/**` 收窄为会话入口族精确清单后，两册活设计文档仍以整族形态描述白名单：`docs/design/architecture.md:171`「登录接口 /api/access/auth/** 在白名单中，请求透传到 access-service」；`docs/design/access-service-architecture.md:212`（OAuth2 透传段）「/api/access/auth/** 已由白名单覆盖（userinfo 无需重复配置）」——缺「运行时鉴权六端点除外」限定。T-GW-009 批次已将 gateway.md（核心链路/匿名白名单/OAuth2 段三处）、application.yml 注释、GatewayProperties javadoc 同款句精确化，本两册未触达。**清扫面补充（2026-09-19 claude 外评）**：access-service-architecture.md:212 同行末句「直连开放路径不校验（密钥拦截器豁免 oauth2/**）」属同族密钥豁免枚举半句，清扫时与整族句一并加限定/去枚举化（SecurityWebMvcConfig 类级 javadoc 的枚举形态已随 T-GW-009 外评处置去枚举化，不在此列）；另 `gateway/.../SignatureEnrichFilter.java:31/192` 注释称「HeaderEnrichFilter 之后、InternalSecretFilter 之前」与实际执行序不符（order=-35 晚于 InternalSecret(-40)，无运行时影响）——同批并入清扫（用户拍板 2026-09-19）。
+**现象与证据**：删除所有者角色会回收其 AUTHORITY_ROOT，而类型保留；无引用守卫或提示，之后无人能通过该类型首授/转授资格检查。
 
-**影响**：口径性漂移，无运行时缺陷——读者按整族形态理解会误判运行时鉴权六端点免鉴权（实际走会话/权限校验）。
+**影响与边界**：类型授权入口锁死，但可用 updateType 迁移所有者并重建授权根恢复；删除时管理员不知后果。
 
-**设想方向（未定案）**：轻量清扫批次顺带加限定语（各一行，无语义变化）；或随下次触达两册的任务带上。
+**设想方向（未定案）**：删除前检查引用，确定拒绝并先迁移或警告放行语义。
 
-## Q-014 会话/网关测试三处同族裸 sleep(1200)（时间轴构造形态）
+<a id="q-022"></a>
+## Q-022 grant_dep_id 保留为零读零写列
 
 - **状态**：open
-- **登记**：2026-09-18（T-ACCESS-051 双轨评审发现，用户拍板登记）
-- **来源**：[T-ACCESS-051](archive/2026-09-18/tasks/T-ACCESS-051.md) 双轨评审上报项
-- **关联**：—
+- **登记**：2026-09-21
+- **来源**：[T-PERM-072](archive/2026-09-24/tasks/T-PERM-072.md) 保留列安排
+- **关联**：dependency-auto-grant.md §3.4；[历史依据](archive/2026-09-26/decision-registry-before.md) 2026-09-21
 
-**现象与证据**：`PlatformSessionIdleTimeoutTest:156` 以 sleep(1200) 构造 3 次「间隔 1.2s 的活跃」断言续命 200（active-timeout=2s；sa-token 整秒除法口径下翻转阈值实测 ≈4s——剩余 <= -2 才判冻结，见该用例 L141 注释）；`PlatformSessionAbsoluteTimeoutTest:176~184` 以 4 处 sleep(1200) 拼 4s 绝对超时时间轴（t≈3.6s 活跃断言 200 须落在 4s 窗口内，累计拉伸预算仅 ≈400ms——与 Q-013 同量级）；`gateway/src/test/.../AuthTokenFilterTest:292~300` 以 4 次调用、3 次 sleep(1200) 构造续期间隔断言（网关冻结阈值按 3.5s 设计）。与 Q-013 同族（裸 sleep 表达时序，testing-standards rule §10.3）；历史全量回归未实证击穿。
+**现象与证据**：role_resource_permission.grant_dep_id 及 RoleResourcePermission.grantDepId 不读不写。单字段不能表达同一 AUTO_DEP 行的多条依赖边与种子来源，列注释已改为保留诊断口径。
 
-**影响**：-T 1C 极端负载下 sleep 间隔被拉长——idle/续期两处余量较宽（需拉长至 ≈4s/3.5s 冻结阈值才翻转）；绝对超时一处累计预算 ≈400ms 是最可能先假失败的位置（t≈3.6s 断言拿到 401）；隔离定性成本重演，与 Q-013 同类。
+**影响与边界**：维护占位，无功能缺陷；既有安排明确保留，不因合并整理撤销。
 
-**设想方向（未定案）**：改确定性时间轴表达（候选：会话 TTL/续期时间操控注入——涉及 sa-token 会话时间操控方式选型，非顺手量级，待轻量批次立项定性）。
+**设想方向（未定案）**：未来单边诊断需求或 schema 清理窗口再评估。
 
-## 已收敛（终态索引，一行一条；详情在关联任务卡/所属规范或历史来源）
+<a id="q-021"></a>
+## Q-021 菜单种子图标未完整注册
+
+- **状态**：open
+- **登记**：2026-09-19
+- **来源**：T-FE-049 存量观察
+- **关联**：BootstrapGraphDefinition；frontend/src/components/ReIcon/src/offlineIcon.ts
+
+**现象与证据**：种子使用 ep/xxx 斜杠键，经 useRenderIcon 走离线 storage 查找；coins/connection/document/files/history/key/office-building/setting/share 等未注册，home-filled 已注册。
+
+**影响与边界**：菜单标题可见、图标为空，无功能或权限影响；机制链已核对，浏览器实际渲染待验证。占位项 warning-filled/menu 已处理，不混入待办。
+
+**设想方向（未定案）**：统一种子与离线注册集合，验证实际渲染。
+
+<a id="q-018"></a>
+## Q-018 业务字段空值、长度校验与存储约束不一致
+
+- **状态**：open
+- **登记**：2026-09-19
+- **来源**：T-FE-050；合并 Q-052 外部报告 B-8（原登记见 [快照](archive/2026-09-30/pending-problems-before-consolidation.md)）
+- **关联**：[字段清空协议 Q-043](#q-043)；长度核实见 [记录](archive/2026-09-30/logic-review-verification.md)
+
+**现象与证据**：
+
+| 子问题 | 写入口与约束 |
+|---|---|
+| 组织名空串 | OrgUpdateReq.orgName 无非空白校验，OrgWriteAppServiceImpl.updateOrg 只判非 null，可写空串；创建有 @NotBlank、前端有 required/min。空名父在信息卡为空，OrgForm 的 fallback 还可能误显为“根组织”。 |
+| 用户字段长度 | UserCreateReq 的 username/name/phone/email 与 UserUpdateReq 的 name/phone/email 无列宽上限；sys_user 对应 VARCHAR(64/128/32/128)。更新 phone/email 已有空白 Pattern，但不限制长度。 |
+| 组织、公告长度 | OrgCreateReq/OrgUpdateReq 的 orgName/code 无上限（sys_org VARCHAR(128/64)）；NoticeCreateReq/NoticeUpdateReq.title 无上限（VARCHAR(256)）。 |
+
+**影响与边界**：空名损害展示语义；超长非空输入直接写库被拒，通用异常返回 HTTP 500/99999，事务回滚、无静默截断。字段格式限制与长度上限是不同契约；清空可选字段的问题仍由 Q-043 承载。
+
+**设想方向（未定案）**：创建/更新按列宽校验；组织名更新保留 null=不更新、拒空白，不能直接 @NotBlank 而误拒 null。确定存量空名处理，不假称拒新输入就清理了旧数据。
+
+<a id="q-015"></a>
+## Q-015 设计、契约与代码注释未同步现行实现
+
+- **状态**：open
+- **登记**：2026-09-19
+- **来源**：T-GW-009、T-ORG-002、T-ACCESS-053、T-FE-058；合并 Q-026/041/042/051/053/054/055（原证据见 [快照](archive/2026-09-30/pending-problems-before-consolidation.md)）
+- **关联**：现行契约/设计及代码；运行时身份边界仍见 Q-040，清空语义仍见 Q-043
+
+**现象与证据**：
+
+| 漂移主题 | 待订正位置与当前依据 |
+|---|---|
+| Gateway 白名单 | architecture.md 与 access-service-architecture.md 仍把整族 /api/access/auth/** 描述为白名单，OAuth2 段还有笼统密钥豁免句；现行精确入口范围见 gateway.md 与运行时配置。 |
+| 过滤器排序 | SignatureEnrichFilter.getOrder 注释称在 InternalSecretFilter 前；实际 -40 先于 -35。Q-055 是 Q-015 原补充证据的重复登记。 |
+| 组织根节点 | schema/access-service.sql 的 sys_org.parent_id 注释写 NULL=根；bootstrap/createOrg 新写与启动校验用 0。COMMENT/迁移快照需联动核对。 |
+| SDK 身份总览 | architecture.md 的 perm-client starter 行漏 FeignCredentialInterceptor；T-PERM-070 已交付，service-authentication 与 extension-guide 为两套身份依据。 |
+| 用户角色端点 | org-user-permission-contract.md 的管理查询仍指 /user-role/list；T-ACCESS-042 后应指 /user-role/view，list 是另一个在役响应模型。 |
+| 旧准入协议 | adopted 的 permission-center-v3.5-design.md §7 仍正向描述已删除的 InterfaceSnapshotResp、三态 matcher 与 check-interface；现行见契约 §25、新准入四态链。需标替代，不撤销该册其他有效语义。 |
+| 自动授权状态 | PermissionGrantDomainService/Impl 的 resolveAutoGrants TODO 称未实现；现已有 AutoGrantMaterializationDomainService 与写入口同事务重算。 |
+| 系统配置页面 | frontend/system-config.md §4 与 operation-log.md 对比句仍描述本地分页/mock 保存；当前 usePagedList、真实 API 和后端 PageResp 已生效。description 清空契约待 Q-043 确定。 |
+
+**影响与边界**：误导入口、身份、状态与执行序理解；本组仅为文档/注释漂移，未把相应运行时缺陷标为已修。白名单等安全语义以现行权威和实现核对，不从陈旧文字推出运行时绕过。
+
+**设想方向（未定案）**：按主题集中校正文档/注释及连带引用；需要新契约的部分保持关联问题，不在文档清扫中定案。
+
+<a id="q-014"></a>
+## Q-014 会话、网关测试依赖固定 sleep 构造时序
+
+- **状态**：open
+- **登记**：2026-09-18
+- **来源**：[T-ACCESS-051](archive/2026-09-18/tasks/T-ACCESS-051.md) 同型盘点
+- **关联**：testing-standards §10.3；Q-013 已收敛形态
+
+**现象与证据**：PlatformSessionIdleTimeoutTest、PlatformSessionAbsoluteTimeoutTest、AuthTokenFilterTest 用 sleep(1200) 拼活跃/超时时间轴；绝对超时用例 t≈3.6s 的成功断言距 4s 边界仅约 400ms。idle/网关续期余量较宽。
+
+**影响与边界**：模块并行负载下延迟拉伸可能制造假失败；历史全量尚未实证击穿这些用例，不能视为可豁免的新回归。
+
+**设想方向（未定案）**：选择可控会话时间或有界轮询，保留原行为断言，避免固定余量。
+
+## 已收敛（含合并索引；详情在关联问题/任务或历史来源）
+
+> closed（合并）只关闭旧登记编号，实际问题由关联 open 条目继续承载；修复、重复与合并分别注明，不回收编号。合并依据为 2026-09-30 本次“重复或类似问题精练合并”要求，原证据见 [合并前快照](archive/2026-09-30/pending-problems-before-consolidation.md)。
+
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
+| <a id="q-055"></a>Q-055 | 签名过滤器顺序注释 | closed（重复登记，按 2026-09-30 本次合并要求归入 Q-015；问题仍 open） | [Q-015](#q-015) | 2026-09-30 |
+| <a id="q-054"></a>Q-054 | 系统配置前端设计陈旧 | closed（文档漂移同族，按 2026-09-30 本次合并要求归入 Q-015；问题仍 open） | [Q-015](#q-015) | 2026-09-30 |
+| <a id="q-053"></a>Q-053 | 自动授权旧 TODO | closed（注释漂移同族，按 2026-09-30 本次合并要求归入 Q-015；问题仍 open） | [Q-015](#q-015) | 2026-09-30 |
+| <a id="q-052"></a>Q-052 | 业务字段缺长度校验 | closed（写入口字段校验同族，按 2026-09-30 本次合并要求归入 Q-018；问题仍 open） | [Q-018](#q-018) | 2026-09-30 |
+| <a id="q-051"></a>Q-051 | v3.5 旧准入设计未标替代 | closed（文档漂移同族，按 2026-09-30 本次合并要求归入 Q-015；问题仍 open） | [Q-015](#q-015) | 2026-09-30 |
+| <a id="q-042"></a>Q-042 | 用户角色查询端点旧指代 | closed（契约指代漂移同族，按 2026-09-30 本次合并要求归入 Q-015；问题仍 open） | [Q-015](#q-015) | 2026-09-30 |
+| <a id="q-041"></a>Q-041 | SDK 总览漏服务凭证拦截器 | closed（文档漂移同族，按 2026-09-30 本次合并要求归入 Q-015；问题仍 open） | [Q-015](#q-015) | 2026-09-30 |
+| <a id="q-039"></a>Q-039 | 资源树与列表状态过滤不同 | closed（树过滤与展示同族，按 2026-09-30 本次合并要求归入 Q-038；问题仍 open） | [Q-038](#q-038) | 2026-09-30 |
+| <a id="q-034"></a>Q-034 | 岗位可见性未按 VIEW_POSITION 精化 | closed（动作码入口覆盖同族，按 2026-09-30 本次合并要求归入 Q-032；问题仍 open） | [Q-032](#q-032) | 2026-09-30 |
+| <a id="q-030"></a>Q-030 | OAuth2 客户端与会话租户未匹配 | closed（委托链校验同族，按 2026-09-30 本次合并要求归入 Q-029；问题仍 open） | [Q-029](#q-029) | 2026-09-30 |
+| <a id="q-026"></a>Q-026 | 组织根节点 DDL 注释不一致 | closed（注释漂移同族，按 2026-09-30 本次合并要求归入 Q-015；问题仍 open） | [Q-015](#q-015) | 2026-09-30 |
+| <a id="q-019"></a>Q-019 | 过滤后树无法解析父组织名 | closed（树过滤与展示同族，按 2026-09-30 本次合并要求归入 Q-038；问题仍 open） | [Q-038](#q-038) | 2026-09-30 |
 | Q-046 | 旧 /sync 写路径在 OPERATION_ADMISSION 下「能删不能增」——新路由整批 20071 且错误码指错方向 | closed（2026-09-28 随 T-ACCESS-062 收敛——登记时拍板的设想方向②落地：`POST /api/access/service-config/sync` 端点、`ServiceConfigSyncReq` DTO、`InterfaceSyncDefinition.from` v1 适配与前端「仅接口登记（旧协议）」选项整体删除（404 负向锁=LegacyInterfaceRetirementTest），接口声明唯一入口=sync-v2；契约 §25.1 同批改写） | [T-ACCESS-062](tasks/T-ACCESS-062.md) | 2026-09-28 |
 | Q-033 | 契约总册 org CRUD 门禁行/正文未带岗位精化码 | closed（2026-09-24 随 T-ACCESS-055 doc-only 收敛——§4 门禁表三行+§8.4~§8.6 补「按目标 orgType 解析精化码（岗位 *_POSITION）」注记，与 org-user-permission-contract 对齐；[历史定案原文](archive/2026-09-26/decision-registry-before.md) 同日行；正文条目 2026-09-25 补迁本索引） | [T-ACCESS-055](archive/2026-09-24/tasks/T-ACCESS-055.md) | 2026-09-24 |
 | Q-036 | PositionTab 展示面两处存量：位置列恒「-」与成员加载失败落空态 | closed（T-FE-058 done：①index.vue 传 org-tree prop 修复父路径解析；②展开区三态区分（成员列表/失败占位+重试/暂无成员），失败不再误显空态） | [T-FE-058](archive/2026-09-24/tasks/T-FE-058.md) | 2026-09-23 |
