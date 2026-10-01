@@ -144,7 +144,7 @@ Gateway 启动后订阅 Redis topic `perm:invalidate`。access-service 写路径
 
 Gateway 通过 Micrometer 暴露 Prometheus 指标。依赖 `spring-boot-starter-actuator` + `micrometer-registry-prometheus`。
 
-**端点暴露（T-GW-007 收口）**：`health/info/prometheus/metrics` 全部仅经**独立管理端口**提供——`management.server.port`（默认 8081，`GATEWAY_MANAGEMENT_PORT` 可覆盖）+ `management.server.address`（默认 127.0.0.1 仅同机可达，`GATEWAY_MANAGEMENT_ADDRESS` 可放开）。注意：端口类变量**不支持空串禁用**——空串经 Binder 绑定为 null（等于未配置），管理端口分离会静默回退。主端口 8080 **不提供任何 `/actuator/**` 端点**（白名单同步移除，主端口 `/actuator/*` 返回 404）；存活/就绪探针与 Prometheus 抓取一律访问管理端口。注意 Nacos 远端 `gateway.yml` 优先级高于本地 application.yml，远端覆盖需保持一致的收敛口径。
+**端点暴露（T-GW-007 收口）**：`health/info/prometheus/metrics` 全部仅经**独立管理端口**提供——`management.server.port`（默认 8081，`GATEWAY_MANAGEMENT_PORT` 可覆盖）+ `management.server.address`（默认 127.0.0.1 仅同机可达，`GATEWAY_MANAGEMENT_ADDRESS` 可放开）。注意：端口类变量**不支持空串禁用**——空串经 Binder 绑定为 null（等于未配置），管理端口回退主端口；此时默认 address 仍在会触发 Boot 同端口地址校验启动失败（fail-fast），仅端口与地址同时清空才真正回退为「actuator 主端口匿名可达」。主端口 8080 **不提供任何 `/actuator/**` 端点**（白名单同步移除，主端口 `/actuator/*` 经网关全局异常处理保留 404 状态码返回）；存活/就绪探针与 Prometheus 抓取一律访问管理端口。注意 Nacos 远端 `gateway.yml` 优先级高于本地 application.yml，远端覆盖需保持一致的收敛口径。
 
 #### 计数器
 

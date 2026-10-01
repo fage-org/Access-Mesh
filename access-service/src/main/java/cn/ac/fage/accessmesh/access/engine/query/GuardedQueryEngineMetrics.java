@@ -33,15 +33,6 @@ final class GuardedQueryEngineMetrics implements QueryEngineMetrics {
     }
 
     @Override
-    public void executionCompleted(ExecutionOutcome outcome) {
-        try {
-            target.executionCompleted(outcome);
-        } catch (RuntimeException error) {
-            log.warn("Query execution metric failed: {}", error.getMessage());
-        }
-    }
-
-    @Override
     public void executionCompleted(ExecutionOutcome outcome, long durationNanos) {
         try {
             target.executionCompleted(outcome, durationNanos);

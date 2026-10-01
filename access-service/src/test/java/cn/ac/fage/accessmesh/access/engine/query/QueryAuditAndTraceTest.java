@@ -191,9 +191,6 @@ class QueryAuditAndTraceTest {
         @Override public void itemStage(SelectionKind selection, Stage stage, StageOutcome outcome) {
             events.add("stage:" + selection + ":" + stage + ":" + outcome);
         }
-        @Override public void executionCompleted(ExecutionOutcome outcome) {
-            events.add("execution:" + outcome);
-        }
         @Override public void executionCompleted(ExecutionOutcome outcome, long durationNanos) {
             events.add("execution:" + outcome);
             executionNanos.add(durationNanos);
@@ -485,7 +482,7 @@ class QueryAuditAndTraceTest {
             @Override public void itemStage(SelectionKind selection, Stage stage, StageOutcome outcome) {
                 throw new IllegalStateException("metric backend down");
             }
-            @Override public void executionCompleted(ExecutionOutcome outcome) {
+            @Override public void executionCompleted(ExecutionOutcome outcome, long durationNanos) {
                 throw new IllegalStateException("metric backend down");
             }
             @Override public void evidenceSubmissionFailed(EvidenceKind evidenceKind) {
@@ -512,7 +509,6 @@ class QueryAuditAndTraceTest {
         org.mockito.Mockito.doThrow(new IllegalStateException("audit pool exhausted")).when(audit).asyncRecordLog(any());
         QueryEngineMetrics throwingEvidence = new QueryEngineMetrics() {
             @Override public void itemStage(SelectionKind selection, Stage stage, StageOutcome outcome) { }
-            @Override public void executionCompleted(ExecutionOutcome outcome) { }
             @Override public void executionCompleted(ExecutionOutcome outcome, long durationNanos) { }
             @Override public void evidenceSubmissionFailed(EvidenceKind evidenceKind) {
                 throw new IllegalStateException("metric backend down");

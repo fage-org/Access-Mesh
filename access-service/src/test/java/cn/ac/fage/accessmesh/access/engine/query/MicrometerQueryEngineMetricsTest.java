@@ -56,19 +56,6 @@ class MicrometerQueryEngineMetricsTest {
     }
 
     @Test
-    @DisplayName("不带时长的终态调用转发为零时长 Timer（接口 default 链）")
-    void shouldFallbackToZeroDurationWhenOutcomeOnly() {
-        SimpleMeterRegistry registry = new SimpleMeterRegistry();
-        MicrometerQueryEngineMetrics metrics = new MicrometerQueryEngineMetrics(registry);
-
-        metrics.executionCompleted(QueryEngineMetrics.ExecutionOutcome.SUCCESS);
-
-        var timer = registry.get("access.query.execution").tag("outcome", "SUCCESS").timer();
-        assertThat(timer.count()).isEqualTo(1);
-        assertThat(timer.totalTime(TimeUnit.NANOSECONDS)).isZero();
-    }
-
-    @Test
     @DisplayName("证据提交失败按类别计数（不带 ID 标签）")
     void shouldRecordEvidenceSubmissionFailureByKind() {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();

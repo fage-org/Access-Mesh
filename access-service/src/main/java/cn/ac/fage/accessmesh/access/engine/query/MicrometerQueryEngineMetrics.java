@@ -42,11 +42,6 @@ final class MicrometerQueryEngineMetrics implements QueryEngineMetrics {
     }
 
     @Override
-    public void executionCompleted(ExecutionOutcome outcome) {
-        executionCompleted(outcome, 0L);
-    }
-
-    @Override
     public void executionCompleted(ExecutionOutcome outcome, long durationNanos) {
         Timer.builder("access.query.execution")
             .tag("outcome", outcome.name())

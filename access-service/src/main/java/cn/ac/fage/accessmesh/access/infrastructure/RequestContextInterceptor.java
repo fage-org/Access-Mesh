@@ -34,7 +34,8 @@ import java.util.UUID;
  * <ol>
  *   <li>公开路径（/auth/** 公开子集：验证码/登录/令牌/撤销/登出；/actuator/** 自 T-PERM-094 起仅经
  *       独立管理端口提供、主端口无对应 handler——本类的匿名放行分支为拦截器层路径语义，是管理端口
- *       配置回退（如 ACCESS_MANAGEMENT_PORT 置空串）场景下主端口的放行来源，非死代码）→ ANONYMOUS</li>
+ *       配置整体回退（端口与地址同时清空时 actuator 回到主端口；仅清端口会因 address 残留被 Boot
+ *       同端口地址校验 fail-fast 拒绝启动）场景下主端口的放行来源，非死代码）→ ANONYMOUS</li>
  *   <li>内部凭证通过（attribute INTERNAL_AUTHENTICATED）→
  *       X-User-Id 存在（恒已验签，防御纵深再校验）→ USER（签名代理主体）；
  *       无 X-User-Id → SERVICE（serviceCode 绑定 X-Service-Code 头，凭证通过即可信）</li>

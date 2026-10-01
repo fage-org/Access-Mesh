@@ -16,13 +16,8 @@ public interface QueryEngineMetrics {
     /** 单项阶段终态：按选择类型＋阶段＋终态聚合（完成或短路理由）。 */
     void itemStage(SelectionKind selection, Stage stage, StageOutcome outcome);
 
-    /** 一次 execute 终态：成功、预算超限或其余技术失败（失败不含任何目标标识维度）。 */
-    void executionCompleted(ExecutionOutcome outcome);
-
-    /** 带执行时长的终态上报（T-PERM-094：P50/P95/P99 观测）；缺省实现丢弃时长仅记终态。 */
-    default void executionCompleted(ExecutionOutcome outcome, long durationNanos) {
-        executionCompleted(outcome);
-    }
+    /** 一次 execute 终态与执行时长（T-PERM-094：P50/P95/P99 观测；失败不含任何目标标识维度）。 */
+    void executionCompleted(ExecutionOutcome outcome, long durationNanos);
 
     /** 证据受控提交失败：按证据类别计数（仅类别，不带 ID 标签）。 */
     void evidenceSubmissionFailed(EvidenceKind evidenceKind);
@@ -43,7 +38,7 @@ public interface QueryEngineMetrics {
     static QueryEngineMetrics noop() {
         return new QueryEngineMetrics() {
             @Override public void itemStage(SelectionKind selection, Stage stage, StageOutcome outcome) {}
-            @Override public void executionCompleted(ExecutionOutcome outcome) {}
+            @Override public void executionCompleted(ExecutionOutcome outcome, long durationNanos) {}
             @Override public void evidenceSubmissionFailed(EvidenceKind evidenceKind) {}
         };
     }

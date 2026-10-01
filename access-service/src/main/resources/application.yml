@@ -124,7 +124,9 @@ management:
   # 暴露面随之消除）。存活/就绪探针与 Prometheus 抓取改访问管理端口。
   # 管理端口默认绑定回环地址（仅同机可达）；远程抓取/容器化部署经 ACCESS_MANAGEMENT_ADDRESS 放开。
   # 注意：ACCESS_MANAGEMENT_PORT 不支持空串禁用——空串经 Binder 绑定为 null（等于未配置），
-  # 会使管理端口分离静默回退（actuator 回到主端口匿名可达）；放开/覆盖必须给完整值。
+  # 管理端口回退主端口；此时默认 address 仍在会触发 Boot 同端口地址校验启动失败（fail-fast，
+  # SameManagementContextConfiguration），仅端口与地址同时清空才真正回退为「actuator 主端口
+  # 匿名可达」；放开/覆盖必须给完整值。
   # 注意 Nacos 远端 access-service.yml 优先级更高，生产覆盖需保持一致的收敛口径。
   server:
     port: ${ACCESS_MANAGEMENT_PORT:9101}
@@ -136,8 +138,11 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
-    export:
-      prometheus:
+  prometheus:
+    metrics:
+      export:
+        # Boot 3.2 有效键前缀为 management.prometheus.metrics.export（默认已启用；
+        # 旧 management.metrics.export.prometheus 前缀无效，sol 复评订正）
         enabled: true
 
 perm:
