@@ -115,11 +115,9 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
     public boolean canGrantPermission(Long tenantId, Long subjectId, String resourceTypeCode,
                                        String resourceCode, String codeType, String operationCode,
                                        boolean scopeAll, String domainCode) {
-        Set<GrantCheckKey> keys = Set.of(new GrantCheckKey(resourceTypeCode, resourceCode, codeType, operationCode, scopeAll));
-        Map<String, GrantCheckResult> results = checkCanGrant(tenantId, subjectId, keys, domainCode);
         GrantCheckKey checkKey = new GrantCheckKey(resourceTypeCode, resourceCode, codeType, operationCode, scopeAll);
-        String key = grantCheckKeyText(checkKey);
-        GrantCheckResult result = results.get(key);
+        Map<GrantCheckKey, GrantCheckResult> results = checkCanGrant(tenantId, subjectId, Set.of(checkKey), domainCode);
+        GrantCheckResult result = results.get(checkKey);
         return result != null && result.canGrant();
     }
 
@@ -141,20 +139,20 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
      * @return 权限键到检查结果的映射
      */
     @Override
-    public Map<String, GrantCheckResult> checkCanGrant(Long tenantId, Long subjectId,
-                                                        Set<GrantCheckKey> permissions, String domainCode) {
+    public Map<GrantCheckKey, GrantCheckResult> checkCanGrant(Long tenantId, Long subjectId,
+                                                               Set<GrantCheckKey> permissions, String domainCode) {
         if (tenantId == null || subjectId == null || permissions == null || permissions.isEmpty()) {
             return Map.of();
         }
 
-        Map<String, GrantCheckResult> results = new HashMap<>();
+        Map<GrantCheckKey, GrantCheckResult> results = new HashMap<>();
         Set<GrantCheckKey> validPermissions = permissions.stream()
             .filter(Objects::nonNull)
             .filter(key -> {
                 boolean valid = key.resourceTypeCode() != null && !key.resourceTypeCode().isBlank()
                     && key.operationCode() != null && !key.operationCode().isBlank();
                 if (!valid) {
-                    results.put(grantCheckKeyText(key), new GrantCheckResult(false, "INVALID_PERMISSION_KEY"));
+                    results.put(key, new GrantCheckResult(false, "INVALID_PERMISSION_KEY"));
                 }
                 return valid;
             })
@@ -181,7 +179,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
             String noEntryReason = permResult.collectionStatus() == GrantSetResult.CollectionStatus.NO_ROLE
                 ? "NO_ROLE" : "NO_PERMISSION";
             for (GrantCheckKey key : validPermissions) {
-                results.put(grantCheckKeyText(key), new GrantCheckResult(false, noEntryReason));
+                results.put(key, new GrantCheckResult(false, noEntryReason));
             }
             return results;
         }
@@ -198,8 +196,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
         }
         if (resourceTypeByCode.isEmpty()) {
             for (GrantCheckKey key : validPermissions) {
-                results.put(grantCheckKeyText(key),
-                    new GrantCheckResult(false, "INVALID_RESOURCE_TYPE"));
+                results.put(key, new GrantCheckResult(false, "INVALID_RESOURCE_TYPE"));
             }
             return results;
         }
@@ -232,10 +229,13 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
             .distinct()
             .collect(Collectors.toList());
         Map<ResourceResolveKey, Long> resolvedResourceIds = typeResolutionService.batchResolveResourceIds(tenantId, resourceRequests);
-        Map<String, Long> resourceEntityIdByKey = new HashMap<>();
+        // 结构化元组键（T-PERM-096）：resourceCode/codeType 为自由文本可含分隔符，三段拼接串
+        // 无法区分 ("TD","a:b","c") 与 ("TD","a","b:c") 这类碰撞对；typeCode 大写归一是原
+        // resourceTripleCodeKey 自带语义，随元组化保留（工厂数据库唯一索引不受影响）
+        Map<ResourceTripleKey, Long> resourceEntityIdByKey = new HashMap<>();
         for (Map.Entry<ResourceResolveKey, Long> entry : resolvedResourceIds.entrySet()) {
             ResourceResolveKey key = entry.getKey();
-            resourceEntityIdByKey.put(BusinessKeyUtil.resourceTripleCodeKey(key.resourceTypeCode(), key.resourceCode(), key.codeType()), entry.getValue());
+            resourceEntityIdByKey.put(ResourceTripleKey.of(key.resourceTypeCode(), key.resourceCode(), key.codeType()), entry.getValue());
         }
 
         // 4. 授权条目按（类型值×操作码）与（类型值×操作码×实体）索引（位覆盖语义：授予操作覆盖目标操作即匹配）
@@ -280,7 +280,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
         for (GrantCheckKey key : validPermissions) {
             GrantCheckResult result = evaluateGrantPermission(key, resourceTypeByCode, targetOpByKey,
                 resourceEntityIdByKey, entriesByOpAndEntity, entriesByOpKey);
-            results.put(grantCheckKeyText(key), result);
+            results.put(key, result);
             if (!result.canGrant()
                     && ("NO_PERMISSION".equals(result.reason()) || "NO_GRANT_RIGHT".equals(result.reason()))) {
                 delegationFailedKeys.put(key, result);
@@ -352,7 +352,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
     private GrantCheckResult evaluateGrantPermission(GrantCheckKey key,
                                                       Map<String, Integer> resourceTypeByCode,
                                                       Map<String, OperationPermission> opPermByKey,
-                                                      Map<String, Long> resourceEntityIdByKey,
+                                                      Map<ResourceTripleKey, Long> resourceEntityIdByKey,
                                                       Map<String, List<GrantFact>> permsBySpecificResource,
                                                       Map<String, List<GrantFact>> permsByScopeAll) {
         Integer resourceTypeValue = resourceTypeByCode.get(key.resourceTypeCode());
@@ -368,8 +368,8 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
 
         Long resourceEntityId = null;
         if (!key.scopeAll() && key.resourceCode() != null && !key.resourceCode().isBlank()) {
-            String resKey = BusinessKeyUtil.resourceTripleCodeKey(key.resourceTypeCode(), key.resourceCode(), key.codeType());
-            resourceEntityId = resourceEntityIdByKey.get(resKey);
+            resourceEntityId = resourceEntityIdByKey.get(
+                ResourceTripleKey.of(key.resourceTypeCode(), key.resourceCode(), key.codeType()));
             if (resourceEntityId == null) {
                 return new GrantCheckResult(false, "RESOURCE_NOT_FOUND");
             }
@@ -413,11 +413,11 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
      * 逐分支镜像（scopeAll 键只认 scopeAll 行；实例键认 scopeAll 行或同实例行；位覆盖 covers）。
      * </p>
      */
-    private void refineGrantOriginMissing(Long tenantId, Map<String, GrantCheckResult> results,
+    private void refineGrantOriginMissing(Long tenantId, Map<GrantCheckKey, GrantCheckResult> results,
                                           Map<GrantCheckKey, GrantCheckResult> delegationFailedKeys,
                                           Map<String, Integer> resourceTypeByCode,
                                           Map<String, OperationPermission> targetOpByKey,
-                                          Map<String, Long> resourceEntityIdByKey) {
+                                          Map<ResourceTripleKey, Long> resourceEntityIdByKey) {
         // 失败键涉及的类型值（仅自定义 resource_type 参与；type_definition 全租户有效行一次
         // 装载内存过滤——resource_type 行数量为个位到十位级，无逐键查询）
         Set<Integer> failedTypeValues = delegationFailedKeys.keySet().stream()
@@ -439,8 +439,8 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
         // 候选行（租户级任意角色）+ 失败类型操作定义索引（覆盖判定）
         Set<Long> failedInstanceEntityIds = delegationFailedKeys.keySet().stream()
             .filter(key -> !key.scopeAll() && key.resourceCode() != null && !key.resourceCode().isBlank())
-            .map(key -> resourceEntityIdByKey.get(BusinessKeyUtil.resourceTripleCodeKey(
-                key.resourceTypeCode(), key.resourceCode(), key.codeType())))
+            .map(key -> resourceEntityIdByKey.get(
+                ResourceTripleKey.of(key.resourceTypeCode(), key.resourceCode(), key.codeType())))
             .filter(Objects::nonNull)
             .collect(Collectors.toCollection(LinkedHashSet::new));
         List<RoleResourcePermission> candidates = roleResourcePermissionMapper
@@ -459,12 +459,12 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
             if (targetOp == null) {
                 continue;
             }
-            Long keyEntityId = key.scopeAll() ? null : resourceEntityIdByKey.get(BusinessKeyUtil.resourceTripleCodeKey(
-                key.resourceTypeCode(), key.resourceCode(), key.codeType()));
+            Long keyEntityId = key.scopeAll() ? null : resourceEntityIdByKey.get(
+                ResourceTripleKey.of(key.resourceTypeCode(), key.resourceCode(), key.codeType()));
             boolean originExists = candidates.stream().anyMatch(row -> grantableRowCovers(
                 row, targetOp, candidateOpsByBit, key.scopeAll(), keyEntityId));
             if (!originExists) {
-                results.put(grantCheckKeyText(key), new GrantCheckResult(false, "TYPE_GRANT_ORIGIN_MISSING"));
+                results.put(key, new GrantCheckResult(false, "TYPE_GRANT_ORIGIN_MISSING"));
             }
         }
     }
@@ -485,10 +485,18 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
         return grantedOp != null && OperationPermissionUtils.covers(grantedOp, targetOp);
     }
 
-    /** K8 转授检查五段键（经 BusinessKeyUtil 构造，格式 golden 锁定）。 */
-    private static String grantCheckKeyText(GrantCheckKey key) {
-        return BusinessKeyUtil.grantCheckKey(key.resourceTypeCode(), key.resourceCode(),
-            key.codeType(), key.operationCode(), key.scopeAll());
+    /**
+     * 资源三段内存索引键（T-PERM-096 结构化元组）：typeCode 大写归一是原
+     * resourceTripleCodeKey 拼接键自带语义（随元组化保留），null 段原样保留——
+     * 构造与查询两侧同经 {@link #of} 归一，对称即无歧义。
+     */
+    private record ResourceTripleKey(String resourceTypeCode, String resourceCode, String codeType) {
+
+        static ResourceTripleKey of(String resourceTypeCode, String resourceCode, String codeType) {
+            return new ResourceTripleKey(
+                resourceTypeCode == null ? null : resourceTypeCode.toUpperCase(),
+                resourceCode, codeType);
+        }
     }
 
     private boolean isManual(RoleResourcePermission permission) {

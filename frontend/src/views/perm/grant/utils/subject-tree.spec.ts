@@ -80,6 +80,31 @@ describe("filterVisibleTree（评审问题 5；T-PERM-043 后仅 BASIC_ROLE）",
     expect(result[0].kind).toBe("ROLE");
   });
 
+  it("数字 externalId 与 id 回退键不混并（T-FE-060：externalId/id 分命名空间）", () => {
+    // externalId 是租户可手填业务键（可为 "5"），与数据库 id 分属两个空间——
+    // 旧 `role:${externalId ?? id}` 下两节点同 key，el-tree 按 key 定位时高亮/选中错乱
+    const withNumericExternalId = makeNode({
+      id: 77,
+      roleTypeCode: "BASIC_ROLE",
+      externalId: "5",
+      name: "业务键为数字5的角色"
+    });
+    const withoutExternalId = makeNode({
+      id: 5,
+      roleTypeCode: "BASIC_ROLE",
+      externalId: null,
+      name: "id为5的角色"
+    });
+    const result = filterVisibleTree([
+      withNumericExternalId,
+      withoutExternalId
+    ]);
+    expect(result).toHaveLength(2);
+    expect(result[0].key).not.toBe(result[1].key);
+    expect(result[1].key).toContain("id:5");
+    expect(result[0].key).toContain("ext:5");
+  });
+
   it("ROOT 容器透明下钻，不入结果", () => {
     const root = makeNode({
       id: 0,

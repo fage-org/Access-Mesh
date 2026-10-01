@@ -147,7 +147,7 @@ Map<Long, Xxx> rowMap = rows.stream()
 ## 禁止事项
 
 - 禁止跳层调用（Controller 不得直调 Mapper；DomainService 不得调用调度层 Service）
-- 禁止裸拼业务键：后端业务键构造/解析唯一入口 `perm-common` 的 `BusinessKeyUtil`（类型解析缓存键、操作位/操作编码键、资源三段键、转授五段键、relationKey 解析等方法族；格式由 BusinessKeyUtilParityTest golden 锁）；sync API 契约键（percent-encoded）走 access-service `SyncKeyCodecUtil`，缓存存储信封/错误文案拼接出界。
+- 禁止裸拼业务键：后端业务键构造/解析唯一入口 `perm-common` 的 `BusinessKeyUtil`（类型解析缓存键、操作位/操作编码键、relationKey 解析等方法族；格式由 BusinessKeyUtilParityTest golden 锁；纯内存索引禁拼接串区分复合键——键段含自由文本须用 record 元组，T-PERM-096 起资源三段/转授五段等索引构造器已退役）；sync API 契约键（percent-encoded）走 access-service `SyncKeyCodecUtil`，缓存存储信封/错误文案拼接出界。
 - 同层横向调用已全局放开（2026-08-22，旧「禁止+单点例外」规则废止；约束见上方分层规则节）
 - 禁止 `System.out.println`
 - 禁止 `catch (Exception e) {}` 静默吞异常

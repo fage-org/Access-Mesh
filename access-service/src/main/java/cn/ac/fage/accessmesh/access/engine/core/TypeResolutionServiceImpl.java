@@ -349,19 +349,19 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
             // 查询该资源类型的所有匹配资源
             List<ResourceEntity> resources = resourceEntityMapper.selectByTypeAndCodes(tenantId, resourceType, codes);
 
-            // 构建查找映射：code+codeType -> resource（bizDomainId已从resource_entity移除）
-            Map<String, ResourceEntity> resourceLookup = new HashMap<>();
+            // 构建查找映射：code+codeType -> resource（bizDomainId已从resource_entity移除）。
+            // 结构化元组键（T-PERM-096）：code/codeType 为自由文本可含分隔符，拼接串无法区分
+            // ("sys:user","default") 与 ("sys","user:default") 这类碰撞对（DB 完整元组唯一性不拦）
+            Map<ResourceCodeTypeKey, ResourceEntity> resourceLookup = new HashMap<>();
             for (ResourceEntity res : resources) {
                 String codeType = res.getCodeType() != null ? res.getCodeType() : PermConstants.CodeType.DEFAULT;
-                String lookupKey = BusinessKeyUtil.resourceCodeTypeKey(res.getCode(), codeType);
-                resourceLookup.put(lookupKey, res);
+                resourceLookup.put(new ResourceCodeTypeKey(res.getCode(), codeType), res);
             }
 
             // 匹配请求到资源
             for (ResourceResolveRequest req : typeRequests) {
                 String codeType = req.codeType() != null && !req.codeType().isBlank() ? req.codeType() : PermConstants.CodeType.DEFAULT;
-                String lookupKey = BusinessKeyUtil.resourceCodeTypeKey(req.resourceCode(), codeType);
-                ResourceEntity res = resourceLookup.get(lookupKey);
+                ResourceEntity res = resourceLookup.get(new ResourceCodeTypeKey(req.resourceCode(), codeType));
                 if (res != null) {
                     result.put(req.toKey(), res.getId());
                 }
@@ -431,5 +431,14 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
                 AbstractRole::getId,
                 (a, b) -> a
             ));
+    }
+
+    /**
+     * 资源两段内存索引键（T-PERM-096）：code+codeType 的结构化元组。
+     * <p>code/codeType 为自由文本可含分隔符（如 {@code ":"}），拼接串无法区分
+     * {@code ("sys:user","default")} 与 {@code ("sys","user:default")} 这类碰撞对；
+     * 元组相等由 record 逐字段判定，无歧义。构造两侧须先做 null→DEFAULT 归一。</p>
+     */
+    private record ResourceCodeTypeKey(String code, String codeType) {
     }
 }

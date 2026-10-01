@@ -6,6 +6,9 @@ import cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.user.mapper.AbstractUserMapper;
 import cn.ac.fage.accessmesh.access.domain.mapper.BizDomainMapper;
 import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
+import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceResolveKey;
+import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceResolveRequest;
+import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.type.mapper.TypeDefinitionMapper;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
@@ -15,6 +18,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -133,5 +140,68 @@ class TypeResolutionServiceImplTest {
         verify(cacheService).put(tokenCaptor.capture(), eq(1L), eq("user_type:LOCAL_USER"), any());
         assertEquals(cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog.TYPE_VALUE,
             tokenCaptor.getValue().catalog());
+    }
+
+    /**
+     * T-PERM-096 回归锁：分隔符碰撞对各归各。
+     * <p>
+     * ("sys:user","default") 与 ("sys","user:default") 是两个合法并存的资源行（DB 完整元组
+     * 唯一索引按列精确匹配，不拦此形态），旧拼接串键 {@code code + ":" + codeType} 下同键
+     * （"sys:user:default"）——resourceLookup 后写覆盖先写，两请求解析到同一实体、另一实体
+     * 静默丢失。元组键下两个 ResourceResolveKey 各取各的 id（旧实现下本用例必红）。
+     * </p>
+     */
+    @Test
+    @DisplayName("batchResolveResourceIds：code/codeType 分隔符碰撞对各归各（元组键）")
+    void batchResolveResourceIdsShouldDistinguishSeparatorCollisionPairs() {
+        TypeDefinition td = new TypeDefinition();
+        td.setTypeKey("resource_type");
+        td.setTypeCode("MANAGED");
+        td.setTypeValue(9);
+        when(typeDefinitionMapper.selectByTypeKeyAndCodes(1L, "resource_type", Set.of("MANAGED")))
+            .thenReturn(List.of(td));
+
+        ResourceEntity resA = resourceRow(100L, "sys:user", "default");
+        ResourceEntity resB = resourceRow(200L, "sys", "user:default");
+        when(resourceEntityMapper.selectByTypeAndCodes(1L, 9, Set.of("sys:user", "sys")))
+            .thenReturn(List.of(resA, resB));
+
+        Map<ResourceResolveKey, Long> result = service.batchResolveResourceIds(1L, List.of(
+            new ResourceResolveRequest("MANAGED", "sys:user", "default", null),
+            new ResourceResolveRequest("MANAGED", "sys", "user:default", null)));
+
+        assertEquals(100L, result.get(new ResourceResolveKey("MANAGED", "sys:user", "default", null)));
+        assertEquals(200L, result.get(new ResourceResolveKey("MANAGED", "sys", "user:default", null)));
+    }
+
+    /** 碰撞对子项的 null→DEFAULT 归一分支：实体行 codeType 缺省与请求显式 default 是同一元组 */
+    @Test
+    @DisplayName("batchResolveResourceIds：实体 codeType null 与请求显式 default 归一后命中同一元组")
+    void batchResolveResourceIdsShouldNormalizeNullCodeTypeToDefault() {
+        TypeDefinition td = new TypeDefinition();
+        td.setTypeKey("resource_type");
+        td.setTypeCode("MANAGED");
+        td.setTypeValue(9);
+        when(typeDefinitionMapper.selectByTypeKeyAndCodes(1L, "resource_type", Set.of("MANAGED")))
+            .thenReturn(List.of(td));
+
+        ResourceEntity resA = resourceRow(100L, "sys:user", null);
+        when(resourceEntityMapper.selectByTypeAndCodes(1L, 9, Set.of("sys:user")))
+            .thenReturn(List.of(resA));
+
+        Map<ResourceResolveKey, Long> result = service.batchResolveResourceIds(1L, List.of(
+            new ResourceResolveRequest("MANAGED", "sys:user", "default", null)));
+
+        assertEquals(100L, result.get(new ResourceResolveKey("MANAGED", "sys:user", "default", null)));
+    }
+
+    private ResourceEntity resourceRow(Long id, String code, String codeType) {
+        ResourceEntity entity = new ResourceEntity();
+        entity.setId(id);
+        entity.setTenantId(1L);
+        entity.setResourceType(9);
+        entity.setCode(code);
+        entity.setCodeType(codeType);
+        return entity;
     }
 }

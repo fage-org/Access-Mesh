@@ -88,23 +88,12 @@ last_updated: 2026-10-01
 <a id="q-044"></a>
 ## Q-044 资源复合拼接键碰撞
 
-- **状态**：converted
+- **状态**：converted→closed（随任务收敛，条目移文末已收敛索引）
 - **登记**：2026-09-26
 - **来源**：T-PERM-084 同型核对；外部报告 B-9；[核实记录](archive/2026-09-30/logic-review-verification.md)
 - **关联**：[T-PERM-084](archive/2026-10-01/tasks/T-PERM-084.md)；engine/implementation.md 业务键元组边界；P2；转出 [T-PERM-096](tasks/T-PERM-096.md)（后端半边）+ [T-FE-060](tasks/T-FE-060.md)（前端半边）
 
-**现象与证据**：code/codeType 可含分隔符，但内存索引把字段直接拼成字符串；不同元组因此同键，数据库完整元组唯一性不拦此形态。
-
-| 消费面 | 证据与碰撞后果 |
-|---|---|
-| 共享批量解析 | TypeResolutionServiceImpl.batchResolveResourceIds 使用 BusinessKeyUtil.resourceCodeTypeKey；`(sys:user,default)` 与 `(sys,user:default)` 同键，可能错取资源 ID。消费者含授权域/计划、UserMenuQueryAppServiceImpl、ResourceEntitySyncAppServiceImpl、ResourceManageAppServiceImpl 父解析。 |
-| 转授资格 | PermissionGrantDomainServiceImpl 使用 resourceTripleCodeKey 和 grantCheckKey 索引实例、结果，PermissionGrantPlanDomainServiceImpl.verifyDelegation 按串回读；`(TD:alpha,default)` 与 `(TD,alpha:default)` 可串扰资格或被误拒。 |
-| 前端授权决策 | grant-plan.ts 的 groupKeyOf/slotKeyOf/resourceGroupKeyOf 拼 `|`；computePreset 与 GrantDialog.vue 的节点映射拼 `:`。碰撞可错预填、使 uncheckSlot 的 suspended 去重吞撤销，也影响 GrantChildConfigurator 子权限反查。 |
-| 前端展示 | source-chain.ts.instanceRowKey 可混并矩阵来源；subject-tree.ts 的 `role:${externalId ?? id}` 回退键可撞数字 externalId，影响高亮。 |
-
-**影响与边界**：MANAGED 资源可合法建碰撞对；写错目标或转授错判还受请求集合、遍历及权限前提影响，不是每次碰撞都必然越权。单条 resolveResourceId 为精确列查询，新 QueryReadSupport 已用元组；旧 applyDialogResult(s)ToDraft 无生产外部调用，不作为生产丢变更的依据。
-
-**设想方向（未定案）**：共享映射改结构化元组、前端用无歧义值编码；覆盖全部活跃消费者。BusinessKeyUtil 格式 golden 锁继续有效，内部消费者迁移与格式改动分开评估。
+**现象与证据**：code/codeType 可含分隔符，但内存索引把字段直接拼成字符串；不同元组因此同键，数据库完整元组唯一性不拦此形态。证据表与影响边界见[合并前快照](archive/2026-09-30/pending-problems-before-consolidation.md)与 [核实记录](archive/2026-09-30/logic-review-verification.md)；修复终态见已收敛索引 2026-10-01 行。
 
 <a id="q-043"></a>
 ## Q-043 可选字段缺显式清空通道
@@ -376,6 +365,7 @@ last_updated: 2026-10-01
 
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
+| Q-044 | 资源复合拼接键碰撞 | closed（T-PERM-096+T-FE-060 done：后端三内存索引（共享批量解析 resourceLookup、转授 resourceEntityIdByKey/结果映射）改结构化 record 元组，checkCanGrant 结果键=GrantCheckKey 本身；BusinessKeyUtil 四拼接构造器退役（resourceCodeTypeKey/resourceTripleCodeKey/grantCheckKey + 类推清扫零调用死方法 resourceTripleValueKey），golden 锁与对外协议键不动；前端 grant-keys.ts 单源 JSON 元组编码收口授权决策五段键/资源三段/树节点键/矩阵行键/主体树角色键 + 类推 changeGroupKey（inlineName 自由文本）；碰撞对回归锁双端旧实现实证红（后端 expected 100 got 200 与 duplicate element、前端 8 红）；元组边界口径入 engine/implementation §8.4、键约定入 permission-grant.md §2.3；类推核实 roleKey/subjectKey/roleProjectionIndexKey 无碰撞形态（受限段+尾段自由文本），apiRouteResourceKey（path 中段自由文本）理论碰撞面属「内部消费者全量迁移分开评估」范围另行决策） | [T-PERM-096](tasks/T-PERM-096.md)、[T-FE-060](tasks/T-FE-060.md) | 2026-10-01 |
 | <a id="q-055"></a>Q-055 | 签名过滤器顺序注释 | closed（重复登记，按 2026-09-30 本次合并要求归入 Q-015；问题仍 open） | [Q-015](#q-015) | 2026-09-30 |
 | <a id="q-054"></a>Q-054 | 系统配置前端设计陈旧 | closed（文档漂移同族，按 2026-09-30 本次合并要求归入 Q-015；问题仍 open） | [Q-015](#q-015) | 2026-09-30 |
 | <a id="q-053"></a>Q-053 | 自动授权旧 TODO | closed（注释漂移同族，按 2026-09-30 本次合并要求归入 Q-015；问题仍 open） | [Q-015](#q-015) | 2026-09-30 |

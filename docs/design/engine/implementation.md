@@ -1072,7 +1072,7 @@ Map<String, PermissionGrantDomainService.GrantCheckResult> grantResults =
 后端全部业务键的统一构造/解析入口为 `perm-common` 的 `cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtil`（2026-09-07 收敛，格式由 `BusinessKeyUtilParityTest` 以 golden 值锁定——改格式即测试失败，不是运行时静默错配）。
 
 - **为什么收敛**：同一格式的构造与消费曾分散多类（类型解析缓存键由 TypeResolutionServiceImpl 写入、TypeDefinitionAppServiceImpl 失效，靠缓存目录册注释口头约定一致；转授检查五段键在授权域/授权计划域逐字重复实现），任一侧手改格式即静默错配。
-- **范围**：跨类格式契约键（类型解析缓存、操作位/操作编码、资源三段、转授五段、relationKey 解析、typeCode 生成码、对外权限串）+ 单文件内部映射键（主体/角色定位、关系去重、diff 去重、API 路由）——2026-09-07 用户定案 A+B 全收。**补收（2026-09-08，业务键统一定案）**：竖线分隔族入 BusinessKeyUtil——`roleProjectionIndexKey`/`userRoleTripleKey`（投影三元组）/`apiRouteResourceKey`（映射同步活跃键）/`apiMappingPresenceKey`（bootstrap 缺行判定）——`scopeItemKey`（T-PERM-090）与 `permEntrySourceKey`/`inheritedEntryKey`（T-PERM-092）随唯一生产调用方（旧执行体）删除而注销；`sync_metadata.sync_key` 三段归 `SyncKeyCodecUtil.syncKey`（同步通道族），`resource_api_mapping.extra.syncKey` 两段随映射同步停写而注销 `apiMappingSyncKey`（T-ACCESS-058）。
+- **范围**：跨类格式契约键（类型解析缓存、操作位/操作编码、资源三段、转授五段、relationKey 解析、typeCode 生成码、对外权限串）+ 单文件内部映射键（主体/角色定位、关系去重、diff 去重、API 路由）——2026-09-07 用户定案 A+B 全收。**补收（2026-09-08，业务键统一定案）**：竖线分隔族入 BusinessKeyUtil——`roleProjectionIndexKey`/`userRoleTripleKey`（投影三元组）/`apiRouteResourceKey`（映射同步活跃键）/`apiMappingPresenceKey`（bootstrap 缺行判定）——`scopeItemKey`（T-PERM-090）与 `permEntrySourceKey`/`inheritedEntryKey`（T-PERM-092）随唯一生产调用方（旧执行体）删除而注销；`sync_metadata.sync_key` 三段归 `SyncKeyCodecUtil.syncKey`（同步通道族），`resource_api_mapping.extra.syncKey` 两段随映射同步停写而注销 `apiMappingSyncKey`（T-ACCESS-058）。**退役（T-PERM-096，2026-10-01）**：`resourceCodeTypeKey`/`resourceTripleCodeKey`/`grantCheckKey` 三个纯内存索引键构造器删除——键段含自由文本（resourceCode/codeType 可含分隔符），拼接串无法区分碰撞对，消费方改结构化 record 元组（§8.4）。
 - **出界（不经 BusinessKeyUtil）**：sync API 契约键（percent-encoded）归 access-service `SyncKeyCodecUtil`；缓存框架存储信封（common cache）；Gateway 本地快照键；登录计数/任务幂等/树写锁等基础设施键；错误文案与日志 summary 拼接，以及 SignatureVerifier 的基础设施签名载荷。
 - **放置依据**：落 perm-common 而非 access-service 自身 util，依据 §3 单一来源先例（PageResp/ItemsResp 同款）——SDK 侧（starter 测试夹具、未来投影数据）需与 access-service 同格式构造 relationKey 等键；任务卡 acceptance 明写「收敛到 perm-common」。
 - **TYPE_DEFINITION 实例投影（T-PERM-051 已落地 2026-09-07）**：`typeInstanceBusinessKey(typeKey, typeCode)` 复合键是实例投影与门禁的唯一构造入口（`LocalProjectionDomainService.upsertTypeDefinitionResource`/`TypeDefinitionAppServiceImpl` 全部消费方经此构造，不得裸拼）；语义与级联细节见 architecture §12.3。
@@ -1088,3 +1088,15 @@ Map<String, PermissionGrantDomainService.GrantCheckResult> grantResults =
 - 代码门禁调用对 36 组 + bootstrap GrantSpec 33 组逐一比对 DDL 种子：**全部有对应 `operation_permission` 种子行，零缺失**。
 - 原旧册 `OperationCodeConstants.ASSIGN/REVOKE` 曾按本口径删除（死常量：DDL 有 ROLE:ASSIGN/REVOKE 种子、授权矩阵可见可授予，但无任何代码门禁消费——历史用户角色代理门禁遗物），种子保留（数据面不动）。**T-ACCESS-034 口径变更（2026-09-13）**：两册常量类合一为 `OperationCode`（engine.constant 唯一常量源）后改为「统一常量面=注册表镜像」——DDL 种子在册即收录（ASSIGN/REVOKE 恢复常量收录、另补录 API:ACCESS），「常量类只镜像代码引用面」约束随之退役；变更登记见 T-ACCESS-034 任务卡。
 - typeCode 服务端生成码确认为 `<TYPEKEY大写>_<typeValue>`（如 `RESOURCE_TYPE_12`）；原 javadoc `TYPEKEY_<typeValue>` 为占位示意写法，已订正为准确表述。
+
+### 8.4 内存索引元组边界（T-PERM-096，2026-10-01）
+
+**内存索引禁拼接**：凡键段含自由文本（resourceCode/codeType 可含 `:`、`|` 等分隔符）的**纯内存索引**（查找映射、结果映射、去重集合），必须用结构化元组（record）做 Map/Set 键，禁止分隔符拼接串——DB 完整元组唯一性按列精确匹配不拦拼接碰撞形态，`(sys:user,default)` 与 `(sys,user:default)` 这类碰撞对在 MANAGED 资源下合法可建，拼接键下轻则静默覆盖（共享批量解析错取资源 ID），重则转授资格串扰（碰撞键互取对方结果）。已迁移消费面（回归锁=碰撞对各归各，旧拼接语义下实证红）：
+
+| 消费面 | 元组键 | 归属 |
+| --- | --- | --- |
+| `TypeResolutionServiceImpl.batchResolveResourceIds` 的 resourceLookup | `ResourceCodeTypeKey(code, codeType)`（两侧 null→DEFAULT 归一） | 私有 record |
+| `PermissionGrantDomainServiceImpl.checkCanGrant` 结果映射 | `GrantCheckKey`（入参 record 即键） | 接口嵌套 record |
+| `PermissionGrantDomainServiceImpl.checkCanGrant` 实例解析映射 | `ResourceTripleKey(typeCode 大写归一, code, codeType)`（原 `resourceTripleCodeKey` 的 toUpperCase 语义随元组保留） | 私有 record |
+
+**持久化/对外协议键维持 BusinessKeyUtil 单源**：golden 锁继续有效；`checkCanGrant` 拒绝消息（20040）以 `GrantCheckKey` record `toString` 呈现完整键，契约锁定的 `Cannot delegate <key>; reason=<REASON>` 形态不变（`<key>` 编码不属契约锁定面）。

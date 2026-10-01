@@ -37,7 +37,13 @@ import {
   type FocusSlot,
   type SlotDraftState
 } from "./grant-plan";
-import type { AddChange, ChangeSummary, DraftChange } from "./types";
+import type {
+  AddChange,
+  ChangeSummary,
+  DraftChange,
+  RemoveChange
+} from "./types";
+import { resourceNodeKey } from "./grant-keys";
 
 // ========== 测试数据工厂 ==========
 
@@ -122,6 +128,38 @@ describe("groupKeyOf（单记录键模型）", () => {
     expect(groupKeyOf(a)).toContain("VIEW");
     expect(groupKeyOf(b)).toContain("bits:6");
     expect(groupKeyOf(b)).not.toBe(groupKeyOf(c));
+  });
+
+  it("分隔符碰撞对各归各（T-FE-060：resourceCode 含 | 或 : 不与相邻段混并）", () => {
+    // 旧 `|` 拼接：(TD,"a|b","c") 与 (TD,"a","b|c") 同键
+    const collisionA = makeRecord({
+      resourceTypeCode: "TD",
+      resourceCode: "a|b",
+      codeType: "c",
+      operationCode: "VIEW"
+    });
+    const collisionB = makeRecord({
+      resourceTypeCode: "TD",
+      resourceCode: "a",
+      codeType: "b|c",
+      operationCode: "VIEW"
+    });
+    expect(groupKeyOf(collisionA)).not.toBe(groupKeyOf(collisionB));
+
+    // 三段资源键同型（computePreset 弹窗比对的资源聚合维度）
+    expect(
+      resourceGroupKeyOf({
+        resourceTypeCode: "TD",
+        resourceCode: "a:b",
+        codeType: "c"
+      })
+    ).not.toBe(
+      resourceGroupKeyOf({
+        resourceTypeCode: "TD",
+        resourceCode: "a",
+        codeType: "b:c"
+      })
+    );
   });
 });
 
@@ -930,9 +968,43 @@ describe("computePreset（评审问题 1）", () => {
     });
     expect(preset.scopeMode).toBe("INSTANCE");
     expect([...preset.checkedTripleKeys]).toEqual([
-      "DATA:data:r1:default",
-      "DATA:data:r2:default"
+      resourceNodeKey({
+        resourceTypeCode: "DATA",
+        code: "data:r1",
+        codeType: "default"
+      }),
+      resourceNodeKey({
+        resourceTypeCode: "DATA",
+        code: "data:r2",
+        codeType: "default"
+      })
     ]);
+  });
+
+  it("分隔符碰撞对不混并预填（T-FE-060：树勾选键=元组编码）", () => {
+    // 旧 `:` 拼接下 (TD,"a:b","c") 与 (TD,"a","b:c") 同键 → 预填 Set 折叠成一个，
+    // 重新打开弹窗时其中一个资源丢失勾选（错预填）
+    const records = [
+      makeEff({
+        resourceTypeCode: "TD",
+        resourceCode: "a:b",
+        codeType: "c",
+        operationCode: "VIEW",
+        scopeMode: "INSTANCE"
+      }),
+      makeEff({
+        resourceTypeCode: "TD",
+        resourceCode: "a",
+        codeType: "b:c",
+        operationCode: "VIEW",
+        scopeMode: "INSTANCE"
+      })
+    ];
+    const preset = computePreset({
+      op: { code: "VIEW", resourceTypeCode: "TD" },
+      records
+    });
+    expect(preset.checkedTripleKeys.size).toBe(2);
   });
 
   it("ALL 记录存在 -> 默认 ALL（hasAll 优先）", () => {
@@ -975,7 +1047,13 @@ describe("computePreset（评审问题 1）", () => {
       records
     });
     expect(preset.scopeMode).toBe("ALL");
-    expect([...preset.checkedTripleKeys]).toEqual(["DATA:data:r1:default"]);
+    expect([...preset.checkedTripleKeys]).toEqual([
+      resourceNodeKey({
+        resourceTypeCode: "DATA",
+        code: "data:r1",
+        codeType: "default"
+      })
+    ]);
   });
 
   it("AUTO_DEP 记录忽略", () => {
@@ -1038,7 +1116,13 @@ describe("computePreset（评审问题 1）", () => {
       op: { code: "VIEW", resourceTypeCode: "DATA" },
       records
     });
-    expect([...preset.checkedTripleKeys]).toEqual(["DATA:data:r1:default"]);
+    expect([...preset.checkedTripleKeys]).toEqual([
+      resourceNodeKey({
+        resourceTypeCode: "DATA",
+        code: "data:r1",
+        codeType: "default"
+      })
+    ]);
   });
 });
 
@@ -1219,6 +1303,45 @@ describe("uncheckSlot（取消勾选 → suspended 暂存，§6.1）", () => {
       inlineCondition: null,
       canGrant: true
     });
+  });
+
+  it("分隔符碰撞槽位先后取消互不吞撤销（T-FE-060：suspended 键=元组编码）", () => {
+    // 旧 `|` 拼接键下 (TD,"a|b","c",VIEW,INSTANCE) 与 (TD,"a","b|c",VIEW,INSTANCE) 同键：
+    // 第二次 uncheckSlot 命中 has(slotKey) 提前 return——第二个槽位的撤销被吞，
+    // 确认时该记录既不在 suspended 也不产生 remove（静默保留授权）
+    const collisionA = makeRecord({
+      id: 9101,
+      resourceTypeCode: "TD",
+      resourceCode: "a|b",
+      codeType: "c"
+    });
+    const collisionB = makeRecord({
+      id: 9102,
+      resourceTypeCode: "TD",
+      resourceCode: "a",
+      codeType: "b|c"
+    });
+    const state = createSlotDraftState([]);
+    const view = applyDraftToRecords({
+      baseline: [collisionA, collisionB],
+      changes: [],
+      operations: OPS
+    });
+    const afterA = uncheckSlot(state, { slot: slotOf(collisionA), view });
+    const afterB = uncheckSlot(afterA, { slot: slotOf(collisionB), view });
+    expect(afterB.suspended.size).toBe(2);
+    expect(
+      afterB.suspended.get(slotKeyOf(slotOf(collisionA)))?.persistedRecord?.id
+    ).toBe(9101);
+    expect(
+      afterB.suspended.get(slotKeyOf(slotOf(collisionB)))?.persistedRecord?.id
+    ).toBe(9102);
+    // 确认时两条 remove 都要生成（expandSuspended 双路径展开）
+    const finalChanges = expandSuspended(afterB);
+    const removedIds = finalChanges
+      .filter((c): c is RemoveChange => c.kind === "remove")
+      .flatMap(c => c.records.map(r => r.id));
+    expect(removedIds).toEqual([9101, 9102]);
   });
 
   it("add 路径：add 草稿及其虚拟挂载子权限移出（确认时取消整个变更组）", () => {

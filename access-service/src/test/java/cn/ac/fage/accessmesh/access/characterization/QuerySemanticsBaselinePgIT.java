@@ -395,7 +395,7 @@ class QuerySemanticsBaselinePgIT {
         // 直接软删（不经写入口=@PermissionChange 不触发失效，模拟 TTL 陈旧窗口）
         jdbc.update("UPDATE role_resource_permission SET delete_flag = id, deleted_at = now() WHERE id = ?", perm);
 
-        Map<String, PermissionGrantDomainService.GrantCheckResult> results = grantDomainService.checkCanGrant(
+        Map<PermissionGrantDomainService.GrantCheckKey, PermissionGrantDomainService.GrantCheckResult> results = grantDomainService.checkCanGrant(
             TENANT, user, Set.of(new PermissionGrantDomainService.GrantCheckKey(
                 typeCode, "dlg1-r", null, "VIEW", false)), null);
 
@@ -426,7 +426,7 @@ class QuerySemanticsBaselinePgIT {
             TENANT, role, resource, 4L, 952);
         fixture.insertGrantablePermRow(role, 952, resource, 1L, false);
 
-        Map<String, PermissionGrantDomainService.GrantCheckResult> results = grantDomainService.checkCanGrant(
+        Map<PermissionGrantDomainService.GrantCheckKey, PermissionGrantDomainService.GrantCheckResult> results = grantDomainService.checkCanGrant(
             TENANT, user, Set.of(new PermissionGrantDomainService.GrantCheckKey(
                 typeCode, "dlg2-r", null, "VIEW", false)), null);
 
@@ -457,7 +457,7 @@ class QuerySemanticsBaselinePgIT {
             "VIEW", null, null, "PARENT", null, null, null, null, Map.of())).allowed())
             .as("前置事实核：判定面继承（PARENT）下父授权覆盖子目标——运行时祖先可用成立").isTrue();
 
-        Map<String, PermissionGrantDomainService.GrantCheckResult> results = grantDomainService.checkCanGrant(
+        Map<PermissionGrantDomainService.GrantCheckKey, PermissionGrantDomainService.GrantCheckResult> results = grantDomainService.checkCanGrant(
             TENANT, user, Set.of(new PermissionGrantDomainService.GrantCheckKey(
                 typeCode, "dlg3-child", null, "VIEW", false)), null);
 
@@ -469,7 +469,7 @@ class QuerySemanticsBaselinePgIT {
     @DisplayName("转授：互斥双删主体整批 NO_ROLE（无有效角色不产生转授资格）")
     void canGrantShouldReturnNoRoleWhenAllRolesMutexDropped() {
         seedBaseline();
-        Map<String, PermissionGrantDomainService.GrantCheckResult> results = grantDomainService.checkCanGrant(
+        Map<PermissionGrantDomainService.GrantCheckKey, PermissionGrantDomainService.GrantCheckResult> results = grantDomainService.checkCanGrant(
             TENANT, R2BaselineFixture.USER_MUTEX, Set.of(new PermissionGrantDomainService.GrantCheckKey(
                 R2BaselineFixture.TYPE_T1_CODE, R2BaselineFixture.CODE_R2, null, "VIEW", false)), null);
 

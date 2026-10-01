@@ -7,6 +7,7 @@ import type {
   GrantScopeMode,
   RolePermissionItem
 } from "@/api/permission-grant";
+import { encodeKeyTuple } from "./grant-keys";
 
 // ========== 主体上下文（设计 §2.1） ==========
 
@@ -33,7 +34,7 @@ export type GrantContext = {
  * 子节点机制已随 2026-09-14 轻量清扫批次删除。组织入口 T-FE-037：ORG/POSITION）
  */
 export type SubjectTreeNode = {
-  /** el-tree node-key（角色 `role:{externalId}`；组织入口 `org:{id}`） */
+  /** el-tree node-key（角色经 grant-keys roleSubjectKey：externalId/id 分命名空间；组织入口 `org:{id}`） */
   key: string;
   /**
    * 节点种类（不依赖 roleTypeCode 猜测，评审问题 5）：
@@ -170,15 +171,16 @@ export type ReadonlyReason = "AUTO_DEP" | null;
 
 // ========== 变更清单分组（§6.3 + §4 多选聚合） ==========
 
-/** 清单分组键（操作+条件+canGrant+scopeMode 聚合多选新增，避免 N 行刷屏） */
+/** 清单分组键（操作+条件+内联名+canGrant+scopeMode 聚合多选新增，避免 N 行刷屏；
+ *  grant-keys 元组编码——inlineName 为用户自由文本可含 `|`，旧拼接可致两变更误并一组，T-FE-060 类推） */
 export function changeGroupKey(summary: ChangeSummary): string {
-  return [
-    summary.operationCode ?? "-",
-    summary.conditionCode ?? "-",
-    summary.inlineName ?? "-",
-    summary.canGrant ? "1" : "0",
+  return encodeKeyTuple(
+    summary.operationCode,
+    summary.conditionCode,
+    summary.inlineName,
+    summary.canGrant,
     summary.scopeMode
-  ].join("|");
+  );
 }
 
 /** 生成变更 id（草稿内唯一，无需持久化语义） */

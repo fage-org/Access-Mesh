@@ -49,6 +49,7 @@ import {
   type SlotDraftState,
   type SuspendedSlot
 } from "../utils/grant-plan";
+import { resourceNodeKey } from "../utils/grant-keys";
 import type { DraftChange } from "../utils/types";
 import ConditionPicker from "./ConditionPicker.vue";
 import GrantChildConfigurator from "./GrantChildConfigurator.vue";
@@ -157,9 +158,13 @@ const selectedOp = computed<OpOption | null>(() => {
 const scopeMode = ref<"INSTANCE" | "ALL">("INSTANCE");
 const treeRef = ref();
 
-/** 资源树节点 key（类型:编码:编码类型） */
+/** 资源树节点 key（grant-keys 元组编码，与 computePreset.checkedTripleKeys 同构；T-FE-060） */
 function nodeKeyOf(node: ResourceTreeNode): string {
-  return `${node.resourceTypeCode}:${node.code}:${node.codeType}`;
+  return resourceNodeKey({
+    resourceTypeCode: node.resourceTypeCode,
+    code: node.code,
+    codeType: node.codeType
+  });
 }
 
 function nodeResourceKeyOf(node: ResourceTreeNode): string {

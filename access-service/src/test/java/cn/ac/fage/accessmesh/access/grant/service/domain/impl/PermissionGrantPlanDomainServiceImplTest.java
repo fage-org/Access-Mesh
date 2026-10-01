@@ -185,18 +185,9 @@ class PermissionGrantPlanDomainServiceImplTest {
             .thenAnswer(invocation -> {
                 java.util.Set<PermissionGrantDomainService.GrantCheckKey> keys = invocation.getArgument(2);
                 return keys.stream().collect(java.util.stream.Collectors.toMap(
-                    this::grantKey,
+                    java.util.function.Function.identity(),
                     k -> new PermissionGrantDomainService.GrantCheckResult(true, null)));
             });
-    }
-
-    private String grantKey(PermissionGrantDomainService.GrantCheckKey key) {
-        return String.format("%s:%s:%s:%s:%s",
-            key.resourceTypeCode(),
-            key.resourceCode() == null ? "*" : key.resourceCode(),
-            key.codeType() == null ? "*" : key.codeType(),
-            key.operationCode(),
-            key.scopeAll() ? "ALL" : "SPECIFIC");
     }
 
     private void stubUpdateRemoveBase(RoleResourcePermission... existingRows) {
@@ -1064,9 +1055,7 @@ class PermissionGrantPlanDomainServiceImplTest {
                 .thenAnswer(invocation -> {
                     java.util.Set<PermissionGrantDomainService.GrantCheckKey> keys = invocation.getArgument(2);
                     return keys.stream().collect(java.util.stream.Collectors.toMap(
-                        key -> String.format("%s:%s:%s:%s:%s",
-                            key.resourceTypeCode(), key.resourceCode(), key.codeType(),
-                            key.operationCode(), key.scopeAll() ? "ALL" : "SPECIFIC"),
+                        java.util.function.Function.identity(),
                         key -> new PermissionGrantDomainService.GrantCheckResult(false, "NO_DELEGABLE_PERMISSION")));
                 });
 

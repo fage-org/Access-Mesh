@@ -115,6 +115,24 @@ function normalize(result: ReturnType<typeof computeSourceChain>): {
 }
 
 describe("source-chain Golden Fixtures（6 用例精简，DoD-2）", () => {
+  /**
+   * fixture 行键（历史 `RES:` / `ALL:` 字面值）→ grant-keys 编码（T-FE-060）。
+   * RES 行按 case 的 resources 无歧义重建（构造方向无歧义——code 可含冒号但比对的是
+   * 完整构造串）；ALL 行 typeCode 受 DTO 格式约束，前缀直拆。
+   */
+  const rekeyRow = (
+    row: string,
+    resources: FixtureCase["resources"]
+  ): string => {
+    if (row.startsWith("ALL:")) return allRowKey(row.slice(4));
+    for (const r of resources) {
+      if (row === `RES:${r.resourceTypeCode}:${r.code}:${r.codeType}`) {
+        return instanceRowKey(r.resourceTypeCode, r.code, r.codeType);
+      }
+    }
+    throw new Error(`golden fixture row 未匹配资源: ${row}`);
+  };
+
   for (const fixtureCase of (fixtures as { cases: FixtureCase[] }).cases) {
     it(`${fixtureCase.name}：${fixtureCase.title}`, () => {
       const result = computeSourceChain({
@@ -126,6 +144,7 @@ describe("source-chain Golden Fixtures（6 用例精简，DoD-2）", () => {
       const expectedCells = [...fixtureCase.expected.cells]
         .map(c => ({
           ...c,
+          row: rekeyRow(c.row, fixtureCase.resources),
           sources: [...c.sources].sort((a, b) => a.recordId - b.recordId)
         }))
         .sort(
@@ -467,6 +486,17 @@ describe("source-chain 前端补充覆盖（非 golden 集）", () => {
   it("ALL 虚拟行键与实例行键互斥", () => {
     expect(allRowKey("REPORT")).not.toBe(
       instanceRowKey("REPORT", "rpt:p", "default")
+    );
+  });
+
+  it("分隔符碰撞对行键互异（T-FE-060：矩阵来源行不混并）", () => {
+    // 旧 `:` 拼接下 ("TD","a:b","c") 与 ("TD","a","b:c") 同行键 →
+    // 矩阵来源链 Map 折叠，两资源的授权记录混入同一单元格
+    expect(instanceRowKey("TD", "a:b", "c")).not.toBe(
+      instanceRowKey("TD", "a", "b:c")
+    );
+    expect(instanceRowKey("TD", "a|b", "c")).not.toBe(
+      instanceRowKey("TD", "a", "b|c")
     );
   });
 

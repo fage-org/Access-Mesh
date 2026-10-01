@@ -17,10 +17,12 @@ package cn.ac.fage.accessmesh.perm.common.util;
  *   <li>大小写口径（2026-09-07 定案：保持各点现状语义，后续另行统一；【已统一：2026-09-14
  *       T-PERM-066 定案 raw 严格化】）：本类不做大小写归一，原样拼接；授权域调用点历史上先
  *       {@code toUpperCase()} 再拼键的归一已随 T-PERM-066 退役——入参经 DTO @Pattern 锁大写，
- *       全部调用点 raw 直拼；唯一例外 {@link #resourceTripleCodeKey} 的大写归一是原实现
- *       自带语义，随方法整体迁入。</li>
+ *       全部调用点 raw 直拼。</li>
  *   <li>方法一律用字符串拼接表达 null（null 引用拼出 {@code "null"}、显式分支拼出 {@code ""}），
  *       与被收敛的原始实现逐字节一致。</li>
+ *   <li>边界（T-PERM-096）：本类只构造「格式有跨类契约或持久化/对外协议意义」的键；纯内存
+ *       索引若键段含自由文本（resourceCode/codeType 可含分隔符）必须用结构化元组（record），
+ *       禁止拼接串区分复合键。</li>
  * </ul>
  */
 public final class BusinessKeyUtil {
@@ -117,48 +119,13 @@ public final class BusinessKeyUtil {
     // 资源族
     // ---------------------------------------------------------------------
 
-    /**
-     * 资源两段查找键：{@code resourceCode:codeType}。
-     * <p>TypeResolutionServiceImpl 批量解析 resource_entity 时的 code+codeType 查找映射。</p>
-     */
-    public static String resourceCodeTypeKey(String resourceCode, String codeType) {
-        return resourceCode + ":" + codeType;
-    }
-
-    /**
-     * 资源三段键（值域首段）：{@code resourceTypeValue:resourceCode:codeType}。
-     * <p>资源管理批量入口的请求/存量行去重映射。</p>
-     */
-    public static String resourceTripleValueKey(Integer resourceTypeValue, String resourceCode, String codeType) {
-        return resourceTypeValue + ":" + resourceCode + ":" + codeType;
-    }
-
-    /**
-     * 资源三段键（码域首段，保留原实现大写归一）：{@code <resourceTypeCode大写>:resourceCode:codeType}，
-     * 三段 null 一律拼空串。
-     * <p>授权域 checkCanGrant 的资源匹配键（原 PermissionGrantDomainServiceImpl#buildResourceKey 整体迁入，
-     * toUpperCase 是原方法自带语义，非新增归一）。</p>
-     */
-    public static String resourceTripleCodeKey(String resourceTypeCode, String resourceCode, String codeType) {
-        return (resourceTypeCode == null ? "" : resourceTypeCode.toUpperCase())
-            + ":" + (resourceCode == null ? "" : resourceCode)
-            + ":" + (codeType == null ? "" : codeType);
-    }
-
-    /**
-     * 转授检查五段键：{@code resourceTypeCode:resourceCode|*:codeType|*:operationCode:ALL|SPECIFIC}。
-     * <p>resourceCode/codeType 为 null 时拼 {@code "*"}。PermissionGrantDomainServiceImpl（构造结果映射）
-     * 与 PermissionGrantPlanDomainServiceImpl（查表）两处共享同一 Map，格式漂移即静默
-     * GRANT_CANNOT_DELEGATE——原实现两处逐字重复，收敛后唯一。</p>
-     */
-    public static String grantCheckKey(String resourceTypeCode, String resourceCode, String codeType,
-                                       String operationCode, boolean scopeAll) {
-        return resourceTypeCode
-            + ":" + (resourceCode == null ? "*" : resourceCode)
-            + ":" + (codeType == null ? "*" : codeType)
-            + ":" + operationCode
-            + ":" + (scopeAll ? "ALL" : "SPECIFIC");
-    }
+    // 注：resourceCodeTypeKey / resourceTripleCodeKey / grantCheckKey 三个内存索引键构造器
+    // 已随 T-PERM-096 元组化退役——resourceCode/codeType 为自由文本可含分隔符，拼接串无法
+    // 区分 ("sys:user","default") 与 ("sys","user:default") 这类碰撞对；消费方（共享批量解析
+    // resourceLookup、转授 resourceEntityIdByKey/results 映射）已改结构化 record 键。
+    // resourceTripleValueKey 同批退役（类推清扫）：其唯一消费方 ResourceManageAppServiceImpl
+    // 已先期改用 TripleKey 私有 record（claude 外评 P3-1），方法零生产调用。
+    // 对外协议与持久化键格式不受影响（golden 锁维持）。
 
     // ---------------------------------------------------------------------
     // 关系族（relationKey：契约格式 TYPE:externalId，见 api-contract 总册 §19.7）

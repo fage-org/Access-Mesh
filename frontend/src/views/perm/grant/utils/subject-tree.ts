@@ -8,6 +8,7 @@
 import type { RoleTreeNode } from "@/api/role-manage";
 import type { OrgTreeNode } from "@/api/user-manage";
 import type { SubjectTreeNode } from "./types";
+import { roleSubjectKey } from "./grant-keys";
 
 /**
  * 角色树过滤：T-PERM-043 后仅保留 BASIC_ROLE（GROUP_ROLE 写入口已删除，主体树不展示，
@@ -28,7 +29,9 @@ export function filterVisibleTree(nodes: RoleTreeNode[]): SubjectTreeNode[] {
       continue;
     }
     result.push({
-      key: `role:${node.externalId ?? node.id}`,
+      // T-FE-060：externalId（可手填业务键，可为数字串）与数据库 id 分命名空间——
+      // 旧 `role:${externalId ?? id}` 下 externalId="5" 与 id=5 同键，el-tree 高亮错乱
+      key: roleSubjectKey(node.externalId, node.id),
       kind: "ROLE",
       roleTypeCode: node.roleTypeCode,
       externalId: node.externalId,

@@ -55,6 +55,10 @@ public interface PermissionGrantDomainService {
      * 主体必须是权限域投影主体（{@code abstract_user.id}），禁止直接传 admin 域
      * （T-ORG-001 统一后操作者 ID 即主体 ID，无转换层）。
      * </p>
+     * <p>
+     * 结果键=入参 {@link GrantCheckKey} 本身（T-PERM-096：结构化元组，无拼接碰撞——
+     * resourceCode/codeType 为自由文本可含分隔符，旧五段拼接串无法区分碰撞对）。
+     * </p>
      *
      * @param tenantId    租户ID
      * @param subjectId   权限域投影主体ID（abstract_user.id）
@@ -62,8 +66,8 @@ public interface PermissionGrantDomainService {
      * @param domainCode  业务域编码，可选
      * @return 权限键到检查结果的映射
      */
-    Map<String, GrantCheckResult> checkCanGrant(Long tenantId, Long subjectId,
-                                                 Set<GrantCheckKey> permissions, String domainCode);
+    Map<GrantCheckKey, GrantCheckResult> checkCanGrant(Long tenantId, Long subjectId,
+                                                        Set<GrantCheckKey> permissions, String domainCode);
 
     /**
      * 校验 MANUAL 直接授权的单记录不变量。

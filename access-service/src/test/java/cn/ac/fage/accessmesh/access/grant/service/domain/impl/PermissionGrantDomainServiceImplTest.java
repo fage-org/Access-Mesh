@@ -185,7 +185,7 @@ class PermissionGrantDomainServiceImplTest {
     void shouldReturnInvalidResultInsteadOfThrowingForMissingOperationCode() {
         GrantCheckKey invalid = new GrantCheckKey("MENU", "sys:user", "default", null, false);
 
-        Map<String, PermissionGrantDomainService.GrantCheckResult> results =
+        Map<PermissionGrantDomainService.GrantCheckKey, PermissionGrantDomainService.GrantCheckResult> results =
             service.checkCanGrant(1L, 10L, Set.of(invalid), null);
 
         assertEquals("INVALID_PERMISSION_KEY", results.values().iterator().next().reason());
@@ -250,7 +250,7 @@ class PermissionGrantDomainServiceImplTest {
         when(operationPermissionMapper.selectByTenantAndResourceTypes(1L, Set.of(1)))
             .thenReturn(List.of(viewOp, manageOp, syncOp));
 
-        Map<String, PermissionGrantDomainService.GrantCheckResult> results = service.checkCanGrant(
+        Map<PermissionGrantDomainService.GrantCheckKey, PermissionGrantDomainService.GrantCheckResult> results = service.checkCanGrant(
             1L, 10L, Set.of(new GrantCheckKey("MENU", "sys:user", PermConstants.CodeType.DEFAULT, "VIEW", false)), null);
 
         assertEquals("NO_GRANT_RIGHT", results.values().iterator().next().reason());
@@ -277,7 +277,7 @@ class PermissionGrantDomainServiceImplTest {
         when(operationPermissionMapper.selectByTenantAndResourceTypes(1L, Set.of(5)))
             .thenReturn(List.of(otherView));
 
-        Map<String, PermissionGrantDomainService.GrantCheckResult> results = service.checkCanGrant(
+        Map<PermissionGrantDomainService.GrantCheckKey, PermissionGrantDomainService.GrantCheckResult> results = service.checkCanGrant(
             1L, 10L, Set.of(new GrantCheckKey("MENU", "sys:user", PermConstants.CodeType.DEFAULT, "VIEW", false)), null);
 
         assertEquals("NO_PERMISSION", results.values().iterator().next().reason());
@@ -304,10 +304,57 @@ class PermissionGrantDomainServiceImplTest {
         when(operationPermissionMapper.selectByTenantAndResourceTypes(1L, Set.of(1)))
             .thenReturn(List.of(viewOp, manageOp));
 
-        Map<String, PermissionGrantDomainService.GrantCheckResult> results = service.checkCanGrant(
+        Map<PermissionGrantDomainService.GrantCheckKey, PermissionGrantDomainService.GrantCheckResult> results = service.checkCanGrant(
             1L, 10L, Set.of(new GrantCheckKey("MENU", "child", PermConstants.CodeType.DEFAULT, "VIEW", false)), null);
 
         assertEquals("NO_PERMISSION", results.values().iterator().next().reason());
+    }
+
+    /**
+     * T-PERM-096 回归锁：转授检查结果映射的键=GrantCheckKey 元组，分隔符碰撞对各归各。
+     * <p>
+     * ("MENU","a:b","c") 与 ("MENU","a","b:c") 是两个不同的转授目标（DB 完整元组唯一索引
+     * 允许两资源行并存），旧五段拼接串键 {@code type:code:codeType:op:scope} 下同串
+     * （"MENU:a:b:c:VIEW:SPECIFIC"）——后评估覆盖先评估，两个键拿到同一结果（可放行错键或
+     * 误拒合法键）。元组键下：实体 100 的键可转授、实体 200 的键 NO_PERMISSION，互不串扰
+     * （旧实现下本用例必红——两 get 同值不可能同时满足两个断言）。
+     * </p>
+     */
+    @Test
+    void t05CheckCanGrantShouldDistinguishSeparatorCollisionPairs() {
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("MENU")))
+            .thenReturn(Map.of("MENU", 1));
+        OperationPermission viewOp = operation(101L, 1, "VIEW", 1L, 0L);
+        when(operationPermissionMapper.selectByTenantResourceTypesAndOpCodes(1L, Set.of(1), Set.of("VIEW")))
+            .thenReturn(List.of(viewOp));
+        // 碰撞对各自解析到不同实体：("a:b","c")→100、("a","b:c")→200
+        when(typeResolutionService.batchResolveResourceIds(any(), any()))
+            .thenReturn(Map.of(
+                new ResourceResolveKey("MENU", "a:b", "c", null), 100L,
+                new ResourceResolveKey("MENU", "a", "b:c", null), 200L));
+        // 操作者仅持实体 100 的可转授 VIEW 行
+        GrantFact grantedEntry = fact(500L, 20L, 1, 100L, 1L, false, true, null, false, null, "MANUAL");
+        when(queryEngine.execute(any(QueryRequest.class))).thenReturn(grantResult(grantedEntry));
+        when(operationPermissionMapper.selectByTenantAndResourceTypes(1L, Set.of(1)))
+            .thenReturn(List.of(viewOp));
+        // refine 分支：MENU 为内置类型，不参与 TYPE_GRANT_ORIGIN_MISSING 细分（候选行零查询）
+        cn.ac.fage.accessmesh.access.type.entity.TypeDefinition builtinMenu = customTypeRow(1);
+        builtinMenu.setIsSystem(true);
+        when(typeDefinitionMapper.selectValidByTenant(1L)).thenReturn(List.of(builtinMenu));
+
+        Map<PermissionGrantDomainService.GrantCheckKey, PermissionGrantDomainService.GrantCheckResult> results =
+            service.checkCanGrant(1L, 10L, Set.of(
+                new GrantCheckKey("MENU", "a:b", "c", "VIEW", false),
+                new GrantCheckKey("MENU", "a", "b:c", "VIEW", false)), null);
+
+        PermissionGrantDomainService.GrantCheckResult collisionA =
+            results.get(new GrantCheckKey("MENU", "a:b", "c", "VIEW", false));
+        PermissionGrantDomainService.GrantCheckResult collisionB =
+            results.get(new GrantCheckKey("MENU", "a", "b:c", "VIEW", false));
+        assertTrue(collisionA != null && collisionA.canGrant(),
+            "实体 100 的键应可转授（不被碰撞键串扰）");
+        assertTrue(collisionB != null && !collisionB.canGrant(), "实体 200 的键应被拒");
+        assertEquals("NO_PERMISSION", collisionB.reason());
     }
 
     // ========== T-PERM-062：20040 reason 细分（TYPE_GRANT_ORIGIN_MISSING，仅自定义类型） ==========
@@ -333,7 +380,7 @@ class PermissionGrantDomainServiceImplTest {
         when(operationPermissionMapper.selectByTenantAndResourceTypes(1L, Set.of(12)))
             .thenReturn(List.of(orderView));
 
-        Map<String, PermissionGrantDomainService.GrantCheckResult> results = service.checkCanGrant(
+        Map<PermissionGrantDomainService.GrantCheckKey, PermissionGrantDomainService.GrantCheckResult> results = service.checkCanGrant(
             1L, 10L, Set.of(new GrantCheckKey("ORDER", null, null, "VIEW", true)), null);
 
         assertEquals("TYPE_GRANT_ORIGIN_MISSING",
@@ -363,7 +410,7 @@ class PermissionGrantDomainServiceImplTest {
         when(operationPermissionMapper.selectByTenantAndResourceTypes(1L, Set.of(12)))
             .thenReturn(List.of(orderView));
 
-        Map<String, PermissionGrantDomainService.GrantCheckResult> results = service.checkCanGrant(
+        Map<PermissionGrantDomainService.GrantCheckKey, PermissionGrantDomainService.GrantCheckResult> results = service.checkCanGrant(
             1L, 10L, Set.of(new GrantCheckKey("ORDER", null, null, "VIEW", true)), null);
 
         assertEquals("NO_PERMISSION", results.values().iterator().next().reason());
@@ -387,7 +434,7 @@ class PermissionGrantDomainServiceImplTest {
         builtin.setIsSystem(true);
         when(typeDefinitionMapper.selectValidByTenant(1L)).thenReturn(List.of(builtin));
 
-        Map<String, PermissionGrantDomainService.GrantCheckResult> results = service.checkCanGrant(
+        Map<PermissionGrantDomainService.GrantCheckKey, PermissionGrantDomainService.GrantCheckResult> results = service.checkCanGrant(
             1L, 10L, Set.of(new GrantCheckKey("SERVICE", null, null, "VIEW", true)), null);
 
         assertEquals("NO_PERMISSION", results.values().iterator().next().reason());

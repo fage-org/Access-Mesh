@@ -124,6 +124,20 @@ interface MatrixContext {
 
 > **实现注记（T-FE-038，2026-08-07）**：类型候选 = `type-definition/list` 筛选 `type_key=resource_type`，按 `sortOrder` 排序，loadDeps 一次性加载；「已有权限类型」标记 = 主体切换时额外一次全量主权限查询（`role-resource-permission/list` 不带 `resourceTypeCode` + `includeChildren=false`，契约 §6.4 缺省=不过滤），仅用于下拉标记/排序，不进 baseline；上次选择持久化键 = `perm-grant:last-type:{subjectType}`（与隐藏列键同源命名）；无主体时下拉禁用；候选为空时选中主体仅提交 GrantContext（矩阵区空态），候选就绪后由 loadDeps 兜底补加载矩阵；切换类型期间（含未保存确认前）弹窗为模态不可达、详情层抽屉自动关闭（旧类型记录已失效）。
 
+### 2.3 键约定（T-FE-060，2026-10-01）
+
+授权决策与展示键统一由 `utils/grant-keys.ts` 单源构造（JSON 数组元组编码——各段经 JSON 转义，`resourceCode`/`codeType` 可含 `:`、`|` 等分隔符也不可能与相邻段混并；`undefined/null` 段统一编码为 `null`），**禁止在消费方各自拼串**。历史上 `|` 五段（groupKeyOf 族）与 `:` 三段（computePreset/节点映射/行键）两种拼法并存，碰撞对（(TD,"a|b","c") 与 (TD,"a","b|c")）可错预填树勾选、使 uncheckSlot 的 suspended 去重吞撤销、混并矩阵来源行——后端半边（共享解析/转授索引元组化）见 engine/implementation §8.4。
+
+| 键 | 构造器 | 消费面 |
+| --- | --- | --- |
+| 授权直接键（五段，operationKey=`operationCode ?? "bits:"+grantedBits`） | `grantTupleKey`（`groupKeyOf`/`slotKeyOf` 委托） | 草稿槽位 suspended/focus、GrantChildConfigurator 子权限反查（`manualChildrenByKey`） |
+| 资源三段（弹窗全量比对按资源聚合） | `resourceTupleKey`（`resourceGroupKeyOf` 委托） | `applyDialogResultToDraft` 的 byResource/selectedKeys/untouchedResourceKeys |
+| 资源树节点键（三段） | `resourceNodeKey` | `computePreset.checkedTripleKeys` ↔ `GrantDialog.nodeKeyOf`/`idByTripleKey`（两侧必须同构） |
+| 矩阵行键 | `encodeKeyTuple("ALL"/"RES", …)`（`allRowKey`/`instanceRowKey`） | 矩阵来源链 `cells` Map、GrantMatrixPanel 行 key |
+| 主体树角色键 | `roleSubjectKey`（`role:ext:{externalId}` / `role:id:{id}` 分命名空间） | 主体树 el-tree node-key——externalId 是可手填业务键（可为数字串），与数据库 id 混并将致高亮/选中错乱 |
+
+边界：键仅存在于内存 Map/Set 与 el-tree node-key，**不进请求载荷**（后端 DTO 字段不变）；后端协议键（如 relationKey、sync 键）不受本约定影响。
+
 ## 3. 查看模式（矩阵）
 
 ### 3.1 行：资源树形行

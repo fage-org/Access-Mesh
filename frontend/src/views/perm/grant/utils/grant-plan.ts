@@ -26,6 +26,7 @@ import type {
 } from "./types";
 import { nextChangeId } from "./types";
 import { mergeOperationsForType, type OperationDefInput } from "./source-chain";
+import { grantTupleKey, resourceNodeKey, resourceTupleKey } from "./grant-keys";
 import { toBigIntBits } from "./bits";
 
 // ========== 单记录键模型 ==========
@@ -39,25 +40,28 @@ type KeyLike = {
   grantedBits?: string;
 };
 
-/** 直接授权键（operationKey = operationCode ?? "bits:"+grantedBits，P1-4） */
+/**
+ * 直接授权键（operationKey = operationCode ?? "bits:"+grantedBits，P1-4）。
+ * 编码=grant-keys 单源 JSON 元组（T-FE-060）：resourceCode/codeType 可含分隔符，
+ * 旧 `|` 拼接无法区分 (TD,"a|b","c") 与 (TD,"a","b|c") 碰撞对。
+ */
 export function groupKeyOf(k: KeyLike): string {
-  const operationKey = k.operationCode ?? `bits:${k.grantedBits ?? ""}`;
-  return [
-    k.resourceTypeCode,
-    k.resourceCode ?? "",
-    k.codeType ?? "",
-    operationKey,
-    k.scopeMode
-  ].join("|");
+  return grantTupleKey({
+    resourceTypeCode: k.resourceTypeCode,
+    resourceCode: k.resourceCode,
+    codeType: k.codeType,
+    operationKey: k.operationCode ?? `bits:${k.grantedBits ?? ""}`,
+    scopeMode: k.scopeMode
+  });
 }
 
-/** 资源维度分组键（弹窗全量比对按资源聚合：resourceTypeCode + resourceCode + codeType） */
+/** 资源维度分组键（弹窗全量比对按资源聚合：resourceTypeCode + resourceCode + codeType；T-FE-060 元组编码） */
 export function resourceGroupKeyOf(k: {
   resourceTypeCode: string;
   resourceCode: string | null;
   codeType: string | null;
 }): string {
-  return [k.resourceTypeCode, k.resourceCode ?? "", k.codeType ?? ""].join("|");
+  return resourceTupleKey(k);
 }
 
 /**
@@ -835,7 +839,9 @@ export function cellDraftMark(input: {
  * 授权弹窗预填计算（评审问题 1：选操作后按现有授权预填勾选 + 默认范围）。
  * 纯函数，便于单测；执行侧（setCheckedKeys）在 GrantDialog.applyPresetForCurrentScope。
  *
- * - INSTANCE 记录 -> checkedTripleKeys（树勾选）
+ * - INSTANCE 记录 -> checkedTripleKeys（树勾选；键=grant-keys resourceNodeKey，
+ *   与 GrantDialog.nodeKeyOf 同构——旧 `:` 拼接下 (TD,"a:b","c") 与 (TD,"a","b:c")
+ *   碰撞可错预填，T-FE-060）
  * - ALL 记录存在 -> 默认 scopeMode=ALL（hasAll 优先）
  * - AUTO_DEP / draftMark=remove 忽略
  * - 操作限本类型（全局操作概念已退役，操作定义按类型隔离）
@@ -859,7 +865,11 @@ export function computePreset(args: {
       hasAll = true;
     } else if (record.scopeMode === "INSTANCE" && record.resourceCode) {
       checkedTripleKeys.add(
-        `${record.resourceTypeCode}:${record.resourceCode}:${record.codeType}`
+        resourceNodeKey({
+          resourceTypeCode: record.resourceTypeCode,
+          code: record.resourceCode,
+          codeType: record.codeType
+        })
       );
     }
   }

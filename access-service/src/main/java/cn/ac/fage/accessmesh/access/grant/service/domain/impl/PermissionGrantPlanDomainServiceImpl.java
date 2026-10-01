@@ -957,22 +957,18 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
         if (keys.isEmpty()) {
             return;
         }
-        Map<String, PermissionGrantDomainService.GrantCheckResult> results =
+        // 结果键=GrantCheckKey 元组本身（T-PERM-096：旧五段拼接串有碰撞对无法区分）；
+        // 拒绝 message 中以 record toString 呈现完整键（契约锁 "Cannot delegate <key>; reason=" 形态）
+        Map<PermissionGrantDomainService.GrantCheckKey, PermissionGrantDomainService.GrantCheckResult> results =
             permissionGrantDomainService.checkCanGrant(tenantId, subjectId, keys, domainCode);
         for (PermissionGrantDomainService.GrantCheckKey key : keys) {
-            PermissionGrantDomainService.GrantCheckResult result = results.get(grantCheckKey(key));
+            PermissionGrantDomainService.GrantCheckResult result = results.get(key);
             if (result == null || !result.canGrant()) {
                 throw biz(AccessErrorCode.GRANT_CANNOT_DELEGATE,
-                    "Cannot delegate " + grantCheckKey(key)
+                    "Cannot delegate " + key
                         + "; reason=" + (result == null ? "UNKNOWN" : result.reason()));
             }
         }
-    }
-
-    /** K8 转授检查五段键（经 BusinessKeyUtil 构造，与 PermissionGrantDomainServiceImpl 共享同一格式锁）。 */
-    private String grantCheckKey(PermissionGrantDomainService.GrantCheckKey key) {
-        return BusinessKeyUtil.grantCheckKey(key.resourceTypeCode(), key.resourceCode(),
-            key.codeType(), key.operationCode(), key.scopeAll());
     }
 
     private boolean isScopeAll(ApplyGrantPlanReq.GrantRecordKey key) {

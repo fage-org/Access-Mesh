@@ -56,28 +56,10 @@ class BusinessKeyUtilParityTest {
         assertThat(BusinessKeyUtil.grantEntryKey(6, "VIEW", 1001L)).isEqualTo("6:VIEW:1001");
     }
 
-    @Test
-    void resourceCodeTypeKeyShouldLockPairFormat() {
-        assertThat(BusinessKeyUtil.resourceCodeTypeKey("res-1", "BIZ")).isEqualTo("res-1:BIZ");
-    }
-
-    @Test
-    void resourceTripleValueKeyShouldLockValueTrackFormat() {
-        assertThat(BusinessKeyUtil.resourceTripleValueKey(7, "res-1", "BIZ")).isEqualTo("7:res-1:BIZ");
-    }
-
-    @Test
-    void resourceTripleCodeKeyShouldLockUpperAndEmptyNullSemantics() {
-        assertThat(BusinessKeyUtil.resourceTripleCodeKey("user", "res-1", "BIZ")).isEqualTo("USER:res-1:BIZ");
-        assertThat(BusinessKeyUtil.resourceTripleCodeKey(null, null, null)).isEqualTo("::");
-        assertThat(BusinessKeyUtil.resourceTripleCodeKey("user", "res-1", null)).isEqualTo("USER:res-1:");
-    }
-
-    @Test
-    void grantCheckKeyShouldLockFiveSegmentWildcardAndScopeSentinels() {
-        assertThat(BusinessKeyUtil.grantCheckKey("USER", null, null, "VIEW", true)).isEqualTo("USER:*:*:VIEW:ALL");
-        assertThat(BusinessKeyUtil.grantCheckKey("ROLE", "r-1", "BIZ", "MANAGE", false)).isEqualTo("ROLE:r-1:BIZ:MANAGE:SPECIFIC");
-    }
+    // 注：resourceCodeTypeKey / resourceTripleCodeKey / grantCheckKey / resourceTripleValueKey
+    // 的 golden 已随 T-PERM-096 元组化退役删除——四个内存索引键构造器从 BusinessKeyUtil 移除
+    // （前三个改结构化 record 键、resourceTripleValueKey 消费方先期已改 TripleKey record），
+    // 碰撞对回归锁在各消费方测试。
 
     @Test
     void relationKeyRoundTripShouldLockContractFormat() {
@@ -173,8 +155,6 @@ class BusinessKeyUtilParityTest {
         assertThat(BusinessKeyUtil.operationBitKey(6, null)).isEqualTo("6:null");
         assertThat(BusinessKeyUtil.permissionCode(null, null)).isEqualTo("null:null");
         assertThat(BusinessKeyUtil.grantEntryKey(6, "VIEW", null)).isEqualTo("6:VIEW:null");
-        assertThat(BusinessKeyUtil.resourceCodeTypeKey(null, "BIZ")).isEqualTo("null:BIZ");
-        assertThat(BusinessKeyUtil.resourceTripleValueKey(7, null, null)).isEqualTo("7:null:null");
         assertThat(BusinessKeyUtil.subjectKey(null, "u-1")).isEqualTo("null:u-1");
         assertThat(BusinessKeyUtil.userRoleRelationKey(null, 22L)).isEqualTo("null:22");
         assertThat(BusinessKeyUtil.apiRouteKey(null, "/x")).isEqualTo("null:/x");

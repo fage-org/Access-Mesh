@@ -18,6 +18,7 @@
  * fixtures 见 source-chain.fixtures.json（5 用例：组合位/ALL/资源继承/操作继承/两段组合来源）。
  */
 import type { GrantScopeMode, GrantSource } from "@/api/permission-grant";
+import { encodeKeyTuple } from "./grant-keys";
 import { effectiveBits, toBigIntBits } from "./bits";
 
 // ========== 输入模型 ==========
@@ -139,11 +140,12 @@ export type SourceChainResult = {
   undefinedBitsByRecord: Map<number, string>;
 };
 
-// ========== 行键 ==========
+// ========== 行键（T-FE-060：grant-keys 元组编码——resourceCode/codeType 可含分隔符，
+// 旧 `:` 拼接无法区分 (TD,"a:b","c") 与 (TD,"a","b:c") 碰撞对，可混并矩阵来源行） ==========
 
-/** ALL 虚拟行键（承载 scopeMode=ALL 记录，与实例行互斥展示） */
+/** ALL 虚拟行键（承载 scopeMode=ALL 记录，与实例行互斥展示；typeCode 受 DTO 格式约束无碰撞，统一编码仅为单源） */
 export function allRowKey(resourceTypeCode: string): string {
-  return `ALL:${resourceTypeCode}`;
+  return encodeKeyTuple("ALL", resourceTypeCode);
 }
 
 /** 资源实例行键（resourceTypeCode + resourceCode + codeType，§2.1 资源键） */
@@ -152,7 +154,7 @@ export function instanceRowKey(
   resourceCode: string,
   codeType: string
 ): string {
-  return `RES:${resourceTypeCode}:${resourceCode}:${codeType}`;
+  return encodeKeyTuple("RES", resourceTypeCode, resourceCode, codeType);
 }
 
 // ========== 操作列（按类型隔离，§3.2） ==========
