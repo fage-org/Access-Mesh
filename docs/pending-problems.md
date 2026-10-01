@@ -15,6 +15,18 @@ last_updated: 2026-10-01
 
 **阅读约定**：按根因或可共同处理的范围合并，子项各自保留证据、影响与既有边界。旧编号的去向见文末索引；编号合并不代表缺陷修复。原始登记细节见 [合并前快照](archive/2026-09-30/pending-problems-before-consolidation.md)，外部报告核实见 [核实记录](archive/2026-09-30/logic-review-verification.md)。本次整理没有重新运行业务复现。
 
+<a id="q-056"></a>
+## Q-056 apiRouteResourceKey 拼接存在 Q-044 同型理论碰撞面
+
+- **状态**：open
+- **登记**：2026-10-01
+- **来源**：T-PERM-096 类推扫描（用户拍板登记）；[Q-044](#q-044) 同型
+- **关联**：[T-PERM-096](tasks/T-PERM-096.md)（类推发现记录）；P3（理论可构造、现实未发生）
+
+**现象与证据**：`BusinessKeyUtil.apiRouteResourceKey(method, path, resourceCode)` 以 `|` 拼三段做映射同步的内存索引，消费点 [MappingSyncHandlerImpl.java:79/90/95](../access-service/src/main/java/cn/ac/fage/accessmesh/access/resource/service/domain/impl/MappingSyncHandlerImpl.java)（存量行索引、incoming 活跃集、按资源 id 拼回查）。`pathPattern` 为 URL 自由文本（`|` 是合法 URL 字符无需转义）、`resourceCode` 自由文本且处尾段之前——与 Q-044 已修的「多个自由文本段相邻拼接」同形态。
+
+**影响与边界**：碰撞需同时满足「某行 path 含 `|`」且「同方法下另一行字段恰可拼出同串」（如 `POST|/api/x|y` 与 path=`/api/x`、resourceCode=`y` 的行），当前实际注册路径未出现该形态；后果为同步过期清理误判（漏删/误删映射行），不涉及权限判定面。修法方向可循 Q-044 元组化先例（record 键或 percent-encode 中段）；属 Q-044 设想「内部消费者全量迁移分开评估」范围，随问题清单批次排期。
+
 <a id="q-050"></a>
 ## Q-050 操作位写入与准入目录校验边界不一致
 

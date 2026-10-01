@@ -119,5 +119,5 @@ last_updated: 2026-10-01
 ## 当前进度
 
 - 2026-10-01 立项：23 任务建卡（21 独立卡 + T-FE-062/T-PERM-101 看板行），22 条问题 open→converted。
-- 2026-10-01 T-PERM-096 + T-FE-060 收口（组一首两张，并行起步完成）：Q-044 随两卡收敛（closed，移入已收敛索引）；类推清扫退役 BusinessKeyUtil 第四个死方法 resourceTripleValueKey；前端顺带修 changeGroupKey（inlineName 自由文本 `|` 碰撞）；apiRouteResourceKey（path 中段自由文本）理论碰撞面上报用户决策（登记/立项/维持）。
+- 2026-10-01 T-PERM-096 + T-FE-060 收口（组一首两张，并行起步完成）：Q-044 随两卡收敛（closed，移入已收敛索引）；类推清扫退役 BusinessKeyUtil 第四个死方法 resourceTripleValueKey；前端顺带修 changeGroupKey（inlineName 自由文本 `|` 碰撞）；apiRouteResourceKey（path 中段自由文本）理论碰撞面用户拍板登记 Q-056（随清单批次排期，不占本计划任务位）。
 - 建议顺序：组一先行（T-PERM-096 ∥ T-FE-060 并行起步），组二/组三随后可并行；组五定案卡可随时穿插（T-PERM-102 除外——含门禁实施与回归锁，按实施卡排期；其余定案卡拍板后视范围另立实施卡）；组四收尾（Q-015 doc-only 清扫放最后，避免与实施批同文件冲突）。
