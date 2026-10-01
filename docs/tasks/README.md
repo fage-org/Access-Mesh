@@ -10,13 +10,13 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| access-service 归并（跨服务） | `T-ACCESS` | 065 |
-| permission-center | `T-PERM` | 096 |
-| admin-service | `T-ADMIN` | 030 |
+| access-service 归并（跨服务） | `T-ACCESS` | 069 |
+| permission-center | `T-PERM` | 104 |
+| admin-service | `T-ADMIN` | 035 |
 | gateway | `T-GW` | 011 |
-| 组织/用户（跨 admin+perm） | `T-ORG` | 004 |
-| 跨服务 API 契约 | `T-API` | 005 |
-| 前端 | `T-FE` | 060 |
+| 组织/用户（跨 admin+perm） | `T-ORG` | 006 |
+| 跨服务 API 契约 | `T-API` | 006 |
+| 前端 | `T-FE` | 063 |
 
 > 新建任务时从对应领域取下一编号，计数器 +1。
 
@@ -25,6 +25,36 @@
 > 状态简写：⚙️=proposed / 🔨=in-progress / 👀=review / ✅=done / ❌=cancelled。回写：⏳=pending / ✓=done。
 
 > **后端门禁已解除（2026-08-22，T-ACCESS-012 完成）**：`T-PERM-*` / `T-ADMIN-*` 后端任务已全部重基线到 access-service 单模块与 `schema/access-service.sql`，可按各自 `depends_on` 推进；前端真接口联调等待对应 Phase 2 后端任务完成。归并主计划已归档（[archive/2026-08-22/access-service-merge-plan.md](../archive/2026-08-22/access-service-merge-plan.md)），后续强化计划亦已归档（[access-post-merge-plan](../archive/2026-08-27/access-post-merge-plan.md)，T-ACCESS-013~015 全 done，CI 准入前置由 T-ACCESS-017 最小 CI 关闭；68 项为 2026-08-22 外部主机历史验证基线，CI 以退出状态判定成功）。
+
+### 问题清单转出（pending-problems-clearance，2026-10-01 立项，active）
+
+> [计划](../plans/pending-problems-clearance-plan.md)：pending-problems 全部 22 条 open 问题转出为 23 任务（21 独立卡 + T-FE-062/T-PERM-101 看板行），四修复组（授权正确性/管理面一致性/前端展示/工程卫生）+ 设计定案组；组别、建议顺序与来源 Q 映射见计划任务清单节。
+
+| ID | 标题 | 状态 | 直接依赖 |
+|---|---|---|---|
+| [T-PERM-096](T-PERM-096.md) | 资源复合键内存索引结构化元组化（Q-044 后端半边） | ⚙️ | — |
+| [T-FE-060](T-FE-060.md) | 授权决策与展示键无歧义编码（Q-044 前端半边） | ⚙️ | — |
+| [T-ADMIN-030](T-ADMIN-030.md) | 角色重新指派对既有绑定的语义收口（Q-047） | ⚙️ | — |
+| [T-PERM-097](T-PERM-097.md) | 新增分组角色互斥写守卫子树展开（Q-027） | ⚙️ | — |
+| [T-PERM-098](T-PERM-098.md) | 操作位写入与准入消费一致性边界定案与收口（Q-050） | ⚙️ | — |
+| [T-PERM-099](T-PERM-099.md) | 删除类型所有者角色引用守卫（Q-023） | ⚙️ | — |
+| [T-PERM-100](T-PERM-100.md) | sync 通道 codeType 归一与存量空白行处置（Q-031） | ⚙️ | — |
+| [T-ADMIN-031](T-ADMIN-031.md) | 菜单 create/delete 补树写互斥（Q-048） | ⚙️ | — |
+| [T-ADMIN-032](T-ADMIN-032.md) | job cron 写前校验与调度失败可观测（Q-049） | ⚙️ | — |
+| [T-ORG-004](T-ORG-004.md) | 组织树配置根节点重叠守卫（Q-024） | ⚙️ | — |
+| [T-ADMIN-033](T-ADMIN-033.md) | 业务字段空值与长度校验对齐列宽（Q-018） | ⚙️ | — |
+| [T-FE-061](T-FE-061.md) | 停用主体授予入口状态与草稿保护（Q-037） | ⚙️ | — |
+| [T-ACCESS-065](T-ACCESS-065.md) | 树过滤完整性与状态口径逐子项定案修复（Q-038） | ⚙️ | — |
+| T-FE-062 | 菜单种子图标离线注册补齐（Q-021；简单任务看板行，无独立卡） | ⚙️ | — |
+| [T-ACCESS-066](T-ACCESS-066.md) | 设计/契约/注释漂移八主题清扫 doc-only（Q-015） | ⚙️ | — |
+| [T-ACCESS-067](T-ACCESS-067.md) | 会话/网关时序用例固定 sleep 改造（Q-014） | ⚙️ | — |
+| T-PERM-101 | 主体组展开共享遍历参数化（Q-028；行为等价重构，简单任务看板行） | ⚙️ | — |
+| [T-ORG-005](T-ORG-005.md) | 组织/岗位动作码判定入口覆盖定案（Q-032） | ⚙️ | — |
+| [T-ADMIN-034](T-ADMIN-034.md) | OAuth2 委托链租户与用户状态校验定案（Q-029） | ⚙️ | — |
+| [T-API-005](T-API-005.md) | 可选字段显式清空协议逐域定案（Q-043） | ⚙️ | — |
+| [T-ACCESS-068](T-ACCESS-068.md) | 服务凭证覆盖运行时查询端点阶段二规划（Q-040） | ⚙️ | — |
+| [T-PERM-102](T-PERM-102.md) | TRACE 诊断输出授权门禁（Q-045） | ⚙️ | — |
+| [T-PERM-103](T-PERM-103.md) | grant_dep_id 保留列处置评估（Q-022） | ⚙️ | — |
 
 ### R2 权限查询引擎统一与操作准入（2026-09-25 立项——✅ 2026-10-01 全部收口归档）
 
@@ -359,7 +389,11 @@ _当前无未终态 T-ADMIN 任务。`T-ADMIN-001~019`（用户角色代理修�
 
 依据：①评审定级（A/B/C 为 P0）②依赖解锁价值 ③验收闭环优先 ④无依赖可立即并行。
 
-### R2 权限查询引擎统一与操作准入（2026-09-25 立项，active）
+### 问题清单转出（pending-problems-clearance，2026-10-01 立项，active）
+
+执行顺序以 [pending-problems-clearance-plan](../plans/pending-problems-clearance-plan.md) 的「当前进度」节为唯一权威：组一授权正确性先行（T-PERM-096 ∥ T-FE-060 并行起步，两卡修法面独立）；组二/组三随后可并行；组五定案卡不占实施位、可随时穿插（拍板后实施超出单卡范围另立新号）；组四工程卫生收尾（Q-015 doc-only 清扫放最后避免与实施批同文件冲突）。任务间无硬依赖（`depends_on` 均空）。
+
+### R2 权限查询引擎统一与操作准入（2026-09-25 立项，✅ 2026-10-01 收口归档）
 
 执行顺序以 [r2-query-engine-and-admission-plan](../archive/2026-10-01/r2-query-engine-and-admission-plan.md) 的「当前进度」节为唯一权威；依赖关系以各任务卡 frontmatter `depends_on` 为准。入口：T-PERM-080 全仓清点 → T-PERM-081 语义基线（红跑取证）∥ T-PERM-082 模型；新核心实现（T-PERM-085）前须先落最小正确性修复基线（T-PERM-083+095，设计 §9.3）。
 

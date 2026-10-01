@@ -2,7 +2,7 @@
 doc_type: problems
 title: 待解决问题清单
 counter: Q-055           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-30
+last_updated: 2026-10-01
 ---
 
 # 待解决问题清单（pending problems）
@@ -18,10 +18,10 @@ last_updated: 2026-09-30
 <a id="q-050"></a>
 ## Q-050 操作位写入与准入目录校验边界不一致
 
-- **状态**：open
+- **状态**：converted
 - **登记**：2026-09-30
 - **来源**：外部逻辑报告 B-6；[核实记录](archive/2026-09-30/logic-review-verification.md)
-- **关联**：[T-PERM-077](archive/2026-09-24/tasks/T-PERM-077.md)；[准入协议](design/access-service-api-contract.md#operation-admission-protocol)；P2
+- **关联**：[T-PERM-077](archive/2026-09-24/tasks/T-PERM-077.md)；[准入协议](design/access-service-api-contract.md#operation-admission-protocol)；P2；转出 [T-PERM-098](tasks/T-PERM-098.md)
 
 **现象与证据**：[OperationAppServiceImpl.createOperation/updateOperation](../access-service/src/main/java/cn/ac/fage/accessmesh/access/type/service/impl/OperationAppServiceImpl.java) 未限制 binaryBit 为单比特，operation_permission 表也无对应 CHECK。自定义类型同事务补种 AUTHORITY_ROOT，会被其单比特 CHECK 拦住；内置类型跳过补种，可追加不重复的非幂位。[QueryExecutionEngine.prepareAdmissionClauses](../access-service/src/main/java/cn/ac/fage/accessmesh/access/engine/query/QueryExecutionEngine.java) 则拒绝覆盖当前要求的坏位行。
 
@@ -32,10 +32,10 @@ last_updated: 2026-09-30
 <a id="q-049"></a>
 ## Q-049 非法 cron 保存成功但调度失败
 
-- **状态**：open
+- **状态**：converted
 - **登记**：2026-09-30
 - **来源**：外部逻辑报告 B-5；[核实记录](archive/2026-09-30/logic-review-verification.md)
-- **关联**：T-ACCESS-054 job 最小运营边界；P2
+- **关联**：T-ACCESS-054 job 最小运营边界；P2；转出 [T-ADMIN-032](tasks/T-ADMIN-032.md)
 
 **现象与证据**：[JobAppServiceImpl.createJob/updateJob](../access-service/src/main/java/cn/ac/fage/accessmesh/access/platform/service/impl/JobAppServiceImpl.java) 未在写入前解析 cron；scheduleJob 构造 trigger 失败只记日志。Spring 6.1.5 CronTrigger 构造时立即解析，JobCreateReq 的 @NotBlank 仅拒空白、不验语法。
 
@@ -46,10 +46,10 @@ last_updated: 2026-09-30
 <a id="q-048"></a>
 ## Q-048 菜单创建、删除缺树写互斥
 
-- **状态**：open
+- **状态**：converted
 - **登记**：2026-09-30
 - **来源**：外部逻辑报告 B-4；[核实记录](archive/2026-09-30/logic-review-verification.md)
-- **关联**：[树写锁约束](design/access-service-architecture.md#tree-write-lock)；P2
+- **关联**：[树写锁约束](design/access-service-architecture.md#tree-write-lock)；P2；转出 [T-ADMIN-031](tasks/T-ADMIN-031.md)
 
 **现象与证据**：[MenuWriteAppServiceImpl](../access-service/src/main/java/cn/ac/fage/accessmesh/access/menu/service/impl/MenuWriteAppServiceImpl.java) createMenu 读父后插入、deleteMenu 查子后软删，均无 SYS_MENU 锁；updateMenu 已在首次读取前持锁。DomainService 未补锁，Controller 写入口仍存在。
 
@@ -60,10 +60,10 @@ last_updated: 2026-09-30
 <a id="q-047"></a>
 ## Q-047 角色重新指派静默忽略窗口或关系变更
 
-- **状态**：open
+- **状态**：converted
 - **登记**：2026-09-30
 - **来源**：外部逻辑报告 B-3；[核实记录](archive/2026-09-30/logic-review-verification.md)
-- **关联**：契约总册 §10 user-role 分配；P2
+- **关联**：契约总册 §10 user-role 分配；P2；转出 [T-ADMIN-030](tasks/T-ADMIN-030.md)
 
 **现象与证据**：[UserManageAppServiceImpl.assignRole/assignRolesBatch](../access-service/src/main/java/cn/ac/fage/accessmesh/access/user/service/impl/UserManageAppServiceImpl.java) 按 userId+roleId 去重，命中即跳过。[UserRoleMapper.xml](../access-service/src/main/resources/mapper/role/UserRoleMapper.xml) 装载既有绑定不滤有效期；uk_user_role 含 relationId，但内存去重未区分。assign 接收窗口，batch-assign 新建固定无限期，均不更新旧行。
 
@@ -74,10 +74,10 @@ last_updated: 2026-09-30
 <a id="q-045"></a>
 ## Q-045 TRACE 敏感诊断输出缺授权门禁
 
-- **状态**：open
+- **状态**：converted
 - **登记**：2026-09-26
 - **来源**：[T-PERM-088](archive/2026-10-01/tasks/T-PERM-088.md) 的诊断门禁暂缓安排
-- **关联**：[engine/implementation.md](design/engine/implementation.md) §3.5（TRACE 输出）；原登记锚 r2-unified-query-and-admission.md §3.3/§6.1（该稿 2026-10-01 转 superseded 随计划归档）
+- **关联**：[engine/implementation.md](design/engine/implementation.md) §3.5（TRACE 输出）；原登记锚 r2-unified-query-and-admission.md §3.3/§6.1（该稿 2026-10-01 转 superseded 随计划归档）；转出 [T-PERM-102](tasks/T-PERM-102.md)
 
 **现象与证据**：普通 execute(trace=true) 可返回真实角色、权限 ID、互斥命中和父绑定证据；设计要求敏感诊断授权，门禁交付按 T-PERM-088 安排暂缓。
 
@@ -88,10 +88,10 @@ last_updated: 2026-09-30
 <a id="q-044"></a>
 ## Q-044 资源复合拼接键碰撞
 
-- **状态**：open
+- **状态**：converted
 - **登记**：2026-09-26
 - **来源**：T-PERM-084 同型核对；外部报告 B-9；[核实记录](archive/2026-09-30/logic-review-verification.md)
-- **关联**：[T-PERM-084](archive/2026-10-01/tasks/T-PERM-084.md)；engine/implementation.md 业务键元组边界；P2
+- **关联**：[T-PERM-084](archive/2026-10-01/tasks/T-PERM-084.md)；engine/implementation.md 业务键元组边界；P2；转出 [T-PERM-096](tasks/T-PERM-096.md)（后端半边）+ [T-FE-060](tasks/T-FE-060.md)（前端半边）
 
 **现象与证据**：code/codeType 可含分隔符，但内存索引把字段直接拼成字符串；不同元组因此同键，数据库完整元组唯一性不拦此形态。
 
@@ -109,10 +109,10 @@ last_updated: 2026-09-30
 <a id="q-043"></a>
 ## Q-043 可选字段缺显式清空通道
 
-- **状态**：open
+- **状态**：converted
 - **登记**：2026-09-24
 - **来源**：T-API-004 同型盘点；外部报告 B-11；[核实记录](archive/2026-09-30/logic-review-verification.md)
-- **关联**：契约总册 §2.7、project-rules §7.6；字段校验见 [Q-018](#q-018)
+- **关联**：契约总册 §2.7、project-rules §7.6；字段校验见 [Q-018](#q-018)；转出 [T-API-005](tasks/T-API-005.md)
 
 **现象与证据**：
 
@@ -129,10 +129,10 @@ last_updated: 2026-09-30
 <a id="q-040"></a>
 ## Q-040 服务凭证与运行时查询仍需两套身份
 
-- **状态**：open
+- **状态**：converted
 - **登记**：2026-09-23
 - **来源**：[T-ACCESS-053](archive/2026-09-24/tasks/T-ACCESS-053.md) 维持现状、后续处理安排
-- **关联**：[service-authentication.md §3.5](design/service-authentication.md)；extension-guide §2.2；T-ACCESS-059
+- **关联**：[service-authentication.md §3.5](design/service-authentication.md)；extension-guide §2.2；T-ACCESS-059；转出 [T-ACCESS-068](tasks/T-ACCESS-068.md)
 
 **现象与证据**：per-service 凭证覆盖同步/manifest 通道，auth/check、batch-check、query-resources、query-scopes 仍要求 X-Internal-Secret 与服务/租户头；凭证不能直接替代该查询身份。
 
@@ -143,10 +143,10 @@ last_updated: 2026-09-30
 <a id="q-038"></a>
 ## Q-038 树过滤后的节点完整性与展示不一致
 
-- **状态**：open
+- **状态**：converted
 - **登记**：2026-09-23
 - **来源**：T-ACCESS-052、T-FE-050 存量观察；合并 Q-039、Q-019（原登记见 [快照](archive/2026-09-30/pending-problems-before-consolidation.md)）
-- **关联**：T-ACCESS-052、T-FE-050
+- **关联**：T-ACCESS-052、T-FE-050；转出 [T-ACCESS-065](tasks/T-ACCESS-065.md)
 
 **现象与证据**：
 
@@ -163,10 +163,10 @@ last_updated: 2026-09-30
 <a id="q-037"></a>
 ## Q-037 停用主体入口失败并静默清空授权草稿
 
-- **状态**：open
+- **状态**：converted
 - **登记**：2026-09-22
 - **来源**：T-FE-057 入口侧同型盘点
-- **关联**：T-PERM-022 主体树过滤边界；T-FE-057
+- **关联**：T-PERM-022 主体树过滤边界；T-FE-057；转出 [T-FE-061](tasks/T-FE-061.md)
 
 **现象与证据**：角色管理页、组织信息卡允许点击停用主体的授予入口，而 SubjectTreePanel 过滤停用主体；授予 hook 的 preset 找不到节点后 resetAll，未经过 confirmDiscardIfDirty。
 
@@ -177,10 +177,10 @@ last_updated: 2026-09-30
 <a id="q-032"></a>
 ## Q-032 组织、岗位动作码未覆盖全部判定入口
 
-- **状态**：open
+- **状态**：converted
 - **登记**：2026-09-22
 - **来源**：T-ORG-003 同型核对；合并 Q-034（原登记见 [快照](archive/2026-09-30/pending-problems-before-consolidation.md)）
-- **关联**：org-user-permission-contract；[T-ACCESS-055](archive/2026-09-24/tasks/T-ACCESS-055.md)
+- **关联**：org-user-permission-contract；[T-ACCESS-055](archive/2026-09-24/tasks/T-ACCESS-055.md)；转出 [T-ORG-005](tasks/T-ORG-005.md)
 
 **现象与证据**：
 
@@ -196,10 +196,10 @@ last_updated: 2026-09-30
 <a id="q-031"></a>
 ## Q-031 同步资源 codeType 与业务键归一不一致
 
-- **状态**：open
+- **状态**：converted
 - **登记**：2026-09-22
 - **来源**：T-PERM-076 存量观察
-- **关联**：ResourceEntitySyncAppServiceImpl、ResourceKeyReq
+- **关联**：ResourceEntitySyncAppServiceImpl、ResourceKeyReq；转出 [T-PERM-100](tasks/T-PERM-100.md)
 
 **现象与证据**：sync/full-sync 的 codeType 仅归一空值，不 trim；管理创建和 ResourceKeyReq.normalizedCodeType 会 trim。同步写入 `" BIZ "` 后，管理面按 `BIZ` 查询不到。
 
@@ -210,10 +210,10 @@ last_updated: 2026-09-30
 <a id="q-029"></a>
 ## Q-029 OAuth2 委托链的租户与用户状态校验缺口
 
-- **状态**：open
+- **状态**：converted
 - **登记**：2026-09-22
 - **来源**：T-ADMIN-028 存量观察；合并 Q-030（原登记见 [快照](archive/2026-09-30/pending-problems-before-consolidation.md)）
-- **关联**：[T-ADMIN-028](archive/2026-09-24/tasks/T-ADMIN-028.md)
+- **关联**：[T-ADMIN-028](archive/2026-09-24/tasks/T-ADMIN-028.md)；转出 [T-ADMIN-034](tasks/T-ADMIN-034.md)
 
 **现象与证据**：
 
@@ -229,10 +229,10 @@ last_updated: 2026-09-30
 <a id="q-028"></a>
 ## Q-028 主体组展开存在重复遍历
 
-- **状态**：open
+- **状态**：converted
 - **登记**：2026-09-22
 - **来源**：T-PERM-075 可裁剪项，安排后续轻量处理
-- **关联**：SubjectDomainServiceImpl
+- **关联**：SubjectDomainServiceImpl；转出 T-PERM-101（看板行，[计划](plans/pending-problems-clearance-plan.md)组四）
 
 **现象与证据**：expandAllSubtree/resolveGroupRolesAllSubtreeBatch 与 expandInMemory/resolveGroupRolesBatch 遍历重复，差异在禁用剪枝：写守卫要原始持有，运行时解析要有效持有。
 
@@ -243,10 +243,10 @@ last_updated: 2026-09-30
 <a id="q-027"></a>
 ## Q-027 新增分组角色未展开成员检查互斥
 
-- **状态**：open
+- **状态**：converted
 - **登记**：2026-09-22
 - **来源**：T-PERM-075 写守卫留观项
-- **关联**：UserManageAppServiceImpl.rejectRoleMutexOnAssign；sync/full-sync BIND
+- **关联**：UserManageAppServiceImpl.rejectRoleMutexOnAssign；sync/full-sync BIND；转出 [T-PERM-097](tasks/T-PERM-097.md)
 
 **现象与证据**：已有角色 Y、规则互斥 X/Y 时，绑定子树含 X 的组 G；新增侧只把 G 入 postState，未展开 X，写守卫放行。持有侧组展开已覆盖，本项只缺新增侧。
 
@@ -257,10 +257,10 @@ last_updated: 2026-09-30
 <a id="q-024"></a>
 ## Q-024 组织树配置允许根节点范围重叠
 
-- **状态**：open
+- **状态**：converted
 - **登记**：2026-09-21
 - **来源**：T-ORG-002 最小守卫范围之外的留观项
-- **关联**：default-org-tree-user-lifecycle.md §7/§7.1
+- **关联**：default-org-tree-user-lifecycle.md §7/§7.1；转出 [T-ORG-004](tasks/T-ORG-004.md)
 
 **现象与证据**：createOrgTreeConfig 可把现有树的中间节点设为另一树根，未检查祖先/后代重叠。多个根同时命中时，resolveTreeRootExternalId(s) 的结果依赖遍历顺序。
 
@@ -271,10 +271,10 @@ last_updated: 2026-09-30
 <a id="q-023"></a>
 ## Q-023 删除类型所有者角色缺引用守卫或提示
 
-- **状态**：open
+- **状态**：converted
 - **登记**：2026-09-21
 - **来源**：[T-PERM-072](archive/2026-09-24/tasks/T-PERM-072.md) 留观项
-- **关联**：RoleManageAppServiceImpl.deleteRoles；type_definition.extra.grantOriginRole
+- **关联**：RoleManageAppServiceImpl.deleteRoles；type_definition.extra.grantOriginRole；转出 [T-PERM-099](tasks/T-PERM-099.md)
 
 **现象与证据**：删除所有者角色会回收其 AUTHORITY_ROOT，而类型保留；无引用守卫或提示，之后无人能通过该类型首授/转授资格检查。
 
@@ -285,10 +285,10 @@ last_updated: 2026-09-30
 <a id="q-022"></a>
 ## Q-022 grant_dep_id 保留为零读零写列
 
-- **状态**：open
+- **状态**：converted
 - **登记**：2026-09-21
 - **来源**：[T-PERM-072](archive/2026-09-24/tasks/T-PERM-072.md) 保留列安排
-- **关联**：dependency-auto-grant.md §3.4；[历史依据](archive/2026-09-26/decision-registry-before.md) 2026-09-21
+- **关联**：dependency-auto-grant.md §3.4；[历史依据](archive/2026-09-26/decision-registry-before.md) 2026-09-21；转出 [T-PERM-103](tasks/T-PERM-103.md)
 
 **现象与证据**：role_resource_permission.grant_dep_id 及 RoleResourcePermission.grantDepId 不读不写。单字段不能表达同一 AUTO_DEP 行的多条依赖边与种子来源，列注释已改为保留诊断口径。
 
@@ -299,10 +299,10 @@ last_updated: 2026-09-30
 <a id="q-021"></a>
 ## Q-021 菜单种子图标未完整注册
 
-- **状态**：open
+- **状态**：converted
 - **登记**：2026-09-19
 - **来源**：T-FE-049 存量观察
-- **关联**：BootstrapGraphDefinition；frontend/src/components/ReIcon/src/offlineIcon.ts
+- **关联**：BootstrapGraphDefinition；frontend/src/components/ReIcon/src/offlineIcon.ts；转出 T-FE-062（看板行，[计划](plans/pending-problems-clearance-plan.md)组三）
 
 **现象与证据**：种子使用 ep/xxx 斜杠键，经 useRenderIcon 走离线 storage 查找；coins/connection/document/files/history/key/office-building/setting/share 等未注册，home-filled 已注册。
 
@@ -313,10 +313,10 @@ last_updated: 2026-09-30
 <a id="q-018"></a>
 ## Q-018 业务字段空值、长度校验与存储约束不一致
 
-- **状态**：open
+- **状态**：converted
 - **登记**：2026-09-19
 - **来源**：T-FE-050；合并 Q-052 外部报告 B-8（原登记见 [快照](archive/2026-09-30/pending-problems-before-consolidation.md)）
-- **关联**：[字段清空协议 Q-043](#q-043)；长度核实见 [记录](archive/2026-09-30/logic-review-verification.md)
+- **关联**：[字段清空协议 Q-043](#q-043)；长度核实见 [记录](archive/2026-09-30/logic-review-verification.md)；转出 [T-ADMIN-033](tasks/T-ADMIN-033.md)
 
 **现象与证据**：
 
@@ -333,10 +333,10 @@ last_updated: 2026-09-30
 <a id="q-015"></a>
 ## Q-015 设计、契约与代码注释未同步现行实现
 
-- **状态**：open
+- **状态**：converted
 - **登记**：2026-09-19
 - **来源**：T-GW-009、T-ORG-002、T-ACCESS-053、T-FE-058；合并 Q-026/041/042/051/053/054/055（原证据见 [快照](archive/2026-09-30/pending-problems-before-consolidation.md)）
-- **关联**：现行契约/设计及代码；运行时身份边界仍见 Q-040，清空语义仍见 Q-043
+- **关联**：现行契约/设计及代码；运行时身份边界仍见 Q-040，清空语义仍见 Q-043；转出 [T-ACCESS-066](tasks/T-ACCESS-066.md)
 
 **现象与证据**：
 
@@ -358,10 +358,10 @@ last_updated: 2026-09-30
 <a id="q-014"></a>
 ## Q-014 会话、网关测试依赖固定 sleep 构造时序
 
-- **状态**：open
+- **状态**：converted
 - **登记**：2026-09-18
 - **来源**：[T-ACCESS-051](archive/2026-09-18/tasks/T-ACCESS-051.md) 同型盘点
-- **关联**：testing-standards §10.3；Q-013 已收敛形态
+- **关联**：testing-standards §10.3；Q-013 已收敛形态；转出 [T-ACCESS-067](tasks/T-ACCESS-067.md)
 
 **现象与证据**：PlatformSessionIdleTimeoutTest、PlatformSessionAbsoluteTimeoutTest、AuthTokenFilterTest 用 sleep(1200) 拼活跃/超时时间轴；绝对超时用例 t≈3.6s 的成功断言距 4s 边界仅约 400ms。idle/网关续期余量较宽。
 
