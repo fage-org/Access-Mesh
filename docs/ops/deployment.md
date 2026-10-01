@@ -48,6 +48,7 @@ Nacos(8848)：服务注册/配置（三服务共同依赖）
 - Gateway 会**清洗**外部传入的 `X-Forwarded-For`/`X-Real-IP`，并以自身观测的 **remoteAddr（直连对端 socket 地址）** 重建 XFF 下发下游（单值可信来源）；IP 条件权限（白名单/黑名单/快照本地重评）同样只消费该直连地址——**不读任何 XFF 头**。
 - **多层 LB/CDN 部署的真实 IP 边界**：Gateway 恒观测到代理出口 IP——外层代理即使正确重建 XFF，也会被 Gateway 清洗丢弃，**真实客户端 IP 条件在此形态下不可用**。可行处置（对齐 security-standards §7）：① IP 白/黑名单按代理出口网段粗约配置；② 真实 IP 精细管控上移至最外层 WAF/LB；③ 未来需要网关级真实 IP 时另立 trusted-proxies 机制（现无）。外层伪造 XFF 不构成越权风险（Gateway 无条件清洗）。
 - Gateway 管理端口（8081）默认仅绑定回环；Prometheus 抓取需经 `GATEWAY_MANAGEMENT_ADDRESS` 显式放开并配网络访问控制。
+- access-service 管理端口（9101）同款形态（T-PERM-094）：默认仅绑定回环，主端口 9100 无任何 `/actuator/**`；远程抓取经 `ACCESS_MANAGEMENT_ADDRESS` 显式放开并配网络访问控制。
 
 ## 5. 时间语义
 
@@ -62,6 +63,7 @@ Nacos(8848)：服务注册/配置（三服务共同依赖）
 ## 7. 监控与告警
 
 - Gateway 暴露 health/info/prometheus/metrics（管理端口）；告警规则示例见 [gateway 设计 §监控](../design/services/gateway.md)。
+- access-service 同样暴露 health/info/prometheus/metrics（管理端口 9101）；引擎查询指标 `access.query.stage`（阶段终态计数，scopeAll/无角色短路率）、`access.query.execution`（执行终态+P50/P95/P99，`budget_exceeded` 单列容量信号）、`access.query.evidence.failed`（审计证据提交失败）——指标口径见 [engine/implementation §3.11](../design/engine/implementation.md)。
 - 权限快照链路有 30 秒撤权安全边界（授权 L2 ≤10s + 回源截止 5s + Gateway L1 ≤15s）；缓存失效失败有 `cache.invalidate.failures` 指标兜底观察点。
 
 ## 相关文档

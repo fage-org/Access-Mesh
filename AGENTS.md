@@ -74,7 +74,7 @@ Gateway (8080) -> access-service (9100)    能力包单体：管理面（用户/
 按任务范围阅读[定案入口](docs/design/decision-registry.md)及相关章节；不能以旧任务完成或历史修复记录直接撤回当前问题。
 
 - API 字段/错误码/门禁：契约总册对应能力章；schema 为表结构唯一权威。
-- 查询、互斥、继承和范围：`engine/`；新旧引擎迁移边界：`r2-unified-query-and-admission.md`。已采纳目标不等于已实现。
+- 查询、互斥、继承和范围：`engine/`（R2 统一引擎已收口：观测落地与上线门槛见引擎实现 §3.11；旧 `r2-unified-query-and-admission.md` 已转 superseded 随 2026-10-01 归档，仅历史追溯）。
 - 类型所有权、授权根、条件与删除生命周期：契约总册 §12/13/15；内部事实投影：服务架构 §4/12。
 - 自动授权推导、完整写入口与锁序：`dependency-auto-grant.md`；旧 AUTO_DEP 不作种子，grant_dep_id 保留不读写。
 - 组织默认树/成员/岗位：`default-org-tree-user-lifecycle.md`；业务域分类：引擎实现 §2.7 与契约 §14，查询管线不感知业务域。

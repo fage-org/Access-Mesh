@@ -119,14 +119,26 @@ mybatis-flex:
     log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
 
 management:
-  # 安全评审 P2-5（2026-08-14）：显式最小化 actuator 暴露面——仅 health/info。
-  # Boot 3.2 默认仅 web 暴露 health；此处为本地默认值，明确收敛到 health,info
-  # （/actuator/** 为匿名公开路径，端口仅内网开放；注意 Nacos 配置优先级更高，
-  # 生产覆盖需在 Nacos access-service.yml 保持一致的最小暴露）。
+  # T-PERM-094：actuator 与主端口分离（沿 gateway T-GW-007 先例）——health/info/prometheus/metrics
+  # 全部仅经独立管理端口提供，主端口 9100 无任何 /actuator/** 端点（原 P2-5「匿名公开路径」
+  # 暴露面随之消除）。存活/就绪探针与 Prometheus 抓取改访问管理端口。
+  # 管理端口默认绑定回环地址（仅同机可达）；远程抓取/容器化部署经 ACCESS_MANAGEMENT_ADDRESS 放开。
+  # 注意：ACCESS_MANAGEMENT_PORT 不支持空串禁用——空串经 Binder 绑定为 null（等于未配置），
+  # 会使管理端口分离静默回退（actuator 回到主端口匿名可达）；放开/覆盖必须给完整值。
+  # 注意 Nacos 远端 access-service.yml 优先级更高，生产覆盖需保持一致的收敛口径。
+  server:
+    port: ${ACCESS_MANAGEMENT_PORT:9101}
+    address: ${ACCESS_MANAGEMENT_ADDRESS:127.0.0.1}
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus,metrics
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    export:
+      prometheus:
+        enabled: true
 
 perm:
   internal-secret: ${PERM_INTERNAL_SECRET:}

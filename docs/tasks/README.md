@@ -26,36 +26,36 @@
 
 > **后端门禁已解除（2026-08-22，T-ACCESS-012 完成）**：`T-PERM-*` / `T-ADMIN-*` 后端任务已全部重基线到 access-service 单模块与 `schema/access-service.sql`，可按各自 `depends_on` 推进；前端真接口联调等待对应 Phase 2 后端任务完成。归并主计划已归档（[archive/2026-08-22/access-service-merge-plan.md](../archive/2026-08-22/access-service-merge-plan.md)），后续强化计划亦已归档（[access-post-merge-plan](../archive/2026-08-27/access-post-merge-plan.md)，T-ACCESS-013~015 全 done，CI 准入前置由 T-ACCESS-017 最小 CI 关闭；68 项为 2026-08-22 外部主机历史验证基线，CI 以退出状态判定成功）。
 
-### R2 权限查询引擎统一与操作准入（2026-09-25 立项）
+### R2 权限查询引擎统一与操作准入（2026-09-25 立项——✅ 2026-10-01 全部收口归档）
 
-> [计划](../plans/r2-query-engine-and-admission-plan.md) · [设计定稿](../design/r2-unified-query-and-admission.md)（v3.1 adopted；三项拍板〔时区不处理 / 角色互斥 S/H-D / configGeneration 限定语义〕与定案见 [历史定案原文](../archive/2026-09-26/decision-registry-before.md) 2026-09-25 行；报告临时编号 R2-T01~15/ADM-T01~07 与正式 ID 映射见计划卡）。T-PERM-054 已解除暂缓移入本节。
+> [归档计划](../archive/2026-10-01/r2-query-engine-and-admission-plan.md)（24 任务全 done；计划+任务卡随批归档） · [设计定稿](../design/r2-unified-query-and-admission.md)（v3.1，**2026-10-01 转 superseded**——稳定结论已回写 engine/implementation.md〔§3 族+§3.11 观测落地〕、契约总册 §25、services/gateway.md，沿归档条件拍板）；三项拍板〔时区不处理 / 角色互斥 S/H-D / configGeneration 限定语义〕与定案见 [历史定案原文](../archive/2026-09-26/decision-registry-before.md) 2026-09-25 行；报告临时编号 R2-T01~15/ADM-T01~07 与正式 ID 映射见计划卡。T-PERM-054 已解除暂缓移入本节。收官卡 T-PERM-094 四项拍板（监控 A 档/同网关暴露/实测基线登记/随卡全收口）见其任务卡。
 
 | ID | 标题 | 状态 | 直接依赖 |
 |---|---|---|---|
-| [T-PERM-080](T-PERM-080.md) | （R2-T01）全仓调用与语义清点 | ✅（2026-09-25 收口） | — |
-| [T-PERM-081](T-PERM-081.md) | （R2-T02）PQ-01/06 反例与正常语义基线 | ✅（2026-09-25 收口） | T-PERM-080 |
-| [T-PERM-082](T-PERM-082.md) | （R2-T03）新请求/结果模型与合法组合 | ✅（2026-09-25 收口） | T-PERM-080 |
-| [T-PERM-083](T-PERM-083.md) | （R2-T04）角色互斥 S/H/D 确定化与纯互斥计算 | ✅（2026-09-26 收口） | T-PERM-081 |
-| [T-PERM-084](T-PERM-084.md) | （R2-T05）QueryReadSupport 与读来源分桶 | ✅ | T-PERM-082 |
-| [T-PERM-085](T-PERM-085.md) | （R2-T06）TYPE_GRANT/INSTANCE 单一阶段主体 | ✅ | T-PERM-083, T-PERM-084, T-PERM-095 |
-| [T-PERM-086](T-PERM-086.md) | （R2-T07）父受控子项与 GRANT_LIST 完整事实 | ✅ | T-PERM-085 |
-| [T-PERM-087](T-PERM-087.md) | （R2-T08）投影、展示与范围四态 | ✅ | T-PERM-086 |
-| [T-PERM-088](T-PERM-088.md) | （R2-T09）根审计、TRACE 与故障证据 | ✅（2026-09-26 收口：门禁暂缓登记 Q-045） | T-PERM-083, T-PERM-086 |
-| [T-PERM-089](T-PERM-089.md) | （R2-T10）迁移 check/batch/管理门禁/getDenied | ✅ | T-PERM-085, T-PERM-088 |
-| [T-PERM-090](T-PERM-090.md) | （R2-T11）迁移范围与 LEGACY_API 接口集合 | ✅ | T-PERM-086, T-PERM-087, T-PERM-089 |
-| [T-PERM-091](T-PERM-091.md) | （R2-T12）迁移旧快照、转授、视图与配置 | ✅（2026-09-27 收口：旧引擎生产消费者清零；操作定义装载留领域侧/角色配置面零改动两拍板见任务卡） | T-PERM-087, T-PERM-088, T-PERM-090 |
-| [T-PERM-092](T-PERM-092.md) | （R2-T13）删除旧执行体与四旧 DTO | ✅（2026-09-27 收口：旧执行体/四旧 DTO/TargetMode/ResolveContext 删除，X04 退役锁入架构测试；R2 入口统一完成条件闭合） | T-PERM-089, T-PERM-090, T-PERM-091 |
-| [T-PERM-093](T-PERM-093.md) | （R2-T14）候选/规则索引与性能测量 | ✅ | T-PERM-091 |
-| [T-PERM-094](T-PERM-094.md) | （R2-T15）灰度、故障、缓存与发布演练 | ⚙️ | T-PERM-092, T-PERM-093 |
-| [T-PERM-095](T-PERM-095.md) | （基线补卡）getDenied* 跨 item 互斥最小修复——与 T-PERM-083 构成回退基线 | ✅（2026-09-26 收口：与 083 构成最小正确性修复基线=本地 tag r2-baseline-correctness〔用户拍板 tag 形态〕；全量含 E2E/heavy BUILD SUCCESS 0 失败；双轨评审 P3×2 全核实成立直修、可裁剪=0；定案见 [历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日行） | T-PERM-081 |
-| [T-ACCESS-056](T-ACCESS-056.md) | （ADM-T01）准入定案回写与协议落账 | ✅（2026-09-27 收口：契约总册 §25+错误码 20070/20071+N 系归属落账；落账拍板与外评处置见任务卡） | T-PERM-080, T-PERM-082 |
-| [T-ACCESS-057](T-ACCESS-057.md) | （ADM-T02）OPERATION_ADMISSION 阶段与新结果 | ✅ | T-PERM-083, T-PERM-084, T-PERM-085, T-PERM-086, T-PERM-088, T-ACCESS-056 |
-| [T-ACCESS-058](T-ACCESS-058.md) | （ADM-T03）映射模型、服务模式与同步/管理面 | ✅（2026-09-28 收口：required_operation_id+maintain_source 落库、api_auth_mode 可信切换、sync-v2 独立协议（凭证/管理员双身份）与共用保存校验；评审 P2×1+P3×8 全处置、全量含 E2E/heavy BUILD SUCCESS） | T-ACCESS-056 |
-| [T-ACCESS-059](T-ACCESS-059.md) | （ADM-T04）新端点、快照与 SDK/网关链路 | ✅（2026-09-28 收口：无迁移期统一上线六项拍板〔切链删旧链/自身端点接准入/凭证+网关旧密钥/计数列代次/SDK 仅客户端〕+全量含 E2E/heavy BUILD SUCCESS；评审 P1 过期缓存硬 503 修复+红跑实证；T-ACCESS-060 解锁） | T-ACCESS-057, T-ACCESS-058 |
-| [T-ACCESS-060](T-ACCESS-060.md) | （ADM-T05）失效、TTL 边界与在途代次 | ✅（2026-09-28 收口：条件→服务反查 markConditions 通道化（类型超集安全反查，旧 API 资源联接退役，红跑实证）；边界重推导 30s 压线达标（L2 10s＋构建 5s＋快照 15s）入双侧启动校验方程锁；N19/N21/N23 全绿；三项拍板〔接收侧不新增代次机制/错误信封不缓存/强制在线不落地〕；T-ACCESS-061 解锁） | T-ACCESS-058, T-ACCESS-059 |
-| [T-ACCESS-061](T-ACCESS-061.md) | （ADM-T06）逐服务业务最终检查与模式切换 | ✅（2026-09-28 收口：§8.6 七路由 example 先行+反向拒绝测试（迁移资格）；检查客户端=SDK starter（拍板）；N01/N04/N05/N24/N25/N26/N27 业务半边全绿（E2E 11 用例含 runbook 演练+N27 heavy）；dev 库重建盘点零异常；runbook 落 ops；T-ACCESS-062/T-PERM-054 解锁） | T-ACCESS-059, T-ACCESS-060 |
-| [T-ACCESS-062](T-ACCESS-062.md) | （ADM-T07）API 独立授权与 legacy 协议退役（含授权生产入口退役） | ✅ | T-ACCESS-061, T-PERM-092 |
-| [T-PERM-054](T-PERM-054.md) | 手工 API 映射绑定非 API 资源处置——方案 A 落地收口 | ✅ | T-ACCESS-058, T-ACCESS-061 |
+| [T-PERM-080](../archive/2026-10-01/tasks/T-PERM-080.md) | （R2-T01）全仓调用与语义清点 | ✅（2026-09-25 收口） | — |
+| [T-PERM-081](../archive/2026-10-01/tasks/T-PERM-081.md) | （R2-T02）PQ-01/06 反例与正常语义基线 | ✅（2026-09-25 收口） | T-PERM-080 |
+| [T-PERM-082](../archive/2026-10-01/tasks/T-PERM-082.md) | （R2-T03）新请求/结果模型与合法组合 | ✅（2026-09-25 收口） | T-PERM-080 |
+| [T-PERM-083](../archive/2026-10-01/tasks/T-PERM-083.md) | （R2-T04）角色互斥 S/H/D 确定化与纯互斥计算 | ✅（2026-09-26 收口） | T-PERM-081 |
+| [T-PERM-084](../archive/2026-10-01/tasks/T-PERM-084.md) | （R2-T05）QueryReadSupport 与读来源分桶 | ✅ | T-PERM-082 |
+| [T-PERM-085](../archive/2026-10-01/tasks/T-PERM-085.md) | （R2-T06）TYPE_GRANT/INSTANCE 单一阶段主体 | ✅ | T-PERM-083, T-PERM-084, T-PERM-095 |
+| [T-PERM-086](../archive/2026-10-01/tasks/T-PERM-086.md) | （R2-T07）父受控子项与 GRANT_LIST 完整事实 | ✅ | T-PERM-085 |
+| [T-PERM-087](../archive/2026-10-01/tasks/T-PERM-087.md) | （R2-T08）投影、展示与范围四态 | ✅ | T-PERM-086 |
+| [T-PERM-088](../archive/2026-10-01/tasks/T-PERM-088.md) | （R2-T09）根审计、TRACE 与故障证据 | ✅（2026-09-26 收口：门禁暂缓登记 Q-045） | T-PERM-083, T-PERM-086 |
+| [T-PERM-089](../archive/2026-10-01/tasks/T-PERM-089.md) | （R2-T10）迁移 check/batch/管理门禁/getDenied | ✅ | T-PERM-085, T-PERM-088 |
+| [T-PERM-090](../archive/2026-10-01/tasks/T-PERM-090.md) | （R2-T11）迁移范围与 LEGACY_API 接口集合 | ✅ | T-PERM-086, T-PERM-087, T-PERM-089 |
+| [T-PERM-091](../archive/2026-10-01/tasks/T-PERM-091.md) | （R2-T12）迁移旧快照、转授、视图与配置 | ✅（2026-09-27 收口：旧引擎生产消费者清零；操作定义装载留领域侧/角色配置面零改动两拍板见任务卡） | T-PERM-087, T-PERM-088, T-PERM-090 |
+| [T-PERM-092](../archive/2026-10-01/tasks/T-PERM-092.md) | （R2-T13）删除旧执行体与四旧 DTO | ✅（2026-09-27 收口：旧执行体/四旧 DTO/TargetMode/ResolveContext 删除，X04 退役锁入架构测试；R2 入口统一完成条件闭合） | T-PERM-089, T-PERM-090, T-PERM-091 |
+| [T-PERM-093](../archive/2026-10-01/tasks/T-PERM-093.md) | （R2-T14）候选/规则索引与性能测量 | ✅ | T-PERM-091 |
+| [T-PERM-094](../archive/2026-10-01/tasks/T-PERM-094.md) | （R2-T15）灰度、故障、缓存与发布演练 | ✅（2026-10-01 收口：四拍板〔监控 A 档/同网关暴露/实测基线登记/随卡全收口〕+五类差异归类+门槛八项证据+dev 冒烟指标实测；e2e 既有夹具缺陷同批事实性修复） | T-PERM-092, T-PERM-093 |
+| [T-PERM-095](../archive/2026-10-01/tasks/T-PERM-095.md) | （基线补卡）getDenied* 跨 item 互斥最小修复——与 T-PERM-083 构成回退基线 | ✅（2026-09-26 收口：与 083 构成最小正确性修复基线=本地 tag r2-baseline-correctness〔用户拍板 tag 形态〕；全量含 E2E/heavy BUILD SUCCESS 0 失败；双轨评审 P3×2 全核实成立直修、可裁剪=0；定案见 [历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日行） | T-PERM-081 |
+| [T-ACCESS-056](../archive/2026-10-01/tasks/T-ACCESS-056.md) | （ADM-T01）准入定案回写与协议落账 | ✅（2026-09-27 收口：契约总册 §25+错误码 20070/20071+N 系归属落账；落账拍板与外评处置见任务卡） | T-PERM-080, T-PERM-082 |
+| [T-ACCESS-057](../archive/2026-10-01/tasks/T-ACCESS-057.md) | （ADM-T02）OPERATION_ADMISSION 阶段与新结果 | ✅ | T-PERM-083, T-PERM-084, T-PERM-085, T-PERM-086, T-PERM-088, T-ACCESS-056 |
+| [T-ACCESS-058](../archive/2026-10-01/tasks/T-ACCESS-058.md) | （ADM-T03）映射模型、服务模式与同步/管理面 | ✅（2026-09-28 收口：required_operation_id+maintain_source 落库、api_auth_mode 可信切换、sync-v2 独立协议（凭证/管理员双身份）与共用保存校验；评审 P2×1+P3×8 全处置、全量含 E2E/heavy BUILD SUCCESS） | T-ACCESS-056 |
+| [T-ACCESS-059](../archive/2026-10-01/tasks/T-ACCESS-059.md) | （ADM-T04）新端点、快照与 SDK/网关链路 | ✅（2026-09-28 收口：无迁移期统一上线六项拍板〔切链删旧链/自身端点接准入/凭证+网关旧密钥/计数列代次/SDK 仅客户端〕+全量含 E2E/heavy BUILD SUCCESS；评审 P1 过期缓存硬 503 修复+红跑实证；T-ACCESS-060 解锁） | T-ACCESS-057, T-ACCESS-058 |
+| [T-ACCESS-060](../archive/2026-10-01/tasks/T-ACCESS-060.md) | （ADM-T05）失效、TTL 边界与在途代次 | ✅（2026-09-28 收口：条件→服务反查 markConditions 通道化（类型超集安全反查，旧 API 资源联接退役，红跑实证）；边界重推导 30s 压线达标（L2 10s＋构建 5s＋快照 15s）入双侧启动校验方程锁；N19/N21/N23 全绿；三项拍板〔接收侧不新增代次机制/错误信封不缓存/强制在线不落地〕；T-ACCESS-061 解锁） | T-ACCESS-058, T-ACCESS-059 |
+| [T-ACCESS-061](../archive/2026-10-01/tasks/T-ACCESS-061.md) | （ADM-T06）逐服务业务最终检查与模式切换 | ✅（2026-09-28 收口：§8.6 七路由 example 先行+反向拒绝测试（迁移资格）；检查客户端=SDK starter（拍板）；N01/N04/N05/N24/N25/N26/N27 业务半边全绿（E2E 11 用例含 runbook 演练+N27 heavy）；dev 库重建盘点零异常；runbook 落 ops；T-ACCESS-062/T-PERM-054 解锁） | T-ACCESS-059, T-ACCESS-060 |
+| [T-ACCESS-062](../archive/2026-10-01/tasks/T-ACCESS-062.md) | （ADM-T07）API 独立授权与 legacy 协议退役（含授权生产入口退役） | ✅ | T-ACCESS-061, T-PERM-092 |
+| [T-PERM-054](../archive/2026-10-01/tasks/T-PERM-054.md) | 手工 API 映射绑定非 API 资源处置——方案 A 落地收口 | ✅ | T-ACCESS-058, T-ACCESS-061 |
 
 ### IAM 核心正确性与用户任务闭环
 
@@ -361,7 +361,7 @@ _当前无未终态 T-ADMIN 任务。`T-ADMIN-001~019`（用户角色代理修�
 
 ### R2 权限查询引擎统一与操作准入（2026-09-25 立项，active）
 
-执行顺序以 [r2-query-engine-and-admission-plan](../plans/r2-query-engine-and-admission-plan.md) 的「当前进度」节为唯一权威；依赖关系以各任务卡 frontmatter `depends_on` 为准。入口：T-PERM-080 全仓清点 → T-PERM-081 语义基线（红跑取证）∥ T-PERM-082 模型；新核心实现（T-PERM-085）前须先落最小正确性修复基线（T-PERM-083+095，设计 §9.3）。
+执行顺序以 [r2-query-engine-and-admission-plan](../archive/2026-10-01/r2-query-engine-and-admission-plan.md) 的「当前进度」节为唯一权威；依赖关系以各任务卡 frontmatter `depends_on` 为准。入口：T-PERM-080 全仓清点 → T-PERM-081 语义基线（红跑取证）∥ T-PERM-082 模型；新核心实现（T-PERM-085）前须先落最小正确性修复基线（T-PERM-083+095，设计 §9.3）。
 
 ### product-vertical-slice（✅ 2026-08-27 收口归档：里程碑 A + B 全部达成，18 项任务全 done；计划见 [archive/2026-08-27](../archive/2026-08-27/product-vertical-slice-plan.md)）
 

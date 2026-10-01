@@ -80,6 +80,16 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-log4j2</artifactId>
         </dependency>
+        <!-- T-PERM-094：监控指标 + Prometheus 端点（同 gateway T-GW-004 先例；
+             引擎指标 Micrometer 绑定见 MicrometerQueryEngineMetrics，暴露面独立管理端口） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
 
         <!-- Spring Cloud -->
         <dependency>

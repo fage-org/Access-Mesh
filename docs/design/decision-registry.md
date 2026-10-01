@@ -11,12 +11,11 @@
 | 主题/触发场景 | 当前权威位置 |
 |---|---|
 | 报文、分页、分层、对象、时间、业务键 | [工程规范](project-rules.md) §1–14；[业务键](engine/implementation.md#business-keys) |
-| 权限查询、互斥、继承、范围、旧引擎边界 | [引擎实现](engine/implementation.md#permission-query) §2.4/§3；[查询技能](../../.agents/skills/permission-query-pipeline/SKILL.md) |
-| R2新请求模型、纯计算、骨架与新旧迁移 | [R2实施设计](r2-unified-query-and-admission.md#r2-migration) §2/4/5/6/9；[执行计划](../plans/r2-query-engine-and-admission-plan.md) |
+| 权限查询、互斥、继承、范围、执行与观测 | [引擎实现](engine/implementation.md#permission-query) §2.4/§3（R2 已收口：§3.11 观测落地与上线门槛；[查询技能](../../.agents/skills/permission-query-pipeline/SKILL.md)）；旧 R2 实施设计（superseded，历史追溯）见 [r2-unified-query-and-admission.md](r2-unified-query-and-admission.md#r2-migration) 与 [归档计划](../archive/2026-10-01/r2-query-engine-and-admission-plan.md) |
 | 类型/资源所有权、授权根、条件生命周期、业务域分类 | [类型契约](access-service-api-contract.md#type-lifecycle)、[条件契约](access-service-api-contract.md#condition-lifecycle)、[授权契约](access-service-api-contract.md#grant-contract)、[域分类契约](access-service-api-contract.md#domain-classify)、[引擎域分类](engine/implementation.md#domain-classify) |
 | 依赖发布、自动授权、预览、来源、对账 | [自动授权](dependency-auto-grant.md#architecture) §3–8/11–13 |
 | 主体投影、树锁、默认组织、岗位、目录准入 | [服务架构](access-service-architecture.md#tree-write-lock) §4/12/17；[组织生命周期](default-org-tree-user-lifecycle.md#default-tree)；[目录准入](access-service-api-contract.md#resource-directory) |
-| 服务身份、接口准入、网关、部署 | [服务认证](service-authentication.md) §2–3；[准入协议契约](access-service-api-contract.md#operation-admission-protocol) §25（T-ACCESS-056 落账：错误码 20070/20071、reason 词表、迁移门槛）；[Gateway](services/gateway.md)对应信任头/白名单/CORS章节；[R2准入](r2-unified-query-and-admission.md#operation-admission) |
+| 服务身份、接口准入、网关、部署 | [服务认证](service-authentication.md) §2–3；[准入协议契约](access-service-api-contract.md#operation-admission-protocol) §25（T-ACCESS-056 落账：错误码 20070/20071、reason 词表、迁移门槛）；[Gateway](services/gateway.md)对应信任头/白名单/CORS章节 |
 | 前端会话、菜单、路由、加载上下文 | [会话设计](frontend/login.md#session-permissions)、[路由门禁](frontend/login.md#route-gate)、[列表约束](../../.claude/rules/frontend-coding-standards.md#list-context)；页面设计见[前端索引](frontend/README.md) |
 | 缓存、失效、TTL、滚动别名 | [缓存技能](../../.agents/skills/dual-layer-cache-framework/SKILL.md)；[架构读取边界](access-service-architecture.md#cache-boundaries) |
 | 测试轨道、容器隔离、时序 | [测试规范](../../.claude/rules/testing-standards.md#test-tracks) §10；[运行命令](../../AGENTS.md#常用命令开发阶段预估) |

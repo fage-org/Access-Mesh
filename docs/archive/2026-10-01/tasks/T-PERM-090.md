@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-090
 title: （R2-T11）迁移范围与 LEGACY_API 接口集合
 status: done
-plan: docs/plans/r2-query-engine-and-admission-plan.md
+plan: docs/archive/2026-10-01/r2-query-engine-and-admission-plan.md
 domain: access-service
 design_refs:
   - docs/design/r2-unified-query-and-admission.md §6.2/§6.4/§6.5/§6.6

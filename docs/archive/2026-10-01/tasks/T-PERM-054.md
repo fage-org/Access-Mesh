@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-054
 title: 手工 API 映射绑定非 API 资源处置——方案 A 落地收口
 status: done
-plan: docs/plans/r2-query-engine-and-admission-plan.md
+plan: docs/archive/2026-10-01/r2-query-engine-and-admission-plan.md
 domain: access-service
 design_refs:
   - docs/design/r2-unified-query-and-admission.md §7/§8.1
@@ -30,7 +30,7 @@ last_updated: 2026-09-28
 
 原问题（2026-09-05 设计体检 P2-3）：`addApiMapping`/`updateApiMapping` 仅校验资源存在不校验类型，非 API 类型可建映射；运行时 `forInterfaceCheck` 固定 `Set.of("API")+ACCESS` 过滤——非 API 绑定为恒 deny 死配置（fail-closed 无越权，P2）。
 
-方向定案（2026-09-09 [历史定案原文](../archive/2026-09-26/decision-registry-before.md)）：API 不单独授权、接口权限由操作权限关联派生。**方案定稿（2026-09-25）**：统一设计 `r2-unified-query-and-admission.md`（v3.1 adopted）落地方案 A，本卡解除暂缓并归入计划 r2-query-engine-and-admission。
+方向定案（2026-09-09 [历史定案原文](../../../archive/2026-09-26/decision-registry-before.md)）：API 不单独授权、接口权限由操作权限关联派生。**方案定稿（2026-09-25）**：统一设计 `r2-unified-query-and-admission.md`（v3.1 adopted）落地方案 A，本卡解除暂缓并归入计划 r2-query-engine-and-admission。
 
 ## 范围
 
@@ -38,7 +38,7 @@ last_updated: 2026-09-28
 
 ## 当前口径
 
-- 入口与联动语义以[契约总册 §12.2](../design/access-service-api-contract.md#122-服务与接口映射service-config--resource-api-mapping)及[准入协议 §25](../design/access-service-api-contract.md#operation-admission-protocol)为准：API 登记对象与业务操作分别指定；网关准入后仍检查真实业务目标。
+- 入口与联动语义以[契约总册 §12.2](../../../design/access-service-api-contract.md#122-服务与接口映射service-config--resource-api-mapping)及[准入协议 §25](../../../design/access-service-api-contract.md#operation-admission-protocol)为准：API 登记对象与业务操作分别指定；网关准入后仍检查真实业务目标。
 - 存量盘点覆盖开发运行库 `accessmesh-postgresql/access_db` 的全部有效映射（含停用行），延续 T-ACCESS-061 的开发库重建安排；API 授权清理由 T-ACCESS-062 完成，本卡复核结果。其他部署须执行[运行库盘点手册](../ops/runbook-service-mode-switch.md#三运行库盘点迁移或恢复服务前执行)，不能沿用开发库结论。
 - 本卡补强现有回归锁、订正退役后过时说明，不增加授权机制或服务模式。所属计划仍有 T-PERM-093/094 在办，本卡终态不触发整计划归档。
 

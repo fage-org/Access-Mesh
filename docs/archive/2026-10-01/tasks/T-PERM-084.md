@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-084
 title: （R2-T05）QueryReadSupport 与读来源分桶
 status: done
-plan: docs/plans/r2-query-engine-and-admission-plan.md
+plan: docs/archive/2026-10-01/r2-query-engine-and-admission-plan.md
 domain: access-service
 design_refs:
   - docs/design/r2-unified-query-and-admission.md §3.3/§4.2/§5.2/§5.4

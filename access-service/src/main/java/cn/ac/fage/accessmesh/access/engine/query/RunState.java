@@ -99,6 +99,9 @@ final class RunState {
 
     boolean executionFailed() { return executionFailure != null; }
 
+    /** 首个技术失败（指标终态细分用：预算超限与技术故障分开，T-PERM-094）。 */
+    Throwable executionFailure() { return executionFailure; }
+
     /** 父项证据标识序列（本次执行内唯一；父项不占调用方 key 空间）。 */
     String nextParentEvidenceId() {
         return "parent#" + ++parentSequence;

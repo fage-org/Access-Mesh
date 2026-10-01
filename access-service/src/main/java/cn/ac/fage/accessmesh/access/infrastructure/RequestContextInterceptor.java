@@ -32,7 +32,7 @@ import java.util.UUID;
  * 写入 attribute）验证后才能绑定。执行顺序：
  * </p>
  * <ol>
- *   <li>公开路径（/auth/** 公开子集：验证码/登录/令牌/撤销/登出；/actuator/**）→ ANONYMOUS</li>
+ *   <li>公开路径（/auth/** 公开子集：验证码/登录/令牌/撤销/登出；/actuator/** 已随 T-PERM-094 移独立管理端口，不经主端口拦截链）→ ANONYMOUS</li>
  *   <li>内部凭证通过（attribute INTERNAL_AUTHENTICATED）→
  *       X-User-Id 存在（恒已验签，防御纵深再校验）→ USER（签名代理主体）；
  *       无 X-User-Id → SERVICE（serviceCode 绑定 X-Service-Code 头，凭证通过即可信）</li>

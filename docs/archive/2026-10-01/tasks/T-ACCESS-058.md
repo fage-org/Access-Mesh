@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-058
 title: （ADM-T03）映射模型、服务模式与同步/管理面
 status: done
-plan: docs/plans/r2-query-engine-and-admission-plan.md
+plan: docs/archive/2026-10-01/r2-query-engine-and-admission-plan.md
 domain: access-service
 design_refs:
   - docs/design/r2-unified-query-and-admission.md §8.1/§8.3
@@ -42,7 +42,7 @@ last_updated: 2026-09-28
 
 ## 当前口径
 
-- 映射操作引用、独立来源与可信服务模式按[契约总册 §25](../design/access-service-api-contract.md#operation-admission-protocol)实现；存量来源保守 MANUAL，迁移脚本为 `docs/ops/operation-admission-migrate-058.sql`。
+- 映射操作引用、独立来源与可信服务模式按[契约总册 §25](../../../design/access-service-api-contract.md#operation-admission-protocol)实现；存量来源保守 MANUAL，迁移脚本为 `docs/ops/operation-admission-migrate-058.sql`。
 - 新同步采用独立 sync-v2，支持自身服务凭证及管理员门禁；旧同步不新增混用限制，退役由 T-ACCESS-062 承接。
 - 手工、同步和 bootstrap 共用保存校验，bootstrap 同事务创建服务配置并纳入固定图；映射引用与操作/类型生命周期共锁。
 - 操作覆盖变更按类型安全超集登记服务失效；快照端点与完整失效消费分别由 T-ACCESS-059/060 接线，不新增角色—API 授权或 AUTO_DEP。

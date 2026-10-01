@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-093
 title: （R2-T14）候选/规则索引与性能测量
 status: done
-plan: docs/plans/r2-query-engine-and-admission-plan.md
+plan: docs/archive/2026-10-01/r2-query-engine-and-admission-plan.md
 domain: access-service
 design_refs:
   - docs/design/r2-unified-query-and-admission.md §5.5/§10.4
@@ -33,7 +33,7 @@ last_updated: 2026-09-29
 
 ## 当前口径
 
-- 候选索引按[设计 §5.5](../design/r2-unified-query-and-admission.md#55-sql候选算法与预算)的门槛选择性启用，可通过服务端开关回退扫描；预算按结构规模计数，超限整体技术失败。
+- 候选索引按[设计 §5.5](../../../design/r2-unified-query-and-admission.md#55-sql候选算法与预算)的门槛选择性启用，可通过服务端开关回退扫描；预算按结构规模计数，超限整体技术失败。
 - 快照正文上限为 240 KiB，与网关现有 256 KiB 解码边界协调。
 
 ## 验收对照

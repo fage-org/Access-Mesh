@@ -1,12 +1,19 @@
 ---
 doc_type: design
 title: R2 权限查询引擎统一与操作准入（方案 A）设计
-status: adopted
+status: superseded
+superseded_by: docs/design/engine/implementation.md
 domain: access-service
-last_reviewed: 2026-09-29
+last_reviewed: 2026-10-01
 ---
 
 # Access-Mesh：R2 权限查询引擎与 T-PERM-054 统一设计
+
+> **状态（2026-10-01）：superseded——R2 计划 24 任务全部收口，本稿按归档条件转历史定案稿。**
+> 稳定结论已回写现行文档族：查询执行/迁移/观测 → [engine/implementation.md](engine/implementation.md)（§3 族+§3.11）；
+> 准入协议 → [契约总册 §25](access-service-api-contract.md#operation-admission-protocol) 与 [services/gateway.md](services/gateway.md)；
+> 执行过程与差异证据 → [归档计划](../archive/2026-10-01/r2-query-engine-and-admission-plan.md) 及其 24 张任务卡。
+> 本稿保留原位供历史追溯（交叉链接仍可解析），不再作为实现依据；现行规范以上列文档为准。
 
 **v3.1｜2026-09-25｜设计定稿（用户确认入库；评审三项拍板已并入正文）**
 
@@ -286,7 +293,7 @@ TARGET_SET 实例未解析时，仍保留之前 TYPE_GRANT 曾被条件／冲突
 | QueryProjector | 组装事实、覆盖操作、描述和展示派生 | 重新鉴权、反向修改候选或 ALLOW |
 | QueryAuditCollector | 收集真实规则／角色对和项关系；根级一次提交 | 用端点猜规则、把准入记为业务成功 |
 
-**迁移期适用边界**：T-PERM-085/086 已接入 User 有效角色＋纯 ROLE_MUTEX、TYPE_GRANT/INSTANCE、父要求与 GRANT_LIST，T-PERM-087 接入完整输出投影；C06 同序等长判定、R03 显式角色完整清单由执行链测试覆盖。T-PERM-089~092 已将生产消费者迁入唯一 execute 并删除旧执行器；ADMISSION_CANDIDATES 随 T-ACCESS-057 接入，准入端点与快照接线归 T-ACCESS-059。NO_ROLE 终态继续适用于全部结果形式，并可按输出要求装载额外操作定义；不因此装载授权。TRACE 已随 T-PERM-088 落地（`ResultDetails.ExecutionTrace`，敏感字段门禁暂缓登记 Q-045）；根级受控证据提交与 `QueryExecutionException` 技术故障边界同批接入（§6.1/§3.4 实施注）。[骨架边界来源](../archive/2026-09-26/decision-registry-before.md)（原第 201 行）；输出范围见 §3.3，父与清单实现见 §4.5/§4.6 及 [T-PERM-086](../tasks/T-PERM-086.md)。
+**迁移期适用边界**：T-PERM-085/086 已接入 User 有效角色＋纯 ROLE_MUTEX、TYPE_GRANT/INSTANCE、父要求与 GRANT_LIST，T-PERM-087 接入完整输出投影；C06 同序等长判定、R03 显式角色完整清单由执行链测试覆盖。T-PERM-089~092 已将生产消费者迁入唯一 execute 并删除旧执行器；ADMISSION_CANDIDATES 随 T-ACCESS-057 接入，准入端点与快照接线归 T-ACCESS-059。NO_ROLE 终态继续适用于全部结果形式，并可按输出要求装载额外操作定义；不因此装载授权。TRACE 已随 T-PERM-088 落地（`ResultDetails.ExecutionTrace`，敏感字段门禁暂缓登记 Q-045）；根级受控证据提交与 `QueryExecutionException` 技术故障边界同批接入（§6.1/§3.4 实施注）。[骨架边界来源](../archive/2026-09-26/decision-registry-before.md)（原第 201 行）；输出范围见 §3.3，父与清单实现见 §4.5/§4.6 及 [T-PERM-086](../archive/2026-10-01/tasks/T-PERM-086.md)。
 
 不要求每行新增独立 Spring Bean，包内 helper 也可；依赖方向是应用→引擎→既有读／领域能力→Mapper。转授服务可调用引擎，引擎不能反注入授权计划／物化服务。
 
@@ -385,7 +392,7 @@ record ParentRequirement(String resourceTypeCode, ResourceRef resource,
 
 父结果在同一 RunState 内按完整规范化要求记忆。共享角色、时刻、定义和条件，可为父做必要的额外授权读取，不能错误复用根项范围更窄的事实。父 scopeAll 已命中时，其真实权限 ID 就是绑定集，不能再扩读父实例来扩大可用子授权。
 
-T-PERM-086 实现中，沿 `ParentRequirement` 已有构造前归一约定按完整字段值判等；父项独立于根项执行表，调用方 key 不会覆盖内部父项。父阶段事实、命中 ID、真实互斥规则与受影响根项 key 的关联保存在一次 RunState 中，结束即释放；父与根共享评估时刻和条件读取记忆，父不递归公开 execute、不独立提交审计。[实施证据](../tasks/T-PERM-086.md)
+T-PERM-086 实现中，沿 `ParentRequirement` 已有构造前归一约定按完整字段值判等；父项独立于根项执行表，调用方 key 不会覆盖内部父项。父阶段事实、命中 ID、真实互斥规则与受影响根项 key 的关联保存在一次 RunState 中，结束即释放；父与根共享评估时刻和条件读取记忆，父不递归公开 execute、不独立提交审计。[实施证据](../archive/2026-10-01/tasks/T-PERM-086.md)
 
 `queryScopes` 的“父对象是否存在”预检查留在外层，OBJECT_KEY_NOT_FOUND 行为保持；存在不等于父权限允许。普通无父 GRANT_LIST 的子行可能先参与原 LIST 条件／互斥、后在装配中隐藏，不能以统一为由提前全部删掉。[E14][E15]
 
@@ -397,7 +404,7 @@ T-PERM-086 实现中，沿 `ParentRequirement` 已有构造前归一约定按完
 
 操作描述至少覆盖 raw 所涉类型，以及 output.extraOperationKeys 的目标类型。retained 为空也不能缺操作定义；无授权不等于目标操作不存在。
 
-T-PERM-086 已接通完整清单评估与最小 StageFacts 输出，保留绑定后 raw 供 T-PERM-087 的描述/范围投影消费；不提前下推展示过滤。父门禁拒绝时返回 `PARENT_DENIED`，不伪装成成功的空清单。按 §3.3 的实际执行覆盖约束，此时 `parentCheck=FAILED`、`GRANT_LIST` 以 `PARENT_DENIED` 标为跳过、`requestedSelectionComplete=false`，不输出未执行阶段的事实。源为空则不判父，完成空清单并返回 `NO_MATCH`。这些是内部执行说明，外部响应仍由对应迁移卡保持原契约。[实施证据](../tasks/T-PERM-086.md)
+T-PERM-086 已接通完整清单评估与最小 StageFacts 输出，保留绑定后 raw 供 T-PERM-087 的描述/范围投影消费；不提前下推展示过滤。父门禁拒绝时返回 `PARENT_DENIED`，不伪装成成功的空清单。按 §3.3 的实际执行覆盖约束，此时 `parentCheck=FAILED`、`GRANT_LIST` 以 `PARENT_DENIED` 标为跳过、`requestedSelectionComplete=false`，不输出未执行阶段的事实。源为空则不判父，完成空清单并返回 `NO_MATCH`。这些是内部执行说明，外部响应仍由对应迁移卡保持原契约。[实施证据](../archive/2026-10-01/tasks/T-PERM-086.md)
 
 ## 5. 共享规则、读取来源、缓存与资源控制
 
@@ -470,7 +477,7 @@ T-ACCESS-057 的准入阶段已通过 `QueryReadSupport.resolveOperations/freshO
 
 **RolePermEntry 与四个旧 DTO 区别处理：**默认保留 `ROLE_PERM_SNAPSHOT` 的现有序列化载荷，在读边界转为 GrantFact；新应用和执行器不再消费旧 PermResult。这样不强迫 R2 同时改已有缓存格式。备选版本化载荷需明确双命名空间、旧写者和双失效；新准入网关快照则因语义不同必须版本隔离，不能借“缓存兼容”复用旧 API 放行结构。[B02]
 
-T-PERM-084 的读取部件已建立该转换边界：TYPE_GRANT/INSTANCE 固定数据库读取，LIST 的 DATABASE 不读写角色快照，ROLE_SNAPSHOT 只缓存原始 RolePermEntry。缓存 miss 在首次数据库查询前获取令牌，同运行态后续 miss、分块和重试沿用该令牌，剩余 TTL 耗尽时只返回读取事实、不回填。T-PERM-085/086 已接入普通阶段与 GRANT_LIST 编排：领域批量条件评估器在本次执行跨阶段及父子判定复用读取记忆；互斥复用读取部件的新鲜目录，不另建或混入长 TTL 掩码桶。I05 的整体 execute 验证覆盖条件缓存冷/热与增量 miss、角色快照冷/热/混合 miss、跨 SQL 分块沿用首次令牌以及预算耗尽不回填；真实 PG/Redis 验证筛空结果不污染原始快照、热清单下父判定仍使用数据库事实，以及 DATABASE 读本事务写入不改角色快照。[实施证据](../tasks/T-PERM-086.md)
+T-PERM-084 的读取部件已建立该转换边界：TYPE_GRANT/INSTANCE 固定数据库读取，LIST 的 DATABASE 不读写角色快照，ROLE_SNAPSHOT 只缓存原始 RolePermEntry。缓存 miss 在首次数据库查询前获取令牌，同运行态后续 miss、分块和重试沿用该令牌，剩余 TTL 耗尽时只返回读取事实、不回填。T-PERM-085/086 已接入普通阶段与 GRANT_LIST 编排：领域批量条件评估器在本次执行跨阶段及父子判定复用读取记忆；互斥复用读取部件的新鲜目录，不另建或混入长 TTL 掩码桶。I05 的整体 execute 验证覆盖条件缓存冷/热与增量 miss、角色快照冷/热/混合 miss、跨 SQL 分块沿用首次令牌以及预算耗尽不回填；真实 PG/Redis 验证筛空结果不污染原始快照、热清单下父判定仍使用数据库事实，以及 DATABASE 读本事务写入不改角色快照。[实施证据](../archive/2026-10-01/tasks/T-PERM-086.md)
 
 ### 5.5 SQL、候选算法与预算
 
@@ -566,7 +573,7 @@ retained 有类型级覆盖                         → ALL
 
 T-PERM-087 的展示展开按保留事实源批量读取既有祖先/后代 CTE，scopeAll 不展开业务实例；PresentationEntry 以真实授权/角色 ID 关联 GrantFact，保留 ORIGINAL/PARENT/CHILD 派生来源。有效操作输出沿 OperationPermissionUtils 覆盖算法，不将不同授权来源、条件或父绑定揉成一行。PRESERVE 保留存储条件字段且对不一致引用记诊断，EVALUATE 对同类损坏保持失败关闭；展示不修正原事实或将损坏条件降为无条件。
 
-有效操作条目的 `derivation` 采用方向优先：父/子展示行保留 PARENT/CHILD；只有源资源上的操作覆盖行标 OPERATION_COVERAGE，源资源上的原授操作仍标 ORIGINAL。是否为操作覆盖通过比较 `grantedOperationCode` 与 `operationCode` 的字符串内容是否不同判断，消费方不得只筛 OPERATION_COVERAGE。例如资源 100 授予 UPDATE 且覆盖 VIEW，展开到子资源 110 后，110 的 VIEW 行保持 CHILD，两个操作码分别为 UPDATE/VIEW；父资源展开同理。方向与覆盖分别由现有字段表达，不新增枚举组合或字段；此口径不改变鉴权结论。（来源：2026-09-26 用户确认保留方向优先；视图迁移验收见 [T-PERM-091](../tasks/T-PERM-091.md)。）
+有效操作条目的 `derivation` 采用方向优先：父/子展示行保留 PARENT/CHILD；只有源资源上的操作覆盖行标 OPERATION_COVERAGE，源资源上的原授操作仍标 ORIGINAL。是否为操作覆盖通过比较 `grantedOperationCode` 与 `operationCode` 的字符串内容是否不同判断，消费方不得只筛 OPERATION_COVERAGE。例如资源 100 授予 UPDATE 且覆盖 VIEW，展开到子资源 110 后，110 的 VIEW 行保持 CHILD，两个操作码分别为 UPDATE/VIEW；父资源展开同理。方向与覆盖分别由现有字段表达，不新增枚举组合或字段；此口径不改变鉴权结论。（来源：2026-09-26 用户确认保留方向优先；视图迁移验收见 [T-PERM-091](../archive/2026-10-01/tasks/T-PERM-091.md)。）
 
 当前新基线的菜单还支持 `resourceCode` 为空的类型页因该类型存在实例授权而显示；具体 A/B 菜单仍分别绑定 REPORT_A／REPORT_B。这个入口仍是“任意有效操作”语义，不等于 REPORT:VIEW 的操作准入，不能复用成接口安全算法。[C15][C16]
 
@@ -601,7 +608,8 @@ T-PERM-087 的展示展开按保留事实源批量读取既有祖先/后代 CTE�
 > 实现内部换门面（接口形状与 SecurityException/技术错误分界保留）。四项适配拍板（2026-09-27 用户）：
 > 空白 resourceCode 归一 TYPE_LEVEL；外部 context 顶层 `clientIp` 仍提取为受信 IP 而 `evaluatedAt`/`timestamp`
 > 保留键由 CallerContext 结构拒绝（初判 500；2026-09-27 T-PERM-090 外评处置经 access-service 本地
-> advice 改 400 VALIDATION_FAILED，契约总册三处示例同步）；QueryEngineMetrics 维持 no-op（Micrometer 绑定随 T-PERM-094）；
+> advice 改 400 VALIDATION_FAILED，契约总册三处示例同步）；QueryEngineMetrics 交付时维持 no-op
+> （Micrometer 绑定已随 T-PERM-094 落地：计数＋执行时长＋超限细分档，见 §10.5 末落地注）；
 > 门面命名 QueryGate。X03 等价差分记录（已登记预期修复外的新增微差，均无证据消费面）：context 顶层
 > `timestamp` 键不再透传进条件评估；顶层 null 值键静默过滤（CallerContext 契约）；空白编码归一
 > TYPE_LEVEL 的角落差异（无父时仅 reason 变，有父命中且仅 depend_on 子 scopeAll 行时判定收紧）；
@@ -719,7 +727,7 @@ T-ACCESS-057 保留结构合法子行；父结构按候选 depend_on 并集分�
 
 ### 8.1 映射模型：API 是登记对象，业务操作是准入要求
 
-T-ACCESS-058 已为映射落库业务操作引用和独立维护来源，共同保存入口限制登记实体为 API。改造前手工可绑非 API 实例的死配置通过显式登记 API 与业务操作引用处置，不通过放开 API 过滤掩盖。[C01][C03][C04] 开发库盘点与原三问的验收证据见 [T-PERM-054](../tasks/T-PERM-054.md#验收对照)；该库无非 API 存量，不代表未经盘点的其他部署已完成迁移。
+T-ACCESS-058 已为映射落库业务操作引用和独立维护来源，共同保存入口限制登记实体为 API。改造前手工可绑非 API 实例的死配置通过显式登记 API 与业务操作引用处置，不通过放开 API 过滤掩盖。[C01][C03][C04] 开发库盘点与原三问的验收证据见 [T-PERM-054](../archive/2026-10-01/tasks/T-PERM-054.md#验收对照)；该库无非 API 存量，不代表未经盘点的其他部署已完成迁移。
 
 本版默认保留 API 登记实体，减少对同步／目录的冲击；增加明确业务操作引用，不改角色授权真值。
 
@@ -787,7 +795,7 @@ configGeneration 表示本次路由／模式配置代次。**（2026-09-25 拍�
 
 本地与在线使用同一类型／操作／条件／候选定义及同事实同环境测试。准入快照不携带用于绕过业务的“实例已授权”证明；客户端传入 finalCheckRequired=false 不能改变服务配置。
 
-T-ACCESS-059 已落地（2026-09-28，六项用户拍板与实现形态）：①**无迁移期统一上线**——全部服务（含 access-service 自身）一次切 OPERATION_ADMISSION，网关单链无模式发现，DDL 缺省与 service-config/save 创建缺省均改 OPERATION_ADMISSION，存量库经迁移脚本 `docs/ops/operation-admission-migrate-059.sql` 全量切换（含固定图映射补操作引用、query-scopes 种子映射停用、bootstrap 角色补 CONDITION:VIEW/ADMIN_ORG_TREE_CONFIG:VIEW 两笔类型级授权）；②网关直接切新链删旧链（服务端旧端点保留至 062，回退=回滚网关版本）；③access-service 自身管理端点也接准入——固定图约百条映射按「各端点服务层 QueryGate 门禁同码」补业务操作引用（开放读端点按所属类型 VIEW 绑定并同批补授，维持管理员现行可过行为；job 写三档绑码不授，网关 403 与现行服务层 403 终端一致）；④端点身份=凭证+网关内部密钥并存（两端点入 M2M 白名单，凭证限自身服务；旧密钥自报服务头拒绝）；⑤configGeneration=service_config.config_generation 计数列（写路径同事务 +1，快照构建独立语句复读自一致校验）；⑥SDK 只增 PermissionClient 两方法（Filter/Matcher 落网关侧）。网关本地判定四态 ALLOW/FALLBACK/DENY/CONFIG_FAULT（歧义/未知 schema/时效失败→终端 503；内联规则解析失败=不可用分支回源）；快照 TTL 沿 15s/5s 既有预算形态，完整边界推导归 T-ACCESS-060。N11/N12/N14/N15/N21/N22/N28 验收证据见[任务卡](../tasks/T-ACCESS-059.md)。
+T-ACCESS-059 已落地（2026-09-28，六项用户拍板与实现形态）：①**无迁移期统一上线**——全部服务（含 access-service 自身）一次切 OPERATION_ADMISSION，网关单链无模式发现，DDL 缺省与 service-config/save 创建缺省均改 OPERATION_ADMISSION，存量库经迁移脚本 `docs/ops/operation-admission-migrate-059.sql` 全量切换（含固定图映射补操作引用、query-scopes 种子映射停用、bootstrap 角色补 CONDITION:VIEW/ADMIN_ORG_TREE_CONFIG:VIEW 两笔类型级授权）；②网关直接切新链删旧链（服务端旧端点保留至 062，回退=回滚网关版本）；③access-service 自身管理端点也接准入——固定图约百条映射按「各端点服务层 QueryGate 门禁同码」补业务操作引用（开放读端点按所属类型 VIEW 绑定并同批补授，维持管理员现行可过行为；job 写三档绑码不授，网关 403 与现行服务层 403 终端一致）；④端点身份=凭证+网关内部密钥并存（两端点入 M2M 白名单，凭证限自身服务；旧密钥自报服务头拒绝）；⑤configGeneration=service_config.config_generation 计数列（写路径同事务 +1，快照构建独立语句复读自一致校验）；⑥SDK 只增 PermissionClient 两方法（Filter/Matcher 落网关侧）。网关本地判定四态 ALLOW/FALLBACK/DENY/CONFIG_FAULT（歧义/未知 schema/时效失败→终端 503；内联规则解析失败=不可用分支回源）；快照 TTL 沿 15s/5s 既有预算形态，完整边界推导归 T-ACCESS-060。N11/N12/N14/N15/N21/N22/N28 验收证据见[任务卡](../archive/2026-10-01/tasks/T-ACCESS-059.md)。
 
 ### 8.5 失效、时效与服务启停
 
@@ -1055,13 +1063,15 @@ R2 至少比较：旧版用于定位开销、**已修正确性且扫描的新基
 
 可硬性验收的是：多类型正常规模不逐类型查询；无规则不装载互斥专用操作；最小输出不做展示专用读取；准入不做逐资源最终鉴权；独立 item 不混集合；FACTS 与 routes 不静默截断；旧完整执行体不存在。新安全目录／普通目录分工与每个失效触发都有反向测试。
 
-T-PERM-093 已落实候选 S/I 测量、选择性启用及结构限额，采用适用场景覆盖。结果摘要见[任务卡](../tasks/T-PERM-093.md)，选择门槛与默认预算见 §5.5。额外规则候选索引未获得独立收益证据，维持请求级装载与既有操作位索引。灰度、故障和发布门槛仍由 T-PERM-094 承接。
+T-PERM-093 已落实候选 S/I 测量、选择性启用及结构限额，采用适用场景覆盖。结果摘要见[任务卡](../archive/2026-10-01/tasks/T-PERM-093.md)，选择门槛与默认预算见 §5.5。额外规则候选索引未获得独立收益证据，维持请求级装载与既有操作位索引。灰度、故障和发布门槛仍由 T-PERM-094 承接。
 
 ### 10.5 上线门槛与观测
 
 上线前要有：定案记录、逐消费者／逐路由覆盖清单、项目级回归证据、SDK／网关契约、缓存与模式切换演练、实际性能预算、不会恢复已知错误的回退目标。仅设计完成或任务卡写 done 不满足这些门槛。
 
 灰度差异分别归类：PQ-01／06 预期修复（06 含 S/H/D 删多收紧：链式多持用户现行保留一端、新算法全删）、FACTS 完整性／新空角色契约、同源首次读取复用、方案 A 新准入语义、意外回归。监控选择类型与阶段延迟、scopeAll／父触发率、定义缺失、预算超限、准入拒绝／配置故障／回源、业务最终拒绝、模式不一致和审计失败。准入成功而业务 B 被拒是预期分层行为，不应自动当系统错误。
+
+T-PERM-094 已收口（2026-10-01）：监控落地按用户拍板「计数＋执行时长＋超限细分」档——`QueryEngineMetrics` 端口接 Micrometer（`access.query.stage/execution/evidence.failed` 三指标，执行 Timer 直方图开 P50/P95/P99，`BUDGET_EXCEEDED` 超限细分；阶段级延迟拆分与定义缺失分布不新增指标，由执行时长＋短路率计数与 reason 日志承载），暴露面同 gateway 先例独立管理端口 9101（回环默认）；性能预算按「实测基线登记」口径落账（T-PERM-093 本机数据，不承诺生产 SLA）；灰度差异五类归类与上线门槛八项证据见 [T-PERM-094 任务卡](../archive/2026-10-01/tasks/T-PERM-094.md)，长期口径见 [engine/implementation.md §3.11](engine/implementation.md)。
 
 ## 11. 保留的关键取舍与待定案项
 

@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-056
 title: （ADM-T01）准入定案回写与协议落账
 status: done
-plan: docs/plans/r2-query-engine-and-admission-plan.md
+plan: docs/archive/2026-10-01/r2-query-engine-and-admission-plan.md
 domain: access-service
 design_refs:
   - docs/design/r2-unified-query-and-admission.md §7/§8.1/§8.2
@@ -26,7 +26,7 @@ last_updated: 2026-09-27
 
 ## 背景
 
-设计 §7/§8（报告临时编号 ADM-T01）。方案 A 主线沿 [历史定案原文](../archive/2026-09-26/decision-registry-before.md) 2026-09-09 方向定案（API 不单独授权、接口权限由操作权限关联派生）；本卡把设计定稿细则落成可引用的协议与验收分配。
+设计 §7/§8（报告临时编号 ADM-T01）。方案 A 主线沿 [历史定案原文](../../../archive/2026-09-26/decision-registry-before.md) 2026-09-09 方向定案（API 不单独授权、接口权限由操作权限关联派生）；本卡把设计定稿细则落成可引用的协议与验收分配。
 
 ## 范围
 
@@ -44,7 +44,7 @@ last_updated: 2026-09-27
 
 ## 验收对照
 
-- 验收①（四族规则核对+归当前章节+补来源）：契约总册 [§25](../design/access-service-api-contract.md#operation-admission-protocol)——§25.3 候选/子行规则（对应设计 §7.2/§7.3）、§25.4 新快照安全读取（§5.3）、§25.5 映射歧义规则（§8.2）、§25.7 服务迁移门槛（§8.6）、§25.1 requiredPermission DTO 形态（§8.1）；章首含设计权威与定案链来源（2026-09-09 方向定案→2026-09-25 方案 A 定案→本卡落账拍板）。设计稿 §8 章首补落账指针。
+- 验收①（四族规则核对+归当前章节+补来源）：契约总册 [§25](../../../design/access-service-api-contract.md#operation-admission-protocol)——§25.3 候选/子行规则（对应设计 §7.2/§7.3）、§25.4 新快照安全读取（§5.3）、§25.5 映射歧义规则（§8.2）、§25.7 服务迁移门槛（§8.6）、§25.1 requiredPermission DTO 形态（§8.1）；章首含设计权威与定案链来源（2026-09-09 方向定案→2026-09-25 方案 A 定案→本卡落账拍板）。设计稿 §8 章首补落账指针。
 - 验收②（错误原因族编号+契约新章）：`AccessErrorCode` 20070/20071（2xxxx 权限域段、Javadoc 指回 §25、类册段位清单补 20070-20079 行）；准入拒绝族走 §20.2 reason 词表（新增 `NO_CANDIDATE`，`CONDITION_NOT_MET`/`NO_ROLE` 复用）；载体切分依据 §25.6。
 - 验收③（N 系分配落账）：设计 §10.3 补「验收归属」列（N01~N30 全落位）；程序化核验各卡 acceptance 覆盖完整——N07~N09 经 057 卡「N06~N10」区间记法覆盖、N12 由 057 显式移交 059、N21 双归属 059+060；N04/N05 准入半边经 claude 外评指出未在 057 卡面显式落位，已补记 057 卡验收项（与 061 业务半边同形）；契约 §25.8 为分配索引。
 

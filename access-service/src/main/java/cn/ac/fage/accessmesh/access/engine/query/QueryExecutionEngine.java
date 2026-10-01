@@ -84,6 +84,13 @@ public final class QueryExecutionEngine {
                     log.warn("Query execution metric failed: {}", error.getMessage());
                 }
             }
+            @Override public void executionCompleted(ExecutionOutcome outcome, long durationNanos) {
+                try {
+                    target.executionCompleted(outcome, durationNanos);
+                } catch (RuntimeException error) {
+                    log.warn("Query execution metric failed: {}", error.getMessage());
+                }
+            }
             @Override public void evidenceSubmissionFailed(EvidenceKind evidenceKind) {
                 try {
                     target.evidenceSubmissionFailed(evidenceKind);
@@ -101,6 +108,9 @@ public final class QueryExecutionEngine {
             return new QueryResult(UUID.randomUUID().toString(), LocalDateTime.now(clock), List.of());
         }
         RunState run = new RunState(request, clock, limits);
+        // 执行耗时观测（T-PERM-094）：从真实执行起点（结构校验与空请求快速返回之后）计时，
+        // 与 EngineLimits deadline 同用 System.nanoTime 墙钟语义。
+        long startedNanos = System.nanoTime();
         try {
             run.budget().input(request);
             request.items().forEach(item -> run.items().put(item, new RunState.ItemExecution()));
@@ -135,10 +145,19 @@ public final class QueryExecutionEngine {
         } finally {
             // 证据提交先于释放；提交器内部消化一切提交期异常，不覆盖主异常（§4.1/§6.1）
             audit.submitConfirmedEvidenceOnce(run);
-            metrics.executionCompleted(run.executionFailed()
-                ? QueryEngineMetrics.ExecutionOutcome.TECHNICAL_FAILURE : QueryEngineMetrics.ExecutionOutcome.SUCCESS);
+            metrics.executionCompleted(executionOutcome(run), System.nanoTime() - startedNanos);
             run.release();
         }
+    }
+
+    /** 执行终态：预算/deadline 超限单列为容量信号（BUDGET_EXCEEDED），其余失败为技术故障。 */
+    private static QueryEngineMetrics.ExecutionOutcome executionOutcome(RunState run) {
+        if (!run.executionFailed()) {
+            return QueryEngineMetrics.ExecutionOutcome.SUCCESS;
+        }
+        return run.executionFailure() instanceof QueryBudgetExceededException
+            ? QueryEngineMetrics.ExecutionOutcome.BUDGET_EXCEEDED
+            : QueryEngineMetrics.ExecutionOutcome.TECHNICAL_FAILURE;
     }
 
     /** 运行中技术故障统一包装（X01/X02）；结构错误及已分类的配置故障保留具体类型。 */

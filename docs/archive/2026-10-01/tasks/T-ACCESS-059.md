@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-059
 title: （ADM-T04）新端点、快照与 SDK/网关链路
 status: done
-plan: docs/plans/r2-query-engine-and-admission-plan.md
+plan: docs/archive/2026-10-01/r2-query-engine-and-admission-plan.md
 domain: access-service
 design_refs:
   - docs/design/r2-unified-query-and-admission.md §8.2/§8.4

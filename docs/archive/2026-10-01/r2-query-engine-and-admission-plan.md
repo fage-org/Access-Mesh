@@ -1,7 +1,7 @@
 ---
 doc_type: plan
 title: R2 权限查询引擎统一与操作准入（方案 A）
-status: active
+status: archived
 domain: access-service
 design_refs:
   - docs/design/r2-unified-query-and-admission.md
@@ -31,12 +31,12 @@ tasks:
   - T-ACCESS-062
   - T-PERM-054
 acceptance: "两个完成条件各自闭合：①T-PERM-092（旧执行体与四旧 DTO 退出）可在仍有 LEGACY_API 服务时完成——legacy 语义经新 execute 表达；②T-ACCESS-062（全服务迁完、API 独立授权与 legacy 协议退役）。设计 §11 最终完成定义逐条有对应项目测试与运行证据"
-last_updated: 2026-09-29
+last_updated: 2026-10-01
 ---
 
 # R2 权限查询引擎统一与操作准入（方案 A）
 
-> 设计依据：[r2-unified-query-and-admission.md](../design/r2-unified-query-and-admission.md)（v3.1，adopted，2026-09-25 定稿——三项拍板〔时区不处理 / 角色互斥 S/H/D / configGeneration 限定语义〕见 [历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日行）。
+> 设计依据：[r2-unified-query-and-admission.md](../../design/r2-unified-query-and-admission.md)（v3.1，adopted，2026-09-25 定稿——三项拍板〔时区不处理 / 角色互斥 S/H/D / configGeneration 限定语义〕见 [历史定案原文](../../archive/2026-09-26/decision-registry-before.md) 同日行）。
 > 立项说明：统一设计稿的报告临时编号（R2-T01~15 / ADM-T01~07）按看板计数器转为正式任务 ID，映射见下表；T-PERM-054 解除暂缓归入本计划。
 
 ## 目标
@@ -53,7 +53,7 @@ last_updated: 2026-09-29
 
 ## 准入条件
 
-- 设计已定稿（[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 2026-09-25 行）；T-PERM-081 语义基线先行（红跑取证）；最小正确性修复基线（T-PERM-083+095，设计 §9.3）先于新核心实现（T-PERM-085）落地。
+- 设计已定稿（[历史定案原文](../../archive/2026-09-26/decision-registry-before.md) 2026-09-25 行）；T-PERM-081 语义基线先行（红跑取证）；最小正确性修复基线（T-PERM-083+095，设计 §9.3）先于新核心实现（T-PERM-085）落地。
 - 核心任务收口跑全量回归（含 E2E/heavy，测试运行纪律见 AGENTS.md）。
 
 ## 任务清单
@@ -62,40 +62,40 @@ last_updated: 2026-09-29
 
 | ID | 标题（报告编号） | 状态 |
 |---|---|---|
-| [T-PERM-080](../tasks/T-PERM-080.md) | 全仓调用与语义清点（R2-T01） | ✅ |
-| [T-PERM-081](../tasks/T-PERM-081.md) | PQ-01/06 反例与正常语义基线（R2-T02） | ✅ |
-| [T-PERM-082](../tasks/T-PERM-082.md) | 新请求/结果模型与合法组合（R2-T03） | ✅ |
-| [T-PERM-083](../tasks/T-PERM-083.md) | 角色互斥 S/H/D 确定化与纯互斥计算（R2-T04） | ✅ |
-| [T-PERM-084](../tasks/T-PERM-084.md) | QueryReadSupport 与读来源分桶（R2-T05） | ✅ |
-| [T-PERM-085](../tasks/T-PERM-085.md) | TYPE_GRANT/INSTANCE 单一阶段主体（R2-T06） | ✅ |
-| [T-PERM-086](../tasks/T-PERM-086.md) | 父受控子项与 GRANT_LIST 完整事实（R2-T07） | ✅ |
-| [T-PERM-087](../tasks/T-PERM-087.md) | 投影、展示与范围四态（R2-T08） | ✅ |
-| [T-PERM-088](../tasks/T-PERM-088.md) | 根审计、TRACE 与故障证据（R2-T09） | ✅ |
-| [T-PERM-089](../tasks/T-PERM-089.md) | 迁移 check/batch/管理门禁/getDenied（R2-T10） | ✅ |
-| [T-PERM-090](../tasks/T-PERM-090.md) | 迁移范围与 LEGACY_API 接口集合（R2-T11） | ✅ |
-| [T-PERM-091](../tasks/T-PERM-091.md) | 迁移旧快照、转授、视图与配置（R2-T12） | ✅ |
-| [T-PERM-092](../tasks/T-PERM-092.md) | 删除旧执行体与四旧 DTO（R2-T13） | ✅ |
-| [T-PERM-093](../tasks/T-PERM-093.md) | 候选/规则索引与性能测量（R2-T14） | ✅ |
-| [T-PERM-094](../tasks/T-PERM-094.md) | 灰度、故障、缓存与发布演练（R2-T15） | ⚙️ |
-| [T-PERM-095](../tasks/T-PERM-095.md) | （基线补卡，无报告编号）getDenied* 跨 item 互斥最小修复——与 T-PERM-083 构成回退基线 | ✅ |
+| [T-PERM-080](tasks/T-PERM-080.md) | 全仓调用与语义清点（R2-T01） | ✅ |
+| [T-PERM-081](tasks/T-PERM-081.md) | PQ-01/06 反例与正常语义基线（R2-T02） | ✅ |
+| [T-PERM-082](tasks/T-PERM-082.md) | 新请求/结果模型与合法组合（R2-T03） | ✅ |
+| [T-PERM-083](tasks/T-PERM-083.md) | 角色互斥 S/H/D 确定化与纯互斥计算（R2-T04） | ✅ |
+| [T-PERM-084](tasks/T-PERM-084.md) | QueryReadSupport 与读来源分桶（R2-T05） | ✅ |
+| [T-PERM-085](tasks/T-PERM-085.md) | TYPE_GRANT/INSTANCE 单一阶段主体（R2-T06） | ✅ |
+| [T-PERM-086](tasks/T-PERM-086.md) | 父受控子项与 GRANT_LIST 完整事实（R2-T07） | ✅ |
+| [T-PERM-087](tasks/T-PERM-087.md) | 投影、展示与范围四态（R2-T08） | ✅ |
+| [T-PERM-088](tasks/T-PERM-088.md) | 根审计、TRACE 与故障证据（R2-T09） | ✅ |
+| [T-PERM-089](tasks/T-PERM-089.md) | 迁移 check/batch/管理门禁/getDenied（R2-T10） | ✅ |
+| [T-PERM-090](tasks/T-PERM-090.md) | 迁移范围与 LEGACY_API 接口集合（R2-T11） | ✅ |
+| [T-PERM-091](tasks/T-PERM-091.md) | 迁移旧快照、转授、视图与配置（R2-T12） | ✅ |
+| [T-PERM-092](tasks/T-PERM-092.md) | 删除旧执行体与四旧 DTO（R2-T13） | ✅ |
+| [T-PERM-093](tasks/T-PERM-093.md) | 候选/规则索引与性能测量（R2-T14） | ✅ |
+| [T-PERM-094](tasks/T-PERM-094.md) | 灰度、故障、缓存与发布演练（R2-T15） | 🔨 |
+| [T-PERM-095](tasks/T-PERM-095.md) | （基线补卡，无报告编号）getDenied* 跨 item 互斥最小修复——与 T-PERM-083 构成回退基线 | ✅ |
 
 ### ADM 系列（操作准入方案 A，T-ACCESS-056~062）
 
 | ID | 标题（报告编号） | 状态 |
 |---|---|---|
-| [T-ACCESS-056](../tasks/T-ACCESS-056.md) | 准入定案回写与协议落账（ADM-T01） | ✅ |
-| [T-ACCESS-057](../tasks/T-ACCESS-057.md) | OPERATION_ADMISSION 阶段与新结果（ADM-T02） | ✅ |
-| [T-ACCESS-058](../tasks/T-ACCESS-058.md) | 映射模型、服务模式与同步/管理面（ADM-T03） | ✅ |
-| [T-ACCESS-059](../tasks/T-ACCESS-059.md) | 新端点、快照与 SDK/网关链路（ADM-T04） | ✅ |
-| [T-ACCESS-060](../tasks/T-ACCESS-060.md) | 失效、TTL 边界与在途代次（ADM-T05） | ✅ |
-| [T-ACCESS-061](../tasks/T-ACCESS-061.md) | 逐服务业务最终检查与模式切换（ADM-T06） | ✅ |
-| [T-ACCESS-062](../tasks/T-ACCESS-062.md) | API 独立授权与 legacy 协议退役（ADM-T07） | ✅ |
+| [T-ACCESS-056](tasks/T-ACCESS-056.md) | 准入定案回写与协议落账（ADM-T01） | ✅ |
+| [T-ACCESS-057](tasks/T-ACCESS-057.md) | OPERATION_ADMISSION 阶段与新结果（ADM-T02） | ✅ |
+| [T-ACCESS-058](tasks/T-ACCESS-058.md) | 映射模型、服务模式与同步/管理面（ADM-T03） | ✅ |
+| [T-ACCESS-059](tasks/T-ACCESS-059.md) | 新端点、快照与 SDK/网关链路（ADM-T04） | ✅ |
+| [T-ACCESS-060](tasks/T-ACCESS-060.md) | 失效、TTL 边界与在途代次（ADM-T05） | ✅ |
+| [T-ACCESS-061](tasks/T-ACCESS-061.md) | 逐服务业务最终检查与模式切换（ADM-T06） | ✅ |
+| [T-ACCESS-062](tasks/T-ACCESS-062.md) | API 独立授权与 legacy 协议退役（ADM-T07） | ✅ |
 
 ### 归入卡
 
 | ID | 标题 | 状态 |
 |---|---|---|
-| [T-PERM-054](../tasks/T-PERM-054.md) | 手工 API 映射绑定非 API 资源处置——方案 A 落地收口 | ✅ |
+| [T-PERM-054](tasks/T-PERM-054.md) | 手工 API 映射绑定非 API 资源处置——方案 A 落地收口 | ✅ |
 
 ## 归档条件
 
@@ -105,21 +105,23 @@ last_updated: 2026-09-29
 
 - 2026-09-25 立项并转 active（准入条件①设计定稿已达成、②为执行纪律）；立项时全部任务 proposed。依赖概览（唯一权威=各卡 frontmatter depends_on）：T-PERM-080 → 081/082 → 083/084/095（083+095=最小正确性修复基线，§9.3）→ 085 → 086（088 依赖 083+086，可与 087 并行）→ 087/089 → 090 → 091 → 092/093 → 094；ADM 支线：T-ACCESS-056 → 057（跨线依赖 R2 主线 083~086+088）/058 → 059 → 060 → 061 → 062（另依赖 092——两个完成条件在此会合）；T-PERM-054 收口于 T-ACCESS-058/061 之后。
 - 2026-09-25 T-PERM-080 完成：全仓清点册见附录 A（清点口径、生产调用点逐点迁移目标、测试/文档/容量盘点与设计 §6.5 增补结论）；设计 §6.5 已增补指针与四消费面勘正。
-- 2026-09-25 T-PERM-081 完成：R2 语义基线资产三件落库（`R2BaselineFixture`＋`MutexSemanticsCharacterizationPgIT`〔PQ-01/06 反例锚，断言=锁当前行为、T-PERM-083/095 修复时翻转〕＋`QuerySemanticsBaselinePgIT`〔四族 X03 差分锚〕，入册 A.7）；红跑取证与三项拍板见 [历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日行。
-- 2026-09-25 T-PERM-082 完成：`engine/query` 新包契约模型＋结构校验＋骨架 execute（`QueryExecutionEngine` 暂名，零消费者与旧引擎并行——三项拍板见 [历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日行，设计 §4.1 已补迁移期注）；契约单测 C01~C08/R03/I07 按结构半边口径落锁，R03 事实半边/C06 判定版分别随 T-PERM-086/085 补。
-- 2026-09-26 T-PERM-083 完成：S/H-D 就地落地（`computeRoleMutex`/`computePermMutex` 纯计算+`RolePairRef`、I01 空规则短路、真实 triggeredRuleIds、通知明细去反推；引擎调用点零改动=拍板①「域服务内解耦」、拍板②收口全量合并 095 基线取证，[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日行）；红跑 5/5 行为锁+容器定向（Mutex 5/BatchAuthCheck 11/QuerySemantics 17/RoleMutexGuard 9）+单测轨 1460 项 0 失败；双轨评审处置完毕（代码轨 P3×3/文档轨 P1×1+P2×3+P3×2 全核实成立直修、可裁剪=0）；设计 §5.1/§6.1 就地实施注。全量回归（含 E2E/heavy）与基线落账随 T-PERM-095 收口一次取得。
-- 2026-09-26 T-PERM-095 完成：PQ-01 最小修复（`computeInstanceDenied` 候选按目标闭包切分各自 PERM_MUTEX——沿 queryBatch 逐 item 形态；互斥经 `openBatchMutexEvaluator` 共享装载+评估器补 I01 空规则短路〔通道切换查询数零回归〕；命中 (组,规则) 聚合一次通知）；D01 两断言按翻转契约转终态锚（Mutex 6/6 含新增 getDenied 审计锁）；**最小正确性修复基线落账=本地 annotated tag `r2-baseline-correctness`（用户拍板 tag 形态；13df35589〔083〕+c1e56e3a6〔095〕）**；083 欠的收口全量在本卡取得（`mvn test -T 1C` 含 E2E/heavy 11 模块 BUILD SUCCESS 0 失败+单测轨 1462 绿）；双轨评审处置完毕（P3×2 全核实成立直修、存疑两项按既有口径留待、可裁剪=0）；[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日行。T-PERM-085 前置状态以任务清单及各任务卡为准。
-- 2026-09-26 T-PERM-088 完成：ConflictEvidence（execution+内部 item+stage+ruleRef 聚合，共享父=一条 parent#N 证据关联全部受影响根项）＋根 execute finally 一次受控提交（`QueryAuditCollector`，非阻塞、幂等闸、提交/聚合期异常不覆盖主异常、A04 标 EXECUTION_ERROR_AFTER_CONFIRMED_STAGE）＋运行态技术故障统一包装 `QueryExecutionException`（X01/X02；EngineLimits 本体按 A.9 归 093）＋TRACE 输出（`ResultDetails.ExecutionTrace` 复用已完成计算快照，零新增 I/O/零重评/不补跑短路阶段，A05）＋指标枚举端口 `QueryEngineMetrics`（低基数结构性锁定）。四项用户拍板：X01 统一包装、角色对证据沿旧 1h 去重（PERM 规则不去重）、TRACE 敏感字段门禁暂缓（登记 [pending-problems](../pending-problems.md) Q-045——089+ 接线前外部契约不得透传 trace）、指标走端口（Micrometer 绑定随 089+/094）。512 截断复核：新核心单行单规则，旧单条多规则拼接形态不进入；旧路径接受边界维持至 092。双轨评审（代码轨 P3×2 过时注释直修、文档轨一致、可裁剪=0）；收口全量回归随本卡执行（结果见任务卡完成记录）。
+- 2026-09-25 T-PERM-081 完成：R2 语义基线资产三件落库（`R2BaselineFixture`＋`MutexSemanticsCharacterizationPgIT`〔PQ-01/06 反例锚，断言=锁当前行为、T-PERM-083/095 修复时翻转〕＋`QuerySemanticsBaselinePgIT`〔四族 X03 差分锚〕，入册 A.7）；红跑取证与三项拍板见 [历史定案原文](../../archive/2026-09-26/decision-registry-before.md) 同日行。
+- 2026-09-25 T-PERM-082 完成：`engine/query` 新包契约模型＋结构校验＋骨架 execute（`QueryExecutionEngine` 暂名，零消费者与旧引擎并行——三项拍板见 [历史定案原文](../../archive/2026-09-26/decision-registry-before.md) 同日行，设计 §4.1 已补迁移期注）；契约单测 C01~C08/R03/I07 按结构半边口径落锁，R03 事实半边/C06 判定版分别随 T-PERM-086/085 补。
+- 2026-09-26 T-PERM-083 完成：S/H-D 就地落地（`computeRoleMutex`/`computePermMutex` 纯计算+`RolePairRef`、I01 空规则短路、真实 triggeredRuleIds、通知明细去反推；引擎调用点零改动=拍板①「域服务内解耦」、拍板②收口全量合并 095 基线取证，[历史定案原文](../../archive/2026-09-26/decision-registry-before.md) 同日行）；红跑 5/5 行为锁+容器定向（Mutex 5/BatchAuthCheck 11/QuerySemantics 17/RoleMutexGuard 9）+单测轨 1460 项 0 失败；双轨评审处置完毕（代码轨 P3×3/文档轨 P1×1+P2×3+P3×2 全核实成立直修、可裁剪=0）；设计 §5.1/§6.1 就地实施注。全量回归（含 E2E/heavy）与基线落账随 T-PERM-095 收口一次取得。
+- 2026-09-26 T-PERM-095 完成：PQ-01 最小修复（`computeInstanceDenied` 候选按目标闭包切分各自 PERM_MUTEX——沿 queryBatch 逐 item 形态；互斥经 `openBatchMutexEvaluator` 共享装载+评估器补 I01 空规则短路〔通道切换查询数零回归〕；命中 (组,规则) 聚合一次通知）；D01 两断言按翻转契约转终态锚（Mutex 6/6 含新增 getDenied 审计锁）；**最小正确性修复基线落账=本地 annotated tag `r2-baseline-correctness`（用户拍板 tag 形态；13df35589〔083〕+c1e56e3a6〔095〕）**；083 欠的收口全量在本卡取得（`mvn test -T 1C` 含 E2E/heavy 11 模块 BUILD SUCCESS 0 失败+单测轨 1462 绿）；双轨评审处置完毕（P3×2 全核实成立直修、存疑两项按既有口径留待、可裁剪=0）；[历史定案原文](../../archive/2026-09-26/decision-registry-before.md) 同日行。T-PERM-085 前置状态以任务清单及各任务卡为准。
+- 2026-09-26 T-PERM-088 完成：ConflictEvidence（execution+内部 item+stage+ruleRef 聚合，共享父=一条 parent#N 证据关联全部受影响根项）＋根 execute finally 一次受控提交（`QueryAuditCollector`，非阻塞、幂等闸、提交/聚合期异常不覆盖主异常、A04 标 EXECUTION_ERROR_AFTER_CONFIRMED_STAGE）＋运行态技术故障统一包装 `QueryExecutionException`（X01/X02；EngineLimits 本体按 A.9 归 093）＋TRACE 输出（`ResultDetails.ExecutionTrace` 复用已完成计算快照，零新增 I/O/零重评/不补跑短路阶段，A05）＋指标枚举端口 `QueryEngineMetrics`（低基数结构性锁定）。四项用户拍板：X01 统一包装、角色对证据沿旧 1h 去重（PERM 规则不去重）、TRACE 敏感字段门禁暂缓（登记 [pending-problems](../../pending-problems.md) Q-045——089+ 接线前外部契约不得透传 trace）、指标走端口（Micrometer 绑定随 089+/094）。512 截断复核：新核心单行单规则，旧单条多规则拼接形态不进入；旧路径接受边界维持至 092。双轨评审（代码轨 P3×2 过时注释直修、文档轨一致、可裁剪=0）；收口全量回归随本卡执行（结果见任务卡完成记录）。
 - 2026-09-27 T-PERM-089 完成：判定面切新 execute——引擎 Bean 化（`QueryEngineConfiguration`）＋薄门面 `engine.query.QueryGate`（四方法沿旧签名，§9.4 架构锁入 QueryBoundaryArchitectureTest）＋check/batchCheck 适配层直构 QueryRequest（外层职责保留：原序/重复项=下标 key、请求级单父上下文、RunState 单时钟）＋A.2/A.3 全部门禁与 getDenied 消费面切换（17 生产文件+AdminPermissionValidatorImpl+PermissionView:71 门禁）＋指令面回写（rule/skill 双副本/AGENTS 硬约束行）。定案口径（正文见设计 §6.5 实施注）：QueryGate 命名、本卡 metrics=noop（094 接 Micrometer）、空白 resourceCode 归一 TYPE_LEVEL、context 保留键结构拒绝（现行 400，T-PERM-090 处置修订）。X03 新增微差三条入任务卡差异记录（timestamp 键/顶层 null 过滤/空白编码角落 reason）。MutexSemantics 门面链改写（getDenied*→QueryGate、批量对照→batchCheck 服务面、D02→TargetSet 多 clause、⑧审计锁改 ConflictEvidence item 级形态）；旧引擎生产消费者仅剩 090/091 目标。评审处置：@SpyBean when() 反模式两 PgIT 39 用例（旧引擎 null 主体容忍掩盖，改 doReturn 后绿）。收口全量 `mvn test -T 1C` 含 E2E/heavy 11 模块 BUILD SUCCESS。
 - 2026-09-27 T-PERM-090 完成：范围与 LEGACY_API 四面切新 execute——queryScopes（GRANT_LIST＋父要求＋RAW_AND_KEPT，ScopeCoverageProjector 四态纯投影、OBJECT_KEY_NOT_FOUND 外层保持、matchedParentOperations=parentCheck 摘要直取）＋queryResources（GRANT_LIST＋FACTS，树扩展映射展示展开）＋checkInterface（API:ACCESS TARGET_SET 共同集合、SELF＋TypeFallback.ALLOW、空实体引用退 TYPE_LEVEL、toCheckInterfaceResp 改 DecisionResult 纯转换）＋interfaceSnapshot（PRESERVE/ENFORCE，SnapshotAssembler 改消费 List<GrantFact>）。090/091 边界定案：快照面归 090、有效权限码/可见资源投影（PermissionViewAppServiceImpl）归 091，两卡范围行同批勘正。X03 基线 QuerySemanticsBaselinePgIT 17 用例全绿；收口全量 `mvn test -T 1C` 11 模块 BUILD SUCCESS。X03 新增微差四条入任务卡差异记录（父摘要排序/树展开行序/保留键拒绝扩展三面/无角色短路 I/O 形态）。指令面回写（skill 双副本/rule/AGENTS）；旧引擎生产消费者仅剩 091 目标（视图/转授）。评审处置：保留键结构拒绝经本地 advice 改 400 VALIDATION_FAILED＋契约总册三处示例同步；scopeItemKey 死代码删除；存量观察三条登记（ops 集合口径为旧组装原样、implementation.md 旧入口归 092 回写面、§18.4 快照 ALL 示例陈旧）；单测轨道 1588 绿。
 - 2026-09-27 T-PERM-090 追加处置：advice 回归锁补强 HTTP 层（MockMvc standalone：400＋VALIDATION_FAILED 信封＋`@Order(0)` 优先级，双 advice 反序挂载使摘除即落 common 兜底 500）；rule/skill 旧引擎引导残留 6 处换 QueryGate（skill 双副本同步）；设计 §6.5 089 注与 089 卡定案口径行「保留键」补注已改 400；090 验收行删 091 归属两面、089 卡遗留行补记旧快照已随 090 交付。
-- 2026-09-27 T-PERM-091 完成：视图/转授两面切新 execute，旧引擎生产消费者清零（仅剩 092 删除动作；PermQuery 静态助手 inheritClosureOf 归 092 收编）。迁移形态、X03 差异、追加修正（视图面 clientIp 装配、装配器事实↔投影源关联）与回归证据见[任务卡](../tasks/T-PERM-091.md)。
-- 2026-09-27 T-PERM-092 完成：旧执行体与四旧 DTO＋TargetMode/ResolveContext 删除（X04 退役锁入 QueryBoundaryArchitectureTest；inheritClosureOf 收编 check 适配层私有）；characterization 五类清面改写（断言与事实集保留，服务面/直构 execute 驱动）；implementation.md §3 族整体重写为 R2 终态（设计稿 §2~§5 标注已并入）；指令面 rule/skill 双副本/AGENTS 与活文档现在时残留同批清扫；089/090 卡与进度区过程叙事按文档治理改终态事实。R2 入口统一完成条件闭合（计划第二完成条件=T-ACCESS-062）。迁移细节与验证证据见[任务卡](../tasks/T-PERM-092.md)。
-- 2026-09-28 T-ACCESS-057/058 收口补记（进度区此前滞后，同批归位）：057——OPERATION_ADMISSION 阶段落地（掩码语义对齐收口），终态见[任务卡](../tasks/T-ACCESS-057.md)；058——映射操作引用与独立维护来源落地（sync-v2 双身份、评审 P2×1+P3×8 处置、全量含 E2E/heavy BUILD SUCCESS），终态见[任务卡](../tasks/T-ACCESS-058.md)。
-- 2026-09-28 T-ACCESS-059 完成：无迁移期统一上线（用户六项拍板：①全部服务一次切 OPERATION_ADMISSION、网关单链无模式发现；②网关直接切新链删旧链（回退=回滚网关版本，服务端旧端点留 062）；③access-service 自身端点也接准入——固定图 105 路由按服务层门禁同码补操作引用+两笔补授；④端点身份=凭证+网关内部密钥并存（M2M 白名单扩两端点，凭证限自身服务）；⑤configGeneration=service_config 计数列（四挂点同事务 bump、快照构建独立语句复读自一致）；⑥SDK 只加 PermissionClient 两方法）。interface-admission 族两端点+快照装配（多要求一次 execute、候选归并、条件内联共享 GatewayPushableRules）、网关四态 matcher+过期缓存 miss 重载（评审 P1 修复+红跑实证）、迁移脚本 059、E2E 双切片同批改造；契约 §25/设计 §8.4/gateway.md/engine 册等十册回写+skill 双副本。N11/N12/N14/N15/N21/N22/N28 验收证据与全量 BUILD SUCCESS 见[任务卡](../tasks/T-ACCESS-059.md)。T-ACCESS-060 依赖解锁（TTL 边界推导与失效演练）。
-- 2026-09-28 T-ACCESS-061 完成：§8.6 逐路由业务最终检查 example-service 先行——`ReportController` 七路由覆盖检查表全部七行（实际资源/独立批量/范围列表/TYPE_LEVEL/depend_on 真实父/异步双时点/身份链）+`BusinessPermChecker` 门面（主体恒取已验签头、请求 DTO 无主体字段；fail-closed 30005）；检查客户端=perm-client SDK starter（用户拍板，内部密钥通道零 SDK 改动；e2e access/gateway 子进程须 `--perm.client.enabled=false` 防类路径传染）；反向拒绝测试 16 用例=迁移资格载体。N01/N04/N05/N24/N25/N26/N27 业务半边全绿（E2E `ExampleBusinessFinalCheckE2EIT` 11 用例含暂停切换 runbook 演练〔暂停→切模式→恢复代次单调+空快照 403+以库为准恢复〕；N27 heavy PgIT 300 路由×2001 授权不截断/不逐实例/按类别合并——拍板不加数值上限常量）。dev 运行库重建到 HEAD 后六类盘点零异常存量；runbook 落 `docs/ops/runbook-service-mode-switch.md`。三项拍板（SDK starter/重建盘点/无上限常量）与验收对照见[任务卡](../tasks/T-ACCESS-061.md)。T-ACCESS-062/T-PERM-054 依赖解锁。
-- 2026-09-28 T-ACCESS-060 完成：条件→服务反查 markConditions 通道化——`PermissionChangeAspect` flush 统一按「引用条件的授权类型→所需操作→映射服务」安全超集反查并入 serviceCodes 广播（管理页/内联/回收全覆盖；旧 T-PERM-017 API 资源等值联接整体退役，红跑实证屏蔽反查后广播为空用例即红）；边界按新准入依赖面重推导（事实族 L2≤10s＋构建耗时≤5s（回源截止约束）＋快照有效期 15s＝30s 压线达标，操作定义/条件原文/路由/配置新鲜库读不占预算）入双侧启动校验方程锁（`PermCacheBoundaryValidator` 上游 L2＋SNAPSHOT_TTL≤30s）；N19/N21/N23 用例落地（PgIT 19/19＋网关负形态两用例）。三项用户拍板：接收侧代次匹配检查不新增（epoch＋TTL 承载，修订 2026-09-25 字样）、错误信封不加负缓存（每请求回源 503 即哨兵）、「临时强制在线」灰度开关不落地。终态见[任务卡](../tasks/T-ACCESS-060.md)。T-ACCESS-061 依赖解锁。
-- 2026-09-27 T-ACCESS-056 完成：准入协议落契约总册 [§25](../design/access-service-api-contract.md#operation-admission-protocol)（OPERATION_ADMISSION／interface-admission 族目标契约：端点与快照 DTO、requiredPermission、候选/路由/迁移规则、N 系分配索引）；两配置故障错误码与 §20.2 词表增量随枚举落账（契约先行）；设计 §10.3 补验收归属列、§7/§8 章首补落账指针。落账拍板与外评处置见[任务卡](../tasks/T-ACCESS-056.md)。
+- 2026-09-27 T-PERM-091 完成：视图/转授两面切新 execute，旧引擎生产消费者清零（仅剩 092 删除动作；PermQuery 静态助手 inheritClosureOf 归 092 收编）。迁移形态、X03 差异、追加修正（视图面 clientIp 装配、装配器事实↔投影源关联）与回归证据见[任务卡](tasks/T-PERM-091.md)。
+- 2026-09-27 T-PERM-092 完成：旧执行体与四旧 DTO＋TargetMode/ResolveContext 删除（X04 退役锁入 QueryBoundaryArchitectureTest；inheritClosureOf 收编 check 适配层私有）；characterization 五类清面改写（断言与事实集保留，服务面/直构 execute 驱动）；implementation.md §3 族整体重写为 R2 终态（设计稿 §2~§5 标注已并入）；指令面 rule/skill 双副本/AGENTS 与活文档现在时残留同批清扫；089/090 卡与进度区过程叙事按文档治理改终态事实。R2 入口统一完成条件闭合（计划第二完成条件=T-ACCESS-062）。迁移细节与验证证据见[任务卡](tasks/T-PERM-092.md)。
+- 2026-09-28 T-ACCESS-057/058 收口补记（进度区此前滞后，同批归位）：057——OPERATION_ADMISSION 阶段落地（掩码语义对齐收口），终态见[任务卡](tasks/T-ACCESS-057.md)；058——映射操作引用与独立维护来源落地（sync-v2 双身份、评审 P2×1+P3×8 处置、全量含 E2E/heavy BUILD SUCCESS），终态见[任务卡](tasks/T-ACCESS-058.md)。
+- 2026-09-28 T-ACCESS-059 完成：无迁移期统一上线（用户六项拍板：①全部服务一次切 OPERATION_ADMISSION、网关单链无模式发现；②网关直接切新链删旧链（回退=回滚网关版本，服务端旧端点留 062）；③access-service 自身端点也接准入——固定图 105 路由按服务层门禁同码补操作引用+两笔补授；④端点身份=凭证+网关内部密钥并存（M2M 白名单扩两端点，凭证限自身服务）；⑤configGeneration=service_config 计数列（四挂点同事务 bump、快照构建独立语句复读自一致）；⑥SDK 只加 PermissionClient 两方法）。interface-admission 族两端点+快照装配（多要求一次 execute、候选归并、条件内联共享 GatewayPushableRules）、网关四态 matcher+过期缓存 miss 重载（评审 P1 修复+红跑实证）、迁移脚本 059、E2E 双切片同批改造；契约 §25/设计 §8.4/gateway.md/engine 册等十册回写+skill 双副本。N11/N12/N14/N15/N21/N22/N28 验收证据与全量 BUILD SUCCESS 见[任务卡](tasks/T-ACCESS-059.md)。T-ACCESS-060 依赖解锁（TTL 边界推导与失效演练）。
+- 2026-09-28 T-ACCESS-061 完成：§8.6 逐路由业务最终检查 example-service 先行——`ReportController` 七路由覆盖检查表全部七行（实际资源/独立批量/范围列表/TYPE_LEVEL/depend_on 真实父/异步双时点/身份链）+`BusinessPermChecker` 门面（主体恒取已验签头、请求 DTO 无主体字段；fail-closed 30005）；检查客户端=perm-client SDK starter（用户拍板，内部密钥通道零 SDK 改动；e2e access/gateway 子进程须 `--perm.client.enabled=false` 防类路径传染）；反向拒绝测试 16 用例=迁移资格载体。N01/N04/N05/N24/N25/N26/N27 业务半边全绿（E2E `ExampleBusinessFinalCheckE2EIT` 11 用例含暂停切换 runbook 演练〔暂停→切模式→恢复代次单调+空快照 403+以库为准恢复〕；N27 heavy PgIT 300 路由×2001 授权不截断/不逐实例/按类别合并——拍板不加数值上限常量）。dev 运行库重建到 HEAD 后六类盘点零异常存量；runbook 落 `docs/ops/runbook-service-mode-switch.md`。三项拍板（SDK starter/重建盘点/无上限常量）与验收对照见[任务卡](tasks/T-ACCESS-061.md)。T-ACCESS-062/T-PERM-054 依赖解锁。
+- 2026-09-28 T-ACCESS-060 完成：条件→服务反查 markConditions 通道化——`PermissionChangeAspect` flush 统一按「引用条件的授权类型→所需操作→映射服务」安全超集反查并入 serviceCodes 广播（管理页/内联/回收全覆盖；旧 T-PERM-017 API 资源等值联接整体退役，红跑实证屏蔽反查后广播为空用例即红）；边界按新准入依赖面重推导（事实族 L2≤10s＋构建耗时≤5s（回源截止约束）＋快照有效期 15s＝30s 压线达标，操作定义/条件原文/路由/配置新鲜库读不占预算）入双侧启动校验方程锁（`PermCacheBoundaryValidator` 上游 L2＋SNAPSHOT_TTL≤30s）；N19/N21/N23 用例落地（PgIT 19/19＋网关负形态两用例）。三项用户拍板：接收侧代次匹配检查不新增（epoch＋TTL 承载，修订 2026-09-25 字样）、错误信封不加负缓存（每请求回源 503 即哨兵）、「临时强制在线」灰度开关不落地。终态见[任务卡](tasks/T-ACCESS-060.md)。T-ACCESS-061 依赖解锁。
+- 2026-09-27 T-ACCESS-056 完成：准入协议落契约总册 [§25](../../design/access-service-api-contract.md#operation-admission-protocol)（OPERATION_ADMISSION／interface-admission 族目标契约：端点与快照 DTO、requiredPermission、候选/路由/迁移规则、N 系分配索引）；两配置故障错误码与 §20.2 词表增量随枚举落账（契约先行）；设计 §10.3 补验收归属列、§7/§8 章首补落账指针。落账拍板与外评处置见[任务卡](tasks/T-ACCESS-056.md)。
+
+- 2026-10-01 T-PERM-094 完成（R2 全计划终态，本卡=收官）：监控口径落地按拍板「计数＋执行时长＋超限细分」档（QueryEngineMetrics 接 Micrometer——access.query.stage/execution/evidence.failed 三指标，执行 Timer 直方图 P50/P95/P99，BUDGET_EXCEEDED 超限细分；暴露面同 gateway 先例独立管理端口 9101 回环默认）；灰度差异五类归类与上线门槛八项证据见[任务卡](tasks/T-PERM-094.md)；性能预算按实测基线登记口径落账；缓存失效链路演练证据四载体核实无缺口（AuthorizationChangeInvalidation/ConditionChangeEffect+InterfaceAdmission N19/TypeDefinition 操作定义失效/061 模式切换 runbook）；dev 冒烟实调 auth/check 后 Prometheus 实际输出 access_query 指标；回归=单测轨 1620 绿+收口全量其余模块绿+e2e 既有夹具缺陷（LIMIT 1 无序选父行）修复后 27/27 绿（HEAD 基线复跑同红定性非本卡回归，红跑实证）。四项拍板与完成证据见[任务卡](tasks/T-PERM-094.md)。计划归档（拍板随卡全收口）：稳定结论已回写 engine/implementation.md（§3 族+§3.11 观测落地）、契约总册 §25、gateway.md；r2-unified-query-and-admission.md 转 superseded（保留原位）；24 张卡随迁本目录 tasks/。
 
 ## 附录 A：全仓旧执行体清点册（T-PERM-080 产出）
 
@@ -238,10 +240,10 @@ last_updated: 2026-09-29
 
 **指令面（rules/skills——AGENTS.md 指针表登记的治理入口，随 T-PERM-089/092 同批回写，skills 双副本同批同步）**：`.claude/rules/permission-coding-standards.md`（现役 API 用法示例最密集的指令文件）、`.claude/rules/testing-standards.md`、`.claude/skills/permission-query-pipeline/SKILL.md`＋`.agents/skills/` 双副本（引擎使用规范）、`.claude/skills/accessmesh-patterns/SKILL.md`＋双副本。**活跃任务卡**：`docs/tasks/T-PERM-036.md`（proposed，验收含 PermQueryEngine 链路叙述——该卡若在 R2 完结前推进须按新 execute 口径改写验收）。
 
-高密度（正文以引擎口径行文，回写主目标）：`engine/implementation.md`（最密，R2 完结后 §3 族整体重写）、`engine/overview.md`、`engine/core-flows.md`。契约/治理面（门禁矩阵与调用口径行）：`access-service-api-contract.md`、`access-service-architecture.md`、`project-rules.md`、`access-service-capability-structure.md`、`org-user-permission-contract.md`、`schema/access-service.sql`（注释）、`permission-center-v3.5-design.md`、`dependency-auto-grant.md`、`extension-guide.md`、`iam-task-closure.md`、`frontend/permission-grant.md`、`frontend/service-interface-mapping.md`（:127 `getDeniedResourceCodes` 带日期划线历史注记——T-PERM-092 触达时按「带日期历史句」口径定去留）。治理索引：AGENTS.md、docs/README.md、docs/design/README.md、decision-registry.md（历史定案行不改写）、CHANGELOG.md。文档清扫统一口径=代码退役后按「现行文档规范回写」执行（本计划归档条件），[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 历史行例外保留。
+高密度（正文以引擎口径行文，回写主目标）：`engine/implementation.md`（最密，R2 完结后 §3 族整体重写）、`engine/overview.md`、`engine/core-flows.md`。契约/治理面（门禁矩阵与调用口径行）：`access-service-api-contract.md`、`access-service-architecture.md`、`project-rules.md`、`access-service-capability-structure.md`、`org-user-permission-contract.md`、`schema/access-service.sql`（注释）、`permission-center-v3.5-design.md`、`dependency-auto-grant.md`、`extension-guide.md`、`iam-task-closure.md`、`frontend/permission-grant.md`、`frontend/service-interface-mapping.md`（:127 `getDeniedResourceCodes` 带日期划线历史注记——T-PERM-092 触达时按「带日期历史句」口径定去留）。治理索引：AGENTS.md、docs/README.md、docs/design/README.md、decision-registry.md（历史定案行不改写）、CHANGELOG.md。文档清扫统一口径=代码退役后按「现行文档规范回写」执行（本计划归档条件），[历史定案原文](../../archive/2026-09-26/decision-registry-before.md) 历史行例外保留。
 
 ### A.9 容量与上限盘点
 
 - **外部 batch 上限（协议面）**：引擎批量入口 DTO `@Size(max=1000)` Bean Validation、HTTP 层 `@Valid` 拒 400（`BatchEntrySizeValidationTest` 锁定，perm-common 单源——服务端与 SDK 共用）。三类放大面：① 判定面闭包 CTE 入参（`UserAssignRoleReq`/`UserRoleBatchRevokeReq` 角色集→getDeniedResourceCodes；`ResourceKeysReq`/`IdsReq`→getDenied* 直连）；② 逐项完整引擎管线（`BatchAuthCheckReq.items`）；③ 内存网格笛卡尔组装（`QueryScopesReq` 三列表）。
-- **内部 getDenied 容量（引擎面）**：QueryReadSupport 复用 SqlBatches 分批装载，批间合并后按原 item 评估；T-PERM-093 的执行预算见[设计 §5.5](../design/r2-unified-query-and-admission.md#55-sql候选算法与预算)。内部资源目录读取可能覆盖全租户对象，不能把外部 DTO 的 1000 项限制当成内部规模上限。
+- **内部 getDenied 容量（引擎面）**：QueryReadSupport 复用 SqlBatches 分批装载，批间合并后按原 item 评估；T-PERM-093 的执行预算见[设计 §5.5](../../design/r2-unified-query-and-admission.md#55-sql候选算法与预算)。内部资源目录读取可能覆盖全租户对象，不能把外部 DTO 的 1000 项限制当成内部规模上限。
 - 输出面既有口径：事实与新准入快照不静默截断，容量超限整体失败。旧 checkInterface/legacy 快照及其 TTL 字段已随 T-ACCESS-062 退役。

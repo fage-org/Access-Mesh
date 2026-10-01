@@ -77,7 +77,7 @@ last_updated: 2026-09-30
 - **状态**：open
 - **登记**：2026-09-26
 - **来源**：[T-PERM-088](tasks/T-PERM-088.md) 的诊断门禁暂缓安排
-- **关联**：r2-unified-query-and-admission.md §3.3/§6.1
+- **关联**：[engine/implementation.md](design/engine/implementation.md) §3.5（TRACE 输出）；原登记锚 r2-unified-query-and-admission.md §3.3/§6.1（该稿 2026-10-01 转 superseded 随计划归档）
 
 **现象与证据**：普通 execute(trace=true) 可返回真实角色、权限 ID、互斥命中和父绑定证据；设计要求敏感诊断授权，门禁交付按 T-PERM-088 安排暂缓。
 

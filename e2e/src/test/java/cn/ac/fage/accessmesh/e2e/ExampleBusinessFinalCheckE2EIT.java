@@ -557,10 +557,14 @@ class ExampleBusinessFinalCheckE2EIT {
                 + " AND type_key = 'resource_type' AND type_code = '" + TYPE + "' AND delete_flag = 0");
             long subEntityId = scalar(st, "SELECT id FROM resource_entity WHERE tenant_id = 1"
                 + " AND resource_type = " + typeId + " AND code = '" + subCode + "' AND delete_flag = 0");
+            // 父行必须真正持有 VIEW 位：JOIN 操作定义需带位过滤（仅 JOIN code='VIEW' 不过滤 granted_bits，
+            // 同角色同实例多操作行并存时 LIMIT 1 无序选行可能选中不含 VIEW 位的行——2026-10-01 执行计划
+            // 变化实证选中 CREATE 行致 depend_on 指错父，判定恒 DEPENDENT_NOT_IN_PARENT_CONTEXT）
             long parentId = scalar(st,
                 "SELECT rrp.id FROM role_resource_permission rrp"
                 + " JOIN resource_entity re ON re.id = rrp.resource_entity_id AND re.code = '" + parentCode + "'"
                 + " JOIN operation_permission op ON op.resource_type = rrp.resource_type AND op.code = 'VIEW'"
+                + " AND (rrp.granted_bits & op.binary_bit) <> 0"
                 + " WHERE rrp.tenant_id = 1 AND rrp.abstract_role_id = " + roleId
                 + " AND rrp.resource_type = " + typeId + " AND rrp.delete_flag = 0 LIMIT 1");
             long subViewOpBit = scalar(st, "SELECT binary_bit FROM operation_permission WHERE tenant_id = 1"
@@ -717,6 +721,9 @@ class ExampleBusinessFinalCheckE2EIT {
     private static List<String> accessServiceArgs(int port) {
         return List.of(
             "--server.port=" + port,
+            // T-PERM-094：access-service 引入 actuator 后管理端口默认固定 9101，
+            // 并发 E2E/本机 dev 服务会冲突——子进程随机分配（就绪探针走业务端点，不探管理端口）
+            "--management.server.port=0",
             "--spring.datasource.url=" + postgres.getJdbcUrl() + "?stringtype=unspecified",
             "--spring.datasource.username=" + postgres.getUsername(),
             "--spring.datasource.password=" + postgres.getPassword(),

@@ -84,7 +84,8 @@ public class SecurityWebMvcConfig implements WebMvcConfigurer {
         // order=2：签名拦截器，覆盖所有受控路径。
         // X-User-Id 恒需验签（T-ACCESS-004 修复 G1：内部凭证路径不再无条件信任用户头）。
         // 评审 P2-2（2026-08-14）：/actuator/** 排除出签名链——公开端点契约不依赖头，
-        // 监控探针带 X-Tenant-Id 头访问 health 时不被路径 4 误拒。
+        // 监控探针带 X-Tenant-Id 头访问 health 时不被路径 4 误拒（T-PERM-094 起主端口已无
+        // /actuator/**，经独立管理端口提供，本排除语义自然满足）。
         registry.addInterceptor(headerSignatureInterceptor)
                 .addPathPatterns("/api/access/**", "/internal/**")
                 .order(2);

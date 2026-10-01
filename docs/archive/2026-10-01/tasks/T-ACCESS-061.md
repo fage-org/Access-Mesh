@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-061
 title: （ADM-T06）逐服务业务最终检查与模式切换
 status: done
-plan: docs/plans/r2-query-engine-and-admission-plan.md
+plan: docs/archive/2026-10-01/r2-query-engine-and-admission-plan.md
 domain: access-service
 design_refs:
   - docs/design/r2-unified-query-and-admission.md §8.6/§8.6a/§9.3

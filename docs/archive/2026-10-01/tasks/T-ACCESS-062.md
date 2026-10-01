@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-062
 title: （ADM-T07）API 独立授权与 legacy 协议退役
 status: done
-plan: docs/plans/r2-query-engine-and-admission-plan.md
+plan: docs/archive/2026-10-01/r2-query-engine-and-admission-plan.md
 domain: access-service
 design_refs:
   - docs/design/r2-unified-query-and-admission.md §6.6/§9.2/§9.4

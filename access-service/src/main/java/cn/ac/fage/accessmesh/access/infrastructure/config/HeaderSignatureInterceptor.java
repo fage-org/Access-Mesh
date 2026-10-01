@@ -30,7 +30,7 @@ import java.nio.charset.StandardCharsets;
  *       {@link SecurityAttributes#ATTR_SIGNATURE_VERIFIED} attribute，
  *       供 {@link cn.ac.fage.accessmesh.access.infrastructure.RequestContextInterceptor} 绑定身份。</li>
  *   <li>内部凭证通过（attribute INTERNAL_AUTHENTICATED）且无 X-User-Id → 纯服务调用，放行。</li>
- *   <li>完全匿名（无 X-User-Id 无 X-Tenant-Id）→ 放行（actuator 健康检查、未登录探活）。</li>
+ *   <li>完全匿名（无 X-User-Id 无 X-Tenant-Id）→ 放行（未登录探活；actuator 健康检查已随 T-PERM-094 移独立管理端口）。</li>
  *   <li>仅 X-Tenant-Id 而无 X-User-Id 且非内部已认证 → 异常请求，403。</li>
  * </ol>
  */
@@ -82,7 +82,7 @@ public class HeaderSignatureInterceptor implements HandlerInterceptor {
             return true;
         }
 
-        // 路径 3：完全匿名（actuator 健康检查、未登录探活）
+        // 路径 3：完全匿名（未登录探活；actuator 已移独立管理端口，T-PERM-094）
         if (StringUtils.isBlank(tenantId)) {
             return true;
         }

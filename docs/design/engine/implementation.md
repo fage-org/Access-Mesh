@@ -498,7 +498,7 @@ scopeAll 条目不参与展开；query-resources 的树扩展（原 `expandResou
   finally 一次受控提交（`QueryAuditCollector`：非阻塞、幂等闸、提交/聚合期异常不覆盖主异常、
   A04 标 EXECUTION_ERROR_AFTER_CONFIRMED_STAGE）；单行单规则结构化摘要（远低于列上限；旧单条
   多规则拼接截断形态未进入）；角色对证据沿旧 1h 去重、PERM 规则不去重；指标走
-  `QueryEngineMetrics` 端口（低基数结构性锁定；Micrometer 绑定随 T-PERM-094）。
+  `QueryEngineMetrics` 端口（低基数结构性锁定；Micrometer 绑定与超限细分见 §3.11）。
 
 **操作准入（T-ACCESS-057）**：准入固定跳过 PERM_MUTEX，父行只核同租户、同角色、未软删和单层主行结构；不评父条件、不执行父目标检查。`GrantFact.admissionCandidateKind()` 区分 ALL、INSTANCE 与 CONTEXT_DEFERRED，父运行时判断延后业务。在线与 FACTS 共用新鲜操作目录和候选查询，不读普通长 TTL 掩码或 GRANT_LIST 结果。准入 FACTS 批量核条件四态及顶层逻辑/结构，坏条件排除并记诊断，不按当前环境筛除有效规则。在线成功可逻辑短路，拒绝必须穷尽；`requestedSelectionComplete` 如实反映是否穷尽，FACTS 完整收集。条件参数的实际求值仍复用既有领域算法；读取故障整体抛技术异常。协议与审计范围见[契约总册 §25.3](../access-service-api-contract.md#operation-admission-protocol)。
 
@@ -594,6 +594,32 @@ T-PERM-089 起，替代旧 queryBatch A+ 形态——wire 契约零变化：请�
 - **空目标集守卫**：纯 TYPE_LEVEL 批/全幽灵 code 不下推实例 SQL 与闭包 CTE（1000 项上限形态禁
   500，④锁）。
 - **等价差分**：check()×N vs batchCheck 逐 item 对拍 allowed/reason/matched（按集合比较，①锁）。
+
+### 3.11 观测落地与上线门槛（T-PERM-094，2026-10-01）
+
+- **指标面（Micrometer 绑定已落地）**：`MicrometerQueryEngineMetrics`（engine.query 包）把
+  `QueryEngineMetrics` 端口接入 MeterRegistry——`access.query.stage`（Counter，selection/stage/outcome；
+  scopeAll 短路率与无角色短路率观测载体）、`access.query.execution`（Timer，outcome，直方图开启，
+  P50/P95/P99；`BUDGET_EXCEEDED` 单列容量信号与其余技术故障分开告警）、`access.query.evidence.failed`
+  （Counter，kind）。打点失败由引擎构造器防御包装吞掉（warn 不放大为查询故障）。
+  端口低基数锁（枚举+布尔+long 时长标量白名单）=`QueryAuditAndTraceTest` 结构锁；超限细分观测锁同册。
+- **监控口径承载分配（§10.5 五类面的落位）**：阶段终态/执行终态与时长/审计失败=引擎指标（上）；
+  回源失败、fail-closed 兜底与准入技术故障=网关既有指标（`gateway.perm.unreachable/fallback` 族）；
+  阶段级延迟拆分与定义缺失分布不新增指标（2026-10-01 拍板「计数+执行时长+超限细分」档），由
+  执行时长＋阶段短路率计数与拒绝 reason 日志承载；「准入成功而业务拒绝」为预期分层行为，
+  不配置为系统错误告警。
+- **暴露面**：actuator+prometheus 经独立管理端口（`ACCESS_MANAGEMENT_PORT:9101`，默认回环
+  `ACCESS_MANAGEMENT_ADDRESS:127.0.0.1`），主端口 9100 无任何 `/actuator/**`（沿 gateway T-GW-007
+  先例；e2e/并行环境以 `--management.server.port=0` 随机化）。
+- **性能实测基线**：T-PERM-093 本机测量登记为上线门槛的实测证据（1000 项稀疏热缓存 P50 扫描
+  47.1ms/选择性索引 30.8ms、N=1 约 5.0ms、5 万授权+1 万项容量样本通过），不承诺生产 SLA 数字
+  （2026-10-01 拍板「实测基线登记」）；结构硬门槛（不逐类型查询/无规则不装载/不静默截断等）
+  随全量回归复测。
+- **灰度差异归类**：与旧执行的已知差异按五类归类（PQ-01/06 预期修复、FACTS 完整性/新空角色契约、
+  同源首次读取复用、方案 A 新准入语义、意外回归=0 容忍），逐条明细与证据指针见
+  [T-PERM-094 任务卡](../../archive/2026-10-01/tasks/T-PERM-094.md)；X03 微差基线锚=`QuerySemanticsBaselinePgIT`。
+- **回退目标**（见 §3.9）：索引问题回退同一新核心扫描；投影问题只回退投影；代码级故障退
+  `r2-baseline-correctness` tag（T-PERM-083+095）。
 
 ---
 

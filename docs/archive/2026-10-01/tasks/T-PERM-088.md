@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-088
 title: （R2-T09）根审计、TRACE 与故障证据
 status: done
-plan: docs/plans/r2-query-engine-and-admission-plan.md
+plan: docs/archive/2026-10-01/r2-query-engine-and-admission-plan.md
 domain: access-service
 design_refs:
   - docs/design/r2-unified-query-and-admission.md §3.3/§3.4/§4.1/§6.1
@@ -63,7 +63,7 @@ last_updated: 2026-09-26
 ## 完成记录
 
 - 2026-09-26：ConflictEvidence＋根级受控提交（`QueryAuditCollector`：finally 一次提交、幂等闸、聚合/提交期异常不外抛）、`QueryExecutionException` 技术故障包装（X01/X02）、`ResultDetails.ExecutionTrace` TRACE 输出（A05，零新增 I/O）、`QueryEngineMetrics` 枚举端口（低基数结构性锁定）已实现；`BatchPermMutexEvaluator` 增 `describeRules`（请求级已装载规则零额外 I/O），`CandidateEvaluator.Evaluated` 携带规则引用；新执行器仍不注册 Bean、无生产消费者，`ConflictEvidence`/`QueryExecutionException` 未进任何 SDK。
-- 四项用户拍板（本日决策提问）：①X01 统一包装 `QueryExecutionException`（cause 保留；结构错误/未实现区域不包装）；②角色对证据沿旧「租户×用户×命中对」1h JVM 去重、PERM 规则证据不去重；③TRACE 敏感字段门禁暂缓，登记 [pending-problems](../pending-problems.md) Q-045（089+ 接线前外部契约不得透传 trace）；④指标走枚举端口（Micrometer 绑定随 089+/094）。
+- 四项用户拍板（本日决策提问）：①X01 统一包装 `QueryExecutionException`（cause 保留；结构错误/未实现区域不包装）；②角色对证据沿旧「租户×用户×命中对」1h JVM 去重、PERM 规则证据不去重；③TRACE 敏感字段门禁暂缓，登记 [pending-problems](../../../pending-problems.md) Q-045（089+ 接线前外部契约不得透传 trace）；④指标走枚举端口（Micrometer 绑定随 089+/094）。
 - 反例验证：新增 13 项行为锁（QueryAuditAndTraceTest）在实现前均为「无证据提交/裸异常/无 TRACE」形态失败；087 的四条行为锁按新契约翻转（技术异常裸传→QueryExecutionException 包装、trace 拒绝→TRACE 落地、三处 verifyNoInteractions(audit)→受控提交行数断言、共享父证据 affected 全键单行）。
 - 512 截断复核（§6.1 交办）：新核心单行单规则结构化摘要（远低于列上限），旧单条多规则拼接截断形态不进入新核心；旧路径接受边界维持至 T-PERM-092 退出，无范围外新影响。
 - 单测轨全量：access-service 1567 项 0 失败（`-DskipTestcontainers=true`）；定向容器组 Mutex 6＋BatchAuthCheck 11＋QueryExecutionPgIT 16 全绿（真实 PG/Redis）。

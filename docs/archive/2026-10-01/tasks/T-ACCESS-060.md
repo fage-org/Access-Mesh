@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-060
 title: （ADM-T05）失效、TTL 边界与在途代次
 status: done
-plan: docs/plans/r2-query-engine-and-admission-plan.md
+plan: docs/archive/2026-10-01/r2-query-engine-and-admission-plan.md
 domain: access-service
 design_refs:
   - docs/design/r2-unified-query-and-admission.md §5.3/§8.5（含 §8.5a 落地记录）

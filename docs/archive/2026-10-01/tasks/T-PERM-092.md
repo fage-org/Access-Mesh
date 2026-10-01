@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-092
 title: （R2-T13）删除旧执行体与四旧 DTO
 status: done
-plan: docs/plans/r2-query-engine-and-admission-plan.md
+plan: docs/archive/2026-10-01/r2-query-engine-and-admission-plan.md
 domain: access-service
 design_refs:
   - docs/design/r2-unified-query-and-admission.md §9.1/§9.4

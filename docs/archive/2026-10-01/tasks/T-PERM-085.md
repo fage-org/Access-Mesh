@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-085
 title: （R2-T06）TYPE_GRANT/INSTANCE 单一阶段主体
 status: done
-plan: docs/plans/r2-query-engine-and-admission-plan.md
+plan: docs/archive/2026-10-01/r2-query-engine-and-admission-plan.md
 domain: access-service
 design_refs:
   - docs/design/r2-unified-query-and-admission.md §3.3/§3.4/§5.4/§6.1

@@ -6,6 +6,8 @@
 
 ### Added
 
+- **权限引擎可观测性与独立管理端口（T-PERM-094）**：access-service 引入 actuator+Prometheus 端点（同 Gateway 形态）：health/info/prometheus/metrics 仅经独立管理端口提供（默认 `9101` 回环绑定，`ACCESS_MANAGEMENT_PORT`/`ACCESS_MANAGEMENT_ADDRESS` 覆盖；主端口 9100 无任何 `/actuator/**`）。新增引擎指标 `access.query.stage`（选择×阶段×终态计数——scopeAll/无角色短路率观测载体）、`access.query.execution`（执行终态 Timer 含直方图 P50/P95/P99；`budget_exceeded` 单列容量信号，与技术故障分开告警）、`access.query.evidence.failed`（审计证据受控提交失败）；指标口径与监控承载分配见 [engine/implementation §3.11](docs/design/engine/implementation.md)。compose `app` profile 的 access-service 补管理端口健康检查。
+
 - **权限查询容量保护与候选加速（T-PERM-093）**：大批量稀疏候选按实测门槛选择索引，可通过服务端开关回退扫描；新增可配置的结构预算和协作式执行期限，超限返回整体技术失败，不截断事实或准入快照。默认限额与调整说明见 [R2 设计 §5.5](docs/design/r2-unified-query-and-admission.md#55-sql候选算法与预算)。
 
 - **公告撤回端点与受众生命周期（T-ADMIN-029）**：新增 `POST /api/access/notice/revoke`（已发布 1→已撤回 2；撤回后受众不可读不可标已读、已读记录保留——重新发布已读延续）；新增错误码 **10402** `NOTICE_STATUS_CONFLICT`（严格状态机：对已发布重复发布、对草稿/已撤回撤回均拒绝，不做幂等 no-op）。`my-notices`/`read` 进 Gateway 白名单（普通用户自服务，服务层登录态+可见性校验；管理面七端点进 bootstrap 固定图+`ADMIN_NOTICE` 五档类型级授权——此前公告全族 8 端点因固定图零注册被网关 fail-closed 403，行为验证只能以门禁拒绝冒充）。

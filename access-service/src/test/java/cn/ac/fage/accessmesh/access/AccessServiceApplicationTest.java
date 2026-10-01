@@ -158,6 +158,25 @@ class AccessServiceApplicationTest {
     }
 
     /**
+     * T-PERM-094：actuator 引入后管理端口与主端口分离（沿 gateway T-GW-007 先例）——
+     * health/info/prometheus/metrics 仅经独立管理端口提供，主端口 9100 无 /actuator/**；
+     * 默认回环绑定（仅同机可达），远程抓取经 ACCESS_MANAGEMENT_ADDRESS 显式放开。
+     */
+    @Test
+    @DisplayName("T-PERM-094：management 独立管理端口默认 9101+回环绑定+最小暴露面")
+    void managementEndpointsAreOnSeparateLoopbackPort() {
+        var env = applicationContext.getEnvironment();
+        org.junit.jupiter.api.Assertions.assertEquals("9101", env.getProperty("management.server.port"),
+            "management.server.port 默认 9101（独立管理端口），实际 " + env.getProperty("management.server.port"));
+        org.junit.jupiter.api.Assertions.assertEquals("127.0.0.1", env.getProperty("management.server.address"),
+            "management.server.address 默认 127.0.0.1（仅同机可达），实际 " + env.getProperty("management.server.address"));
+        org.junit.jupiter.api.Assertions.assertEquals("health,info,prometheus,metrics",
+            env.getProperty("management.endpoints.web.exposure.include"),
+            "暴露面=health,info,prometheus,metrics（最小集+指标端点），实际 "
+                + env.getProperty("management.endpoints.web.exposure.include"));
+    }
+
+    /**
      * T-ACCESS-003 验收：基础设施 Bean 唯一（单数据源、单事务管理器、唯一 CacheService、唯一 ObjectMapper）。
      */
     @Test

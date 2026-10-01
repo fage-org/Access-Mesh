@@ -94,6 +94,12 @@ services:
       PERM_INTERNAL_SECRET: ${PERM_INTERNAL_SECRET:-}
     ports:
       - "127.0.0.1:9100:9100"
+    # 健康检查走独立管理端口（容器内回环；T-PERM-094 管理端口与主端口分离，同 gateway 先例）
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:9101/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
     depends_on:
       postgresql:
         condition: service_healthy

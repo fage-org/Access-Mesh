@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-087
 title: （R2-T08）投影、展示与范围四态
 status: done
-plan: docs/plans/r2-query-engine-and-admission-plan.md
+plan: docs/archive/2026-10-01/r2-query-engine-and-admission-plan.md
 domain: access-service
 design_refs:
   - docs/design/r2-unified-query-and-admission.md §3.2/§3.3/§6.2/§6.4

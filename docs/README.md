@@ -101,7 +101,7 @@ docs/
 
 ## 执行计划
 
-当前活跃计划：[R2 权限查询引擎统一与操作准入（方案 A）](plans/r2-query-engine-and-admission-plan.md)（2026-09-25 立项：T-PERM-080~094 + T-ACCESS-056~062 + 归入卡 T-PERM-054；设计定稿 [design/r2-unified-query-and-admission.md](design/r2-unified-query-and-admission.md)，三项拍板见 [历史定案原文](archive/2026-09-26/decision-registry-before.md) 2026-09-25 行）。最近归档批次：[IAM核心正确性与用户任务闭环计划](archive/2026-09-24/iam-task-closure-plan.md)（2026-09-24 收口归档，18 任务全 done）；[方案](design/iam-task-closure.md)为draft，未决取舍在对应任务启动时确定。
+当前无活跃计划。最近归档批次：[R2 权限查询引擎统一与操作准入（方案 A）](archive/2026-10-01/r2-query-engine-and-admission-plan.md)（2026-09-25 立项 → 2026-10-01 收口归档：24 任务全 done——旧执行体删除、全消费者迁新 execute、操作准入统一上线、引擎指标接 Micrometer 与上线门槛收口；[r2 设计稿](design/r2-unified-query-and-admission.md)转 superseded，稳定结论回写 [engine/implementation.md](design/engine/implementation.md)〔§3 族+§3.11〕/契约总册 §25/gateway.md）；[IAM核心正确性与用户任务闭环计划](archive/2026-09-24/iam-task-closure-plan.md)（2026-09-24 收口归档，18 任务全 done；[方案](design/iam-task-closure.md)为draft，未决取舍在对应任务启动时确定）。
 
 | 主题 | 文档 |
 |------|------|

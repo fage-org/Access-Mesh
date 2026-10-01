@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-086
 title: （R2-T07）父受控子项与 GRANT_LIST 完整事实
 status: done
-plan: docs/plans/r2-query-engine-and-admission-plan.md
+plan: docs/archive/2026-10-01/r2-query-engine-and-admission-plan.md
 domain: access-service
 design_refs:
   - docs/design/r2-unified-query-and-admission.md §4.5/§4.6

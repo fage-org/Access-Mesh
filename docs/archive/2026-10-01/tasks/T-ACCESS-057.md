@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-057
 title: （ADM-T02）OPERATION_ADMISSION 阶段与新结果
 status: done
-plan: docs/plans/r2-query-engine-and-admission-plan.md
+plan: docs/archive/2026-10-01/r2-query-engine-and-admission-plan.md
 domain: access-service
 design_refs:
   - docs/design/r2-unified-query-and-admission.md §5.3/§6.1/§7.2/§7.3/§7.4
@@ -42,7 +42,7 @@ last_updated: 2026-09-27
 ## 当前口径
 
 - 准入经唯一 execute 的 ADMISSION_CANDIDATES 阶段执行；操作定义固定新鲜数据库目录，候选与父结构分别合批读取。
-- 审计范围、坏条件排除和配置错误优先级见[协议契约 §25.3/§25.4/§25.6](../design/access-service-api-contract.md#operation-admission-protocol)；实施落点见[引擎实现 §3.3/§3.5/§3.6](../design/engine/implementation.md#permission-query)。
+- 审计范围、坏条件排除和配置错误优先级见[协议契约 §25.3/§25.4/§25.6](../../../design/access-service-api-contract.md#operation-admission-protocol)；实施落点见[引擎实现 §3.3/§3.5/§3.6](../../../design/engine/implementation.md#permission-query)。
 - 初次实现采用组合验证证据（2026-09-27 确认）：复用全量中已通过的其他单测、容器组与 heavy，仅修正夹具后完整复跑 QueryExecutionPgIT 并通过 reactor 补齐 E2E。操作目录校验修正后已另跑完整 `mvn test -T 1C`，最新验收为 2259 项全通过，含 E2E 与 heavy。
 
 ## 验收对照

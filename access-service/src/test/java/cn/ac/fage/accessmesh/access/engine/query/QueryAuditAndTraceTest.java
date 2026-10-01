@@ -102,12 +102,18 @@ class QueryAuditAndTraceTest {
 
     /** 复用同一批 mock 部件构造引擎（不同指标实现的回归锁用）。 */
     QueryExecutionEngine newEngine(QueryEngineMetrics metricsImpl) {
+        return newEngine(metricsImpl, EngineLimits.unlimited());
+    }
+
+    /** 带预算构造（超限细分观测锁用，T-PERM-094）。 */
+    QueryExecutionEngine newEngine(QueryEngineMetrics metricsImpl, EngineLimits limits) {
         var conditions = new PermissionConditionDomainServiceImpl(conditionMapper,
             mock(RoleResourcePermissionDomainService.class), new ObjectMapper(), cache);
         var conflicts = new PermissionConflictDomainServiceImpl(rules, cache, new ObjectMapper(), audit, operations, subjects);
         return new QueryExecutionEngine(clock,
             new QueryReadSupport(types, operations, resources, roleMapper, grants, cache, new RolePermEntryMapper()),
-            subjects, conditions, conflicts, resourceMapper, new QueryAuditCollector(audit, metricsImpl), metricsImpl);
+            subjects, conditions, conflicts, resourceMapper, new QueryAuditCollector(audit, metricsImpl),
+            metricsImpl, true, limits);
     }
 
     /** 新核心直连的互斥评估器（describeRules 契约锁用）。 */
@@ -180,12 +186,17 @@ class QueryAuditAndTraceTest {
     /** 记录式指标 fake：维度值全部来自固定枚举（低基数结构性锁定的消费面）。 */
     static final class RecordingMetrics implements QueryEngineMetrics {
         final List<String> events = new ArrayList<>();
+        final List<Long> executionNanos = new ArrayList<>();
         final List<QueryEngineMetrics.EvidenceKind> submissionFailures = new ArrayList<>();
         @Override public void itemStage(SelectionKind selection, Stage stage, StageOutcome outcome) {
             events.add("stage:" + selection + ":" + stage + ":" + outcome);
         }
         @Override public void executionCompleted(ExecutionOutcome outcome) {
             events.add("execution:" + outcome);
+        }
+        @Override public void executionCompleted(ExecutionOutcome outcome, long durationNanos) {
+            events.add("execution:" + outcome);
+            executionNanos.add(durationNanos);
         }
         @Override public void evidenceSubmissionFailed(EvidenceKind evidenceKind) {
             submissionFailures.add(evidenceKind);
@@ -313,6 +324,23 @@ class QueryAuditAndTraceTest {
             .hasRootCauseMessage("budget exceeded");
     }
 
+    // ===== T-PERM-094：预算超限单列容量信号，终态带执行时长观测维度 =====
+
+    @Test
+    void should_reportBudgetExceededAsCapacityOutcome_withMeasuredDuration() {
+        engine = newEngine(metrics, new EngineLimits(0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, java.time.Duration.ZERO));
+        scopeRows.add(grant(101, 1, null, 2));
+        scopeRows.add(grant(102, 1, null, 4));
+        var item = QueryItem.decision("a", new TargetSet(List.of(clause(100)), Inheritance.SELF,
+            TypeFallback.ALLOW, null), OutputSpec.minimal());
+        assertThatThrownBy(() -> execute(item)).isInstanceOf(QueryBudgetExceededException.class);
+        assertThat(metrics.events)
+            .as("超限=BUDGET_EXCEEDED（容量信号），不与装载/DB 类技术故障合并告警（2026-10-01 拍板超限细分）")
+            .contains("execution:BUDGET_EXCEEDED")
+            .doesNotContain("execution:TECHNICAL_FAILURE");
+        assertThat(metrics.executionNanos.getFirst()).isGreaterThanOrEqualTo(0L);
+    }
+
     // ===== 角色对证据跨请求 1h 去重沿旧口径；PERM 规则证据不去重 =====
 
     @Test
@@ -413,19 +441,30 @@ class QueryAuditAndTraceTest {
         verify(resources, never()).selectValidByIds(anyLong(), anySet());
     }
 
-    // ===== 指标端口低基数结构锁：参数只允许枚举/布尔，无高基数标识通道 =====
+    // ===== 指标端口低基数结构锁：标签通道只允许枚举/布尔；long 限时长标量（非标签维度） =====
 
     @Test
     void should_keepMetricsPortEnumOnly_soNoHighCardinalityLabelCanEnter() {
         var violations = new ArrayList<String>();
+        var longParameterMethods = new ArrayList<String>();
         for (var method : QueryEngineMetrics.class.getDeclaredMethods()) {
+            boolean hasLong = false;
             for (Class<?> parameter : method.getParameterTypes()) {
-                if (!parameter.isEnum() && parameter != boolean.class) {
+                // long 白名单仅限执行时长标量（T-PERM-094 拍板「计数+执行时长+超限细分」）：
+                // 进入 Micrometer Timer 的 record 值，不构成标签维度；其余非枚举/布尔参数=高基数标签进入通道
+                if (!parameter.isEnum() && parameter != boolean.class && parameter != long.class) {
                     violations.add(method.getName() + ":" + parameter.getSimpleName());
                 }
+                hasLong |= parameter == long.class;
+            }
+            if (hasLong) {
+                longParameterMethods.add(method.getName());
             }
         }
         assertThat(violations).as("resourceCode/permissionId/itemKey 等高基数标签无进入通道（§6.1）").isEmpty();
+        assertThat(longParameterMethods)
+            .as("long 标量仅限执行时长上报（executionCompleted），不得扩散为数值标签通道")
+            .containsExactly("executionCompleted");
     }
 
     // ===== 阶段终态打点覆盖短路路径 =====

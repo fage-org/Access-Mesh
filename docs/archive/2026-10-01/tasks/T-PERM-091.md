@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-091
 title: （R2-T12）迁移旧快照、转授、视图与配置
 status: done
-plan: docs/plans/r2-query-engine-and-admission-plan.md
+plan: docs/archive/2026-10-01/r2-query-engine-and-admission-plan.md
 domain: access-service
 design_refs:
   - docs/design/r2-unified-query-and-admission.md §6.3/§6.4/§6.5

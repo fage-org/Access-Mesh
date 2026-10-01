@@ -651,6 +651,9 @@ class ExampleProtectedApiE2EIT {
     private static List<String> accessServiceArgs(int port) {
         return List.of(
             "--server.port=" + port,
+            // T-PERM-094：access-service 引入 actuator 后管理端口默认固定 9101，
+            // 并发 E2E/本机 dev 服务会冲突——子进程随机分配（就绪探针走业务端点，不探管理端口）
+            "--management.server.port=0",
             "--spring.datasource.url=" + postgres.getJdbcUrl() + "?stringtype=unspecified",
             "--spring.datasource.username=" + postgres.getUsername(),
             "--spring.datasource.password=" + postgres.getPassword(),
