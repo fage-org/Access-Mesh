@@ -12,7 +12,7 @@
 | 报告项 | 核实结论 | 核实时载体（后续合并去向见问题清单索引） |
 |---|---|---|
 | B-1 互斥缓存脏数据回填 | 条件性代码路径成立，受支持写入口可达性未证实；不登记为已确认问题 | 见下方未登记依据 |
-| B-2 query-resources 覆盖漏项 | 当前代码现象成立；已有同范围任务观察，非新发现，也非已修复 | [T-PERM-090 当前口径](../../tasks/T-PERM-090.md) |
+| B-2 query-resources 覆盖漏项 | 当前代码现象成立；已有同范围任务观察，非新发现，也非已修复 | [T-PERM-090 当前口径](../../archive/2026-10-01/tasks/T-PERM-090.md) |
 | B-3 重新指派忽略旧窗口 | 成立，补充 relationId 去重边界；不推导管理面必须支持多窗口 | Q-047 |
 | B-4 菜单 create/delete 无树锁 | 成立；保留控制器入口，不能称仅 bootstrap 可调用 | Q-048 |
 | B-5 非法 cron 保存成功 | 成立；创建空白已受 @NotBlank 约束，更新多实例旧调度行为需区分 | Q-049 |
@@ -35,7 +35,7 @@
 
 [PermissionQueryAppServiceImpl.buildQueryResourcesResponse](../../../access-service/src/main/java/cn/ac/fage/accessmesh/access/engine/service/impl/PermissionQueryAppServiceImpl.java) 的 opMatch 用 covers，ALL 与实例分支的 ops 又按授予码与请求码字面交集取值。因此只有 MANAGE、请求 UPDATE 时可以被过滤成空；这一代码矛盾仍存在。契约总册 §18.5 的有效权限集合用途支持继续关注该差异。
 
-但是 [T-PERM-090](../../tasks/T-PERM-090.md) 当前口径已明确登记「queryResources ops 集合要求授予码本身在请求 operationCodes 内（旧组装原样搬运，覆盖操作单独持有不出行）」并按存量观察不处置。本次按生命周期技能的已有载体去重规则引用该记录，不将任务 done 当作已修复，也不把迁移时不修扩展为永久接受此查询语义。后续要启动修复须明确对应契约及任务承载。
+但是 [T-PERM-090](../../archive/2026-10-01/tasks/T-PERM-090.md) 当前口径已明确登记「queryResources ops 集合要求授予码本身在请求 operationCodes 内（旧组装原样搬运，覆盖操作单独持有不出行）」并按存量观察不处置。本次按生命周期技能的已有载体去重规则引用该记录，不将任务 done 当作已修复，也不把迁移时不修扩展为永久接受此查询语义。后续要启动修复须明确对应契约及任务承载。
 
 ## 影响边界的关键勘正
 

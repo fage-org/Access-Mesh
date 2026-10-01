@@ -230,9 +230,9 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 | `/api/access/**/sync`、`/full-sync` | 已验证服务身份 | `sourceService` 必须等于已验证服务身份（凭证通过后绑定的 X-Service-Code，`SyncAuthVerifier` 从上下文比对） | SERVICE 上下文；不匹配 → SECURITY_DENIED |
 | 其他 `/api/access/**` 管理接口 | 已验证 Gateway + 用户身份，或显式服务白名单 | 内部凭证不隐式获得全量管理权限：纯凭证调用 operatorId=null → 权限判定 fail-closed；X-User-Id 恒需验签才绑定操作者 | USER（验签）/ SERVICE（无操作者） |
 | `/internal/**` | 已签名/凭证调用 | 与 /api/** 同签名链；匿名放行后由 RequestContext 显式 401 | HeaderSignature 覆盖 |
-| `/actuator/**` | 匿名 | 健康检查匿名放行（不强制 X-Tenant-Id）；暴露面最小化 health,info | ANONYMOUS；不在签名链 |
+| `/actuator/**` | 匿名 | 主端口 9100 无对应 handler（404）；独立管理端口 9101（默认回环 127.0.0.1 绑定，`ACCESS_MANAGEMENT_PORT/ADDRESS` 覆盖）匿名提供 health,info,prometheus,metrics——无认证，信任边界为网络隔离 | ANONYMOUS；不在签名链 |
 
-`access-service` 端口仅在内部网络开放，Gateway 是用户流量唯一入口。本地跨域调用不模拟 HTTP 请求头，但仍使用可信上下文和权限校验器。
+`access-service` 端口仅在内部网络开放，Gateway 是用户流量唯一入口。本地跨域调用不模拟 HTTP 请求头，但仍使用可信上下文和权限校验器。管理端口（T-PERM-094 起 9101）无认证、默认仅回环可达：放开 `ACCESS_MANAGEMENT_ADDRESS` 必须同配网络 ACL，其暴露面（含 prometheus/metrics 的 API 拓扑与指标枚举）以网络隔离为唯一信任边界；`SecurityMatrixIT` 对 `/actuator/health` 匿名可达的断言锁定的是拦截器放行语义（MOCK 上下文），不代表生产主端口存在该路径。
 
 ## 7. 缓存与多实例一致性
 

@@ -43,7 +43,9 @@ final class QueryAuditCollector {
 
     QueryAuditCollector(AuditDomainService audit, QueryEngineMetrics metrics) {
         this.audit = audit;
-        this.metrics = metrics == null ? QueryEngineMetrics.noop() : metrics;
+        // recordFailure 在提交异常 catch 内直调指标：未防护时指标后端异常会逃出 finally、
+        // 跳过终态上报与 RunState 释放（T-PERM-094 复评 P3），与引擎同走统一防御工厂
+        this.metrics = GuardedQueryEngineMetrics.guard(metrics);
     }
 
     /** 根 execute finally 唯一提交口（先于 RunState 释放）；任何提交期异常都不外抛。 */

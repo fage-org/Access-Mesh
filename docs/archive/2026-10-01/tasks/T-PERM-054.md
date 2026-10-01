@@ -39,7 +39,7 @@ last_updated: 2026-09-28
 ## 当前口径
 
 - 入口与联动语义以[契约总册 §12.2](../../../design/access-service-api-contract.md#122-服务与接口映射service-config--resource-api-mapping)及[准入协议 §25](../../../design/access-service-api-contract.md#operation-admission-protocol)为准：API 登记对象与业务操作分别指定；网关准入后仍检查真实业务目标。
-- 存量盘点覆盖开发运行库 `accessmesh-postgresql/access_db` 的全部有效映射（含停用行），延续 T-ACCESS-061 的开发库重建安排；API 授权清理由 T-ACCESS-062 完成，本卡复核结果。其他部署须执行[运行库盘点手册](../ops/runbook-service-mode-switch.md#三运行库盘点迁移或恢复服务前执行)，不能沿用开发库结论。
+- 存量盘点覆盖开发运行库 `accessmesh-postgresql/access_db` 的全部有效映射（含停用行），延续 T-ACCESS-061 的开发库重建安排；API 授权清理由 T-ACCESS-062 完成，本卡复核结果。其他部署须执行[运行库盘点手册](../../../ops/runbook-service-mode-switch.md#三运行库盘点迁移或恢复服务前执行)，不能沿用开发库结论。
 - 本卡补强现有回归锁、订正退役后过时说明，不增加授权机制或服务模式。所属计划仍有 T-PERM-093/094 在办，本卡终态不触发整计划归档。
 
 ## 验收对照
@@ -58,7 +58,7 @@ last_updated: 2026-09-28
 ## 完成记录
 
 - 2026-09-28 开发库只读复核（`docker exec -i accessmesh-postgresql psql -X -U postgres -d access_db -v ON_ERROR_STOP=1`，查询依据上述手册）：租户 1/access-service 有效映射 105 条，全部启用并指向有效 API 登记实体；非 API 引用与悬空登记均为 0；空/悬空业务操作、缺类型/非法操作位/API:ACCESS 要求均为 0；精确路由重复为 0；来源全部 BOOTSTRAP，无 SERVICE_SYNC 归属冲突；有效 API 授权为 0，旧 api_auth_mode 列不存在。example-service 由 E2E 建库并逐路由验证，本开发库未登记该服务。
-- 存量 schema 注释通过 [api-mapping-comments-054.sql](../ops/api-mapping-comments-054.sql) 同步并查询确认；仅 COMMENT，无列约束或业务数据变更。
+- 存量 schema 注释通过 [api-mapping-comments-054.sql](../../../ops/api-mapping-comments-054.sql) 同步并查询确认；仅 COMMENT，无列约束或业务数据变更。
 - 回归锁反向验证：临时移除登记实体校验与 API:ACCESS 禁止分支，执行 `mvn test -pl access-service -Dtest=ApiMappingWriteDomainServiceImplTest -DskipTestcontainers=true -Dsurefire.failIfNoSpecifiedTests=false`，8 项中对应 3 项失败，生产源码随后按原字节恢复。非 API 与跨租户反例均提供有效 REPORT:VIEW 操作，API:ACCESS 反例提供有效操作定义，排除由其他错误遮蔽目标分支的假通过。
 - 同族服务登记回归锁：为缺服务配置反例提供有效 REPORT:VIEW；临时移除服务登记守卫后同一命令 8 项中仅对应 1 项失败，原字节恢复后定向复跑 8 项全部通过（2026-09-28）。本卡没有生产逻辑变更。
 - 2026-09-28 全量收口 `mvn test -T 1C`：2354 项，0 失败、0 错误、0 跳过，BUILD SUCCESS；包含 access-service 容器组 434 项（含 heavy）与跨服务 E2E 27 项。业务最终鉴权 E2E 11 项、映射 PgIT 12 项、准入 PgIT 17 项及准入 heavy 2 项均通过。全量之后仅补强上述服务登记测试夹具，定向 8 项再次通过；全量期间未改源码。

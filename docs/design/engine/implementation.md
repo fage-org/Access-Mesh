@@ -601,7 +601,8 @@ T-PERM-089 起，替代旧 queryBatch A+ 形态——wire 契约零变化：请�
   `QueryEngineMetrics` 端口接入 MeterRegistry——`access.query.stage`（Counter，selection/stage/outcome；
   scopeAll 短路率与无角色短路率观测载体）、`access.query.execution`（Timer，outcome，直方图开启，
   P50/P95/P99；`BUDGET_EXCEEDED` 单列容量信号与其余技术故障分开告警）、`access.query.evidence.failed`
-  （Counter，kind）。打点失败由引擎构造器防御包装吞掉（warn 不放大为查询故障）。
+  （Counter，kind）。打点失败由 `GuardedQueryEngineMetrics` 防御包装吞掉（warn 不放大为查询故障；
+  引擎与审计收集器两消费点在各自构造器统一接入，直连构造路径同覆盖——T-PERM-094 复评 P3 收口）。
   端口低基数锁（枚举+布尔+long 时长标量白名单）=`QueryAuditAndTraceTest` 结构锁；超限细分观测锁同册。
 - **监控口径承载分配（§10.5 五类面的落位）**：阶段终态/执行终态与时长/审计失败=引擎指标（上）；
   回源失败、fail-closed 兜底与准入技术故障=网关既有指标（`gateway.perm.unreachable/fallback` 族）；

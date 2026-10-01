@@ -141,7 +141,7 @@ last_updated: 2026-09-30
 - **状态**：open
 - **登记**：2026-09-26
 - **来源**：T-PERM-088 实施期用户拍板（「本项目暂时不考虑敏感字段问题，先记录问题」）
-- **关联**：[T-PERM-088](../../tasks/T-PERM-088.md)；r2-unified-query-and-admission.md §3.3/§6.1（敏感披露口径）
+- **关联**：[T-PERM-088](../../archive/2026-10-01/tasks/T-PERM-088.md)；r2-unified-query-and-admission.md §3.3/§6.1（敏感披露口径）
 
 **现象与证据**：T-PERM-088 已交付 TRACE 输出（`ResultDetails.ExecutionTrace`：主体解析后角色集、角色互斥删除对、各阶段 raw/retained 授权事实〔含 permissionId/roleId〕、真实命中互斥规则、父命中权限 ID）——设计 §6.1 要求「敏感角色／授权 ID、IP 规则只向经门禁的诊断开放」，但引擎侧门禁机制（如双入口 `executeDiagnostic`＋门禁回调）经用户拍板暂缓实施，当前普通 `execute(trace=true)` 即返回完整敏感内容。引擎零生产消费者期间无实际暴露面。
 
@@ -154,7 +154,7 @@ last_updated: 2026-09-30
 - **状态**：open
 - **登记**：2026-09-26
 - **来源**：T-PERM-084 外部评审与同型调用链核对；2026-09-30 外部逻辑报告 B-9a/b/c/d 增量核实（[记录](../../archive/2026-09-30/logic-review-verification.md)）
-- **关联**：[T-PERM-084](../../tasks/T-PERM-084.md)；engine/implementation.md 业务键内存元组边界
+- **关联**：[T-PERM-084](../../archive/2026-10-01/tasks/T-PERM-084.md)；engine/implementation.md 业务键内存元组边界
 
 **现象与证据**：`TypeResolutionServiceImpl.batchResolveResourceIds` 的 resourceLookup 使用 `BusinessKeyUtil.resourceCodeTypeKey`（`resourceCode + ":" + codeType`）。同类型下 `("sys:user","default")` 与 `("sys","user:default")` 同为 `sys:user:default`，两编码同批查询时可互相覆盖。`ResourceManageAppServiceImpl.TripleKey` 已明确 code/codeType 可含冒号，采用字段元组。084 新 QueryReadSupport 已独立修正该形态；旧共享入口仍被 PermissionGrantDomainServiceImpl、PermissionGrantPlanDomainServiceImpl、UserMenuQueryAppServiceImpl、ResourceEntitySyncAppServiceImpl 和 ResourceManageAppServiceImpl 的父资源解析消费（原消费方 PermQueryEngine 已随 T-PERM-092 删除）。
 
@@ -472,7 +472,7 @@ last_updated: 2026-09-30
 ## 已收敛（终态索引，一行一条；详情在关联任务卡/所属规范或历史来源）
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
-| Q-046 | 旧 /sync 写路径在 OPERATION_ADMISSION 下「能删不能增」——新路由整批 20071 且错误码指错方向 | closed（2026-09-28 随 T-ACCESS-062 收敛——登记时拍板的设想方向②落地：`POST /api/access/service-config/sync` 端点、`ServiceConfigSyncReq` DTO、`InterfaceSyncDefinition.from` v1 适配与前端「仅接口登记（旧协议）」选项整体删除（404 负向锁=LegacyInterfaceRetirementTest），接口声明唯一入口=sync-v2；契约 §25.1 同批改写） | [T-ACCESS-062](../../tasks/T-ACCESS-062.md) | 2026-09-28 |
+| Q-046 | 旧 /sync 写路径在 OPERATION_ADMISSION 下「能删不能增」——新路由整批 20071 且错误码指错方向 | closed（2026-09-28 随 T-ACCESS-062 收敛——登记时拍板的设想方向②落地：`POST /api/access/service-config/sync` 端点、`ServiceConfigSyncReq` DTO、`InterfaceSyncDefinition.from` v1 适配与前端「仅接口登记（旧协议）」选项整体删除（404 负向锁=LegacyInterfaceRetirementTest），接口声明唯一入口=sync-v2；契约 §25.1 同批改写） | [T-ACCESS-062](../../archive/2026-10-01/tasks/T-ACCESS-062.md) | 2026-09-28 |
 | Q-033 | 契约总册 org CRUD 门禁行/正文未带岗位精化码 | closed（2026-09-24 随 T-ACCESS-055 doc-only 收敛——§4 门禁表三行+§8.4~§8.6 补「按目标 orgType 解析精化码（岗位 *_POSITION）」注记，与 org-user-permission-contract 对齐；[历史定案原文](../../archive/2026-09-26/decision-registry-before.md) 同日行；正文条目 2026-09-25 补迁本索引） | [T-ACCESS-055](../../archive/2026-09-24/tasks/T-ACCESS-055.md) | 2026-09-24 |
 | Q-036 | PositionTab 展示面两处存量：位置列恒「-」与成员加载失败落空态 | closed（T-FE-058 done：①index.vue 传 org-tree prop 修复父路径解析；②展开区三态区分（成员列表/失败占位+重试/暂无成员），失败不再误显空态） | [T-FE-058](../../archive/2026-09-24/tasks/T-FE-058.md) | 2026-09-23 |
 | Q-035 | 新增岗位弹窗 initialData.parentOrgId 通道失效——上级恒默认根组织 | closed（T-FE-058 done：openCreatePositionDialog 改传 parentOrgId/parentOrgName prop 对齐 index.vue 先例；浏览器实测上级预选「默认组织」、不手选直接提交创建成功） | [T-FE-058](../../archive/2026-09-24/tasks/T-FE-058.md) | 2026-09-23 |

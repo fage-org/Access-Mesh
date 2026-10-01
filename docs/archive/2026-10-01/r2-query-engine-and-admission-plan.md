@@ -76,7 +76,7 @@ last_updated: 2026-10-01
 | [T-PERM-091](tasks/T-PERM-091.md) | 迁移旧快照、转授、视图与配置（R2-T12） | ✅ |
 | [T-PERM-092](tasks/T-PERM-092.md) | 删除旧执行体与四旧 DTO（R2-T13） | ✅ |
 | [T-PERM-093](tasks/T-PERM-093.md) | 候选/规则索引与性能测量（R2-T14） | ✅ |
-| [T-PERM-094](tasks/T-PERM-094.md) | 灰度、故障、缓存与发布演练（R2-T15） | 🔨 |
+| [T-PERM-094](tasks/T-PERM-094.md) | 灰度、故障、缓存与发布演练（R2-T15） | ✅ |
 | [T-PERM-095](tasks/T-PERM-095.md) | （基线补卡，无报告编号）getDenied* 跨 item 互斥最小修复——与 T-PERM-083 构成回退基线 | ✅ |
 
 ### ADM 系列（操作准入方案 A，T-ACCESS-056~062）

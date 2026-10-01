@@ -502,6 +502,30 @@ class QueryAuditAndTraceTest {
         verify(audit, never()).asyncRecordLog(any());
     }
 
+    // ===== T-PERM-094 复评 P3 回归锁：收集器侧打点失败不得逃出 finally（跳过终态上报/释放） =====
+
+    @Test
+    void should_isolateCollectorMetricFailure_whenEvidenceFailureReportingThrows() {
+        permMutexRules(permRule(90L, 11L, 12L));
+        instanceRows.add(grant(101, 1, 100L, 2));
+        instanceRows.add(grant(102, 1, 100L, 4));
+        org.mockito.Mockito.doThrow(new IllegalStateException("audit pool exhausted")).when(audit).asyncRecordLog(any());
+        QueryEngineMetrics throwingEvidence = new QueryEngineMetrics() {
+            @Override public void itemStage(SelectionKind selection, Stage stage, StageOutcome outcome) { }
+            @Override public void executionCompleted(ExecutionOutcome outcome) { }
+            @Override public void executionCompleted(ExecutionOutcome outcome, long durationNanos) { }
+            @Override public void evidenceSubmissionFailed(EvidenceKind evidenceKind) {
+                throw new IllegalStateException("metric backend down");
+            }
+        };
+        var safeEngine = newEngine(throwingEvidence);
+        var result = safeEngine.execute(new QueryRequest(1L, new Roles(Set.of(10L)), CallerContext.of(null),
+            ReadOptions.defaults(), List.of(QueryItem.decision("a", target(clause(100)), OutputSpec.minimal()))));
+        assertThat(((DecisionResult) result.orderedResults().get(0)).outcome())
+            .as("证据提交失败打点自身抛异常：不得逃出 finally 覆盖查询结果/跳过终态上报与释放")
+            .isEqualTo(DecisionResult.Decision.DENY);
+    }
+
     // ===== 外评 P3 回归锁：describeRules 对端点缺失规则不 NPE（与 compute AND 判定同守卫） =====
 
     @Test

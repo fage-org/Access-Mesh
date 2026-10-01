@@ -76,7 +76,7 @@ last_updated: 2026-09-30
 
 - **状态**：open
 - **登记**：2026-09-26
-- **来源**：[T-PERM-088](tasks/T-PERM-088.md) 的诊断门禁暂缓安排
+- **来源**：[T-PERM-088](archive/2026-10-01/tasks/T-PERM-088.md) 的诊断门禁暂缓安排
 - **关联**：[engine/implementation.md](design/engine/implementation.md) §3.5（TRACE 输出）；原登记锚 r2-unified-query-and-admission.md §3.3/§6.1（该稿 2026-10-01 转 superseded 随计划归档）
 
 **现象与证据**：普通 execute(trace=true) 可返回真实角色、权限 ID、互斥命中和父绑定证据；设计要求敏感诊断授权，门禁交付按 T-PERM-088 安排暂缓。
@@ -91,7 +91,7 @@ last_updated: 2026-09-30
 - **状态**：open
 - **登记**：2026-09-26
 - **来源**：T-PERM-084 同型核对；外部报告 B-9；[核实记录](archive/2026-09-30/logic-review-verification.md)
-- **关联**：[T-PERM-084](tasks/T-PERM-084.md)；engine/implementation.md 业务键元组边界；P2
+- **关联**：[T-PERM-084](archive/2026-10-01/tasks/T-PERM-084.md)；engine/implementation.md 业务键元组边界；P2
 
 **现象与证据**：code/codeType 可含分隔符，但内存索引把字段直接拼成字符串；不同元组因此同键，数据库完整元组唯一性不拦此形态。
 
@@ -387,7 +387,7 @@ last_updated: 2026-09-30
 | <a id="q-030"></a>Q-030 | OAuth2 客户端与会话租户未匹配 | closed（委托链校验同族，按 2026-09-30 本次合并要求归入 Q-029；问题仍 open） | [Q-029](#q-029) | 2026-09-30 |
 | <a id="q-026"></a>Q-026 | 组织根节点 DDL 注释不一致 | closed（注释漂移同族，按 2026-09-30 本次合并要求归入 Q-015；问题仍 open） | [Q-015](#q-015) | 2026-09-30 |
 | <a id="q-019"></a>Q-019 | 过滤后树无法解析父组织名 | closed（树过滤与展示同族，按 2026-09-30 本次合并要求归入 Q-038；问题仍 open） | [Q-038](#q-038) | 2026-09-30 |
-| Q-046 | 旧 /sync 写路径在 OPERATION_ADMISSION 下「能删不能增」——新路由整批 20071 且错误码指错方向 | closed（2026-09-28 随 T-ACCESS-062 收敛——登记时拍板的设想方向②落地：`POST /api/access/service-config/sync` 端点、`ServiceConfigSyncReq` DTO、`InterfaceSyncDefinition.from` v1 适配与前端「仅接口登记（旧协议）」选项整体删除（404 负向锁=LegacyInterfaceRetirementTest），接口声明唯一入口=sync-v2；契约 §25.1 同批改写） | [T-ACCESS-062](tasks/T-ACCESS-062.md) | 2026-09-28 |
+| Q-046 | 旧 /sync 写路径在 OPERATION_ADMISSION 下「能删不能增」——新路由整批 20071 且错误码指错方向 | closed（2026-09-28 随 T-ACCESS-062 收敛——登记时拍板的设想方向②落地：`POST /api/access/service-config/sync` 端点、`ServiceConfigSyncReq` DTO、`InterfaceSyncDefinition.from` v1 适配与前端「仅接口登记（旧协议）」选项整体删除（404 负向锁=LegacyInterfaceRetirementTest），接口声明唯一入口=sync-v2；契约 §25.1 同批改写） | [T-ACCESS-062](archive/2026-10-01/tasks/T-ACCESS-062.md) | 2026-09-28 |
 | Q-033 | 契约总册 org CRUD 门禁行/正文未带岗位精化码 | closed（2026-09-24 随 T-ACCESS-055 doc-only 收敛——§4 门禁表三行+§8.4~§8.6 补「按目标 orgType 解析精化码（岗位 *_POSITION）」注记，与 org-user-permission-contract 对齐；[历史定案原文](archive/2026-09-26/decision-registry-before.md) 同日行；正文条目 2026-09-25 补迁本索引） | [T-ACCESS-055](archive/2026-09-24/tasks/T-ACCESS-055.md) | 2026-09-24 |
 | Q-036 | PositionTab 展示面两处存量：位置列恒「-」与成员加载失败落空态 | closed（T-FE-058 done：①index.vue 传 org-tree prop 修复父路径解析；②展开区三态区分（成员列表/失败占位+重试/暂无成员），失败不再误显空态） | [T-FE-058](archive/2026-09-24/tasks/T-FE-058.md) | 2026-09-23 |
 | Q-035 | 新增岗位弹窗 initialData.parentOrgId 通道失效——上级恒默认根组织 | closed（T-FE-058 done：openCreatePositionDialog 改传 parentOrgId/parentOrgName prop 对齐 index.vue 先例；浏览器实测上级预选「默认组织」、不手选直接提交创建成功） | [T-FE-058](archive/2026-09-24/tasks/T-FE-058.md) | 2026-09-23 |

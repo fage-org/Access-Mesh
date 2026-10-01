@@ -155,7 +155,7 @@ last_reviewed: 2026-09-20
 - [资源 FULL 请求](../../../access-service/src/main/java/cn/ac/fage/accessmesh/access/sync/dto/ResourceEntityFullSyncReq.java)与[资源同步实现](../../../access-service/src/main/java/cn/ac/fage/accessmesh/access/resource/service/impl/ResourceEntitySyncAppServiceImpl.java)：scope、逐项版本、空集限制与删除校准。
 - [依赖写入口](../../../access-service/src/main/java/cn/ac/fage/accessmesh/access/resource/service/impl/DependencyAppServiceImpl.java)：类型级门禁、20048、现役写权限范围。
 - [授权查询 Mapper](../../../access-service/src/main/resources/mapper/grant/RoleResourcePermissionMapper.xml)与[互斥领域服务](../../../access-service/src/main/java/cn/ac/fage/accessmesh/access/rule/service/domain/impl/PermissionConflictDomainServiceImpl.java)：普通行消费、canonical 位互斥判定。
-- [契约总册](../../design/access-service-api-contract.md)：§6 授权与父上下文，§19 同步，§24 服务认证；[T-PERM-054](../../tasks/T-PERM-054.md)说明 API 派生边界。
+- [契约总册](../../design/access-service-api-contract.md)：§6 授权与父上下文，§19 同步，§24 服务认证；[T-PERM-054](../../archive/2026-10-01/tasks/T-PERM-054.md)说明 API 派生边界。
 
 <a id="decisions"></a>
 ## 7. 实施前决策与现任务衔接

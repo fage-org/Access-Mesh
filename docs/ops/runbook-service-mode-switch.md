@@ -73,7 +73,7 @@ WHERE m.delete_flag = 0 AND m.enabled
 GROUP BY 1;
 ```
 
-dev 运行库初始盘点见 [T-ACCESS-061](../tasks/T-ACCESS-061.md)，退役后复核见 [T-PERM-054](../tasks/T-PERM-054.md#完成记录)。其他部署须在自身运行库执行，不以开发库结果替代。映射注释的存量同步脚本为 [api-mapping-comments-054.sql](api-mapping-comments-054.sql)，仅更新说明，不清理数据。
+dev 运行库初始盘点见 [T-ACCESS-061](../archive/2026-10-01/tasks/T-ACCESS-061.md)，退役后复核见 [T-PERM-054](../archive/2026-10-01/tasks/T-PERM-054.md#完成记录)。其他部署须在自身运行库执行，不以开发库结果替代。映射注释的存量同步脚本为 [api-mapping-comments-054.sql](api-mapping-comments-054.sql)，仅更新说明，不清理数据。
 
 ## 四、example-service 参考接入形态（T-ACCESS-061 拍板）
 

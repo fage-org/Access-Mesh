@@ -67,38 +67,9 @@ public final class QueryExecutionEngine {
         this.audit = Objects.requireNonNull(audit);
         this.indexedCandidates = indexedCandidates;
         this.limits = Objects.requireNonNull(limits);
-        // 打点失败不得放大为查询故障或覆盖主异常/跳过 release（外评 P3：Micrometer 绑定 089+ 接线后的防御面）
-        QueryEngineMetrics target = metrics == null ? QueryEngineMetrics.noop() : metrics;
-        this.metrics = new QueryEngineMetrics() {
-            @Override public void itemStage(SelectionKind selection, Stage stage, StageOutcome outcome) {
-                try {
-                    target.itemStage(selection, stage, outcome);
-                } catch (RuntimeException error) {
-                    log.warn("Query stage metric failed: {}", error.getMessage());
-                }
-            }
-            @Override public void executionCompleted(ExecutionOutcome outcome) {
-                try {
-                    target.executionCompleted(outcome);
-                } catch (RuntimeException error) {
-                    log.warn("Query execution metric failed: {}", error.getMessage());
-                }
-            }
-            @Override public void executionCompleted(ExecutionOutcome outcome, long durationNanos) {
-                try {
-                    target.executionCompleted(outcome, durationNanos);
-                } catch (RuntimeException error) {
-                    log.warn("Query execution metric failed: {}", error.getMessage());
-                }
-            }
-            @Override public void evidenceSubmissionFailed(EvidenceKind evidenceKind) {
-                try {
-                    target.evidenceSubmissionFailed(evidenceKind);
-                } catch (RuntimeException error) {
-                    log.warn("Query evidence metric failed: {}", error.getMessage());
-                }
-            }
-        };
+        // 打点失败不得放大为查询故障或覆盖主异常/跳过 release（外评 P3：Micrometer 绑定 089+ 接线后的防御面；
+        // 统一走 GuardedQueryEngineMetrics 工厂，审计收集器同款防护——T-PERM-094 复评 P3 收口）
+        this.metrics = GuardedQueryEngineMetrics.guard(metrics);
     }
 
     /** 结构错误零权限 I/O 拒绝；技术故障保留原异常并包装，不伪装 DENY 或返回半批结果。 */
