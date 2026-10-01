@@ -13,7 +13,7 @@ acceptance:
   - "产出阶段二规划定案：auth/check、batch-check、query-resources、query-scopes 四端点（现要求 X-Internal-Secret 与服务/租户头）逐端点凭证化路径、服务可查询的主体/资源范围、租户派生与调用能力定义"
   - "两套身份并存的过渡窗口、全局共享密钥失陷风险的收敛判据与退役时间线写入 §3.5 分期表"
   - "T-ACCESS-053 的阶段边界维持（本卡不推翻其维持现状拍板，只规划后续阶段）；SDK/网关接线影响面盘点随规划产出"
-  - "实施不在本卡（阶段二立项目另拆新号）；规划经用户确认后 service-authentication §3.5 更新为定稿口径"
+  - "实施不在本卡（阶段二立项目另拆新号）；规划按 decision-question-protocol 举例上报用户确认后，service-authentication §3.5 更新为定稿口径"
 design_writeback:
   required: true
   status: pending

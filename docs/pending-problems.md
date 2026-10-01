@@ -121,6 +121,7 @@ last_updated: 2026-10-01
 | condition / menu | ConditionUpdateReq.description、MenuUpdateReq.path/icon 等：null 跳过，无清空通道。 |
 | OAuth2 client | grantTypes/redirectUris/scopes/audiences 等：清空通道和各字段的清空安全语义待明确。 |
 | system-config | config hook 将空描述发 null；SystemConfigAppServiceImpl.upsertSystemConfig 以 update(entity) 回写。MyBatis-Flex 1.11.7 默认忽略 null，旧描述保留，内存组装的保存响应还可能与重新查询不同。 |
+| role/resource extra | 契约总册 §2.7 挂接本问题：既有 extraClear 仅对齐冲突拒绝，空白拒绝维持既有宽松「随 Q-043 同型矩阵后续收敛」（2026-10-01 codex 复评补登，原登记遗漏半边）。 |
 
 **影响与边界**：清空提交可能成功却保留旧值；未断言实际用户是否操作过。T-API-004 已交付范围不扩撤；system-config 契约 §17.2 未定义清空语义，不能预定为空串协议。
 

@@ -12,7 +12,7 @@ blocks: []
 acceptance:
   - "org 更新：orgName 保留 null=不更新语义、拒空白串（非 @NotBlank 误拒 null）；创建/更新 orgName/code、notice title、user username/name/phone/email 创建+更新全部按 sys_org/sys_user/sys_notice 列宽补 @Size 上限"
   - "超长输入 400 校验拒绝，不再落到 DB 拒写（旧实现实证：超长非空输入 500/99999 通用异常回滚）"
-  - "组织名空串写入口闭合：空名父不再可写（回归锁实证旧实现可写）；存量空名处理定案（订正 runbook 或登记维持），不假称拒新输入就清理了旧数据"
+  - "组织名空串写入口闭合：空名父不再可写（回归锁实证旧实现可写）；存量空名处理定案（订正 runbook 或登记维持，按 decision-question-protocol 举例上报用户后拍板），不假称拒新输入就清理了旧数据"
   - "OrgForm 的 fallback 误显「根组织」形态随空串闭合复核；契约 §7/§8/§17.3 字段约束表同步"
 design_writeback:
   required: true

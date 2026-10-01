@@ -391,7 +391,7 @@ _当前无未终态 T-ADMIN 任务。`T-ADMIN-001~019`（用户角色代理修�
 
 ### 问题清单转出（pending-problems-clearance，2026-10-01 立项，active）
 
-执行顺序以 [pending-problems-clearance-plan](../plans/pending-problems-clearance-plan.md) 的「当前进度」节为唯一权威：组一授权正确性先行（T-PERM-096 ∥ T-FE-060 并行起步，两卡修法面独立）；组二/组三随后可并行；组五定案卡不占实施位、可随时穿插（拍板后实施超出单卡范围另立新号）；组四工程卫生收尾（Q-015 doc-only 清扫放最后避免与实施批同文件冲突）。任务间无硬依赖（`depends_on` 均空）。
+执行顺序以 [pending-problems-clearance-plan](../plans/pending-problems-clearance-plan.md) 的「当前进度」节为唯一权威：组一授权正确性先行（T-PERM-096 ∥ T-FE-060 并行起步，两卡修法面独立）；组二/组三随后可并行；组五定案卡可随时穿插（T-PERM-102 除外——含门禁实施与回归锁，按实施卡排期；其余定案卡拍板后实施超出单卡范围另立新号）；组四工程卫生收尾（Q-015 doc-only 清扫放最后避免与实施批同文件冲突）。任务间无硬依赖（`depends_on` 均空）。
 
 ### R2 权限查询引擎统一与操作准入（2026-09-25 立项，✅ 2026-10-01 收口归档）
 
