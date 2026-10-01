@@ -13,7 +13,7 @@ blocks: []
 acceptance:
   - "createJob/updateJob 在写入前解析校验 cron（Spring CronExpression 同源解析），非法 cron 拒绝保存（错误码定案入册；@NotBlank 仅拒空白的缺口闭合）"
   - "updateJob 先取消旧调度前校验：新 cron 非法时不撤销当前实例旧调度（其他实例旧 cron 执行窗口不被坏输入破坏）"
-  - "scheduleJob 注册失败不再只记日志：可观测结果定案（如任务落 DISABLED_ALARM 类状态或告警事件）并实现；对账可见注册态与库态不一致"
+  - "scheduleJob 注册失败不再只记日志：可观测结果定案（如任务落 DISABLED_ALARM 类状态或告警事件，按 decision-question-protocol 举例上报用户后拍板）并实现；对账可见注册态与库态不一致"
   - "回归锁：非法 cron 保存旧实现成功/新实现拒绝；启用任务注册失败路径可观测（旧实现只记日志实证）"
   - "契约 §17.3 job 族注记与 architecture §8 口径同步"
 design_writeback:

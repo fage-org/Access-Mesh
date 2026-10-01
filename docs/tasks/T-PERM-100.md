@@ -10,7 +10,7 @@ design_refs:
 depends_on: []
 blocks: []
 acceptance:
-  - "sync/full-sync 写入 codeType 与管理面同口径归一（trim；空值回退口径按契约 §19 拍板记录），同步写入 \" BIZ \" 后管理面按 BIZ 可达（回归锁实证旧实现下不可达）"
+  - "sync/full-sync 写入 codeType 与管理面同口径归一（trim；空值回退沿用契约 §19 现行口径，非本卡新拍板项），同步写入 \" BIZ \" 后管理面按 BIZ 可达（回归锁实证旧实现下不可达）"
   - "存量带空白 codeType 行处置定案（订正语句入 runbook 或维持现状+登记），不假称只修新写入就消除了存量"
   - "detail/update/remove 业务键寻址链路对归一后形态可达；20004 误报或同码另建不再发生"
   - "契约 §19 写入/寻址归一口径同步"

@@ -13,7 +13,7 @@ blocks: []
 acceptance:
   - "拍板删除语义（拒绝并提示先迁移 / 警告放行），按 decision-question-protocol 举例上报用户后落地"
   - "deleteRoles 对被 type_definition.extra.grantOriginRole 引用的角色按拍板处置：拒绝时错误码入契约 §13 错误族；警告放行时响应含后果提示且契约写明恢复路径（updateType 迁移所有者+重建授权根）"
-  - "批量删除（deleteRoles 列表形态）同批覆盖守卫；回归锁以「删除所有者角色→类型首授/转授资格检查无人通过」场景实证旧实现无守卫"
+  - "deleteRoles 列表入口（单条即单元素列表）同批覆盖守卫；回归锁以「删除所有者角色→类型首授/转授资格检查无人通过」场景实证旧实现无守卫"
   - "契约 §13 同步守卫口径与恢复路径"
 design_writeback:
   required: true

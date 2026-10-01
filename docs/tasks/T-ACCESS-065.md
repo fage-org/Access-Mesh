@@ -11,8 +11,8 @@ depends_on: []
 blocks: []
 acceptance:
   - "三子项逐项拍板（不可用一次修改假称全解决）：① TreeBuilder.buildTrees 父被 status/enabledOnly 过滤而子保留时子支不可达——定祖先保留或提升为根的策略，公共 TreeBuilder 改动覆盖各消费树（实例裁剪的 V∪祖先链先例已规避该维度，不重复）；② selectResourceTree 固定 status=1 与 selectResourceListPaged/Count 不滤状态的两面——定统一口径；③ 前端父组织名依赖过滤后树显示「未知」——OrgResp 补 parentOrgName 或前端回退策略（若动契约 §8 同步）"
-  - "拍板按 decision-question-protocol 举例上报用户；各子项定案与实施可分批落 but 同卡收口"
-  - "回归锁逐子项：对应旧形态在旧实现下失败/误显实证"
+  - "拍板按 decision-question-protocol 举例上报用户；各子项定案与实施可分批落地、但同卡收口"
+  - "回归锁逐子项：对应旧形态在旧实现下失败/误显实证；子项③若改动前端，vitest 全绿 + typecheck/lint/build 0（同批 T-FE 卡口径）"
   - "契约 §8/§12 对应树查询语义同步；未发现越权路径的边界结论维持（本项为展示完整性）"
 design_writeback:
   required: true

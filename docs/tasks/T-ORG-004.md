@@ -11,7 +11,8 @@ depends_on: []
 blocks: []
 acceptance:
   - "createOrgTreeConfig 把现有树的中间节点设为另一树根时，统一核对所有现有树根的祖先/后代关系，重叠拒绝（错误码定案入册；回归锁以「中间节点另立根」场景实证旧实现放行）"
-  - "存量重叠处理定案（订正语句入 runbook 或维持现状+登记），不假称新写入守卫就消除了存量"
+  - "存量重叠处理定案（订正语句入 runbook 或维持现状+登记），按 decision-question-protocol 举例上报用户后拍板；不假称新写入守卫就消除了存量"
+  - "并发窗口判定落卡：两个 createOrgTreeConfig 并发创建互相重叠的根配置（check-then-act 双过检）时，复用 §17 树写锁或唯一约束兜底（并发用例并入回归锁）或拍板无需兜底（依据写明）"
   - "resolveTreeRootExternalId(s) 多根同时命中的依赖遍历顺序问题随守卫收敛后不再可达；若拍板维持存量重叠，则解析口径写明确定性规则"
   - "default-org-tree-user-lifecycle.md §7/§7.1 守卫与解析口径同步"
 design_writeback:

@@ -33,7 +33,7 @@ create/delete 两入口补锁（对齐 updateMenu 先例）；并发回归用例
 
 ## 当前口径
 
-树写锁约束（architecture §17）适用于四棵树；menu 树 update 已覆盖、create/delete 是漏网半边。锁实现沿用 T-PERM-044 定案形态（mapper 同连接语句级锁）。
+树写锁约束（architecture §17）适用于四棵树；menu 树 update 已覆盖、create/delete 是漏网半边。锁实现以 architecture §17.1 现行定案为准（Redisson 树级可重入锁，复用 `TreeWriteLockSupport.lockTreeWrites`，afterCompletion 释放）；首版 pg_advisory_xact_lock/mapper 语句级锁是被替换的历史形态，不得采用。
 
 ## 非目标 / 遗留
 
