@@ -302,13 +302,15 @@ public interface DomainClassifyService {
 ```java
 public interface PermissionGrantDomainService {
     boolean canGrantPermission(Long tenantId, Long operatorId, String resourceTypeCode,
-                               String resourceCode, String operationCode, boolean scopeAll, String domainCode);
+                               String resourceCode, String codeType, String operationCode,
+                               boolean scopeAll, String domainCode);
 
-    Map<String, GrantCheckResult> checkCanGrant(Long tenantId, Long operatorId,
-                                                Set<GrantCheckKey> permissions, String domainCode);
+    // 结果键 = 入参 GrantCheckKey 元组本身（T-PERM-096，见 §8.4）
+    Map<GrantCheckKey, GrantCheckResult> checkCanGrant(Long tenantId, Long operatorId,
+                                                        Set<GrantCheckKey> permissions, String domainCode);
 
     record GrantCheckKey(String resourceTypeCode, String resourceCode,
-                         String operationCode, boolean scopeAll) {}
+                         String codeType, String operationCode, boolean scopeAll) {}
 
     record GrantCheckResult(boolean canGrant, String reason) {}
 }
@@ -1049,7 +1051,8 @@ Set<PermissionGrantDomainService.GrantCheckKey> grantKeys = plan.creates().strea
         item.key().operationCode(),
         ScopeModeSupport.toScopeAllForGrant(item.key().scopeMode(), item.key().resourceCode(), item.key().codeType())
     )).collect(Collectors.toSet());
-Map<String, PermissionGrantDomainService.GrantCheckResult> grantResults =
+// 结果键 = GrantCheckKey 元组本身（T-PERM-096，见 §8.4）
+Map<PermissionGrantDomainService.GrantCheckKey, PermissionGrantDomainService.GrantCheckResult> grantResults =
     permissionGrantDomainService.checkCanGrant(tenantId, operatorId, grantKeys, domainCode);
 // 不满足 -> 20040 GRANT_CANNOT_DELEGATE
 ```
@@ -1057,7 +1060,7 @@ Map<String, PermissionGrantDomainService.GrantCheckResult> grantResults =
 #### 实现要点
 
 1. **scopeMode 校验**：`INSTANCE` -> operator 可用 `scopeAll=true` 或同一特定资源权限；`ALL` -> operator 必须已有 `scopeAll=true`。
-2. **update 项**：`canGrant=true` 或 `conditionCode` 变更（清空/覆盖）-> 走 `canGrantPermission` 校验。
+2. **update 项**：`canGrant=true` 或 `conditionCode` 变更（清空/覆盖）-> 走 `verifyDelegation` 同批 `checkCanGrant` 校验（update 项与 creates 共组 GrantCheckKey 集合；`canGrantPermission` 单键入口现为测试消费面，生产写路径均经批量校验）。
 3. **批量收口**：`prevalidateGrantPlan` 内一次 `selectByTenantAndResourceTypes` 加载后内存分组，查询次数与资源类型数量无关。
 4. **条件不可转授**：`conditionCode != null -> canGrant=false` 由数据库约束与预检共同保证，因此不存在“受限条件 + canGrant”的合法来源记录。
 

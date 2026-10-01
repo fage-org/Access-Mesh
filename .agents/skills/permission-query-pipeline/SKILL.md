@@ -117,7 +117,8 @@ boolean canGrant = permissionGrantDomainService.canGrantPermission(
   tenantId, subjectId, resourceTypeCode, resourceCode, codeType, operationCode, scopeAll, domainCode
 );
 
-Map<String, PermissionGrantDomainService.GrantCheckResult> results =
+// 结果键 = GrantCheckKey 元组本身（T-PERM-096；旧 Map<String,...> 拼接键有碰撞对已退役）
+Map<PermissionGrantDomainService.GrantCheckKey, PermissionGrantDomainService.GrantCheckResult> results =
   permissionGrantDomainService.checkCanGrant(tenantId, subjectId, permissions, domainCode);
 ```
 

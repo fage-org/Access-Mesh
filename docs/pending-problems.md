@@ -15,6 +15,18 @@ last_updated: 2026-10-01
 
 **阅读约定**：按根因或可共同处理的范围合并，子项各自保留证据、影响与既有边界。旧编号的去向见文末索引；编号合并不代表缺陷修复。原始登记细节见 [合并前快照](archive/2026-09-30/pending-problems-before-consolidation.md)，外部报告核实见 [核实记录](archive/2026-09-30/logic-review-verification.md)。本次整理没有重新运行业务复现。
 
+<a id="q-057"></a>
+## Q-057 用户角色分配入口的 roleKey/subjectKey 拼接与 roleTypeDomainKey+split 反解可构造碰撞
+
+- **状态**：open
+- **登记**：2026-10-01
+- **来源**：T-PERM-096 收口后外评（claude P3，逐条核实成立）；[Q-044](#q-044) 同型
+- **关联**：[T-PERM-096](tasks/T-PERM-096.md)（类推声明口径修正触发）；P2（授权结果与请求不符且无报错）
+
+**现象与证据**：`UserManageAppServiceImpl` 的 assign/revoke 链路以拼接串做内存映射并反解：`roleTypeDomainKey(roleTypeCode, domainCode)` 拼 `:` 分组后 `split(":")` 反解（[UserManageAppServiceImpl.java:414-435](../access-service/src/main/java/cn/ac/fage/accessmesh/access/user/service/impl/UserManageAppServiceImpl.java)）；`roleKey(typeCode, domainCode, externalId)`/`subjectKey(typeCode, externalId)` 构造与回读（:426/:440/:447/:462/:485/:491/:565/:585）。分配入口 `UserAssignRoleReq.AssignItem` 对 `subjectTypeCode`/`roleTypeCode`/`domainCode` 仅 `@NotBlank` 无 `@Pattern`（域码 @Pattern 只在建域入口 `BizDomainCreateReq` 生效，分配不复用）；`roleExternalId`/`subjectExternalId` 为自由文本（建角色 externalId 无 pattern）。
+
+**影响与边界**：同批请求可构造 `(BASIC_ROLE,"X:Y","z")` 与 `(BASIC_ROLE,"X","Y:z")` 同键——A 静默取到 B 解析出的角色 id，授权结果与请求不符且无报错（比 fail-closed 拒绝更难发现）；操作日志按请求原文记录，事后不可从日志发现。受操作者 MANAGE 门禁约束（须对实际命中角色有 MANAGE），非越权提权，属数据正确性/审计可信度问题。T-PERM-096 收口时曾声明「roleKey/subjectKey 无碰撞形态」，该声明前提（入口受 @Pattern）不成立，已随本条订正。修法方向：分配入口对类型码/域码补格式校验（与建域/建类型同 pattern），或分组映射改结构化元组取消 split 反解；涉写入口校验语义，随问题清单批次评估。
+
 <a id="q-056"></a>
 ## Q-056 apiRouteResourceKey 拼接存在 Q-044 同型理论碰撞面
 
@@ -377,7 +389,7 @@ last_updated: 2026-10-01
 
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
-| Q-044 | 资源复合拼接键碰撞 | closed（T-PERM-096+T-FE-060 done：后端三内存索引（共享批量解析 resourceLookup、转授 resourceEntityIdByKey/结果映射）改结构化 record 元组，checkCanGrant 结果键=GrantCheckKey 本身；BusinessKeyUtil 四拼接构造器退役（resourceCodeTypeKey/resourceTripleCodeKey/grantCheckKey + 类推清扫零调用死方法 resourceTripleValueKey），golden 锁与对外协议键不动；前端 grant-keys.ts 单源 JSON 元组编码收口授权决策五段键/资源三段/树节点键/矩阵行键/主体树角色键 + 类推 changeGroupKey（inlineName 自由文本）；碰撞对回归锁双端旧实现实证红（后端 expected 100 got 200 与 duplicate element、前端 8 红）；元组边界口径入 engine/implementation §8.4、键约定入 permission-grant.md §2.3；类推核实 roleKey/subjectKey/roleProjectionIndexKey 无碰撞形态（受限段+尾段自由文本），apiRouteResourceKey（path 中段自由文本）理论碰撞面属「内部消费者全量迁移分开评估」范围另行决策） | [T-PERM-096](tasks/T-PERM-096.md)、[T-FE-060](tasks/T-FE-060.md) | 2026-10-01 |
+| Q-044 | 资源复合拼接键碰撞 | closed（T-PERM-096+T-FE-060 done：后端三内存索引（共享批量解析 resourceLookup、转授 resourceEntityIdByKey/结果映射）改结构化 record 元组，checkCanGrant 结果键=GrantCheckKey 本身；BusinessKeyUtil 四拼接构造器退役（resourceCodeTypeKey/resourceTripleCodeKey/grantCheckKey + 类推清扫零调用死方法 resourceTripleValueKey），golden 锁与对外协议键不动；前端 grant-keys.ts 单源 JSON 元组编码收口授权决策五段键/资源三段/树节点键/矩阵行键/主体树角色键 + 类推 changeGroupKey（inlineName 自由文本）；碰撞对回归锁双端旧实现实证红（后端 expected 100 got 200 与 duplicate element、前端 8 红）；元组边界口径入 engine/implementation §8.4、键约定入 permission-grant.md §2.3；类推核实 roleProjectionIndexKey 无碰撞形态（受限段+尾段自由文本）；roleKey/subjectKey 初判「无碰撞」经收口后外评订正（分配入口无 @Pattern+split 反解，登记 Q-057）、apiRouteResourceKey（path 中段自由文本）理论碰撞面登记 Q-056，两者均属「内部消费者全量迁移分开评估」范围随清单批次排期） | [T-PERM-096](tasks/T-PERM-096.md)、[T-FE-060](tasks/T-FE-060.md) | 2026-10-01 |
 | <a id="q-055"></a>Q-055 | 签名过滤器顺序注释 | closed（重复登记，按 2026-09-30 本次合并要求归入 Q-015；问题仍 open） | [Q-015](#q-015) | 2026-09-30 |
 | <a id="q-054"></a>Q-054 | 系统配置前端设计陈旧 | closed（文档漂移同族，按 2026-09-30 本次合并要求归入 Q-015；问题仍 open） | [Q-015](#q-015) | 2026-09-30 |
 | <a id="q-053"></a>Q-053 | 自动授权旧 TODO | closed（注释漂移同族，按 2026-09-30 本次合并要求归入 Q-015；问题仍 open） | [Q-015](#q-015) | 2026-09-30 |

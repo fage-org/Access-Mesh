@@ -8,18 +8,23 @@
  * 的 suspended 去重吞撤销、混并矩阵来源行/主体树高亮。本模块是这些键的唯一构造点，
  * 禁止在消费方各自拼串。
  *
- * 编码：JSON 数组序列化——各段经 JSON 字符串转义，任何字符组合不可能歧义；
- * undefined/null 段统一序列化为 null（与 findSlotRecord 等字段直比面的 `?? null`
- * 归一语义对齐）。键仅存在于内存 Map/Set 与 el-tree node-key，不进请求载荷
+ * 编码：JSON 数组序列化后再 percent-encode——JSON 转义保证段间无歧义（单射），
+ * percent-encode 保证产物不含 `"`、`[`、`]`、`\` 等字符（el-table-v2 固定列把行键
+ * 未经转义插入 CSS 属性选择器 `[rowkey="…"]` 做悬停/展开同步，含双引号的键会产生
+ * 非法选择器使 querySelectorAll 抛 SyntaxError——外评 P2，2026-10-01）；undefined/null
+ * 段统一序列化为 null（与 findSlotRecord 等字段直比面的 `?? null` 归一语义对齐）。
+ * 键存在于内存 Map/Set、el-tree node-key 与 el-table-v2 row-key，不进请求载荷
  * （后端 DTO 字段不变）。
  */
 
 /** 元组段（undefined 统一序列化为 null） */
 export type KeySegment = string | number | boolean | null | undefined;
 
-/** 元组 → 无歧义键串（本模块编码基元，消费方不得绕过它拼段） */
+/** 元组 → 无歧义且 DOM 选择器安全的键串（本模块编码基元，消费方不得绕过它拼段） */
 export function encodeKeyTuple(...parts: KeySegment[]): string {
-  return JSON.stringify(parts.map(p => (p === undefined ? null : p)));
+  return encodeURIComponent(
+    JSON.stringify(parts.map(p => (p === undefined ? null : p)))
+  );
 }
 
 /**

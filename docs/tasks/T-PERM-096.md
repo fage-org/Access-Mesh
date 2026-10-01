@@ -28,7 +28,7 @@ last_updated: 2026-10-01
 - **helper 退役**：`BusinessKeyUtil.resourceCodeTypeKey`/`resourceTripleCodeKey`/`grantCheckKey` 删除（生产调用点仅剩上述索引用途，全仓 gateway/example/e2e 零引用）；类推清扫退役第四个零生产调用死方法 `resourceTripleValueKey`（消费方 ResourceManageAppServiceImpl 已先期改 `TripleKey` record）。ParityTest 对应 golden 同批删除，其余 golden 与 SyncKeyCodecUtil 不动。
 - **20040 消息**：拒绝 message 的 `<key>` 部分改 `GrantCheckKey` record toString——契约总册只锁 `Cannot delegate <key>; reason=<REASON>` 形态；前端 grant-store 按 `includes("TYPE_GRANT_ORIGIN_MISSING")` 子串匹配（reason 段不变），核实零影响。
 - **回归锁（旧实现实证红）**：TypeResolutionServiceImplTest 碰撞对 2 用例（临时退化 equals 复刻旧拼接语义红跑：`expected: <100> but was: <200>`——旧键后写覆盖先写）+ null→DEFAULT 归一分支用例；PermissionGrantDomainServiceImplTest t05（退化 equals 红跑：碰撞键 `Set.of` 直接抛 duplicate element——旧逻辑下两键连共存都不行）。
-- **类推扫描**：`roleKey`/`subjectKey`/`roleProjectionIndexKey` 核实无碰撞形态（受限格式段在前、自由文本仅尾段，domainCode/subjectTypeCode 等均受 @Pattern 约束无分隔符）；`apiRouteResourceKey`（method|path|resourceCode——path 为 URL 自由文本处中段）存在理论碰撞面，属 Q-044「内部消费者全量迁移分开评估」非目标范围，用户拍板登记 [Q-056](../pending-problems.md#q-056)。
+- **类推扫描**：`roleProjectionIndexKey` 核实无碰撞形态（roleTypeCode 受限格式段在前、自由文本仅尾段）；`roleKey`/`subjectKey` 初判「无碰撞」的声明经外评（claude P3）核实**前提不成立**——分配入口 `UserAssignRoleReq` 仅 @NotBlank 无 @Pattern，且存在 `roleTypeDomainKey` 拼 `:` + `split(":")` 反解路径，已订正口径并登记 [Q-057](../pending-problems.md#q-057)；`apiRouteResourceKey`（method|path|resourceCode——path 为 URL 自由文本处中段）存在理论碰撞面，属 Q-044「内部消费者全量迁移分开评估」非目标范围，用户拍板登记 [Q-056](../pending-problems.md#q-056)。
 - **验证**：单测轨道 `-DskipTestcontainers=true` BUILD SUCCESS（228 报告文件）；perm-common ParityTest 22/22；收口全量 `-T 1C` 含 E2E/heavy 结果见看板行。
 - **文档**：engine/implementation.md 新增 §8.4 内存索引元组边界（消费面表+归一语义）、§8.1 补退役登记；accessmesh-patterns skill 双副本同步（键族描述更新+元组边界口径）。
 

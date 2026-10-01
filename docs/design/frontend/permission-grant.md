@@ -126,7 +126,7 @@ interface MatrixContext {
 
 ### 2.3 键约定（T-FE-060，2026-10-01）
 
-授权决策与展示键统一由 `utils/grant-keys.ts` 单源构造（JSON 数组元组编码——各段经 JSON 转义，`resourceCode`/`codeType` 可含 `:`、`|` 等分隔符也不可能与相邻段混并；`undefined/null` 段统一编码为 `null`），**禁止在消费方各自拼串**。历史上 `|` 五段（groupKeyOf 族）与 `:` 三段（computePreset/节点映射/行键）两种拼法并存，碰撞对（(TD,"a|b","c") 与 (TD,"a","b|c")）可错预填树勾选、使 uncheckSlot 的 suspended 去重吞撤销、混并矩阵来源行——后端半边（共享解析/转授索引元组化）见 engine/implementation §8.4。
+授权决策与展示键统一由 `utils/grant-keys.ts` 单源构造（JSON 数组元组编码后再 percent-encode——JSON 转义保证段间无歧义，percent-encode 保证产物不含 `"`/`[`/`]`/`\`：el-table-v2 固定列把 row-key 未经转义插入 CSS 属性选择器 `[rowkey="…"]` 做悬停/展开同步，含双引号的键会产生非法选择器使 `querySelectorAll` 抛 `SyntaxError`〔外评 P2，2026-10-01〕；`resourceCode`/`codeType` 可含 `:`、`|` 等分隔符也不可能与相邻段混并；`undefined/null` 段统一编码为 `null`），**禁止在消费方各自拼串**。历史上 `|` 五段（groupKeyOf 族）与 `:` 三段（computePreset/节点映射/行键）两种拼法并存，碰撞对（(TD,"a|b","c") 与 (TD,"a","b|c")）可错预填树勾选、使 uncheckSlot 的 suspended 去重吞撤销、混并矩阵来源行——后端半边（共享解析/转授索引元组化）见 engine/implementation §8.4。
 
 | 键 | 构造器 | 消费面 |
 | --- | --- | --- |
@@ -136,7 +136,7 @@ interface MatrixContext {
 | 矩阵行键 | `encodeKeyTuple("ALL"/"RES", …)`（`allRowKey`/`instanceRowKey`） | 矩阵来源链 `cells` Map、GrantMatrixPanel 行 key |
 | 主体树角色键 | `roleSubjectKey`（`role:ext:{externalId}` / `role:id:{id}` 分命名空间） | 主体树 el-tree node-key——externalId 是可手填业务键（可为数字串），与数据库 id 混并将致高亮/选中错乱 |
 
-边界：键仅存在于内存 Map/Set 与 el-tree node-key，**不进请求载荷**（后端 DTO 字段不变）；后端协议键（如 relationKey、sync 键）不受本约定影响。
+边界：键存在于内存 Map/Set、el-tree node-key 与 el-table-v2 row-key（后者是唯一会进入 DOM 属性选择器的面——编码必须保持选择器安全），**不进请求载荷**（后端 DTO 字段不变）；后端协议键（如 relationKey、sync 键）不受本约定影响。
 
 ## 3. 查看模式（矩阵）
 

@@ -126,7 +126,7 @@ describe("groupKeyOf（单记录键模型）", () => {
     const b = makeRecord({ operationCode: null, grantedBits: "6" });
     const c = makeRecord({ operationCode: null, grantedBits: "10" });
     expect(groupKeyOf(a)).toContain("VIEW");
-    expect(groupKeyOf(b)).toContain("bits:6");
+    expect(groupKeyOf(b)).toContain("bits"); // percent-encode 后 ':' 为 %3A，不锁字面
     expect(groupKeyOf(b)).not.toBe(groupKeyOf(c));
   });
 
@@ -146,18 +146,19 @@ describe("groupKeyOf（单记录键模型）", () => {
     });
     expect(groupKeyOf(collisionA)).not.toBe(groupKeyOf(collisionB));
 
-    // 三段资源键同型（computePreset 弹窗比对的资源聚合维度）
+    // 三段资源键同型（弹窗全量比对的资源聚合维度）——resourceGroupKeyOf 旧分隔符为 |，
+    // 碰撞对必须用 | 段才在旧实现下红（外评 codex：用 : 段对旧 | 拼接实现恒绿）
     expect(
       resourceGroupKeyOf({
         resourceTypeCode: "TD",
-        resourceCode: "a:b",
+        resourceCode: "a|b",
         codeType: "c"
       })
     ).not.toBe(
       resourceGroupKeyOf({
         resourceTypeCode: "TD",
         resourceCode: "a",
-        codeType: "b:c"
+        codeType: "b|c"
       })
     );
   });
