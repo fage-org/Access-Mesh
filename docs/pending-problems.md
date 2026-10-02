@@ -2,7 +2,7 @@
 doc_type: problems
 title: 待解决问题清单
 counter: Q-055           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-10-01
+last_updated: 2026-10-02
 ---
 
 # 待解决问题清单（pending problems）
@@ -80,20 +80,6 @@ last_updated: 2026-10-01
 **影响**：有写权限的并发删父、挂子调用可留下指向软删父的存活子节点，正常树无法从根到达。当前无菜单管理 UI，风险限于满足门禁的写调用；未做并发复现。
 
 **设想方向（未定案）**：创建、删除与更新统一在首次树读取前持 SYS_MENU 锁。
-
-<a id="q-047"></a>
-## Q-047 角色重新指派静默忽略窗口或关系变更
-
-- **状态**：converted
-- **登记**：2026-09-30
-- **来源**：外部逻辑报告 B-3；[核实记录](archive/2026-09-30/logic-review-verification.md)
-- **关联**：契约总册 §10 user-role 分配；P2；转出 [T-ADMIN-030](tasks/T-ADMIN-030.md)
-
-**现象与证据**：[UserManageAppServiceImpl.assignRole/assignRolesBatch](../access-service/src/main/java/cn/ac/fage/accessmesh/access/user/service/impl/UserManageAppServiceImpl.java) 按 userId+roleId 去重，命中即跳过。[UserRoleMapper.xml](../access-service/src/main/resources/mapper/role/UserRoleMapper.xml) 装载既有绑定不滤有效期；uk_user_role 含 relationId，但内存去重未区分。assign 接收窗口，batch-assign 新建固定无限期，均不更新旧行。
-
-**影响**：过期绑定重新指派返回成功但仍失效，未来窗口及 relationId 变更也可能被吞；先撤销再分配可恢复。不能据 sync 多重集推导管理面必须支持多窗口。
-
-**设想方向（未定案）**：区分相同绑定重试与窗口/关系变更，明确更新或拒绝语义。
 
 <a id="q-045"></a>
 ## Q-045 TRACE 敏感诊断输出缺授权门禁
@@ -383,6 +369,7 @@ last_updated: 2026-10-01
 
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
+| <a id="q-047"></a>Q-047 | 角色重新指派静默忽略窗口或关系变更 | 已修复；契约与验证见关联任务 | [T-ADMIN-030](tasks/T-ADMIN-030.md) | 2026-10-02 |
 | Q-027 | 新增分组角色未展开成员检查互斥 | closed（2026-10-02 随 T-PERM-097 收敛——实施核实任务前提与现实断层并经用户拍板改卡：危害场景要求新增行 `target_type='GROUP_ROLE'`，该形态自 T-PERM-043 起无任何写入方（现行写入口全部写死 `'ROLE'`），现行唯一活口（assign/sync 绑存量组角色）产出行在写守卫与运行时**一致不展开**、不发生 Y 静默失效，实际后果为零权限假绑定。改卡落地「绑定面入口收紧」：assign/batch-assign（字符串层+role_type=5 值层双保险）与 user-role sync/full-sync（scope 级、先于服务-类型白名单）拒绑 GROUP_ROLE（20022，对齐角色面先例），revoke 保留为存量行清理通道；持有侧/运行时组展开零改动；碰撞对红跑单测 5+PG 1 旧实现实证红。原「新增侧展开子树」设想随 role_inclusion 单事实源立项〔T-PERM-043 双事实源技术债〕另行处理） | [T-PERM-097](tasks/T-PERM-097.md) | 2026-10-02 |
 | Q-044 | 资源复合拼接键碰撞 | closed（T-PERM-096+T-FE-060 done：后端三内存索引（共享批量解析 resourceLookup、转授 resourceEntityIdByKey/结果映射）改结构化 record 元组，checkCanGrant 结果键=GrantCheckKey 本身；BusinessKeyUtil 四拼接构造器退役（resourceCodeTypeKey/resourceTripleCodeKey/grantCheckKey + 类推清扫零调用死方法 resourceTripleValueKey），golden 锁与对外协议键不动；前端 grant-keys.ts 单源 JSON 元组编码收口授权决策五段键/资源三段/树节点键/矩阵行键/主体树角色键 + 类推 changeGroupKey（inlineName 自由文本）；碰撞对回归锁双端旧实现实证红（后端 expected 100 got 200 与 duplicate element、前端 8 红）；元组边界口径入 engine/implementation §8.4、键约定入 permission-grant.md §2.3；类推核实 roleProjectionIndexKey 无碰撞形态（受限段+尾段自由文本）；roleKey/subjectKey 初判「无碰撞」经收口后外评订正（分配入口无 @Pattern+split 反解，登记 Q-057）、apiRouteResourceKey（path 中段自由文本）理论碰撞面登记 Q-056，两者均属「内部消费者全量迁移分开评估」范围随清单批次排期） | [T-PERM-096](tasks/T-PERM-096.md)、[T-FE-060](tasks/T-FE-060.md) | 2026-10-01 |
 | <a id="q-055"></a>Q-055 | 签名过滤器顺序注释 | closed（重复登记，按 2026-09-30 本次合并要求归入 Q-015；问题仍 open） | [Q-015](#q-015) | 2026-09-30 |

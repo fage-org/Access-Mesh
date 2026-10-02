@@ -18,6 +18,11 @@ import java.util.Set;
  */
 public interface UserRoleMapper extends BaseMapper<UserRole> {
 
+    /** 仅更新未删除、非本地投影且 relationId 为 null 的行，null 有效期显式写入。 */
+    int batchUpdateWindows(@Param("tenantId") Long tenantId,
+                           @Param("rows") List<UserRole> rows,
+                           @Param("operatorId") Long operatorId);
+
     /**
      * 批量软删除用户角色关联
      *

@@ -3,6 +3,33 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="cn.ac.fage.accessmesh.access.role.mapper.UserRoleMapper">
 
+    <update id="batchUpdateWindows">
+        UPDATE user_role
+        SET valid_from = CASE id
+            <foreach collection="rows" item="row">
+                WHEN #{row.id} THEN #{row.validFrom,jdbcType=TIMESTAMP}
+            </foreach>
+            ELSE valid_from END,
+            valid_to = CASE id
+            <foreach collection="rows" item="row">
+                WHEN #{row.id} THEN #{row.validTo,jdbcType=TIMESTAMP}
+            </foreach>
+            ELSE valid_to END,
+            updated_at = CASE id
+            <foreach collection="rows" item="row">
+                WHEN #{row.id} THEN #{row.updatedAt}
+            </foreach>
+            ELSE updated_at END,
+            updated_by = #{operatorId}
+        WHERE tenant_id = #{tenantId} AND delete_flag = 0 AND relation_id IS NULL
+          AND target_type = 'ROLE'
+          AND owner_service_code IS DISTINCT FROM 'access-service'
+          AND id IN
+        <foreach collection="rows" item="row" open="(" separator="," close=")">
+            #{row.id}
+        </foreach>
+    </update>
+
     <update id="softDeleteBatch">
         UPDATE user_role
         SET delete_flag = id, deleted_at = #{deletedAt}

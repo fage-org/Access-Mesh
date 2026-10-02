@@ -49,6 +49,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -140,14 +141,14 @@ public class UserManageAppServiceImpl implements UserManageAppService {
      * 接受（运行时双删兜底，fail-closed 无安全回退）。
      * </p>
      *
-     * @param toInsert 本批将新增的用户-角色关系行
+     * @param changed 本批新增或改期后的用户-角色关系行
      */
-    private void rejectRoleMutexOnAssign(Long tenantId, List<UserRole> toInsert) {
-        if (toInsert.isEmpty()) {
+    private void rejectRoleMutexOnAssign(Long tenantId, List<UserRole> changed) {
+        if (changed.isEmpty()) {
             return;
         }
         // T-PERM-075 U002 写时候选口径（用户拍板 2026-09-22）：
-        // 1. 新增行按「未过期」谓词入选——(valid_to >= now OR NULL)，不看 valid_from：
+        // 1. 新增或改期后的行按「未过期」谓词入选——(valid_to >= now OR NULL)，不看 valid_from：
         //    未来窗口（尚未生效）同入候选，与既有持有做区间交判定；已过期行永不生效不计入。
         //    区间判定为闭区间口径（与运行时 selectValidByUserIdsWithValidity 同谓词系），
         //    null=无限期、首尾相接当天同刻有效算重叠；两个互斥角色的窗口真正不相交时放行。
@@ -155,7 +156,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         //    绑定时刻已知互斥对即拒绝，不把冲突推迟到启用动作。
         LocalDateTime now = LocalDateTime.now();
         Map<Long, Set<SubjectDomainService.RawHolding>> newHoldingsByUser = new HashMap<>();
-        for (UserRole ur : toInsert) {
+        for (UserRole ur : changed) {
             boolean unexpired = ur.getValidTo() == null || !ur.getValidTo().isBefore(now);
             if (unexpired) {
                 newHoldingsByUser.computeIfAbsent(ur.getAbstractUserId(), k -> new HashSet<>())
@@ -498,12 +499,13 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         if (!allUserIds.isEmpty() && !targetRoleIds.isEmpty()) {
             List<UserRole> existingRelations = subjectDomainService.selectValidUserRolesByUserIdsAndTargetIds(tenantId, allUserIds, targetRoleIds, ResourceTypeCode.ROLE);
             for (UserRole ur : existingRelations) {
-                String key = BusinessKeyUtil.userRoleRelationKey(ur.getAbstractUserId(), ur.getTargetId());
+                String key = BusinessKeyUtil.userRoleRelationIdKey(ur.getAbstractUserId(), ur.getTargetId(), ur.getRelationId());
                 existingRelationMap.put(key, ur);
             }
         }
 
         List<UserRole> toInsert = new ArrayList<>();
+        Map<Long, UserRole> toUpdate = new LinkedHashMap<>();
         List<String> errors = new ArrayList<>();
         Set<Long> affectedUserIds = new LinkedHashSet<>();
         LocalDateTime now = LocalDateTime.now();
@@ -528,41 +530,17 @@ public class UserManageAppServiceImpl implements UserManageAppService {
                 continue;
             }
 
-            String relationKey = BusinessKeyUtil.userRoleRelationKey(abstractUserId, targetRoleId);
-            if (existingRelationMap.containsKey(relationKey)) {
-                continue;
+            if (stageRoleAssignment(tenantId, abstractUserId, targetRoleId, item.relationId(),
+                    item.validFrom(), item.validTo(), now, existingRelationMap, toInsert, toUpdate)) {
+                affectedUserIds.add(abstractUserId);
             }
-
-            UserRole ur = new UserRole();
-            ur.setTenantId(tenantId);
-            ur.setAbstractUserId(abstractUserId);
-            ur.setTargetType(ResourceTypeCode.ROLE);
-            ur.setTargetId(targetRoleId);
-            ur.setRelationId(item.relationId());
-            ur.setValidFrom(item.validFrom());
-            ur.setValidTo(item.validTo());
-            ur.setCreatedAt(now);
-            ur.setUpdatedAt(now);
-            ur.setDeleteFlag(0L);
-            toInsert.add(ur);
-            affectedUserIds.add(abstractUserId);
         }
 
         if (!errors.isEmpty()) {
             throw new BizException(AccessErrorCode.VALIDATION_FAILED.getCode(), String.join("; ", errors));
         }
 
-        // T-PERM-063：角色互斥授予校验（授予后状态命中互斥对 → 整批原子拒绝 20062）
-        if (!toInsert.isEmpty()) {
-            rejectRoleMutexOnAssign(tenantId, toInsert);
-        }
-
-        if (!toInsert.isEmpty()) {
-            subjectDomainService.insertUserRoles(toInsert);
-            OperationLogRuntimeContext.setSummary("assigned " + toInsert.size() + " user-role relation(s)");
-        } else {
-            OperationLogRuntimeContext.markSkip();
-        }
+        persistRoleAssignments(tenantId, operatorId, toInsert, toUpdate);
 
         // 登记受影响用户，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）
         if (!affectedUserIds.isEmpty()) {
@@ -629,12 +607,13 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         if (!allUserIds.isEmpty()) {
             List<UserRole> existingRelations = subjectDomainService.selectValidUserRolesByUserIdsAndTargetId(tenantId, allUserIds, targetRoleId, ResourceTypeCode.ROLE);
             for (UserRole ur : existingRelations) {
-                String key = BusinessKeyUtil.userRoleRelationKey(ur.getAbstractUserId(), ur.getTargetId());
+                String key = BusinessKeyUtil.userRoleRelationIdKey(ur.getAbstractUserId(), ur.getTargetId(), ur.getRelationId());
                 existingRelationMap.put(key, ur);
             }
         }
 
         List<UserRole> toInsert = new ArrayList<>();
+        Map<Long, UserRole> toUpdate = new LinkedHashMap<>();
         Set<Long> affectedUserIds = new LinkedHashSet<>();
         LocalDateTime now = LocalDateTime.now();
 
@@ -645,41 +624,79 @@ public class UserManageAppServiceImpl implements UserManageAppService {
                 continue;
             }
 
-            String relationKey = BusinessKeyUtil.userRoleRelationKey(abstractUserId, targetRoleId);
-            if (existingRelationMap.containsKey(relationKey)) {
-                continue;
+            if (stageRoleAssignment(tenantId, abstractUserId, targetRoleId, req.relationId(),
+                    null, null, now, existingRelationMap, toInsert, toUpdate)) {
+                affectedUserIds.add(abstractUserId);
             }
-
-            UserRole ur = new UserRole();
-            ur.setTenantId(tenantId);
-            ur.setAbstractUserId(abstractUserId);
-            ur.setTargetType(ResourceTypeCode.ROLE);
-            ur.setTargetId(targetRoleId);
-            ur.setRelationId(req.relationId());
-            ur.setValidFrom(null);
-            ur.setValidTo(null);
-            ur.setCreatedAt(now);
-            ur.setUpdatedAt(now);
-            ur.setDeleteFlag(0L);
-            toInsert.add(ur);
-            affectedUserIds.add(abstractUserId);
         }
 
-        // T-PERM-063：角色互斥授予校验（授予后状态命中互斥对 → 整批原子拒绝 20062）
-        if (!toInsert.isEmpty()) {
-            rejectRoleMutexOnAssign(tenantId, toInsert);
-            subjectDomainService.insertUserRoles(toInsert);
-            OperationLogRuntimeContext.setSummary(
-                "assigned " + toInsert.size() + " user-role relation(s) to role " + req.roleExternalId()
-            );
-        } else {
-            OperationLogRuntimeContext.markSkip();
-        }
+        persistRoleAssignments(tenantId, operatorId, toInsert, toUpdate);
 
         // 登记受影响用户，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）
         if (!affectedUserIds.isEmpty()) {
             PermissionChangeContext.markUsers(tenantId, affectedUserIds);
         }
+    }
+
+    /** 两种分配入口共享：关系键区分绑定，非空关系改期拒绝，null 关系改期更新。 */
+    private boolean stageRoleAssignment(Long tenantId, Long userId, Long roleId, Long relationId,
+                                        LocalDateTime validFrom, LocalDateTime validTo, LocalDateTime now,
+                                        Map<String, UserRole> bindings, List<UserRole> toInsert,
+                                        Map<Long, UserRole> toUpdate) {
+        String key = BusinessKeyUtil.userRoleRelationIdKey(userId, roleId, relationId);
+        UserRole existing = bindings.get(key);
+        if (existing != null) {
+            if (Objects.equals(existing.getValidFrom(), validFrom) && Objects.equals(existing.getValidTo(), validTo)) {
+                return false;
+            }
+            if (relationId != null) {
+                throw new BizException(AccessErrorCode.VALIDATION_FAILED.getCode(),
+                    "User-role relation already exists with a different validity window; revoke before assigning again: " + key);
+            }
+            localProjectionGuard.rejectIfLocalUserRole(existing);
+            existing.setValidFrom(validFrom);
+            existing.setValidTo(validTo);
+            existing.setUpdatedAt(now);
+            if (existing.getId() != null) {
+                toUpdate.put(existing.getId(), existing);
+            }
+            return true;
+        }
+        UserRole created = new UserRole();
+        created.setTenantId(tenantId);
+        created.setAbstractUserId(userId);
+        created.setTargetType(ResourceTypeCode.ROLE);
+        created.setTargetId(roleId);
+        created.setRelationId(relationId);
+        created.setValidFrom(validFrom);
+        created.setValidTo(validTo);
+        created.setCreatedAt(now);
+        created.setUpdatedAt(now);
+        created.setDeleteFlag(0L);
+        bindings.put(key, created);
+        toInsert.add(created);
+        return true;
+    }
+
+    private void persistRoleAssignments(Long tenantId, Long operatorId, List<UserRole> toInsert,
+                                         Map<Long, UserRole> toUpdate) {
+        if (toInsert.isEmpty() && toUpdate.isEmpty()) {
+            OperationLogRuntimeContext.markSkip();
+            return;
+        }
+        // 先在入口事务内更新窗口，DB 新鲜读获得替换后的持有集合；互斥拒绝会回滚本批全部更新。
+        // 不按角色或窗口值从 Set 扣减，避免误删其他 relationId 提供的相同窗口。
+        if (!toUpdate.isEmpty()) {
+            subjectDomainService.updateUserRoleWindows(tenantId, List.copyOf(toUpdate.values()), operatorId);
+        }
+        List<UserRole> changed = new ArrayList<>(toInsert);
+        changed.addAll(toUpdate.values());
+        rejectRoleMutexOnAssign(tenantId, changed);
+        if (!toInsert.isEmpty()) {
+            subjectDomainService.insertUserRoles(toInsert);
+        }
+        OperationLogRuntimeContext.setSummary(
+            "assigned " + toInsert.size() + ", updated " + toUpdate.size() + " user-role relation(s)");
     }
 
     @Override

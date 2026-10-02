@@ -248,6 +248,18 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
     }
 
     @Override
+    public void updateUserRoleWindows(Long tenantId, List<UserRole> userRoles, Long operatorId) {
+        if (userRoles.isEmpty()) {
+            return;
+        }
+        int updated = userRoleMapper.batchUpdateWindows(tenantId, userRoles, operatorId);
+        if (updated != userRoles.size()) {
+            throw new BizException(AccessErrorCode.VALIDATION_FAILED.getCode(),
+                "User-role bindings changed; reload before assigning again");
+        }
+    }
+
+    @Override
     public void softDeleteUserRolesBatch(Long tenantId, List<Long> ids, LocalDateTime deletedAt) {
         if (ids == null || ids.isEmpty()) {
             return;

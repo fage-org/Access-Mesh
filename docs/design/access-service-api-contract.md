@@ -6,7 +6,7 @@ domain: cross-service
 supersedes:
   - docs/design/permission-center/api-contract.md
   - docs/design/services/admin-service-api-contract.md
-last_reviewed: 2026-09-29
+last_reviewed: 2026-10-02
 ---
 
 # access-service API 契约总册
@@ -1102,6 +1102,10 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 - `remove` 级联覆盖 BASIC_ROLE 子孙（容器类型 GROUP_ROLE/ORG 之外）；级联根有权即整棵子树可删、不对子孙做独立权限过滤（项目规则「父级有权限子级即有权限」，2026-08-28 设计定案——统一引擎判定面继承落地登记 T-PERM-057，终态设计已并入 engine/implementation.md §3；原 T-PERM-045 已取消并入 057）。
 
 ### 10.4 user-role 管理与同步端点（/api/access/user-role/*）
+
+**重指派语义（T-ADMIN-030，2026-10-02）**：`assign` 与 `batch-assign` 按同租户的用户、角色和 `relationId` 定位未删除绑定，装载包含已过期及尚未生效的行。相同关系且 `validFrom`、`validTo` 都相同则幂等跳过；`relationId=null` 的有效期变化更新原行；不同关系新增，保留其他关系的旧行；非空相同关系的有效期变化整批拒绝 `VALIDATION_FAILED(20027)`，提示先撤销再分配，不覆盖旧行或放宽唯一约束。`assign` 使用请求中的有效期，`batch-assign` 的目标有效期固定为 `null/null`（无限期），因此 null 关系的有限期绑定会改为无限期。先撤销再分配仍可恢复。sync/full-sync 多重集语义不在本次变更范围。
+
+更新沿用 `ROLE:MANAGE` 门禁与本地投影保护；仅修改有效期、更新人及更新时间，保留行 ID、创建审计字段和关系。更新在入口事务内先落库，互斥守卫据 DB 新鲜读检查更新后的持有窗口与本批新增，其他关系提供的窗口继续参与；互斥冲突仍为 `20062`，本批更新与新增一同回滚。真实变更登记受影响用户，经 `@PermissionChange` 提交后失效；完全相同的重试不写入、不刷新审计时间。
 
 **持有窗口边界**：互斥候选剔除 validFrom > validTo 的倒置区间（与运行时永不生效一致）；写入侧尚未增加 validFrom <= validTo 跨字段校验，不能将读取侧剔除误写为入口已拒绝。新增入口校验属行为变更，须另行确认。[来源](../archive/2026-09-26/decision-registry-before.md)（原第 164 行）。
 
