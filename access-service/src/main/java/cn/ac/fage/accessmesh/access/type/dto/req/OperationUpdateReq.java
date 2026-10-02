@@ -14,7 +14,7 @@ import jakarta.validation.constraints.Pattern;
  * @param resourceTypeCode 资源类型编码，必填（定位键）
  * @param code             操作编码，必填（定位键）
  * @param name             操作权限名称，可选
- * @param binaryBit        二进制位，可选，用于位运算权限匹配
+ * @param binaryBit        操作独占位，可选（null=不更新），提供时必须为正数单比特（1 至 2^62）
  * @param inheritMask      继承掩码，可选（null=不更新），用于权限继承计算
  */
 public record OperationUpdateReq(

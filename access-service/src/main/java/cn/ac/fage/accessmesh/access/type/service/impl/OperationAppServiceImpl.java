@@ -128,6 +128,7 @@ public class OperationAppServiceImpl implements OperationAppService {
         if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationCode.CREATE)) {
             throw new SecurityException("No permission to create operation");
         }
+        requireSingleOperationBit(binaryBit);
 
         Integer resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
         if (resourceType == null) {
@@ -305,6 +306,9 @@ public class OperationAppServiceImpl implements OperationAppService {
         if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationCode.MANAGE)) {
             throw new SecurityException("No permission to update operation");
         }
+        if (req.binaryBit() != null) {
+            requireSingleOperationBit(req.binaryBit());
+        }
 
         // T-PERM-062 用户定案「补联动」：操作目标恒属 resource_type 族，与类型生命周期写路径
         //（createType/createOperation/updateType/deleteTypesByIds）共持 RESOURCE_ENTITY 树写锁并
@@ -461,6 +465,14 @@ public class OperationAppServiceImpl implements OperationAppService {
             cacheService.evictBatchAfterCommit(AccessCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId, affectedTypeKeys);
         }
         OperationLogRuntimeContext.setSummary("soft-deleted " + validIds.size() + " operation_permission row(s)");
+    }
+
+    /** 操作身份只能占一个正数位；继承掩码是位集合，不受此限制。 */
+    private static void requireSingleOperationBit(Long bit) {
+        if (bit == null || bit <= 0 || (bit & (bit - 1)) != 0) {
+            throw new BizException(AccessErrorCode.PERM_INVALID_PARAM.getCode(),
+                "binaryBit 必须为正数单比特（1、2、4…2^62）");
+        }
     }
 
     /** 一次性装载涉及的「自定义 resource_type」类型行（键=typeValue；操作删除的种子级联清理用，is_system 跳过） */

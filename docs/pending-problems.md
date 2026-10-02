@@ -2,7 +2,7 @@
 doc_type: problems
 title: 待解决问题清单
 counter: Q-055           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-10-02
+last_updated: 2026-10-03
 ---
 
 # 待解决问题清单（pending problems）
@@ -38,20 +38,6 @@ last_updated: 2026-10-02
 **现象与证据**：`BusinessKeyUtil.apiRouteResourceKey(method, path, resourceCode)` 以 `|` 拼三段做映射同步的内存索引，消费点 [MappingSyncHandlerImpl.java:79/90/95](../access-service/src/main/java/cn/ac/fage/accessmesh/access/resource/service/domain/impl/MappingSyncHandlerImpl.java)（存量行索引、incoming 活跃集、按资源 id 拼回查）。`pathPattern` 为 URL 自由文本（`|` 是合法 URL 字符无需转义）、`resourceCode` 自由文本且处尾段之前——与 Q-044 已修的「多个自由文本段相邻拼接」同形态。
 
 **影响与边界**：碰撞需同时满足「某行 path 含 `|`」且「同方法下另一行字段恰可拼出同串」（如 `POST|/api/x|y` 与 path=`/api/x`、resourceCode=`y` 的行），当前实际注册路径未出现该形态；后果为同步过期清理误判（漏删/误删映射行），不涉及权限判定面。修法方向可循 Q-044 元组化先例（record 键或 percent-encode 中段）；属 Q-044 设想「内部消费者全量迁移分开评估」范围，随问题清单批次排期。
-
-<a id="q-050"></a>
-## Q-050 操作位写入与准入目录校验边界不一致
-
-- **状态**：converted
-- **登记**：2026-09-30
-- **来源**：外部逻辑报告 B-6；[核实记录](archive/2026-09-30/logic-review-verification.md)
-- **关联**：[T-PERM-077](archive/2026-09-24/tasks/T-PERM-077.md)；[准入协议](design/access-service-api-contract.md#operation-admission-protocol)；P2；转出 [T-PERM-098](tasks/T-PERM-098.md)
-
-**现象与证据**：[OperationAppServiceImpl.createOperation/updateOperation](../access-service/src/main/java/cn/ac/fage/accessmesh/access/type/service/impl/OperationAppServiceImpl.java) 未限制 binaryBit 为单比特，operation_permission 表也无对应 CHECK。自定义类型同事务补种 AUTHORITY_ROOT，会被其单比特 CHECK 拦住；内置类型跳过补种，可追加不重复的非幂位。[QueryExecutionEngine.prepareAdmissionClauses](../access-service/src/main/java/cn/ac/fage/accessmesh/access/engine/query/QueryExecutionEngine.java) 则拒绝覆盖当前要求的坏位行。
-
-**影响与边界**：直接 API 向内置类型写位 3 后，与其有效位相交的准入要求可能触发 20071，相关快照构建失败；不影响所有类型或所有要求。前端已有幂位校验。T-PERM-077 的“不新增数值校验”取舍仍有效，本项是之后新增严格准入消费的影响；inheritMask 的负数表示不是错误。
-
-**设想方向（未定案）**：明确目录写入与准入消费的一致性边界；调整写约束前须核对原取舍并修订契约。
 
 <a id="q-049"></a>
 ## Q-049 非法 cron 保存成功但调度失败
@@ -369,6 +355,7 @@ last_updated: 2026-10-02
 
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
+| <a id="q-050"></a>Q-050 | 操作位写入与准入目录校验边界不一致 | 已修复；契约与验证见关联任务 | [T-PERM-098](tasks/T-PERM-098.md) | 2026-10-03 |
 | <a id="q-047"></a>Q-047 | 角色重新指派静默忽略窗口或关系变更 | 已修复；契约与验证见关联任务 | [T-ADMIN-030](tasks/T-ADMIN-030.md) | 2026-10-02 |
 | Q-027 | 新增分组角色未展开成员检查互斥 | closed（2026-10-02 随 T-PERM-097 收敛——实施核实任务前提与现实断层并经用户拍板改卡：危害场景要求新增行 `target_type='GROUP_ROLE'`，该形态自 T-PERM-043 起无任何写入方（现行写入口全部写死 `'ROLE'`），现行唯一活口（assign/sync 绑存量组角色）产出行在写守卫与运行时**一致不展开**、不发生 Y 静默失效，实际后果为零权限假绑定。改卡落地「绑定面入口收紧」：assign/batch-assign（字符串层+role_type=5 值层双保险）与 user-role sync/full-sync（scope 级、先于服务-类型白名单）拒绑 GROUP_ROLE（20022，对齐角色面先例），revoke 保留为存量行清理通道；持有侧/运行时组展开零改动；碰撞对红跑单测 5+PG 1 旧实现实证红。原「新增侧展开子树」设想随 role_inclusion 单事实源立项〔T-PERM-043 双事实源技术债〕另行处理） | [T-PERM-097](tasks/T-PERM-097.md) | 2026-10-02 |
 | Q-044 | 资源复合拼接键碰撞 | closed（T-PERM-096+T-FE-060 done：后端三内存索引（共享批量解析 resourceLookup、转授 resourceEntityIdByKey/结果映射）改结构化 record 元组，checkCanGrant 结果键=GrantCheckKey 本身；BusinessKeyUtil 四拼接构造器退役（resourceCodeTypeKey/resourceTripleCodeKey/grantCheckKey + 类推清扫零调用死方法 resourceTripleValueKey），golden 锁与对外协议键不动；前端 grant-keys.ts 单源 JSON 元组编码收口授权决策五段键/资源三段/树节点键/矩阵行键/主体树角色键 + 类推 changeGroupKey（inlineName 自由文本）；碰撞对回归锁双端旧实现实证红（后端 expected 100 got 200 与 duplicate element、前端 8 红）；元组边界口径入 engine/implementation §8.4、键约定入 permission-grant.md §2.3；类推核实 roleProjectionIndexKey 无碰撞形态（受限段+尾段自由文本）；roleKey/subjectKey 初判「无碰撞」经收口后外评订正（分配入口无 @Pattern+split 反解，登记 Q-057）、apiRouteResourceKey（path 中段自由文本）理论碰撞面登记 Q-056，两者均属「内部消费者全量迁移分开评估」范围随清单批次排期） | [T-PERM-096](tasks/T-PERM-096.md)、[T-FE-060](tasks/T-FE-060.md) | 2026-10-01 |

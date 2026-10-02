@@ -3,7 +3,7 @@ doc_type: design
 title: 资源与操作定义 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-09-20   # T-FE-056 收口：「路由可达性」口径清扫为 menus 派生路由门禁（机制与回归锁见 login.md §路由级 UX 门禁）；此前 2026-09-15 # T-ACCESS-036：字段表删 sortOrder 行（resource_entity.sort_order 全字段面退役，前端类型/提交载荷/表单/mock 同批清理）；此前 2026-09-02 T-FE-017 联调收口（§5 补 Gateway 注册登记与联调注记、§7 权限接线补固定图口径、§8 mock 校验句终态化、联调发现 maintain_source 落库缺陷已修）；2026-08-29 §5/§8 全量收口（T-PERM-028 落地：业务键切换/bigint 字符串线格式/extraClear/VIEW 门禁补齐/resource_type 联动预置）；2026-08-28 §8 增补第 6 项：resource_type 联动预置操作位自 T-PERM-023 改归属登记
+last_reviewed: 2026-10-03
 ---
 
 # 资源与操作定义 前端设计
@@ -82,9 +82,9 @@ last_reviewed: 2026-09-20   # T-FE-056 收口：「路由可达性」口径清�
 
 ### 操作权限 CRUD
 
-- **新增操作**：操作权限表「新增操作」-> OperationForm（mode=create）。
+- **新增操作**：操作权限表「新增操作」先读取当前类型完整操作列表（不使用搜索过滤结果），成功后打开 OperationForm（mode=create），自动填写 `1…2^62` 中最小未占用独占位。位用尽提示并阻止新增；读取失败不开表单。读取期间类型切换或 VIEW 权限失效，丢弃结果；保存时核对表单所属类型与当前类型一致。
 - **编辑/删除**：行内按钮。
-- **binaryBit 校验**：必须为 2 的幂次（前端校验 + 后端真实 `uk_operation_permission_typed_bit` 约束）。
+- **binaryBit 校验（T-PERM-098）**：数值/字符串均要求正数单比特且不超过 `2^62`，数值控件限制安全整数；超精度值按十进制字符串精确展示和提交，同类型其他操作已占用的值拒绝（编辑保留自身值不算重复）。编辑不自动重分配，原有高位只读保护保留。后端写入口同样校验单比特；`uk_operation_permission_typed_bit` 只负责同类型唯一性，不负责幂次校验。自动填写不预占，若并发占用导致保存失败，保留表单与错误提示，重新打开表单读取最新目录再生成。
 
 ## 5. API 依赖
 
@@ -159,7 +159,7 @@ views/system/resource-operation/
 2. ~~**操作权限业务键切换**~~ **已收口（T-PERM-028）**：`detail/update/remove` 已切业务键 `(resourceTypeCode, code)`（原 resourceTypeCode 可空=全局操作轨已随全局操作概念退役删除，2026-08-30，resourceTypeCode 必填）。
 3. ~~**VIEW 门禁种子缺失**~~ **已收口（T-PERM-028）**：核实结论——tree 与 operation list 门禁 T-PERM-042 已补；真正缺的 `resource-entity/list`、`resource-entity/detail`、`operation-permission/detail` 三处已补类型级 VIEW（2026-08-29 用户决策全补）；种子由 DDL CRUD 预置组覆盖（2026-08-28 核实，半句不成立）。
 4. **resource-entity list 分页**：后端 `ResourceListReq` 有分页参数，本页以树为主不消费，保留契约对齐。
-5. ~~**bigint 字段 63 位精度**~~ **已收口（T-PERM-028）**：响应 DTO 加 `@JsonSerialize(ToStringSerializer.class)`（全项目 bigint 序列化策略首例），请求侧 Long 组件由 Jackson 宽容接受十进制字符串；前端线格式全切 string，显示/运算/排序全 BigInt 无损。表单内部保留 el-input-number 数值控件、提交转字符串（2026-08-29 用户决策：2⁵³ 内输入精确，保留增减按钮体验）；复评 P1 收口（2026-08-30）：编辑态位字段脏检查（未变更不重提交）+ 超精度高位值（>2⁵³）只读字符串精确展示，杜绝 Number 往返静默改写存储位值。
+5. ~~**bigint 字段 63 位精度**~~ **已收口（T-PERM-028）**：响应 DTO 加 `@JsonSerialize(ToStringSerializer.class)`（全项目 bigint 序列化策略首例），请求侧 Long 组件由 Jackson 宽容接受十进制字符串；前端线格式全切 string，显示/运算/排序全 BigInt 无损。表单内部保留 el-input-number 数值控件、提交转字符串（2026-08-29 用户决策：安全整数内输入精确，保留增减按钮体验）；高位精度保护（2026-08-30）：编辑态位字段脏检查（未变更不重提交）+ 超精度高位值（超过安全整数上限）只读字符串精确展示，杜绝 Number 往返静默改写存储位值。
 6. ~~**resource_type 创建联动预置 operation_permission**~~ **已收口（T-PERM-028，2026-08-29 用户决策实现）**：`type-definition/create` 在 typeKey=resource_type 时同事务预置 CRUD 四操作位 CREATE(1,0)/VIEW(2,0)/UPDATE(4,2)/DELETE(8,2)（DDL 预置组模板同款，新类型位段空闲无 uk 冲突；跨域写入先例 ServiceConfig 级联）。
 
 ### ✅ 满足

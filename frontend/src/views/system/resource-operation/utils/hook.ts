@@ -304,6 +304,12 @@ export function useResourceOperation() {
     mode: "create" | "edit",
     editing?: OperationPermissionResp
   ): Promise<boolean> {
+    if (form.resourceTypeCode !== selectedResourceTypeCode.value) {
+      message("该操作权限不属于当前选中资源类型，请刷新后重试", {
+        type: "warning"
+      });
+      return false;
+    }
     try {
       if (mode === "create") {
         await createOperation({

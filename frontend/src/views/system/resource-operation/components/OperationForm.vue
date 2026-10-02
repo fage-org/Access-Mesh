@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from "vue";
 import type { FormInstance, FormRules } from "element-plus";
-import { type OperationPermissionResp } from "@/api/resource-operation";
+import type { OperationPermissionResp } from "@/api/resource-operation";
 import {
   PRESET_OPERATION_EXAMPLES,
-  isPowerOfTwo,
+  operationBitError,
   type OperationFormData
 } from "../utils/types";
 
@@ -16,19 +16,31 @@ const props = defineProps<{
   initialData?: OperationPermissionResp | null;
   /** 当前资源类型编码（新建预填，固定只读） */
   resourceTypeCode: string;
+  /** 打开弹窗时读取的同类型完整目录，不使用搜索过滤后的行。 */
+  operations: OperationPermissionResp[];
+  suggestedBit?: string;
 }>();
 
 const defaultFormData = (): OperationFormData => ({
   resourceTypeCode: props.resourceTypeCode,
   code: "",
   name: "",
-  binaryBit: 0,
+  binaryBit: props.suggestedBit ? toEditableBit(props.suggestedBit) : 0,
   inheritMask: 0
 });
 
 const formData = reactive<OperationFormData>({ ...defaultFormData() });
 const formRef = ref<FormInstance>();
 const isEdit = computed(() => props.mode === "edit");
+const usedBits = computed(() =>
+  props.operations
+    .filter(
+      op =>
+        op.resourceTypeCode === props.resourceTypeCode &&
+        !(isEdit.value && op.code === props.initialData?.code)
+    )
+    .map(op => op.binaryBit)
+);
 
 /** 校验规则。
  *  code 为业务键（uk_operation_permission_typed: tenant+type+code），编辑态只读；
@@ -55,25 +67,15 @@ const rules = computed<FormRules>(() => ({
         value: number | string,
         cb: (e?: Error) => void
       ) => {
-        // 超精度只读字符串为后端既有合法值，跳过数值控件校验
-        if (typeof value === "string") {
-          cb();
-          return;
-        }
-        if (!Number.isInteger(value) || value <= 0) {
-          cb(new Error("必须为正整数"));
-        } else if (!isPowerOfTwo(value)) {
-          cb(new Error("必须为 2 的幂次（1/2/4/8/16…）"));
-        } else {
-          cb();
-        }
+        const error = operationBitError(value, usedBits.value);
+        cb(error ? new Error(error) : undefined);
       },
       trigger: "blur"
     }
   ]
 }));
 
-/** 安全值（≤2^53）转数值控件可编辑；超精度高位值保留原始字符串只读展示
+/** 安全整数值转数值控件可编辑；超精度高位值保留原始字符串只读展示
  *  （Number 往返会改写 2^62 级位值——4611686018427387904 → 4611686018427388000，
  *  T-PERM-028 复评 P1：只改名称的编辑也不得静默写坏位字段）。 */
 function toEditableBit(value: string): number | string {
@@ -166,10 +168,11 @@ defineExpose({ validate, getFormData });
         v-if="typeof formData.binaryBit === 'number'"
         v-model="formData.binaryBit"
         :min="1"
+        :max="Number.MAX_SAFE_INTEGER"
         controls-position="right"
         class="w-full!"
       />
-      <!-- 超精度高位值（>2^53）只读精确展示：数值控件往返会丢精度（T-PERM-028 复评 P1） -->
+      <!-- 超精度高位值（超过安全整数上限）只读精确展示：数值控件往返会丢精度（T-PERM-028 复评 P1） -->
       <el-input
         v-else
         :model-value="String(formData.binaryBit)"
@@ -178,8 +181,11 @@ defineExpose({ validate, getFormData });
       />
       <div class="field-tip">
         独占位，2 的幂次（1/2/4/8/16…）。同资源类型内不可重复。
+        <template v-if="!isEdit"
+          >已自动填入最小可用位；保存时若已被占用，请重新打开表单。</template
+        >
         <template v-if="typeof formData.binaryBit === 'string'">
-          当前为超过 2^53 的高位值（只读保护），如需修改请经 API
+          当前为超过安全整数上限的高位值（只读保护），如需修改请经 API
           提交十进制字符串。
         </template>
       </div>

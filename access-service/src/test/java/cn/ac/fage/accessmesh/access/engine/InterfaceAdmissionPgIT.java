@@ -230,6 +230,79 @@ class InterfaceAdmissionPgIT {
 
     // ─── 快照构建 ───
 
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder operationRequest(
+            String action, Map<String, String> body) throws Exception {
+        String timestamp = String.valueOf(System.currentTimeMillis() / 1000);
+        javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+        mac.init(new javax.crypto.spec.SecretKeySpec("test-signature-secret-for-access-service"
+            .getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256"));
+        String signature = java.util.HexFormat.of().formatHex(mac.doFinal(
+            (subjectId + "|1|" + timestamp).getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        return post("/api/access/operation-permission/" + action)
+            .contentType(MediaType.APPLICATION_JSON)
+            .header("X-Internal-Secret", "test-internal-secret-for-access-service")
+            .header("X-Tenant-Id", "1")
+            .header("X-User-Id", subjectId)
+            .header("X-User-Signature", signature)
+            .header("X-Signature-Timestamp", timestamp)
+            .content(json.writeValueAsString(body));
+    }
+
+    @Test
+    void should_keepSnapshotBuildable_whenApiRejectsCollidingOperationBits() throws Exception {
+        bindRole();
+        grant(null, 2L, true, null, null);
+        insertMapping(registerApi("single-bit"), "POST", "/api/demo/view", viewOpId);
+        // 模拟内置类型：跳过自定义类型的 AUTHORITY_ROOT 补种 CHECK，覆盖原缺口。
+        jdbc.update("UPDATE type_definition SET is_system = true WHERE tenant_id = 1 "
+            + "AND type_key = 'resource_type' AND type_code = ?", TYPE);
+        try {
+            var createResult = mvc.perform(operationRequest("create", Map.of("resourceTypeCode", TYPE,
+                    "code", "COLLISION", "name", "碰撞位", "binaryBit", "3", "inheritMask", "0")))
+                .andExpect(status().isOk()).andReturn();
+            // 先走真实快照构建：旧写入口允许位 3 入库，此处会因覆盖 VIEW=2 而失败。
+            assertThat(admission.interfaceAdmissionSnapshot(TENANT, snapshotReq()).operationCandidates()).isNotEmpty();
+            assertThat(json.readTree(createResult.getResponse().getContentAsString()).path("code").asInt())
+                .isEqualTo(20044);
+            mvc.perform(operationRequest("update", Map.of("resourceTypeCode", TYPE, "code", "EXPORT", "binaryBit", "3")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.code").value(20044));
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM operation_permission WHERE resource_type = ? "
+                + "AND binary_bit = 3 AND delete_flag = 0", Integer.class, TYPE_VALUE)).isZero();
+            assertThat(jdbc.queryForObject("SELECT binary_bit FROM operation_permission WHERE id = ?",
+                Long.class, exportOpId)).isEqualTo(4L);
+            assertThat(admission.interfaceAdmissionSnapshot(TENANT, snapshotReq()).operationCandidates()).isNotEmpty();
+            assertThat(admission.interfaceAdmission(TENANT, admissionReq("POST", "/api/demo/view", null)).decision())
+                .isEqualTo("MAY_ENTER");
+        } finally {
+            jdbc.update("UPDATE type_definition SET is_system = false WHERE tenant_id = 1 "
+                + "AND type_key = 'resource_type' AND type_code = ?", TYPE);
+        }
+    }
+
+    @Test
+    void should_report20071OnlyForRelatedDamagedBits_whenBuildingSnapshot() throws Exception {
+        bindRole();
+        grant(null, 2L, true, null, null);
+        insertMapping(registerApi("legacy-bit"), "POST", "/api/demo/view", viewOpId);
+        Long damagedId = jdbc.queryForObject("INSERT INTO operation_permission "
+            + "(tenant_id, resource_type, code, name, binary_bit, inherit_mask) "
+            + "VALUES (1, ?, 'DAMAGED', '存量坏位', 12, 0) RETURNING id", Long.class, TYPE_VALUE);
+        assertThat(admission.interfaceAdmissionSnapshot(TENANT, snapshotReq()).operationCandidates()).isNotEmpty();
+        jdbc.update("UPDATE operation_permission SET binary_bit = 3 WHERE id = ?", damagedId);
+        mvc.perform(post("/api/access/auth/interface-admission-snapshot")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("X-Internal-Secret", "test-internal-secret-for-access-service")
+                .header("X-Tenant-Id", "1")
+                .content(json.writeValueAsString(snapshotReq())))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.code").value(20071));
+        mvc.perform(post("/api/access/auth/interface-admission")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("X-Internal-Secret", "test-internal-secret-for-access-service")
+                .header("X-Tenant-Id", "1")
+                .content(json.writeValueAsString(admissionReq("POST", "/api/demo/view", null))))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.code").value(20071));
+    }
+
     @Test
     void snapshotShouldCarryFullRoutesAndProjectedCandidates() {
         bindRole();

@@ -3,7 +3,7 @@ doc_type: design
 title: IAM 核心正确性与用户任务闭环方案
 status: draft
 domain: cross-service
-last_reviewed: 2026-09-26
+last_reviewed: 2026-10-03
 ---
 
 # IAM 核心正确性与用户任务闭环方案
@@ -87,7 +87,7 @@ A的scope=read、audience=aud-a，B的scope=other、audience=aud-b：A的合法�
 
 推荐在操作创建领域入口把缺省inheritMask归一为现行DDL默认0（原稿「保留传入非法位值的验证」经核实为错误假设——数值级校验三层现状全无、无可保留对象，按 2026-09-22 拍板不新增，拒绝面以既有三面为准）；不依赖显式NULL插入时数据库DEFAULT生效。EXPORT位16、省略mask与显式0结果等价，并同事务补齐该操作授权根。单条创建之外核对同款调用方，不通过大范围ORM策略变化修一个字段。
 
-**实施口径**：归一落在唯一创建入口 `OperationAppServiceImpl.createOperation`（null→0，响应回读归一值，省略与显式0等价）。掩码值**不加符号校验**（2026-09-22 用户拍板：掩码语义看位不看正负，Java Long 有符号只是表示形态）——「非法掩码仍拒绝」按既有拒绝面锁定（`binaryBit` @NotNull 400、code/类型码大写 @Pattern 400、同类型同码/同位唯一索引拒绝），不新增数值校验、不做位域子集校验。同款调用方核对完毕：类型创建 CRUD 预置种子（`TypeDefinitionAppServiceImpl`）与 DDL 种子均显式传掩码、update 通道 `inheritMask` null=不更新语义维持，均不受影响。回归锁：`OperationAppServiceImplTest` 归一锁（旧实现显式 NULL 落库实体下实证红）、`OperationCodeCaseValidationTest` binaryBit 必填面、`CustomResourceTypeSlicePgIT` 主链省略掩码真 INSERT 落 0 + 同事务补种 + 首次转授 + 失败（所有者停用 20003）整单回滚零残留。
+**实施口径**：归一落在唯一创建入口 `OperationAppServiceImpl.createOperation`（null→0，响应回读归一值，省略与显式0等价）。掩码值**不加符号校验**（2026-09-22 用户拍板：掩码语义看位不看正负，Java Long 有符号只是表示形态）——「非法掩码仍拒绝」按既有拒绝面锁定（`binaryBit` @NotNull 400、code/类型码大写 @Pattern 400、同类型同码/同位唯一索引拒绝），inheritMask 不新增数值校验、不做位域子集校验；binaryBit 的不新增数值校验取舍已由 T-PERM-098 写侧正数单比特约束取代（见契约总册 §12）。同款调用方核对完毕：类型创建 CRUD 预置种子（`TypeDefinitionAppServiceImpl`）与 DDL 种子均显式传掩码、update 通道 `inheritMask` null=不更新语义维持，均不受影响。回归锁：`OperationAppServiceImplTest` 归一锁（旧实现显式 NULL 落库实体下实证红）、`OperationCodeCaseValidationTest` binaryBit 必填面、`CustomResourceTypeSlicePgIT` 主链省略掩码真 INSERT 落 0 + 同事务补种 + 首次转授 + 失败（所有者停用 20003）整单回滚零残留。
 
 ## 3. 有限权限管理员的完整任务
 

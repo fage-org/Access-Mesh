@@ -37,6 +37,8 @@
 
 ### Fixed
 
+- **操作独占位写入约束与自动填写（T-PERM-098）**：操作创建及更新显式传入的 `binaryBit` 必须为 `1…2^62` 正数单比特，非法值写前返回 20044，避免直接 API 向内置类型写入碰撞位后破坏准入快照；inheritMask 负数语义保留，存量相关坏位仍报 20071。前端新增自动填写同类型最小空闲单比特，补齐高位字符串、范围及重复占位校验，位用尽阻止新增。
+
 - **协议 DTO 派生校验 getter 泄露线格式致 SDK 请求全量 400（T-API-004 claude 外评 P2）**：record 上的 `@AssertTrue` is-getter（如 `isExtraConflictFree()`）被 Jackson 识别为序列化属性（`"extraConflictFree":true` 随请求带出），而服务端全局 mapper 为 `cacheObjectMapper` 裸 `ObjectMapper`（严格模式，未知字段天然 400）——**Java SDK 接入方**经 `PermissionFeignClient` 序列化请求 DTO 调 `resource-entity/update`（及存量的 `auth/check`、`auth/batch-check`）会被未知字段拒绝恒 400，端点对 Java 客户端 100% 不可用（前端手写 JSON 与仓内测试不经 Jackson 序列化 DTO，故全绿掩盖）。修复：全部派生校验 getter 加 `@JsonIgnore`（九张 DTO：本批七张 + 存量同根 `AuthCheckReq`/`BatchAuthCheckReq`——T-PERM-058 引入的同款 is-getter，用户拍板同批修；`OperationPermission.getEffectiveBits` 先例），并加通用不变量锁「线格式键集==record 组件集 + 严格 mapper 往返成功」（九张 DTO 反射全覆盖）。附带修正：空白拒绝正则补 `(?U)`（Java `\s` 默认仅 ASCII，全角空格 U+3000/NBSP 此前可绕过）；`service-config/save` 创建分支拒清空标志的判定保持在门禁后（预判上移会构成服务存在性 oracle——无 MANAGE 者凭 20044/403 差异探测 serviceCode 是否已登记，对齐 T-ADMIN-029「先门禁后存在性」先例）。
 
 - **公告状态机对齐 DDL（T-ADMIN-029）**：`notice/create` 创建即置 `status=1`（=已发布）而 `publish` 置 `status=2`（=已撤回）——DDL 权威 0=草稿/1=已发布/2=已撤回，实际行为完全颠倒：草稿创建即对全员可见、发布动作反而把公告从可见面撤下。修复后创建=草稿（对接收者不可见）、发布=已发布（仅目标受众可见）、撤回=不可读不可标已读、撤回后重新发布已读状态延续。同批：公告删除级联清理已读记录（Controller javadoc 历来声称「会同时处理用户已读记录」但实现从未清理）；`detail`/`page` 补 `ADMIN_NOTICE:VIEW` 门禁（此前任何登录用户可读任意公告含草稿）；`update` 受众 `USER→ALL` 切换时 `target_ids` 真置空（UpdateEntity 显式列集，此前忽略 null 列残留旧受众数组）。

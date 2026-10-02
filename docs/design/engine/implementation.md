@@ -3,7 +3,7 @@ doc_type: design
 title: 权限中心 — 核心功能实现设计
 status: adopted
 domain: access-service
-last_reviewed: 2026-09-28
+last_reviewed: 2026-10-03
 ---
 
 # 权限中心 — 核心功能实现设计
@@ -408,6 +408,8 @@ clientIp 从当前请求自动装配（无请求上下文时 IP 类条件 fail-c
 
 ### 3.3 执行管线（分阶段）
 
+操作准入在 `prepareAdmissionClauses` 使用新鲜完整目录校验要求及覆盖相关操作，再计算 coveringMask；写侧的单比特约束不替代读侧防御（T-PERM-098）。操作创建/更新拒绝非法 binaryBit，准入仍对存量相关坏位抛 `AdmissionConfigurationException`，接口映射 20071；一个服务快照批量候选构建中的任一要求失败即整份失败，不投影部分结果。无关坏位不阻断、inheritMask 不限制符号，详细边界见 [契约 §12/§25.4](../access-service-api-contract.md#operation-admission-protocol)。
+
 ```
 QueryExecutionEngine.execute(QueryRequest)
     │
@@ -604,7 +606,7 @@ T-PERM-089 起，替代旧 queryBatch A+ 形态——wire 契约零变化：请�
   scopeAll 短路率与无角色短路率观测载体）、`access.query.execution`（Timer，outcome，直方图开启，
   P50/P95/P99；`BUDGET_EXCEEDED` 单列容量信号与其余技术故障分开告警）、`access.query.evidence.failed`
   （Counter，kind）。打点失败由 `GuardedQueryEngineMetrics` 防御包装吞掉（warn 不放大为查询故障；
-  引擎与审计收集器两消费点在各自构造器统一接入，直连构造路径同覆盖——T-PERM-094 复评 P3 收口）。
+  引擎与审计收集器两消费点在各自构造器统一接入，直连构造路径同覆盖——T-PERM-094）。
   端口低基数锁（枚举+布尔+long 时长标量白名单）=`QueryAuditAndTraceTest` 结构锁；超限细分观测锁同册。
 - **监控口径承载分配（§10.5 五类面的落位）**：阶段终态/执行终态与时长/审计失败=引擎指标（上）；
   回源失败、fail-closed 兜底与准入技术故障=网关既有指标（`gateway.perm.unreachable/fallback` 族）；

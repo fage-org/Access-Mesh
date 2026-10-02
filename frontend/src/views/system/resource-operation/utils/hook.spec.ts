@@ -12,6 +12,7 @@ const mockGetOperationList = vi.fn();
 const mockUpdateResource = vi.fn();
 const mockRemoveResources = vi.fn();
 const mockUpdateOperation = vi.fn();
+const mockCreateOperation = vi.fn();
 const mockMoveResource = vi.fn();
 const mockRemoveOperations = vi.fn();
 
@@ -32,7 +33,7 @@ vi.mock("@/api/resource-operation", () => ({
   updateResource: (...args: unknown[]) => mockUpdateResource(...args),
   moveResource: (...args: unknown[]) => mockMoveResource(...args),
   removeResources: (...args: unknown[]) => mockRemoveResources(...args),
-  createOperation: vi.fn(),
+  createOperation: (...args: unknown[]) => mockCreateOperation(...args),
   updateOperation: (...args: unknown[]) => mockUpdateOperation(...args),
   removeOperations: (...args: unknown[]) => mockRemoveOperations(...args)
 }));
@@ -79,6 +80,7 @@ describe("资源与操作定义页共享列表上下文（T-FE-059 / F011 同模
     mockUpdateResource.mockReset().mockResolvedValue(undefined);
     mockRemoveResources.mockReset().mockResolvedValue(undefined);
     mockUpdateOperation.mockReset().mockResolvedValue(undefined);
+    mockCreateOperation.mockReset().mockResolvedValue(undefined);
     mockMoveResource.mockReset().mockResolvedValue(undefined);
     mockRemoveOperations.mockReset().mockResolvedValue(undefined);
     hasPermsValue = true;
@@ -146,6 +148,46 @@ describe("资源与操作定义页共享列表上下文（T-FE-059 / F011 同模
     await hook.deleteResource(nodeOf(1, "type-a"));
 
     expect(mockRemoveResources).not.toHaveBeenCalled();
+  });
+
+  it("新增操作：切类型后不提交旧表单", async () => {
+    const hook = useResourceOperation();
+    hook.selectedResourceTypeCode.value = "type-b";
+    const saved = await hook.submitOperation(
+      {
+        resourceTypeCode: "type-a",
+        code: "EXPORT",
+        name: "导出",
+        binaryBit: "16",
+        inheritMask: 0
+      },
+      "create"
+    );
+    expect(saved).toBe(false);
+    expect(mockCreateOperation).not.toHaveBeenCalled();
+  });
+
+  it("新增操作：自动生成的高位十进制字符串原样发送", async () => {
+    const hook = useResourceOperation();
+    hook.selectedResourceTypeCode.value = "type-a";
+    const saved = await hook.submitOperation(
+      {
+        resourceTypeCode: "type-a",
+        code: "EXPORT",
+        name: "导出",
+        binaryBit: "4611686018427387904",
+        inheritMask: 0
+      },
+      "create"
+    );
+    expect(saved).toBe(true);
+    expect(mockCreateOperation).toHaveBeenCalledWith({
+      resourceTypeCode: "type-a",
+      code: "EXPORT",
+      name: "导出",
+      binaryBit: "4611686018427387904",
+      inheritMask: "0"
+    });
   });
 
   it("编辑操作权限提交：行所属类型 ≠ 当前选中 → 拒绝且不发货（旧实现照发必失败）", async () => {

@@ -6,7 +6,7 @@ domain: cross-service
 supersedes:
   - docs/design/permission-center/api-contract.md
   - docs/design/services/admin-service-api-contract.md
-last_reviewed: 2026-10-02
+last_reviewed: 2026-10-03
 ---
 
 # access-service API 契约总册
@@ -1471,7 +1471,9 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 **resource_type 创建联动预置（T-PERM-028 实现定案）**：`type-definition/create` 在 `typeKey=resource_type` 时同事务预置 CRUD 四操作位 `CREATE(1,0)/VIEW(2,0)/UPDATE(4,2)/DELETE(8,2)`（DDL CROSS JOIN 预置组模板同款；新类型位段空闲无 uk 冲突）；非 resource_type 类型不预置。
 
-**操作创建掩码缺省归一（T-PERM-077，2026-09-22）**：`operation-permission/create` 的 `inheritMask` 可选，服务端在唯一创建入口归一缺省为 0（省略与显式 0 等价，响应回读归一值；不依赖 DDL DEFAULT 在显式 NULL 插入下生效）。掩码值**不做符号校验**（掩码语义看位不看正负——Java Long 有符号只是表示形态，2026-09-22 用户拍板）；既有拒绝面不变（`binaryBit` 必填 400、code/资源类型码大写 400、同类型同码/同位唯一索引拒绝）。`operation-permission/update` 的 `inheritMask` null=不更新语义维持不变。
+**操作创建掩码缺省归一（T-PERM-077，2026-09-22）**：`operation-permission/create` 的 `inheritMask` 可选，服务端在唯一创建入口归一缺省为 0（省略与显式 0 等价，响应回读归一值；不依赖 DDL DEFAULT 在显式 NULL 插入下生效）。掩码值**不做符号校验**（掩码语义看位不看正负——Java Long 有符号只是表示形态，2026-09-22 采纳）；`operation-permission/update` 的 `inheritMask` null=不更新语义维持不变。`binaryBit` 必填、code/资源类型码大写以及同类型同码/同位唯一索引拒绝面保留，操作独占位数值约束见下文。
+
+**操作独占位写入边界（T-PERM-098，2026-10-02 采纳方案 A）**：`binaryBit` 是操作身份，必须为正数单比特（`1` 至 `2^62`）；创建入口及更新请求显式提供该字段时，在权限门禁通过后、写库前校验，非法值按 HTTP 200＋**20044 PERM_INVALID_PARAM** 拒绝。更新省略/null 仍表示不修改，不自动修复存量值。约束对内置与自定义类型相同；合法操作的自定义类型授权根补种/迁移及现有 CHECK 不变，不新增 operation_permission DDL CHECK。该规则仅取代 T-PERM-077 的「不新增数值校验」中 binaryBit 部分：新增严格准入消费后，内置类型可写入位 3 会使 VIEW=2 的相关快照构建失败，因此从写侧阻断；inheritMask 负数、缺省与 null=不更新语义保持不变。存量异常仍按 §25.4 配置故障处理，不静默丢弃。前端新增时自动填写同类型最小空闲单比特，具体交互见 [资源与操作定义 §4](frontend/resource-operation.md#4-交互流程)。
 
 **操作生命周期与授权根联动（T-PERM-062，2026-09-12 grok 外评存量升级用户定案「补联动」）**：`operation-permission/update` 的 `binaryBit` 有效变更（自定义 resource_type 目标）同事务迁移授权根种子——软删旧操作位种子行、向所有者补种新操作位（不迁则旧位成指向无定义位的永久死行、新位零种子令该操作回到无人能首授的死锁）；`operation-permission/remove` 对被删自定义类型操作同事务级联清理该操作位种子行（生命周期通道回收，与 apply-grant-plan 20061 只读边界不冲突——同 T-PERM-050 类型删除级联先例；is_system 类型无种子不联动）。两入口与类型生命周期写路径共持 RESOURCE_ENTITY 树写锁并锁内重读（update 锁内重读操作行 + 锁内重绑 typeValue——「删类型→同码重建」交错下锁前解析值指向已级联清理的死号）。
 
@@ -3025,6 +3027,8 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
 新 OPERATION_ADMISSION 的操作要求与覆盖定义**固定用新鲜数据库类型目录**（在线判定与快照构建同一算法、同一来源）：解析 required operation 与 coveringMask 不消费旧 L1 60 分钟／L2 120 分钟操作掩码缓存，也不从旧 GRANT_LIST 评估结果或旧网关快照推导。事实中的授权／角色／条件仍按各自既有来源与失效边界（设计 §5.2 读取矩阵）。
 
 准入配置错误优先于 NO_ROLE：空角色集仍核查要求及新鲜操作目录，要求有效才返回 NO_ROLE。目录检查限于当前要求及有效位覆盖它的操作；不覆盖当前要求的坏行不阻断该要求，覆盖相关操作位损坏仍报 20071。inheritMask 只按位解释、正负均可，不因符号判为损坏（T-ACCESS-057，2026-09-27 确认）。普通鉴权保持既有主体短路（T-ACCESS-057，2026-09-27 确认）。
+
+**写侧约束与存量异常（T-PERM-098）**：§12 的单比特校验阻止新 API 请求写入非幂位，准入不因此放宽目录核查。要求自身的 binaryBit 缺失/非正数单比特，或同类型中有效位（binaryBit | inheritMask）与该要求相交的操作具有坏 binaryBit/空 inheritMask，均报 20071；例如 VIEW=2 时，存量操作位 3、掩码 0 会阻断，位 12、掩码 0 不影响 VIEW。在线调用阻断当前要求；为已解析主体构建服务快照时，任一启用路由要求在候选构建中触发此故障即整份构建失败，不发布部分快照。故障信封不缓存，网关回源失败按既有 503 语义处理。未登记/停用服务的空快照和未知主体不构建候选的既有边界保持不变。
 
 新准入把业务操作覆盖转换为快照候选，依赖关系已变——**不能沿用旧快照约 30 秒的配置安全结论**。**T-ACCESS-060 边界重推导（2026-09-28，按新准入实际依赖面实核；同日外评修正算式：`generatedAt/expiresAt` 在构建完成后才计算，事实读取→`generatedAt` 之间的构建耗时使事实年龄继续增长，须计入）**：快照构建读源＝事实族（EFFECTIVE_ROLES／ROLE_PERM_SNAPSHOT／TYPE_VALUE／TYPE_CODE／CONDITION_RULES／ROLE_MUTEX_RULE，经引擎 L2_ONLY 目录，启动校验锁有效 TTL≤10s）＋操作定义（新鲜库读，T-ACCESS-057）＋条件规则原文（装配器直读）＋路由映射与服务配置含代次复读（新鲜库读）；最坏陈旧＝事实族 L2 陈旧(≤10s)＋构建耗时(≤5s，有效快照受网关回源截止 5s 约束——超时构建被网关放弃，不产出可用快照)＋快照有效期(SNAPSHOT_TTL 15s，网关按服务端 expiresAt 门禁命中、L1 TTL 15s 仅作丢失广播兜底)≤**30s＝30s 目标压线达标（0 余量——任一常量调大即越界）**。方程由 `PermCacheBoundaryValidator`（上游 L2＋快照有效期≤30s，调大任一常量启动失败；该方程锁住 25s 基线，构建耗时 5s 由网关侧方程承载）与网关 `GatewayCacheBoundaryValidator`（L1≤15s＋回源截止≤5s）双层锁定。即便采用新鲜操作定义，广播＋TTL 仍不是零延迟强一致。专用短 TTL／版本化业务操作缓存为备选（须重做安全边界证明，非默认）。
 

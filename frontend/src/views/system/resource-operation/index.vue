@@ -5,18 +5,21 @@ import { addDialog } from "@/components/ReDialog";
 import { hasPerms } from "@/utils/auth";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import { message } from "@/utils/message";
+import { toErrorMessage } from "@/api/_envelope";
 import ResourceForm from "./components/ResourceForm.vue";
 import OperationForm from "./components/OperationForm.vue";
 import ResourceMoveForm from "./components/ResourceMoveForm.vue";
 import { useResourceOperation } from "./utils/hook";
 import { RESOURCE_OPERATION_PERMS } from "./utils/perms";
 import {
+  nextAvailableOperationBit,
   type ResourceFormData,
   type OperationFormData,
   type ResourceMoveFormData
 } from "./utils/types";
 import {
   getResourceDetail,
+  getOperationList,
   type ResourceResp,
   type ResourceTreeNode,
   type OperationPermissionResp
@@ -229,11 +232,32 @@ function onDeleteResource() {
 }
 
 // ========== 操作权限弹窗 ==========
-function openOperationForm(
+async function openOperationForm(
   mode: "create" | "edit",
   row?: OperationPermissionResp
 ) {
-  if (!selectedResourceTypeCode.value) return;
+  const typeCode = selectedResourceTypeCode.value;
+  if (!typeCode || !canViewOperation.value) return;
+  let currentOperations: OperationPermissionResp[];
+  try {
+    currentOperations = (await getOperationList({ resourceTypeCode: typeCode }))
+      .items;
+  } catch (error) {
+    message(toErrorMessage(error, "加载操作权限失败"), { type: "error" });
+    return;
+  }
+  if (selectedResourceTypeCode.value !== typeCode || !canViewOperation.value)
+    return;
+  const suggestedBit =
+    mode === "create"
+      ? nextAvailableOperationBit(currentOperations.map(op => op.binaryBit))
+      : undefined;
+  if (suggestedBit === null) {
+    message("当前资源类型的 63 个操作位已用尽，无法新增操作", {
+      type: "warning"
+    });
+    return;
+  }
   let formRef: DialogForm<OperationFormData> | null = null;
   addDialog({
     title:
@@ -247,7 +271,9 @@ function openOperationForm(
           formRef = getDialogForm<OperationFormData>(element);
         },
         mode,
-        resourceTypeCode: selectedResourceTypeCode.value!,
+        resourceTypeCode: typeCode,
+        operations: currentOperations,
+        suggestedBit,
         initialData: row ?? null
       }),
     beforeSure: async (done, { closeLoading }) => {

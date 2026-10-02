@@ -11,6 +11,11 @@ import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
+import cn.ac.fage.accessmesh.common.exception.BizException;
+import cn.ac.fage.accessmesh.access.type.dto.req.OperationUpdateReq;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
@@ -48,6 +53,56 @@ class OperationAppServiceImplTest {
     @Mock private cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport treeWriteLockSupport;
 
     private OperationAppServiceImpl service;
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(longs = {0L, 3L, -1L, Long.MIN_VALUE, Long.MAX_VALUE})
+    void should_rejectInvalidBitBeforeWriting_whenCreatingOperation(Long bit) {
+        when(engine.hasPermissionByCode(1L, 100L, ResourceTypeCode.OPERATION, null, OperationCode.CREATE))
+            .thenReturn(true);
+        BizException error = assertThrows(BizException.class,
+            () -> service.createOperation(1L, "USER", "EXPORT", "导出", bit, 0L, 100L));
+        assertEquals(20044, error.getErrorCode());
+        verifyNoInteractions(operationPermissionMapper, grantOriginDomainService, cacheService);
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {0L, 3L, -1L, Long.MIN_VALUE, Long.MAX_VALUE})
+    void should_rejectInvalidBitBeforeWriting_whenUpdatingOperation(long bit) {
+        when(engine.hasPermissionByCode(1L, 100L, ResourceTypeCode.OPERATION, null, OperationCode.MANAGE))
+            .thenReturn(true);
+        BizException error = assertThrows(BizException.class,
+            () -> service.updateOperation(1L, new OperationUpdateReq("USER", "EXPORT", null, bit, null), 100L));
+        assertEquals(20044, error.getErrorCode());
+        verifyNoInteractions(operationPermissionMapper, grantOriginDomainService, cacheService);
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {1L, 4611686018427387904L})
+    void should_preserveBitAndNegativeMask_whenCreatingValidOperation(long bit) {
+        when(engine.hasPermissionByCode(1L, 100L, ResourceTypeCode.OPERATION, null, OperationCode.CREATE))
+            .thenReturn(true);
+        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "USER")).thenReturn(7);
+        when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "USER"))
+            .thenReturn(customType(7, true));
+        OperationPermissionResp result = service.createOperation(1L, "USER", "EXPORT", "导出", bit, -1L, 100L);
+        assertEquals(bit, result.binaryBit());
+        assertEquals(-1L, result.inheritMask());
+    }
+
+    @Test
+    void should_preserveBit_whenUpdateOmitsBitAndChangesNegativeMask() {
+        when(engine.hasPermissionByCode(1L, 100L, ResourceTypeCode.OPERATION, null, OperationCode.MANAGE))
+            .thenReturn(true);
+        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "USER")).thenReturn(7);
+        OperationPermission existing = op(7, "EXPORT");
+        existing.setBinaryBit(1L << 62);
+        when(operationPermissionMapper.selectByResourceTypeAndCode(1L, 7, "EXPORT")).thenReturn(existing);
+        OperationPermissionResp result = service.updateOperation(1L,
+            new OperationUpdateReq("USER", "EXPORT", "导出", null, -1L), 100L);
+        assertEquals(1L << 62, result.binaryBit());
+        assertEquals(-1L, result.inheritMask());
+    }
 
     @BeforeEach
     void setUp() {

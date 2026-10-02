@@ -9,6 +9,35 @@
 /** 默认编码类型（schema resource_entity.code_type 默认 'default'） */
 export const CODE_TYPE_DEFAULT = "default";
 
+const MAX_OPERATION_BIT = 1n << 62n;
+
+/** 按当前类型完整操作列表找空闲独占位；建议值不预占，并发由后端唯一约束兜底。 */
+export function nextAvailableOperationBit(usedBits: string[]): string | null {
+  const occupied = new Set(usedBits.map(value => BigInt(value).toString()));
+  for (let bit = 1n; bit <= MAX_OPERATION_BIT; bit <<= 1n) {
+    if (!occupied.has(bit.toString())) return bit.toString();
+  }
+  return null;
+}
+
+/** 数值控件只接受安全整数，高位使用精确十进制字符串。 */
+export function operationBitError(
+  value: number | string,
+  usedBits: string[]
+): string | null {
+  if (typeof value === "number" && !Number.isSafeInteger(value)) {
+    return "必须为安全整数，高位请使用精确十进制字符串";
+  }
+  if (!/^[0-9]+$/.test(String(value))) return "必须为正整数";
+  const bit = BigInt(value);
+  if (bit <= 0n || bit > MAX_OPERATION_BIT || (bit & (bit - 1n)) !== 0n) {
+    return "必须为 2 的幂次（1、2、4…2^62）";
+  }
+  if (usedBits.some(used => BigInt(used) === bit))
+    return "该独占位已被当前类型的其他操作占用";
+  return null;
+}
+
 /** 资源状态选项（status：0=停用，1=启用） */
 export const RESOURCE_STATUS_OPTIONS = [
   { label: "启用", value: 1 },

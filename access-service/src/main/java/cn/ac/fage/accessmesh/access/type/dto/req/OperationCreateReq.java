@@ -13,7 +13,7 @@ import jakarta.validation.constraints.Pattern;
  * @param resourceTypeCode 资源类型编码，必填
  * @param code             操作权限编码，必填，唯一标识（大写字母开头，仅含大写字母/数字/下划线，T-PERM-066）
  * @param name             操作权限名称，必填
- * @param binaryBit        二进制位，必填，用于位运算权限匹配
+ * @param binaryBit        操作独占位，必填，正数单比特（1 至 2^62），非法值由服务层拒绝
  * @param inheritMask      继承掩码，可选，缺省归一为 0（省略与显式 0 等价，T-PERM-077；掩码看位不看正负，不做符号校验）
  */
 public record OperationCreateReq(
