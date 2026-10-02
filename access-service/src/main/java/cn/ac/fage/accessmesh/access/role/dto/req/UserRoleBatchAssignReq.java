@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.access.role.dto.req;
 
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Positive;
 
 import java.util.List;
 
@@ -20,7 +21,8 @@ import java.util.List;
  *                           绑定面收紧，20022）
  * @param roleTypeCode       角色类型编码，必填
  * @param roleExternalId     角色外部标识，必填
- * @param relationId         关系ID，可选，用于指定关联记录
+ * @param relationId         关系ID，可选，用于指定关联记录；须为正整数（0 拒绝——
+ *                           与 null 在 uk_user_role 同槽位，T-ADMIN-030 外评处置）
  */
 public record UserRoleBatchAssignReq(
     @NotEmpty List<String> subjectExternalIds,
@@ -28,5 +30,5 @@ public record UserRoleBatchAssignReq(
     String domainCode,
     @NotBlank String roleTypeCode,
     @NotBlank String roleExternalId,
-    Long relationId
+    @Positive Long relationId
 ) {}

@@ -15,11 +15,7 @@
                 WHEN #{row.id} THEN #{row.validTo,jdbcType=TIMESTAMP}
             </foreach>
             ELSE valid_to END,
-            updated_at = CASE id
-            <foreach collection="rows" item="row">
-                WHEN #{row.id} THEN #{row.updatedAt}
-            </foreach>
-            ELSE updated_at END,
+            updated_at = #{updatedAt},
             updated_by = #{operatorId}
         WHERE tenant_id = #{tenantId} AND delete_flag = 0 AND relation_id IS NULL
           AND target_type = 'ROLE'

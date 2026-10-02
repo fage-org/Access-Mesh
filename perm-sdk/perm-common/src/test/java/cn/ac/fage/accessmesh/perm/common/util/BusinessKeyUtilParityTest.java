@@ -90,11 +90,6 @@ class BusinessKeyUtilParityTest {
     }
 
     @Test
-    void userRoleRelationKeyShouldLockPairFormat() {
-        assertThat(BusinessKeyUtil.userRoleRelationKey(11L, 22L)).isEqualTo("11:22");
-    }
-
-    @Test
     void userRoleRelationIdKeyShouldLockLiteralNullSentinel() {
         assertThat(BusinessKeyUtil.userRoleRelationIdKey(11L, 22L, 33L)).isEqualTo("11:22:33");
         assertThat(BusinessKeyUtil.userRoleRelationIdKey(11L, 22L, null)).isEqualTo("11:22:null");
@@ -156,7 +151,7 @@ class BusinessKeyUtilParityTest {
         assertThat(BusinessKeyUtil.permissionCode(null, null)).isEqualTo("null:null");
         assertThat(BusinessKeyUtil.grantEntryKey(6, "VIEW", null)).isEqualTo("6:VIEW:null");
         assertThat(BusinessKeyUtil.subjectKey(null, "u-1")).isEqualTo("null:u-1");
-        assertThat(BusinessKeyUtil.userRoleRelationKey(null, 22L)).isEqualTo("null:22");
+        assertThat(BusinessKeyUtil.userRoleRelationIdKey(null, 22L, 33L)).isEqualTo("null:22:33");
         assertThat(BusinessKeyUtil.apiRouteKey(null, "/x")).isEqualTo("null:/x");
         assertThat(BusinessKeyUtil.relationKey(null, "2001")).isEqualTo("null:2001");
         assertThat(BusinessKeyUtil.dependencyDiffKey(null, 2L, null)).isEqualTo("null:2:0");

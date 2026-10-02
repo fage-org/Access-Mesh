@@ -2,11 +2,13 @@ package cn.ac.fage.accessmesh.access.engine.core;
 
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.projection.PermConstants;
 import cn.ac.fage.accessmesh.access.role.entity.UserRole;
 import cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.user.mapper.AbstractUserMapper;
 import cn.ac.fage.accessmesh.access.role.mapper.UserRoleMapper;
+import cn.ac.fage.accessmesh.common.exception.BizException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,7 +23,9 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -161,6 +165,21 @@ class SubjectDomainServiceImplTest {
         service.invalidateRoleCacheByRoles(1L, Set.of());
 
         verifyNoInteractionsAll();
+    }
+
+    @Test
+    void updateUserRoleWindowsMustThrowConcurrentConflictWhenRowCountMismatch() {
+        // 装载后行被并发软删/改 owner/改 relation → 更新行数不齐：并发冲突语义（20072），
+        // 非 20027 参数校验（T-ADMIN-030 外评处置——旧实现报 VALIDATION_FAILED 本用例失败）
+        UserRole row = new UserRole();
+        row.setId(7L);
+        row.setAbstractUserId(1L);
+        row.setTargetId(2L);
+        when(userRoleMapper.batchUpdateWindows(eq(1L), anyList(), eq(9L), any(LocalDateTime.class)))
+            .thenReturn(0);
+        BizException ex = assertThrows(BizException.class,
+            () -> service.updateUserRoleWindows(1L, List.of(row), 9L, LocalDateTime.now()));
+        assertEquals(AccessErrorCode.USER_ROLE_CONCURRENT_CONFLICT.getCode(), ex.getErrorCode());
     }
 
     private void verifyNoInteractionsAll() {

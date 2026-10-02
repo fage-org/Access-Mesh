@@ -41,6 +41,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
     "spring.cloud.nacos.config.import-check.enabled=false",
     "spring.cloud.nacos.discovery.enabled=false",
     "accessmesh.sync.scheduler.enabled=false",
+    "mybatis-flex.configuration.map-underscore-to-camel-case=true",
     "logging.level.cn.ac.fage.accessmesh=WARN"
 })
 class UserRoleReassignmentPgIT {
@@ -243,6 +244,34 @@ class UserRoleReassignmentPgIT {
                 .extracting(ex -> ((BizException) ex).getErrorCode())
                 .isEqualTo(AccessErrorCode.LOCAL_PROJECTION_IMMUTABLE.getCode());
         assertWindow(id, null, PAST);
+    }
+
+    @Test
+    void shouldReportProjectionImmutable_beforeNonNullRewindowRejection() {
+        // 投影守卫先于 20027：本地投影行无论关系是否为空统一 20045，
+        // 避免「先撤销再分配」引导经 revoke 绕开投影不可变（T-ADMIN-030 外评处置）
+        Long relation = role("relation");
+        Long id = binding(user, role, relation, null, PAST);
+        jdbc.update("UPDATE user_role SET owner_service_code = 'access-service' WHERE id = ?", id);
+        assertThatThrownBy(() -> assign(item("user", "role", relation, null, null)))
+                .isInstanceOf(BizException.class)
+                .extracting(ex -> ((BizException) ex).getErrorCode())
+                .isEqualTo(AccessErrorCode.LOCAL_PROJECTION_IMMUTABLE.getCode());
+        assertWindow(id, null, PAST);
+    }
+
+    @Test
+    void shouldRejectInvertedWindow_andKeepExistingBinding() {
+        // 倒置区间入口拒绝（T-ADMIN-030 外评处置）：改写既有有效绑定为永不生效窗口=静默失权；
+        // 旧实现（无入口校验）下本用例成功返回且窗口被改写为倒置
+        Long id = binding(user, role, null, null, null);
+        assertThatThrownBy(() -> assign(item("user", "role", null, FUTURE, PAST)))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("validFrom after validTo")
+                .extracting(ex -> ((BizException) ex).getErrorCode())
+                .isEqualTo(AccessErrorCode.VALIDATION_FAILED.getCode());
+        assertWindow(id, null, null);
+        assertThat(countBindings(user, role)).isEqualTo(1);
     }
 
     private UserAssignRoleReq.AssignItem item(String subject, String target, Long relation,

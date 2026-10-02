@@ -248,14 +248,17 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
     }
 
     @Override
-    public void updateUserRoleWindows(Long tenantId, List<UserRole> userRoles, Long operatorId) {
+    public void updateUserRoleWindows(Long tenantId, List<UserRole> userRoles, Long operatorId,
+                                      LocalDateTime updatedAt) {
         if (userRoles.isEmpty()) {
             return;
         }
-        int updated = userRoleMapper.batchUpdateWindows(tenantId, userRoles, operatorId);
+        int updated = userRoleMapper.batchUpdateWindows(tenantId, userRoles, operatorId, updatedAt);
         if (updated != userRoles.size()) {
-            throw new BizException(AccessErrorCode.VALIDATION_FAILED.getCode(),
-                "User-role bindings changed; reload before assigning again");
+            // 装载与更新之间行被并发软删/改 owner/改 relation——并发冲突而非参数问题，
+            // 对齐 20058 先例报「请重试」语义（T-ADMIN-030 外评处置）
+            throw new BizException(AccessErrorCode.USER_ROLE_CONCURRENT_CONFLICT.getCode(),
+                "User-role bindings changed concurrently; reload and retry");
         }
     }
 

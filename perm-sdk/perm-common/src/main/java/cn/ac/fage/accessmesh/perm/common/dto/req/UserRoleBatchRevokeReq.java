@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
 import java.util.List;
@@ -50,8 +51,9 @@ public record UserRoleBatchRevokeReq(
          */
         @NotBlank String roleExternalId,
         /**
-         * 关联关系ID（可选）
+         * 关联关系ID（可选，须为正整数——与 null 在 uk_user_role 同槽位，0 拒绝；
+         * T-ADMIN-030 外评处置）
          */
-        Long relationId
+        @Positive Long relationId
     ) {}
 }

@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
 import java.time.LocalDateTime;
@@ -33,7 +34,9 @@ public record UserAssignRoleReq(
      *                          GROUP_ROLE 为拒绝类型（T-PERM-097 绑定面收紧，20022）
      * @param roleTypeCode      角色类型编码，必填
      * @param roleExternalId    角色外部标识，必填
-     * @param relationId        关系ID，可选
+     * @param relationId        关系ID，可选；须为正整数——0 与 null 在 uk_user_role
+     *                          （COALESCE(relation_id,0)）同槽位，0 入库会形成键槽错位
+     *                          的持粘行，故入口拒绝（T-ADMIN-030 外评处置）
      * @param validFrom         有效期开始时间，可选
      * @param validTo           有效期结束时间，可选
      */
@@ -43,7 +46,7 @@ public record UserAssignRoleReq(
         String domainCode,
         @NotBlank String roleTypeCode,
         @NotBlank String roleExternalId,
-        Long relationId,
+        @Positive Long relationId,
         LocalDateTime validFrom,
         LocalDateTime validTo
     ) {}

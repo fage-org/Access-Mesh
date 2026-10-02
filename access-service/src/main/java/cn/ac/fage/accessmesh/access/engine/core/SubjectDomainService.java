@@ -142,9 +142,11 @@ public interface SubjectDomainService {
      */
     void insertUserRoles(java.util.List<cn.ac.fage.accessmesh.access.role.entity.UserRole> userRoles);
 
-    /** 批量更新人工无关联绑定的有效期（含显式清空），事务由分配入口声明。 */
+    /** 批量更新人工无关联绑定的有效期（含显式清空），事务由分配入口声明；
+     *  updatedAt 为整批统一的请求级时间。 */
     void updateUserRoleWindows(Long tenantId,
-        java.util.List<cn.ac.fage.accessmesh.access.role.entity.UserRole> userRoles, Long operatorId);
+        java.util.List<cn.ac.fage.accessmesh.access.role.entity.UserRole> userRoles, Long operatorId,
+        java.time.LocalDateTime updatedAt);
 
     /**
      * 按关系行 ID 批量软删（撤销路径）。

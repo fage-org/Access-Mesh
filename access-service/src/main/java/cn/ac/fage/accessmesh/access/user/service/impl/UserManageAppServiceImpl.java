@@ -530,6 +530,15 @@ public class UserManageAppServiceImpl implements UserManageAppService {
                 continue;
             }
 
+            // 倒置区间入口拒绝（T-ADMIN-030 外评处置，用户 2026-10-02 拍板）：改写既有有效绑定
+            // 为永不生效窗口是静默失权；契约 §10.4「写入侧无校验」的已知边界随本处置收敛
+            if (item.validFrom() != null && item.validTo() != null && item.validFrom().isAfter(item.validTo())) {
+                errors.add("Invalid validity window (validFrom after validTo): "
+                    + item.subjectTypeCode() + "/" + item.subjectExternalId() + " -> "
+                    + item.roleTypeCode() + "/" + item.roleExternalId());
+                continue;
+            }
+
             if (stageRoleAssignment(tenantId, abstractUserId, targetRoleId, item.relationId(),
                     item.validFrom(), item.validTo(), now, existingRelationMap, toInsert, toUpdate)) {
                 affectedUserIds.add(abstractUserId);
@@ -540,7 +549,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             throw new BizException(AccessErrorCode.VALIDATION_FAILED.getCode(), String.join("; ", errors));
         }
 
-        persistRoleAssignments(tenantId, operatorId, toInsert, toUpdate);
+        persistRoleAssignments(tenantId, operatorId, now, toInsert, toUpdate);
 
         // 登记受影响用户，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）
         if (!affectedUserIds.isEmpty()) {
@@ -630,7 +639,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             }
         }
 
-        persistRoleAssignments(tenantId, operatorId, toInsert, toUpdate);
+        persistRoleAssignments(tenantId, operatorId, now, toInsert, toUpdate);
 
         // 登记受影响用户，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）
         if (!affectedUserIds.isEmpty()) {
@@ -638,7 +647,16 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         }
     }
 
-    /** 两种分配入口共享：关系键区分绑定，非空关系改期拒绝，null 关系改期更新。 */
+    /**
+     * 两种分配入口共享：关系键区分绑定，非空关系改期拒绝，null 关系改期更新。
+     * <p>
+     * 投影守卫先于关系改期拒绝——本地投影行（owner=access-service）无论关系是否为空
+     * 统一报 20045，避免 20027「先撤销再分配」引导操作者经 revoke 绕开投影不可变
+     * （T-ADMIN-030 外评处置）。
+     * </p>
+     *
+     * @return 本项是否产生真实变更（幂等跳过返回 false，调用方据此登记受影响用户与操作日志）
+     */
     private boolean stageRoleAssignment(Long tenantId, Long userId, Long roleId, Long relationId,
                                         LocalDateTime validFrom, LocalDateTime validTo, LocalDateTime now,
                                         Map<String, UserRole> bindings, List<UserRole> toInsert,
@@ -649,14 +667,16 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             if (Objects.equals(existing.getValidFrom(), validFrom) && Objects.equals(existing.getValidTo(), validTo)) {
                 return false;
             }
+            localProjectionGuard.rejectIfLocalUserRole(existing);
             if (relationId != null) {
                 throw new BizException(AccessErrorCode.VALIDATION_FAILED.getCode(),
                     "User-role relation already exists with a different validity window; revoke before assigning again: " + key);
             }
-            localProjectionGuard.rejectIfLocalUserRole(existing);
             existing.setValidFrom(validFrom);
             existing.setValidTo(validTo);
             existing.setUpdatedAt(now);
+            // 批内同键第二项走此处时 id 为 null（尚未落库的新增行）：不入 toUpdate，
+            // 原地改写后以末项窗口随本批 insert；updated_by 由 SQL 标量入参统一写入
             if (existing.getId() != null) {
                 toUpdate.put(existing.getId(), existing);
             }
@@ -678,8 +698,8 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         return true;
     }
 
-    private void persistRoleAssignments(Long tenantId, Long operatorId, List<UserRole> toInsert,
-                                         Map<Long, UserRole> toUpdate) {
+    private void persistRoleAssignments(Long tenantId, Long operatorId, LocalDateTime now,
+                                         List<UserRole> toInsert, Map<Long, UserRole> toUpdate) {
         if (toInsert.isEmpty() && toUpdate.isEmpty()) {
             OperationLogRuntimeContext.markSkip();
             return;
@@ -687,7 +707,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         // 先在入口事务内更新窗口，DB 新鲜读获得替换后的持有集合；互斥拒绝会回滚本批全部更新。
         // 不按角色或窗口值从 Set 扣减，避免误删其他 relationId 提供的相同窗口。
         if (!toUpdate.isEmpty()) {
-            subjectDomainService.updateUserRoleWindows(tenantId, List.copyOf(toUpdate.values()), operatorId);
+            subjectDomainService.updateUserRoleWindows(tenantId, List.copyOf(toUpdate.values()), operatorId, now);
         }
         List<UserRole> changed = new ArrayList<>(toInsert);
         changed.addAll(toUpdate.values());

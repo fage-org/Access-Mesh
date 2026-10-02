@@ -180,17 +180,9 @@ public final class BusinessKeyUtil {
     }
 
     /**
-     * 用户-角色关系去重键：{@code abstractUserId:targetRoleId}。
-     * <p>UserManageAppServiceImpl assign/revoke 已有关系判重。</p>
-     */
-    public static String userRoleRelationKey(Long abstractUserId, Long targetRoleId) {
-        return abstractUserId + ":" + targetRoleId;
-    }
-
-    /**
      * 用户-角色关系匹配键（含 relationId）：{@code abstractUserId:targetRoleId:relationId|"null"}。
-     * <p>UserManageAppServiceImpl 批量撤销按 relationId 精确匹配（relationId 为 null 拼字面
-     * {@code "null"}，与既有匹配对侧一致）。</p>
+     * <p>UserManageAppServiceImpl 分配装载/批内去重与批量撤销按 relationId 精确匹配共用
+     * （relationId 为 null 拼字面 {@code "null"}，两侧一致；二元旧键已随 T-ADMIN-030 退役）。</p>
      */
     public static String userRoleRelationIdKey(Long abstractUserId, Long targetRoleId, Long relationId) {
         return abstractUserId + ":" + targetRoleId + ":" + (relationId == null ? "null" : relationId.toString());
