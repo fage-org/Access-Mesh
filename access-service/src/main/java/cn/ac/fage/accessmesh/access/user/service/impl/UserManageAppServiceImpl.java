@@ -7,6 +7,7 @@ import cn.ac.fage.accessmesh.access.audit.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.projection.PermConstants;
+import cn.ac.fage.accessmesh.access.type.enums.RoleType;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.perm.common.dto.req.UserAssignRoleReq;
@@ -203,6 +204,30 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             && (domainCode == null || domainCode.isBlank())) {
             throw new BizException(AccessErrorCode.VALIDATION_FAILED.getCode(),
                 "ORG/POSITION 角色必须指定 domainCode");
+        }
+    }
+
+    /**
+     * T-PERM-097：GROUP_ROLE 绑定面收紧——分组角色生命周期冻结（T-PERM-043）在角色面
+     * create/update/sync/fullSync 全拒后，绑定面同口径补齐：组角色不能配权限，绑定只会
+     * 产生零权限假持有。字符串层+类型值层双保险（对齐 RoleManageAppServiceImpl#createRole
+     * 先例，防自定义别名 type_code 映射 role_type=5 的理论绕过）。
+     *
+     * @param roleTypeCodes 本批分配条目的角色类型码集合
+     */
+    private void rejectGroupRoleBindingType(Long tenantId, Set<String> roleTypeCodes) {
+        for (String code : roleTypeCodes) {
+            if (PermConstants.TargetType.GROUP_ROLE.equals(code)) {
+                throw new BizException(AccessErrorCode.ROLE_TYPE_MISMATCH.getCode(),
+                    "不支持绑定 GROUP_ROLE 分组角色（首期功能角色仅 BASIC_ROLE）");
+            }
+        }
+        Map<String, Integer> typeValues = typeResolutionService.batchResolveTypeValues(tenantId, "role_type", roleTypeCodes);
+        for (Integer value : typeValues.values()) {
+            if (value != null && value == RoleType.GROUP_ROLE.getValue()) {
+                throw new BizException(AccessErrorCode.ROLE_TYPE_MISMATCH.getCode(),
+                    "不支持绑定 GROUP_ROLE 分组角色（首期功能角色仅 BASIC_ROLE）");
+            }
         }
     }
 
@@ -405,6 +430,9 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             localProjectionGuard.rejectReservedRoleType(item.roleTypeCode());
             validateDomainCodeForOrgPosition(item.roleTypeCode(), item.domainCode());
         }
+        // T-PERM-097：GROUP_ROLE 绑定面收紧（解析前 fail-fast，口径见 rejectGroupRoleBindingType）
+        rejectGroupRoleBindingType(tenantId,
+            req.items().stream().map(UserAssignRoleReq.AssignItem::roleTypeCode).collect(Collectors.toSet()));
 
         Map<String, Set<String>> userExternalIdsByType = req.items().stream()
             .collect(Collectors.groupingBy(
@@ -555,6 +583,8 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         localProjectionGuard.rejectReservedRoleType(req.roleTypeCode());
         // M2: 跨字段业务校验 — ORG/POSITION 必带 domainCode
         validateDomainCodeForOrgPosition(req.roleTypeCode(), req.domainCode());
+        // T-PERM-097：GROUP_ROLE 绑定面收紧（解析前 fail-fast，口径见 rejectGroupRoleBindingType）
+        rejectGroupRoleBindingType(tenantId, Set.of(req.roleTypeCode()));
 
         Long operatorId = OperatorContext.getOperatorId();
 

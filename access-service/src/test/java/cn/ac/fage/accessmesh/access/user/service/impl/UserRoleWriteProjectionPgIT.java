@@ -5,6 +5,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
 import cn.ac.fage.accessmesh.perm.common.dto.req.RoleCreateReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.UserAssignRoleReq;
 import cn.ac.fage.accessmesh.access.user.dto.req.AbstractUserCreateReq;
 import cn.ac.fage.accessmesh.access.user.dto.req.AbstractUserUpdateReq;
 import cn.ac.fage.accessmesh.access.role.dto.resp.RoleResp;
@@ -500,6 +501,29 @@ class UserRoleWriteProjectionPgIT {
         RoleResp basic = roleManageAppService.createRole(
             TENANT, new RoleCreateReq(null, "BASIC_ROLE", "t019-ext-basic-ok", "基础角色不受影响", null, null), creator);
         assertThat(basic.id()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("T-PERM-097：绑定面拒绝 GROUP_ROLE 目标——assign 绑存量组角色 20022 且零副作用（旧实现绑上零权限假角色，本用例必红）")
+    void groupRoleBindingShouldBeRejectedOnAssign() {
+        Long operator = insertSubject("t097-op-bind-group", "组绑定拒绝操作者");
+        Long operatorRole = insertBasicRole("t097-op-role-bind-group", "组绑定拒绝操作者角色");
+        insertUserRole(operator, operatorRole);
+        insertScopeAllRolePerm(operatorRole, RESOURCE_TYPE_ROLE, MANAGE_BIT);
+        bindOperator(operator);
+        Long groupId = insertGroupRole("t097-group-target", "存量组角色");
+
+        UserAssignRoleReq req = new UserAssignRoleReq(List.of(
+            new UserAssignRoleReq.AssignItem(
+                "LOCAL_USER", "t097-op-bind-group", null, "GROUP_ROLE", "t097-group-target", null, null, null)
+        ));
+        assertThatThrownBy(() -> userManageAppService.assignRole(TENANT, req))
+            .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
+            .extracting(ex -> ((cn.ac.fage.accessmesh.common.exception.BizException) ex).getErrorCode())
+            .isEqualTo(cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode.ROLE_TYPE_MISMATCH.getCode());
+        assertThat(jdbc.queryForObject(
+            "SELECT count(*) FROM user_role WHERE tenant_id = ? AND target_id = ? AND delete_flag = 0",
+            Long.class, TENANT, groupId)).isZero();
     }
 
     // ===== 数据装配（jdbc 直插事实/授权，先于相关主体首次引擎调用） =====

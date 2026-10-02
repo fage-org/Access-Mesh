@@ -117,7 +117,7 @@ last_reviewed: 2026-09-29
 | 角色      | `domainCode` + `roleTypeCode` + `roleExternalId`                | 对外接口使用外部角色标识；可被外部调用分配/授权的角色必须有 `externalId` |
 | 业务域    | `domainCode`                                                    | 可空；为空表示全局域                                                     |
 
-> **跨字段校验（assign/revoke，2026-06-15 M2 落地）**：`domainCode` 可空仅对**功能角色**（BASIC_ROLE / GROUP_ROLE / PERSONAL）成立——为空表示全局域。对 `roleTypeCode ∈ {ORG, POSITION}` 的组织/岗位角色，`domainCode` **必填**（标识所属业务域）。服务端 `UserManageAppServiceImpl.assignRole/assignRolesBatch/revokeRolesBatch` 通过 Feature flag `permission.assign.strict-domain-check`（默认 `true`）强制：`strict-domain-check=true` 时违反上述约束抛 `BizException`；`false` 时仅兜底为空串放行（上线灰度用）。
+> **跨字段校验（assign/revoke，2026-06-15 M2 落地）**：`domainCode` 可空仅对**功能角色**（BASIC_ROLE / PERSONAL）成立——为空表示全局域（GROUP_ROLE 已为绑定拒绝类型，见 §10.5 T-PERM-097）。对 `roleTypeCode ∈ {ORG, POSITION}` 的组织/岗位角色，`domainCode` **必填**（标识所属业务域）。服务端 `UserManageAppServiceImpl.assignRole/assignRolesBatch/revokeRolesBatch` 通过 Feature flag `permission.assign.strict-domain-check`（默认 `true`）强制：`strict-domain-check=true` 时违反上述约束抛 `BizException`；`false` 时仅兜底为空串放行（上线灰度用）。
 
 | 资源      | `domainCode` + `resourceTypeCode` + `resourceCode` + `codeType` | `codeType` 默认 `default`                                                |
 | 操作      | `operationCode`                                                 | 在 `resourceTypeCode` 范围内解析（操作定义按类型隔离，全局操作已退役）；入参大写（@Pattern，见下方 T-PERM-066 注记） |
@@ -277,7 +277,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 | `/api/access/user-org/remove` | DELETE `sys_user_org` | `unbindUserOrg` |
 | `/api/access/user-org/set-primary` | UPDATE `sys_user_org.is_primary` | 无（`is_primary` 不映射 `user_role` 拓扑） |
 
-> 功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL）的分配/回收走 `/api/access/user-role/*`（perm 家族），管理面 `/api/access/user-role/*` 仅保留 `/api/access/user-role/view` 读聚合（T-ACCESS-042 由 list 改名，与权限轨持有角色 `/list` 区分双轨）。组织/岗位角色只能由组织与成员关系写入投影产生，`createRoleForOrg` 与针对保留角色类型的菜单授权一律拒绝。
+> 功能角色（BASIC_ROLE/PERSONAL）的分配/回收走 `/api/access/user-role/*`（perm 家族；GROUP_ROLE 为绑定拒绝类型，存量行回收仍可用，见 §10.5 T-PERM-097），管理面 `/api/access/user-role/*` 仅保留 `/api/access/user-role/view` 读聚合（T-ACCESS-042 由 list 改名，与权限轨持有角色 `/list` 区分双轨）。组织/岗位角色只能由组织与成员关系写入投影产生，`createRoleForOrg` 与针对保留角色类型的菜单授权一律拒绝。
 
 ## 6. auth 能力（登录会话与 OAuth2）
 
@@ -1110,9 +1110,9 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 | `POST /api/access/user-role/list`                        | 查询用户角色关系                               |
 | `POST /api/access/user-role/sync`                        | 幂等同步组织/岗位用户角色关系                   |
 | `POST /api/access/user-role/full-sync`                   | 按 scope 全量校准组织/岗位用户角色关系           |
-| `POST /api/access/user-role/assign`                      | 批量分配角色或分组；**角色互斥守卫（T-PERM-063；候选口径 T-PERM-075 U002 扩展 2026-09-22）**：事务内校验「未过期原始持有候选（含未来 valid_from 窗口、含禁用角色持有与禁用新增目标，闭区间口径 null=无限期）∪ 本批未过期新增」，命中 ROLE_MUTEX 对整批原子拒绝 **20062**（message 列出冲突用户与角色对），规则 DB 直查即时生效；已过期新增行永不生效不计入 |
-| `POST /api/access/user-role/revoke`                      | 批量回收角色关系（回收不产生互斥，无守卫）                               |
-| `POST /api/access/user-role/batch-assign`                | 按角色视角批量分配多个用户；同款互斥守卫 **20062**（批内任一用户命中即整批拒绝） |
+| `POST /api/access/user-role/assign`                      | 批量分配角色或分组；**角色互斥守卫（T-PERM-063；候选口径 T-PERM-075 U002 扩展 2026-09-22）**：事务内校验「未过期原始持有候选（含未来 valid_from 窗口、含禁用角色持有与禁用新增目标，闭区间口径 null=无限期）∪ 本批未过期新增」，命中 ROLE_MUTEX 对整批原子拒绝 **20062**（message 列出冲突用户与角色对），规则 DB 直查即时生效；已过期新增行永不生效不计入。**GROUP_ROLE 绑定面收紧（T-PERM-097，2026-10-02）**：item 的 `roleTypeCode=GROUP_ROLE`（或映射 `role_type=5` 的自定义别名，类型值层双保险）解析前整批拒绝 **20022** |
+| `POST /api/access/user-role/revoke`                      | 批量回收角色关系（回收不产生互斥，无守卫；对存量 GROUP_ROLE 绑定行仍可用，撤销/清理通道不受 T-PERM-097 影响）                               |
+| `POST /api/access/user-role/batch-assign`                | 按角色视角批量分配多个用户；同款互斥守卫 **20062**（批内任一用户命中即整批拒绝）；GROUP_ROLE 目标同款 **20022** 拒绝（T-PERM-097） |
 
 #### `user-role/list` 与 `user-role/revoke` 契约
 **`POST /api/access/user-role/list`** — 按主体业务键查询该用户的角色关系：
@@ -1168,8 +1168,11 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 - `create`：`roleTypeCode=GROUP_ROLE` 抛 `ROLE_TYPE_MISMATCH(20022)`（首期功能角色仅 BASIC_ROLE）。
 - `update`：目标角色现行类型为 GROUP_ROLE 时抛 `ROLE_TYPE_MISMATCH(20022)`（请求体无 `roleTypeCode`，按目标类型判定）。
 - `sync`/`full-sync`：`roleTypeCode=GROUP_ROLE` 抛 `ROLE_TYPE_MISMATCH(20022)`（外部同步通道与通用入口同口径拒绝，GROUP_ROLE 生命周期冻结）。
+- `user-role/assign|batch-assign`：`roleTypeCode=GROUP_ROLE`（含映射 `role_type=5` 的自定义别名，类型值层双保险）抛 `ROLE_TYPE_MISMATCH(20022)`——**T-PERM-097 绑定面收紧（2026-10-02）**：组角色不能配权限，绑定只会产生零权限假持有，冻结口径随本任务覆盖绑定面；原「assign 对存量 GROUP_ROLE 行仍可用」口径随之废止。
+- `user-role/sync`/`full-sync`（成员关系通道）：BIND 目标 `roleTypeCode=GROUP_ROLE` 抛 `ROLE_TYPE_MISMATCH(20022)`（single=请求级、full-sync=scope 级，先于服务-类型白名单，白名单声明 `role:GROUP_ROLE` 亦不生效；与角色面 sync 同口径）。
+- `user-role/revoke` 对存量 GROUP_ROLE 行仍可用（撤销/清理通道，不受收紧影响）。
 - `move`/`remove` 不拒绝 GROUP_ROLE：保留为存量行的清理通道（move 的同类型校验不排斥组树内部同类型移动与解挂，见 §10 角色管理契约要点）。
-- `user-role/assign|revoke` 对存量 GROUP_ROLE 行仍可用（运行时读模型冻结：直绑展开、有效角色解析不受本任务影响）。
+- 运行时读模型冻结：存量 `target_type='GROUP_ROLE'` 行的直绑展开、有效角色解析不受上述写入口收紧影响（该形态行现行无写入方，T-PERM-043「双事实源」技术债——未来按 role_inclusion 单事实源另行立项）。
 - GROUP_ROLE 枚举、role_type 种子与读模型（tree/list 过滤值、有效角色树展开）保留且冻结。
 
 ## 11. grant 能力（授权关系）
@@ -2350,7 +2353,7 @@ FULL 缺失/null/空白 `publicationGeneration`、缺失/null `items` 在 HTTP D
 
 约束：
 
-- 成员关系 sync/full-sync 仅接受调用方自有 `sourceType` 与 `roleTypeCode` 组合（服务身份 + 类型白名单校验）；`SYS_USER_ORG`/`ORG`/`POSITION` 为 AccessMesh 内部保留键，20045 拒绝。功能角色分配走正式用户角色管理接口和 `ROLE:MANAGE` 门禁。
+- 成员关系 sync/full-sync 仅接受调用方自有 `sourceType` 与 `roleTypeCode` 组合（服务身份 + 类型白名单校验）；`SYS_USER_ORG`/`ORG`/`POSITION` 为 AccessMesh 内部保留键，20045 拒绝。功能角色分配走正式用户角色管理接口和 `ROLE:MANAGE` 门禁。BIND 目标 `roleTypeCode=GROUP_ROLE` 抛 `ROLE_TYPE_MISMATCH(20022)`（T-PERM-097 绑定面收紧：single=请求级、full-sync=scope 级，先于服务-类型白名单，白名单声明亦不生效；组角色生命周期冻结见 §10.5）。
 - `relationKey` 为成员关系的关联角色业务键。写入 `businessKey` 时必须按 §19.7 编码。permission-center 按调用方声明的角色类型 + 外部 ID 解析关联 `abstract_role.id`，写入 `user_role.relation_id`。`relation_id` 表示关联角色 ID，不对外暴露为 API 入参。
 - 单次 sync 接口的 `operation` 使用混合严格语义：禁用为 `DISABLE`，删除为 `DELETE`，成员移除为 `UNBIND`。
 - full-sync 接口均为单请求全量校准接口，必须携带强制 scope，只在 scope 内补齐缺失并清理多余同步事实。

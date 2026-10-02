@@ -257,16 +257,10 @@ last_updated: 2026-10-01
 <a id="q-027"></a>
 ## Q-027 新增分组角色未展开成员检查互斥
 
-- **状态**：converted
+- **状态**：closed（2026-10-02 随 T-PERM-097 收敛，见文末已收敛索引）
 - **登记**：2026-09-22
 - **来源**：T-PERM-075 写守卫留观项
-- **关联**：UserManageAppServiceImpl.rejectRoleMutexOnAssign；sync/full-sync BIND；转出 [T-PERM-097](tasks/T-PERM-097.md)
-
-**现象与证据**：已有角色 Y、规则互斥 X/Y 时，绑定子树含 X 的组 G；新增侧只把 G 入 postState，未展开 X，写守卫放行。持有侧组展开已覆盖，本项只缺新增侧。
-
-**影响与边界**：运行时展开后 X/Y 同场被双删，保存时无提示并使原有 Y 失效；运行时 fail-closed 兜底，不构成放行越权。
-
-**设想方向（未定案）**：新增组目标展开子树并继承窗口，assign/batch-assign/sync/full-sync 同步核对。
+- **关联**：UserManageAppServiceImpl.rejectRoleMutexOnAssign；sync/full-sync BIND；收敛 [T-PERM-097](tasks/T-PERM-097.md)
 
 <a id="q-024"></a>
 ## Q-024 组织树配置允许根节点范围重叠
@@ -389,6 +383,7 @@ last_updated: 2026-10-01
 
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
+| Q-027 | 新增分组角色未展开成员检查互斥 | closed（2026-10-02 随 T-PERM-097 收敛——实施核实任务前提与现实断层并经用户拍板改卡：危害场景要求新增行 `target_type='GROUP_ROLE'`，该形态自 T-PERM-043 起无任何写入方（现行写入口全部写死 `'ROLE'`），现行唯一活口（assign/sync 绑存量组角色）产出行在写守卫与运行时**一致不展开**、不发生 Y 静默失效，实际后果为零权限假绑定。改卡落地「绑定面入口收紧」：assign/batch-assign（字符串层+role_type=5 值层双保险）与 user-role sync/full-sync（scope 级、先于服务-类型白名单）拒绑 GROUP_ROLE（20022，对齐角色面先例），revoke 保留为存量行清理通道；持有侧/运行时组展开零改动；碰撞对红跑单测 5+PG 1 旧实现实证红。原「新增侧展开子树」设想随 role_inclusion 单事实源立项〔T-PERM-043 双事实源技术债〕另行处理） | [T-PERM-097](tasks/T-PERM-097.md) | 2026-10-02 |
 | Q-044 | 资源复合拼接键碰撞 | closed（T-PERM-096+T-FE-060 done：后端三内存索引（共享批量解析 resourceLookup、转授 resourceEntityIdByKey/结果映射）改结构化 record 元组，checkCanGrant 结果键=GrantCheckKey 本身；BusinessKeyUtil 四拼接构造器退役（resourceCodeTypeKey/resourceTripleCodeKey/grantCheckKey + 类推清扫零调用死方法 resourceTripleValueKey），golden 锁与对外协议键不动；前端 grant-keys.ts 单源 JSON 元组编码收口授权决策五段键/资源三段/树节点键/矩阵行键/主体树角色键 + 类推 changeGroupKey（inlineName 自由文本）；碰撞对回归锁双端旧实现实证红（后端 expected 100 got 200 与 duplicate element、前端 8 红）；元组边界口径入 engine/implementation §8.4、键约定入 permission-grant.md §2.3；类推核实 roleProjectionIndexKey 无碰撞形态（受限段+尾段自由文本）；roleKey/subjectKey 初判「无碰撞」经收口后外评订正（分配入口无 @Pattern+split 反解，登记 Q-057）、apiRouteResourceKey（path 中段自由文本）理论碰撞面登记 Q-056，两者均属「内部消费者全量迁移分开评估」范围随清单批次排期） | [T-PERM-096](tasks/T-PERM-096.md)、[T-FE-060](tasks/T-FE-060.md) | 2026-10-01 |
 | <a id="q-055"></a>Q-055 | 签名过滤器顺序注释 | closed（重复登记，按 2026-09-30 本次合并要求归入 Q-015；问题仍 open） | [Q-015](#q-015) | 2026-09-30 |
 | <a id="q-054"></a>Q-054 | 系统配置前端设计陈旧 | closed（文档漂移同族，按 2026-09-30 本次合并要求归入 Q-015；问题仍 open） | [Q-015](#q-015) | 2026-09-30 |

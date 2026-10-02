@@ -191,6 +191,50 @@ class UserRoleSyncAppServiceTest {
                 .isEqualTo(AccessErrorCode.LOCAL_PROJECTION_IMMUTABLE.getCode());
     }
 
+    /**
+     * T-PERM-097（Q-027 改卡，2026-10-02 用户拍板）：GROUP_ROLE 绑定面收紧——BIND 以分组角色
+     * 为目标拒绝（20022，先于服务-类型白名单，对齐角色面 sync 先例）。旧实现经白名单声明
+     * role:GROUP_ROLE 可走到绑定落库，产生零权限假持有（本用例必红：旧实现不抛 20022）。
+     */
+    @Test
+    void shouldRejectGroupRoleBinding_whenBind() {
+        mockHeaderMatch();
+        UserRoleSyncReq req = new UserRoleSyncReq("BIND", "HR_MEMBER",
+                "EMP", "e-100", "GROUP_ROLE", "1", "grp-1", "TEAM_ROLE:team-2",
+                null, null, SOURCE_SERVICE, "user", "u1",
+                new SyncVersionRef(OCCURRED_AT, 1L));
+
+        assertThatThrownBy(() -> service.sync(TENANT_ID, req, httpRequest))
+                .isInstanceOf(BizException.class)
+                .extracting(ex -> ((BizException) ex).getErrorCode())
+                .isEqualTo(AccessErrorCode.ROLE_TYPE_MISMATCH.getCode());
+        verify(userRoleMapper, never()).insert(any(UserRole.class));
+    }
+
+    /**
+     * T-PERM-097：full-sync scope 级拒绝（scope.roleTypeCode=GROUP_ROLE 整批 20022，
+     * 对齐角色面 fullSync 先例；item 类型须等于 scope 的既有守卫覆盖 item 面）。
+     * 旧实现经白名单声明可走到逐项应用（本用例必红：旧实现不抛 20022）。
+     */
+    @Test
+    void shouldRejectGroupRoleScope_whenFullSync() {
+        mockHeaderMatch();
+        UserRoleFullSyncReq req = new UserRoleFullSyncReq(
+                new UserRoleSyncScope(SOURCE_SERVICE, "HR_MEMBER", "GROUP_ROLE", "1"),
+                List.of(new UserRoleSyncItem(
+                        "EMP", "e-100",
+                        "GROUP_ROLE", "grp-1",
+                        "TEAM_ROLE:team-2",
+                        null, null, "user", "e-100",
+                        new SyncVersionRef(OCCURRED_AT, 1L))));
+
+        assertThatThrownBy(() -> service.fullSync(TENANT_ID, req, httpRequest))
+                .isInstanceOf(BizException.class)
+                .extracting(ex -> ((BizException) ex).getErrorCode())
+                .isEqualTo(AccessErrorCode.ROLE_TYPE_MISMATCH.getCode());
+        verify(userRoleMapper, never()).insert(any(UserRole.class));
+    }
+
     @Test
     void shouldRejectReservedRelationType_whenBind() {
         mockHeaderMatch();

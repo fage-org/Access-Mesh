@@ -27,9 +27,10 @@ public record UserAssignRoleReq(
      *
      * @param subjectTypeCode   用户类型编码，必填
      * @param subjectExternalId 用户外部标识，必填
-     * @param domainCode        业务域编码：功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL）允许 null
+     * @param domainCode        业务域编码：功能角色（BASIC_ROLE/PERSONAL）允许 null
      *                          表示全局域；ORG/POSITION 必填（由服务端跨字段业务校验保证，
-     *                          见 access-service 的 UserManageAppServiceImpl 入口校验）
+     *                          见 access-service 的 UserManageAppServiceImpl 入口校验）；
+     *                          GROUP_ROLE 为拒绝类型（T-PERM-097 绑定面收紧，20022）
      * @param roleTypeCode      角色类型编码，必填
      * @param roleExternalId    角色外部标识，必填
      * @param relationId        关系ID，可选

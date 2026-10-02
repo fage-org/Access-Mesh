@@ -542,6 +542,105 @@ class UserManageAppServiceImplTest {
     }
 
     /**
+     * T-PERM-097（Q-027 改卡，2026-10-02 用户拍板）：GROUP_ROLE 绑定面收紧——assign 以
+     * 分组角色为目标显式拒绝（20022，对齐角色面 create 先例）。组角色生命周期冻结
+     * （T-PERM-043）漏了绑定面：旧实现可绑上存量组角色，产生零权限假持有（本用例必红）。
+     */
+    @Test
+    void shouldRejectAssignRoleWhenGroupRoleTarget() {
+        UserAssignRoleReq req = new UserAssignRoleReq(List.of(
+            new UserAssignRoleReq.AssignItem("USER", "u-1", null, "GROUP_ROLE", "g-1", null, null, null)
+        ));
+        // 红跑（旧实现）走到落库所需的桩；新实现守卫在解析前拦截，lenient 防严格桩报错
+        lenient().when(typeResolutionService.batchResolveUserIds(eq(1L), eq("USER"), eq(Set.of("u-1"))))
+            .thenReturn(Map.of("u-1", 20L));
+        lenient().when(typeResolutionService.batchResolveRoleIds(eq(1L), eq("GROUP_ROLE"), eq(Set.of("g-1")), eq((String) null)))
+            .thenReturn(Map.of("g-1", 300L));
+        lenient().when(subjectDomainService.selectValidUserRolesByUserIdsAndTargetIds(eq(1L), eq(Set.of(20L)), eq(Set.of(300L)), eq(ResourceTypeCode.ROLE)))
+            .thenReturn(List.<UserRole>of());
+        lenient().when(subjectDomainService.batchResolveRawHoldings(eq(1L), eq(Set.of(20L))))
+            .thenReturn(Map.of());
+        lenient().when(permissionConflictDomainService.findAssignMutexConflicts(eq(1L), any()))
+            .thenReturn(List.of());
+
+        try (MockedStatic<OperatorContext> operatorContext = org.mockito.Mockito.mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+            lenient().when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+                eq(Set.of("300")), eq(OperationCode.MANAGE))).thenReturn(Set.of());
+
+            BizException exception = assertThrows(BizException.class, () -> service.assignRole(1L, req));
+
+            assertEquals(AccessErrorCode.ROLE_TYPE_MISMATCH.getCode(), exception.getErrorCode());
+        }
+        verify(subjectDomainService, org.mockito.Mockito.never()).insertUserRoles(any());
+    }
+
+    /**
+     * T-PERM-097 值层双保险：自定义别名 type_code 映射 role_type=5（GROUP_ROLE 值）同拒
+     * （对齐角色面 createRole「按值双保险」先例；现实被 type_definition 唯一约束封死，防御纵深）。
+     */
+    @Test
+    void shouldRejectAssignRoleWhenAliasTypeMapsGroupRoleValue() {
+        UserAssignRoleReq req = new UserAssignRoleReq(List.of(
+            new UserAssignRoleReq.AssignItem("USER", "u-1", null, "TEAM_GROUP_ALIAS", "g-1", null, null, null)
+        ));
+        lenient().when(typeResolutionService.batchResolveTypeValues(eq(1L), eq("role_type"), eq(Set.of("TEAM_GROUP_ALIAS"))))
+            .thenReturn(Map.of("TEAM_GROUP_ALIAS", 5));
+        lenient().when(typeResolutionService.batchResolveUserIds(eq(1L), eq("USER"), eq(Set.of("u-1"))))
+            .thenReturn(Map.of("u-1", 20L));
+        lenient().when(typeResolutionService.batchResolveRoleIds(eq(1L), eq("TEAM_GROUP_ALIAS"), eq(Set.of("g-1")), eq((String) null)))
+            .thenReturn(Map.of("g-1", 300L));
+        lenient().when(subjectDomainService.selectValidUserRolesByUserIdsAndTargetIds(eq(1L), eq(Set.of(20L)), eq(Set.of(300L)), eq(ResourceTypeCode.ROLE)))
+            .thenReturn(List.<UserRole>of());
+        lenient().when(subjectDomainService.batchResolveRawHoldings(eq(1L), eq(Set.of(20L))))
+            .thenReturn(Map.of());
+        lenient().when(permissionConflictDomainService.findAssignMutexConflicts(eq(1L), any()))
+            .thenReturn(List.of());
+
+        try (MockedStatic<OperatorContext> operatorContext = org.mockito.Mockito.mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+            lenient().when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+                eq(Set.of("300")), eq(OperationCode.MANAGE))).thenReturn(Set.of());
+
+            BizException exception = assertThrows(BizException.class, () -> service.assignRole(1L, req));
+
+            assertEquals(AccessErrorCode.ROLE_TYPE_MISMATCH.getCode(), exception.getErrorCode());
+        }
+        verify(subjectDomainService, org.mockito.Mockito.never()).insertUserRoles(any());
+    }
+
+    /**
+     * T-PERM-097：batch-assign（单角色×多用户）同款收紧——GROUP_ROLE 目标整批拒绝
+     * （旧实现落库零权限假绑定，本用例必红）。
+     */
+    @Test
+    void shouldRejectBatchAssignWhenGroupRoleTarget() {
+        UserRoleBatchAssignReq req =
+            new UserRoleBatchAssignReq(List.of("u-1"), "USER", null, "GROUP_ROLE", "g-1", null);
+        lenient().when(typeResolutionService.batchResolveUserIds(eq(1L), eq("USER"), eq(Set.of("u-1"))))
+            .thenReturn(Map.of("u-1", 20L));
+        lenient().when(typeResolutionService.resolveRoleId(eq(1L), eq("GROUP_ROLE"), eq("g-1"), eq((String) null)))
+            .thenReturn(300L);
+        lenient().when(subjectDomainService.selectValidUserRolesByUserIdsAndTargetId(eq(1L), eq(Set.of(20L)), eq(300L), eq(ResourceTypeCode.ROLE)))
+            .thenReturn(List.<UserRole>of());
+        lenient().when(subjectDomainService.batchResolveRawHoldings(eq(1L), eq(Set.of(20L))))
+            .thenReturn(Map.of());
+        lenient().when(permissionConflictDomainService.findAssignMutexConflicts(eq(1L), any()))
+            .thenReturn(List.of());
+
+        try (MockedStatic<OperatorContext> operatorContext = org.mockito.Mockito.mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+            lenient().when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+                eq(Set.of("300")), eq(OperationCode.MANAGE))).thenReturn(Set.of());
+
+            BizException exception = assertThrows(BizException.class, () -> service.assignRolesBatch(1L, req));
+
+            assertEquals(AccessErrorCode.ROLE_TYPE_MISMATCH.getCode(), exception.getErrorCode());
+        }
+        verify(subjectDomainService, org.mockito.Mockito.never()).insertUserRoles(any());
+    }
+
+    /**
      * T-PERM-075 U002-2 反方向：用户已持有「禁用」的互斥对端（经原始持有候选可见），
      * 再绑定启用角色时同样拒绝——有效角色集口径看不到禁用持有（旧实现放行，本用例必红）。
      */

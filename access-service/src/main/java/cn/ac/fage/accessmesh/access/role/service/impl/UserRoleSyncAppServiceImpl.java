@@ -13,6 +13,9 @@ import cn.ac.fage.accessmesh.access.role.entity.UserRole;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.role.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.access.role.service.UserRoleSyncAppService;
+import cn.ac.fage.accessmesh.access.projection.PermConstants;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
+import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard;
 import cn.ac.fage.accessmesh.access.sync.metadata.SyncMetadataDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
@@ -98,6 +101,12 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
         localProjectionGuard.rejectReservedSubjectType(req.subjectTypeCode());
         localProjectionGuard.rejectReservedRoleType(req.roleTypeCode());
         rejectReservedRelationType(req.relationKey());
+        // T-PERM-097：GROUP_ROLE 绑定面收紧——与角色面 sync 同口径拒绝（20022，先于服务-类型
+        // 白名单，白名单声明 role:GROUP_ROLE 亦不生效）；组角色不能配权限，绑定只产生零权限假持有
+        if (PermConstants.TargetType.GROUP_ROLE.equals(req.roleTypeCode())) {
+            throw new BizException(AccessErrorCode.ROLE_TYPE_MISMATCH.getCode(),
+                "不支持绑定 GROUP_ROLE 分组角色（首期功能角色仅 BASIC_ROLE）");
+        }
         // 服务-类型白名单（service_config.extra.syncTypes，fail-closed）：服务须声明
         // sourceType/主体/目标角色类型（relationKey 角色类型为引用，由依赖解析负责）
         if (!syncTypeGuard.validate(tenantId, req.sourceService(),
@@ -127,7 +136,12 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
         }
         localProjectionGuard.rejectInternalSourceService(req.scope().sourceService());
         localProjectionGuard.rejectReservedUserRoleSource(req.scope().sourceType());
-
+        // T-PERM-097：GROUP_ROLE 绑定面收紧——scope 级拒绝（item.roleTypeCode 须等于 scope 的
+        // 既有守卫覆盖 item 面；与角色面 fullSync 同口径，白名单声明亦不生效）
+        if (PermConstants.TargetType.GROUP_ROLE.equals(req.scope().roleTypeCode())) {
+            throw new BizException(AccessErrorCode.ROLE_TYPE_MISMATCH.getCode(),
+                "不支持绑定 GROUP_ROLE 分组角色（首期功能角色仅 BASIC_ROLE）");
+        }
         String scopeKey = SyncKeyCodecUtil.userRoleScopeKey(
                 req.scope().sourceType(), req.scope().roleTypeCode(), req.scope().treeRootExternalId());
         String scopeKeyHash = SyncKeyCodecUtil.sha256Hex(scopeKey);
