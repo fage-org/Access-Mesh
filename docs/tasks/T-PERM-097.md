@@ -60,8 +60,17 @@ last_updated: 2026-10-02
 
 **回归**：access-service 单测轨道全量绿；收口全量 `mvn test -T 1C`（含 E2E 与 heavy）BUILD SUCCESS 全模块 0 失败。
 
-**回写**：契约 §10.4（assign/batch-assign/revoke 三行）、§10.5（T-PERM-043 收口清单改写——原「`user-role/assign|revoke` 对存量 GROUP_ROLE 行仍可用」废止为 assign 拒 20022/revoke 保留，运行时读模型冻结句独立保留）、§19.4（约束清单补 BIND 目标拒绝）、§2.4 跨字段校验注记与 §5 本地投影通道归属段两处「GROUP_ROLE 属可分配功能角色」残留订正；`UserAssignRoleReq.AssignItem` javadoc 的 domainCode 参数说明同步（GROUP_ROLE 从功能角色列举移除）。外围消费面核实：e2e 零 GROUP_ROLE 引用、前端仅只读类型码常量（MANAGEABLE_ROLE_TYPES 已收窄 [BASIC_ROLE]，本就传不出）。
+**回写**：契约 §10.4（assign/batch-assign/revoke 三行）、§10.5（T-PERM-043 收口清单改写——原「`user-role/assign|revoke` 对存量 GROUP_ROLE 行仍可用」废止为 assign 拒 20022/revoke 保留，运行时读模型冻结句独立保留）、§19.4（约束清单补 BIND 目标拒绝）、§2.4 跨字段校验注记与 §5 本地投影通道归属段两处「GROUP_ROLE 属可分配功能角色」残留订正；`UserAssignRoleReq.AssignItem` javadoc 的 domainCode 参数说明同步（GROUP_ROLE 从功能角色列举移除）。外围消费面核实：e2e 零 GROUP_ROLE 引用；前端收口时仅核角色管理页常量（MANAGEABLE_ROLE_TYPES 已收窄 [BASIC_ROLE]），用户详情分配选择器三类型候选漏核——外评发现并处置，见下「外评处置」。
 
 **双轨评审**：代码轨（守卫顺序闭合性、fullSync item=scope 一致性覆盖、UNBIND/差异校准对齐角色面「外部通道全拒、管理面留清理」先例、值层未知码不误抛、mock 默认空 Map 不炸既有用例、批量无缓存解析 vs 循环单值的取舍——逐项实证通过，无 P0-P2）；文档轨（两处「GROUP_ROLE 可分配」残留直修；活文档 grep 清零）。存疑上报：无。过度设计可裁剪项：无（值层双保险对齐角色面既有先例，非新增机制重量）。
 
 **存量影响口径**（对齐角色面 T-PERM-043 先例）：历史上经外部同步产生的 GROUP_ROLE 通道（若存在），收紧后 full-sync 稳态重放整批 20022——外部系统须先行清理该 scope；存量绑定行的撤销走管理面 revoke（不受影响）。
+
+## 外评处置（2026-10-02，claude + codex sol 双通道首轮）
+
+两通道独立核查一致：四入口守卫本体（写入口全集无第五旁路、字符串/值层不变量、守卫顺序与角色面先例同形、UNBIND/差异校准口径、既有回归面）无 P0-P1。处置：
+
+- **P2×1（codex sol 定 P2 / claude 定 P3，同一问题，经用户拍板收窄修法）**：用户详情面板「分配功能角色」选择器仍按 `["BASIC_ROLE","GROUP_ROLE","PERSONAL"]` 装载候选，GROUP_ROLE 提交必收 20022 且前端只弹通用「分配失败」。处置：候选收窄为 `ASSIGNABLE_ROLE_TYPE_CODES=[BASIC_ROLE,PERSONAL]`（`frontend/src/views/system/user/utils/roleAssignCandidates.ts` + 组件接入 + 回归锁 spec，对齐角色管理页 T-PERM-043 收窄先例）；契约 §10.4 迁移落点句同步订正。展示/撤销面（`otherRoles`、revoke 通道）保留 GROUP_ROLE 存量行不动。
+- **P3×1（claude）**：`UserRoleBatchAssignReq` javadoc 残留「GROUP_ROLE 属可分配功能角色」——同批孪生 DTO `UserAssignRoleReq` 已订正、batch 侧漏改，同款措辞补齐；`UserRoleBatchRevokeReq` 同句保留（revoke 确实仍接受）。
+- 完成记录原「前端……本就传不出」核实结论不实（选择器恰为前端唯一 GROUP_ROLE 写面），已订正为如实口径。
+- 排除项（两通道一致，核实采信）：sync UNBIND 同拒与角色面 sync-DELETE 同形（既定口径）；值层双保险理论触发面已被 `uk_type_definition_value` 唯一索引+系统种子封死（防御纵深保留）；permission-center 旧册陈旧句属 superseded 历史锚点。存量观察不处置：Q-057 复合键碰撞（T-ADMIN-030 在办链路）、契约 §10.5/§19.4「BIND 目标」措辞未点明 UNBIND 同拒（实现一致，措辞增强可选）。

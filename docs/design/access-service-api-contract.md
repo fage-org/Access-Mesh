@@ -1052,7 +1052,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 **该端点已删除（无映射 404，不留兼容层）**。原语义：查询功能角色候选（默认 `BASIC_ROLE / GROUP_ROLE / PERSONAL`，`R<ItemsResp<RoleListItemResp>>`，门禁类型级 `ROLE:VIEW`）。退役动因（F008）：服务端写死 `LIMIT 0,200 OFFSET 0` 且无 keyword/分页——第 201 个功能角色静默不可选；「仅类型级门禁」与角色管理页实例准入口径（T-PERM-022+T-ACCESS-052）分叉。
 
-**迁移落点**：功能角色候选消费方（用户详情面板「分配功能角色」选择器）迁 `POST /api/access/abstract-role/list`（§10.3：`roleTypeCodes=[BASIC_ROLE,GROUP_ROLE,PERSONAL]` + `keyword` + 分页）——门禁随端点对齐实例准入口径（类型级 `ROLE:VIEW` 全量，否则可见子集裁剪、零可见 403），取代 T-ACCESS-052 范围拍板中「`/role/list` 维持类型级门禁」半边（`resource-api-mapping/list` 半边维持原登记——**该半边已被 T-ACCESS-055 翻案为实例准入**，见 §12.2 门禁句）；分配动作仍受 `user-role/assign` 门禁约束，候选可见≠可分配。存量库 bootstrap 固定图该 API 行移除后资源行/映射/授权惰性残留（订正语句见 rebuild-runbook 常见问题表）。
+**迁移落点**：功能角色候选消费方（用户详情面板「分配功能角色」选择器）迁 `POST /api/access/abstract-role/list`（§10.3：`roleTypeCodes=[BASIC_ROLE,PERSONAL]`——T-PERM-097 外评处置收窄，原三类型候选含 GROUP_ROLE，绑定面收紧后为恒失败选项；`keyword` + 分页）——门禁随端点对齐实例准入口径（类型级 `ROLE:VIEW` 全量，否则可见子集裁剪、零可见 403），取代 T-ACCESS-052 范围拍板中「`/role/list` 维持类型级门禁」半边（`resource-api-mapping/list` 半边维持原登记——**该半边已被 T-ACCESS-055 翻案为实例准入**，见 §12.2 门禁句）；分配动作仍受 `user-role/assign` 门禁约束，候选可见≠可分配。存量库 bootstrap 固定图该 API 行移除后资源行/映射/授权惰性残留（订正语句见 rebuild-runbook 常见问题表）。
 
 ### 10.3 perm 家族角色端点（/api/access/abstract-role/*）
 

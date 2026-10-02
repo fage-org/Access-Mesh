@@ -19,6 +19,7 @@ import { message } from "@/utils/message";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import { hasPerms } from "@/utils/auth";
 import { ORG_USER_PERMS } from "../utils/perms";
+import { ASSIGNABLE_ROLE_TYPE_CODES } from "../utils/roleAssignCandidates";
 import { useRemotePagedOptions, mergeSelected } from "../utils/remoteOptions";
 import Remove from "~icons/ep/remove";
 import AddFill from "~icons/ri/add-circle-line";
@@ -126,9 +127,10 @@ type RoleOption = {
 const selectedRoleOption = reactive(new Map<string, RoleOption>());
 
 /**
- * 功能角色候选远程分页装载（T-FE-058，U005=迁移）：/abstract-role/list 传
- * roleTypeCodes=功能角色三类型（对齐原 /role/list 语义，排除 ORG/POSITION 容器行），
- * keyword 远程搜索 + 分页——第 201 个功能角色不再被 LIMIT 200 静默截断。
+ * 功能角色候选远程分页装载（T-FE-058，U005=迁移）：/abstract-role/list 按
+ * ASSIGNABLE_ROLE_TYPE_CODES 装载（T-PERM-097 外评处置后=BASIC_ROLE/PERSONAL，
+ * 排除 ORG/POSITION 容器行与 GROUP_ROLE 绑定拒绝类型），keyword 远程搜索 + 分页
+ * ——第 201 个功能角色不再被 LIMIT 200 静默截断。
  * 门禁随端点对齐角色管理页实例准入口径（类型级 VIEW 全量，否则可见子集）；
  * 分配动作仍受 USER_ROLE_ASSIGN 门禁（本面板 canAssignFunctionalRole）。
  */
@@ -145,7 +147,7 @@ const {
 } = useRemotePagedOptions<RoleOption>(
   async q => {
     const res = await getRoleList({
-      roleTypeCodes: ["BASIC_ROLE", "GROUP_ROLE", "PERSONAL"],
+      roleTypeCodes: ASSIGNABLE_ROLE_TYPE_CODES,
       keyword: q.keyword || undefined,
       pageNum: q.pageNum,
       pageSize: q.pageSize
