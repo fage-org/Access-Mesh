@@ -379,7 +379,8 @@ class TreeCycleHardeningPgIT {
      * 有界等待分流，断言汇合后统一执行：锁实现下挂子阻塞在树写锁（2s 未完成）→ 放行删除提交、
      * 锁释放后挂子获锁重读父——父已删，10201 拒绝，无孤儿；旧实现（无锁）下挂子直通完成
      * （读父时删除未提交仍可见）→ 放行删除提交 → 存活子行指向软删父，汇合断言失败（红跑锚点）。
-     * 删除方的 10204 方向（挂子先提交、删父后进锁）由 hasChildren 既有行为兜底，不在此重复。
+     * 删父后进锁的 10204 方向（挂子先提交）不在此重复——由 MenuWriteAppServiceTest
+     * deleteRejectedWhenChildrenExist 锁定 hasChildren 既有拒绝行为（外评处置补）。
      * </p>
      */
     @Test

@@ -654,7 +654,9 @@ bootstrap 的 §14.4 最小集（`RESOURCE:VIEW`/`OPERATION:VIEW` scopeAll + `RO
   全列回写含 parent，「不带 parent 的普通编辑」无锁时并发移动会被静默回滚、经两步合法移动+
   回写可闭合成环，故不能按「是否带 parent」条件持锁；锁若晚于实体读取，读取-拿锁-写回窗口内
   完成的合法移动仍会被锁外旧快照覆盖——锁必须覆盖读与写，快照在锁内产生）：角色
-  `updateRole`/`moveRole`/`sync`/`full-sync`、组织 `updateOrg`、菜单 `createMenu`/`updateMenu`/`deleteMenu`
+  `updateRole`/`moveRole`/`sync`/`full-sync`、组织 `createOrg`/`updateOrg`/`deleteOrg`（组织写路径
+  同事务写 sys_org 行与 abstract_role/resource_entity 投影〔组织节点即容器/投影行本体〕，三树各持锁，
+  锁序 SYS_ORG→ABSTRACT_ROLE→RESOURCE_ENTITY 固定）、菜单 `createMenu`/`updateMenu`/`deleteMenu`
   （T-ADMIN-031 补 create/delete：读父/深度校验与查子软删同窗口——并发「删父+挂子」交叉通过
   hasChildren/checkParentExists 会落成指向软删父的存活孤儿，Q-048；两方向交错分别收敛为父不存在
   拒绝与父仍有子拒绝）、资源

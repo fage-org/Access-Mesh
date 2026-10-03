@@ -1,7 +1,7 @@
 ---
 doc_type: problems
 title: 待解决问题清单
-counter: Q-055           # 已分配最大问题号；分配后冻结，不复用不重排
+counter: Q-058           # 已分配最大问题号；分配后冻结，不复用不重排
 last_updated: 2026-10-03
 ---
 
@@ -14,6 +14,20 @@ last_updated: 2026-10-03
 ## 未收敛问题
 
 **阅读约定**：按根因或可共同处理的范围合并，子项各自保留证据、影响与既有边界。旧编号的去向见文末索引；编号合并不代表缺陷修复。原始登记细节见 [合并前快照](archive/2026-09-30/pending-problems-before-consolidation.md)，外部报告核实见 [核实记录](archive/2026-09-30/logic-review-verification.md)。本次整理没有重新运行业务复现。
+
+<a id="q-058"></a>
+## Q-058 MenuDomainService 两个零调用树写方法（deleteWithChildren/insertBatch）
+
+- **状态**：open
+- **登记**：2026-10-03
+- **来源**：T-ADMIN-031 收口后外评（claude 存量观察，逐条核实成立）
+- **关联**：[T-ADMIN-031](tasks/T-ADMIN-031.md)（发现载体）；P3（死代码，无运行时缺陷）
+
+**现象与证据**：`MenuDomainService.deleteWithChildren`（接口 :148 / impl :267）与 `insertBatch(List<SysMenu>)`（:241 / :414）全仓零调用（含测试）。前者是无锁的树批量软删 API——按 §17.1「Controller 写入口统一持锁」纪律，DomainService 层不持锁，未来误用将绕过菜单树写互斥产生孤儿窗口（Q-048 同型）。
+
+**影响与边界**：当前死代码，无运行时影响；风险为未来误用面。menu 三个合法写入口（createMenu/updateMenu/deleteMenu）全部持 SYS_MENU 锁。
+
+**设想方向（未定案）**：删除两个死方法（对齐 Q-010 死方法顺带清理先例），或保留并加「仅限持锁编排内调用」注记；随清单批次评估。
 
 <a id="q-057"></a>
 ## Q-057 用户角色分配入口的 roleKey/subjectKey 拼接与 roleTypeDomainKey+split 反解可构造碰撞

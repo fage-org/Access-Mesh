@@ -449,6 +449,19 @@ class MenuWriteAppServiceTest {
     }
 
     @Test
+    @DisplayName("删除：存在子菜单抛 MENU_HAS_CHILDREN(10204)——删父后进锁方向的既有行为锚（T-ADMIN-031 外评处置补）")
+    void deleteRejectedWhenChildrenExist() {
+        when(menuDomainService.selectValidById(TENANT, MENU_ID)).thenReturn(menu("MENU"));
+        when(menuDomainService.hasChildren(TENANT, MENU_ID)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.deleteMenu(MENU_ID))
+            .isInstanceOf(BizException.class)
+            .extracting(e -> ((BizException) e).getErrorCode())
+            .isEqualTo(AccessErrorCode.MENU_HAS_CHILDREN.getCode());
+        verify(menuDomainService, never()).softDeleteBatch(anyLong(), any());
+    }
+
+    @Test
     @DisplayName("树写锁：创建持锁且先于首次树读取（T-ADMIN-031，并发删父+挂子产生孤儿，Q-048）")
     void createAcquiresTreeWriteLockBeforeFirstTreeRead() {
         when(menuDomainService.selectValidById(TENANT, 40L)).thenReturn(menu("MENU"));
