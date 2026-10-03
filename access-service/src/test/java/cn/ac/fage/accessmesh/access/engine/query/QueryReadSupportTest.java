@@ -295,6 +295,21 @@ class QueryReadSupportTest {
             .extracting(OperationDefinition::id).containsExactlyInAnyOrder(11L, 22L);
     }
 
+    /** T-PERM-100 外评收口：引擎装载/匹配键归一——check/batch-check 的 ByCode 身份带空白入参命中库内归一行 */
+    @Test
+    void should_resolveWhitespaceCodeTypeByNormalizedIdentity() {
+        when(types.batchResolveTypeValues(1L, "resource_type", Set.of("REPORT")))
+            .thenReturn(Map.of("REPORT", 1));
+        ResourceEntity row = new ResourceEntity();
+        row.setId(100L); row.setResourceType(1); row.setCode("same"); row.setCodeType("BIZ");
+        when(resources.selectByTypesAndCodesAndCodeTypes(1L, Set.of(1), Set.of("same"), Set.of("BIZ")))
+            .thenReturn(List.of(row));
+        ResourceResolveRequest key = new ResourceResolveRequest("REPORT", "same", " BIZ ", null);
+        RunState run = run(ListGrantRead.DATABASE);
+        reads.resolveTypes(run, Set.of("REPORT"));
+        assertThat(reads.resolveResources(run, List.of(key))).containsEntry(key.toKey(), 100L);
+    }
+
     @Test
     void should_reuseTypeResolutionAndRememberExactResourceMisses_whenResolvingBusinessKeys() {
         when(types.batchResolveTypeValues(1L, "resource_type", Set.of("REPORT", "USER")))

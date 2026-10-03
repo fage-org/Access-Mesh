@@ -217,8 +217,10 @@ final class QueryReadSupport {
         return present(memory.resourceIds, unique);
     }
 
+    // T-PERM-100 外评收口：引擎装载/匹配键与 TypeResolution 同源归一（空白→default、trim）——
+    // check/batch-check 的 ByCode 身份与 queryScopes 父判定均经本装载路径，带空白入参命中归一后行
     private static String defaultCodeType(String codeType) {
-        return codeType == null || codeType.isBlank() ? PermConstants.CodeType.DEFAULT : codeType;
+        return codeType == null || codeType.isBlank() ? PermConstants.CodeType.DEFAULT : codeType.trim();
     }
 
     /** 描述读取入口独立于判定；最小输出在解析目标前短路。 */

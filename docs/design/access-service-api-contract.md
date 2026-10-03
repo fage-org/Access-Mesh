@@ -1456,7 +1456,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 | 规则 | 口径 |
 |---|---|
-| codeType | 可选，null/空白归一为 `default`（DDL 默认值）、去首尾空白（T-PERM-100：写入与寻址同源——引擎资源解析 `resolveResourceId`/`batchResolveResourceIds`，覆盖授权 INSTANCE 解析、依赖声明、菜单、管理面与 sync 父解析，统一按此口径归一） |
+| codeType | 可选，null/空白归一为 `default`（DDL 默认值）、去首尾空白（T-PERM-100 及其外评收口：写入与寻址全链同源——`TypeResolution` 资源解析（授权 INSTANCE 解析、依赖只读 API §12.3、菜单、管理面与 sync 父解析）、判定面引擎 ByCode 装载（check/batch-check/queryScopes）、依赖 manifest 声明装载（§19.10），统一按此口径归一） |
 | 业务键查不到 | detail 抛 20004/20005；update/move 同（原 `data:null` 宽松形态已删除） |
 | extraClear | boolean 可选；true=清空 extra 为 null（JSON null 无法区分「未传」与「清空」）；与 extra 同传 400 拒绝（T-API-004/U006 拍板，取代旧「优先于 extra」口径，§2.7） |
 | move 校验 | 跨资源类型 / 目标父为自身或子孙 → 20053 RESOURCE_PARENT_INVALID（一类码两因，message 区分） |
@@ -2705,7 +2705,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 }
 ```
 
-schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正整数字符串，与资源发布代次独立。revision 必填非空、最长 128 字符，仅标识来源版本，不能替代排序。dependencies 必填非 null，空数组表示该服务完整空声明；declarationKey 必填、最长 128 字符，在请求中唯一且跨发布稳定。source/target 复用 ResourceKey；类型/操作码按现役严格大写规则，codeType 缺省 default、宽度与资源契约一致。sourceOperationCodes 缺失/null/空数组统一为任意操作；非空必须恰有一个非空操作码。requires 必填非空，同一声明内 target 业务键唯一；operationCodes 必填非空、排序去重。description 可空、最长 512 字符。
+schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正整数字符串，与资源发布代次独立。revision 必填非空、最长 128 字符，仅标识来源版本，不能替代排序。dependencies 必填非 null，空数组表示该服务完整空声明；declarationKey 必填、最长 128 字符，在请求中唯一且跨发布稳定。source/target 复用 ResourceKey；类型/操作码按现役严格大写规则，codeType 缺省 default、去首尾空白（§12.1 同源归一，T-PERM-100 外评收口——目标去重、声明身份与双指纹均按归一后资源键计算，带空白与干净形态为同一声明）、宽度与资源契约一致。sourceOperationCodes 缺失/null/空数组统一为任意操作；非空必须恰有一个非空操作码。requires 必填非空，同一声明内 target 业务键唯一；operationCodes 必填非空、排序去重。description 可空、最长 512 字符。
 
 形状错误、重复 declarationKey/target、非法 schemaVersion 或代次在声明写入前整请求拒绝。有效请求按 declarationKey + target 业务键展开为编译项，同一组可有 RESOLVED 与 REJECTED 目标，拒绝项保留诊断且不产生边；source 不合法时该组全部目标拒绝。声明存储的逻辑唯一键是 tenant + 服务身份 + declarationKey + target 业务键；新 FULL 删除本服务缺失项，不能通过清空其他来源的编译贡献达成替换。
 

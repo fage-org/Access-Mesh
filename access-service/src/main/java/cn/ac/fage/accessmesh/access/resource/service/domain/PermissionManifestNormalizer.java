@@ -38,13 +38,17 @@ public class PermissionManifestNormalizer {
         List<DependencyCompiler.Declaration> declarations = new ArrayList<>();
         for (var dependency : request.dependencies()) {
             if (!keys.add(dependency.declarationKey())) throw invalid("DUPLICATE_DECLARATION_KEY");
+            ResourceKey source = normalizeKey(dependency.source());
             Set<ResourceKey> targets = new HashSet<>();
             for (var required : dependency.requires()) {
-                if (!targets.add(required.target())) throw invalid("DUPLICATE_DECLARATION_TARGET");
+                // T-PERM-100 外评收口：目标去重、声明构造与双指纹均在归一后资源键上进行
+                // （perm-common DTO 不动，装载侧归一）——带空白与干净形态为同一声明身份
+                ResourceKey target = normalizeKey(required.target());
+                if (!targets.add(target)) throw invalid("DUPLICATE_DECLARATION_TARGET");
                 List<String> operations = required.operationCodes().stream().distinct().sorted(CanonicalJson::compareText).toList();
-                declarations.add(new DependencyCompiler.Declaration(dependency.declarationKey(), dependency.source(),
+                declarations.add(new DependencyCompiler.Declaration(dependency.declarationKey(), source,
                         dependency.sourceOperationCodes().isEmpty() ? null : dependency.sourceOperationCodes().getFirst(),
-                        required.target(), operations, dependency.description()));
+                        target, operations, dependency.description()));
             }
         }
         declarations.sort(Comparator.comparing(d -> CanonicalJson.text(mapper.valueToTree(d)), CanonicalJson::compareText));
@@ -79,5 +83,13 @@ public class PermissionManifestNormalizer {
 
     private BizException invalid(String reason) {
         return new BizException(AccessErrorCode.PERM_INVALID_PARAM.getCode(), reason);
+    }
+
+    /** T-PERM-100 外评收口：manifest 资源键 codeType 归一（null/空白→default、去首尾空白，§12.1 同源） */
+    private static ResourceKey normalizeKey(ResourceKey key) {
+        String codeType = key.codeType() == null || key.codeType().isBlank()
+                ? cn.ac.fage.accessmesh.access.projection.PermConstants.CodeType.DEFAULT : key.codeType().trim();
+        return codeType.equals(key.codeType()) ? key
+                : new ResourceKey(key.resourceTypeCode(), key.resourceCode(), codeType);
     }
 }

@@ -128,6 +128,27 @@ class PermissionManifestPgIT {
         assertThat(edgeCount(f)).isEqualTo(1);
     }
 
+    /** T-PERM-100 外评收口：manifest 资源键 codeType 归一——带空白声明按归一后身份编译与计指纹 */
+    @Test
+    void shouldCompileWhitespaceCodeTypeDeclarations_byNormalizedAddressing() {
+        Fixture f = fixture(false);
+        jdbc.update("INSERT INTO resource_entity(tenant_id,resource_type,code,code_type,name) VALUES(1,?,'a','BIZ','a')", f.type());
+        jdbc.update("INSERT INTO resource_entity(tenant_id,resource_type,code,code_type,name) VALUES(1,?,'b','BIZ','b')", f.type());
+        var ws = new Dependency("ws", new ResourceKey(f.typeCode(), "a", " BIZ "), List.of("VIEW"),
+                List.of(new Requirement(new ResourceKey(f.typeCode(), "b", " BIZ "), List.of("VIEW"))), null);
+        // 带空白声明编译成功（旧实现装载原值 miss → RESOURCE_MISSING → 红）
+        var first = publish(f, request("1", List.of(ws)));
+        assertThat(first.detail().appliedCount()).isEqualTo(1);
+        assertThat(first.detail().failedCount()).isZero();
+        assertThat(edgeCount(f)).isEqualTo(1);
+        // 指纹同源归一：同代次改用干净形态重发=幂等 STALE（旧实现指纹含空白 → 冲突 → 红）
+        var clean = new Dependency("ws", new ResourceKey(f.typeCode(), "a", "BIZ"), List.of("VIEW"),
+                List.of(new Requirement(new ResourceKey(f.typeCode(), "b", "BIZ"), List.of("VIEW"))), null);
+        var retry = publish(f, request("1", List.of(clean)));
+        assertThat(retry.detail().staleCount()).isEqualTo(1);
+        assertThat(retry.detail().failedCount()).isZero();
+    }
+
     @Test
     void shouldClearOnlyCurrentService_onExplicitEmptySnapshot() {
         Fixture first = fixture(true);
