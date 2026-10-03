@@ -51,4 +51,4 @@ perm-common 两 DTO（UserAssignRoleReq/UserRoleBatchRevokeReq）条目三标识
 - 回归锁：`UserManageAppServiceImplTest` 碰撞对 2 用例（A=(BASIC_ROLE,FIN,admin:x) 与 B=(BASIC_ROLE,FIN:admin,x) 构造滑移；旧实现红形态=「期望 BizException 但未抛」即静默错配落库/删错实证）+ `UserRoleRelationIdValidationTest` @Pattern 3 用例；`PermCommonReqContractTest` 快照同步。红跑双证：stash 回退五实现文件后旧实现下 5 用例红（2026-10-03，surefire 报告）；恢复后定向 25+6+2、perm-common 18 全绿。
 - 兼容面核实（双轨评审代码轨实证通过项）：前端 assignRole/revokeRole 封装不传 domainCode（省略→null）、subjectTypeCode 字面量 LOCAL_USER；e2e 三 E2EIT 全 `putNull("domainCode")`；SDK feign 透传 DTO 签名未动；`strict-domain-check=false` 灰度分支无空串兜底路径；batch-assign 无内部调用方。缺陷 P0-P3=0、过度设计可裁剪项=0。
 - 契约回写：§10.4 新增「标识码格式锁」段（碰撞背景/双层修复/空串语义变化/SDK 单源同步）+ §10 前置说明的跨字段校验段补「为空=显式 null，空串 400」句。
-- 全量回归：`mvn test -T 1C`（含 E2E/heavy）BUILD SUCCESS，9 fork 汇总合计 2448 项 0 失败 0 错误（与类级明细总数一致，2026-10-03，surefire 报告为准）。
+- 全量回归：`mvn test -T 1C`（含 E2E/heavy）BUILD SUCCESS，全仓 285 个 `TEST-*.xml` 合计 **2448 个 testcase 条目** 0 失败 0 错误 0 跳过（计数以 XML testcase 条目为准——`@Nested` 容器类 txt 汇总行为 0 不计入，2026-10-03）。

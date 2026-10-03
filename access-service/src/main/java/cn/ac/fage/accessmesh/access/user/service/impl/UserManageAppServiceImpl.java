@@ -756,10 +756,6 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             validateDomainCodeForOrgPosition(item.roleTypeCode(), item.domainCode());
         }
 
-        Set<String> roleExternalIds = req.items().stream()
-            .map(UserRoleBatchRevokeReq.RevokeItem::roleExternalId)
-            .filter(id -> id != null && !id.isBlank())
-            .collect(Collectors.toSet());
         // T-PERM-104：分组/回读键为结构化元组（与 assignRole 同款，Q-057 碰撞收口）——
         // domainCode 含 ":" 时旧拼接+split 反解会滑移改写解析参数并与其他条目撞键静默错删
         Map<RoleTypeDomainKey, Set<String>> roleExternalIdsByTypeAndDomain = req.items().stream()
