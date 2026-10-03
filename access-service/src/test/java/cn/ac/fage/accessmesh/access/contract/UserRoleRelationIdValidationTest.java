@@ -16,12 +16,20 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 用户-角色三写入口 relationId @Positive Bean Validation 层锁定（T-ADMIN-030 外评处置）。
+ * 用户-角色三写入口 Bean Validation 层锁定。
  * <p>
- * 0 与 null 在 {@code uk_user_role（COALESCE(relation_id,0)）}同槽位而内存三元键区分——
- * 0 入库会形成 null 侧分配/撤销全部 500 或查不到的持粘行，须在 HTTP 层 @Valid 拒 400
- * 而非进服务层。旧实现（无 @Positive）下 0 值用例通过校验。null（不指定关系）与正整数合法。
- * 经外层请求体校验（items 带 element::@Valid 级联），与控制器 @Valid 真实路径一致。
+ * relationId @Positive（T-ADMIN-030 外评处置）：0 与 null 在
+ * {@code uk_user_role（COALESCE(relation_id,0)）}同槽位而内存三元键区分——0 入库会形成
+ * null 侧分配/撤销全部 500 或查不到的持粘行，须在 HTTP 层 @Valid 拒 400 而非进服务层。
+ * null（不指定关系）与正整数合法。经外层请求体校验（items 带 element::@Valid 级联），
+ * 与控制器 @Valid 真实路径一致。
+ * </p>
+ * <p>
+ * 标识码 @Pattern（T-PERM-104，Q-057 碰撞收口）：subjectTypeCode/roleTypeCode/domainCode
+ * 与建域/建类型入口同款格式锁（^[A-Z][A-Z0-9_]*$）——domainCode 含 ":" 经服务层分组
+ * split 反解滑移可构造回读撞键（授权结果与请求不符且静默）；空串域码拒（全局域须传
+ * null，T-API-004 空串拒先例）；externalId 保持自由文本（尾段无滑移面）。旧实现（无
+ * @Pattern）下全部畸形值通过校验。
  * </p>
  */
 class UserRoleRelationIdValidationTest {
@@ -69,6 +77,65 @@ class UserRoleRelationIdValidationTest {
         assertFalse(validator.validate(revokeReq(-1L)).isEmpty());
         assertTrue(validator.validate(revokeReq(null)).isEmpty());
         assertTrue(validator.validate(revokeReq(33L)).isEmpty());
+    }
+
+    /** T-PERM-104（Q-057）：assign 条目标识码格式锁——含分隔符/空串/小写在 Bean Validation 层拒 400。 */
+    @Test
+    void assignItemMustRejectMalformedIdentifierCodes() {
+        Validator validator = validatorFactory.getValidator();
+        // Q-057 滑移形态：domainCode 含 ":"，旧实现（无 @Pattern）放行进服务层
+        assertFalse(validator.validate(new UserAssignRoleReq(List.of(new UserAssignRoleReq.AssignItem(
+                "LOCAL_USER", "u-1", "FIN:ADMIN", "BASIC_ROLE", "r-1", null, null, null)))).isEmpty(),
+                "domainCode 含分隔符须拒绝（分组反解滑移撞键入口）");
+        // 空串域码拒：全局域语义须传 null（T-API-004 空串拒先例；旧实现按 null 等价处理）
+        assertFalse(validator.validate(new UserAssignRoleReq(List.of(new UserAssignRoleReq.AssignItem(
+                "LOCAL_USER", "u-1", "", "BASIC_ROLE", "r-1", null, null, null)))).isEmpty());
+        // 类型码含分隔符/小写拒（与建域/建类型入口同 pattern）
+        assertFalse(validator.validate(new UserAssignRoleReq(List.of(new UserAssignRoleReq.AssignItem(
+                "LOCAL:USER", "u-1", null, "BASIC_ROLE", "r-1", null, null, null)))).isEmpty());
+        assertFalse(validator.validate(new UserAssignRoleReq(List.of(new UserAssignRoleReq.AssignItem(
+                "local_user", "u-1", null, "BASIC_ROLE", "r-1", null, null, null)))).isEmpty());
+        assertFalse(validator.validate(new UserAssignRoleReq(List.of(new UserAssignRoleReq.AssignItem(
+                "LOCAL_USER", "u-1", null, "BAS:IC", "r-1", null, null, null)))).isEmpty());
+        // 合法形态：大写标识码 + null 域码（功能角色全局域）+ 大写域码；externalId 保持自由文本（尾段无滑移面）
+        assertTrue(validator.validate(new UserAssignRoleReq(List.of(new UserAssignRoleReq.AssignItem(
+                "LOCAL_USER", "u-1", null, "BASIC_ROLE", "r:1", null, null, null)))).isEmpty());
+        assertTrue(validator.validate(new UserAssignRoleReq(List.of(new UserAssignRoleReq.AssignItem(
+                "LOCAL_USER", "u:1", "FINANCE", "BASIC_ROLE", "r:1", 33L, null, null)))).isEmpty());
+    }
+
+    /** T-PERM-104（Q-057）：revoke 条目与 assign 同组键，标识码格式锁同款。 */
+    @Test
+    void revokeItemMustRejectMalformedIdentifierCodes() {
+        Validator validator = validatorFactory.getValidator();
+        assertFalse(validator.validate(new UserRoleBatchRevokeReq(List.of(new UserRoleBatchRevokeReq.RevokeItem(
+                "LOCAL_USER", "u-1", "FIN:ADMIN", "BASIC_ROLE", "r-1", null)))).isEmpty());
+        assertFalse(validator.validate(new UserRoleBatchRevokeReq(List.of(new UserRoleBatchRevokeReq.RevokeItem(
+                "LOCAL_USER", "u-1", "", "BASIC_ROLE", "r-1", null)))).isEmpty());
+        assertFalse(validator.validate(new UserRoleBatchRevokeReq(List.of(new UserRoleBatchRevokeReq.RevokeItem(
+                "LOCAL:USER", "u-1", null, "BASIC_ROLE", "r-1", null)))).isEmpty());
+        assertFalse(validator.validate(new UserRoleBatchRevokeReq(List.of(new UserRoleBatchRevokeReq.RevokeItem(
+                "LOCAL_USER", "u-1", null, "bas:ic", "r-1", null)))).isEmpty());
+        assertTrue(validator.validate(new UserRoleBatchRevokeReq(List.of(new UserRoleBatchRevokeReq.RevokeItem(
+                "LOCAL_USER", "u:1", "FINANCE", "BASIC_ROLE", "r:1", 33L)))).isEmpty());
+        assertTrue(validator.validate(new UserRoleBatchRevokeReq(List.of(new UserRoleBatchRevokeReq.RevokeItem(
+                "LOCAL_USER", "u-1", null, "BASIC_ROLE", "r-1", null)))).isEmpty());
+    }
+
+    /** T-PERM-104：batch-assign 请求级单值直传无拼接反解（无碰撞面），@Pattern 为入口族一致性对齐。 */
+    @Test
+    void batchAssignMustRejectMalformedIdentifierCodes() {
+        Validator validator = validatorFactory.getValidator();
+        assertFalse(validator.validate(new UserRoleBatchAssignReq(
+                List.of("u-1"), "USER", "FIN:ADMIN", "BASIC_ROLE", "r-1", null)).isEmpty());
+        assertFalse(validator.validate(new UserRoleBatchAssignReq(
+                List.of("u-1"), "USER", "", "BASIC_ROLE", "r-1", null)).isEmpty());
+        assertFalse(validator.validate(new UserRoleBatchAssignReq(
+                List.of("u-1"), "user", null, "BASIC_ROLE", "r-1", null)).isEmpty());
+        assertFalse(validator.validate(new UserRoleBatchAssignReq(
+                List.of("u-1"), "USER", null, "BAS:IC", "r-1", null)).isEmpty());
+        assertTrue(validator.validate(new UserRoleBatchAssignReq(
+                List.of("u-1"), "USER", "FINANCE", "BASIC_ROLE", "r:1", null)).isEmpty());
     }
 
     private static UserAssignRoleReq assignReq(Long relationId) {

@@ -162,38 +162,17 @@ public final class BusinessKeyUtil {
     // ---------------------------------------------------------------------
     // 单文件内部映射键（无跨类契约，统一口径防模仿裸拼）
     // ---------------------------------------------------------------------
-
-    /**
-     * 主体定位键：{@code subjectTypeCode:subjectExternalId}。
-     * <p>UserManageAppServiceImpl 批量解析 subject → abstractUserId 的映射键。</p>
-     */
-    public static String subjectKey(String subjectTypeCode, String subjectExternalId) {
-        return subjectTypeCode + ":" + subjectExternalId;
-    }
-
-    /**
-     * 角色定位键：{@code roleTypeCode:domainCode|"":roleExternalId}（domainCode 为 null 拼空串）。
-     * <p>UserManageAppServiceImpl 批量解析 role → roleId 的映射键。</p>
-     */
-    public static String roleKey(String roleTypeCode, String domainCode, String roleExternalId) {
-        return roleTypeCode + ":" + (domainCode == null ? "" : domainCode) + ":" + roleExternalId;
-    }
+    // subjectKey/roleKey/roleTypeDomainKey 三键已随 T-PERM-104 退役：UserManageAppServiceImpl
+    // （唯一消费方）改类内 record 元组键，拼接+split 反解形态的滑移碰撞面（Q-057）随之消除。
 
     /**
      * 用户-角色关系匹配键（含 relationId）：{@code abstractUserId:targetRoleId:relationId|"null"}。
      * <p>UserManageAppServiceImpl 分配装载/批内去重与批量撤销按 relationId 精确匹配共用
-     * （relationId 为 null 拼字面 {@code "null"}，两侧一致；二元旧键已随 T-ADMIN-030 退役）。</p>
+     * （relationId 为 null 拼字面 {@code "null"}，两侧一致；二元旧键已随 T-ADMIN-030 退役）。
+     * 全 Long 段拼接，无数文本段滑移面。</p>
      */
     public static String userRoleRelationIdKey(Long abstractUserId, Long targetRoleId, Long relationId) {
         return abstractUserId + ":" + targetRoleId + ":" + (relationId == null ? "null" : relationId.toString());
-    }
-
-    /**
-     * 角色类型×域分组键：{@code roleTypeCode:domainCode|""}（domainCode 为 null 拼空串）。
-     * <p>UserManageAppServiceImpl 批量按类型+域分组解析。</p>
-     */
-    public static String roleTypeDomainKey(String roleTypeCode, String domainCode) {
-        return roleTypeCode + ":" + (domainCode == null ? "" : domainCode);
     }
 
     /**

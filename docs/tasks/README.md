@@ -11,7 +11,7 @@
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
 | access-service 归并（跨服务） | `T-ACCESS` | 069 |
-| permission-center | `T-PERM` | 104 |
+| permission-center | `T-PERM` | 105 |
 | admin-service | `T-ADMIN` | 035 |
 | gateway | `T-GW` | 011 |
 | 组织/用户（跨 admin+perm） | `T-ORG` | 006 |
@@ -39,6 +39,7 @@
 | [T-PERM-098](T-PERM-098.md) | 操作位写入与准入消费一致性边界定案与收口（Q-050） | ✅ | — |
 | [T-PERM-099](T-PERM-099.md) | 删除类型所有者角色引用守卫（Q-023） | ✅（2026-10-03 收口：三拍板〔硬守卫整批拒绝/覆盖缺省引用/评审类推 sync 通道扩面收口〕+20073 挂 deleteRoles 与角色 sync/full-sync 两落点〔校准两段式防元数据漂移〕+契约 §10.3/§13.1/§19.4+红跑双证〔PgIT 3 红/sync 守卫禁用 2 红〕；Q-023 随卡收敛） | — |
 | [T-PERM-100](T-PERM-100.md) | sync 通道 codeType 归一与存量空白行处置（Q-031） | ✅（2026-10-03 收口：两拍板〔存量=无部署无存量不订正/寻址侧 TypeResolution 一并 trim 扩面〕+DTO 归一单源+normalizer 指纹同源+契约 §12.1/§19.1/§19.2/§19.7+红跑双证〔单测 3 红/PgIT 4 红〕+全量 -T 1C 4880 项 0 失败；Q-031 随卡收敛，组一收官。同日外评处置〔claude P3×2+codex sol P2×1 亲核成立〕：拍板同源收口补两遗漏寻址面——引擎装载 QueryReadSupport.defaultCodeType trim+manifest 键归一（去重/声明/指纹前），红跑 2 红，全量复跑 4884 项 0 失败；契约 §12.1 括注/§19.10 与任务卡残留清单同步） | — |
+| [T-PERM-104](T-PERM-104.md) | 用户角色分配/撤销入口角色定位键碰撞收口——入口 @Pattern + 键元组化（Q-057 转出） | ✅（2026-10-03 收口：拍板 C 双管齐下〔三写入口标识码 @Pattern+服务层三 record 元组键/BusinessKeyUtil 三键退役/split 反解删除〕；暴露面核实收敛两处〔subjectKey 无静默碰撞随批统一、batch-assign 无暴露一致性对齐〕；domainCode 空串改拒 400〔T-API-004 先例〕；红跑双证 5 红〔碰撞对 2「期望异常未抛」=静默错配实证+@Pattern 3〕；契约 §10.4 落账；全量 -T 1C 含 E2E/heavy BUILD SUCCESS 2448 项 0 失败；Q-057 随卡收敛） | — |
 | [T-ADMIN-031](T-ADMIN-031.md) | 菜单 create/delete 补树写互斥（Q-048） | ✅（2026-10-03 收口：两入口锁先于门禁与首次读取对齐 updateMenu/§17.1 + 单测锁 verify 2 用例旧实现红 + PgIT 确定性交错用例（删父事务提交前挂子）禁锁红跑实证孤儿窗口、恢复全绿 + 契约 §9.6 并发语义与 §17.1 清单回写；Q-048 随卡收敛） | — |
 | [T-ADMIN-032](T-ADMIN-032.md) | job cron 写前校验与调度失败可观测（Q-049） | ⚙️ | — |
 | [T-ORG-004](T-ORG-004.md) | 组织树配置根节点重叠守卫（Q-024） | ⚙️ | — |

@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
@@ -26,12 +27,17 @@ public record UserAssignRoleReq(
     /**
      * 分配条目
      *
+     * <p>类型码/域码三标识字段带 @Pattern（T-PERM-104，Q-057 碰撞收口）：值域与建域/建类型
+     * 入口同款锁死（不含分隔符），阻止 domainCode 含 ":" 经分组反解滑移构造静默错配；
+     * externalId 为尾段自由文本（建入口无格式约束），中段锁定后无滑移面。</p>
+     *
      * @param subjectTypeCode   用户类型编码，必填
      * @param subjectExternalId 用户外部标识，必填
      * @param domainCode        业务域编码：功能角色（BASIC_ROLE/PERSONAL）允许 null
      *                          表示全局域；ORG/POSITION 必填（由服务端跨字段业务校验保证，
      *                          见 access-service 的 UserManageAppServiceImpl 入口校验）；
-     *                          GROUP_ROLE 为拒绝类型（T-PERM-097 绑定面收紧，20022）
+     *                          GROUP_ROLE 为拒绝类型（T-PERM-097 绑定面收紧，20022）。
+     *                          空串不合法（须传 null 表示全局域，T-API-004 空串拒先例）
      * @param roleTypeCode      角色类型编码，必填
      * @param roleExternalId    角色外部标识，必填
      * @param relationId        关系ID，可选；须为正整数——0 与 null 在 uk_user_role
@@ -41,10 +47,15 @@ public record UserAssignRoleReq(
      * @param validTo           有效期结束时间，可选
      */
     public record AssignItem(
-        @NotBlank String subjectTypeCode,
+        @NotBlank
+        @Pattern(regexp = "^[A-Z][A-Z0-9_]*$", message = "主体类型编码必须以大写字母开头，仅含大写字母/数字/下划线")
+        String subjectTypeCode,
         @NotBlank String subjectExternalId,
+        @Pattern(regexp = "^[A-Z][A-Z0-9_]*$", message = "业务域编码必须以大写字母开头，仅含大写字母/数字/下划线")
         String domainCode,
-        @NotBlank String roleTypeCode,
+        @NotBlank
+        @Pattern(regexp = "^[A-Z][A-Z0-9_]*$", message = "角色类型编码必须以大写字母开头，仅含大写字母/数字/下划线")
+        String roleTypeCode,
         @NotBlank String roleExternalId,
         @Positive Long relationId,
         LocalDateTime validFrom,

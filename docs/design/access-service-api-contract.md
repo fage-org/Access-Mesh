@@ -117,7 +117,7 @@ last_reviewed: 2026-10-03
 | 角色      | `domainCode` + `roleTypeCode` + `roleExternalId`                | 对外接口使用外部角色标识；可被外部调用分配/授权的角色必须有 `externalId` |
 | 业务域    | `domainCode`                                                    | 可空；为空表示全局域                                                     |
 
-> **跨字段校验（assign/revoke，2026-06-15 M2 落地）**：`domainCode` 可空仅对**功能角色**（BASIC_ROLE / PERSONAL）成立——为空表示全局域（GROUP_ROLE 已为绑定拒绝类型，见 §10.5 T-PERM-097）。对 `roleTypeCode ∈ {ORG, POSITION}` 的组织/岗位角色，`domainCode` **必填**（标识所属业务域）。服务端 `UserManageAppServiceImpl.assignRole/assignRolesBatch/revokeRolesBatch` 通过 Feature flag `permission.assign.strict-domain-check`（默认 `true`）强制：`strict-domain-check=true` 时违反上述约束抛 `BizException`；`false` 时仅兜底为空串放行（上线灰度用）。
+> **跨字段校验（assign/revoke，2026-06-15 M2 落地）**：`domainCode` 可空仅对**功能角色**（BASIC_ROLE / PERSONAL）成立——为空表示全局域（GROUP_ROLE 已为绑定拒绝类型，见 §10.5 T-PERM-097）。对 `roleTypeCode ∈ {ORG, POSITION}` 的组织/岗位角色，`domainCode` **必填**（标识所属业务域）。服务端 `UserManageAppServiceImpl.assignRole/assignRolesBatch/revokeRolesBatch` 通过 Feature flag `permission.assign.strict-domain-check`（默认 `true`）强制：`strict-domain-check=true` 时违反上述约束抛 `BizException`；`false` 时仅兜底为空串放行（上线灰度用）。「为空」= 显式 `null`——空串自 T-PERM-104 起在 Bean Validation 层 400 拒绝（标识码格式锁与空串语义见 §10.4）。
 
 | 资源      | `domainCode` + `resourceTypeCode` + `resourceCode` + `codeType` | `codeType` 默认 `default`                                                |
 | 操作      | `operationCode`                                                 | 在 `resourceTypeCode` 范围内解析（操作定义按类型隔离，全局操作已退役）；入参大写（@Pattern，见下方 T-PERM-066 注记） |
@@ -1107,6 +1107,8 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 **重指派语义（T-ADMIN-030，2026-10-02）**：`assign` 与 `batch-assign` 按同租户的用户、角色和 `relationId` 定位未删除绑定，装载包含已过期及尚未生效的行。相同关系且 `validFrom`、`validTo` 都相同则幂等跳过；`relationId=null` 的有效期变化更新原行；不同关系新增，保留其他关系的旧行；非空相同关系的有效期变化整批拒绝 `VALIDATION_FAILED(20027)`，提示先撤销再分配，不覆盖旧行或放宽唯一约束。`assign` 使用请求中的有效期，`batch-assign` 的目标有效期固定为 `null/null`（无限期），因此 null 关系的有限期绑定会改为无限期。先撤销再分配仍可恢复。sync/full-sync 多重集语义不在本次变更范围。
 
 `relationId` 三个写入口（assign 条目 / batch-assign / batch-revoke 条目）均为 `@Positive`：0 与 null 在 `uk_user_role（COALESCE(relation_id,0)）`同槽位而内存键区分，0 会形成 null 侧分配/撤销全部冲突或查不到的持粘行，HTTP 层 400 拒绝（T-ADMIN-030 外评处置，2026-10-02 拍板）。`assign` 条目倒置区间（`validFrom > validTo`）整批拒绝 20027——改写既有有效绑定为永不生效窗口等同静默失权（同日拍板）。
+
+**标识码格式锁（T-PERM-104，2026-10-03 拍板 C 双管齐下，Q-057 碰撞收口）**：三个写入口的 `subjectTypeCode` / `roleTypeCode` / `domainCode` 一律 `@Pattern("^[A-Z][A-Z0-9_]*$")`（与建域/建类型入口同款），畸形值 HTTP 层 400。背景：分配/撤销链路曾以 `roleTypeCode:domainCode` 拼串分组后 `split(":")` 反解、`roleTypeCode:domainCode:roleExternalId` 拼串回读——`domainCode` 含 `:` 时分组反解静默改写解析参数（域不存在检查被滑移参数绕过）、回读键可与其他条目构造滑移撞键（如 `(BASIC_ROLE,"FIN","admin:x")` 与 `(BASIC_ROLE,"FIN:admin","x")` 同键），后者静默取到前者解析的角色，授权/撤销结果与请求不符且无报错、操作日志按请求原文记录事后不可审计。修复双层：入口 @Pattern 挡畸形值（清晰 400 指向格式）；服务层分组/回读键改 record 元组键逐字段比对（`split` 反解删除，`BusinessKeyUtil.subjectKey/roleKey/roleTypeDomainKey` 三键退役），畸形值即使漏过校验也按不存在域/类型显式报「角色不存在/用户不存在」而非错配。**`domainCode` 空串语义变化**：空串从「视为 null（全局域）」改为 400 拒绝——全局域语义须显式传 `null`（T-API-004 空串拒先例）。`subjectExternalId` / `roleExternalId` 保持自由文本（建入口无格式约束；中段锁定后尾段无滑移面）。注解经 perm-common 单源契约同步 SDK 消费方（`PermCommonReqContractTest` 注解签名快照守卫）。
 
 更新沿用 `ROLE:MANAGE` 门禁与本地投影保护（投影行无论关系是否为空统一 `LOCAL_PROJECTION_IMMUTABLE(20045)`，先于 20027 改期拒绝）；仅修改有效期、更新人及更新时间，保留行 ID、创建审计字段和关系。更新在入口事务内先落库，互斥守卫据 DB 新鲜读检查更新后的持有窗口与本批新增，其他关系提供的窗口继续参与；互斥冲突仍为 `20062`，本批更新与新增一同回滚。装载与更新之间目标行被并发软删/改所有权/改关系时更新行数不齐，整批回滚并返回 `USER_ROLE_CONCURRENT_CONFLICT(20072)`（并发冲突语义，客户端重新装载后重试，对齐 20058 先例）。真实变更登记受影响用户，经 `@PermissionChange` 提交后失效；完全相同的重试不写入、不刷新审计时间。
 

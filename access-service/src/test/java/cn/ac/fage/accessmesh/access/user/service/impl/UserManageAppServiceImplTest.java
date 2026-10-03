@@ -38,6 +38,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -94,6 +95,99 @@ class UserManageAppServiceImplTest {
 
             assertEquals(AccessErrorCode.USER_ROLE_RELATION_NOT_FOUND.getCode(), exception.getErrorCode());
         }
+    }
+
+    /** T-PERM-104（Q-057）：domainCode 含 ":" 滑移撞键——旧拼接+split 反解实现下 B 项静默取到 A 解析的角色并落库。 */
+    @Test
+    void assignMustNotSilentlyCrossMatchWhenDomainCodeContainsDelimiter() {
+        // A=(BASIC_ROLE,FIN,admin:x) 命中角色 10；B=(BASIC_ROLE,FIN:admin,x)——域 FIN:admin 不存在
+        UserAssignRoleReq req = new UserAssignRoleReq(List.of(
+            new UserAssignRoleReq.AssignItem("LOCAL_USER", "u-1", "FIN", "BASIC_ROLE", "admin:x", null, null, null),
+            new UserAssignRoleReq.AssignItem("LOCAL_USER", "u-2", "FIN:admin", "BASIC_ROLE", "x", null, null, null)));
+
+        when(typeResolutionService.batchResolveTypeValues(eq(1L), eq("role_type"), eq(Set.of("BASIC_ROLE"))))
+            .thenReturn(Map.of());
+        when(typeResolutionService.batchResolveUserIds(eq(1L), eq("LOCAL_USER"), eq(Set.of("u-1", "u-2"))))
+            .thenReturn(Map.of("u-1", 20L, "u-2", 21L));
+        // 新实现（元组键）：B 组按 (BASIC_ROLE,"FIN:admin") 原样解析——域不存在返回空 → B 回读 miss 整批拒绝
+        when(typeResolutionService.batchResolveRoleIds(eq(1L), eq("BASIC_ROLE"), eq(Set.of("admin:x")), eq("FIN")))
+            .thenReturn(Map.of("admin:x", 10L));
+        when(typeResolutionService.batchResolveRoleIds(eq(1L), eq("BASIC_ROLE"), eq(Set.of("x")), eq("FIN:admin")))
+            .thenReturn(Map.of());
+        // 旧实现（拼接+split）滑移态：B 分组键 "BASIC_ROLE:FIN:admin" 反解为 (BASIC_ROLE,"FIN")，命中 11 后
+        // 回读拼出 "BASIC_ROLE:FIN:admin:x" 撞 A 写入键，静默拿到角色 10 绑给 u-2（红跑实证用桩）
+        lenient().when(typeResolutionService.batchResolveRoleIds(eq(1L), eq("BASIC_ROLE"), eq(Set.of("x")), eq("FIN")))
+            .thenReturn(Map.of("x", 11L));
+
+        try (MockedStatic<OperatorContext> operatorContext = org.mockito.Mockito.mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE), eq(Set.of("10")), eq(OperationCode.MANAGE)))
+                .thenReturn(Set.of());
+            when(subjectDomainService.selectValidUserRolesByUserIdsAndTargetIds(eq(1L), eq(Set.of(20L, 21L)), eq(Set.of(10L)), eq(ResourceTypeCode.ROLE)))
+                .thenReturn(List.<UserRole>of());
+
+            BizException exception = assertThrows(BizException.class, () -> service.assignRole(1L, req));
+
+            assertEquals(AccessErrorCode.VALIDATION_FAILED.getCode(), exception.getErrorCode());
+            org.junit.jupiter.api.Assertions.assertTrue(exception.getMessage().contains("Role not found: BASIC_ROLE/x"),
+                "B 项须显式报角色不存在，而非静默错配；实际: " + exception.getMessage());
+            verify(subjectDomainService, never()).insertUserRoles(any());
+        }
+    }
+
+    /** T-PERM-104（Q-057）revoke 同款：旧实现下 B 项撞键命中 u2↔角色10 绑定静默错删，新实现显式 ROLE_NOT_FOUND 整批拒绝。 */
+    @Test
+    void revokeMustNotSilentlyCrossMatchWhenDomainCodeContainsDelimiter() {
+        UserRoleBatchRevokeReq req = new UserRoleBatchRevokeReq(List.of(
+            new UserRoleBatchRevokeReq.RevokeItem("LOCAL_USER", "u-1", "FIN", "BASIC_ROLE", "admin:x", null),
+            new UserRoleBatchRevokeReq.RevokeItem("LOCAL_USER", "u-2", "FIN:admin", "BASIC_ROLE", "x", null)));
+
+        when(typeResolutionService.batchResolveUserIds(eq(1L), eq("LOCAL_USER"), eq(Set.of("u-1", "u-2"))))
+            .thenReturn(Map.of("u-1", 20L, "u-2", 21L));
+        when(typeResolutionService.batchResolveRoleIds(eq(1L), eq("BASIC_ROLE"), eq(Set.of("admin:x")), eq("FIN")))
+            .thenReturn(Map.of("admin:x", 10L));
+        // 新实现（元组键）：B 组按 (BASIC_ROLE,"FIN:admin") 原样解析——域不存在返回空 → B 回读 miss 整批拒绝
+        when(typeResolutionService.batchResolveRoleIds(eq(1L), eq("BASIC_ROLE"), eq(Set.of("x")), eq("FIN:admin")))
+            .thenReturn(Map.of());
+        // 旧实现（拼接+split）滑移态：B 分组键反解为 (BASIC_ROLE,"FIN")，回读拼出 "BASIC_ROLE:FIN:admin:x"
+        // 撞 A 写入键静默拿到角色 10 → 命中 u2↔10 存量绑定 → 错删（红跑实证用桩）
+        lenient().when(typeResolutionService.batchResolveRoleIds(eq(1L), eq("BASIC_ROLE"), eq(Set.of("x")), eq("FIN")))
+            .thenReturn(Map.of("x", 11L));
+
+        UserRole relU1 = userRole(1L, 20L, 10L, null);
+        UserRole relU2 = userRole(2L, 21L, 10L, null);
+
+        try (MockedStatic<OperatorContext> operatorContext = org.mockito.Mockito.mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE), eq(Set.of("10")), eq(OperationCode.MANAGE)))
+                .thenReturn(Set.of());
+            when(subjectDomainService.selectValidRolesByIds(eq(1L), eq(Set.of(10L)))).thenReturn(List.of());
+            // 新实现：B 项 roleId 回读 miss 不入装载集（allUserIds 仅 A 的 20）
+            when(subjectDomainService.selectValidUserRolesByUserIdsTypeAndTargetIds(eq(1L), eq(Set.of(20L)), eq(ResourceTypeCode.ROLE), eq(Set.of(10L))))
+                .thenReturn(List.of(relU1, relU2));
+            // 旧实现滑移态装载：B 撞键入集（allUserIds={20,21}），B 命中 u2↔10 行进入删除清单
+            lenient().when(subjectDomainService.selectValidUserRolesByUserIdsTypeAndTargetIds(eq(1L), eq(Set.of(20L, 21L)), eq(ResourceTypeCode.ROLE), eq(Set.of(10L))))
+                .thenReturn(List.of(relU1, relU2));
+
+            BizException exception = assertThrows(BizException.class, () -> service.revokeRolesBatch(1L, req));
+
+            assertEquals(AccessErrorCode.ROLE_NOT_FOUND.getCode(), exception.getErrorCode());
+            org.junit.jupiter.api.Assertions.assertTrue(exception.getMessage().contains("Role not found: BASIC_ROLE/x"),
+                "B 项须显式报角色不存在，而非静默删错绑定；实际: " + exception.getMessage());
+            verify(subjectDomainService, never()).softDeleteUserRolesBatch(any(), any(), any());
+        }
+    }
+
+    private static UserRole userRole(Long id, Long userId, Long roleId, Long relationId) {
+        UserRole ur = new UserRole();
+        ur.setId(id);
+        ur.setTenantId(1L);
+        ur.setAbstractUserId(userId);
+        ur.setTargetType(ResourceTypeCode.ROLE);
+        ur.setTargetId(roleId);
+        ur.setRelationId(relationId);
+        ur.setDeleteFlag(0L);
+        return ur;
     }
 
     /** T-ACCESS-019：createUser 同事务维护 resource_entity(USER) 投影（code=subjectId）并登记变更日志。 */

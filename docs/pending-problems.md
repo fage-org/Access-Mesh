@@ -29,18 +29,6 @@ last_updated: 2026-10-03
 
 **设想方向（未定案）**：删除两个死方法（对齐 Q-010 死方法顺带清理先例），或保留并加「仅限持锁编排内调用」注记；随清单批次评估。
 
-<a id="q-057"></a>
-## Q-057 用户角色分配入口的 roleKey/subjectKey 拼接与 roleTypeDomainKey+split 反解可构造碰撞
-
-- **状态**：open
-- **登记**：2026-10-01
-- **来源**：T-PERM-096 收口后外评（claude P3，逐条核实成立）；[Q-044](#q-044) 同型
-- **关联**：[T-PERM-096](tasks/T-PERM-096.md)（类推声明口径修正触发）；P2（授权结果与请求不符且无报错）
-
-**现象与证据**：`UserManageAppServiceImpl` 的 assign/revoke 链路以拼接串做内存映射并反解：`roleTypeDomainKey(roleTypeCode, domainCode)` 拼 `:` 分组后 `split(":")` 反解（[UserManageAppServiceImpl.java:414-435](../access-service/src/main/java/cn/ac/fage/accessmesh/access/user/service/impl/UserManageAppServiceImpl.java)）；`roleKey(typeCode, domainCode, externalId)`/`subjectKey(typeCode, externalId)` 构造与回读（:426/:440/:447/:462/:485/:491/:565/:585）。分配入口 `UserAssignRoleReq.AssignItem` 对 `subjectTypeCode`/`roleTypeCode`/`domainCode` 仅 `@NotBlank` 无 `@Pattern`（域码 @Pattern 只在建域入口 `BizDomainCreateReq` 生效，分配不复用）；`roleExternalId`/`subjectExternalId` 为自由文本（建角色 externalId 无 pattern）。
-
-**影响与边界**：同批请求可构造 `(BASIC_ROLE,"X:Y","z")` 与 `(BASIC_ROLE,"X","Y:z")` 同键——A 静默取到 B 解析出的角色 id，授权结果与请求不符且无报错（比 fail-closed 拒绝更难发现）；操作日志按请求原文记录，事后不可从日志发现。受操作者 MANAGE 门禁约束（须对实际命中角色有 MANAGE），非越权提权，属数据正确性/审计可信度问题。T-PERM-096 收口时曾声明「roleKey/subjectKey 无碰撞形态」，该声明前提（入口受 @Pattern）不成立，已随本条订正。修法方向：分配入口对类型码/域码补格式校验（与建域/建类型同 pattern），或分组映射改结构化元组取消 split 反解；涉写入口校验语义，随问题清单批次评估。
-
 <a id="q-056"></a>
 ## Q-056 apiRouteResourceKey 拼接存在 Q-044 同型理论碰撞面
 
@@ -341,6 +329,7 @@ last_updated: 2026-10-03
 
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
+| <a id="q-057"></a>Q-057 | 用户角色分配入口的 roleKey/subjectKey 拼接与 roleTypeDomainKey+split 反解可构造碰撞 | 已修复（随 T-PERM-104 收敛，2026-10-03 拍板 C 双管齐下）：三写入口标识码 `subjectTypeCode`/`roleTypeCode`/`domainCode` 补 @Pattern（^[A-Z][A-Z0-9_]*$，与建域/建类型入口同款；`domainCode` 空串从「视为 null」改拒 400——全局域须显式传 null）+ 服务层分组/回读键改 record 元组键（split 反解删除，`BusinessKeyUtil.subjectKey/roleKey/roleTypeDomainKey` 三键退役）；核实修正登记口径两处（subjectKey 侧无静默碰撞随批统一元组化、batch-assign 链路无暴露——注解为入口族一致性对齐）；碰撞对回归锁旧实现实证红 2（「期望异常未抛」=静默错配形态）+ @Pattern 用例红 3；契约 §10.4 落账 | [T-PERM-104](tasks/T-PERM-104.md) | 2026-10-03 |
 | <a id="q-048-closed"></a>Q-048 | 菜单创建、删除缺树写互斥 | 已修复；createMenu/deleteMenu 补 SYS_MENU 树写锁（锁先于门禁与首次树读取，对齐 updateMenu 与 §17.1 锁序），并发「删父+挂子」两方向交错分别收敛为 10201/10204；契约与验证见关联任务 | [T-ADMIN-031](tasks/T-ADMIN-031.md) | 2026-10-03 |
 | <a id="q-031"></a>Q-031 | 同步资源 codeType 与业务键归一不一致 | 已修复；契约与验证见关联任务（T-PERM-100 两拍板：存量=无部署无存量不订正、寻址侧 TypeResolution 一并 trim 扩面；写入/寻址/发布指纹同源归一，契约 §12.1/§19.1/§19.2/§19.7） | [T-PERM-100](tasks/T-PERM-100.md) | 2026-10-03 |
 | <a id="q-023"></a>Q-023 | 删除类型所有者角色缺引用守卫或提示 | 已修复；契约与验证见关联任务（T-PERM-099 三拍板：硬守卫整批拒绝+覆盖缺省引用+sync 通道扩面收口；契约 §10.3/§13.1/§19.4） | [T-PERM-099](tasks/T-PERM-099.md) | 2026-10-03 |

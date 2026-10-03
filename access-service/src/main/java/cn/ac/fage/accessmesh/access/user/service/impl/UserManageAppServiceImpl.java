@@ -440,41 +440,41 @@ public class UserManageAppServiceImpl implements UserManageAppService {
                 UserAssignRoleReq.AssignItem::subjectTypeCode,
                 Collectors.mapping(UserAssignRoleReq.AssignItem::subjectExternalId, Collectors.toSet())
             ));
-        Map<String, Set<String>> roleExternalIdsByTypeAndDomain = req.items().stream()
+        // T-PERM-104：分组/回读键为结构化元组（record 逐字段比对），替代拼接串+split 反解——
+        // 拼接形态下 domainCode 含 ":" 时反解滑移会静默改写解析参数并与其他条目撞键（Q-057）
+        Map<RoleTypeDomainKey, Set<String>> roleExternalIdsByTypeAndDomain = req.items().stream()
             .collect(Collectors.groupingBy(
-                item -> BusinessKeyUtil.roleTypeDomainKey(item.roleTypeCode(), item.domainCode()),
+                item -> new RoleTypeDomainKey(item.roleTypeCode(), item.domainCode()),
                 Collectors.mapping(UserAssignRoleReq.AssignItem::roleExternalId, Collectors.toSet())
             ));
 
-        Map<String, Long> userIdMap = new HashMap<>();
+        Map<SubjectKey, Long> userIdMap = new HashMap<>();
         for (Map.Entry<String, Set<String>> entry : userExternalIdsByType.entrySet()) {
             Map<String, Long> partialMap = typeResolutionService.batchResolveUserIds(
                 tenantId, entry.getKey(), entry.getValue());
             userIdMap.putAll(partialMap.entrySet().stream()
                 .collect(Collectors.toMap(
-                    e -> BusinessKeyUtil.subjectKey(entry.getKey(), e.getKey()),
+                    e -> new SubjectKey(entry.getKey(), e.getKey()),
                     Map.Entry::getValue
                 )));
         }
 
-        Map<String, Long> roleIdMap = new HashMap<>();
-        for (Map.Entry<String, Set<String>> entry : roleExternalIdsByTypeAndDomain.entrySet()) {
-            String[] parts = entry.getKey().split(":");
-            String roleTypeCode = parts[0];
-            String domainCode = parts.length > 1 && !parts[1].isEmpty() ? parts[1] : null;
+        Map<RoleKey, Long> roleIdMap = new HashMap<>();
+        for (Map.Entry<RoleTypeDomainKey, Set<String>> entry : roleExternalIdsByTypeAndDomain.entrySet()) {
+            String roleTypeCode = entry.getKey().roleTypeCode();
+            String domainCode = entry.getKey().domainCode();
             Map<String, Long> partialMap = typeResolutionService.batchResolveRoleIds(
                 tenantId, roleTypeCode, entry.getValue(), domainCode);
             roleIdMap.putAll(partialMap.entrySet().stream()
                 .collect(Collectors.toMap(
-                    e -> BusinessKeyUtil.roleKey(roleTypeCode, domainCode, e.getKey()),
+                    e -> new RoleKey(roleTypeCode, domainCode, e.getKey()),
                     Map.Entry::getValue
                 )));
         }
 
         Set<Long> targetRoleIds = new LinkedHashSet<>();
         for (UserAssignRoleReq.AssignItem item : req.items()) {
-            String roleKey = BusinessKeyUtil.roleKey(item.roleTypeCode(), item.domainCode(), item.roleExternalId());
-            Long targetRoleId = roleIdMap.get(roleKey);
+            Long targetRoleId = roleIdMap.get(new RoleKey(item.roleTypeCode(), item.domainCode(), item.roleExternalId()));
             if (targetRoleId != null) {
                 targetRoleIds.add(targetRoleId);
             }
@@ -488,8 +488,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
 
         Set<Long> allUserIds = new LinkedHashSet<>();
         for (UserAssignRoleReq.AssignItem item : req.items()) {
-            String userKey = BusinessKeyUtil.subjectKey(item.subjectTypeCode(), item.subjectExternalId());
-            Long userId = userIdMap.get(userKey);
+            Long userId = userIdMap.get(new SubjectKey(item.subjectTypeCode(), item.subjectExternalId()));
             if (userId != null) {
                 allUserIds.add(userId);
             }
@@ -511,15 +510,13 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         LocalDateTime now = LocalDateTime.now();
 
         for (UserAssignRoleReq.AssignItem item : req.items()) {
-            String userKey = BusinessKeyUtil.subjectKey(item.subjectTypeCode(), item.subjectExternalId());
-            Long abstractUserId = userIdMap.get(userKey);
+            Long abstractUserId = userIdMap.get(new SubjectKey(item.subjectTypeCode(), item.subjectExternalId()));
             if (abstractUserId == null) {
                 errors.add("User not found: " + item.subjectTypeCode() + "/" + item.subjectExternalId());
                 continue;
             }
 
-            String roleKey = BusinessKeyUtil.roleKey(item.roleTypeCode(), item.domainCode(), item.roleExternalId());
-            Long targetRoleId = roleIdMap.get(roleKey);
+            Long targetRoleId = roleIdMap.get(new RoleKey(item.roleTypeCode(), item.domainCode(), item.roleExternalId()));
             if (targetRoleId == null) {
                 errors.add("Role not found: " + item.roleTypeCode() + "/" + item.roleExternalId());
                 continue;
@@ -577,9 +574,10 @@ public class UserManageAppServiceImpl implements UserManageAppService {
 
         Map<String, Long> userIdMap = typeResolutionService.batchResolveUserIds(
             tenantId, req.subjectTypeCode(), new LinkedHashSet<>(req.subjectExternalIds()));
-        Map<String, Long> fullUserIdMap = userIdMap.entrySet().stream()
+        // T-PERM-104：回读键为结构化元组（与 assignRole 同款，Q-057 碰撞收口）
+        Map<SubjectKey, Long> fullUserIdMap = userIdMap.entrySet().stream()
             .collect(Collectors.toMap(
-                e -> BusinessKeyUtil.subjectKey(req.subjectTypeCode(), e.getKey()),
+                e -> new SubjectKey(req.subjectTypeCode(), e.getKey()),
                 Map.Entry::getValue
             ));
 
@@ -599,8 +597,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         Set<Long> allUserIds = new LinkedHashSet<>();
         List<String> userNotFoundErrors = new ArrayList<>();
         for (String subjectExternalId : req.subjectExternalIds()) {
-            String userKey = BusinessKeyUtil.subjectKey(req.subjectTypeCode(), subjectExternalId);
-            Long userId = fullUserIdMap.get(userKey);
+            Long userId = fullUserIdMap.get(new SubjectKey(req.subjectTypeCode(), subjectExternalId));
             if (userId == null) {
                 userNotFoundErrors.add("User not found: " + req.subjectTypeCode() + "/" + subjectExternalId);
             } else {
@@ -627,8 +624,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         LocalDateTime now = LocalDateTime.now();
 
         for (String subjectExternalId : req.subjectExternalIds()) {
-            String userKey = BusinessKeyUtil.subjectKey(req.subjectTypeCode(), subjectExternalId);
-            Long abstractUserId = fullUserIdMap.get(userKey);
+            Long abstractUserId = fullUserIdMap.get(new SubjectKey(req.subjectTypeCode(), subjectExternalId));
             if (abstractUserId == null) {
                 continue;
             }
@@ -646,6 +642,29 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             PermissionChangeContext.markUsers(tenantId, affectedUserIds);
         }
     }
+
+    /**
+     * 角色类型×域分组键（T-PERM-104 结构化元组，Q-057 碰撞收口）。
+     * <p>替代拼接键 {@code roleTypeCode:domainCode} + split 反解：domainCode 含 ":" 时
+     * 反解滑移会静默改写解析参数（域不存在检查被绕过）；元组逐字段比对，构造与回读
+     * 两侧同源无歧义。domainCode null 原样保留（功能角色全局域）。</p>
+     */
+    private record RoleTypeDomainKey(String roleTypeCode, String domainCode) {}
+
+    /**
+     * 角色定位键（T-PERM-104 结构化元组，Q-057 碰撞收口）。
+     * <p>替代拼接键 {@code roleTypeCode:domainCode|"":roleExternalId}：中段 domainCode
+     * 与尾段 roleExternalId 均可为含 ":" 的自由文本，拼接形态可构造滑移撞键
+     * （(T,"FIN","admin:x") 与 (T,"FIN:admin","x") 同串）；元组逐字段比对无歧义。</p>
+     */
+    private record RoleKey(String roleTypeCode, String domainCode, String roleExternalId) {}
+
+    /**
+     * 主体定位键（T-PERM-104 结构化元组，Q-057 碰撞收口）。
+     * <p>替代拼接键 {@code subjectTypeCode:subjectExternalId}；主体侧现无静默碰撞
+     * （类型码含 ":" 解析必 miss），随 roleKey/roleTypeDomainKey 同批元组化消除拼串键类。</p>
+     */
+    private record SubjectKey(String subjectTypeCode, String subjectExternalId) {}
 
     /**
      * 两种分配入口共享：关系键区分绑定，非空关系改期拒绝，null 关系改期更新。
@@ -741,21 +760,22 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             .map(UserRoleBatchRevokeReq.RevokeItem::roleExternalId)
             .filter(id -> id != null && !id.isBlank())
             .collect(Collectors.toSet());
-        Map<String, Set<String>> roleExternalIdsByTypeAndDomain = req.items().stream()
+        // T-PERM-104：分组/回读键为结构化元组（与 assignRole 同款，Q-057 碰撞收口）——
+        // domainCode 含 ":" 时旧拼接+split 反解会滑移改写解析参数并与其他条目撞键静默错删
+        Map<RoleTypeDomainKey, Set<String>> roleExternalIdsByTypeAndDomain = req.items().stream()
             .collect(Collectors.groupingBy(
-                item -> BusinessKeyUtil.roleTypeDomainKey(item.roleTypeCode(), item.domainCode()),
+                item -> new RoleTypeDomainKey(item.roleTypeCode(), item.domainCode()),
                 Collectors.mapping(UserRoleBatchRevokeReq.RevokeItem::roleExternalId, Collectors.toSet())
             ));
-        Map<String, Long> roleIdMap = new HashMap<>();
-        for (Map.Entry<String, Set<String>> entry : roleExternalIdsByTypeAndDomain.entrySet()) {
-            String[] parts = entry.getKey().split(":");
-            String roleTypeCode = parts[0];
-            String domainCode = parts.length > 1 && !parts[1].isEmpty() ? parts[1] : null;
+        Map<RoleKey, Long> roleIdMap = new HashMap<>();
+        for (Map.Entry<RoleTypeDomainKey, Set<String>> entry : roleExternalIdsByTypeAndDomain.entrySet()) {
+            String roleTypeCode = entry.getKey().roleTypeCode();
+            String domainCode = entry.getKey().domainCode();
             Map<String, Long> partialMap = typeResolutionService.batchResolveRoleIds(
                 tenantId, roleTypeCode, entry.getValue(), domainCode);
             roleIdMap.putAll(partialMap.entrySet().stream()
                 .collect(Collectors.toMap(
-                    e -> BusinessKeyUtil.roleKey(roleTypeCode, domainCode, e.getKey()),
+                    e -> new RoleKey(roleTypeCode, domainCode, e.getKey()),
                     Map.Entry::getValue
                 )));
         }
@@ -765,21 +785,20 @@ public class UserManageAppServiceImpl implements UserManageAppService {
                 UserRoleBatchRevokeReq.RevokeItem::subjectTypeCode,
                 Collectors.mapping(UserRoleBatchRevokeReq.RevokeItem::subjectExternalId, Collectors.toSet())
             ));
-        Map<String, Long> userIdMap = new HashMap<>();
+        Map<SubjectKey, Long> userIdMap = new HashMap<>();
         for (Map.Entry<String, Set<String>> entry : userExternalIdsByType.entrySet()) {
             Map<String, Long> partialMap = typeResolutionService.batchResolveUserIds(
                 tenantId, entry.getKey(), entry.getValue());
             userIdMap.putAll(partialMap.entrySet().stream()
                 .collect(Collectors.toMap(
-                    e -> BusinessKeyUtil.subjectKey(entry.getKey(), e.getKey()),
+                    e -> new SubjectKey(entry.getKey(), e.getKey()),
                     Map.Entry::getValue
                 )));
         }
 
         Set<Long> targetRoleIds = new LinkedHashSet<>();
         for (UserRoleBatchRevokeReq.RevokeItem item : req.items()) {
-            String roleKey = BusinessKeyUtil.roleKey(item.roleTypeCode(), item.domainCode(), item.roleExternalId());
-            Long targetRoleId = roleIdMap.get(roleKey);
+            Long targetRoleId = roleIdMap.get(new RoleKey(item.roleTypeCode(), item.domainCode(), item.roleExternalId()));
             if (targetRoleId != null) {
                 targetRoleIds.add(targetRoleId);
             }
@@ -798,10 +817,8 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         Set<Long> allUserIds = new LinkedHashSet<>();
         Set<Long> allRoleIds = new LinkedHashSet<>();
         for (UserRoleBatchRevokeReq.RevokeItem item : req.items()) {
-            String userKey = BusinessKeyUtil.subjectKey(item.subjectTypeCode(), item.subjectExternalId());
-            Long abstractUserId = userIdMap.get(userKey);
-            String roleKey = BusinessKeyUtil.roleKey(item.roleTypeCode(), item.domainCode(), item.roleExternalId());
-            Long targetRoleId = roleIdMap.get(roleKey);
+            Long abstractUserId = userIdMap.get(new SubjectKey(item.subjectTypeCode(), item.subjectExternalId()));
+            Long targetRoleId = roleIdMap.get(new RoleKey(item.roleTypeCode(), item.domainCode(), item.roleExternalId()));
             if (abstractUserId != null && targetRoleId != null) {
                 allUserIds.add(abstractUserId);
                 allRoleIds.add(targetRoleId);
@@ -826,13 +843,11 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         LocalDateTime now = LocalDateTime.now();
 
         for (UserRoleBatchRevokeReq.RevokeItem item : req.items()) {
-            String userKey = BusinessKeyUtil.subjectKey(item.subjectTypeCode(), item.subjectExternalId());
-            Long abstractUserId = userIdMap.get(userKey);
+            Long abstractUserId = userIdMap.get(new SubjectKey(item.subjectTypeCode(), item.subjectExternalId()));
             if (abstractUserId == null) {
                 throw new BizException(AccessErrorCode.PERM_USER_NOT_FOUND.getCode(), "User not found: " + item.subjectTypeCode() + "/" + item.subjectExternalId());
             }
-            String roleKey = BusinessKeyUtil.roleKey(item.roleTypeCode(), item.domainCode(), item.roleExternalId());
-            Long targetRoleId = roleIdMap.get(roleKey);
+            Long targetRoleId = roleIdMap.get(new RoleKey(item.roleTypeCode(), item.domainCode(), item.roleExternalId()));
             if (targetRoleId == null) {
                 throw new BizException(AccessErrorCode.ROLE_NOT_FOUND.getCode(), "Role not found: " + item.roleTypeCode() + "/" + item.roleExternalId());
             }

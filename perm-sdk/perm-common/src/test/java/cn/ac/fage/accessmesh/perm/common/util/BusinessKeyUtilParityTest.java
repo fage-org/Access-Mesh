@@ -60,6 +60,9 @@ class BusinessKeyUtilParityTest {
     // 的 golden 已随 T-PERM-096 元组化退役删除——四个内存索引键构造器从 BusinessKeyUtil 移除
     // （前三个改结构化 record 键、resourceTripleValueKey 消费方先期已改 TripleKey record），
     // 碰撞对回归锁在各消费方测试。
+    // 注：subjectKey / roleKey / roleTypeDomainKey 的 golden 已随 T-PERM-104 元组化退役删除——
+    // 三个用户角色定位键构造器从 BusinessKeyUtil 移除（唯一消费方 UserManageAppServiceImpl 改
+    // 类内 record 元组键，Q-057 滑移碰撞收口），碰撞对回归锁在 UserManageAppServiceImplTest。
 
     @Test
     void relationKeyRoundTripShouldLockContractFormat() {
@@ -79,26 +82,9 @@ class BusinessKeyUtilParityTest {
     }
 
     @Test
-    void subjectKeyShouldLockSubjectFormat() {
-        assertThat(BusinessKeyUtil.subjectKey("USER", "u-1")).isEqualTo("USER:u-1");
-    }
-
-    @Test
-    void roleKeyShouldLockEmptyDomainSemantics() {
-        assertThat(BusinessKeyUtil.roleKey("BASIC_ROLE", "HR", "r-9")).isEqualTo("BASIC_ROLE:HR:r-9");
-        assertThat(BusinessKeyUtil.roleKey("BASIC_ROLE", null, "r-9")).isEqualTo("BASIC_ROLE::r-9");
-    }
-
-    @Test
     void userRoleRelationIdKeyShouldLockLiteralNullSentinel() {
         assertThat(BusinessKeyUtil.userRoleRelationIdKey(11L, 22L, 33L)).isEqualTo("11:22:33");
         assertThat(BusinessKeyUtil.userRoleRelationIdKey(11L, 22L, null)).isEqualTo("11:22:null");
-    }
-
-    @Test
-    void roleTypeDomainKeyShouldLockEmptyDomainSemantics() {
-        assertThat(BusinessKeyUtil.roleTypeDomainKey("BASIC_ROLE", "HR")).isEqualTo("BASIC_ROLE:HR");
-        assertThat(BusinessKeyUtil.roleTypeDomainKey("BASIC_ROLE", null)).isEqualTo("BASIC_ROLE:");
     }
 
     @Test
@@ -150,7 +136,6 @@ class BusinessKeyUtilParityTest {
         assertThat(BusinessKeyUtil.operationBitKey(6, null)).isEqualTo("6:null");
         assertThat(BusinessKeyUtil.permissionCode(null, null)).isEqualTo("null:null");
         assertThat(BusinessKeyUtil.grantEntryKey(6, "VIEW", null)).isEqualTo("6:VIEW:null");
-        assertThat(BusinessKeyUtil.subjectKey(null, "u-1")).isEqualTo("null:u-1");
         assertThat(BusinessKeyUtil.userRoleRelationIdKey(null, 22L, 33L)).isEqualTo("null:22:33");
         assertThat(BusinessKeyUtil.apiRouteKey(null, "/x")).isEqualTo("null:/x");
         assertThat(BusinessKeyUtil.relationKey(null, "2001")).isEqualTo("null:2001");
