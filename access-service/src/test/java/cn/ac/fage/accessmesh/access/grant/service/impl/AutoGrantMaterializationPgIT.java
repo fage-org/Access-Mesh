@@ -309,7 +309,10 @@ class AutoGrantMaterializationPgIT {
     }
 
     @Test void shouldRecycleAuthorityRootOnOwnerRoleDeletion() {
-        // 拍板 A 特性面：类型所有者角色上的 AUTHORITY_ROOT 行随角色删除级联回收
+        // 拍板 A 特性面：角色删除级联回收其 AUTHORITY_ROOT 行。T-PERM-099 起经指针引用的
+        // 真实所有者删除被引用守卫拒绝（20073），本用例的 fixture 角色无指针指向（externalId
+        // 随机、种子行为直插）——锁的是「非指针来源/守卫前遗留残留种子行」的回收机制（契约
+        // §13.1：该回路面仅剩残留行随角色删除可达）
         Fixture f = fixture();
         String ownerExternal = "ag-owner-" + UUID.randomUUID();
         long ownerRoleId = jdbc.queryForObject("INSERT INTO abstract_role(tenant_id,role_type,external_id,name) VALUES (1,6,?,'ag owner role') RETURNING id", Long.class, ownerExternal);
