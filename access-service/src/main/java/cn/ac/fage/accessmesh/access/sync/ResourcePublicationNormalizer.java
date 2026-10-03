@@ -137,5 +137,5 @@ public final class ResourcePublicationNormalizer {
         return Collections.unmodifiableMap(copied);
     }
     private boolean blank(String value) { return value == null || value.isBlank(); }
-    private String codeType(String value) { return blank(value) ? "default" : value; }
+    private String codeType(String value) { return ResourceEntitySyncReq.normalizeCodeType(value); }
 }

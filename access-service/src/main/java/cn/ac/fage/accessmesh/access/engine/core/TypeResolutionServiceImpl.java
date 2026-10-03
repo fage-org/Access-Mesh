@@ -185,7 +185,10 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         Integer resourceType = resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
         if (resourceType == null) return null;
 
-        String effectiveCodeType = (codeType != null && !codeType.isBlank()) ? codeType : PermConstants.CodeType.DEFAULT;
+        // T-PERM-100：寻址侧归一（空白→default、trim）——与写入侧同口径；授权 INSTANCE 解析、
+        // 依赖声明、同步父解析与管理面父解析共用本入口，带空白入参同样命中归一后行
+        String effectiveCodeType = (codeType != null && !codeType.isBlank())
+                ? codeType.trim() : PermConstants.CodeType.DEFAULT;
 
         if (domainCode != null && !domainCode.isBlank()) {
             Long domainId = resolveDomainId(tenantId, domainCode);
@@ -358,9 +361,11 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
                 resourceLookup.put(new ResourceCodeTypeKey(res.getCode(), codeType), res);
             }
 
-            // 匹配请求到资源
+            // 匹配请求到资源（T-PERM-100：查找键归一 trim；结果键保持调用方原参形态——
+            // 原参与归一入参的调用方各自与请求键自洽配对）
             for (ResourceResolveRequest req : typeRequests) {
-                String codeType = req.codeType() != null && !req.codeType().isBlank() ? req.codeType() : PermConstants.CodeType.DEFAULT;
+                String codeType = req.codeType() != null && !req.codeType().isBlank()
+                        ? req.codeType().trim() : PermConstants.CodeType.DEFAULT;
                 ResourceEntity res = resourceLookup.get(new ResourceCodeTypeKey(req.resourceCode(), codeType));
                 if (res != null) {
                     result.put(req.toKey(), res.getId());

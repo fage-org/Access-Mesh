@@ -195,6 +195,44 @@ class TypeResolutionServiceImplTest {
         assertEquals(100L, result.get(new ResourceResolveKey("MANAGED", "sys:user", "default", null)));
     }
 
+    /** T-PERM-100：寻址侧归一——请求 codeType 带首尾空白按 trim 后元组命中库内归一行；结果键保持调用方原参形态 */
+    @Test
+    @DisplayName("batchResolveResourceIds：codeType 带空白 trim 后命中归一行，结果键保持原参")
+    void batchResolveResourceIdsShouldTrimWhitespaceCodeType() {
+        TypeDefinition td = new TypeDefinition();
+        td.setTypeKey("resource_type");
+        td.setTypeCode("MANAGED");
+        td.setTypeValue(9);
+        when(typeDefinitionMapper.selectByTypeKeyAndCodes(1L, "resource_type", Set.of("MANAGED")))
+            .thenReturn(List.of(td));
+
+        when(resourceEntityMapper.selectByTypeAndCodes(1L, 9, Set.of("sys:user")))
+            .thenReturn(List.of(resourceRow(100L, "sys:user", "BIZ")));
+
+        Map<ResourceResolveKey, Long> result = service.batchResolveResourceIds(1L, List.of(
+            new ResourceResolveRequest("MANAGED", "sys:user", " BIZ ", null)));
+
+        assertEquals(100L, result.get(new ResourceResolveKey("MANAGED", "sys:user", " BIZ ", null)));
+    }
+
+    /** T-PERM-100：单条寻址同款 trim——授权 INSTANCE 解析、依赖声明与同步父解析共用本入口 */
+    @Test
+    @DisplayName("resolveResourceId：codeType 带空白 trim 后寻址命中")
+    void resolveResourceIdShouldTrimWhitespaceCodeType() {
+        TypeDefinition td = new TypeDefinition();
+        td.setTypeKey("resource_type");
+        td.setTypeCode("MANAGED");
+        td.setTypeValue(9);
+        // 单条 resolveTypeValue 走单数版 mapper（与批量版不同入口）
+        when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "MANAGED"))
+            .thenReturn(td);
+
+        when(resourceEntityMapper.selectByTypeCodeAndCodeType(1L, 9, "sys:user", "BIZ"))
+            .thenReturn(resourceRow(100L, "sys:user", "BIZ"));
+
+        assertEquals(100L, service.resolveResourceId(1L, "MANAGED", "sys:user", " BIZ ", null));
+    }
+
     private ResourceEntity resourceRow(Long id, String code, String codeType) {
         ResourceEntity entity = new ResourceEntity();
         entity.setId(id);

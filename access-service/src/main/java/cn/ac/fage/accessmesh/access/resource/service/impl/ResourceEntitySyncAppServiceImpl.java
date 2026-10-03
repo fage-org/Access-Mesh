@@ -54,7 +54,6 @@ import java.util.Set;
 public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppService {
 
     private static final String ENTITY_KIND = "RESOURCE_ENTITY";
-    private static final String DEFAULT_CODE_TYPE = "default";
     private static final String OP_UPSERT = "UPSERT";
     private static final String OP_DISABLE = "DISABLE";
     private static final String OP_DELETE = "DELETE";
@@ -210,7 +209,6 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         // ---- 阶段 A：收集 (resourceCode, codeType) 与 parent (typeCode, code, codeType) 集合 ----
         List<ResourceResolveRequest> parentRequests = new ArrayList<>();
         for (ResourceEntitySyncItem item : req.items()) {
-            String codeType = (item.codeType() == null || item.codeType().isBlank()) ? DEFAULT_CODE_TYPE : item.codeType();
             // T-PERM-068：父字段组激活条件=parentResourceCode 非空；typeCode 缺省回填 scope 类型；
             // 跨类型项不参与批量父解析（循环体按类型拒绝，无需解析）
             if (item.parentResourceCode() != null && !item.parentResourceCode().isBlank()) {
@@ -219,10 +217,8 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                 if (!parentTypeCode.equals(req.scope().resourceTypeCode())) {
                     continue;
                 }
-                String pct = (item.parentCodeType() == null || item.parentCodeType().isBlank())
-                        ? DEFAULT_CODE_TYPE : item.parentCodeType();
                 parentRequests.add(new ResourceResolveRequest(
-                        parentTypeCode, item.parentResourceCode(), pct, null));
+                        parentTypeCode, item.parentResourceCode(), item.normalizedParentCodeType(), null));
             }
         }
 
@@ -237,7 +233,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                 Set<String> batchCodeTypes = new HashSet<>();
                 for (var item : batch) {
                     batchCodes.add(item.resourceCode());
-                    batchCodeTypes.add(item.codeType() == null || item.codeType().isBlank() ? DEFAULT_CODE_TYPE : item.codeType());
+                    batchCodeTypes.add(item.normalizedCodeType());
                 }
                 for (ResourceEntity re : resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(
                         tenantId, resourceTypeValue, batchCodes, batchCodeTypes)) {
@@ -267,7 +263,8 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         LocalDateTime now = LocalDateTime.now();
 
         for (ResourceEntitySyncItem item : req.items()) {
-            String codeType = (item.codeType() == null || item.codeType().isBlank()) ? DEFAULT_CODE_TYPE : item.codeType();
+            // T-PERM-100：codeType 写入/寻址/业务键统一走归一（空白→default、trim，与管理面同口径）
+            String codeType = item.normalizedCodeType();
             String businessKey = SyncKeyCodecUtil.resourceEntityBusinessKey(
                     req.scope().resourceTypeCode(), item.resourceCode(), codeType);
             seenBusinessKeyHashes.add(SyncKeyCodecUtil.sha256Hex(businessKey));
@@ -290,10 +287,8 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
             }
             Long preResolvedParentId = null;
             if (parentRequested) {
-                String pct = (item.parentCodeType() == null || item.parentCodeType().isBlank())
-                        ? DEFAULT_CODE_TYPE : item.parentCodeType();
                 preResolvedParentId = parentResolved.get(new ResourceResolveKey(
-                        itemParentTypeCode, item.parentResourceCode(), pct, null));
+                        itemParentTypeCode, item.parentResourceCode(), item.normalizedParentCodeType(), null));
             }
 
             ResourceEntitySyncReq oneReq = publicationNormalizer.asSingle(req, item);
@@ -447,7 +442,8 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
      */
     private SyncResultResp applyItemSync(Long tenantId, ResourceEntitySyncReq req, FullSyncPrefetch prefetch,
                                          LocalDateTime now, SyncMetadata metadata, Long generation, String publicationHash) {
-        String codeType = (req.codeType() == null || req.codeType().isBlank()) ? DEFAULT_CODE_TYPE : req.codeType();
+        // T-PERM-100：codeType 写入/寻址/业务键统一走归一（空白→default、trim，与管理面同口径）
+        String codeType = req.normalizedCodeType();
         String businessKey = SyncKeyCodecUtil.resourceEntityBusinessKey(
                 req.resourceTypeCode(), req.resourceCode(), codeType);
         String scopeKey = SyncKeyCodecUtil.resourceEntityScopeKey(req.resourceTypeCode());
@@ -493,8 +489,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                 return SyncResultBuilder.nonRetryable(
                         "PARENT_TYPE_MISMATCH: " + parentTypeCode + ":" + req.parentResourceCode());
             }
-            String parentCodeType = (req.parentCodeType() == null || req.parentCodeType().isBlank())
-                    ? DEFAULT_CODE_TYPE : req.parentCodeType();
+            String parentCodeType = req.normalizedParentCodeType();
             // full-sync 路径已批量预解析；single-sync 路径走单条解析。
             parentId = prefetch.parentRequested()
                     ? prefetch.parentId()

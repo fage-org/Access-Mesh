@@ -80,7 +80,7 @@ public interface TypeResolutionService {
      * @param tenantId         租户ID
      * @param resourceTypeCode 映射到type_definition(type_key='resource_type').type_code
      * @param resourceCode     resource_entity.code
-     * @param codeType         resource_entity.code_type，null时默认为"default"
+     * @param codeType         resource_entity.code_type，null/空白归一为"default"、去首尾空白（T-PERM-100，与写入侧同口径）
      * @param domainCode       biz_domain.code，null表示全局范围
      * @return resource_entity.id，未找到时返回null
      */

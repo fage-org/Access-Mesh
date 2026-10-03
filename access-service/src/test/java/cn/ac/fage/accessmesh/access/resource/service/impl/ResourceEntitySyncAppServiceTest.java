@@ -157,6 +157,29 @@ class ResourceEntitySyncAppServiceTest {
     }
 
     @Test
+    void shouldNormalizeCodeTypeOnWrite_whenUpsertCarriesWhitespace() {
+        // T-PERM-100（Q-031）：sync 写入 codeType 与管理面同口径归一（null/空白→default、去首尾空白）——
+        // 旧实现按 " BIZ " 原样落库，管理面/授权按归一后 BIZ 寻址不可达，本用例旧实现下红
+        mockHeaderMatch();
+        when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), eq("RESOURCE_ENTITY"),
+                eq(SOURCE_SERVICE), anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString(), any(), anyLong()))
+                .thenReturn(SyncMetadataDomainService.ApplyVersionResult.APPLIED);
+        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        lenient().when(resourceEntityMapper.insert(any(ResourceEntity.class))).thenReturn(1);
+
+        ResourceEntitySyncReq req = new ResourceEntitySyncReq("UPSERT", "MENU", "menu-1", " BIZ ",
+                "Menu One", null, null, null, "/menu/one", 1, null,
+                SOURCE_SERVICE, "menu", "menu-1", new SyncVersionRef(OCCURRED_AT, 1L));
+        SyncResultResp resp = service.sync(TENANT_ID, req, httpRequest);
+
+        assertThat(resp.applied()).isTrue();
+        ArgumentCaptor<ResourceEntity> captor = ArgumentCaptor.forClass(ResourceEntity.class);
+        verify(resourceEntityMapper).insert(captor.capture());
+        assertThat(captor.getValue().getCodeType()).isEqualTo("BIZ");
+    }
+
+    @Test
     void shouldReturnStale_whenOldVersion() {
         mockHeaderMatch();
         when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);

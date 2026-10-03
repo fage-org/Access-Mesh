@@ -62,6 +62,7 @@ class ResourcePublicationPgIT {
     private static int nextType = 1200;
     @DynamicPropertySource static void configure(DynamicPropertyRegistry registry) { ItInfra.register(registry, ResourcePublicationPgIT.class); }
     @Autowired private ResourceEntitySyncAppService service;
+    @Autowired private cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService resolver;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private PlatformTransactionManager transactions;
     @SpyBean private TreeWriteLockSupport locks;
@@ -241,6 +242,55 @@ class ResourcePublicationPgIT {
         assertThat(jdbc.queryForObject("SELECT last_publication_generation FROM sync_metadata WHERE source_service=?", Long.class, f.service())).isEqualTo(2);
     }
 
+    // ---- T-PERM-100（Q-031）：sync 通道 codeType 归一（写入/寻址/发布指纹同源 trim）----
+
+    @Test void shouldNormalizeSyncCodeType_andStayAddressableByTrimmedKey() {
+        Fixture f = fixture();
+        assertThat(singleCt(f, "ws", " BIZ ", "1", 1).applied()).isTrue();
+        // 写入归一：落库为 trim 后的 BIZ（旧实现按 " BIZ " 原样落库 → 红）
+        assertThat(storedCodeType(f, "ws")).isEqualTo("BIZ");
+        // 寻址可达：归一后业务键可达（管理面 detail/update/remove 同源寻址语义；旧实现查 BIZ 落空 → 红）
+        assertThat(resolver.resolveResourceId(1L, f.typeCode(), "ws", "BIZ", null)).isNotNull();
+        // 寻址容错：带空白入参同样命中（TypeResolution 寻址侧 trim，旧实现按原始 " BIZ " 查库）
+        assertThat(resolver.resolveResourceId(1L, f.typeCode(), "ws", " BIZ ", null)).isNotNull();
+    }
+
+    @Test void shouldReuseSameRow_whenWhitespaceAndCleanCodeTypeSyncSameResource() {
+        Fixture f = fixture();
+        assertThat(singleCt(f, "dup", " BIZ ", "1", 1).applied()).isTrue();
+        assertThat(singleCt(f, "dup", "BIZ", "2", 2).applied()).isTrue();
+        // 同码不另建：同一资源两种 codeType 形态归一后命中同一行（旧实现 " BIZ "/"BIZ" 两行 → 红）
+        assertThat(active(f, "dup")).isEqualTo(1);
+    }
+
+    @Test void shouldNormalizeFullSyncCodeType_andParentResolution() {
+        Fixture f = fixture();
+        var parent = new ResourceEntitySyncItem("p", " BIZ ", "p", null, null, null, null, 1,
+                null, null, null, new SyncVersionRef(AT, 1L));
+        var child = new ResourceEntitySyncItem("c", " BIZ ", "c", null, "p", " BIZ ", null, 1,
+                null, null, null, new SyncVersionRef(AT, 1L));
+        // 同请求内新建父+子为既有「首次部分失败、同代次重试自愈」语义（父在阶段 B 预解析时尚未落库）
+        assertThat(full(f, "1", List.of(parent, child)).detail().appliedCount()).isEqualTo(1);
+        assertThat(full(f, "1", List.of(parent, child)).detail().failedCount()).isZero();
+        assertThat(storedCodeType(f, "p")).isEqualTo("BIZ");
+        assertThat(storedCodeType(f, "c")).isEqualTo("BIZ");
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM resource_entity c JOIN resource_entity p ON p.id=c.parent_id
+                WHERE c.resource_type=? AND c.code='c' AND c.code_type='BIZ'
+                  AND p.code='p' AND p.code_type='BIZ' AND c.delete_flag=0 AND p.delete_flag=0""",
+                Integer.class, f.type())).isEqualTo(1);
+    }
+
+    @Test void shouldTreatWhitespaceAndCleanCodeType_asSamePublicationFingerprint() {
+        Fixture f = fixture();
+        assertThat(full(f, "7", List.of(itemCt("a", " BIZ ", 1))).detail().appliedCount()).isEqualTo(1);
+        // 发布指纹按归一后 codeType 计算：同代次同内容（仅空白差异）重发=逐项幂等 STALE
+        // （旧实现指纹含空白 → 同代次内容冲突 CONFLICT、明细 staleCount=0 → 红）
+        var retry = full(f, "7", List.of(itemCt("a", "BIZ", 1)));
+        assertThat(retry.detail().failedCount()).isZero();
+        assertThat(retry.detail().staleCount()).isEqualTo(1);
+    }
+
     @Test void shouldAcceptExplicitEmptyHttpList_butRejectNullMissingListOrGeneration() throws Exception {
         Fixture f = fixture();
         var credential = credentials.issue(1L, f.service(), null, 100L);
@@ -278,6 +328,22 @@ class ResourcePublicationPgIT {
     }
     private ResourceEntitySyncItem item(String code, long version) {
         return new ResourceEntitySyncItem(code, null, code, null, null, null, null, 1, null, null, null, new SyncVersionRef(AT, version));
+    }
+    /** T-PERM-100：携带显式 codeType 的单条同步 */
+    private SyncResultResp singleCt(Fixture f, String code, String codeType, String generation, long version) {
+        AccessRequestContext.bind(RequestContext.service(1L, f.service()));
+        try {
+            return service.sync(1L, new ResourceEntitySyncReq("UPSERT", f.typeCode(), code, codeType, code,
+                    null, null, null, null, 1, null, f.service(), null, null,
+                    new SyncVersionRef(AT, version), generation), null);
+        } finally { AccessRequestContext.clear(); }
+    }
+    /** T-PERM-100：携带显式 codeType 的 full-sync item */
+    private ResourceEntitySyncItem itemCt(String code, String codeType, long version) {
+        return new ResourceEntitySyncItem(code, codeType, code, null, null, null, null, 1, null, null, null, new SyncVersionRef(AT, version));
+    }
+    private String storedCodeType(Fixture f, String code) {
+        return jdbc.queryForObject("SELECT code_type FROM resource_entity WHERE tenant_id=1 AND resource_type=? AND code=? AND delete_flag=0", String.class, f.type(), code);
     }
     private int active(Fixture f, String code) {
         return jdbc.queryForObject("SELECT count(*) FROM resource_entity WHERE tenant_id=1 AND resource_type=? AND code=? AND delete_flag=0", Integer.class, f.type(), code);

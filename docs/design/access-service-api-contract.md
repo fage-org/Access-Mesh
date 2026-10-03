@@ -1456,7 +1456,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 | 规则 | 口径 |
 |---|---|
-| codeType | 可选，null/缺省归一为 `default`（DDL 默认值） |
+| codeType | 可选，null/空白归一为 `default`（DDL 默认值）、去首尾空白（T-PERM-100：写入与寻址同源——引擎资源解析 `resolveResourceId`/`batchResolveResourceIds`，覆盖授权 INSTANCE 解析、依赖声明、菜单、管理面与 sync 父解析，统一按此口径归一） |
 | 业务键查不到 | detail 抛 20004/20005；update/move 同（原 `data:null` 宽松形态已删除） |
 | extraClear | boolean 可选；true=清空 extra 为 null（JSON null 无法区分「未传」与「清空」）；与 extra 同传 400 拒绝（T-API-004/U006 拍板，取代旧「优先于 extra」口径，§2.7） |
 | move 校验 | 跨资源类型 / 目标父为自身或子孙 → 20053 RESOURCE_PARENT_INVALID（一类码两因，message 区分） |
@@ -2223,7 +2223,7 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
 规则：
 
 - `operation` 首期固定为 `UPSERT`、`DISABLE` 或 `DELETE`；`UPSERT` 表示不存在则创建、存在则更新，`DISABLE` 表示幂等停用，`DELETE` 表示幂等软删除，不存在也视为成功。
-- 幂等业务键为 `businessKey=resourceTypeCode={resourceTypeCode}&resourceCode={resourceCode}&codeType={codeType}`，其中 `codeType` 默认 `default`；`tenantId/sourceService/entityKind` 由独立字段承载。
+- 幂等业务键为 `businessKey=resourceTypeCode={resourceTypeCode}&resourceCode={resourceCode}&codeType={codeType}`，其中 `codeType` 默认 `default`；`tenantId/sourceService/entityKind` 由独立字段承载。`codeType` 与管理面 §12.1 同源归一（T-PERM-100）：null/空白回退 `default`、去首尾空白——同步携带 `" BIZ "` 落库为 `BIZ`，业务键、发布指纹与寻址均按归一后形态，带空白与干净形态视为同一资源。
 - `syncVersion` 使用事件时间 + 序号；同一幂等键下旧版本请求必须返回成功但不覆盖新状态。permission-center 必须通过 `sync_metadata.last_sync_occurred_at + last_sync_sequence_no` 做原子比较更新，禁止只在内存中判断版本。
 - 父资源定位与同类型门禁（T-PERM-068，2026-09-17 Q-007 定案①③ + 2026-09-18 外评处置两项拍板）：父字段组**仅 UPSERT 生效**（DISABLE/DELETE 忽略父字段——删/停不被父资源存否绑架，对齐角色域 OP_UPSERT 守卫先例）；UPSERT 下以 `parentResourceCode` 非空为激活条件——为空则解挂（已存在行显式清 parent 列落库，UpdateEntity 先例）；`parentResourceTypeCode` 缺省回填 item 自身 `resourceTypeCode`（只传 code 不传 typeCode 也按同类型解析挂父，对齐角色域 full-sync 先例）；显式传入的 `parentResourceTypeCode` 必须等于自身类型，跨类型拒绝 `retryClass=NON_RETRYABLE`、reason=`PARENT_TYPE_MISMATCH`（码比对足够：code↔value 双射），先于父解析与版本写入。父资源不存在时返回 `retryClass=DEPENDENCY_MISSING`，调用方可按短退避重发（T-PERM-044 评审对齐角色先例：父解析与判环先于版本写入——依赖缺失与环路拒绝均不推进同步版本，短退避同版本重发不会被 STALE 挡）。
 - DELETE 有子拒绝（2026-09-18 用户拍板）：单条 DELETE 目标存在有效后代（含脏数据跨类型子，保守阻塞防误删）→ `retryClass=DEPENDENCY_MISSING`、reason=`CHILDREN_EXIST`，先于版本写入不推进——先删子资源后同版本重发父即自愈（乱序删除窗口短退避自愈，子永不悬挂）；后代全删/目标不存在照常幂等软删。full-sync 差异校准维持 scope 全量口径逐行软删、不查子（同载荷整树同删，无乱序问题）。
@@ -2277,7 +2277,7 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
 规则：
 
 - 单请求表示 `scope.sourceService` 字段与 `scopeKey=resourceTypeCode={resourceTypeCode}` 共同限定范围内的完整事实；`sourceService` 独立承载，不拼入 `scopeKey`。
-- full-sync item 的父资源定位与单条 sync 同口径（T-PERM-068）：父字段组以 `parentResourceCode` 非空为激活条件；`parentResourceTypeCode` 缺省回填 scope 中的 `resourceTypeCode`、`parentCodeType` 缺省 `default`（本句「默认同类型」自 T-PERM-068 起为真实实现语义——此前实现半传静默解挂与原文不符，已修）；显式 `parentResourceTypeCode` 异于 scope 类型 → 该 item `NON_RETRYABLE`/`PARENT_TYPE_MISMATCH`、不推进同步版本，同批其余项正常应用。实现解析父节点使用 `生效类型 + parentResourceCode + parentCodeType`。
+- full-sync item 的父资源定位与单条 sync 同口径（T-PERM-068）：父字段组以 `parentResourceCode` 非空为激活条件；`parentResourceTypeCode` 缺省回填 scope 中的 `resourceTypeCode`、`parentCodeType` 缺省 `default`（本句「默认同类型」自 T-PERM-068 起为真实实现语义——此前实现半传静默解挂与原文不符，已修）；item `codeType` 与 `parentCodeType` 均按 §19.1 同款归一（null/空白→`default`、去首尾空白，T-PERM-100）；显式 `parentResourceTypeCode` 异于 scope 类型 → 该 item `NON_RETRYABLE`/`PARENT_TYPE_MISMATCH`、不推进同步版本，同批其余项正常应用。实现解析父节点使用 `生效类型 + parentResourceCode + parentCodeType`。
 - permission-center 以 `sync_metadata(entityKind=RESOURCE_ENTITY, sourceService, scopeKey)` 作为 full-sync ownership 范围；请求中存在则 upsert 并更新 metadata，请求中缺失的 metadata 对应事实按删除语义软删除。`resource_entity.owner_service_code/maintain_source` 不作为本接口的清理依据（`sync_key` 列已删除，2026-09-05）。
 - `resource-entity/full-sync` 与既有 `service-config/sync-v2` 是两条独立 ownership 通道。本接口只清理命中 `sync_metadata` scope 的同步事实，绝不按 `resourceTypeCode` 扫描删除资源，也不删除 `service-config/sync-v2`、`MANUAL` 或其他维护来源创建的事实。
 - 全量接口仍必须执行 source 身份校验、类型级所有权门禁（scope.resourceTypeCode 同 §19.1 单条口径）和旧版本 no-op 规则。
@@ -2612,6 +2612,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 - `businessKey` 和 `scopeKey` 均使用 `key=value&key=value` 的有序参数串。
 - 参数名使用 camelCase，顺序由本节样例固定；缺省字段不得省略，除非样例未包含该字段。
 - 参数值使用 URL percent-encoding；因此 `relationKey=ORG:2001` 必须写为 `relationKey=ORG%3A2001`。
+- `RESOURCE_ENTITY` 的 `codeType` 参数值先按 §12.1 归一（null/空白→`default`、去首尾空白）再进入 `businessKey` 拼接与发布指纹（T-PERM-100）——幂等键不感知首尾空白差异，同资源带空白与干净形态为同一键。
 - key 字符串不包含 `tenantId`、`sourceService`、`entityKind`，这些维度由表字段或请求 scope 单独承载。
 - `sync_metadata.sync_key` 使用 `sourceService|entityKind|businessKey`，仅用于来源内稳定定位，不参与对外 API 契约。
 - 关系库中必须同时保存 key 原文和 SHA-256 lowercase hex。原文用于排查，唯一约束与高频查询使用 hash 字段，避免长外部 ID 导致索引超长。

@@ -2,7 +2,7 @@
 doc_type: task
 id: T-PERM-100
 title: sync 通道 codeType 归一与存量空白行处置
-status: proposed
+status: done
 plan: docs/plans/pending-problems-clearance-plan.md
 domain: access-service
 design_refs:
@@ -16,8 +16,8 @@ acceptance:
   - "契约 §19 写入/寻址归一口径同步"
 design_writeback:
   required: true
-  status: pending
-last_updated: 2026-10-01
+  status: done
+last_updated: 2026-10-03
 ---
 
 # T-PERM-100 sync 通道 codeType 归一与存量空白行处置
@@ -37,3 +37,29 @@ sync/full-sync 写入归一统一为管理面同口径；存量带空白行处�
 ## 非目标 / 遗留
 
 - code 本身的归一策略（维持现状，问题仅登记 codeType）。
+
+## 实现记录（2026-10-03）
+
+**调查修正**：登记前提「差异只在 sync 通道」不完全成立——`TypeResolutionServiceImpl`（resolveResourceId 单条 :188 / batchResolveResourceIds 批量 :363 两处查找键）对 codeType 同样只做空值回退不 trim，授权 INSTANCE 解析、依赖声明、菜单、管理面与 sync 父解析共用该入口（`GrantRecordKey.codeType` 无 @Pattern，带空白入参为活口）；管理面 detail/update/remove 走 `ResourceKeyReq.normalizedCodeType()`（trim）不受影响。
+
+**两项拍板（2026-10-03 用户）**：
+1. 存量处置＝不提供订正 SQL：当前无部署环境、无存量带空白行（dev 库未运行未核，dev/演示数据全为干净 default，遇脏行走既有重建库流程）；若未来出现存量，未订正行的后果口径＝按归一寻址永久不可达、下次上游 full-sync 新代次经差异校准软删换 id 重建（显式授权引用旧实体 id 断链）。
+2. 寻址侧一并 trim（超原验收范围的扩面）：`TypeResolutionServiceImpl` 两处查找键补 trim，与写入侧同源；结果 Map 键保持调用方原参形态（原参与归一入参调用方各自与请求键自洽配对）。
+
+**实现面**：
+- `ResourceEntitySyncReq` 增 `normalizeCodeType(String)` 静态单源（null/空白→default、trim，常量复用 `ResourceKeyReq.CODE_TYPE_DEFAULT`）+ 两 record 各增 `normalizedCodeType()`/`normalizedParentCodeType()`；
+- `ResourceEntitySyncAppServiceImpl` 消费点全量替换（full-sync 阶段 A 父请求/阶段 B 批量索引收集/阶段 C 业务键与父键、applyItemSync 写入与父解析共 6 处形态 + 阶段 A 一处死局部变量顺带清除；`DEFAULT_CODE_TYPE` 常量随替换退役删除）；
+- `ResourcePublicationNormalizer.codeType()` 改走 `ResourceEntitySyncReq.normalizeCodeType`——businessKey、payload 指纹同源归一，同代次同内容（仅空白差异）重发为幂等 STALE 而非 CONFLICT；
+- `TypeResolutionServiceImpl` 单/批两处查找键 trim + 接口 javadoc 同步。
+
+**红跑实证（HEAD 下）**：单测 3 红——写入归一 captor 断言（落库 `" BIZ "`）、批量寻址 trim（expected 100 got null）、单条寻址 trim（同）；PgIT 4 红——落库 code_type 断言 + 寻址 miss、同码两行（active 2≠1）、full-sync item/parent 落库、发布指纹 CONFLICT（staleCount 0≠1）。修复后全绿。
+
+**定向回归**：单测轨 1810 项 0 失败；`ResourcePublicationPgIT` 16/16；关联容器组（SyncFailureAtomicity/DependencyLifecycle/ResourceBatchCreateCompositeIdentity/ResourceOperationKey PgIT）exit=0。
+
+**契约回写**：§12.1 codeType 规则行（归一口径+寻址同源范围）、§19.1 幂等业务键 bullet、§19.2 父链 bullet、§19.7 通用规则（codeType 归一先于 businessKey 拼接与发布指纹）。
+
+## 收口记录（2026-10-03）
+
+- 双轨本地评审（主代理直跑）：代码轨 P0-P2=0（归一语义与 `ResourceKeyReq` 完全一致、8 处消费点全量替换、TypeResolution 批量结果键保持原参四消费方配对自洽、DUPLICATE_BUSINESS_KEY 归一语义与契约 §19.2.1「规范化后重复业务键」原文自洽）；文档轨 P0-P2=0（契约四处回写、schema 注释无需联动——归一为 API 层语义非存储语义）；过度设计可裁剪=0（仅 record 方法+常量复用）；存疑待决策=0（两项拍板先行落地）。
+- 残留清扫：全仓 codeType 空白回退模式仅剩 `PermissionGrantPlanDomainServiceImpl:678`（INSTANCE 必填校验，非归一，chokepoint 已覆盖）；normalizer 残留 raw 访问器均为不可变拷贝构造。
+- 收口全量回归 `-T 1C`（含 E2E/heavy）：BUILD SUCCESS，11 模块全绿，4880 项 0 失败 0 错误。
