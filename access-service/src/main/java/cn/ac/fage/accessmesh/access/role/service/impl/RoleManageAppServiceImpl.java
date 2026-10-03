@@ -72,6 +72,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
     private final LocalProjectionGuard localProjectionGuard;
     private final LocalProjectionDomainService localProjectionDomainService;
     private final cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService autoGrantMaterializationDomainService;
+    private final cn.ac.fage.accessmesh.access.grant.service.domain.GrantOriginDomainService grantOriginDomainService;
     private final QueryGate queryGate;
     private final TreeWriteLockSupport treeWriteLockSupport;
 
@@ -96,6 +97,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
                                  LocalProjectionGuard localProjectionGuard,
                                  LocalProjectionDomainService localProjectionDomainService,
             cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService autoGrantMaterializationDomainService,
+                                 cn.ac.fage.accessmesh.access.grant.service.domain.GrantOriginDomainService grantOriginDomainService,
                                  QueryGate queryGate,
                                  TreeWriteLockSupport treeWriteLockSupport) {
         this.abstractRoleMapper = abstractRoleMapper;
@@ -107,6 +109,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         this.localProjectionGuard = localProjectionGuard;
         this.localProjectionDomainService = localProjectionDomainService;
         this.autoGrantMaterializationDomainService = autoGrantMaterializationDomainService;
+        this.grantOriginDomainService = grantOriginDomainService;
         this.queryGate = queryGate;
         this.treeWriteLockSupport = treeWriteLockSupport;
     }
@@ -415,6 +418,10 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
             allIdsToDelete.addAll(descendantIds);
         }
 
+        // T-PERM-099（2026-10-03 用户拍板：硬守卫整批拒绝 + 覆盖缺省引用）：类型所有者引用守卫
+        //（判定集=含级联子孙的最终删除集，级联路径同样回收 AUTHORITY_ROOT 种子），命中整批回滚
+        rejectIfGrantOriginOwner(tenantId, allIdsToDelete);
+
         // 受影响用户须在软删前反查（提交后已删角色不可作组展开递归起点）
         Set<Long> affectedUserIds = subjectDomainService.findUserIdsByEffectiveRoles(tenantId, allIdsToDelete);
         subjectDomainService.softDeleteRoleBatch(tenantId, new java.util.HashSet<>(allIdsToDelete));
@@ -483,6 +490,24 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
                 roleArr
             ))
         );
+    }
+
+    /**
+     * T-PERM-099 类型所有者引用守卫（2026-10-03 用户拍板：硬守卫整批拒绝 + 覆盖缺省引用）。
+     * <p>
+     * 删除所有者角色会随 recycleRoleGrants 回收 AUTHORITY_ROOT 种子（T-PERM-072「授权根随角色
+     * 消亡」），类型保留即无人能通过该类型首授/转授资格检查（checkCanGrant 20040），悬挂指针另使
+     * 追加操作位解析 20001 整单回滚。命中任一引用（含级联子孙携带与无指针缺省所有者
+     * bootstrap-admin）抛 20073 整批回滚（对齐 rejectIfLocalRole/20056 引用面守卫先例）；
+     * 恢复通道=type-definition/update 迁移所有者（先清后种重整化）后再删。
+     * </p>
+     */
+    private void rejectIfGrantOriginOwner(Long tenantId, Set<Long> deleteSetIds) {
+        String detail = grantOriginDomainService.resolveGrantOriginReferenceDetail(tenantId, deleteSetIds);
+        if (detail != null) {
+            throw new BizException(AccessErrorCode.ROLE_GRANT_ORIGIN_CONFLICT.getCode(),
+                AccessErrorCode.ROLE_GRANT_ORIGIN_CONFLICT.getMessage() + ": " + detail);
+        }
     }
 
     @Override

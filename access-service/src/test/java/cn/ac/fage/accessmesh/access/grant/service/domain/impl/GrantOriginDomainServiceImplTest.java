@@ -32,6 +32,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -49,6 +50,7 @@ class GrantOriginDomainServiceImplTest {
     @Mock private RoleResourcePermissionMapper roleResourcePermissionMapper;
     @Mock private OperationPermissionDomainService operationPermissionMapper;
     @Mock private PermissionGrantPlanDomainService permissionGrantPlanDomainService;
+    @Mock private cn.ac.fage.accessmesh.access.type.service.domain.TypeDefinitionDomainService typeDefinitionDomainService;
 
     private GrantOriginDomainServiceImpl service;
 
@@ -56,7 +58,7 @@ class GrantOriginDomainServiceImplTest {
     void setUp() {
         service = new GrantOriginDomainServiceImpl(new ObjectMapper(), typeResolutionService,
             subjectDomainService, roleResourcePermissionMapper, operationPermissionMapper,
-            permissionGrantPlanDomainService);
+            permissionGrantPlanDomainService, typeDefinitionDomainService);
     }
 
     // ===== 指针解析 =====
@@ -301,5 +303,76 @@ class GrantOriginDomainServiceImplTest {
         op.setResourceType(12);
         op.setBinaryBit(bit);
         return op;
+    }
+
+    // ===== T-PERM-099 引用守卫反查（拍板：硬守卫整批拒绝 + 覆盖缺省引用） =====
+
+    private cn.ac.fage.accessmesh.access.type.entity.TypeDefinition resourceType(
+            String typeCode, String extra) {
+        cn.ac.fage.accessmesh.access.type.entity.TypeDefinition type =
+            new cn.ac.fage.accessmesh.access.type.entity.TypeDefinition();
+        type.setTypeCode(typeCode);
+        type.setExtra(extra);
+        return type;
+    }
+
+    @Test
+    void shouldFindExplicitPointerReference() {
+        when(typeDefinitionDomainService.selectByTenantAndTypeKey(1L, "resource_type"))
+            .thenReturn(List.of(
+                resourceType("PROJECT",
+                    "{\"grantOriginRole\":{\"roleTypeCode\":\"BASIC_ROLE\",\"roleExternalId\":\"pm-admin\"}}"),
+                resourceType("OTHER",
+                    "{\"grantOriginRole\":{\"roleTypeCode\":\"BASIC_ROLE\",\"roleExternalId\":\"someone-else\"}}")));
+
+        var hits = service.findOwnerPointerReferences(1L, Set.of(
+            new GrantOriginDomainService.GrantOriginRole("BASIC_ROLE", "pm-admin"),
+            new GrantOriginDomainService.GrantOriginRole("BASIC_ROLE", "unrelated")));
+
+        // 仅显式指向候选的类型命中；指向他人的类型不命中
+        assertEquals(1, hits.size());
+        assertEquals(List.of("PROJECT"),
+            hits.get(new GrantOriginDomainService.GrantOriginRole("BASIC_ROLE", "pm-admin")));
+    }
+
+    @Test
+    void shouldFindDefaultPointerReferenceWhenExtraHasNoPointer() {
+        // 预置 is_system 类型 extra 无指针——运行时按缺省引导角色解析，反查同源命中（拍板：覆盖缺省引用）
+        when(typeDefinitionDomainService.selectByTenantAndTypeKey(1L, "resource_type"))
+            .thenReturn(List.of(
+                resourceType("USER", null),
+                resourceType("PROJECT", "{\"managedMode\":\"MANAGED\"}")));
+
+        var hits = service.findOwnerPointerReferences(1L, Set.of(
+            new GrantOriginDomainService.GrantOriginRole("BASIC_ROLE", "bootstrap-admin")));
+
+        assertEquals(1, hits.size());
+        assertEquals(List.of("USER", "PROJECT"),
+            hits.get(new GrantOriginDomainService.GrantOriginRole("BASIC_ROLE", "bootstrap-admin")));
+    }
+
+    @Test
+    void shouldSkipDanglingPointerRowsAndNotBlockUnrelatedCandidates() {
+        // 坏 JSON/坏结构指针行不匹配任何角色（悬挂指针与运行时 20044 同态，修复通道=updateType 覆盖）；
+        // 无指针类型对非缺省候选也不命中
+        when(typeDefinitionDomainService.selectByTenantAndTypeKey(1L, "resource_type"))
+            .thenReturn(List.of(
+                resourceType("BROKEN_JSON", "{bad json"),
+                resourceType("BAD_POINTER", "{\"grantOriginRole\":\"not-an-object\"}"),
+                resourceType("NULL_POINTER", "{\"grantOriginRole\":null}"),
+                resourceType("NO_POINTER", "{\"managedMode\":\"SYNC\"}")));
+
+        var hits = service.findOwnerPointerReferences(1L, Set.of(
+            new GrantOriginDomainService.GrantOriginRole("BASIC_ROLE", "pm-admin")));
+
+        assertTrue(hits.isEmpty());
+    }
+
+    @Test
+    void shouldShortCircuitWhenCandidatesEmpty() {
+        var hits = service.findOwnerPointerReferences(1L, Set.of());
+
+        assertTrue(hits.isEmpty());
+        verifyNoInteractions(typeDefinitionDomainService);
     }
 }

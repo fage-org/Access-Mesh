@@ -66,6 +66,7 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
     private final SubjectDomainService subjectDomainService;
     private final TreeWriteLockSupport treeWriteLockSupport;
     private final cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService autoGrantMaterializationDomainService;
+    private final cn.ac.fage.accessmesh.access.grant.service.domain.GrantOriginDomainService grantOriginDomainService;
 
     public AbstractRoleSyncAppServiceImpl(SyncMetadataDomainService syncMetadataDomainService,
                                           TypeResolutionService typeResolutionService,
@@ -75,7 +76,8 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
                                           SyncTypeGuard syncTypeGuard,
                                           SubjectDomainService subjectDomainService,
                                           TreeWriteLockSupport treeWriteLockSupport,
-                                           cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService autoGrantMaterializationDomainService) {
+                                           cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService autoGrantMaterializationDomainService,
+                                           cn.ac.fage.accessmesh.access.grant.service.domain.GrantOriginDomainService grantOriginDomainService) {
         this.syncMetadataDomainService = syncMetadataDomainService;
         this.typeResolutionService = typeResolutionService;
         this.abstractRoleMapper = abstractRoleMapper;
@@ -85,6 +87,7 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
         this.subjectDomainService = subjectDomainService;
         this.treeWriteLockSupport = treeWriteLockSupport;
         this.autoGrantMaterializationDomainService = autoGrantMaterializationDomainService;
+        this.grantOriginDomainService = grantOriginDomainService;
     }
 
     @Override
@@ -163,6 +166,19 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
         if (selfExisting != null && isCyclicParent(tenantId, selfExisting.getId(), parentId)) {
             return SyncResultBuilder.nonRetryable(
                     "ROLE_PARENT_INVALID: " + req.parentRoleTypeCode() + ":" + req.parentRoleExternalId());
+        }
+
+        // T-PERM-099（2026-10-03 拍板扩面）：类型所有者引用守卫——DELETE 目标被 resource_type
+        // 所有权指针引用时拒绝（20073，对齐 GROUP_ROLE 20022 throw 先例）：删除会随 recycleRoleGrants
+        // 回收 AUTHORITY_ROOT 种子，类型保留即首授/转授资格锁死；先于 applyVersion——拒绝路径
+        // 不推进同步版本（对齐环路判定先例），上游迁移所有者（type-definition/update）后新版本重试
+        if (OP_DELETE.equals(op) && selfExisting != null) {
+            String grantOriginDetail = grantOriginDomainService
+                .resolveGrantOriginReferenceDetail(tenantId, Set.of(selfExisting.getId()));
+            if (grantOriginDetail != null) {
+                throw new BizException(AccessErrorCode.ROLE_GRANT_ORIGIN_CONFLICT.getCode(),
+                    AccessErrorCode.ROLE_GRANT_ORIGIN_CONFLICT.getMessage() + ": " + grantOriginDetail);
+            }
         }
 
         // 6. applyVersion
@@ -400,11 +416,13 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
             itemResults.add(new SyncResultResp.ItemResult(businessKey, true, false, null, null));
         }
 
-        // 差异校准（批量软删 targetIds）
+        // 差异校准（批量软删 targetIds）；T-PERM-099 两段式：先收集后守卫——守卫命中须在
+        // markStatus/softDelete 任何写之前整单拒绝，先 markStatus 再拒绝会留下
+        // 「同步元数据标 DELETED 但角色未删」的状态漂移
         int deactivated = 0;
         List<SyncMetadata> existing = syncMetadataDomainService.listScopeForFullSync(
                 tenantId, ENTITY_KIND, req.scope().sourceService(), scopeKeyHash);
-        List<Long> deactivateTargetIds = new ArrayList<>();
+        List<SyncMetadata> toDeactivate = new ArrayList<>();
         for (SyncMetadata md : existing) {
             if (md.getBusinessKeyHash() == null || seenBusinessKeyHashes.contains(md.getBusinessKeyHash())) {
                 continue;
@@ -412,19 +430,39 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
             if (STATUS_DELETED.equals(md.getTargetStatus())) {
                 continue;
             }
-            if (md.getTargetId() != null) {
-                deactivateTargetIds.add(md.getTargetId());
-            }
-            syncMetadataDomainService.markStatus(tenantId, ENTITY_KIND, req.scope().sourceService(),
-                    scopeKeyHash, md.getBusinessKeyHash(), STATUS_DELETED);
-            deactivated++;
+            toDeactivate.add(md);
         }
-        if (!deactivateTargetIds.isEmpty()) {
-            abstractRoleMapper.softDeleteBatch(tenantId, deactivateTargetIds, LocalDateTime.now());
-            // §7 触发面（T-PERM-072 外评 P2）：full-sync 漂移删除同事务级联回收授权行（拍板 A 同款）；
-            // §8 全序补 RESOURCE_ENTITY（已持 ABSTRACT_ROLE）后读取授权引用
-            treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
-            autoGrantMaterializationDomainService.recycleRoleGrants(tenantId, new java.util.HashSet<>(deactivateTargetIds));
+        if (!toDeactivate.isEmpty()) {
+            // T-PERM-099 拍板扩面（2026-10-03）：漂移删除集命中类型所有者指针引用 → 整单
+            // nonRetryable（对齐 Unknown roleTypeCode 整单拒绝通道）：删除会随 recycleRoleGrants
+            // 回收 AUTHORITY_ROOT 种子、类型首授/转授资格锁死；已应用 items 随本事务正常提交
+            //（幂等，重试 no-op），校准未执行——上游迁移所有者（type-definition/update）后重新校准
+            List<Long> deactivateTargetIds = toDeactivate.stream()
+                    .map(SyncMetadata::getTargetId).filter(java.util.Objects::nonNull).toList();
+            String grantOriginDetail = grantOriginDomainService
+                    .resolveGrantOriginReferenceDetail(tenantId, deactivateTargetIds);
+            if (grantOriginDetail != null) {
+                return SyncResultBuilder.fullSyncRejected(
+                        SyncResultBuilder.RETRY_NON_RETRYABLE,
+                        "ROLE_GRANT_ORIGIN_CONFLICT: " + grantOriginDetail,
+                        req.items().size(), List.of());
+            }
+            List<Long> softDeleteIds = new ArrayList<>();
+            for (SyncMetadata md : toDeactivate) {
+                syncMetadataDomainService.markStatus(tenantId, ENTITY_KIND, req.scope().sourceService(),
+                        scopeKeyHash, md.getBusinessKeyHash(), STATUS_DELETED);
+                deactivated++;
+                if (md.getTargetId() != null) {
+                    softDeleteIds.add(md.getTargetId());
+                }
+            }
+            if (!softDeleteIds.isEmpty()) {
+                abstractRoleMapper.softDeleteBatch(tenantId, softDeleteIds, LocalDateTime.now());
+                // §7 触发面（T-PERM-072 外评 P2）：full-sync 漂移删除同事务级联回收授权行（拍板 A 同款）；
+                // §8 全序补 RESOURCE_ENTITY（已持 ABSTRACT_ROLE）后读取授权引用
+                treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
+                autoGrantMaterializationDomainService.recycleRoleGrants(tenantId, new java.util.HashSet<>(softDeleteIds));
+            }
         }
 
         return SyncResultBuilder.fullSync(applied, stale, failed, deactivated, itemResults);

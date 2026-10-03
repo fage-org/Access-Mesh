@@ -2,11 +2,14 @@ package cn.ac.fage.accessmesh.access.grant.service.domain.impl;
 
 import cn.ac.fage.accessmesh.access.role.entity.AbstractRole;
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
+import cn.ac.fage.accessmesh.access.type.entity.TypeDefinition;
 import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.access.grant.enums.GrantSource;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomainService;
+import cn.ac.fage.accessmesh.access.type.service.domain.ResourceTypeOwnershipGuard;
+import cn.ac.fage.accessmesh.access.type.service.domain.TypeDefinitionDomainService;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.grant.service.domain.GrantOriginDomainService;
 import cn.ac.fage.accessmesh.access.grant.service.domain.PermissionGrantPlanDomainService;
@@ -23,8 +26,10 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -50,6 +55,7 @@ public class GrantOriginDomainServiceImpl implements GrantOriginDomainService {
     private final RoleResourcePermissionMapper roleResourcePermissionMapper;
     private final OperationPermissionDomainService operationPermissionDomainService;
     private final PermissionGrantPlanDomainService permissionGrantPlanDomainService;
+    private final TypeDefinitionDomainService typeDefinitionDomainService;
 
     /**
      * 构造函数注入依赖
@@ -60,19 +66,22 @@ public class GrantOriginDomainServiceImpl implements GrantOriginDomainService {
      * @param roleResourcePermissionMapper   授权数据访问层（迁移清理面查询）
      * @param operationPermissionDomainService 操作定义事实领域服务（迁移补种全操作位；Q-009 收敛注入）
      * @param permissionGrantPlanDomainService 授权计划领域服务（种子直写通道）
+     * @param typeDefinitionDomainService    类型定义事实领域服务（引用守卫反查 resource_type 行；Q-009 收敛读）
      */
     public GrantOriginDomainServiceImpl(ObjectMapper objectMapper,
                                         TypeResolutionService typeResolutionService,
                                         SubjectDomainService subjectDomainService,
                                         RoleResourcePermissionMapper roleResourcePermissionMapper,
                                         OperationPermissionDomainService operationPermissionDomainService,
-                                        PermissionGrantPlanDomainService permissionGrantPlanDomainService) {
+                                        PermissionGrantPlanDomainService permissionGrantPlanDomainService,
+                                        TypeDefinitionDomainService typeDefinitionDomainService) {
         this.objectMapper = objectMapper;
         this.typeResolutionService = typeResolutionService;
         this.subjectDomainService = subjectDomainService;
         this.roleResourcePermissionMapper = roleResourcePermissionMapper;
         this.operationPermissionDomainService = operationPermissionDomainService;
         this.permissionGrantPlanDomainService = permissionGrantPlanDomainService;
+        this.typeDefinitionDomainService = typeDefinitionDomainService;
     }
 
     @Override
@@ -173,6 +182,65 @@ public class GrantOriginDomainServiceImpl implements GrantOriginDomainService {
             // 存在性探测非校验：坏 JSON 由 validateExtraDeclaration 先行拒绝（20044）
             return false;
         }
+    }
+
+    @Override
+    public Map<GrantOriginRole, List<String>> findOwnerPointerReferences(Long tenantId, Set<GrantOriginRole> candidates) {
+        if (candidates == null || candidates.isEmpty()) {
+            return Map.of();
+        }
+        GrantOriginRole defaultPointer = new GrantOriginRole(
+            DEFAULT_OWNER_ROLE_TYPE_CODE, DEFAULT_OWNER_ROLE_EXTERNAL_ID);
+        Map<GrantOriginRole, List<String>> hits = new LinkedHashMap<>();
+        for (TypeDefinition type : typeDefinitionDomainService.selectByTenantAndTypeKey(
+                tenantId, ResourceTypeOwnershipGuard.TYPE_KEY_RESOURCE)) {
+            GrantOriginRole pointer;
+            try {
+                pointer = parseGrantOriginPointer(type.getExtra());
+            } catch (BizException e) {
+                // 坏 JSON/坏指针行不匹配任何角色：与运行时 resolveOwnerRoleId 20044 解析失败同态
+                //（悬挂指针），修复通道=updateType 覆盖合法 extra；守卫不放大存量数据问题
+                continue;
+            }
+            if (pointer == null) {
+                pointer = defaultPointer;
+            }
+            if (candidates.contains(pointer)) {
+                hits.computeIfAbsent(pointer, k -> new ArrayList<>()).add(type.getTypeCode());
+            }
+        }
+        return hits;
+    }
+
+    @Override
+    public String resolveGrantOriginReferenceDetail(Long tenantId, Collection<Long> roleIds) {
+        if (roleIds == null || roleIds.isEmpty()) {
+            return null;
+        }
+        List<AbstractRole> roles = subjectDomainService.selectValidRolesByIds(
+            tenantId, new LinkedHashSet<>(roleIds));
+        if (roles.isEmpty()) {
+            return null;
+        }
+        Set<Integer> roleTypeValues = roles.stream()
+            .map(AbstractRole::getRoleType)
+            .filter(java.util.Objects::nonNull)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        Map<Integer, String> roleTypeCodeByValue = roleTypeValues.isEmpty() ? Map.of()
+            : typeResolutionService.batchResolveTypeCodes(tenantId, "role_type", roleTypeValues);
+        Set<GrantOriginRole> candidates = roles.stream()
+            .map(role -> new GrantOriginRole(roleTypeCodeByValue.get(role.getRoleType()), role.getExternalId()))
+            .filter(pointer -> pointer.roleTypeCode() != null && pointer.roleExternalId() != null)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        Map<GrantOriginRole, List<String>> references = findOwnerPointerReferences(tenantId, candidates);
+        if (references.isEmpty()) {
+            return null;
+        }
+        return references.entrySet().stream()
+            .map(entry -> entry.getKey().roleTypeCode() + "/" + entry.getKey().roleExternalId()
+                + " <- " + entry.getValue())
+            .sorted()
+            .collect(Collectors.joining("; "));
     }
 
     @Override

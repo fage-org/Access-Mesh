@@ -53,6 +53,7 @@ class RoleManageAppServiceImplTest {
     @Mock private QueryGate engine;
     @Mock private TreeWriteLockSupport treeWriteLockSupport;
     @Mock private cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService autoGrantMaterializationDomainService;
+    @Mock private cn.ac.fage.accessmesh.access.grant.service.domain.GrantOriginDomainService grantOriginDomainService;
 
     private RoleManageAppServiceImpl service;
 
@@ -68,6 +69,7 @@ class RoleManageAppServiceImplTest {
             new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(),
             localProjectionDomainService,
             autoGrantMaterializationDomainService,
+            grantOriginDomainService,
             engine,
             treeWriteLockSupport
         );
@@ -467,6 +469,77 @@ class RoleManageAppServiceImplTest {
 
         verify(localProjectionDomainService).upsertRoleResource(1L, 123L, "新名", 0, null);
         verify(auditDomainService).recordChangeLog(any(), any());
+    }
+
+    /** T-PERM-099（2026-10-03 拍板：硬守卫整批拒绝）：删除集命中类型所有者引用 → 20073 整批回滚，零软删零投影删。 */
+    @Test
+    void shouldRejectDeleteOfGrantOriginOwnerRole() {
+        AbstractRole owner = new AbstractRole();
+        owner.setId(123L);
+        owner.setTenantId(1L);
+        owner.setRoleType(6);
+        owner.setName("类型所有者");
+        owner.setStatus(1);
+        owner.setExternalId("custom-owner");
+        AbstractRole normal = new AbstractRole();
+        normal.setId(456L);
+        normal.setTenantId(1L);
+        normal.setRoleType(6);
+        normal.setName("普通角色");
+        normal.setStatus(1);
+        normal.setExternalId("normal-role");
+        // 装载与守卫两段同参调用（级联展开为空，最终删除集=请求集）
+        when(subjectDomainService.selectValidRolesByIds(1L, java.util.Set.of(123L, 456L)))
+            .thenReturn(List.of(owner, normal));
+        when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+            eq(java.util.Set.of("123", "456")), eq(OperationCode.MANAGE))).thenReturn(java.util.Set.of());
+        when(grantOriginDomainService.resolveGrantOriginReferenceDetail(eq(1L), any()))
+            .thenReturn("BASIC_ROLE/custom-owner <- [PROJECT]");
+
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.deleteRoles(1L, List.of(123L, 456L), 100L))
+                .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
+                .extracting(ex -> ((cn.ac.fage.accessmesh.common.exception.BizException) ex).getErrorCode())
+                .isEqualTo(cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode.ROLE_GRANT_ORIGIN_CONFLICT.getCode());
+        }
+        // 整批拒绝：同批普通角色也未被软删（对齐 20056/20051 引用面守卫先例）
+        org.mockito.Mockito.verify(subjectDomainService, org.mockito.Mockito.never())
+            .softDeleteRoleBatch(anyLong(), any());
+        org.mockito.Mockito.verify(localProjectionDomainService, org.mockito.Mockito.never())
+            .softDeleteRoleResources(anyLong(), any());
+    }
+
+    /** T-PERM-099：判定集=含级联子孙的最终删除集——直接目标无引用但级联子孙是所有者时同样整批拒绝。 */
+    @Test
+    void shouldRejectDeleteWhenCascadedDescendantIsGrantOriginOwner() {
+        AbstractRole parent = new AbstractRole();
+        parent.setId(123L);
+        parent.setTenantId(1L);
+        parent.setRoleType(cn.ac.fage.accessmesh.access.type.enums.RoleType.BASIC_ROLE.getValue());
+        parent.setName("父角色");
+        parent.setStatus(1);
+        parent.setExternalId("root");
+        when(subjectDomainService.selectValidRolesByIds(1L, java.util.Set.of(123L))).thenReturn(List.of(parent));
+        when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+            eq(java.util.Set.of("123")), eq(OperationCode.MANAGE))).thenReturn(java.util.Set.of());
+        when(subjectDomainService.resolveDescendantRoleIdsBatch(1L, java.util.Set.of(123L)))
+            .thenReturn(List.of(456L));
+        // 守卫对最终删除集 {123,456} 判定（编排下沉 GrantOriginDomainService，mock 直供命中明细）
+        when(grantOriginDomainService.resolveGrantOriginReferenceDetail(eq(1L), any()))
+            .thenReturn("BASIC_ROLE/custom-owner <- [PROJECT]");
+
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.deleteRoles(1L, List.of(123L), 100L))
+                .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
+                .extracting(ex -> ((cn.ac.fage.accessmesh.common.exception.BizException) ex).getErrorCode())
+                .isEqualTo(cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode.ROLE_GRANT_ORIGIN_CONFLICT.getCode());
+        }
+        org.mockito.Mockito.verify(subjectDomainService, org.mockito.Mockito.never())
+            .softDeleteRoleBatch(anyLong(), any());
     }
 
     /** T-ACCESS-019：deleteRoles 同事务批量软删 ROLE 投影（含级联子孙角色）并按预计算用户失效。 */

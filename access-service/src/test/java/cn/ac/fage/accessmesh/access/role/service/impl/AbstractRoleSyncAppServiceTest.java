@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.access.role.service.impl;
 
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
+import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.sync.metadata.SyncVersionRef;
 import cn.ac.fage.accessmesh.access.sync.dto.AbstractRoleSyncReq;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;
@@ -64,12 +65,16 @@ class AbstractRoleSyncAppServiceTest {
 
     private AbstractRoleSyncAppServiceImpl service;
 
+    @Mock
+    private cn.ac.fage.accessmesh.access.grant.service.domain.GrantOriginDomainService grantOriginDomainService;
+
     @BeforeEach
     void setUp() {
         service = new AbstractRoleSyncAppServiceImpl(syncMetadataDomainService,
                 typeResolutionService, abstractRoleMapper, new ObjectMapper(),
                 new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(), syncTypeGuard,
-                subjectDomainService, treeWriteLockSupport, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService.class));
+                subjectDomainService, treeWriteLockSupport, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService.class),
+                grantOriginDomainService);
         org.mockito.Mockito.lenient().when(syncTypeGuard.validate(org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any())).thenReturn(true);
         // 版本预判领域判定的 mock 默认：无现存元数据（Map 空取 null）= 新版本放行；
@@ -614,5 +619,77 @@ class AbstractRoleSyncAppServiceTest {
         verify(syncMetadataDomainService).backfillTargetId(
                 eq(TENANT_ID), eq("ABSTRACT_ROLE"), eq(SOURCE_SERVICE),
                 anyString(), anyString(), eq(9999L));
+    }
+
+    // ===== T-PERM-099 拍板扩面（2026-10-03）：sync 通道类型所有者引用守卫 =====
+
+    /** 单条 DELETE 目标被 resource_type 所有者指针引用 → 20073 拒绝，不消耗同步版本、零删除零回收。 */
+    @Test
+    void shouldRejectSyncDeleteWhenTargetIsGrantOriginOwner() {
+        mockHeaderMatch();
+        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(2);
+        AbstractRole existing = role(123L, null);
+        existing.setExternalId("pm-admin");
+        when(abstractRoleMapper.selectByTypeAndExternalId(TENANT_ID, 2, "pm-admin")).thenReturn(existing);
+        when(grantOriginDomainService.resolveGrantOriginReferenceDetail(TENANT_ID, java.util.Set.of(123L)))
+                .thenReturn("BASIC_ROLE/pm-admin <- [PROJECT]");
+        AbstractRoleSyncReq deleteReq = new AbstractRoleSyncReq("DELETE", "BASIC_ROLE", "pm-admin",
+                null, null, null, "ROOT", null, null, null,
+                SOURCE_SERVICE, "x", "1", new SyncVersionRef(OCCURRED_AT, 1L));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.sync(TENANT_ID, deleteReq, httpRequest))
+                .isInstanceOf(BizException.class)
+                .extracting(ex -> ((BizException) ex).getErrorCode())
+                .isEqualTo(cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode
+                        .ROLE_GRANT_ORIGIN_CONFLICT.getCode());
+        // 拒绝路径不推进同步版本（对齐环路判定先例）；零软删零回收
+        org.mockito.Mockito.verify(syncMetadataDomainService, org.mockito.Mockito.never()).applyVersion(
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any());
+        org.mockito.Mockito.verify(abstractRoleMapper, org.mockito.Mockito.never())
+                .softDeleteBatch(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any());
+    }
+
+    /** full-sync 漂移校准删除集命中所有者 → 整单 nonRetryable，markStatus/softDelete 均未执行（两段式：无状态漂移）。 */
+    @Test
+    void shouldRejectFullSyncCalibrationWhenDeactivateSetHitsGrantOriginOwner() {
+        mockHeaderMatch();
+        // 窄桩（不走 stubFullSyncBase：本用例 item 无 parent、应用面不触发 batchResolveRoleIds/applyVersion）
+        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(2);
+        when(abstractRoleMapper.selectByTypeAndExternalIds(eq(TENANT_ID), eq(2), any()))
+                .thenReturn(java.util.List.of());
+        lenient().when(abstractRoleMapper.selectValidRoleTree(TENANT_ID, false)).thenReturn(java.util.List.of());
+        lenient().when(abstractRoleMapper.insert(any(AbstractRole.class))).thenReturn(1);
+        cn.ac.fage.accessmesh.access.sync.metadata.SyncMetadata md =
+                new cn.ac.fage.accessmesh.access.sync.metadata.SyncMetadata();
+        md.setBusinessKeyHash(cn.ac.fage.accessmesh.access.sync.SyncKeyCodecUtil.sha256Hex(businessKey("pm-admin")));
+        md.setTargetId(456L);
+        md.setTargetStatus("ACTIVE");
+        when(syncMetadataDomainService.listScopeForFullSync(eq(TENANT_ID), eq("ABSTRACT_ROLE"),
+                eq(SOURCE_SERVICE), org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(java.util.List.of(md));
+        when(grantOriginDomainService.resolveGrantOriginReferenceDetail(eq(TENANT_ID), eq(java.util.List.of(456L))))
+                .thenReturn("BASIC_ROLE/pm-admin <- [PROJECT]");
+
+        SyncResultResp resp = service.fullSync(TENANT_ID,
+                fullSyncReq(java.util.List.of(item("other-role", null, null, 1L))), httpRequest);
+
+        assertThat(resp.accepted()).isFalse();
+        assertThat(resp.retryClass()).isEqualTo(SyncResultBuilder.RETRY_NON_RETRYABLE);
+        assertThat(String.valueOf(resp.reason())).contains("ROLE_GRANT_ORIGIN_CONFLICT");
+        // 守卫先于任何校准写：未发生 DELETED markStatus（两段式防「元数据标 DELETED 但角色未删」
+        // 漂移；item 应用的 ACTIVE markStatus 不在禁止面）、未软删
+        org.mockito.Mockito.verify(syncMetadataDomainService, org.mockito.Mockito.never()).markStatus(
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq("DELETED"));
+        org.mockito.Mockito.verify(abstractRoleMapper, org.mockito.Mockito.never())
+                .softDeleteBatch(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any());
     }
 }

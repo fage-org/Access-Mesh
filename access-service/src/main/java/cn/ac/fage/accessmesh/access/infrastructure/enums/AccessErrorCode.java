@@ -779,7 +779,17 @@ public enum AccessErrorCode {
      * 本地投影刷新）——更新行数与装载不一致，整批回滚，调用方重新装载后重试即可（对齐 20058
      * 并发冲突先例：报并发而非参数校验失败，避免程序化调用方误判不重试）。
      */
-    USER_ROLE_CONCURRENT_CONFLICT(20072, "用户角色绑定已被并发变更，请重新装载后重试");
+    USER_ROLE_CONCURRENT_CONFLICT(20072, "用户角色绑定已被并发变更，请重新装载后重试"),
+
+    /**
+     * 角色被资源类型所有者指针引用，不可删除（T-PERM-099，契约总册 §13.1）：删除所有者角色会随
+     * recycleRoleGrants 回收该类型的 AUTHORITY_ROOT 授权根种子（T-PERM-072「授权根随角色消亡」），
+     * 类型保留即无人能通过该类型首授/转授资格检查、追加操作位解析指针整单回滚——引用面守卫
+     * 整批拒绝（对齐 20056/20051 先例），恢复通道=type-definition/update 迁移所有者
+     * （extra.grantOriginRole 先清后种重整化）后再删。命中含级联子孙与无指针缺省所有者
+     * （bootstrap-admin）两种形态，命中角色与引用类型见 message 明细。
+     */
+    ROLE_GRANT_ORIGIN_CONFLICT(20073, "角色被资源类型所有者指针引用，不可删除：请先经 type-definition/update 迁移该类型所有者（extra.grantOriginRole）后再删除（命中角色与引用类型见 message 明细）");
 
     private final int code;
     private final String message;

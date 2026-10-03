@@ -121,4 +121,6 @@ last_updated: 2026-10-03
 - 2026-10-01 立项：23 任务建卡（21 独立卡 + T-FE-062/T-PERM-101 看板行），22 条问题 open→converted。
 - 2026-10-01 T-PERM-096 + T-FE-060 收口（组一首两张，并行起步完成）：Q-044 随两卡收敛（closed，移入已收敛索引）；类推清扫退役 BusinessKeyUtil 第四个死方法 resourceTripleValueKey；前端顺带修 changeGroupKey（inlineName 自由文本 `|` 碰撞）；apiRouteResourceKey（path 中段自由文本）理论碰撞面用户拍板登记 Q-056（随清单批次排期，不占本计划任务位）。
 - 2026-10-02 T-PERM-097 收口（组一第三张，Q-027 收敛）：实施核实原验收「新增侧展开子树」无可达场景（T-PERM-043 后无 GROUP_ROLE 绑定行写入方，现行活口产生的行写守卫与运行时一致不展开、无 Y 失效危害），用户拍板改卡为「绑定面入口收紧」——assign/batch-assign（值层双保险）+ sync/full-sync（scope 级）四入口拒绑 GROUP_ROLE（20022），持有侧/运行时组展开零改动；原「新增侧展开」设想随 role_inclusion 单事实源立项（T-PERM-043 双事实源技术债）另行处理。
+- 2026-10-03 T-PERM-098 收口（Q-050 随卡收敛）。
+- 2026-10-03 T-PERM-099 收口（组一第六张，Q-023 随卡收敛）：三拍板（硬守卫整批拒绝/覆盖缺省引用 bootstrap-admin/双轨评审类推 sync 通道绕过→本卡扩面收口）落地 20073 `ROLE_GRANT_ORIGIN_CONFLICT` 挂 deleteRoles 与角色 sync/full-sync 两落点（单条 DELETE 先于版本推进抛出；full-sync 校准两段式改先收集后守卫，整单 NON_RETRYABLE 且零 markStatus 防元数据漂移）；守卫判定下沉 `GrantOriginDomainService.resolveGrantOriginReferenceDetail`（经 TypeDefinitionDomainService 收敛读，缺省/显式/坏指针跳过与运行时解析同源）；契约 §10.3/§13.1/§19.4 三处落账；红跑双证（HEAD 下 PgIT 3 拒绝面红、sync 守卫临时禁用下 2 用例红）。
 - 建议顺序：组一先行（T-PERM-096 ∥ T-FE-060 并行起步），组二/组三随后可并行；组五定案卡可随时穿插（T-PERM-102 除外——含门禁实施与回归锁，按实施卡排期；其余定案卡拍板后视范围另立实施卡）；组四收尾（Q-015 doc-only 清扫放最后，避免与实施批同文件冲突）。

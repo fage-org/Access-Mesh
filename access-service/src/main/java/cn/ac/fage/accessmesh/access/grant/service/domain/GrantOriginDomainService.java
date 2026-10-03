@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.grant.service.domain;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -73,6 +74,33 @@ public interface GrantOriginDomainService {
      * @return 携带该键返回 true
      */
     boolean hasGrantOriginPointerKey(String extraJson);
+
+    /**
+     * 反查引用候选角色为类型所有者的 resource_type typeCode（deleteRoles 引用守卫，T-PERM-099）。
+     * <p>
+     * 命中形态与 {@link #resolveOwnerRoleId} 运行时语义同源（2026-10-03 用户拍板：硬守卫整批拒绝
+     * + 覆盖缺省引用）：①显式指针等于候选角色业务键；②extra 无指针键时按缺省引导角色
+     * （BASIC_ROLE/bootstrap-admin）命中。坏 JSON/坏指针行跳过（不匹配任何角色）——悬挂指针与
+     * 运行时 20044 解析失败同态，修复通道=updateType 覆盖合法 extra，守卫不放大存量数据问题。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param candidates 待删角色业务键集合
+     * @return 命中指针 → 引用它的 typeCode 列表（稳定序）；空 Map = 无引用
+     */
+    Map<GrantOriginRole, List<String>> findOwnerPointerReferences(Long tenantId, Set<GrantOriginRole> candidates);
+
+    /**
+     * 按角色 id 集合反查所有者指针引用并格式化命中明细（删除面守卫共用编排，T-PERM-099）：
+     * 装载角色行 → role_type 值批量反解编码 → {@link #findOwnerPointerReferences} 判定 →
+     * 明细串「roleTypeCode/roleExternalId &lt;- [typeCode,...]」（多命中分号连接）。
+     * deleteRoles 与角色 sync/full-sync 删除路径同源判定（2026-10-03 拍板扩面收口）。
+     *
+     * @param tenantId 租户ID
+     * @param roleIds  最终删除集角色 id（含级联展开）
+     * @return 命中明细串；null = 无引用
+     */
+    String resolveGrantOriginReferenceDetail(Long tenantId, Collection<Long> roleIds);
 
     /**
      * 落授权根种子行（幂等 insert-if-absent；同事务随类型生命周期写路径回滚）。
