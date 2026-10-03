@@ -57,6 +57,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   <li>组织/菜单祖先链内存上溯在环上返回截断链（JVM 不死循环）</li>
  *   <li>树写锁真实互斥且经事务 afterCompletion 释放（解锁不先于提交）</li>
  *   <li>双线程同瞬交叉移动同一对节点：恰好一成一败，环无法落库</li>
+ *   <li>删父/挂子窗口（T-ADMIN-031，Q-048）：deleteMenu 事务提交前并发 createMenu(parent)
+ *       被锁串行化，指向软删父的存活孤儿无法落库</li>
  *   <li>环检测订正 SQL（与 access-service-rebuild-runbook 同源）能定位环节点</li>
  * </ul>
  */
@@ -368,6 +370,95 @@ class TreeCycleHardeningPgIT {
                 TenantContextHolder.clear();
             }
         };
+    }
+
+    /**
+     * 删父/挂子孤儿窗口（T-ADMIN-031，Q-048）：删除方在外层事务内挂起于「hasChildren 已过、
+     * 软删已写、未提交」点（锁实现下此刻持 SYS_MENU 锁），挂子方随即进场。
+     * <p>
+     * 有界等待分流，断言汇合后统一执行：锁实现下挂子阻塞在树写锁（2s 未完成）→ 放行删除提交、
+     * 锁释放后挂子获锁重读父——父已删，10201 拒绝，无孤儿；旧实现（无锁）下挂子直通完成
+     * （读父时删除未提交仍可见）→ 放行删除提交 → 存活子行指向软删父，汇合断言失败（红跑锚点）。
+     * 删除方的 10204 方向（挂子先提交、删父后进锁）由 hasChildren 既有行为兜底，不在此重复。
+     * </p>
+     */
+    @Test
+    @DisplayName("删父/挂子窗口：删除事务提交前并发挂子被锁串行化，孤儿无法落库")
+    void concurrentCreateUnderDeletingParentCannotOrphan() throws Exception {
+        Long parentId = menuWriteAppService.createMenu(new MenuCreateReq(
+            "MENU", "待删父", 0L, "/orphan/parent", null, null, 1, null, null, null));
+
+        TransactionTemplate txn = new TransactionTemplate(transactionManager);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            CountDownLatch deleted = new CountDownLatch(1);
+            CountDownLatch release = new CountDownLatch(1);
+            Future<?> deleter = pool.submit(() -> {
+                TenantContextHolder.setTenantId(TENANT);
+                AccessRequestContext.bind(RequestContext.user(TENANT, OPERATOR));
+                try {
+                    txn.executeWithoutResult(status -> {
+                        // @Transactional(REQUIRED) 加入外层事务：软删已写、hasChildren 已过、未提交
+                        menuWriteAppService.deleteMenu(parentId);
+                        deleted.countDown();
+                        try {
+                            release.await(10, TimeUnit.SECONDS);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                    });
+                } finally {
+                    AccessRequestContext.clear();
+                    TenantContextHolder.clear();
+                }
+            });
+
+            assertThat(deleted.await(5, TimeUnit.SECONDS))
+                .as("删除方应到达挂起点（已软删未提交）").isTrue();
+
+            java.util.concurrent.Future<Object> creator = pool.submit(() -> {
+                TenantContextHolder.setTenantId(TENANT);
+                AccessRequestContext.bind(RequestContext.user(TENANT, OPERATOR));
+                try {
+                    return (Object) menuWriteAppService.createMenu(new MenuCreateReq(
+                        "MENU", "并发子", parentId, "/orphan/child", null, null, 1, null, null, null));
+                } catch (Exception e) {
+                    return e;
+                } finally {
+                    AccessRequestContext.clear();
+                    TenantContextHolder.clear();
+                }
+            });
+
+            Object result;
+            try {
+                // 旧实现直通毫秒级完成；锁实现下阻塞在 SYS_MENU 锁上（删除事务持锁未提交）
+                result = creator.get(2, TimeUnit.SECONDS);
+            } catch (java.util.concurrent.TimeoutException blockedOnLock) {
+                result = null;
+            }
+            release.countDown();
+            deleter.get(5, TimeUnit.SECONDS);
+            if (result == null) {
+                result = creator.get(10, TimeUnit.SECONDS);
+            }
+
+            // 汇合终态断言（两分支统一；旧实现下挂子成功+孤儿落库，本断言组失败）
+            assertThat(result).as("挂子应被拒（r=%s）", result)
+                .isInstanceOf(BizException.class)
+                .extracting(e -> ((BizException) e).getErrorCode())
+                .isEqualTo(cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode
+                    .MENU_NOT_FOUND.getCode());
+            Long orphanChildren = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM sys_menu WHERE tenant_id = ? AND parent_id = ? AND delete_flag = 0",
+                Long.class, TENANT, parentId);
+            assertThat(orphanChildren).as("不应存在指向已删父的存活子节点").isZero();
+            Long parentDeleteFlag = jdbcTemplate.queryForObject(
+                "SELECT delete_flag FROM sys_menu WHERE id = ?", Long.class, parentId);
+            assertThat(parentDeleteFlag).as("父节点应已完成软删").isNotZero();
+        } finally {
+            pool.shutdownNow();
+        }
     }
 
     @Test

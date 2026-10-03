@@ -449,6 +449,40 @@ class MenuWriteAppServiceTest {
     }
 
     @Test
+    @DisplayName("树写锁：创建持锁且先于首次树读取（T-ADMIN-031，并发删父+挂子产生孤儿，Q-048）")
+    void createAcquiresTreeWriteLockBeforeFirstTreeRead() {
+        when(menuDomainService.selectValidById(TENANT, 40L)).thenReturn(menu("MENU"));
+        when(menuDomainService.calculateDepth(TENANT, 40L)).thenReturn(4);
+        when(localProjectionDomainService.upsertAdminMenu(
+            anyLong(), isNull(), eq("子菜单"), eq(40L), eq(1))).thenReturn(400L);
+
+        service.createMenu(new MenuCreateReq("MENU", "子菜单", 40L, null,
+            null, null, null, null, null, null));
+
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(treeWriteLockSupport, menuDomainService);
+        order.verify(treeWriteLockSupport).lockTreeWrites(TENANT,
+            cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.SYS_MENU);
+        order.verify(menuDomainService).selectValidById(TENANT, 40L);
+        verify(menuDomainService).insert(any(SysMenu.class));
+    }
+
+    @Test
+    @DisplayName("树写锁：删除持锁且先于首次实体读取（T-ADMIN-031，并发删父+挂子产生孤儿，Q-048）")
+    void deleteAcquiresTreeWriteLockBeforeFirstEntityRead() {
+        when(menuDomainService.selectValidById(TENANT, MENU_ID)).thenReturn(menu("HIDDEN"));
+        when(menuDomainService.hasChildren(TENANT, MENU_ID)).thenReturn(false);
+        when(localProjectionDomainService.findAdminMenuResourceId(TENANT, MENU_ID)).thenReturn(300L);
+
+        service.deleteMenu(MENU_ID);
+
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(treeWriteLockSupport, menuDomainService);
+        order.verify(treeWriteLockSupport).lockTreeWrites(TENANT,
+            cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.SYS_MENU);
+        order.verify(menuDomainService).selectValidById(TENANT, MENU_ID);
+        verify(menuDomainService).softDeleteBatch(TENANT, java.util.List.of(MENU_ID));
+    }
+
+    @Test
     @DisplayName("树写锁先于首次实体读取（无条件持锁，快照在锁内产生——外部评审 P1 顺序锁）")
     void treeWriteLockPrecedesFirstEntityRead() {
         // 实体快照必须在锁内产生：锁晚于读取时，读取-拿锁-写回窗口内完成的合法移动会被

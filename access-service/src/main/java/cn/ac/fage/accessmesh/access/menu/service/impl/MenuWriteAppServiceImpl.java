@@ -71,8 +71,13 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
     @OperationLog(module = "ACCESS", action = "MENU_CREATE", targetType = "sys_menu",
         targetId = "#result", summary = "'create menu ' + #req.displayName()")
     public Long createMenu(MenuCreateReq req) {
-        permissionValidator.checkTypeLevel(ResourceTypeCode.MENU, OperationCode.CREATE);
         Long tenantId = TenantContextHolder.getTenantId();
+        // 树写锁先于门禁与首次树读取（T-ADMIN-031 补，对齐 updateMenu 与 §17.1 锁序约束）：
+        // 无锁窗口内并发「删父（hasChildren 查子后软删）+ 挂子（checkParentExists 读父后插入）」
+        // 交叉通过校验，子节点落成指向软删父的存活孤儿（Q-048）；锁后进锁者可见先进锁者
+        // 已提交的删除/插入，两方向交错分别收敛为 10201（父已删）与 10204（父仍有子）
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.SYS_MENU);
+        permissionValidator.checkTypeLevel(ResourceTypeCode.MENU, OperationCode.CREATE);
         // 空白字符串规范化为 null（用户决策 2026-08-22）：空串入库会命中部分唯一索引
         // （WHERE col IS NOT NULL 对 '' 生效）并被读链路误判为业务菜单 fail-closed
         String path = normalize(req.path());
@@ -195,9 +200,13 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
     @OperationLog(module = "ACCESS", action = "MENU_DELETE", targetType = "sys_menu",
         targetId = "#id", summary = "'delete menu ' + #id")
     public void deleteMenu(Long id) {
+        Long tenantId = TenantContextHolder.getTenantId();
+        // 树写锁先于门禁与首次实体读取（T-ADMIN-031 补，对齐 updateMenu 与 §17.1 锁序约束）：
+        // 与 createMenu 的挂子窗口互斥——查子（hasChildren）与软删必须在锁内，否则并发挂子
+        // 在本事务提交后落成指向软删父的存活孤儿（Q-048）
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.SYS_MENU);
         permissionValidator.checkInstanceLevel(
             ResourceTypeCode.MENU, String.valueOf(id), OperationCode.DELETE);
-        Long tenantId = TenantContextHolder.getTenantId();
         SysMenu menu = menuDomainService.selectValidById(tenantId, id);
         if (menu == null) {
             throw new BizException(AccessErrorCode.MENU_NOT_FOUND.getCode(),

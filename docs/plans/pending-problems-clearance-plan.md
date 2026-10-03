@@ -80,7 +80,7 @@ last_updated: 2026-10-03
 
 | ID | 标题 | 来源 | 状态 | 直接依赖 |
 |---|---|---|---|---|
-| T-ADMIN-031 | 菜单 create/delete 补树写互斥 | Q-048 | ⚙️ | — |
+| T-ADMIN-031 | 菜单 create/delete 补树写互斥 | Q-048 | ✅ | — |
 | T-ADMIN-032 | job cron 写前校验与调度失败可观测 | Q-049 | ⚙️ | — |
 | T-ORG-004 | 组织树配置根节点重叠守卫 | Q-024 | ⚙️ | — |
 | T-ADMIN-033 | 业务字段空值与长度校验对齐列宽 | Q-018 | ⚙️ | — |
@@ -124,4 +124,5 @@ last_updated: 2026-10-03
 - 2026-10-03 T-PERM-098 收口（Q-050 随卡收敛）。
 - 2026-10-03 T-PERM-099 收口（组一第六张，Q-023 随卡收敛）：三拍板（硬守卫整批拒绝/覆盖缺省引用 bootstrap-admin/双轨评审类推 sync 通道绕过→本卡扩面收口）落地 20073 `ROLE_GRANT_ORIGIN_CONFLICT` 挂 deleteRoles 与角色 sync/full-sync 两落点（单条 DELETE 先于版本推进抛出；full-sync 校准两段式改先收集后守卫，整单 NON_RETRYABLE 且零 markStatus 防元数据漂移）；守卫判定下沉 `GrantOriginDomainService.resolveGrantOriginReferenceDetail`（经 TypeDefinitionDomainService 收敛读，缺省/显式/坏指针跳过与运行时解析同源）；契约 §10.3/§13.1/§19.4 三处落账；红跑双证（HEAD 下 PgIT 3 拒绝面红、sync 守卫临时禁用下 2 用例红）。
 - 2026-10-03 T-PERM-100 收口（组一收官，Q-031 随卡收敛）：两拍板——存量处置=当前无部署环境无存量行、不提供订正 SQL（未来出现存量时后果口径=归一寻址永久不可达、下次上游 full-sync 差异校准软删换 id 重建已入任务卡）；寻址侧一并 trim（扩面超出原验收）——登记前提「差异只在 sync 通道」经核实修正（TypeResolutionServiceImpl 单/批两处查找键同样不 trim，授权 INSTANCE/依赖/菜单/父解析共用），随卡收口并补寻址面回归锁。实现=两 sync DTO 归一方法单源 + AppServiceImpl 消费点全量替换 + normalizer businessKey/发布指纹同源归一 + TypeResolution 两处 trim（批量结果键保持调用方原参）；契约 §12.1/§19.1/§19.2/§19.7 回写；红跑双证（单测 3 红/PgIT 4 红）+全量 -T 1C 含 E2E/heavy BUILD SUCCESS 4880 项 0 失败。
+- 2026-10-03 T-ADMIN-031 收口（组二首张，Q-048 随卡收敛）：createMenu/deleteMenu 各补一次 SYS_MENU 树写锁（tenantId 后、门禁前、任何树读取前——对齐 updateMenu 与 §17.1 锁序定案，组织面 createOrg/deleteOrg 三锁先例同款；修法无分叉未触发用户决策）；DomainService 零改动；回归锁三面——单测锁 verify 2 用例（旧实现 2 红→24/24 绿）+ PgIT 确定性交错用例 `concurrentCreateUnderDeletingParentCannotOrphan`（删除方外层事务挂起于「已查子已软删未提交」点、挂子方进场，2s 有界等待分流+汇合终态断言；禁锁红跑实证=挂子直通成功返回菜单 id、孤儿落库即 Q-048 原窗口；恢复后 6/6+24/24 全绿、REDRUN 零残留）+ 既有互斥/afterCompletion 用例与 hasChildren 顺序行为覆盖 10204 方向不重复造例；契约 §9.6 补并发语义条目 + §17.1 树清单菜单行补 create/delete 与孤儿窗口口径。
 - 建议顺序：组一先行（T-PERM-096 ∥ T-FE-060 并行起步），组二/组三随后可并行；组五定案卡可随时穿插（T-PERM-102 除外——含门禁实施与回归锁，按实施卡排期；其余定案卡拍板后视范围另立实施卡）；组四收尾（Q-015 doc-only 清扫放最后，避免与实施批同文件冲突）。

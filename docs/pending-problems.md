@@ -56,16 +56,16 @@ last_updated: 2026-10-03
 <a id="q-048"></a>
 ## Q-048 菜单创建、删除缺树写互斥
 
-- **状态**：converted
+- **状态**：converted→closed（随任务收敛，条目移文末已收敛索引）
 - **登记**：2026-09-30
 - **来源**：外部逻辑报告 B-4；[核实记录](archive/2026-09-30/logic-review-verification.md)
 - **关联**：[树写锁约束](design/access-service-architecture.md#tree-write-lock)；P2；转出 [T-ADMIN-031](tasks/T-ADMIN-031.md)
 
 **现象与证据**：[MenuWriteAppServiceImpl](../access-service/src/main/java/cn/ac/fage/accessmesh/access/menu/service/impl/MenuWriteAppServiceImpl.java) createMenu 读父后插入、deleteMenu 查子后软删，均无 SYS_MENU 锁；updateMenu 已在首次读取前持锁。DomainService 未补锁，Controller 写入口仍存在。
 
-**影响**：有写权限的并发删父、挂子调用可留下指向软删父的存活子节点，正常树无法从根到达。当前无菜单管理 UI，风险限于满足门禁的写调用；未做并发复现。
+**影响**：有写权限的并发删父、挂子调用可留下指向软删父的存活子节点，正常树无法从根到达。当前无菜单管理 UI，风险限于满足门禁的写调用；未做并发复现（修复任务已补并发实证）。
 
-**设想方向（未定案）**：创建、删除与更新统一在首次树读取前持 SYS_MENU 锁。
+**设想方向（未定案）**：创建、删除与更新统一在首次树读取前持 SYS_MENU 锁。修复终态见已收敛索引 2026-10-03 行。
 
 <a id="q-045"></a>
 ## Q-045 TRACE 敏感诊断输出缺授权门禁
@@ -327,6 +327,7 @@ last_updated: 2026-10-03
 
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
+| <a id="q-048-closed"></a>Q-048 | 菜单创建、删除缺树写互斥 | 已修复；createMenu/deleteMenu 补 SYS_MENU 树写锁（锁先于门禁与首次树读取，对齐 updateMenu 与 §17.1 锁序），并发「删父+挂子」两方向交错分别收敛为 10201/10204；契约与验证见关联任务 | [T-ADMIN-031](tasks/T-ADMIN-031.md) | 2026-10-03 |
 | <a id="q-031"></a>Q-031 | 同步资源 codeType 与业务键归一不一致 | 已修复；契约与验证见关联任务（T-PERM-100 两拍板：存量=无部署无存量不订正、寻址侧 TypeResolution 一并 trim 扩面；写入/寻址/发布指纹同源归一，契约 §12.1/§19.1/§19.2/§19.7） | [T-PERM-100](tasks/T-PERM-100.md) | 2026-10-03 |
 | <a id="q-023"></a>Q-023 | 删除类型所有者角色缺引用守卫或提示 | 已修复；契约与验证见关联任务（T-PERM-099 三拍板：硬守卫整批拒绝+覆盖缺省引用+sync 通道扩面收口；契约 §10.3/§13.1/§19.4） | [T-PERM-099](tasks/T-PERM-099.md) | 2026-10-03 |
 | <a id="q-050"></a>Q-050 | 操作位写入与准入目录校验边界不一致 | 已修复；契约与验证见关联任务 | [T-PERM-098](tasks/T-PERM-098.md) | 2026-10-03 |

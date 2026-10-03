@@ -654,7 +654,10 @@ bootstrap 的 §14.4 最小集（`RESOURCE:VIEW`/`OPERATION:VIEW` scopeAll + `RO
   全列回写含 parent，「不带 parent 的普通编辑」无锁时并发移动会被静默回滚、经两步合法移动+
   回写可闭合成环，故不能按「是否带 parent」条件持锁；锁若晚于实体读取，读取-拿锁-写回窗口内
   完成的合法移动仍会被锁外旧快照覆盖——锁必须覆盖读与写，快照在锁内产生）：角色
-  `updateRole`/`moveRole`/`sync`/`full-sync`、组织 `updateOrg`、菜单 `updateMenu`、资源
+  `updateRole`/`moveRole`/`sync`/`full-sync`、组织 `updateOrg`、菜单 `createMenu`/`updateMenu`/`deleteMenu`
+  （T-ADMIN-031 补 create/delete：读父/深度校验与查子软删同窗口——并发「删父+挂子」交叉通过
+  hasChildren/checkParentExists 会落成指向软删父的存活孤儿，Q-048；两方向交错分别收敛为父不存在
+  拒绝与父仍有子拒绝）、资源
   `updateResource`/`moveResource`/`removeResource`（2026-09-05 定案补：后代展开与批量软删间的并发 sync 插入会产生悬挂引用）/`createResource`/`batchCreateResources`（T-PERM-052 定案补：与声明变更/删除互斥，锁先于所有权门禁与首次实体读取——堵「门禁读 MANAGED→并发翻转 SYNC/删类型→插入落库」）/资源实体 `sync`/`full-sync`（T-PERM-052 定案后移：类型所有权门禁在取锁后执行，与下述类型操作互斥）、`type-definition/create|update|remove` 涉 resource_type 时（同批定案：声明变更/删除的行数守卫与资源写入口互斥——peek→lock→锁内重读；定案补充 create：管理面门禁对「类型不存在」放行，建类型入口不持锁时在途资源插入可落进并发新建的 SYNC 类型；防「守卫查零行→并发资源插入→声明变更/删除落库」交错）、服务接口同步
   `syncInterfaces`（批量 upsert 资源全列回写）。组织/菜单携带 parent 时按锁内快照重判换父
   （相同即 no-op 跳过校验）。资源实体同步判环先于版本写入（拒绝不推进同步版本，full-sync
