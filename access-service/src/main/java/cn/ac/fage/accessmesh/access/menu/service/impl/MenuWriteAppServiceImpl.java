@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.menu.service.impl;
 
+import com.mybatisflex.core.util.UpdateEntity;
+
 import cn.ac.fage.accessmesh.access.menu.dto.req.MenuCreateReq;
 import cn.ac.fage.accessmesh.access.menu.dto.req.MenuUpdateReq;
 import cn.ac.fage.accessmesh.access.menu.entity.SysMenu;
@@ -187,7 +189,24 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
         }
         menu.setUpdatedAt(LocalDateTime.now());
         try {
-            menuDomainService.update(menu);
+            if (Boolean.TRUE.equals(req.iconClear())) {
+                menu.setIcon(null);
+                SysMenu patch = UpdateEntity.of(SysMenu.class);
+                patch.setId(menu.getId());
+                patch.setMenuType(menu.getMenuType());
+                patch.setDisplayName(menu.getDisplayName());
+                patch.setParentId(menu.getParentId());
+                patch.setPath(menu.getPath());
+                patch.setSortOrder(menu.getSortOrder());
+                patch.setStatus(menu.getStatus());
+                patch.setResourceType(menu.getResourceType());
+                patch.setResourceCode(menu.getResourceCode());
+                patch.setUpdatedAt(menu.getUpdatedAt());
+                patch.setIcon(null);
+                menuDomainService.update(patch);
+            } else {
+                menuDomainService.update(menu);
+            }
         } catch (DuplicateKeyException e) {
             rethrowIfUniqueViolation(e);
         }

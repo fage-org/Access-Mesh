@@ -1,7 +1,11 @@
 package cn.ac.fage.accessmesh.access.infrastructure;
 
+import cn.ac.fage.accessmesh.common.security.M2mCredentialEndpoints;
+
 import cn.ac.fage.accessmesh.access.auth.entity.SysOauth2Client;
 import cn.ac.fage.accessmesh.access.auth.service.domain.OAuth2ClientDomainService;
+import cn.ac.fage.accessmesh.access.user.service.domain.UserDomainService;
+import cn.ac.fage.accessmesh.access.user.entity.SysUser;
 import cn.dev33.satoken.exception.SaTokenException;
 import cn.dev33.satoken.jwt.SaJwtTemplate;
 import cn.dev33.satoken.jwt.SaJwtUtil;
@@ -38,7 +42,7 @@ import java.util.UUID;
  *       同端口地址校验 fail-fast 拒绝启动）场景下主端口的放行来源，非死代码）→ ANONYMOUS</li>
  *   <li>内部凭证通过（attribute INTERNAL_AUTHENTICATED）→
  *       X-User-Id 存在（恒已验签，防御纵深再校验）→ USER（签名代理主体）；
- *       无 X-User-Id → SERVICE（serviceCode 绑定 X-Service-Code 头，凭证通过即可信）</li>
+ *       无 X-User-Id → 仅无自报服务身份的平台内部查询；外部服务走服务凭证</li>
  *   <li>OAuth2 JWT（Bearer 三段式，仅显式配置的开放路径 access.oauth2.resource-paths，
  *       默认仅 /api/access/auth/oauth2/userinfo）→ 验签 + 撤销黑名单 + 客户端启用校验 + 路径门禁
  *       （clientIds/scope/audience，T-ACCESS-013 独立映射）→ USER + delegatedClientId；
@@ -79,6 +83,7 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
     private final StringRedisTemplate stringRedisTemplate;
     private final OAuth2ResourcePathProperties oauth2ResourcePaths;
     private final OAuth2ClientDomainService oauth2ClientDomainService;
+    private final UserDomainService userDomainService;
 
     /** OAuth2 JWT 签发/验签密钥（sa-token.jwt-secret-key，T-ACCESS-003 权威配置）。 */
     @Value("${sa-token.jwt-secret-key:}")
@@ -87,11 +92,13 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
     public RequestContextInterceptor(SignatureVerifier signatureVerifier,
                                      StringRedisTemplate stringRedisTemplate,
                                      OAuth2ResourcePathProperties oauth2ResourcePaths,
-                                     OAuth2ClientDomainService oauth2ClientDomainService) {
+                                     OAuth2ClientDomainService oauth2ClientDomainService,
+                                     UserDomainService userDomainService) {
         this.signatureVerifier = signatureVerifier;
         this.stringRedisTemplate = stringRedisTemplate;
         this.oauth2ResourcePaths = oauth2ResourcePaths;
         this.oauth2ClientDomainService = oauth2ClientDomainService;
+        this.userDomainService = userDomainService;
     }
 
     /**
@@ -158,22 +165,15 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
                 setMdc(requestId, String.valueOf(operatorId), String.valueOf(tenantId), null);
                 return true;
             }
-            // 新接口声明仅开放 per-service 凭证和用户身份，不扩展旧共享密钥的纯服务通道。
-            if ("/api/access/service-config/sync-v2".equals(uri)) {
-                writeJson(response, HttpServletResponse.SC_FORBIDDEN, "接口声明同步需要服务凭证或用户身份");
-                return false;
-            }
-            // 纯服务调用：serviceCode 在凭证通过后绑定（防无凭证外部伪造）
+            // 外部服务只接受 per-service 凭证；签名用户路径已在上方验证。
             String serviceCode = request.getHeader(HEADER_SERVICE_CODE);
-            // T-ACCESS-059：操作准入两端点不扩展旧共享密钥的自报服务通道（sync-v2 先例）——
-            // 携带 X-Service-Code 的旧密钥纯服务调用拒绝（服务身份请走 per-service 凭证）；
-            // 无该头的网关内部密钥形态（平台信任域，沿 check-interface 口径）放行。
-            if ((serviceCode != null && !serviceCode.isBlank())
-                && ("/api/access/auth/interface-admission".equals(uri)
-                    || "/api/access/auth/interface-admission-snapshot".equals(uri))) {
-                writeJson(response, HttpServletResponse.SC_FORBIDDEN, "操作准入端点需要服务凭证或平台内部调用形态");
+            boolean syncEndpoint = M2mCredentialEndpoints
+                .matches(request.getMethod(), uri) && !uri.startsWith("/api/access/auth/");
+            if ((serviceCode != null && !serviceCode.isBlank()) || syncEndpoint) {
+                writeJson(response, HttpServletResponse.SC_FORBIDDEN, "服务调用需要服务凭证");
                 return false;
             }
+            // 无自报服务身份的 Gateway 平台内部查询保留内部互信。
             Long tenantId = signatureVerifier.parseTenantId(request);
             if (tenantId == null) {
                 logSecurity(request, "service call missing X-Tenant-Id");
@@ -442,6 +442,17 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
             return false;
         }
         Long tenantId = OAuth2JwtSupport.tenantIdOf(payloads);
+        if (tenantId == null || !tenantId.equals(client.getTenantId())) {
+            logSecurity(request, "oauth2 jwt tenant mismatch");
+            writeJson(response, HttpServletResponse.SC_UNAUTHORIZED, "认证失败");
+            return false;
+        }
+        SysUser user = userDomainService.selectValidById(tenantId, operatorId);
+        if (user == null || !Integer.valueOf(1).equals(user.getStatus())) {
+            logSecurity(request, "oauth2 jwt user inactive");
+            writeJson(response, HttpServletResponse.SC_UNAUTHORIZED, "认证失败");
+            return false;
+        }
 
         AccessRequestContext.bind(
             RequestContext.delegatedUser(tenantId, operatorId, clientId).withRequestId(requestId));

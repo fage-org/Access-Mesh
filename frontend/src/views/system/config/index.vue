@@ -85,7 +85,10 @@ function openForm(mode: "create" | "edit", row?: SystemConfigResp) {
         return;
       }
       const formData = formRef.getFormData();
-      const ok = await handleSubmitForm(formData);
+      const ok = await handleSubmitForm(
+        formData,
+        mode === "edit" ? row : undefined
+      );
       if (ok) done();
       else closeLoading();
     }

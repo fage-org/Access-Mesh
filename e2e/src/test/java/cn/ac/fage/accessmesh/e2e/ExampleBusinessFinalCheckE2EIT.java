@@ -129,6 +129,12 @@ class ExampleBusinessFinalCheckE2EIT {
             st.execute(ddl);
             st.execute("INSERT INTO service_config (tenant_id, service_code, name, status) VALUES ("
                 + "1, 'example-service', 'Example Service', 1)");
+            try (var ps = conn.prepareStatement("INSERT INTO service_credential "
+                + "(tenant_id, service_code, credential_id, secret_hash, status) VALUES (1, 'example-service', ?, ?, 1)")) {
+                ps.setString(1, "sc-example-e2e");
+                ps.setString(2, cn.dev33.satoken.secure.BCrypt.hashpw("sk-example-e2e"));
+                ps.executeUpdate();
+            }
         }
 
         int accessPort = freePort();
@@ -145,7 +151,9 @@ class ExampleBusinessFinalCheckE2EIT {
             exampleServiceArgs(examplePort, accessPort),
             Map.of("JWT_SECRET_KEY", JWT_SECRET,
                 "ACCESSMESH_SIGNATURE_SECRET", SIGNATURE_SECRET,
-                "PERM_INTERNAL_SECRET", INTERNAL_SECRET),
+                "PERM_CREDENTIAL_ID", "sc-example-e2e",
+                "PERM_CREDENTIAL_SECRET", "sk-example-e2e",
+                "PERM_ALLOW_INSECURE", "true"),
             URI.create("http://localhost:" + examplePort + "/api/example/demo/hello"),
             EXAMPLE_SERVICE_CLASSES_DIR);
 
@@ -729,6 +737,7 @@ class ExampleBusinessFinalCheckE2EIT {
      */
     private static List<String> exampleServiceArgs(int port, int accessPort) {
         return List.of(
+            "--perm.tenant-id=1",
             "--spring.main.web-application-type=servlet",
             "--server.port=" + port,
             "--spring.config.import=optional:classpath:/e2e-nope.yml",

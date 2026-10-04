@@ -25,16 +25,13 @@ accessmesh:
   cache:
     enabled: false
 
-# 业务最终检查客户端（T-ACCESS-061，§8.6 逐路由）：经 perm-client SDK（Feign）调
-# access-service auth/check 族端点。服务认证=内部密钥通道（SDK FeignInternalSyncInterceptor
-# 注入 X-Internal-Secret/X-Service-Code）；X-Tenant-Id 由本服务 FeignTenantHeaderInterceptor
-# 从 BusinessPermChecker 调用上下文注入。密钥未配置时 check 调用被 access-service 拒绝，
-# 业务侧 fail-closed（30005）——不会静默放行。
+# 业务最终检查客户端：身份由服务凭证绑定，业务服务不持有平台内部密钥。
+# 凭证配置经部署环境传入 perm.credential-id / perm.credential-secret / perm.allow-insecure。
+# tenant-id 必填；未配置凭证时查询因缺身份 fail-closed，完成签发配置后再启用业务流量。
 perm:
+  tenant-id: ${PERM_TENANT_ID}
   client:
     enabled: true
-  internal-secret: ${PERM_INTERNAL_SECRET:}
-  service-code: example-service
 
 example:
   export:

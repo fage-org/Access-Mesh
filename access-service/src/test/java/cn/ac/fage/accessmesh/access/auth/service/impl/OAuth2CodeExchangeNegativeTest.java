@@ -68,6 +68,9 @@ class OAuth2CodeExchangeNegativeTest {
         ReflectionTestUtils.setField(service, "jwtSecretKey",
             "test-jwt-secret-for-code-negative-0123456789abcd");
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        var activeUser = new cn.ac.fage.accessmesh.access.user.entity.SysUser();
+        activeUser.setStatus(1);
+        lenient().when(userDomainService.selectValidById(1L, 9L)).thenReturn(activeUser);
     }
 
     private SysOauth2Client client() {

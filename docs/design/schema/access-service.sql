@@ -1174,7 +1174,6 @@ CREATE TABLE role_resource_permission (
     can_grant              BOOLEAN NOT NULL DEFAULT false,
     condition_id            BIGINT,
     grant_source            VARCHAR(32) NOT NULL DEFAULT 'MANUAL',
-    grant_dep_id            BIGINT,
     created_by              BIGINT,
     updated_by              BIGINT,
     deleted_by              BIGINT,
@@ -1230,7 +1229,6 @@ COMMENT ON COLUMN role_resource_permission.scope_all IS '是否覆盖该 resourc
 COMMENT ON COLUMN role_resource_permission.can_grant IS '是否可授权(该权限可被当前角色关联的用户授予他人)';
 COMMENT ON COLUMN role_resource_permission.condition_id IS '生效条件ID（引用 permission_condition），NULL 表示始终生效';
 COMMENT ON COLUMN role_resource_permission.grant_source IS '授权来源：MANUAL=手动授权，AUTO_DEP=resource_dependency 自动补全，AUTHORITY_ROOT=类型授权根种子（T-PERM-062：自定义 resource_type 的首授基座，类型创建/追加操作自动补种、所有者变更同事务迁移（先清后种）、类型删除级联清理（T-PERM-050）；apply-grant-plan 不可改删 20061，形状由 ck_role_resource_permission_authority_root 焊死）';
-COMMENT ON COLUMN role_resource_permission.grant_dep_id IS '保留诊断列（T-PERM-072 定案不写不读，Q-022 留观）：AUTO_DEP 行由多条编译边与多个种子共同支持，单字段不能表达多来源，物化器永不写入';
 
 -- -----------------------------------------------------------------------------
 -- 29. domain_config - 域配置表（SUB_PERM 子权限 / CLASSIFY 域分类；SCOPE/RELATION/BINDING 为历史设想类型，未实现）

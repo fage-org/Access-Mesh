@@ -54,7 +54,8 @@ export function useSystemConfig() {
   /** 提交保存（新建/编辑统一 upsert）。
    *  configValue 提交前 JSON.parse 校验，非法则 message 报错返回 false 不提交（与后端 JsonValidationUtils 对齐）。 */
   async function handleSubmitForm(
-    form: SystemConfigFormData
+    form: SystemConfigFormData,
+    original?: SystemConfigResp
   ): Promise<boolean> {
     const parsed = parseConfigValue(form.configValue);
     if (!parsed.ok) {
@@ -65,7 +66,9 @@ export function useSystemConfig() {
       await saveSystemConfig({
         configKey: form.configKey,
         configValue: form.configValue.trim(),
-        description: form.description || null
+        description: form.description.trim() || null,
+        descriptionClear:
+          original?.description != null && !form.description.trim()
       });
       message("保存成功", { type: "success" });
       await loadTable();

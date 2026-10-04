@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.auth.service.impl;
 
+import com.mybatisflex.core.util.UpdateEntity;
+
 import cn.ac.fage.accessmesh.access.infrastructure.dto.IdsReq;
 import cn.ac.fage.accessmesh.access.auth.dto.Oauth2ClientCreateReq;
 import cn.ac.fage.accessmesh.access.auth.dto.Oauth2ClientPageReq;
@@ -156,7 +158,27 @@ public class Oauth2ClientAppServiceImpl implements Oauth2ClientAppService {
         }
         existing.setUpdatedAt(LocalDateTime.now());
 
-        oauth2ClientMapper.update(existing);
+        if (Boolean.TRUE.equals(req.redirectUrisClear()) || Boolean.TRUE.equals(req.scopesClear())
+            || Boolean.TRUE.equals(req.audiencesClear())) {
+            if (Boolean.TRUE.equals(req.redirectUrisClear())) existing.setRedirectUris(null);
+            if (Boolean.TRUE.equals(req.scopesClear())) existing.setScopes(null);
+            if (Boolean.TRUE.equals(req.audiencesClear())) existing.setAudiences(null);
+            SysOauth2Client patch = UpdateEntity.of(SysOauth2Client.class);
+            patch.setId(existing.getId());
+            patch.setClientSecret(existing.getClientSecret());
+            patch.setClientName(existing.getClientName());
+            patch.setGrantTypes(existing.getGrantTypes());
+            patch.setRedirectUris(existing.getRedirectUris());
+            patch.setScopes(existing.getScopes());
+            patch.setAudiences(existing.getAudiences());
+            patch.setAccessTokenTtl(existing.getAccessTokenTtl());
+            patch.setRefreshTokenTtl(existing.getRefreshTokenTtl());
+            patch.setStatus(existing.getStatus());
+            patch.setUpdatedAt(existing.getUpdatedAt());
+            oauth2ClientMapper.update(patch);
+        } else {
+            oauth2ClientMapper.update(existing);
+        }
     }
 
     /**

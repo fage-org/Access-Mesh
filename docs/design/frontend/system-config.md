@@ -99,7 +99,7 @@ PureTableBar 表格列表范式（遵循 `frontend-layout-patterns`），与 6.1
 |---|---|---|---|---|
 | 列表 | `POST /api/access/system-config/list` | `{keyword?,pageNum?,pageSize?}` | `PageResp<SystemConfigResp>`（服务端过滤+分页，ORDER BY configKey,id） | ✅（T-PERM-024 收口） |
 | 详情 | `POST /api/access/system-config/detail` | `{configKey}` (SystemConfigGetReq) | `SystemConfigResp` | ✅ |
-| 保存 | `POST /api/access/system-config/save` | `{configKey,configValue,description?}` (SystemConfigReq) | `SystemConfigResp`（upsert） | ✅ |
+| 保存 | `POST /api/access/system-config/save` | `{configKey,configValue,description?,descriptionClear?}` (SystemConfigReq) | `SystemConfigResp`（upsert） | ✅ |
 
 > **无 create/update/remove**：save 是 upsert 幂等，新建/编辑统一走 save。
 
@@ -185,3 +185,5 @@ Phase 1 登记的 🔧 项处置终态：
 - configValue JSON 校验为前端 `JSON.parse` 预拦截（对齐后端 `JsonValidationUtils`）；后端二次校验不变。
 - ~~mock 保留 deleted 内部标记~~ mock 随真实链路（T-FE-041）移除；后端无删除接口的设计约束不变。
 - 联调（T-FE-022）：§8 四项已收口，无阻塞项。
+
+编辑描述沿契约 §2.7：弹窗保留原值；原 description 非 null 且输入清空时发送 `descriptionClear=true`，不同时发送新值；新建空描述不发送 Clear。后端保存与重新查询均返回真实 NULL（T-API-006）。

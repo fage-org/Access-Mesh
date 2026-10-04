@@ -58,7 +58,8 @@ export type ConditionUpdateReq = {
   conditionRules?: string;
   enabled?: boolean;
   gatewayEvaluable?: boolean;
-  description?: string;
+  description?: string | null;
+  descriptionClear?: boolean;
 };
 
 /** 查询条件列表（POST /api/access/permission-condition/list）。

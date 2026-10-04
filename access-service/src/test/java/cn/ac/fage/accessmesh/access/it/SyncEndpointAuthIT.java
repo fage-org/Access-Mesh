@@ -74,8 +74,11 @@ class SyncEndpointAuthIT {
 
         HeaderSignatureInterceptor sigInterceptor = new HeaderSignatureInterceptor(verifier);
 
-        ServiceAuthArbiter internalInterceptor = new ServiceAuthArbiter(
-            org.mockito.Mockito.mock(ServiceCredentialDomainService.class));
+        var credentials = org.mockito.Mockito.mock(ServiceCredentialDomainService.class);
+        org.mockito.Mockito.when(credentials.verify("sc-test", "sk-test"))
+            .thenReturn(ServiceCredentialDomainService.VerifyResult.success(
+                new cn.ac.fage.accessmesh.access.infrastructure.ServicePrincipal(1L, "example-service", "sc-test")));
+        ServiceAuthArbiter internalInterceptor = new ServiceAuthArbiter(credentials);
         ReflectionTestUtils.setField(internalInterceptor, "expectedSecret", INTERNAL_SECRET);
         internalInterceptor.validateConfiguration();
 
@@ -84,7 +87,8 @@ class SyncEndpointAuthIT {
         RequestContextInterceptor ctxInterceptor = new RequestContextInterceptor(verifier,
             org.mockito.Mockito.mock(org.springframework.data.redis.core.StringRedisTemplate.class),
             new cn.ac.fage.accessmesh.access.infrastructure.OAuth2ResourcePathProperties(),
-            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.auth.service.domain.OAuth2ClientDomainService.class));
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.auth.service.domain.OAuth2ClientDomainService.class),
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.user.service.domain.UserDomainService.class));
 
         // 复制 SecurityWebMvcConfig 的实际拦截器链顺序
         // order=1 ServiceAuthArbiter(/api/access/**，豁免会话入口族) → order=2 HeaderSignature(/api/access/**,/internal/**，
@@ -101,7 +105,8 @@ class SyncEndpointAuthIT {
     void case1_internalSecretCorrect_shouldPass() throws Exception {
         mockMvc.perform(post("/api/access/abstract-user/sync")
                 .header(HEADER_TENANT_ID, "1")
-                .header(HEADER_INTERNAL_SECRET, INTERNAL_SECRET)
+                .header("X-Credential-Id", "sc-test")
+                .header("X-Credential-Secret", "sk-test")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"))
             .andExpect(status().isOk());

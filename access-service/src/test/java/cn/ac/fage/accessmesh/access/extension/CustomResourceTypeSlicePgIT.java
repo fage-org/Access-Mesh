@@ -96,6 +96,9 @@ class CustomResourceTypeSlicePgIT {
     }
 
     @Autowired
+    private cn.ac.fage.accessmesh.access.infrastructure.credential.service.domain.ServiceCredentialDomainService credentials;
+
+    @Autowired
     private MockMvc mockMvc;
     @Autowired
     private JdbcTemplate jdbc;
@@ -226,6 +229,16 @@ class CustomResourceTypeSlicePgIT {
             checkReq(String.valueOf(grantedUserId), RESOURCE_CODE));
         assertThat(allowed.path("allowed").asBoolean())
             .as("绑定角色 + 实例级授权后必须 allowed：" + allowed).isTrue();
+
+        var scopeRequest = JSON.objectNode()
+            .put("subjectTypeCode", "LOCAL_USER").put("subjectExternalId", String.valueOf(grantedUserId))
+            .put("parentResourceTypeCode", CUSTOM_TYPE).put("parentResourceCode", RESOURCE_CODE);
+        scopeRequest.putArray("parentOperationCodes").add(OP_EXPORT);
+        scopeRequest.putArray("scopeResourceTypeCodes").add(CUSTOM_TYPE);
+        scopeRequest.putArray("scopeOperationCodes").add(OP_EXPORT);
+        JsonNode scope = postAsService("/api/access/auth/query-scopes", scopeRequest);
+        assertThat(scope.path("matchedParentOperations").toString()).contains(OP_EXPORT);
+        assertThat(scope.path("scopeGroups").isArray()).isTrue();
 
         // —— 负向锁①：未绑定任何角色的主体拒绝（reason=NO_ROLE 钉死主体装配正确——
         //     主体装配失败走 USER_NOT_FOUND，同样 allowed=false 但语义不同） ——
@@ -515,10 +528,11 @@ class CustomResourceTypeSlicePgIT {
 
     /** 接入方服务身份请求（X-Internal-Secret 凭证 + X-Service-Code + X-Tenant-Id → SERVICE 上下文），断言业务信封 200。 */
     private JsonNode postAsService(String path, ObjectNode body) throws Exception {
+        var credential = credentials.issue(TENANT, SOURCE_SERVICE, null, 100L);
         return performAndUnwrap(path, body, Map.of(
-            "X-Internal-Secret", INTERNAL_SECRET,
-            "X-Service-Code", SOURCE_SERVICE,
-            "X-Tenant-Id", String.valueOf(TENANT)), 200);
+            "X-Credential-Id", credential.entity().getCredentialId(),
+            "X-Credential-Secret", credential.plainSecret(),
+            "X-Tenant-Id", "999"), 200);
     }
 
     private JsonNode performAndUnwrap(String path, ObjectNode body, Map<String, String> headers,

@@ -624,7 +624,7 @@ class InterfaceAdmissionPgIT {
         // 仅名称变化不登记时本用例须转红），载荷换成不同 CIDR 的合法可下发规则
         conditions.updateCondition(TENANT, new ConditionUpdateReq(condCode, "n19 改规则",
             "{\"logic\":\"AND\",\"items\":[{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"192.168.0.0/16\"]}}]}",
-            null, null, null), 100L);
+            null, null, null, null), 100L);
 
         // 广播恰含映射 ADMIT2 操作的正向服务；负向服务不在集合中
         assertThat(captureBroadcastServiceCodes()).containsExactly(SERVICE);

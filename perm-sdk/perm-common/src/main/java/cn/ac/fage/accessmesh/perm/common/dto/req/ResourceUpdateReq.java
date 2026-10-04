@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.perm.common.dto.req;
 
+import jakarta.validation.constraints.Pattern;
+
 import jakarta.validation.constraints.AssertTrue;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.constraints.NotBlank;
@@ -42,6 +44,7 @@ public record ResourceUpdateReq(
     /**
      * 扩展属性 JSON，可选；null=不更新
      */
+    @Pattern(regexp = "(?s)(?U).*\\S.*", message = "extra 不能为空白")
     String extra,
     /**
      * 清空 extra 为 null 的显式标志，可选；与 extra 同传拒绝（T-API-004）

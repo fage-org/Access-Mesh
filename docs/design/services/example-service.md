@@ -3,7 +3,7 @@ doc_type: design
 title: Example Service 设计
 status: adopted
 domain: example-service
-last_reviewed: 2026-09-28（退役清扫：场景表 sync→sync-v2、接口权限行改两层判定口径）；同日 T-ACCESS-061：§8.6 业务最终检查七路由参考族落地（perm-client SDK 消费拍板+内部密钥通道+反向拒绝测试）、SDK 接入边界改写；此前 2026-09-23（T-ACCESS-053）
+last_reviewed: 2026-10-04
 ---
 
 # Example Service 设计
@@ -23,7 +23,7 @@ last_reviewed: 2026-09-28（退役清扫：场景表 sync→sync-v2、接口权�
 - 接口级鉴权（第一层）由 Gateway 承担（规范 §2.4）：Gateway `Path=/api/example/**` 路由（无 StripPrefix、`serviceCode=example-service`，T-ACCESS-042 单命名空间）按操作准入快照放行/拒绝（MAY_ENTER=存在类型-操作覆盖候选，非最终许可）。
 - **业务最终检查（第二层，T-ACCESS-061 §8.6 逐路由参考实现）**：`ReportController` 七路由覆盖检查表全部七行——`view`（实际资源+对应操作）、`batch-view`（独立批量逐项 DECISION）、`list`（`query-resources` 范围过滤+分页 total 同口径）、`create`（TYPE_LEVEL）、`sub-view`（depend_on 真实父上下文）、`export/submit`+`export/status`（异步作业提交与执行时点各自鉴权）；`/hello` 最终检查定位=身份头存在性。主体/租户恒取自已验签身份头（请求 DTO 无主体/租户字段）；业务拒绝=信封 **30004**、鉴权服务不可用=fail-closed **30005**；反向拒绝测试=`ReportControllerTest`（20 用例）+`ReportControllerValidationTest`（3 用例 HTTP 层反例）（迁移资格载体——契约 §25.7）。
 - 接入路径（E2E `ExampleProtectedApiE2EIT` ③~⑧ 钉死；T-ACCESS-059/061 现行口径）：管理员经 Gateway 先建业务类型与实例（`type-definition/create` 建 `EXAMPLE`、`resource-entity/create` 建示例报表实例），再调 `/api/access/service-config/sync-v2`（FULL 接口声明，ApiItem 必填 `requiredPermission={resourceTypeCode:EXAMPLE, operationCode:VIEW}`）一步创建 API 登记资源与 `resource_api_mapping`（owner=example-service、maintainSource=SERVICE_SYNC、pathPattern=basePath+path=外部路径）→ 授予角色业务操作授权（`EXAMPLE:VIEW`）→ 网关操作准入放行（MAY_ENTER）→ 业务最终检查放行 → 200。旧 `/sync`（v1）协议不携带操作引用，不再用于新链接入；`API:ACCESS` 授权行自 T-ACCESS-059 起不参与网关判定（legacy 资源语义，062 受控清理面）。API 登记资源的唯一事实入口仍是 service-config 声明通道（API 类型种子声明 SYNC+access-service，T-PERM-069：外部同步来源不匹配一律 RESOURCE_TYPE_OWNERSHIP_DENIED、资源管理面手工 CRUD 20055）。
-- 依赖形态（T-ACCESS-061 用户拍板修订）：POM 重新引入 `perm-client-spring-boot-starter`（Feign——业务最终检查调用 `auth/check` 族端点；服务认证=内部密钥通道 `FeignInternalSyncInterceptor`，`X-Tenant-Id` 由本服务 `FeignTenantHeaderInterceptor` 从调用上下文注入）；仍无数据源、无缓存消费（`accessmesh.cache.enabled=false`）。曾删除的 perm-data、MyBatis-Flex、PostgreSQL、Redis、MapStruct、JSqlParser 维持删除。
+- 依赖形态（T-ACCESS-061 用户拍板修订）：POM 重新引入 `perm-client-spring-boot-starter`（Feign——业务最终检查调用 `auth/check` 族端点；服务认证=per-service 凭证 `FeignCredentialInterceptor`；`perm.tenant-id` 显式配置凭证租户，最终检查前与网关验签租户比对，不匹配拒绝 30004；原租户发头 ThreadLocal 已退役）；仍无数据源、无缓存消费（`accessmesh.cache.enabled=false`）。曾删除的 perm-data、MyBatis-Flex、PostgreSQL、Redis、MapStruct、JSqlParser 维持删除。
 - 菜单/按钮/范围/条件权限等其余演示场景仍为规划（状态见下方演示场景表），随核心主线后续任务补齐。
 - 错误码子段约定：30001-30099 为演示接口（demo）相关错误（`ExampleErrorCode` 代码注释为登记处），30001+ 段位分配随新资源扩展时在代码枚举中登记。
 - **身份签名校验（`GatewaySignatureFilter`）**：复算 Gateway `SignatureEnrichFilter` 注入的 `X-User-Signature`（HMAC-SHA256(secret, userId|tenantId|timestamp)，常量时间比较），时效窗 `example.signature.valid-seconds`（默认 300s，与 access-service `perm.signature.valid-seconds` 运维同调）；携带身份头但签名缺失/不匹配/超窗的请求拒绝信封 **30003**。密钥经 `example.signature.secret`（默认取环境变量 `ACCESSMESH_SIGNATURE_SECRET`，须与 Gateway 同源）——未配置时 fail-closed（凡携带身份头的请求一律拒绝，启动日志 ERROR 提示）。信任边界的根本保障仍是网络隔离（业务服务仅 Gateway 可达），签名校验是纵深防御/直连自证示例。
@@ -34,7 +34,7 @@ last_reviewed: 2026-09-28（退役清扫：场景表 sync→sync-v2、接口权�
 | ------------------- | -------------------------------------------------------------- | ---- |
 | 服务注册与接口同步 | 展示业务服务如何向 access-service 全量同步接口资源               | ✅ 已交付（service-config/sync-v2 声明通道，每条接口必填业务操作要求；E2E ③） |
 | 接口权限           | 展示 Gateway 操作准入 + 业务最终检查两层判定                      | ✅ 已交付（403→授权→200→**撤销→403→重授恢复**完整主线，T-ACCESS-053/061；E2E ④~⑥+⑧） |
-| 服务身份（凭证）   | 展示 per-service 凭证签发/认证/轮换吊销（T-PERM-070）           | ✅ 已交付（E2E ⑦ 凭证认证链；两套身份适用面见 extension-guide §2.2） |
+| 服务身份（凭证）   | 展示 per-service 凭证签发/认证/轮换吊销（T-PERM-070）           | ✅ 已交付（E2E ⑦ 凭证认证链；业务凭证与平台内部互信边界见 extension-guide §2.2） |
 | 菜单/按钮权限      | 展示前端资源和操作权限控制                                     | 规划 |
 | 报表范围权限       | 展示 `query-scopes`、`DIRECT ∪ DEPENDENT`、`scopeMode=ALL`     | 规划 |
 | 条件权限           | 展示时间、IP 等条件评估                                        | 规划 |
@@ -52,7 +52,7 @@ last_reviewed: 2026-09-28（退役清扫：场景表 sync→sync-v2、接口权�
 
 ## SDK 接入边界
 
-> 接口级鉴权继续由 Gateway 承担。**业务最终检查自 T-ACCESS-061（2026-09-28 用户拍板）消费 `perm-client-spring-boot-starter`**（Feign 调 `auth/check`/`auth/batch-check`/`auth/query-resources`，内部密钥通道；e2e 子进程拓扑：access/gateway 子进程须 `--perm.client.enabled=false` 防测试类路径传染）。T-PERM-071 可选 registration starter 维持默认关闭，仅在显式配置后独立发布依赖；示例与 profile 见 [permission-manifest.md](../../../example-service/examples/permission-manifest.md)。资源同步不因此强制使用 SDK。
+> 接口级鉴权继续由 Gateway 承担。**业务最终检查自 T-ACCESS-061（2026-09-28 用户拍板）消费 `perm-client-spring-boot-starter`**（Feign 调 `auth/check`/`auth/batch-check`/`auth/query-resources`，服务凭证通道；e2e 子进程拓扑：access/gateway 子进程须 `--perm.client.enabled=false` 防测试类路径传染）。T-PERM-071 可选 registration starter 维持默认关闭，仅在显式配置后独立发布依赖；示例与 profile 见 [permission-manifest.md](../../../example-service/examples/permission-manifest.md)。资源同步不因此强制使用 SDK。
 
 - Spring Boot 项目（规划）：以 `perm-client-spring-boot-starter` 为核心（当前仅为 Feign 远程查询 SDK，见 architecture §4.4/§4.5.1 名实对齐口径），`perm-gateway-spring-boot-starter` 供网关使用。数据权限参考实现属演进方向，未提供模块。
 - 普通 Java 项目（规划）：提供轻量 client SDK，复用稳定鉴权和权限查询契约，不依赖 Spring Boot 自动配置。

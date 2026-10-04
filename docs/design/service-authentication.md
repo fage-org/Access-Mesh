@@ -27,25 +27,25 @@ last_reviewed: 2026-10-04
 
 ---
 
-## 2. 现状盘点：认证体系全景（代码级锚点）
+## 2. 认证体系与原共享密钥风险
 
 > 本节保留 T-PERM-070 立项时的背景盘点，不代表当前尚无服务凭证；现行已交付协议见契约总册 §24，阶段与实施差异见 §3.5。
 
-平台现有**三类信任主体 + 一层上下文绑定**，无任何 per-service 身份：
+原共享密钥模型只有用户身份、平台密钥与自报 SERVICE 上下文，尚无 per-service 凭证：
 
 | # | 信任模型 | 主体 | 证据锚点 |
 |---|---|---|---|
 | ① | Sa-Token 会话（仅 Bearer 头，Cookie 通道已关） | 管理面/前端用户 | RequestContextInterceptor（USER 绑定：session tenantId+operatorId）；2026-09-08 Cookie 双向关闭定案 |
 | ② | OAuth2 authorization_code + PKCE / refresh token + JWT HS256 | 外部应用代用户 | sys_oauth2_client.client_secret（BCrypt）；OAuth2JwtSupport（HS256 强度护栏）；**client_credentials 无发放实现**（schema L111 列注释与 L125 `internal-service` 种子行为历史预留、未被消费） |
-| ③ | X-Internal-Secret 全局共享密钥 | 内网基础设施互信 | Spring 配置 `perm.internal-secret`（环境变量，**不落库**）；Gateway `InternalSecretFilter`（GlobalFilter，配置非空时**无条件向所有下游请求注入**）+ `PermissionClient` 直连带密；SDK `FeignInternalSyncInterceptor` 注入 `X-Internal-Secret`+`X-Service-Code`（仅 `X-Service-Code` 已显式声明则保留；`X-Internal-Secret` 为无条件追加注入——T-ACCESS-053 外评处置收窄口径） |
+| ③ | X-Internal-Secret 全局共享密钥 | 内网基础设施互信 | Spring 配置 `perm.internal-secret`（环境变量，**不落库**）；Gateway `InternalSecretFilter`（GlobalFilter，配置非空时**无条件向所有下游请求注入**）+ `PermissionClient` 直连带密；业务 SDK 仅发送服务凭证，不再分发该平台密钥 |
 | ④ | SERVICE 上下文绑定（非独立认证） | ③通过后的自报身份 | 密钥验证（`InternalApiSecretInterceptor`，常量时间比对，失败 403；注册于 `SecurityWebMvcConfig.addInterceptors`，excludePathPatterns 精确豁免会话入口族）→ `X-Service-Code`/`X-Tenant-Id` **自报头**绑定（SignatureVerifier 仅数字解析、无签名）→ `AccessRequestContext.service(tenantId, serviceCode)` |
 
-**现状问题（本模块要解决的）**：
+**原模型风险（外部通道已由 §3.5 取代，真实旧密钥仍须轮换）**：
 
 ```text
 信任等式：持有全局密钥 ⇒ 可以任意服务身份、任意租户身份调用全部同步面
   ├─ 密钥分发现状：Gateway/内部设施/每个接入方（SDK 拦截器要求接入方自行配置该密钥）——
-  │   FeignInternalSyncInterceptorTest 实证接入方配置即持有
+  │   原 SDK 共享密钥配置使接入方持有（T-ACCESS-080 已退役）
   ├─ 自报头无签名：serviceCode/tenantId 均为调用方声明，唯一防线是 20055 类型所有权门禁
   │   （校验"该服务在该租户注册+类型归属"——依赖通道 batch-sync 连这道都没有，已核实；
   │   该通道后随 T-PERM-071 依赖 MANIFEST 独占写入整体退役，本节为 070 立项时现状）
@@ -54,9 +54,9 @@ last_reviewed: 2026-10-04
 
 ---
 
-## 3. 目标模型：per-service 静态凭证（公共模块）
+## 3. per-service 静态凭证（公共模块）
 
-### 3.1 存储（`service_credential` 表，DDL 草案）
+### 3.1 存储（`service_credential` 表）
 
 ```sql
 CREATE TABLE service_credential (
@@ -97,11 +97,11 @@ CREATE TABLE service_credential (
   credential 完整凭证头（自报头/密钥头并存时一律不采信）→ 凭证验证成功 → ServicePrincipal(CREDENTIAL)
   credential 半头 / 错误凭证                            → 403，禁止降级回落旧密钥
   无凭证头 + 旧密钥 + 已验签用户头                       → USER 绑定（既有用户链，行为不变）
-  无凭证头 + 旧密钥 + 无用户头                           → 旧 SERVICE 绑定（attribute+自报头，过渡期）
+  无凭证头 + 内部密钥 + 无用户头                         → 仅无自报服务身份的平台内部查询；同步及自报服务通道拒绝
   无凭证头 + 无密钥                                      → 403（既有行为）
   ```
 
-- order 链输入输出（order=1 仲裁器 → order=2 HeaderSignatureInterceptor → order=3 RequestContextInterceptor）：order=1 产出 `ServicePrincipal(CREDENTIAL)` 或既有 `ATTR_INTERNAL_AUTHENTICATED`（旧密钥路径）；order=2 签名验证仅服务**用户链**（凭证请求无签名头，跳过不拒）；order=3 消费规则=**凭证路径只认 ServicePrincipal**（忽略 X-Service-Code/X-Tenant-Id 自报头），**用户/旧密钥路径维持既有绑定**（internalAuthenticated + signatureVerified + userId / 自报头）——不是"全部请求只消费 principal"（那会把管理请求错误绑定为 SERVICE，管理 API 大面积 403）。验证成功产出的 ServicePrincipal 为服务端内存对象，调用方无法伪造（负向回归锁=「凭证头 + 自报头并存时以凭证为准」）。
+- order 链输入输出（order=1 仲裁器 → order=2 HeaderSignatureInterceptor → order=3 RequestContextInterceptor）：order=1 产出 `ServicePrincipal(CREDENTIAL)` 或既有 `ATTR_INTERNAL_AUTHENTICATED`（旧密钥路径）；order=2 签名验证仅服务**用户链**（凭证请求无签名头，跳过不拒）；order=3 消费规则=**凭证路径只认 ServicePrincipal**（忽略 X-Service-Code/X-Tenant-Id 自报头），**用户链维持验签绑定**（internalAuthenticated + signatureVerified + userId）；无用户的平台内部查询不接受自报服务编码——不是"全部请求只消费 principal"（那会把管理请求错误绑定为 SERVICE，管理 API 大面积 403）。验证成功产出的 ServicePrincipal 为服务端内存对象，调用方无法伪造（负向回归锁=「凭证头 + 自报头并存时以凭证为准」）。
 - **服务端端点白名单**：`authMethod=CREDENTIAL` 的请求在仲裁器之后强制执行"认证方式 × 精确路径"白名单（resource-entity/sync、full-sync、permission-manifest/full-sync），白名单外一律 403——**不依赖 Gateway 拦截，SDK 直连同样受限**（防直连调 /auth/query-resources、abstract-user/full-sync 等超范围端点扩大凭证能力半径）；白名单清单**单源落 `common` 模块**（Gateway 与 access-service 唯一共同依赖；不可变 method+exact-path 策略与匹配器——勿放 perm-common，Gateway 不依赖它），Gateway M2M 放行（§3.3）与服务端强制消费同一份，防两处漂移。
 - TLS（**信任域模型**；2026-09-20 实施拍板修订为**启动声明式护栏**——原「starter endpoint / Gateway 路由 / SDK 直连三处配置校验 secure scheme」假定的直配 URL 形态与实仓不符：三处均为 Nacos 服务发现形态、无静态 URL 可启动校验）：SDK 配置凭证（perm.credential-id/secret）时**必须显式声明 `perm.allow-insecure`**（三态：true=单信任域明文 hop 可接受 / false=跨边界期望 TLS，均为有效声明；**缺省拒启**）——护栏为纯声明不校验实际地址；Gateway→access-service 内网 hop 属平台信任域内部不校验（同部署单元，与现状全局密钥同一内网信任假设）。`X-Credential-Secret` 为可重放 bearer secret（无签名/nonce），信任域边界即其明文暴露边界。
 
@@ -110,7 +110,7 @@ CREATE TABLE service_credential (
 | 形态 | 链路 | 要求 |
 |---|---|---|
 | 经 Gateway | 接入方 → Gateway → access-service | 三处配套：①凭证头加入 Gateway 透传/清洗策略（不被清洗；`InternalSecretFilter` 收窄为"无凭证头时兜底注入"）；②**M2M 放行链**——`AuthTokenFilter`（用户认证）对非白名单、无 Bearer 的请求**直接 401**，仅透传凭证到不了 access-service：新增早于用户认证的 M2M 识别——**完整凭证头 + 精确 M2M 路径清单**（resource-entity/sync、full-sync、permission-manifest/full-sync）→ 置 skipAuth 语义跳过用户认证与用户权限过滤，仅透传、由 access-service 仲裁器终验；**禁止把 /api/access/** 整体加入白名单**；③测试矩阵：经 Gateway 两步同步成功、缺头/半头/错凭证拒绝、管理端点不被凭证旁路 |
-| SDK 直连 | 接入方 starter → access-service（Feign/Nacos） | SDK 凭证头注入拦截器（`FeignInternalSyncInterceptor` 扩展或并列新拦截器，落 perm-common 供 client/registration 两 starter 共用）；受 §3.2 **服务端凭证端点白名单**约束（直连不能越出 M2M 通道；负向测试=直连调 /auth/query-resources 等管理/查询端点拒绝） |
+| SDK 直连 | 接入方 starter → access-service（Feign/Nacos） | `FeignCredentialInterceptor`（perm-common，供 client/registration 两 starter 共用）；受 §3.2 **服务端凭证端点白名单**约束（直连不能越出 M2M 通道；负向测试=直连调 /service-credential/list 等管理端点拒绝） |
 
 ### 3.4 凭证生命周期（管理面）
 
@@ -119,38 +119,19 @@ CREATE TABLE service_credential (
 - 停用/过期：立即失效（认证链 status/expires_at 判定）；
 - 门禁：挂 service-config 管理面同族权限码（具体排号随任务卡落契约总册）。
 
-### 3.5 分期与退役判据
+### 3.5 外部凭证化与退役边界
 
-**运行时查询阶段二目标（T-ACCESS-068，2026-10-04 确认，待实施）**：auth/check、batch-check、query-resources、query-scopes 允许有效服务凭证查询本租户任意主体/资源的权限结果。tenantId/serviceCode 由凭证绑定派生，不采信自报头跨租户；被查询用户字段不是操作者身份，不开放管理写能力。不增每服务查询范围配置，也不把资源同步所有权当成查询范围。M2M 端点单源、SDK 镜像、Gateway 与 example-service 必须共同接线。当前无部署，四查询端点与 SDK/示例同批硬切，不保留永久兼容开关；实施由 [T-ACCESS-079](../tasks/T-ACCESS-079.md) 承接，实施前 T-ACCESS-053 的当前边界仍成立。
+外部业务服务的运行时查询与全部现役同步通道统一使用 per-service 凭证（T-ACCESS-079/080，2026-10-04）。服务端/Gateway 消费 `M2mCredentialEndpoints` 单源，SDK 维护精确镜像；清单见契约 §24。无永久兼容开关。
 
-```text
-阶段一（本模块落地）：凭证=新增认证形态，资源同步通道与 manifest 通道均接受；
-                      X-Internal-Secret 维持可用（Gateway/内部设施互信不受影响）
-阶段二同步轨（剩余端点迁移）：白名单从阶段一端点集（resource-entity/sync、full-sync、
-                        permission-manifest/full-sync）逐端点扩展至全部 sync 族
-                        （abstract-user / abstract-role / user-role 的 sync+full-sync、
-                        service-config 的接口声明同步——主体/角色/成员/接口声明同步全部纳入凭证）；
-                        退役判据=**外部业务服务仍依赖旧密钥的调用清零**（原「全部服务持凭证」判据在白名单
-                        不含全部 sync 端点时永不可达）；SDK 拦截器默认注入凭证头
-```
+运行时 `auth/check`、`batch-check`、`query-resources`、`query-scopes` 允许查询凭证所属租户的任意主体与资源。tenantId/serviceCode 由凭证派生，自报头不改变身份；被查询用户不是操作者，不赋予管理写权限，不新增每服务查询范围配置。查询继续复用现有引擎。
 
-接口声明新版 `POST /api/access/service-config/sync-v2` 纳入凭证白名单（T-ACCESS-058，2026-09-27）：凭证只能维护自身租户/服务，同时保留管理员的 SERVICE:SYNC_INTERFACE 门禁；旧共享密钥的纯服务身份不进入该新端点。旧 `/sync` 端点已随 T-ACCESS-062 删除，接口声明唯一入口为 sync-v2。
+同步的 `sourceService` 必须匹配凭证身份；abstract-user/abstract-role/user-role 的 sync/full-sync 继续执行服务类型白名单、保留业务键和来源守卫。资源同步继续类型所有权门禁。`service-config/sync-v2` 保留管理员 SERVICE:SYNC_INTERFACE 门禁，凭证只能维护自身服务；旧 `/sync` 已退役。
 
-操作准入两端点 `POST /api/access/auth/interface-admission` / `interface-admission-snapshot` 纳入凭证白名单（T-ACCESS-059，2026-09-28）：**运行时查询族首批凭证化端点（Q-040 收敛方向）**——凭证调用受「serviceCode=凭证所属服务」约束（sync-v2 先例）；网关沿用内部密钥平台信任域形态（无 X-Service-Code 自报头，§3.2 TLS 段口径），旧密钥＋自报服务头的纯服务调用拒绝 403（同 sync-v2 的拦截器按 URI 拒绝形态）。
+`interface-admission`/`interface-admission-snapshot` 的凭证调用仍限定请求 serviceCode 等于凭证服务。Gateway 保留内部密钥的平台查询形态（无自报 X-Service-Code）。签名用户态保持原验证；无用户的同步请求和携带自报服务编码的旧共享密钥请求均拒绝。
 
-**阶段一上线序（既有服务端先行兼容；不覆盖本节新定的四查询同批硬切）**：①先发布 access-service 仲裁器——无凭证头的存量调用方（Gateway 注入密钥、SDK 注入密钥+自报头）行为零变化（状态表第 3/4 行）；携带凭证头的请求直接走凭证链生效。②后发布 Gateway 改动（凭证头透传、`InternalSecretFilter` 收窄为「无凭证头才兜底注入」、M2M 放行链）与新版 SDK——窗口期"凭证头 + 注入密钥并存"由服务端仲裁器**凭证优先**规则消解（§3.2 状态表第 1 行），不存在"凭证绑定被旁路"的空窗，无需不可原子实现的同批发布。
+示例服务固定单租户部署（2026-10-04 确认）：`perm.tenant-id` 显式配置为凭证所属租户；每次业务最终检查前比对网关验签租户，不匹配立即拒绝。移除原租户发头 ThreadLocal，不建立多租户凭证路由。
 
-
-| 端点 | 凭证查询范围与接线 |
-|---|---|
-| auth/check | 主体与资源按凭证租户解析；沿既有单次最终检查语义 |
-| auth/batch-check | 全部 item 固定同一凭证租户；保持请求顺序和逐项结果 |
-| auth/query-resources | 查询本租户主体授权资源；保留现有类型、操作、继承与展示过滤 |
-| auth/query-scopes | 父上下文及目标范围均按凭证租户解释；保留现有范围结果语义 |
-
-当前四端点尚未凭证化，T-ACCESS-079 完成服务端/M2M 清单、SDK 镜像与示例回归后作为同批发布单元关闭旧“共享密钥＋自报服务头”的纯服务查询通道；不改变 Gateway 内部互信与签名用户态。
-
-其余 abstract-user/abstract-role/user-role 的 sync/full-sync 凭证化及密钥外部分发退出归 [T-ACCESS-080](../tasks/T-ACCESS-080.md)。时间线为：剩余端点及 SDK 凭证化 → 外部业务调用迁移验收清零 → 关闭旧纯服务通道 → 轮换内部密钥、让外部旧副本失效。Gateway/内部设施继续使用内部互信密钥；四查询完成不代表全局共享密钥风险已收敛，不虚设日历退役日期。
+发布边界：当前无部署且已确认无仓外旧调用方（2026-10-04），查询和剩余同步端点、SDK、示例同批切换，取代原阶段一兼容窗口。验收节点为端点与 SDK 接线、仓内外旧业务调用清零、旧纯服务通道关闭、部署时轮换平台内部密钥。轮换操作见 [部署指南](../ops/deployment.md)，未执行真实轮换前不声称旧密钥副本已失效；Gateway/内部设施继续使用内部互信密钥，不以全仓密钥使用清零为退出标准。
 
 ---
 

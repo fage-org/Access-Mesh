@@ -25,7 +25,7 @@ public enum GrantSource {
      * <p>
      * 表示权限由 resource_dependency 编译图按角色完整重算推导（物化器同事务 diff 落库）：
      * 单 canonical 操作位、can_grant=false、depend_on=NULL、条件按推导变体直传。
-     * 行可由多条编译边与多个种子共同支持，grant_dep_id 不写入（Q-022 定案保留不写不读）。
+     * 行可由多条编译边与多个种子共同支持，来源由 explain 按编译图推导。
      * </p>
      */
     AUTO_DEP("AUTO_DEP"),

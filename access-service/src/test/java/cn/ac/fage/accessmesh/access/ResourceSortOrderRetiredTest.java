@@ -76,6 +76,28 @@ class ResourceSortOrderRetiredTest {
     @MockBean
     private ResourceEntitySyncAppService resourceEntitySyncAppService;
 
+    @org.springframework.boot.test.mock.mockito.MockBean
+    private cn.ac.fage.accessmesh.access.infrastructure.credential.service.domain.ServiceCredentialDomainService credentials;
+
+    @org.junit.jupiter.api.BeforeEach
+    void credentialIdentity() {
+        org.mockito.Mockito.when(credentials.verify("sc-test", "sk-test"))
+            .thenReturn(cn.ac.fage.accessmesh.access.infrastructure.credential.service.domain.ServiceCredentialDomainService.VerifyResult.success(
+                new cn.ac.fage.accessmesh.access.infrastructure.ServicePrincipal(1L, SERVICE_CODE, "sc-test")));
+    }
+
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder adminRequest(String path) throws Exception {
+        long timestamp = System.currentTimeMillis() / 1000;
+        var mac = javax.crypto.Mac.getInstance("HmacSHA256");
+        mac.init(new javax.crypto.spec.SecretKeySpec(
+            "test-signature-secret-for-resource-sort-order-retired".getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256"));
+        String signature = java.util.HexFormat.of().formatHex(mac.doFinal(
+            ("100|1|" + timestamp).getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        return post(path).header("X-Tenant-Id", "1").header("X-User-Id", "100")
+            .header("X-Internal-Secret", INTERNAL_SECRET).header("X-User-Signature", signature)
+            .header("X-Signature-Timestamp", timestamp);
+    }
+
     @Test
     @DisplayName("锁步后载荷：update 不含 sortOrder 反序列化成功，其余字段全量到达业务层")
     void update_withoutSortOrder_accepted() throws Exception {
@@ -92,10 +114,7 @@ class ResourceSortOrderRetiredTest {
               "extra": "{}"
             }
             """;
-        mockMvc.perform(post("/api/access/resource-entity/update")
-                .header("X-Tenant-Id", "1")
-                .header("X-Internal-Secret", INTERNAL_SECRET)
-                .header("X-Service-Code", SERVICE_CODE)
+        mockMvc.perform(adminRequest("/api/access/resource-entity/update")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))
             .andExpect(status().isOk())
@@ -122,10 +141,7 @@ class ResourceSortOrderRetiredTest {
               "sortOrder": 10
             }
             """;
-        mockMvc.perform(post("/api/access/resource-entity/create")
-                .header("X-Tenant-Id", "1")
-                .header("X-Internal-Secret", INTERNAL_SECRET)
-                .header("X-Service-Code", SERVICE_CODE)
+        mockMvc.perform(adminRequest("/api/access/resource-entity/create")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))
             // 信封码断言锁定 400 + 90001 形态（HttpMessageNotReadable 通道；负向载荷
@@ -150,10 +166,7 @@ class ResourceSortOrderRetiredTest {
               "sortOrder": 10
             }
             """;
-        mockMvc.perform(post("/api/access/resource-entity/update")
-                .header("X-Tenant-Id", "1")
-                .header("X-Internal-Secret", INTERNAL_SECRET)
-                .header("X-Service-Code", SERVICE_CODE)
+        mockMvc.perform(adminRequest("/api/access/resource-entity/update")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))
             .andExpect(status().isBadRequest())
@@ -181,7 +194,8 @@ class ResourceSortOrderRetiredTest {
         mockMvc.perform(post("/api/access/resource-entity/sync")
                 .header("X-Tenant-Id", "1")
                 .header("X-Internal-Secret", INTERNAL_SECRET)
-                .header("X-Service-Code", SERVICE_CODE)
+                .header("X-Credential-Id", "sc-test")
+                .header("X-Credential-Secret", "sk-test")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))
             .andExpect(status().isBadRequest())
@@ -211,7 +225,8 @@ class ResourceSortOrderRetiredTest {
         mockMvc.perform(post("/api/access/resource-entity/full-sync")
                 .header("X-Tenant-Id", "1")
                 .header("X-Internal-Secret", INTERNAL_SECRET)
-                .header("X-Service-Code", SERVICE_CODE)
+                .header("X-Credential-Id", "sc-test")
+                .header("X-Credential-Secret", "sk-test")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))
             .andExpect(status().isBadRequest())

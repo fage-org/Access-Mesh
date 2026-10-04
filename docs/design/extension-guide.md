@@ -6,7 +6,7 @@ domain: common
 design_refs:
   - docs/design/architecture.md
   - docs/design/access-service-api-contract.md
-last_reviewed: 2026-09-28
+last_reviewed: 2026-10-04
 ---
 
 # AccessMesh 扩展指南（接入与二次开发全景）
@@ -43,7 +43,7 @@ last_reviewed: 2026-09-28
 ```text
 ① 注册服务（service-config/save）
 ② 声明接口（service-config/sync-v2 FULL——登记 API、路由映射与业务操作要求）
-③ 服务身份（§2.2：资源同步用 per-service 凭证；运行时权限查询用内部密钥——两套并存）
+③ 服务身份（§2.2：查询与同步统一使用 per-service 凭证）
 ④ 授予业务权限（§2.1 步 3；网关操作准入与业务最终检查见 §2.4）
 ⑤ 实际调用（§2.1 步 4；业务前端持会话令牌经 Gateway 访问；未授权 403 → 授权后 30 秒内 200）
 ⑥ 撤销与恢复（§2.1 步 6：删除授权行 30 秒内回 403，重授恢复——撤权与授权同窗口）
@@ -58,31 +58,19 @@ last_reviewed: 2026-09-28
 5. **服务侧防直调**：业务服务部署 Gateway 签名校验过滤器（example 的 `GatewaySignatureFilter` 模式）——拒绝未带有效网关签名的请求，防止绕过 Gateway 直调后端。
 6. **撤销与恢复**（T-ACCESS-053 补全，与授权同源）：撤销=授权页删除该条授权行（唯一删除语义 `apply-grant-plan` 的 `removes` 段；旧 `revoke` 端点已物理删除）——撤权生效受与授权相同的 30 秒陈旧窗口约束，窗口内接口回到 403；恢复=对同一业务资源重授对应操作（撤销为软删，重授即新建行），同样 30 秒内生效。回归锁：`ExampleProtectedApiE2EIT` 第⑧步（撤销→403→重授→200）。
 
-### 2.2 服务身份：两套并存，按端点选用
+### 2.2 服务身份：业务凭证与平台内部互信
 
-平台有两套 M2M 服务身份，**适用面不同、不可互换**（2026-09-23 T-ACCESS-053 U008 拍板：维持现状、覆盖面统一登记问题清单后续解决；阶段二逐端点扩展规划见 [service-authentication §3.5](service-authentication.md)）：
+外部业务服务的运行时查询与同步接口统一使用 `X-Credential-Id` + `X-Credential-Secret`。管理员先注册服务，再经 `POST /api/access/service-credential/create` 签发；明文 secret 只回显一次。凭证绑定租户和服务，服务端忽略自报租户/服务头；停用、过期或服务停用立即拒绝。精确端点与错误码见[契约 §24](access-service-api-contract.md)。凭证不开放管理写能力，同步 `sourceService` 必须匹配凭证所属服务，原类型/来源守卫继续生效。
 
-| | per-service 凭证（T-PERM-070，推荐） | 内部密钥（过渡期维持） |
-|---|---|---|
-| 请求头 | `X-Credential-Id` + `X-Credential-Secret`（成对必填，半头即拒——直连形态 403 信封 20065；经 Gateway 半头回落用户认证 401，见契约 §24.1 限定②） | `X-Internal-Secret` + 自报 `X-Service-Code` + `X-Tenant-Id` |
-| 适用端点 | **仅 M2M 白名单端点**：资源同步、依赖 manifest、`service-config/sync-v2`、`auth/interface-admission` 与 `auth/interface-admission-snapshot`（完整清单见契约 §24/§25）；白名单外拒绝的形态按通道分：**SDK 直连=403（信封 20065，服务端仲裁器强制）**、**经 Gateway=回落用户认证 401**（不置 M2M 放行）——含 auth/check 族，防凭证能力半径扩大到管理/查询端点 | 全部服务身份端点：**运行时权限查询**（`auth/check`、`batch-check`、`query-resources`、`query-scopes`）与同步族（过渡期） |
-| 租户/服务来源 | **凭证行派生**（tenantId+serviceCode 绑定于凭证，自报头被忽略——消除自报信任面） | 自报头（密钥验证通过后绑定） |
-| 获取方式 | 管理面签发：`POST /api/access/service-credential/create`（经 Gateway，须 SERVICE:MANAGE 会话；响应明文 `secret` 仅回显一次，服务端只存哈希；暂无专用页面，经 API 签发） | 部署配置 `PERM_INTERNAL_SECRET`（gateway 与 access-service 同值；Gateway 对下游请求自动注入） |
-| 失效语义 | 停用/过期立即 403（20066/20067/20068），同服务多凭证并存支持无感轮换 | 全局共享、无法按服务吊销（新凭证的改造动机，见 service-authentication §2 现状问题） |
+`PERM_INTERNAL_SECRET` 仅在 Gateway/access-service 等平台内部设施之间分发。业务 SDK 已移除旧共享密钥注入器，旧纯服务同步及自报服务查询通道拒绝；签名用户态与 Gateway 内部查询保持。部署时的内部密钥轮换见[部署指南](../ops/deployment.md)。
 
-**典型组合**：资源/依赖同步用**新凭证**，运行时权限查询用**旧密钥**——同一服务两套身份并存是当前预期形态，不是配置错误。凭证认证错误码（20065~20068）与完整仲裁状态表见[契约 §24](access-service-api-contract.md)。
+### 2.3 SDK 接线
 
-同步类通道（resource-entity/sync 等）的 payload `sourceService` 必须与凭证身份一致（`SyncAuthVerifier`），防止冒充他服务。
-
-### 2.3 SDK 现状
-
-- `perm-client-spring-boot-starter`：**Feign 远程查询 SDK**（`PermissionFeignClient`：auth/check 族调用入口 + 内部同步拦截器）。适合需要在服务内主动查询权限/范围的场景。两套身份的注入形态：
-  - **旧密钥**：`FeignInternalSyncInterceptor` 自动注入 `X-Internal-Secret`/`X-Service-Code` 两个头——仅 `X-Service-Code` 已显式声明则保留；`X-Internal-Secret` 为无条件追加注入（调用方自行声明时形成同头双值，服务端读首值，勿依赖「覆盖/保留」语义）；**`X-Tenant-Id` 须调用方业务侧自行注入**（服务调用缺失即 400）。
-  - **新凭证**：`perm.credential-id` + `perm.credential-secret` 配置键（成对必填，半配 fail-fast）由 `FeignCredentialInterceptor` 注入凭证头（凭证端点内生效，见 §2.2 白名单）；配置凭证时必须同时显式声明 `perm.allow-insecure`（`true`/`false` 二值，缺省或非法值拒启——TLS 信任域声明护栏）。三键契约见[契约 §24.3](access-service-api-contract.md)。
-- `perm-gateway-spring-boot-starter`：网关侧装配（本项目 Gateway 自用）。
-- example-service 消费 perm-client SDK starter，在报表入口执行实际目标最终检查；Gateway 承担接口操作准入。接入示例与反向拒绝测试见 T-ACCESS-061。
-- 纯 HTTP 对接（非 Java 技术栈）：直接按 api-contract §6 契约调用，不要求 SDK。
-- **已知差异（T-ACCESS-034 登记）**：SDK `DefaultOpCode` 的 `EDIT` 在服务端操作码注册表**无预置种子**（服务端仅有 VIEW/UPDATE/DELETE 等）——接入方若以 `EDIT` 发起授权/校验，解析将 fail-closed 拒绝；服务端等价语义用 `UPDATE`。SDK 枚举本身不动（接入方契约）。
+- `perm-client-spring-boot-starter` 通过 `PermissionFeignClient` 调用远程查询/同步；`FeignCredentialInterceptor` 仅对精确 M2M 清单注入凭证。配置 `perm.credential-id`、`perm.credential-secret` 和 `perm.allow-insecure`（true=单信任域明文 hop 可接受；false=跨边界要求 TLS，须由部署保障）。无需配置全局内部密钥。
+- example-service 固定单租户部署：额外设置 `perm.tenant-id` 为凭证绑定租户，每次业务最终检查前与网关验签租户比较；其他租户立即拒绝。没有按请求自动切换凭证的功能。
+- Gateway 仍负责接口操作准入，业务服务负责实际对象最终检查。非 Java 服务可直接按契约发送凭证头，不必使用 SDK；管理面 Feign 方法仍需另行提供有效用户身份，服务凭证不能替代。
+- `perm-gateway-spring-boot-starter` 用于网关侧。可选 registration starter 只负责依赖发布。
+- SDK `DefaultOpCode.EDIT` 在服务端无预置操作，使用服务端已有的 `UPDATE`；不因本次身份切换改变操作码契约。
 
 ### 2.4 接口权限与业务权限是两层（易混点）
 

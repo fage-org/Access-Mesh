@@ -63,11 +63,15 @@ class OAuth2AudienceClaimTest {
             loginLogDomainService, redisTemplate, objectMapper);
         ReflectionTestUtils.setField(service, "jwtSecretKey", JWT_SECRET);
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        var activeUser = new cn.ac.fage.accessmesh.access.user.entity.SysUser();
+        activeUser.setStatus(1);
+        lenient().when(userDomainService.selectValidById(1L, 9L)).thenReturn(activeUser);
     }
 
     private SysOauth2Client clientWithAudiences(String audiences) {
         SysOauth2Client client = new SysOauth2Client();
         client.setId(1L);
+        client.setTenantId(1L);
         client.setClientId(CLIENT_ID);
         client.setAccessTokenTtl(3600);
         client.setRefreshTokenTtl(604800);

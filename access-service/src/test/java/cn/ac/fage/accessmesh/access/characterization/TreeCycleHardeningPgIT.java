@@ -361,7 +361,7 @@ class TreeCycleHardeningPgIT {
             try {
                 start.await();
                 menuWriteAppService.updateMenu(new MenuUpdateReq(
-                    id, null, null, newParent, null, null, null, null, null, null));
+                    id, null, null, newParent, null, null, null, null, null, null, null));
                 return "ok";
             } catch (Exception e) {
                 return e;

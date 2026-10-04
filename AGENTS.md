@@ -76,7 +76,7 @@ Gateway (8080) -> access-service (9100)    能力包单体：管理面（用户/
 - API 字段/错误码/门禁：契约总册对应能力章；schema 为表结构唯一权威。
 - 查询、互斥、继承和范围：`engine/`（R2 统一引擎已收口：观测落地与上线门槛见引擎实现 §3.11；旧 `r2-unified-query-and-admission.md` 已转 superseded 随 2026-10-01 归档，仅历史追溯）。
 - 类型所有权、授权根、条件与删除生命周期：契约总册 §12/13/15；内部事实投影：服务架构 §4/12。
-- 自动授权推导、完整写入口与锁序：`dependency-auto-grant.md`；旧 AUTO_DEP 不作种子，grant_dep_id 保留不读写。
+- 自动授权推导、完整写入口与锁序：`dependency-auto-grant.md`；旧 AUTO_DEP 不作种子，来源由 explain 推导，不保留单来源字段。
 - 组织默认树/成员/岗位：`default-org-tree-user-lifecycle.md`；业务域分类：引擎实现 §2.7 与契约 §14，查询管线不感知业务域。
 
 ## 项目级 Skills（自动加载）
@@ -161,7 +161,7 @@ docker compose -f docker-compose.yml --profile app up -d --build
 > - 容器组基建已单例化（`ItInfra`：**每 fork JVM 一份**单例 PG/Redis + 按类建库 + 按类 Redis 逻辑库索引 + fork 级 2 进程并行——sa-token 的 SaManager 是 JVM 级静态单例，同 JVM 线程级类并发下邻类上下文关闭会把静态 dao 指向已 shutdown 的 Redisson，故并行必须走进程隔离；本机开 `~/.testcontainers.properties` 的 `testcontainers.reuse.enable=true` 后各 fork 按配置哈希复用同一对容器，无该文件的环境（如 CI）每 fork 各起一对）；类库/索引由会话首启自动清理，无需手工维护。
 > - `-T 1C` 模块并行下负载抬升曾击穿两个固定 sleep 余量的时序用例（TaskLease 同实例接管、Gateway 失效代际竞态），均已改确定性机制（轮询至可抢占 / CompletableFuture 提交闸门）；新增并发/时序用例**禁用裸 sleep 余量**表达时序。
 
-> **⚠️ SNAPSHOT 依赖陷阱**：本项目使用多模块 SNAPSHOT 依赖（如 `perm-common` → `perm-client-spring-boot-starter`；接口级鉴权由 Gateway 承担；example-service 自 T-ACCESS-061〔2026-09-28 拍板〕消费 perm-client SDK starter 承载 §8.6 业务最终检查调用〔内部密钥通道〕，e2e 里 access/gateway 子进程须 `--perm.client.enabled=false` 防测试类路径传染；可选 registration starter 只发布依赖，默认关闭）。
+> **⚠️ SNAPSHOT 依赖陷阱**：本项目使用多模块 SNAPSHOT 依赖（如 `perm-common` → `perm-client-spring-boot-starter`；接口级鉴权由 Gateway 承担；example-service 自 T-ACCESS-061〔2026-09-28 拍板〕消费 perm-client SDK starter 承载 §8.6 业务最终检查调用〔服务凭证通道，单租户示例须配置 perm.tenant-id〕，e2e 里 access/gateway 子进程须 `--perm.client.enabled=false` 防测试类路径传染；可选 registration starter 只发布依赖，默认关闭）。
 > `mvn compile` 不会将上游模块 install 到本地仓库，依赖方编译时可能拿到**上次 install 的旧版本**。
 > 当上游模块（`perm-sdk/*`、`common`）有 API 变更时，**必须**执行 `mvn install -pl <上游模块> -DskipTests` 或全量 `mvn clean install -DskipTests` 后再编译下游模块。
 

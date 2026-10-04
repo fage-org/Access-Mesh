@@ -39,7 +39,7 @@ last_updated: 2026-10-04
 
 菜单仅新增 iconClear；path 与 resourceType/resourceCode 关联保持不可清空，不增路径清空或整对解绑通道（2026-10-04 确认）。
 
-OAuth2 redirectUris/scopes/audiences 可经各自 Clear 置 NULL；grantTypes、名称与密钥不提供 Clear，提供的新字符串拒绝空白，null 保持不更新。清空可空配置不撤销既有授权码/令牌，停用仍使用 status=0（2026-10-04 确认）。全部实施由 [T-API-006](../../../tasks/T-API-006.md) 承接。
+OAuth2 redirectUris/scopes/audiences 可经各自 Clear 置 NULL；grantTypes、名称与密钥不提供 Clear，提供的新字符串拒绝空白，null 保持不更新。清空可空配置不撤销既有授权码/令牌，停用仍使用 status=0（2026-10-04 确认）。全部实施由 [T-API-006](T-API-006.md) 承接。
 
 ## 非目标 / 遗留
 

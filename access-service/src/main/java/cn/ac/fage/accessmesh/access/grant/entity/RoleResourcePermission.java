@@ -90,11 +90,6 @@ public class RoleResourcePermission {
     private String grantSource;
 
     /**
-     * 授权依赖ID
-     */
-    private Long grantDepId;
-
-    /**
      * 创建者用户ID
      */
     private Long createdBy;

@@ -70,6 +70,7 @@ class OAuth2LoginLogTest {
         // 1. mock 客户端（findActiveByClientId 生效，BCrypt.checkpw 校验通过）
         String clientSecret = "plain-client-secret";
         SysOauth2Client client = new SysOauth2Client();
+        client.setTenantId(10L);
         client.setClientSecret(BCrypt.hashpw(clientSecret, BCrypt.gensalt()));
         client.setGrantTypes("authorization_code");
         client.setAccessTokenTtl(3600);
@@ -89,6 +90,7 @@ class OAuth2LoginLogTest {
         // 3. 用户库回填用户名
         SysUser user = new SysUser();
         user.setId(100L);
+        user.setStatus(1);
         user.setUsername("oauth-user");
         when(userDomainService.selectValidById(10L, 100L)).thenReturn(user);
         // generateAccessToken / 刷新令牌存储用 opsForValue
@@ -140,6 +142,7 @@ class OAuth2LoginLogTest {
     void shouldRecordOauth2LoginFailure_whenClientSecretMismatch() {
         String correctSecret = "right-secret";
         SysOauth2Client client = new SysOauth2Client();
+        client.setTenantId(10L);
         client.setTenantId(10L);
         client.setClientSecret(BCrypt.hashpw(correctSecret, BCrypt.gensalt()));
         client.setGrantTypes("authorization_code");

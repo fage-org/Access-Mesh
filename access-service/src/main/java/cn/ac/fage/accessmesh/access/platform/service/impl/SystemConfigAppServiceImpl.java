@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.platform.service.impl;
 
+import com.mybatisflex.core.util.UpdateEntity;
+
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.platform.dto.req.SystemConfigReq;
@@ -89,11 +91,24 @@ public class SystemConfigAppServiceImpl implements SystemConfigAppService {
                     AccessErrorCode.CONFIG_KEY_SYSTEM_IMMUTABLE.getMessage());
             }
             existing.setConfigValue(req.configValue());
-            existing.setDescription(req.description());
+            if (req.description() != null) existing.setDescription(req.description());
             existing.setUpdatedAt(LocalDateTime.now());
-            systemConfigMapper.update(existing);
+            if (Boolean.TRUE.equals(req.descriptionClear())) {
+                existing.setDescription(null);
+                SystemConfig patch = UpdateEntity.of(SystemConfig.class);
+                patch.setId(existing.getId());
+                patch.setConfigValue(existing.getConfigValue());
+                patch.setDescription(null);
+                patch.setUpdatedAt(existing.getUpdatedAt());
+                systemConfigMapper.update(patch);
+            } else {
+                systemConfigMapper.update(existing);
+            }
             return toSystemConfigResp(existing);
         } else {
+            if (Boolean.TRUE.equals(req.descriptionClear())) {
+                throw new BizException(AccessErrorCode.PERM_INVALID_PARAM.getCode(), "新建配置不接受清空标志");
+            }
             SystemConfig config = new SystemConfig();
             config.setTenantId(tenantId);
             config.setConfigKey(req.configKey());

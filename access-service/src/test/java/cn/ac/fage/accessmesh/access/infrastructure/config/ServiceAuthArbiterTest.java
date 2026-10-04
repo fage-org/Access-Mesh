@@ -27,7 +27,7 @@ class ServiceAuthArbiterTest {
 
     private static final String INTERNAL_SECRET = "test-internal-secret-0123456789abcdef";
     private static final String M2M_PATH = "/api/access/resource-entity/sync";
-    private static final String NON_M2M_PATH = "/api/access/auth/query-resources";
+    private static final String NON_M2M_PATH = "/api/access/service-credential/list";
 
     private ServiceCredentialDomainService domainService;
     private ServiceAuthArbiter arbiter;

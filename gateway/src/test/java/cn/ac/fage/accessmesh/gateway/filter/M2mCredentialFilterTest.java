@@ -42,6 +42,14 @@ class M2mCredentialFilterTest {
     }
 
     @Test
+    void allCredentialEndpointsShareGatewayAllowlist() {
+        for (var endpoint : cn.ac.fage.accessmesh.common.security.M2mCredentialEndpoints.endpoints()) {
+            assertThat(invokesWithSkipAuth(exchange(endpoint.method(), endpoint.path(), "sc-a", "sk-b")))
+                .as(endpoint.path()).isTrue();
+        }
+    }
+
+    @Test
     @DisplayName("完整凭证头 + M2M 路径（sync/full-sync/manifest）→ skipAuth=true")
     void completeCredentialOnM2mPath_setsSkipAuth() {
         assertThat(invokesWithSkipAuth(exchange("POST", "/api/access/resource-entity/sync", "sc-a", "sk-b"))).isTrue();
@@ -60,9 +68,9 @@ class M2mCredentialFilterTest {
     @Test
     @DisplayName("完整凭证头 + 非 M2M 路径（管理/查询端点）→ 不 skipAuth（管理端点不被凭证旁路）")
     void completeCredentialOnNonM2mPath_noSkipAuth() {
-        assertThat(invokesWithSkipAuth(exchange("POST", "/api/access/auth/query-resources", "sc-a", "sk-b"))).isFalse();
+        assertThat(invokesWithSkipAuth(exchange("POST", "/api/access/auth/query-resources", "sc-a", "sk-b"))).isTrue();
         assertThat(invokesWithSkipAuth(exchange("POST", "/api/access/service-credential/list", "sc-a", "sk-b"))).isFalse();
-        assertThat(invokesWithSkipAuth(exchange("POST", "/api/access/abstract-user/full-sync", "sc-a", "sk-b"))).isFalse();
+        assertThat(invokesWithSkipAuth(exchange("POST", "/api/access/abstract-user/full-sync", "sc-a", "sk-b"))).isTrue();
     }
 
     @Test

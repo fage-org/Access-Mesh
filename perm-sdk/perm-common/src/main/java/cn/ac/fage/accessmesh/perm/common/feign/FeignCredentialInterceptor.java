@@ -8,35 +8,10 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
- * 服务凭证头注入拦截器（T-PERM-070，service-authentication.md §3.3「SDK 直连」形态）。
- * <p>
- * 落 perm-common 供 perm-client（既有）与 perm-registration（T-PERM-071 新增）两 starter
- * 共用——starter 的 AutoConfiguration 须显式 {@code @Import} 装配（业务服务组件扫描
- * 覆盖不到 SDK 包，同 FeignInternalSyncInterceptor 先例）。仅当配置了
- * {@code perm.credential-id} 时启用；上线序=服务端先行向后兼容（旧密钥注入
- * FeignInternalSyncInterceptor 不受影响，两拦截器并存期间「凭证头+密钥头」由服务端
- * 仲裁器凭证优先规则消解）。
- * </p>
- * <p>
- * <b>注入面=M2M 通道端点精确清单</b>（2026-09-20 拍板「精确镜像」）：仅对
- * {@link #M2M_PATHS} 中的端点注入凭证头——auth/check、batch-check 等运行时鉴权端点
- * 不注入（服务端仲裁器凭证优先+白名单外 403，宽注入面会击穿接入方自身鉴权链）。
- * 本清单是 {@code common.security.M2mCredentialEndpoints}（服务端+Gateway 单源）的
- * <b>SDK 侧镜像副本</b>——SDK 对外发制品不能依赖 common 模块；阶段二扩展白名单
- * （071 及后续）时<b>必须同批同步两处</b>，两侧测试各自锁清单防漂移。
- * </p>
- * <p>
- * 配置键：
- * <ul>
- *   <li>{@code perm.credential-id} + {@code perm.credential-secret}：成对必填——只配一半
- *       启动失败（fail-fast，对齐 perm.service-code 先例防半配误用）。</li>
- *   <li>{@code perm.allow-insecure}：<b>启动声明式 TLS 信任域护栏</b>（2026-09-20 拍板）——
- *       配置了凭证就必须显式声明（true=本部署整体一个信任域、明文 hop 可接受；
- *       false=跨边界部署、期望 TLS；本护栏纯声明不校验实际地址——服务发现形态下
- *       静态校验无落点）。缺省（未声明）配置凭证即拒绝启动。</li>
- * </ul>
- * 已显式声明凭证头的请求模板不覆盖（多租户差异化场景由调用方自行指定）。
- * </p>
+ * 服务凭证注入：仅向 M2M 精确端点发送凭证，管理面不注入。
+ * SDK 镜像 common.security.M2mCredentialEndpoints，扩展端点须同批更新两处。
+ * 配置 credential-id/credential-secret 成对必填，allow-insecure 必须显式声明信任域。
+ * 仅配置 credential-id 时装配；调用方已声明的凭证头保持原值。
  */
 @Component
 @ConditionalOnProperty(name = "perm.credential-id")
@@ -48,18 +23,24 @@ public class FeignCredentialInterceptor implements RequestInterceptor {
     /** 内部调用统一路径前缀；仅匹配该前缀的请求才考虑注入，避免污染其他 Feign 调用。 */
     private static final String ACCESS_PATH_MARKER = "/api/access/";
 
-    /**
-     * M2M 通道端点精确清单（common.security.M2mCredentialEndpoints 的 SDK 侧镜像副本，
-     * 同步义务见类注释；method 恒 POST）。当前 6 条与服务端单源一致
-     * （2026-09-28 外评修正：058 漏 sync-v2、059 漏两准入端点曾致 SDK 凭证调用 403）。
-     */
+    /** 服务端单源清单的 SDK 镜像（SDK 不依赖 common 模块）。 */
     private static final java.util.Set<String> M2M_PATHS = java.util.Set.of(
         "/api/access/resource-entity/sync",
         "/api/access/resource-entity/full-sync",
         "/api/access/service-config/sync-v2",
         "/api/access/integration/permission-manifest/full-sync",
         "/api/access/auth/interface-admission",
-        "/api/access/auth/interface-admission-snapshot");
+        "/api/access/auth/interface-admission-snapshot",
+        "/api/access/auth/check",
+        "/api/access/auth/batch-check",
+        "/api/access/auth/query-resources",
+        "/api/access/auth/query-scopes",
+        "/api/access/abstract-user/sync",
+        "/api/access/abstract-user/full-sync",
+        "/api/access/abstract-role/sync",
+        "/api/access/abstract-role/full-sync",
+        "/api/access/user-role/sync",
+        "/api/access/user-role/full-sync");
 
     @Value("${perm.credential-id}")
     private String credentialId;
@@ -115,7 +96,7 @@ public class FeignCredentialInterceptor implements RequestInterceptor {
             path = path.substring(0, queryIndex);
         }
         if (!M2M_PATHS.contains(path)) {
-            // 仅 M2M 通道端点注入（精确镜像清单）——auth/check 等其他 /api/access/ 调用
+            // 仅 M2M 通道端点注入（精确镜像清单）——其余 /api/access/ 调用
             // 不携带凭证头（白名单外携带=服务端 403，见类注释）
             return;
         }

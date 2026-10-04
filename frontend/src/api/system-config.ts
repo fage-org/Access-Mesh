@@ -59,6 +59,7 @@ export type SystemConfigSaveReq = {
   configKey: string;
   configValue: string;
   description?: string | null;
+  descriptionClear?: boolean;
 };
 
 // ========== API 函数 ==========

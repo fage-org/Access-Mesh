@@ -159,10 +159,10 @@ class ConditionProjectionDualTrackPgIT {
 
         // enabled 翻转 → 投影 status 镜像（停用条件自动隐出授权资源树）
         conditionAppService.updateCondition(TENANT,
-            new ConditionUpdateReq("t048-cond-a", null, null, false, null, null), creator);
+            new ConditionUpdateReq("t048-cond-a", null, null, false, null, null, null), creator);
         assertThat(conditionProjectionRow("t048-cond-a").get("status")).isEqualTo(0);
         conditionAppService.updateCondition(TENANT,
-            new ConditionUpdateReq("t048-cond-a", null, null, true, null, null), creator);
+            new ConditionUpdateReq("t048-cond-a", null, null, true, null, null, null), creator);
         assertThat(conditionProjectionRow("t048-cond-a").get("status")).isEqualTo(1);
 
         // 零引用删除：条件行 + 投影行同事务软删（旧实现投影行残留，本断言必红）
@@ -195,7 +195,7 @@ class ConditionProjectionDualTrackPgIT {
             new ConditionCreateReq("t048-gate-b", "门禁B", RULES_IP, true, false, null), admin);
 
         conditionAppService.updateCondition(TENANT,
-            new ConditionUpdateReq("t048-gate-a", "scope改名", null, null, null, null), admin);
+            new ConditionUpdateReq("t048-gate-a", "scope改名", null, null, null, null, null), admin);
         assertThat(conditionProjectionRow("t048-gate-a").get("name")).isEqualTo("scope改名");
 
         // 管理员B：仅实例级 CONDITION:UPDATE@t048-gate-a（新解锁能力——旧实现实例授权配不进）
@@ -206,18 +206,18 @@ class ConditionProjectionDualTrackPgIT {
         insertInstanceRolePerm(scopedRole, RESOURCE_TYPE_CONDITION, CONDITION_UPDATE_BIT, gateAProjectionId);
         bindOperator(scoped);
         conditionAppService.updateCondition(TENANT,
-            new ConditionUpdateReq("t048-gate-a", "实例改名", null, null, null, null), scoped);
+            new ConditionUpdateReq("t048-gate-a", "实例改名", null, null, null, null, null), scoped);
         assertThat(conditionProjectionRow("t048-gate-a").get("name")).isEqualTo("实例改名");
         // 未授权实例拒绝（投影解析 fail-closed；旧实现类型级门禁下本断言必红——scope_all 之外全放行）
         assertThatThrownBy(() -> conditionAppService.updateCondition(TENANT,
-            new ConditionUpdateReq("t048-gate-b", "越权改名", null, null, null, null), scoped))
+            new ConditionUpdateReq("t048-gate-b", "越权改名", null, null, null, null, null), scoped))
             .isInstanceOf(SecurityException.class);
 
         // 零授权账号：全拒 fail-closed
         Long bare = insertSubject("t048-op-bare", "零授权用户");
         bindOperator(bare);
         assertThatThrownBy(() -> conditionAppService.updateCondition(TENANT,
-            new ConditionUpdateReq("t048-gate-a", "裸改", null, null, null, null), bare))
+            new ConditionUpdateReq("t048-gate-a", "裸改", null, null, null, null, null), bare))
             .isInstanceOf(SecurityException.class);
     }
 
@@ -367,7 +367,7 @@ class ConditionProjectionDualTrackPgIT {
 
         // 三面：update / remove / detail
         assertThatThrownBy(() -> conditionAppService.updateCondition(TENANT,
-            new ConditionUpdateReq(inlineCode, "越权改", null, null, null, null), manager))
+            new ConditionUpdateReq(inlineCode, "越权改", null, null, null, null, null), manager))
             .isInstanceOf(BizException.class)
             .hasMessageContaining("内联条件不可在管理面管理");
         assertThatThrownBy(() -> conditionAppService.deleteConditionsByCodes(TENANT, List.of(inlineCode), manager))

@@ -43,7 +43,7 @@ last_updated: 2026-10-04
 
 实现锚点：OAuth2AppServiceImpl.authorize/tokenByAuthorizationCode/refreshToken/getClientUserInfo、RequestContextInterceptor.authenticateOAuth2Jwt。
 
-目标：仅允许同租户委托；authorize、token/refresh 及每次 JWT 资源访问都检查同租户有效启用用户，无正向状态缓存，禁用/删除后下一请求拒绝（2026-10-04 确认）。匿名 token/refresh 仍全局查客户端再比对可信记录租户。实施由 [T-ADMIN-035](../../../tasks/T-ADMIN-035.md) 承接，本卡不声称当前实现已收紧。
+目标：仅允许同租户委托；authorize、token/refresh 及每次 JWT 资源访问都检查同租户有效启用用户，无正向状态缓存，禁用/删除后下一请求拒绝（2026-10-04 确认）。匿名 token/refresh 仍全局查客户端再比对可信记录租户。实施由 [T-ADMIN-035](T-ADMIN-035.md) 承接，本卡不声称当前实现已收紧。
 
 ## 非目标 / 遗留
 

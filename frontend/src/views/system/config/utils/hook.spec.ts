@@ -20,11 +20,40 @@ vi.mock("@/api/system-config", () => ({
 }));
 
 import { useSystemConfig } from "./hook";
+import { saveSystemConfig } from "@/api/system-config";
 
 describe("系统配置页列表加载（T-FE-051）", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetSystemConfigList.mockResolvedValue({ items: [], total: 0 });
+  });
+
+  it("编辑清空描述发送 descriptionClear，新建空描述不发送清空", async () => {
+    const { handleSubmitForm } = useSystemConfig();
+    const form = {
+      configKey: "access.test",
+      configValue: "{}",
+      description: ""
+    };
+    await handleSubmitForm(form, {
+      id: 1,
+      ...form,
+      description: "before",
+      isSystem: false
+    });
+    expect(saveSystemConfig).toHaveBeenLastCalledWith({
+      configKey: "access.test",
+      configValue: "{}",
+      description: null,
+      descriptionClear: true
+    });
+    await handleSubmitForm(form);
+    expect(saveSystemConfig).toHaveBeenLastCalledWith({
+      configKey: "access.test",
+      configValue: "{}",
+      description: null,
+      descriptionClear: false
+    });
   });
 
   it("并发 A(慢)→B(快)→B 回→A 回：表格终态=B（旧实现无代际守卫被 A 覆盖必失败）", async () => {

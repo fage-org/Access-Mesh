@@ -21,8 +21,7 @@ import java.util.concurrent.TimeUnit;
  * 真正取数前在<b>执行时点</b>重查同一目标，不永久复用提交时点结论绕过撤权（提交后、
  * 执行前撤权 → 执行时点检查拒绝，作业终态 DENIED）。重查走与在线请求同一
  * {@link BusinessPermChecker}（租户/主体与提交时的环境上下文 clientIp 一并在提交时
- * 捕获、显式传入调度线程，不依赖已结束的 servlet 上下文——PermCallContext 的显式
- * set/clear 设计正为此）。
+ * 捕获、显式传入调度线程，不依赖已结束的 servlet 上下文；执行时同样检查固定凭证租户）。
  * </p>
  */
 @Component

@@ -13,6 +13,24 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class M2mCredentialEndpointsTest {
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+        "/api/access/auth/check",
+        "/api/access/auth/batch-check",
+        "/api/access/auth/query-resources",
+        "/api/access/auth/query-scopes",
+        "/api/access/abstract-user/sync",
+        "/api/access/abstract-user/full-sync",
+        "/api/access/abstract-role/sync",
+        "/api/access/abstract-role/full-sync",
+        "/api/access/user-role/sync",
+        "/api/access/user-role/full-sync"})
+    void shouldMatchRuntimeQueriesAndRemainingSync(String path) {
+        assertThat(M2mCredentialEndpoints.matches("POST", path)).isTrue();
+        assertThat(M2mCredentialEndpoints.matches("GET", path)).isFalse();
+        assertThat(M2mCredentialEndpoints.matches("POST", path + "/other")).isFalse();
+    }
+
     @Test
     @DisplayName("阶段一三端点精确命中")
     void shouldMatchStageOneEndpoints() {
@@ -35,9 +53,8 @@ class M2mCredentialEndpointsTest {
         // 相邻命名空间
         assertThat(M2mCredentialEndpoints.matches("POST", "/api/access/resource-entity/create")).isFalse();
         assertThat(M2mCredentialEndpoints.matches("POST", "/api/access/service-config/sync")).isFalse();
-        assertThat(M2mCredentialEndpoints.matches("POST", "/api/access/abstract-user/full-sync")).isFalse();
         // 管理与查询端点（凭证能力半径边界；旧 auth 查询族维持凭证外——check/interface 旧端点归 062 退役）
-        assertThat(M2mCredentialEndpoints.matches("POST", "/api/access/auth/query-resources")).isFalse();
+        assertThat(M2mCredentialEndpoints.matches("POST", "/api/access/service-credential/list")).isFalse();
         assertThat(M2mCredentialEndpoints.matches("POST", "/api/access/auth/check-interface")).isFalse();
         assertThat(M2mCredentialEndpoints.matches("POST", "/api/access/auth/interface-snapshot")).isFalse();
         // 前缀相邻不命中（admission 非 admission-snapshot 的兄弟路径不存在通配）
@@ -53,7 +70,7 @@ class M2mCredentialEndpointsTest {
     @Test
     @DisplayName("清单保持精确端点边界")
     void shouldExposeImmutableBaseline() {
-        assertThat(M2mCredentialEndpoints.endpoints()).hasSize(6);
+        assertThat(M2mCredentialEndpoints.endpoints()).hasSize(16);
         assertThat(M2mCredentialEndpoints.endpoints())
             .extracting(M2mCredentialEndpoints.M2mEndpoint::path)
             .containsExactlyInAnyOrder(
@@ -62,6 +79,16 @@ class M2mCredentialEndpointsTest {
                 "/api/access/integration/permission-manifest/full-sync",
                 "/api/access/service-config/sync-v2",
                 "/api/access/auth/interface-admission",
-                "/api/access/auth/interface-admission-snapshot");
+                "/api/access/auth/interface-admission-snapshot",
+                "/api/access/auth/check",
+                "/api/access/auth/batch-check",
+                "/api/access/auth/query-resources",
+                "/api/access/auth/query-scopes",
+                "/api/access/abstract-user/sync",
+                "/api/access/abstract-user/full-sync",
+                "/api/access/abstract-role/sync",
+                "/api/access/abstract-role/full-sync",
+                "/api/access/user-role/sync",
+                "/api/access/user-role/full-sync");
     }
 }

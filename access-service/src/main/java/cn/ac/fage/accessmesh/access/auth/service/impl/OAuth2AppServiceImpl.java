@@ -164,6 +164,13 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
         // 7. Get current user
         long userId = StpUtil.getLoginIdAsLong();
 
+        Long tenantId = TenantContextHolder.getTenantId();
+        if (tenantId == null || !tenantId.equals(client.getTenantId())) {
+            throw new BizException(AccessErrorCode.OAUTH2_CLIENT_INVALID.getCode(),
+                AccessErrorCode.OAUTH2_CLIENT_INVALID.getMessage());
+        }
+        requireActiveUser(tenantId, userId, AccessErrorCode.OAUTH2_CLIENT_INVALID);
+
         // 8. Generate authorization code
         String code = UUID.randomUUID().toString().replace("-", "");
 
@@ -274,6 +281,14 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
                 throw new BizException(AccessErrorCode.OAUTH2_TOKEN_INVALID.getCode(),
                     AccessErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
             }
+
+            if (!Objects.equals(client.getTenantId(), refreshTokenData.getTenantId())) {
+                recordOauth2Failure(clientId, "refresh token tenant mismatch");
+                throw new BizException(AccessErrorCode.OAUTH2_TOKEN_INVALID.getCode(),
+                    AccessErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
+            }
+            requireActiveUser(refreshTokenData.getTenantId(), refreshTokenData.getUserId(),
+                AccessErrorCode.OAUTH2_TOKEN_INVALID);
 
             // 生成新的访问令牌
             int accessTokenTtl = client.getAccessTokenTtl() != null ? client.getAccessTokenTtl() : 86400;
@@ -480,6 +495,13 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
             }
         }
 
+        if (!Objects.equals(client.getTenantId(), codeData.getTenantId())) {
+            recordOauth2Failure(req.clientId(), "authorization code tenant mismatch");
+            throw new BizException(AccessErrorCode.OAUTH2_CODE_INVALID.getCode(),
+                AccessErrorCode.OAUTH2_CODE_INVALID.getMessage());
+        }
+        requireActiveUser(codeData.getTenantId(), codeData.getUserId(), AccessErrorCode.OAUTH2_CODE_INVALID);
+
         // 8. Generate tokens
         int accessTokenTtl = client.getAccessTokenTtl() != null ? client.getAccessTokenTtl() : 86400;
         int refreshTokenTtl = client.getRefreshTokenTtl() != null ? client.getRefreshTokenTtl() : 604800;
@@ -680,16 +702,16 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
         }
     }
 
-    /**
-     * 获取有效的OAuth2客户端
-     * <p>
-     * 查询客户端并验证是否存在且激活状态。
-     * </p>
-     *
-     * @param clientId 客户端ID
-     * @return 客户端实体
-     * @throws BizException 客户端无效或不存在
-     */
+    /** 同源检查用户仍属于本租户、未删除且启用，技术故障不降级。 */
+    private void requireActiveUser(Long tenantId, Long userId, AccessErrorCode error) {
+        // 同源无缓存查询限定租户与未删除；技术故障原样传播，不能伪装成用户不存在。
+        SysUser user = userDomainService.selectValidById(tenantId, userId);
+        if (user == null || !Integer.valueOf(1).equals(user.getStatus())) {
+            throw new BizException(error.getCode(), error.getMessage());
+        }
+    }
+
+    /** 匿名兑换/刷新也能全局定位客户端，租户绑定由可信记录另行核对。 */
     private SysOauth2Client getValidClient(String clientId) {
         SysOauth2Client client = oauth2ClientDomainService.findActiveByClientId(clientId);
         if (client == null) {

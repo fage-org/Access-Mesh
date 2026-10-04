@@ -11,9 +11,9 @@
 | Maven | 3.9+ | 构建服务 jar |
 | Node.js + pnpm | Node ≥22.13（或 20.19）、pnpm ≥9 | 仅开发模式改前端时需要（全栈档前端在容器内构建） |
 
-> 全栈预览档总共两条命令，其余都是可选项。
+> 平台先启动，管理员签发服务凭证后再启动业务示例。
 
-## 路径 A：全栈一键预览（推荐第一次使用）
+## 路径 A：全栈预览（推荐第一次使用）
 
 ```bash
 # 1. 构建三个服务 jar（跳过测试，约 1~3 分钟）
@@ -22,8 +22,8 @@ mvn package -DskipTests
 # 2. 准备密钥（复制模板并填值，四项均为必填）
 cp .env.example .env
 
-# 3. 一键全栈（前端 + gateway + access-service + example-service + PG/Redis/Nacos）
-docker compose --profile app up -d --build
+# 3. 先启动管理平台（前端 + gateway + access-service + PG/Redis/Nacos）
+docker compose --profile app up -d --build frontend gateway access-service
 ```
 
 `.env` 必填项：`ACCESS_BOOTSTRAP_ADMIN_PASSWORD`（首管理员密码）、`JWT_SECRET_KEY`（≥32 字符）、`ACCESSMESH_SIGNATURE_SECRET`（gateway/access-service/example-service 三处同值）、`PERM_INTERNAL_SECRET`（仅 gateway 与 access-service 同值）——分发范围详见模板注释。
@@ -43,6 +43,14 @@ docker compose --profile app up -d --build
 
 **登录**：浏览器打开 http://127.0.0.1/，用户名 `admin` + 你在 `.env` 填的密码（验证码看图输入）。
 
+登录后在「服务与接口」登记 `example-service`，持管理员会话调用 `POST /api/access/service-credential/create`，请求 `{"serviceCode":"example-service"}`。把响应的 `credentialId` 和一次性明文 `secret` 填入 `.env` 的 `PERM_CREDENTIAL_ID` / `PERM_CREDENTIAL_SECRET`，`PERM_TENANT_ID` 填当前租户（空库默认 1）；本地 compose 的 `PERM_ALLOW_INSECURE=true` 明示单信任域。然后运行：
+
+```bash
+docker compose --profile app up -d --build example-service
+```
+
+示例不再接收平台内部共享密钥；其他租户的业务最终检查立即拒绝。凭证签发细节见[服务认证契约](design/access-service-api-contract.md#24-服务凭证与-m2m-服务认证t-perm-070)。
+
 **体验授权闭环**（example 演示接口 403 → 授权 → 200 → 撤销 → 403）：
 
 1. 登录管理台，在「类型定义」创建业务资源类型 `EXAMPLE`，再在「资源与操作」下创建该类型的示例实例（例如编码 `demo-report`）。进入「服务与接口」登记 example-service 并全量声明接口，给 `POST /api/example/demo/hello` 配置业务操作要求 `EXAMPLE:VIEW`（清单字段 `requiredPermission: {"resourceTypeCode":"EXAMPLE","operationCode":"VIEW"}`）。接口声明使用 sync-v2，自动创建 API 登记资源和 Gateway 映射；
@@ -50,7 +58,7 @@ docker compose --profile app up -d --build
 3. 用持有该角色的用户会话调 `POST http://127.0.0.1:8080/api/example/demo/hello`（body `{"name":"accessmesh"}`）——授权前 401/403，授权后 30 秒内变 200（网关快照撤权边界），响应回显 Gateway 注入的用户与租户身份。令牌来源：登录接口 `POST /api/access/auth/login` 响应的 `accessToken`（`Authorization: Bearer <token>` 头），或浏览器登录后从 DevTools 取本地会话令牌；
 4. 撤销与恢复：回到第 2 步删除该条 `EXAMPLE:VIEW` 授权——没有其他覆盖 VIEW 的授权时，30 秒内再调同接口回到 403。对同一业务实例重新授予 VIEW 后恢复；报表等有实际数据目标的接口还会在业务层检查请求目标，不能只靠网关准入放行。
 
-完整接入指引（含服务身份——**资源同步用 per-service 凭证、运行时权限查询用内部密钥两套并存**、SDK 现状、业务资源类型与授权根）见 [扩展指南 §2/§3](design/extension-guide.md)。
+完整接入指引（含服务身份——**查询与同步统一使用 per-service 凭证**、SDK 现状、业务资源类型与授权根）见 [扩展指南 §2/§3](design/extension-guide.md)。
 
 ## 路径 B：开发模式（改代码热迭代）
 
@@ -70,7 +78,9 @@ ACCESSMESH_SIGNATURE_SECRET=<与上同值> PERM_INTERNAL_SECRET=<与上同值> \
   mvn spring-boot:run -pl gateway
 
 # 4. example-service（可选演示服务，另开终端）
-ACCESSMESH_SIGNATURE_SECRET=<与上同值> mvn spring-boot:run -pl example-service
+ACCESSMESH_SIGNATURE_SECRET=<与上同值> PERM_TENANT_ID=1 \
+  PERM_CREDENTIAL_ID=<签发标识> PERM_CREDENTIAL_SECRET=<一次性明文> PERM_ALLOW_INSECURE=true \
+  mvn spring-boot:run -pl example-service
 
 # 5. 前端（frontend/ 目录；preinstall 强制 pnpm，禁 npm/yarn）
 cd frontend && pnpm install && pnpm dev

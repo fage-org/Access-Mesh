@@ -11,7 +11,7 @@ import java.util.Map;
  * 资源查询请求体（T-API-002 自 access-service 迁入 SDK 公共包）
  * <p>
  * 用于查询用户可访问的资源列表，支持按资源类型和操作过滤。
- * 租户ID不在请求体中，从X-Tenant-Id请求头获取。
+ * 租户ID不在请求体中，由可信认证上下文派生（服务调用绑定凭证租户）。
  * </p>
  *
  * @param subjectTypeCode    用户类型编码，必填

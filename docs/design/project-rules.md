@@ -296,7 +296,7 @@ RuntimeException
 | `serviceCode` | 服务启动时从配置文件读取                                        |
 
 - access-service 由 `RequestContextInterceptor` 在请求入口设置 MDC，请求结束后**必须 clear**（防 ThreadPool 污染）。
-- Feign 跨服务透传现状：SDK `FeignInternalSyncInterceptor` 仅注入 `X-Internal-Secret` / `X-Service-Code`；统一链路追踪头透传尚未实现（目标头为 `X-Request-Id`，与 Gateway 头链同名，见 §14.2），跨服务日志关联暂依赖 Gateway 的 `X-Request-Id` 头链。
+- Feign 跨服务透传现状：SDK `FeignCredentialInterceptor` 仅向精确 M2M 端点注入服务凭证；统一链路追踪头透传尚未实现（目标头为 `X-Request-Id`，与 Gateway 头链同名，见 §14.2），跨服务日志关联暂依赖 Gateway 的 `X-Request-Id` 头链。
 
 ### 4.4 日志级别规范
 
@@ -468,7 +468,7 @@ private LocalDateTime deletedAt;
 
 ### 7.6 可编辑字段显式清空协议（T-API-004，2026-09-24 U006 拍板）
 
-剩余字段的可清空范围按契约 §2.7 后续字段表（T-API-005，2026-10-04）执行，实施归 T-API-006；不从数据库列可空性自动推导 API 可清空。菜单路径/资源关联及 OAuth2 必需字段不提供 Clear，创建缺省行为保持。
+剩余字段的可清空范围按契约 §2.7 字段表（T-API-005 定案、T-API-006 实施）执行；不从数据库列可空性自动推导 API 可清空。菜单路径/资源关联及 OAuth2 必需字段不提供 Clear，创建缺省行为保持。
 
 更新类 Req DTO 的可选字段统一三态语义：**未传/null=不修改**、**非空值=设置**、**`xxxClear=true`=清空为 NULL**（JSON null 无法区分「未传」与「清空」，显式布尔标志是唯一清空通道；协议详情见契约总册 §2.7）。硬约束：
 
@@ -1046,7 +1046,7 @@ spring:
 
 ### 14.2 Header 透传
 
-> **现状与目标分开**：服务身份已有旧密钥 `FeignInternalSyncInterceptor` 与新凭证 `FeignCredentialInterceptor` 两套注入路径，适用范围和头优先级见[接入指南 §2.3](extension-guide.md)。`X-Tenant-Id` 由调用方业务侧注入；Authorization 与 X-Request-Id 尚无统一透传，跨服务日志关联沿 Gateway 请求头链。下面是未来统一透传的目标契约，不能当作已经交付的现状。
+> **现状与目标分开**：服务身份由 `FeignCredentialInterceptor` 注入服务凭证，旧共享密钥注入器已退役，适用范围和头优先级见[接入指南 §2.3](extension-guide.md)。服务租户由凭证行派生；Authorization 与 X-Request-Id 尚无统一透传，跨服务日志关联沿 Gateway 请求头链。下面是未来统一透传的目标契约，不能当作已经交付的现状。
 
 目标态：所有 Feign 调用必须通过 `RequestInterceptor` 透传以下 Header：
 

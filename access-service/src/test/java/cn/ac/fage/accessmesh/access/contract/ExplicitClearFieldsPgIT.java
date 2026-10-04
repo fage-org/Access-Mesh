@@ -79,6 +79,75 @@ class ExplicitClearFieldsPgIT {
     private ResourceManageAppService resourceManageAppService;
     @Autowired
     private JdbcTemplate jdbc;
+    // 本类验证持久化；管理轨门禁独立由安全矩阵覆盖。
+    @org.springframework.boot.test.mock.mockito.MockBean
+    private cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator adminPermissionValidator;
+    @Autowired
+    private cn.ac.fage.accessmesh.access.platform.service.SystemConfigAppService systemConfigs;
+    @Autowired
+    private cn.ac.fage.accessmesh.access.rule.service.ConditionAppService conditions;
+    @Autowired
+    private cn.ac.fage.accessmesh.access.menu.service.MenuWriteAppService menus;
+    @Autowired
+    private cn.ac.fage.accessmesh.access.auth.service.Oauth2ClientAppService oauthClients;
+
+    @Test
+    void shouldPersistDescriptionClear_andKeepNullOmissionConsistentWithResponse() {
+        var created = systemConfigs.upsertSystemConfig(TENANT,
+            new cn.ac.fage.accessmesh.access.platform.dto.req.SystemConfigReq("access.clear-description", "{}", "before", null));
+        var unchanged = systemConfigs.upsertSystemConfig(TENANT,
+            new cn.ac.fage.accessmesh.access.platform.dto.req.SystemConfigReq(created.configKey(), "{}", null, false));
+        assertThat(unchanged.description()).isEqualTo("before");
+        var cleared = systemConfigs.upsertSystemConfig(TENANT,
+            new cn.ac.fage.accessmesh.access.platform.dto.req.SystemConfigReq(created.configKey(), "{}", null, true));
+        assertThat(cleared.description()).isNull();
+        assertThat(systemConfigs.getSystemConfig(TENANT, created.configKey()).description()).isNull();
+    }
+
+    @Test
+    void shouldRejectClear_whenCreatingSystemConfig() {
+        assertThatThrownBy(() -> systemConfigs.upsertSystemConfig(TENANT,
+            new cn.ac.fage.accessmesh.access.platform.dto.req.SystemConfigReq("access.clear-new", "{}", null, true)))
+            .isInstanceOf(BizException.class);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM system_config WHERE tenant_id=? AND config_key=?",
+            Long.class, TENANT, "access.clear-new")).isZero();
+    }
+
+    @Test
+    void shouldPersistConditionDescriptionClear() {
+        jdbc.update("INSERT INTO permission_condition(tenant_id,code,name,condition_rules,description) "
+            + "VALUES (?, 'clear-condition', 'clear', '{\"logic\":\"AND\",\"items\":[]}', 'before')", TENANT);
+        var result = conditions.updateCondition(TENANT,
+            new cn.ac.fage.accessmesh.access.rule.dto.req.ConditionUpdateReq("clear-condition", null, null, null, null, null, true),
+            AccessRequestContext.getOperatorId());
+        assertThat(result.description()).isNull();
+        assertThat(jdbc.queryForObject("SELECT description FROM permission_condition WHERE tenant_id=? AND code=?",
+            String.class, TENANT, "clear-condition")).isNull();
+    }
+
+    @Test
+    void shouldPersistMenuIconClear_withoutClearingRoute() {
+        Long id = jdbc.queryForObject("INSERT INTO sys_menu(tenant_id,display_name,menu_type,path,icon) "
+            + "VALUES (?, 'clear-menu', 'MENU', '/clear-menu', 'ri:home-line') RETURNING id", Long.class, TENANT);
+        menus.updateMenu(new cn.ac.fage.accessmesh.access.menu.dto.req.MenuUpdateReq(
+            id, null, null, null, null, null, null, null, null, null, true));
+        assertThat(jdbc.queryForObject("SELECT icon FROM sys_menu WHERE id=?", String.class, id)).isNull();
+        assertThat(jdbc.queryForObject("SELECT path FROM sys_menu WHERE id=?", String.class, id)).isEqualTo("/clear-menu");
+    }
+
+    @Test
+    void shouldPersistOauthOptionalConfigurationClear() {
+        Long id = jdbc.queryForObject("INSERT INTO sys_oauth2_client(tenant_id,client_id,client_secret,client_name,grant_types,redirect_uris,scopes,audiences) "
+            + "VALUES (?, 'clear-client', 'unused-test-secret', 'clear', 'authorization_code', 'https://example.com/cb', 'profile', 'access-service') RETURNING id",
+            Long.class, TENANT);
+        oauthClients.updateClient(new cn.ac.fage.accessmesh.access.auth.dto.Oauth2ClientUpdateReq(
+            id, null, null, null, null, null, null, null, null, null, true, true, true));
+        var reloaded = oauthClients.getClientResp(id);
+        assertThat(reloaded.redirectUris()).isNull();
+        assertThat(reloaded.scopes()).isNull();
+        assertThat(reloaded.audiences()).isNull();
+        assertThat(reloaded.grantTypes()).isEqualTo("authorization_code");
+    }
 
     @BeforeAll
     void seedAndBindAdmin() {

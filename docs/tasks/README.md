@@ -75,15 +75,15 @@
 | [T-PERM-102](../archive/2026-10-04/tasks/T-PERM-102.md) | 外部查询不开放 TRACE 的适配边界核验 | ✅ | — |
 | [T-PERM-103](../archive/2026-10-04/tasks/T-PERM-103.md) | grant_dep_id 保留列处置评估 | ✅ | — |
 
-### 清单定案后续实施（独立待办，不计入已归档计划）
+### 清单定案后续实施（已完成并归档，2026-10-04）
 
 | ID | 标题 | 状态 | 直接依赖 |
 |---|---|---|---|
-| [T-PERM-105](T-PERM-105.md) | 退役自动授权闲置 grant_dep_id 列与实体字段 | ⚙️ | T-PERM-103 |
-| [T-ADMIN-035](T-ADMIN-035.md) | OAuth2 同租户委托与用户动态有效性实施 | ⚙️ | T-ADMIN-034 |
-| [T-API-006](T-API-006.md) | 剩余可选字段显式清空协议实施 | ⚙️ | T-API-005 |
-| [T-ACCESS-079](T-ACCESS-079.md) | 运行时查询四端点与 SDK 服务凭证同批切换 | ⚙️ | T-ACCESS-068 |
-| [T-ACCESS-080](T-ACCESS-080.md) | 剩余外部同步凭证化与共享密钥外部退出 | ⚙️ | T-ACCESS-079 |
+| [T-PERM-105](../archive/2026-10-04/tasks/T-PERM-105.md) | 退役自动授权闲置 grant_dep_id 列与实体字段 | ✅ | T-PERM-103 |
+| [T-ADMIN-035](../archive/2026-10-04/tasks/T-ADMIN-035.md) | OAuth2 同租户委托与用户动态有效性实施 | ✅ | T-ADMIN-034 |
+| [T-API-006](../archive/2026-10-04/tasks/T-API-006.md) | 剩余可选字段显式清空协议实施 | ✅ | T-API-005 |
+| [T-ACCESS-079](../archive/2026-10-04/tasks/T-ACCESS-079.md) | 运行时查询四端点与 SDK 服务凭证同批切换 | ✅ | T-ACCESS-068 |
+| [T-ACCESS-080](../archive/2026-10-04/tasks/T-ACCESS-080.md) | 剩余外部同步凭证化与共享密钥外部退出 | ✅ | T-ACCESS-079 |
 
 ### R2 权限查询引擎统一与操作准入（2026-09-25 立项——✅ 2026-10-01 全部收口归档）
 

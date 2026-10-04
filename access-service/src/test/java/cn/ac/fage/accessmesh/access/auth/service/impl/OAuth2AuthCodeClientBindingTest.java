@@ -76,6 +76,9 @@ class OAuth2AuthCodeClientBindingTest {
             loginLogDomainService, redisTemplate, objectMapper);
         ReflectionTestUtils.setField(service, "jwtSecretKey", JWT_SECRET);
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        var activeUser = new cn.ac.fage.accessmesh.access.user.entity.SysUser();
+        activeUser.setStatus(1);
+        lenient().when(userDomainService.selectValidById(1L, 9L)).thenReturn(activeUser);
     }
 
     private SysOauth2Client client(String clientId, String secret, long tenantId, String audiences) {
@@ -138,6 +141,61 @@ class OAuth2AuthCodeClientBindingTest {
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
             .isEqualTo(AccessErrorCode.OAUTH2_CODE_INVALID.getCode());
+    }
+
+    @ParameterizedTest(name = "用户状态 {0} 不得兑换授权码")
+    @ValueSource(ints = {0, -1})
+    void shouldRejectCode_whenUserDisabledOrDeleted(int status) throws Exception {
+        stubCode(client(CLIENT_A, SECRET_A, 1L, "aud-a"), codeFor(CLIENT_A, 1L, REDIRECT_A));
+        cn.ac.fage.accessmesh.access.user.entity.SysUser user = null;
+        if (status == 0) {
+            user = new cn.ac.fage.accessmesh.access.user.entity.SysUser();
+            user.setStatus(status);
+        }
+        lenient().when(userDomainService.selectValidById(1L, 9L)).thenReturn(user);
+        assertThatThrownBy(() -> exchange(CLIENT_A, SECRET_A, REDIRECT_A))
+            .isInstanceOf(BizException.class)
+            .extracting(e -> ((BizException) e).getErrorCode())
+            .isEqualTo(AccessErrorCode.OAUTH2_CODE_INVALID.getCode());
+        org.mockito.Mockito.verifyNoInteractions(valueOperations);
+    }
+
+    @Test
+    void shouldRejectCode_whenClientAndCodeTenantsDiffer() throws Exception {
+        stubCode(client(CLIENT_A, SECRET_A, 2L, "aud-a"), codeFor(CLIENT_A, 1L, REDIRECT_A));
+        assertThatThrownBy(() -> exchange(CLIENT_A, SECRET_A, REDIRECT_A))
+            .isInstanceOf(BizException.class)
+            .extracting(e -> ((BizException) e).getErrorCode())
+            .isEqualTo(AccessErrorCode.OAUTH2_CODE_INVALID.getCode());
+        org.mockito.Mockito.verifyNoInteractions(valueOperations);
+    }
+
+    @Test
+    void shouldPropagateUserLookupFailure_withoutIssuingToken() throws Exception {
+        stubCode(client(CLIENT_A, SECRET_A, 1L, "aud-a"), codeFor(CLIENT_A, 1L, REDIRECT_A));
+        var failure = new org.springframework.dao.DataAccessResourceFailureException("database unavailable");
+        lenient().when(userDomainService.selectValidById(1L, 9L)).thenThrow(failure);
+        assertThatThrownBy(() -> exchange(CLIENT_A, SECRET_A, REDIRECT_A)).isSameAs(failure);
+        org.mockito.Mockito.verifyNoInteractions(valueOperations);
+    }
+
+    @ParameterizedTest(name = "刷新记录租户={0}")
+    @ValueSource(longs = {1L, 2L})
+    void shouldRejectRefresh_whenUserMissingOrTenantMismatched(long recordTenant) throws Exception {
+        when(oauth2ClientDomainService.findActiveByClientId(CLIENT_A))
+            .thenReturn(client(CLIENT_A, SECRET_A, 1L, "aud-a"));
+        var stored = new OAuth2AppServiceImpl.RefreshTokenData();
+        stored.setClientId(CLIENT_A);
+        stored.setTenantId(recordTenant);
+        stored.setUserId(9L);
+        lenient().when(userDomainService.selectValidById(recordTenant, 9L)).thenReturn(null);
+        when(redisTemplate.execute(any(DefaultRedisScript.class), anyList()))
+            .thenReturn(objectMapper.writeValueAsString(stored));
+        assertThatThrownBy(() -> service.refreshToken("refresh-test", CLIENT_A))
+            .isInstanceOf(BizException.class)
+            .extracting(e -> ((BizException) e).getErrorCode())
+            .isEqualTo(AccessErrorCode.OAUTH2_TOKEN_INVALID.getCode());
+        org.mockito.Mockito.verifyNoInteractions(valueOperations);
     }
 
     @Test

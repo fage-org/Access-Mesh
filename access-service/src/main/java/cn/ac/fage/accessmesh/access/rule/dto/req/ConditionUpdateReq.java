@@ -1,5 +1,11 @@
 package cn.ac.fage.accessmesh.access.rule.dto.req;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
+import jakarta.validation.constraints.AssertTrue;
+
+import jakarta.validation.constraints.Pattern;
+
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
@@ -18,6 +24,7 @@ import jakarta.validation.constraints.Size;
  * @param gatewayEvaluable 是否可下发 Gateway 评估（T-PERM-017），可选；
  *                         切换该字段将触发 Gateway 接口快照缓存失效
  * @param description      条件描述，可选
+ * @param descriptionClear 显式清空 description 为 NULL，与新值同传拒绝
  */
 public record ConditionUpdateReq(
     @NotBlank @Size(max = 64) String code,
@@ -25,5 +32,14 @@ public record ConditionUpdateReq(
     String conditionRules,
     Boolean enabled,
     Boolean gatewayEvaluable,
-    @Size(max = 512) String description
-) {}
+    @Size(max = 512) @Pattern(regexp = "(?s)(?U).*\\S.*", message = "description 不能为空白")
+    String description,
+    Boolean descriptionClear
+) {
+    @AssertTrue(message = "description 与 descriptionClear 不能同时提供")
+    @JsonIgnore
+    public boolean isDescriptionConflictFree() {
+        return description == null || !Boolean.TRUE.equals(descriptionClear);
+    }
+
+}

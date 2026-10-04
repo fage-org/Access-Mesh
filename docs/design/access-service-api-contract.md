@@ -160,7 +160,7 @@ last_reviewed: 2026-10-04
 
 ### 2.7 可编辑字段显式清空协议（T-API-004，U006 拍板 2026-09-24）
 
-**后续字段目标（T-API-005，2026-10-04 确认，[T-API-006](../tasks/T-API-006.md) 待实施）**：condition.description 与 system-config.description 采用 descriptionClear，遵循本节 null 不更新、空白拒绝、值与 Clear 冲突拒绝、显式 NULL 持久化。role/resource.extra 的空白宽松边界退出，清空只走既有 extraClear；当前代码待实施卡兑现，不将定案视为已交付。
+**扩展字段协议（T-API-005 定案，[T-API-006](../archive/2026-10-04/tasks/T-API-006.md) 实施）**：condition.description 与 system-config.description 采用 descriptionClear，遵循本节 null 不更新、空白拒绝、值与 Clear 冲突拒绝、显式 NULL 持久化。role/resource.extra 的空白宽松边界退出，清空只走既有 extraClear；DTO 校验与显式 NULL 持久化统一执行。
 
 菜单字段仅增加 iconClear，按相同冲突/空白规则真实置 NULL；path 与 resourceType/resourceCode 不提供清空通道，保留当前更新语义，不将菜单路由置空或把资源关联隐式解绑（T-API-005，2026-10-04 确认）。
 
@@ -171,7 +171,7 @@ last_reviewed: 2026-10-04
 - **false/缺省无清空作用**：仅 `true` 触发清空。
 - **落库语义**：清空经 MyBatis-Flex `UpdateEntity` 显式 NULL 列写入（`update(entity)` 默认忽略 null 列——T-PERM-028 起先例）。
 - **覆盖面**：user `phoneClear`/`emailClear`（§7.4）、abstract-user `extraClear`（§7.8）、type `descriptionClear`（§13.1——**type `extraClear` 任何非 null 值 20044（PERM_INVALID_PARAM）拒绝**：extra 含服务端管理键 managedMode/syncSourceService/grantOriginRole，不支持清空，U006 拍板）、service `basePathClear`/`descriptionClear`/`extraClear`（§12.2——创建分支携带任一 true 拒绝 20044〔PERM_INVALID_PARAM〕；extraClear 语义=撤销 syncTypes 同步白名单，该服务同步通道全拒 fail-closed）、api-mapping `extraClear`（§12.2）、role `extraClear`（§10.3）、resource `extraClear`（§12.1）。
-- role/resource 既有 `extraClear` 已具备冲突拒绝；空白输入目前仍宽松，T-API-006 将按上述目标收紧，不把待实施目标视为当前已交付。
+- role/resource 的 `extraClear` 同时执行冲突与空白拒绝。
 - 前端表单统一公式：**原值非 null 且表单清空 → `xxxClear=true`**（role/resource 页既有公式推广）。
 
 
@@ -186,7 +186,7 @@ last_reviewed: 2026-10-04
 | OAuth2 grantTypes、clientName、clientSecret | 不提供 Clear；更新值拒绝空白，null 不更新 | 停用客户端使用 status=0，不用清空必需字段代替；创建缺省行为不改 |
 | role/resource.extra | 沿 extraClear，新增空白拒绝 | 清空唯一通道为 extraClear；不推广空串清空 |
 
-上述目标于 2026-10-04 确认，实施统一归 T-API-006；当前 DTO/持久化差异仍存在。T-ADMIN-035 的租户/用户有效性检查独立实施，不能用配置清空替代撤权。
+上述协议由 T-API-006 实施；条件与系统配置已有前端编辑表单同步发送 Clear，菜单/OAuth2 客户端尚无管理页，本次不新增页面。T-ADMIN-035 的租户/用户有效性检查独立实施，不能用配置清空替代撤权。
 
 ## 3. 动词规范
 ### 3.1 动词表
@@ -307,7 +307,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 
 所有端点 POST + JSON Body；统一响应壳 `R<T>`。
 
-**委托边界目标（T-ADMIN-034，2026-10-04 确认；[T-ADMIN-035](../tasks/T-ADMIN-035.md) 待实施）**：客户端只获取本租户用户的委托。authorize 比对平台会话与客户端租户；匿名 token/refresh 仍全局解析 clientId，再比对授权码/刷新记录与客户端租户。authorize、token、refresh 以及每次 JWT 资源请求都确认用户属于同一租户、未删除且 status=1；JWT 同时校验客户端与载荷租户一致，不采用正向用户状态缓存，禁用/删除后下一请求拒绝。既有客户端有效性、黑名单、scope/audience、码与刷新令牌一次性消费保持，不增加令牌扫描或撤销广播。
+**委托边界（T-ADMIN-034 定案；[T-ADMIN-035](../archive/2026-10-04/tasks/T-ADMIN-035.md) 实施）**：客户端只获取本租户用户的委托。authorize 比对平台会话与客户端租户；匿名 token/refresh 仍全局解析 clientId，再比对授权码/刷新记录与客户端租户。authorize、token、refresh 以及每次 JWT 资源请求都确认用户属于同一租户、未删除且 status=1；JWT 同时校验客户端与载荷租户一致，不采用正向用户状态缓存，禁用/删除后下一请求拒绝。既有客户端有效性、黑名单、scope/audience、码与刷新令牌一次性消费保持，不增加令牌扫描或撤销广播。
 
 当前差异：现有代码尚未统一实施上述用户状态/租户检查；userinfo 只查未删除用户行，不能代表认证层已阻断禁用用户。开放路径扩展前须纳入上述目标检查，不能沿用「仅 userinfo」推断新路径的安全边界。
 
@@ -366,7 +366,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 | 端点 | 请求 | 响应 | 备注 |
 |------|------|------|------|
 | `POST /api/access/oauth2/client/create` | `Oauth2ClientCreateReq` | `R<Long>`（新客户端 id） | clientId 唯一（重复 `CLIENT_ID_EXISTS`）；secret BCrypt 存储 |
-| `POST /api/access/oauth2/client/update` | `Oauth2ClientUpdateReq` | `R<Void>` | 仅更新非 null 字段；secret 更新重新 BCrypt |
+| `POST /api/access/oauth2/client/update` | `Oauth2ClientUpdateReq` | `R<Void>` | null 不更新；可空三字段沿 §2.7 Clear；secret 更新重新 BCrypt |
 | `POST /api/access/oauth2/client/delete` | `IdsReq` | `R<Void>` | 批量软删除 |
 | `POST /api/access/oauth2/client/detail` | `IdReq` | `R<Oauth2ClientResp>` | 不返回 clientSecret |
 | `POST /api/access/oauth2/client/page` | `Oauth2ClientPageReq` | `R<PageResp<Oauth2ClientResp>>` | 按名称/状态过滤 |
@@ -1003,7 +1003,7 @@ orgName 最长 128、code 最长 64；orgName=null 保持不更新，空串或�
 
 ### 9.3 `POST /api/access/menu/update` 🔧
 
-**请求 DTO**: `MenuUpdateReq`：同 `MenuCreateReq` 全部字段均可选（null 跳过保留原值）+ 必填 `id`；`sourceService` 不可更新（创建期追溯标识）。
+**请求 DTO**: `MenuUpdateReq`：同 `MenuCreateReq` 全部字段均可选（null 跳过保留原值）+ 必填 `id`；`sourceService` 不可更新（创建期追溯标识）。另有 `iconClear`，按 §2.7 显式清空图标；path/资源关联不支持 Clear。
 
 **响应**: `R<Void>`。
 
@@ -1735,7 +1735,7 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
 
 **permission-condition 契约要点（T-PERM-029 收口，2026-08-30）**：
 
-- **业务键**：管理端点 `detail`/`update`/`remove` 一律以 `code` 定位（`uk_permission_condition(tenant_id, code) WHERE delete_flag=0`，从内部主键 id/conditionId 切换；管理端点请求体不再使用内部 id——id 仅见于 Resp、授权链路 `role_resource_permission.condition_id` 引用及原 explain 排查明细——该端点已随 T-PERM-059 删除，2026-09-10）。`detail` 请求 `{conditionCode}`（ConditionDetailReq）；`update` 请求 `{code, name?, conditionRules?, enabled?, gatewayEvaluable?, description?}`（code 为定位键不可改，null 字段不更新，name≤128/description≤512 列宽校验）；`remove` 请求 `{codes:[...]}`（ConditionRemoveReq，元素 1-64 字符非空白，批量软删）。
+- **业务键**：管理端点 `detail`/`update`/`remove` 一律以 `code` 定位（`uk_permission_condition(tenant_id, code) WHERE delete_flag=0`，从内部主键 id/conditionId 切换；管理端点请求体不再使用内部 id——id 仅见于 Resp、授权链路 `role_resource_permission.condition_id` 引用及原 explain 排查明细——该端点已随 T-PERM-059 删除，2026-09-10）。`detail` 请求 `{conditionCode}`（ConditionDetailReq）；`update` 请求 `{code, name?, conditionRules?, enabled?, gatewayEvaluable?, description?, descriptionClear?}`（code 为定位键不可改，null 字段不更新，name≤128/description≤512 列宽校验）；`remove` 请求 `{codes:[...]}`（ConditionRemoveReq，元素 1-64 字符非空白，批量软删）。
 - **detail 收紧**：查不到抛 **20006** `CONDITION_NOT_FOUND`（原 `data:null` 宽松语义删除，对齐 resource-entity/detail 收紧定案与授权链路 apply-grant-plan 未知 conditionCode 同码）。
 - **list 全量不分页**（设计定案）：返回全量 `ItemsResp<ConditionResp>`——条件模板数量有界（租户内几十个量级，非流水表），与 domain-config/service-config「量小不分页」同款；keyword/enabled 过滤由前端本地完成（前端设计文档 §8 🔧3 登记的 ConditionListReq 分页方案据此反转）。**双轨制（T-PERM-048 收口 2026-09-11）**：list 请求体 `{includeInline?}`（ConditionListReq）——缺省/false 只返回 source=MANAGED 管理页条件（权限条件页口径：内联条件在管理页查不到也不能管理）；`includeInline=true` 含 INLINE（授权页回显内联条件名称/规则摘要用）。
 - **ConditionResp**：`{id, tenantId, code, name, conditionRules, enabled, gatewayEvaluable, source, description, createdAt, updatedAt}`——`updatedAt` 为 T-PERM-029 补齐、`source` 为 T-PERM-048 补齐（`MANAGED`/`INLINE`，值域 schema CHECK 焊死）；`conditionRules` 结构 `{logic, items[]}`（4 预置类型 DATE_RANGE/TIME_RANGE/IP_WHITELIST/IP_BLACKLIST），语义等价可直接再提交——**注意来源差异**：list/detail 为 JSONB 回读的 DB 规范化文本，create/update 直接返回本次最终接受的规则文本（未做写后反查，调用方提交的空白/键序原样保留）。
@@ -1968,7 +1968,7 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
 
 **system-config 契约要点（T-PERM-024 收口，2026-08-28）**：
 
-- `save`（upsert）：`{configKey, configValue, description?}`——按 `configKey` 查存在则 update、不存在则 insert（新建固定 `isSystem=false` 租户自定义，系统内置仅走种子）；`configValue` 为 JSON 字符串（`JsonValidationUtils` 校验合法性）；`configKey` 命名空间前缀校验 20047（见上）。无 create/update/remove——`save` 幂等覆盖新建/编辑，配置项不可删除（键稳定，防误删回退默认）。
+- `save`（upsert）：`{configKey, configValue, description?, descriptionClear?}`——按 `configKey` 查存在则 update、不存在则 insert（新建固定 `isSystem=false` 租户自定义，系统内置仅走种子）；`configValue` 为 JSON 字符串（`JsonValidationUtils` 校验合法性）；`configKey` 命名空间前缀校验 20047（见上）。无 create/update/remove——`save` 幂等覆盖新建/编辑，配置项不可删除（键稳定，防误删回退默认）。
 - `detail`：`{configKey}`（按业务键 configKey 查询，非 id）。
 - `list`：`{keyword?, pageNum?, pageSize?}` → 分页结构（§2.3）；`keyword` 匹配 configKey/description（LIKE，大小写敏感），排序 `config_key, id`；分页参数均不传 = 字典全量（上限 200；本端点为字典全量族先例锚，族内其余端点引用本锚）。
 - **isSystem 行标识（T-ACCESS-037 后续修正，2026-09-13）**：detail/save 响应与 list 行均携带 `isSystem`（Boolean，映射 `is_system` 列）——`true` 为系统内置（仅走种子，save 拒改 20064，见上）；前端据此以「系统预置/自定义」标签展示并对内置行隐藏编辑入口（type-def 同款形态）。
@@ -2722,7 +2722,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 - **三条链路的最小映射**：主体同步校验 `subjectTypeCode`；角色同步校验 `roleTypeCode`；用户角色同步校验写入事实使用的 `subjectTypeCode` + `roleTypeCode` + `sourceType`（`relationKey` 角色类型为引用，不要求声明）；资源同步走类型级所有权门禁（不经本白名单）。
 - **GROUP_ROLE 例外（T-PERM-043）**：角色同步在白名单之外恒拒 `GROUP_ROLE`（`ROLE_TYPE_MISMATCH(20022)`，先于白名单判定）——即使服务声明了 `roleTypeCodes: ["GROUP_ROLE"]` 也不生效。
 - **服务状态**：`status != 1`（禁用）/未注册/已软删时该服务全部 sync/full-sync 拒绝——subject/role/user_role 三通道由本白名单校验，resource-entity 通道由类型所有权门禁校验（来源服务注册+启用，§19.1；评审批次补强后两轨语义一致）。
-- **校验顺序**：使用经过认证的服务身份（凭证通过后绑定的 `X-Service-Code`）查询配置，不信任请求体；未通过统一返回 `SECURITY_DENIED`（`SERVICE_TYPE_NOT_ALLOWED`），内部日志记录真实原因，不向调用方返回白名单明细。
+- **校验顺序**：使用经过认证的服务身份（凭证行派生的 serviceCode）查询配置，不信任请求体；未通过统一返回 `SECURITY_DENIED`（`SERVICE_TYPE_NOT_ALLOWED`），内部日志记录真实原因，不向调用方返回白名单明细。
 - **保留键纵深**：即使白名单错误声明 `LOCAL_USER`/`ORG`/`POSITION`/`SYS_USER_ORG` 等 AccessMesh 保留键，入口仍以 20045 拒绝。
 - **结构校验**：`service-config/save` 保存时校验 `syncTypes` 必须为对象、内部仅允许 subjectTypeCodes/roleTypeCodes/sourceTypes 三个字段（未知字段拒绝，含已退役的 `resourceTypeCodes`）、各分类（如存在）必须为非空白字符串数组；结构非法保存失败（20044）。缺失配置在运行时按无权限处理（fail-closed），不视为允许全部。
 - **上线准备（fail-closed 发布顺序）**：先为各同步服务通过 `service-config/save` 补齐 `syncTypes` 声明（并确认 `status=1`），再部署严格校验代码；未声明类型的存量服务在严格校验上线后同步全部拒绝，属预期行为。
@@ -2881,7 +2881,7 @@ schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正�
 
 ## 24. 服务凭证与 M2M 服务认证（T-PERM-070）
 
-> 设计权威：[service-authentication.md](service-authentication.md)（adopted 2026-09-19）；本章为契约登记面。定位：per-service M2M 身份认证是多通道共用的平台能力（资源同步通道、manifest 依赖声明通道〔T-PERM-071〕），替代「全局共享密钥 + 自报头」的现行信任模型（旧密钥路径过渡期维持，退役判据见 §3.5）。
+> 设计权威：[service-authentication.md](service-authentication.md)（adopted 2026-09-19）；本章为契约登记面。定位：per-service M2M 身份认证是多通道共用的平台能力（资源同步通道、manifest 依赖声明通道〔T-PERM-071〕），替代「全局共享密钥 + 自报头」的现行信任模型（外部旧纯服务通道已关闭，平台内部互信保持，见服务认证 §3.5）。
 
 ### 24.1 认证协议
 
@@ -2894,7 +2894,7 @@ schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正�
 | 完整凭证头（自报头/密钥头并存时**一律不采信**） | 验证成功 + 命中 M2M 白名单 | 绑定 SERVICE 上下文（tenantId/serviceCode **由凭证行派生**，忽略 X-Service-Code/X-Tenant-Id/X-User-Id） |
 | 完整凭证头 | 验证失败（20065/20066/20067/20068）或白名单外（统一 20065） | **403，禁止降级回落旧密钥** |
 | 半头（恰一个凭证头） | 形态即拒 | 403（20065，不落库不比对） |
-| 无凭证头 + X-Internal-Secret 有效 | 旧密钥路径 | 行为与迁移前零变化（attribute → 自报头绑定） |
+| 无凭证头 + X-Internal-Secret 有效 | 平台内部互信 | 签名用户态保持；无用户的同步端点或携带自报服务编码均拒绝；无自报服务的平台内部查询保留 |
 | 无凭证头 + 密钥无效/缺失 | — | 403（既有行为） |
 
 **验证顺序**（泄露面最小化）：行定位 → BCrypt secret 比对（失败一律 20065）→ 状态/过期细分（20067/20066）→ 服务注册+启用（20068）——**三态细分仅对持有正确 secret 的请求者暴露**（credential_id 高熵不可枚举）。
@@ -2907,8 +2907,13 @@ schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正�
 | `POST /api/access/resource-entity/full-sync` | 资源实体全量校准（§19.2） |
 | `POST /api/access/integration/permission-manifest/full-sync` | 依赖声明 FULL 同步（T-PERM-071 端点，随本卡预留登记） |
 | `POST /api/access/service-config/sync-v2` | 接口与业务准入操作 FULL 声明；凭证仅能同步自身服务，另保留管理员门禁（T-ACCESS-058） |
+| `POST /api/access/auth/interface-admission`、`interface-admission-snapshot` | 凭证只查询自身服务的准入；Gateway 内部互信保留 |
+| `POST /api/access/auth/check`、`batch-check`、`query-resources`、`query-scopes` | 查询凭证租户内任意主体/资源，不开放管理写能力 |
+| `POST /api/access/abstract-user/sync`、`full-sync` | 主体同步，保留类型白名单与保留键守卫 |
+| `POST /api/access/abstract-role/sync`、`full-sync` | 角色同步，保留类型白名单与 GROUP_ROLE 拒绝 |
+| `POST /api/access/user-role/sync`、`full-sync` | 绑定同步，保留主体/角色/来源类型守卫 |
 
-白名单外凭证请求一律 403（不依赖 Gateway，SDK 直连同款受限——防凭证能力半径扩大到管理/查询端点）。两处限定：①仲裁器豁免的会话入口族（§7.7 清单）上凭证头不参与仲裁（无 SERVICE 绑定，回落用户链 401/匿名/会话语义）；②经 Gateway 的半头/白名单外请求不置 skipAuth、回落 AuthTokenFilter **401**（服务端 403 仅发生在仲裁器已注册且完整凭证头的路径上）。阶段二逐端点扩展至全部 sync 族（主体/角色/成员/接口声明同步），退役判据=仍依赖旧密钥的端点清零。
+白名单外凭证请求一律 403（不依赖 Gateway，SDK 直连同款受限——防凭证能力半径扩大到管理端点）。两处限定：①仲裁器豁免的会话入口族（§7.7 清单）上凭证头不参与仲裁（无 SERVICE 绑定，回落用户链 401/匿名/会话语义）；②经 Gateway 的半头/白名单外请求不置 skipAuth、回落 AuthTokenFilter **401**（服务端 403 仅发生在仲裁器已注册且完整凭证头的路径上）。现役同步族与运行时查询均已接入；外部调用不再使用共享密钥，部署轮换步骤见服务认证 §3.5。
 
 ### 24.2 管理端点（`/api/access/service-credential/*`）
 
@@ -3143,7 +3148,7 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
 **T-ACCESS-061 落地记录（2026-09-28，example-service 先行）**：
 
 - **参考路由族**（`ReportController`，示例资源族=EXAMPLE 报表）：`/api/example/report/view`（实际资源+对应操作）、`/batch-view`（独立批量逐项 DECISION，任一允许不放行整批）、`/list`（`query-resources` 范围过滤+分页 total 同口径）、`/create`（TYPE_LEVEL，resourceCode=null——实例准入不授予类型创建权）、`/sub-view`（depend_on 子权限真实父上下文，引擎验证父授权绑定）、`/export/submit`+`/export/status`（异步作业提交与执行时点各自鉴权——执行时点重查同一目标，提交后撤权→作业终态 DENIED）；既有 `/api/example/demo/hello` 的最终检查定位=身份头存在性（无资源目标的问候接口）。逐路由反向拒绝测试=`ReportControllerTest`（20 用例+`ReportControllerValidationTest` 3 用例 HTTP 层反例，迁移资格载体）。
-- **检查客户端形态（用户拍板 2026-09-28）**：业务服务消费 `perm-client-spring-boot-starter`（Feign）调 `auth/check`/`auth/batch-check`/`auth/query-resources`；服务认证=内部密钥通道（SDK `FeignInternalSyncInterceptor` 注入 `X-Internal-Secret`/`X-Service-Code`），`X-Tenant-Id` 由业务侧拦截器从调用上下文注入；主体恒取自可信认证链（已验签 `X-User-Id`），请求 DTO 不携带主体/租户字段。e2e 子进程拓扑注意：access/gateway 子进程须 `--perm.client.enabled=false`（e2e 共享类路径经 example→starter 传染，非消费进程显式关闭）。
+- **检查客户端形态（用户拍板 2026-09-28）**：业务服务消费 `perm-client-spring-boot-starter`（Feign）调 `auth/check`/`auth/batch-check`/`auth/query-resources`；服务认证=per-service 凭证（SDK `FeignCredentialInterceptor` 注入凭证头），租户由凭证派生；example 单租户部署，最终检查前比对 `perm.tenant-id` 与网关验签租户；主体恒取自可信认证链（已验签 `X-User-Id`），请求 DTO 不携带主体/租户字段。e2e 子进程拓扑注意：access/gateway 子进程须 `--perm.client.enabled=false`（e2e 共享类路径经 example→starter 传染，非消费进程显式关闭）。
 - **业务最终拒绝响应形态**：example 域信封 30004（HTTP 200，与网关准入 403 形成层次区分——同一请求两层可区分）；鉴权服务不可用=fail-closed 30005（信封非 200/data=null/传输异常一律拒绝，不 stale-allow）。
 - **runbook 与演练**：`docs/ops/runbook-service-mode-switch.md`（接入资格核对、暂停恢复与运行库盘点）；演练证据=`ExampleBusinessFinalCheckE2EIT` 的服务暂停/恢复用例（暂停→空快照 403→恢复并更新配置代次→30 秒内放行，恢复以库为准）。
 

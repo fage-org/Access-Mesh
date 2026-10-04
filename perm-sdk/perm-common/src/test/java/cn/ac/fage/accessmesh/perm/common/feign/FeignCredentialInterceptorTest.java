@@ -30,7 +30,7 @@ class FeignCredentialInterceptorTest {
         FeignCredentialInterceptor interceptor = interceptor("sc-a", "sk-b", "true");
         interceptor.validateConfiguration();
 
-        // 6 条与服务端 M2mCredentialEndpoints 单源一致（058 漏 sync-v2、059 漏两准入端点
+        // 与服务端 M2mCredentialEndpoints 单源一致（058 漏 sync-v2、059 漏两准入端点
         // 的镜像漂移已修正——漂移时 SDK 凭证调用被服务端 403，两侧测试锁同清单防再漂移）
         for (String path : java.util.List.of(
             "/api/access/resource-entity/sync",
@@ -38,7 +38,17 @@ class FeignCredentialInterceptorTest {
             "/api/access/service-config/sync-v2",
             "/api/access/integration/permission-manifest/full-sync",
             "/api/access/auth/interface-admission",
-            "/api/access/auth/interface-admission-snapshot")) {
+            "/api/access/auth/interface-admission-snapshot",
+            "/api/access/auth/check",
+            "/api/access/auth/batch-check",
+            "/api/access/auth/query-resources",
+            "/api/access/auth/query-scopes",
+            "/api/access/abstract-user/sync",
+            "/api/access/abstract-user/full-sync",
+            "/api/access/abstract-role/sync",
+            "/api/access/abstract-role/full-sync",
+            "/api/access/user-role/sync",
+            "/api/access/user-role/full-sync")) {
             RequestTemplate template = new RequestTemplate();
             template.uri(path);
 
@@ -52,15 +62,12 @@ class FeignCredentialInterceptorTest {
     }
 
     @Test
-    @DisplayName("非 M2M 端点（auth/check 等运行时鉴权/管理面）→ 不注入（宽注入面会击穿接入方鉴权链）")
+    @DisplayName("非 M2M 端点（管理面/其他业务路径）→ 不注入（宽注入面会击穿接入方鉴权链）")
     void shouldSkipNonM2mAccessPaths() {
         FeignCredentialInterceptor interceptor = interceptor("sc-a", "sk-b", "true");
         interceptor.validateConfiguration();
 
         for (String path : java.util.List.of(
-            "/api/access/auth/check",
-            "/api/access/auth/batch-check",
-            "/api/access/auth/query-resources",
             "/api/access/resource-dependency/batch-sync",
             "/api/access/service-credential/list",
             "/api/example/other")) {
@@ -89,7 +96,7 @@ class FeignCredentialInterceptorTest {
 
         RequestTemplate miss = new RequestTemplate();
         miss.target("http://access-service:9100");
-        miss.uri("/api/access/auth/check");
+        miss.uri("/api/access/service-credential/list");
         interceptor.apply(miss);
         assertThat(miss.headers()).doesNotContainKey(FeignCredentialInterceptor.HEADER_CREDENTIAL_ID);
     }

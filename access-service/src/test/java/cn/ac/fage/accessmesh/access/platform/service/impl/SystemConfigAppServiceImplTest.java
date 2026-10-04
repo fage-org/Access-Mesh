@@ -41,7 +41,7 @@ class SystemConfigAppServiceImplTest {
                 .thenReturn(true);
             when(systemConfigMapper.selectByConfigKey(1L, "admin.key1")).thenReturn(null);
 
-            SystemConfigReq req = new SystemConfigReq("admin.key1", "{}", "desc");
+            SystemConfigReq req = new SystemConfigReq("admin.key1", "{}", "desc", null);
             SystemConfigResp result = service.upsertSystemConfig(1L, req);
 
             ArgumentCaptor<SystemConfig> captor = ArgumentCaptor.forClass(SystemConfig.class);
@@ -64,7 +64,7 @@ class SystemConfigAppServiceImplTest {
             when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
                 .thenReturn(false);
 
-            SystemConfigReq req = new SystemConfigReq("admin.key1", "{}", "desc");
+            SystemConfigReq req = new SystemConfigReq("admin.key1", "{}", "desc", null);
             assertThrows(SecurityException.class, () -> service.upsertSystemConfig(1L, req));
         }
     }
@@ -84,7 +84,7 @@ class SystemConfigAppServiceImplTest {
             when(systemConfigMapper.selectByConfigKey(1L, "admin.seed-key")).thenReturn(seed);
 
             BizException ex = assertThrows(BizException.class,
-                () -> service.upsertSystemConfig(1L, new SystemConfigReq("admin.seed-key", "{\"k\":1}", "desc")));
+                () -> service.upsertSystemConfig(1L, new SystemConfigReq("admin.seed-key", "{\"k\":1}", "desc", null)));
 
             assertEquals(AccessErrorCode.CONFIG_KEY_SYSTEM_IMMUTABLE.getCode(), ex.getErrorCode());
             // 拒绝必须发生在写之前（fail-closed）：种子值/描述零改动
@@ -102,7 +102,7 @@ class SystemConfigAppServiceImplTest {
                 .thenReturn(true);
 
             BizException ex = assertThrows(BizException.class,
-                () -> service.upsertSystemConfig(1L, new SystemConfigReq("key1", "{}", "desc")));
+                () -> service.upsertSystemConfig(1L, new SystemConfigReq("key1", "{}", "desc", null)));
 
             assertEquals(AccessErrorCode.CONFIG_KEY_NAMESPACE_INVALID.getCode(), ex.getErrorCode());
             // 校验失败必须在触达数据访问前 fail-closed
@@ -118,9 +118,9 @@ class SystemConfigAppServiceImplTest {
                 .thenReturn(true);
 
             assertThrows(BizException.class,
-                () -> service.upsertSystemConfig(1L, new SystemConfigReq("", "{}", "desc")));
+                () -> service.upsertSystemConfig(1L, new SystemConfigReq("", "{}", "desc", null)));
             assertThrows(BizException.class,
-                () -> service.upsertSystemConfig(1L, new SystemConfigReq(null, "{}", "desc")));
+                () -> service.upsertSystemConfig(1L, new SystemConfigReq(null, "{}", "desc", null)));
         }
     }
 
@@ -133,7 +133,7 @@ class SystemConfigAppServiceImplTest {
                 .thenReturn(true);
 
             assertThrows(BizException.class,
-                () -> service.upsertSystemConfig(1L, new SystemConfigReq("adminx.foo", "{}", "desc")));
+                () -> service.upsertSystemConfig(1L, new SystemConfigReq("adminx.foo", "{}", "desc", null)));
         }
     }
 
@@ -145,9 +145,9 @@ class SystemConfigAppServiceImplTest {
                 .thenReturn(true);
             when(systemConfigMapper.selectByConfigKey(eq(1L), anyString())).thenReturn(null);
 
-            service.upsertSystemConfig(1L, new SystemConfigReq("admin.foo", "{}", "desc"));
-            service.upsertSystemConfig(1L, new SystemConfigReq("permission.bar", "{}", "desc"));
-            service.upsertSystemConfig(1L, new SystemConfigReq("access.baz", "{}", "desc"));
+            service.upsertSystemConfig(1L, new SystemConfigReq("admin.foo", "{}", "desc", null));
+            service.upsertSystemConfig(1L, new SystemConfigReq("permission.bar", "{}", "desc", null));
+            service.upsertSystemConfig(1L, new SystemConfigReq("access.baz", "{}", "desc", null));
 
             verify(systemConfigMapper, times(3)).insert(any(SystemConfig.class));
         }

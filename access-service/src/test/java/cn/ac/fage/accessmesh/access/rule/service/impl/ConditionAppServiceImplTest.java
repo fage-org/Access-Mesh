@@ -187,7 +187,7 @@ class ConditionAppServiceImplTest {
             when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(CONDITION_CODE), any()))
                 .thenReturn(true);
 
-            ConditionUpdateReq req = new ConditionUpdateReq(CONDITION_CODE, null, null, null, true, null);
+            ConditionUpdateReq req = new ConditionUpdateReq(CONDITION_CODE, null, null, null, true, null, null);
 
             assertThatThrownBy(() -> service.updateCondition(TENANT_ID, req, OPERATOR_ID))
                 .isInstanceOf(BizException.class)
@@ -203,7 +203,7 @@ class ConditionAppServiceImplTest {
             when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(CONDITION_CODE), any()))
                 .thenReturn(true);
 
-            ConditionUpdateReq req = new ConditionUpdateReq(CONDITION_CODE, null, null, null, true, null);
+            ConditionUpdateReq req = new ConditionUpdateReq(CONDITION_CODE, null, null, null, true, null, null);
 
             assertThatCode(() -> service.updateCondition(TENANT_ID, req, OPERATOR_ID))
                 .doesNotThrowAnyException();
@@ -219,7 +219,7 @@ class ConditionAppServiceImplTest {
                 .thenReturn(true);
 
             String newRules = "{\"logic\":\"AND\",\"items\":[{\"type\":\"ORG_SCOPE\",\"params\":{}}]}";
-            ConditionUpdateReq req = new ConditionUpdateReq(CONDITION_CODE, null, newRules, null, null, null);
+            ConditionUpdateReq req = new ConditionUpdateReq(CONDITION_CODE, null, newRules, null, null, null, null);
 
             assertThatThrownBy(() -> service.updateCondition(TENANT_ID, req, OPERATOR_ID))
                 .isInstanceOf(BizException.class)
@@ -341,7 +341,7 @@ class ConditionAppServiceImplTest {
                 when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(CONDITION_CODE), any()))
                     .thenReturn(true);
 
-                ConditionUpdateReq req = new ConditionUpdateReq(CONDITION_CODE, "rename", null, null, null, null);
+                ConditionUpdateReq req = new ConditionUpdateReq(CONDITION_CODE, "rename", null, null, null, null, null);
                 service.updateCondition(TENANT_ID, req, OPERATOR_ID);
 
                 assertThat(PermissionChangeContext.snapshot().conditionIds())
@@ -384,7 +384,7 @@ class ConditionAppServiceImplTest {
                 when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(CONDITION_CODE), any()))
                     .thenReturn(true);
 
-                ConditionUpdateReq req = new ConditionUpdateReq(CONDITION_CODE, "rename", null, null, null, null);
+                ConditionUpdateReq req = new ConditionUpdateReq(CONDITION_CODE, "rename", null, null, null, null, null);
 
                 assertThatCode(() -> service.updateCondition(TENANT_ID, req, OPERATOR_ID))
                     .doesNotThrowAnyException();
@@ -430,7 +430,7 @@ class ConditionAppServiceImplTest {
             // T-PERM-029：update 按业务键定位，未知 code 20006 且零副作用（不触达门禁/不写库）
             when(conditionMapper.selectValidByCode(TENANT_ID, "ghost")).thenReturn(null);
 
-            ConditionUpdateReq req = new ConditionUpdateReq("ghost", "rename", null, null, null, null);
+            ConditionUpdateReq req = new ConditionUpdateReq("ghost", "rename", null, null, null, null, null);
 
             assertThatThrownBy(() -> service.updateCondition(TENANT_ID, req, OPERATOR_ID))
                 .isInstanceOf(BizException.class)
@@ -492,7 +492,7 @@ class ConditionAppServiceImplTest {
 
             // 合法形态：四个请求 DTO 全部通过
             assertTrue(validator.validate(new ConditionCreateReq("c-1", "n", "{}", true, false, "d")).isEmpty());
-            assertTrue(validator.validate(new ConditionUpdateReq("c-1", "n", "{}", true, false, "d")).isEmpty());
+            assertTrue(validator.validate(new ConditionUpdateReq("c-1", "n", "{}", true, false, "d", null)).isEmpty());
             assertTrue(validator.validate(new ConditionRemoveReq(List.of("c-1", "c-2"))).isEmpty());
             assertTrue(validator.validate(new ConditionDetailReq("c-1")).isEmpty());
 
@@ -503,15 +503,15 @@ class ConditionAppServiceImplTest {
             // code 列宽/空白（create/update/detail 三 DTO + create 必填）
             assertFalse(validator.validate(new ConditionCreateReq(over64, "n", "{}", null, null, null)).isEmpty());
             assertFalse(validator.validate(new ConditionCreateReq(" ", "n", "{}", null, null, null)).isEmpty());
-            assertFalse(validator.validate(new ConditionUpdateReq(over64, null, null, null, null, null)).isEmpty());
-            assertFalse(validator.validate(new ConditionUpdateReq(" ", null, null, null, null, null)).isEmpty());
+            assertFalse(validator.validate(new ConditionUpdateReq(over64, null, null, null, null, null, null)).isEmpty());
+            assertFalse(validator.validate(new ConditionUpdateReq(" ", null, null, null, null, null, null)).isEmpty());
             assertFalse(validator.validate(new ConditionDetailReq(over64)).isEmpty());
 
             // name/description 列宽（本批评审补齐，超长应在 400 而非 DB 500）
             assertFalse(validator.validate(new ConditionCreateReq("c-1", over128, "{}", null, null, null)).isEmpty());
             assertFalse(validator.validate(new ConditionCreateReq("c-1", "n", "{}", null, null, over512)).isEmpty());
-            assertFalse(validator.validate(new ConditionUpdateReq("c-1", over128, null, null, null, null)).isEmpty());
-            assertFalse(validator.validate(new ConditionUpdateReq("c-1", null, null, null, null, over512)).isEmpty());
+            assertFalse(validator.validate(new ConditionUpdateReq("c-1", over128, null, null, null, null, null)).isEmpty());
+            assertFalse(validator.validate(new ConditionUpdateReq("c-1", null, null, null, null, over512, null)).isEmpty());
 
             // remove 元素级：空列表/空白元素/超长元素整批拒绝
             assertFalse(validator.validate(new ConditionRemoveReq(List.of())).isEmpty());
@@ -529,7 +529,7 @@ class ConditionAppServiceImplTest {
             PermissionCondition inline = newInlineCondition();
             when(conditionMapper.selectValidByCode(TENANT_ID, CONDITION_CODE)).thenReturn(inline);
 
-            ConditionUpdateReq req = new ConditionUpdateReq(CONDITION_CODE, "rename", null, null, null, null);
+            ConditionUpdateReq req = new ConditionUpdateReq(CONDITION_CODE, "rename", null, null, null, null, null);
 
             assertThatThrownBy(() -> service.updateCondition(TENANT_ID, req, OPERATOR_ID))
                 .isInstanceOf(BizException.class)
@@ -612,7 +612,7 @@ class ConditionAppServiceImplTest {
             when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(CONDITION_CODE), any()))
                 .thenReturn(true);
 
-            service.updateCondition(TENANT_ID, new ConditionUpdateReq(CONDITION_CODE, "rename", null, null, null, null), OPERATOR_ID);
+            service.updateCondition(TENANT_ID, new ConditionUpdateReq(CONDITION_CODE, "rename", null, null, null, null, null), OPERATOR_ID);
 
             verify(engine).hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID),
                 eq(cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode.CONDITION),
@@ -641,7 +641,7 @@ class ConditionAppServiceImplTest {
             when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(CONDITION_CODE), any()))
                 .thenReturn(true);
 
-            service.updateCondition(TENANT_ID, new ConditionUpdateReq(CONDITION_CODE, null, null, false, null, null), OPERATOR_ID);
+            service.updateCondition(TENANT_ID, new ConditionUpdateReq(CONDITION_CODE, null, null, false, null, null, null), OPERATOR_ID);
 
             verify(localProjectionDomainService).upsertConditionResource(eq(TENANT_ID), eq(CONDITION_CODE), eq("test"), eq(false));
         }

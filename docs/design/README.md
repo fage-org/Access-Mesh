@@ -117,3 +117,5 @@ Claude 按需技能位于 `.claude/skills/`。
 `../archive/` 下文档可能包含旧接口、旧字段或已废弃设计，例如 `includeDataScope`、`query-data-scopes`、`AuthorizationService`、`ConfigManageServiceImpl` 等。实现时不要直接引用归档文档；如归档内容与权威文档冲突，以本页”权威来源”列出的文档为准。
 
 问题清单计划已于 2026-10-04 [完成归档](../archive/2026-10-04/pending-problems-clearance-plan.md)。本批当前结论分布于 API 契约、引擎、组织生命周期、服务认证与页面设计；实际已交付和后续实施的边界见[最终验收](../archive/2026-10-04/tasks/evidence/pending-problems-clearance/final-audit.md)。
+
+清单定案后续实施已于 2026-10-04 完成，当前规则已回写上述权威文档；验证与部署边界见[综合验收](../archive/2026-10-04/tasks/evidence/checklist-followup/final-audit.md)。

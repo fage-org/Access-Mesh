@@ -46,6 +46,43 @@ class ClearFieldProtocolValidationTest {
 
     private final Validator validator = validatorFactory.getValidator();
 
+    static java.util.stream.Stream<org.junit.jupiter.params.provider.Arguments> remainingFields() {
+        return java.util.stream.Stream.of(
+            org.junit.jupiter.params.provider.Arguments.of(cn.ac.fage.accessmesh.access.rule.dto.req.ConditionUpdateReq.class, "description", "{\"code\":\"condition\"}"),
+            org.junit.jupiter.params.provider.Arguments.of(cn.ac.fage.accessmesh.access.platform.dto.req.SystemConfigReq.class, "description", "{\"configKey\":\"access.test\",\"configValue\":\"{}\"}"),
+            org.junit.jupiter.params.provider.Arguments.of(cn.ac.fage.accessmesh.access.menu.dto.req.MenuUpdateReq.class, "icon", "{\"id\":1}"),
+            org.junit.jupiter.params.provider.Arguments.of(cn.ac.fage.accessmesh.access.auth.dto.Oauth2ClientUpdateReq.class, "redirectUris", "{\"id\":1}"),
+            org.junit.jupiter.params.provider.Arguments.of(cn.ac.fage.accessmesh.access.auth.dto.Oauth2ClientUpdateReq.class, "scopes", "{\"id\":1}"),
+            org.junit.jupiter.params.provider.Arguments.of(cn.ac.fage.accessmesh.access.auth.dto.Oauth2ClientUpdateReq.class, "audiences", "{\"id\":1}"),
+            org.junit.jupiter.params.provider.Arguments.of(RoleUpdateReq.class, "extra", "{\"roleId\":1}"),
+            org.junit.jupiter.params.provider.Arguments.of(cn.ac.fage.accessmesh.perm.common.dto.req.ResourceUpdateReq.class, "extra", "{\"resourceTypeCode\":\"DOC\",\"code\":\"doc\"}")
+        );
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest(name = "{0}.{1} 三态与冲突")
+    @org.junit.jupiter.params.provider.MethodSource("remainingFields")
+    void shouldValidateRemainingClearProtocol(Class<?> dto, String field, String base) throws Exception {
+        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        var json = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(base);
+        assertTrue(validator.validate(mapper.treeToValue(json, dto)).isEmpty());
+        json.put(field, "\u3000");
+        assertFalse(validator.validate(mapper.treeToValue(json, dto)).isEmpty(), field + " 空白必须拒绝");
+        json.put(field, "value");
+        json.put(field + "Clear", true);
+        assertFalse(validator.validate(mapper.treeToValue(json, dto)).isEmpty());
+        json.remove(field);
+        assertTrue(validator.validate(mapper.treeToValue(json, dto)).isEmpty());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"clientName", "clientSecret", "grantTypes"})
+    void shouldRejectBlankRequiredOauthUpdateFields(String field) throws Exception {
+        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        var json = mapper.createObjectNode().put("id", 1).put(field, " ");
+        assertFalse(validator.validate(mapper.treeToValue(json,
+            cn.ac.fage.accessmesh.access.auth.dto.Oauth2ClientUpdateReq.class)).isEmpty());
+    }
+
     // ---- 冲突拒绝（拍板①：全端点） ----
 
     @Test
@@ -128,6 +165,10 @@ class ClearFieldProtocolValidationTest {
             new com.fasterxml.jackson.databind.ObjectMapper()
                 .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
         java.util.List<Class<?>> dtos = java.util.List.of(
+            cn.ac.fage.accessmesh.access.rule.dto.req.ConditionUpdateReq.class,
+            cn.ac.fage.accessmesh.access.platform.dto.req.SystemConfigReq.class,
+            cn.ac.fage.accessmesh.access.menu.dto.req.MenuUpdateReq.class,
+            cn.ac.fage.accessmesh.access.auth.dto.Oauth2ClientUpdateReq.class,
             UserUpdateReq.class, AbstractUserUpdateReq.class, TypeUpdateReq.class,
             ServiceConfigReq.class, ApiMappingUpdateReq.class, RoleUpdateReq.class,
             cn.ac.fage.accessmesh.perm.common.dto.req.ResourceUpdateReq.class,

@@ -6,10 +6,9 @@ import jakarta.servlet.http.HttpServletRequest;
 /**
  * 同步请求 sourceService 与可信服务身份一致性校验（T-ACCESS-004 修复 G2）。
  * <p>
- * 服务身份来源改为可信请求上下文：X-Service-Code 头由统一安全入口
- * （RequestContextInterceptor）在内部凭证（X-Internal-Secret）验证通过后绑定为
- * {@link AccessRequestContext#getServiceCode()}——无凭证的外部调用无法建立 SERVICE
- * 上下文，从而无法伪造 sourceService 冒充服务身份。本类不再直接读取裸请求头。
+ * 服务身份由认证入口从服务凭证行派生并绑定到
+ * {@link AccessRequestContext#getServiceCode()}，不采信裸请求头中的服务编码。
+ * 同步载荷必须匹配该可信身份，防止冒充其他服务。
  * </p>
  */
 public final class SyncAuthVerifier {

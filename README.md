@@ -62,10 +62,10 @@ Gateway (8080)
 ```bash
 mvn package -DskipTests
 cp .env.example .env        # 填四个必填密钥（模板内有说明）
-docker compose --profile app up -d --build
+docker compose --profile app up -d --build frontend gateway access-service
 ```
 
-就绪后：管理前端 http://127.0.0.1/ （首管理员 `admin` + 你设置的密码）；开发模式手工启动、example 接口 403→授权→200 演练、常见问题见 [docs/quickstart.md](docs/quickstart.md)。默认 `docker compose up -d` 仅启动基础设施（PG/Redis/Nacos）。
+平台就绪后先注册 example-service、签发服务凭证并填入 `.env`，再启动 example-service（步骤见 quickstart）。管理前端 http://127.0.0.1/ （首管理员 `admin` + 你设置的密码）；开发模式手工启动、example 接口 403→授权→200 演练、常见问题见 [docs/quickstart.md](docs/quickstart.md)。默认 `docker compose up -d` 仅启动基础设施（PG/Redis/Nacos）。
 
 ## License
 

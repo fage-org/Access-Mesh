@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.rule.service.impl;
 
+import com.mybatisflex.core.util.UpdateEntity;
+
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLogRuntimeContext;
@@ -202,7 +204,21 @@ public class ConditionAppServiceImpl implements ConditionAppService {
             Boolean.TRUE.equals(condition.getGatewayEvaluable()));
         condition.setUpdatedBy(operatorId);
         condition.setUpdatedAt(LocalDateTime.now());
-        conditionMapper.update(condition);
+        if (Boolean.TRUE.equals(req.descriptionClear())) {
+            condition.setDescription(null);
+            PermissionCondition patch = UpdateEntity.of(PermissionCondition.class);
+            patch.setId(condition.getId());
+            patch.setName(condition.getName());
+            patch.setConditionRules(condition.getConditionRules());
+            patch.setEnabled(condition.getEnabled());
+            patch.setGatewayEvaluable(condition.getGatewayEvaluable());
+            patch.setDescription(null);
+            patch.setUpdatedBy(condition.getUpdatedBy());
+            patch.setUpdatedAt(condition.getUpdatedAt());
+            conditionMapper.update(patch);
+        } else {
+            conditionMapper.update(condition);
+        }
         // 投影镜像（T-PERM-048）：name/status(enabled) 随事实行同事务同步
         localProjectionDomainService.upsertConditionResource(tenantId, condition.getCode(),
             condition.getName(), Boolean.TRUE.equals(condition.getEnabled()));

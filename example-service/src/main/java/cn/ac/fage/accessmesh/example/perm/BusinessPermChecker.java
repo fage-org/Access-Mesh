@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.example.perm;
 
+import org.springframework.beans.factory.annotation.Value;
+
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.example.enums.ExampleErrorCode;
@@ -53,9 +55,15 @@ public class BusinessPermChecker {
     private static final String CONTEXT_KEY_CLIENT_IP = "clientIp";
 
     private final PermissionFeignClient permissionClient;
+    private final String credentialTenantId;
 
-    public BusinessPermChecker(PermissionFeignClient permissionClient) {
+    public BusinessPermChecker(PermissionFeignClient permissionClient,
+                               @Value("${perm.tenant-id}") Long credentialTenantId) {
+        if (credentialTenantId == null || credentialTenantId <= 0) {
+            throw new IllegalStateException("perm.tenant-id 必须为凭证所属的正租户 ID");
+        }
         this.permissionClient = permissionClient;
+        this.credentialTenantId = credentialTenantId.toString();
     }
 
     /** 单目标 DECISION（§8.6 查看/创建/导出/子权限行）。 */
@@ -114,9 +122,12 @@ public class BusinessPermChecker {
         return new Scope(all, codes);
     }
 
-    /** 统一调用包装：绑定租户上下文（拦截器注入 X-Tenant-Id）+ fail-closed 信封解析。 */
+    /** 单租户凭证边界：调用前核对可信租户，再按 fail-closed 解析信封。 */
     private <T> T call(String tenantId, Supplier<R<T>> call) {
-        PermCallContext.setTenantId(tenantId);
+        if (!credentialTenantId.equals(tenantId)) {
+            throw new BizException(ExampleErrorCode.PERMISSION_DENIED.getCode(),
+                ExampleErrorCode.PERMISSION_DENIED.getMessage());
+        }
         try {
             R<T> envelope = call.get();
             if (envelope == null || envelope.getCode() != 200 || envelope.getData() == null) {
@@ -131,8 +142,6 @@ public class BusinessPermChecker {
             // Feign 传输异常/解码异常等：不可判定即拒绝（fail-closed，不 stale-allow）
             log.warn("Business final check transport failure (tenantId={})", tenantId, e);
             throw unavailable();
-        } finally {
-            PermCallContext.clear();
         }
     }
 

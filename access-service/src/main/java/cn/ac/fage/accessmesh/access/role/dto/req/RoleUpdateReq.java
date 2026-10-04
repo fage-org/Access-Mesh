@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.role.dto.req;
 
+import jakarta.validation.constraints.Pattern;
+
 import jakarta.validation.constraints.AssertTrue;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.constraints.NotNull;
@@ -25,6 +27,7 @@ public record RoleUpdateReq(
     String name,
     Integer status,
     Integer sortOrder,
+    @Pattern(regexp = "(?s)(?U).*\\S.*", message = "extra 不能为空白")
     String extra,
     Boolean extraClear
 ) {

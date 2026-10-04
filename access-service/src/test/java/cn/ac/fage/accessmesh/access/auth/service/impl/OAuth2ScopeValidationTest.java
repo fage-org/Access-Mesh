@@ -62,11 +62,15 @@ class OAuth2ScopeValidationTest {
             loginLogDomainService, redisTemplate, objectMapper);
         ReflectionTestUtils.setField(service, "jwtSecretKey", "test-jwt-secret-for-scope-0123456789");
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        var activeUser = new cn.ac.fage.accessmesh.access.user.entity.SysUser();
+        activeUser.setStatus(1);
+        lenient().when(userDomainService.selectValidById(1L, 100L)).thenReturn(activeUser);
     }
 
     private SysOauth2Client clientWithScopes(String scopes) {
         SysOauth2Client client = new SysOauth2Client();
         client.setId(1L);
+        client.setTenantId(1L);
         client.setClientId(CLIENT_ID);
         client.setGrantTypes("authorization_code,refresh_token");
         client.setRedirectUris(REDIRECT_URI);
@@ -75,6 +79,27 @@ class OAuth2ScopeValidationTest {
         client.setClientSecret(cn.dev33.satoken.secure.BCrypt.hashpw("secret",
             cn.dev33.satoken.secure.BCrypt.gensalt()));
         return client;
+    }
+
+    @Test
+    void shouldRejectAuthorize_whenClientBelongsToAnotherTenant() throws Exception {
+        var client = clientWithScopes("profile");
+        client.setTenantId(2L);
+        when(oauth2ClientDomainService.findActiveByClientId(CLIENT_ID)).thenReturn(client);
+        assertThatThrownBy(() -> authorize("profile"))
+            .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class);
+        org.mockito.Mockito.verifyNoInteractions(valueOperations);
+    }
+
+    @Test
+    void shouldRejectAuthorize_whenUserIsDisabled() throws Exception {
+        when(oauth2ClientDomainService.findActiveByClientId(CLIENT_ID)).thenReturn(clientWithScopes("profile"));
+        var user = new cn.ac.fage.accessmesh.access.user.entity.SysUser();
+        user.setStatus(0);
+        when(userDomainService.selectValidById(1L, 100L)).thenReturn(user);
+        assertThatThrownBy(() -> authorize("profile"))
+            .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class);
+        org.mockito.Mockito.verifyNoInteractions(valueOperations);
     }
 
     private AuthorizeResp authorize(String scope) throws Exception {

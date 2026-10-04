@@ -45,6 +45,7 @@ class RequestContextInterceptorTest {
     private static final String JWT_SECRET = "test-jwt-secret-for-interceptor-0123456789";
     private static final String CLIENT_ID = "admin-web";
 
+    private cn.ac.fage.accessmesh.access.user.service.domain.UserDomainService userDomainService;
     private RequestContextInterceptor interceptor;
     private org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate;
     private OAuth2ClientDomainService oauth2ClientDomainService;
@@ -61,16 +62,86 @@ class RequestContextInterceptorTest {
         stringRedisTemplate = mock(org.springframework.data.redis.core.StringRedisTemplate.class);
         oauth2ClientDomainService = mock(OAuth2ClientDomainService.class);
         oauth2ResourcePaths = new OAuth2ResourcePathProperties();
+        userDomainService = mock(cn.ac.fage.accessmesh.access.user.service.domain.UserDomainService.class);
         interceptor = new RequestContextInterceptor(verifier, stringRedisTemplate,
-            oauth2ResourcePaths, oauth2ClientDomainService);
+            oauth2ResourcePaths, oauth2ClientDomainService, userDomainService);
         ReflectionTestUtils.setField(interceptor, "jwtSecretKey", JWT_SECRET);
 
         // 默认 mock：客户端启用（禁用用例单独覆盖）
         SysOauth2Client activeClient = new SysOauth2Client();
         activeClient.setClientId(CLIENT_ID);
         activeClient.setStatus(1);
+        activeClient.setTenantId(1L);
+        var activeUser = new cn.ac.fage.accessmesh.access.user.entity.SysUser();
+        activeUser.setStatus(1);
+        when(userDomainService.selectValidById(1L, 100L)).thenReturn(activeUser);
         when(oauth2ClientDomainService.findActiveByClientId(CLIENT_ID)).thenReturn(activeClient);
         when(stringRedisTemplate.hasKey(anyString())).thenReturn(false);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints = {0, -1})
+    void shouldRejectNextJwtRequest_whenUserDisabledOrDeleted(int status) throws Exception {
+        var req = new MockHttpServletRequest("POST", "/api/access/auth/oauth2/userinfo");
+        req.addHeader("Authorization", "Bearer " + jwt(oauth2Claims(null, null)));
+        assertThat(interceptor.preHandle(req, new MockHttpServletResponse(), new Object())).isTrue();
+        interceptor.afterCompletion(req, new MockHttpServletResponse(), new Object(), null);
+        cn.ac.fage.accessmesh.access.user.entity.SysUser user = null;
+        if (status == 0) {
+            user = new cn.ac.fage.accessmesh.access.user.entity.SysUser();
+            user.setStatus(0);
+        }
+        when(userDomainService.selectValidById(1L, 100L)).thenReturn(user);
+        var response = new MockHttpServletResponse();
+        assertThat(interceptor.preHandle(req, response, new Object())).isFalse();
+        assertThat(response.getStatus()).isEqualTo(401);
+        assertThat(AccessRequestContext.get()).isNull();
+    }
+
+    @Test
+    void shouldRejectJwt_whenPayloadTenantDiffersFromClient() throws Exception {
+        var claims = oauth2Claims(null, null);
+        claims.put("tenant_id", "2");
+        var req = new MockHttpServletRequest("POST", "/api/access/auth/oauth2/userinfo");
+        req.addHeader("Authorization", "Bearer " + jwt(claims));
+        var response = new MockHttpServletResponse();
+        assertThat(interceptor.preHandle(req, response, new Object())).isFalse();
+        assertThat(response.getStatus()).isEqualTo(401);
+        org.mockito.Mockito.verifyNoInteractions(userDomainService);
+    }
+
+    @Test
+    void shouldPropagateUserLookupFailure_withoutBindingJwtContext() {
+        var failure = new org.springframework.dao.DataAccessResourceFailureException("database unavailable");
+        when(userDomainService.selectValidById(1L, 100L)).thenThrow(failure);
+        var req = new MockHttpServletRequest("POST", "/api/access/auth/oauth2/userinfo");
+        req.addHeader("Authorization", "Bearer " + jwt(oauth2Claims(null, null)));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+            interceptor.preHandle(req, new MockHttpServletResponse(), new Object())).isSameAs(failure);
+        assertThat(AccessRequestContext.get()).isNull();
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+        "/api/access/auth/check",
+        "/api/access/auth/batch-check",
+        "/api/access/auth/query-resources",
+        "/api/access/auth/query-scopes",
+        "/api/access/abstract-user/sync",
+        "/api/access/abstract-user/full-sync",
+        "/api/access/abstract-role/sync",
+        "/api/access/abstract-role/full-sync",
+        "/api/access/user-role/sync",
+        "/api/access/user-role/full-sync"})
+    void shouldRejectLegacySelfDeclaredService_onMigratedEndpoints(String path) throws Exception {
+        var req = new MockHttpServletRequest("POST", path);
+        req.setAttribute(SecurityAttributes.ATTR_INTERNAL_AUTHENTICATED, true);
+        req.addHeader("X-Tenant-Id", "1");
+        req.addHeader("X-Service-Code", "example-service");
+        var resp = new MockHttpServletResponse();
+        assertThat(interceptor.preHandle(req, resp, new Object())).isFalse();
+        assertThat(resp.getStatus()).isEqualTo(403);
+        assertThat(AccessRequestContext.get()).isNull();
     }
 
     @AfterEach
@@ -465,7 +536,7 @@ class RequestContextInterceptorTest {
         MockHttpServletResponse resp = new MockHttpServletResponse();
         req.addHeader("X-Tenant-Id", "1");
         req.addHeader("X-Service-Code", "example-service");
-        req.setAttribute(SecurityAttributes.ATTR_INTERNAL_AUTHENTICATED, Boolean.TRUE);
+        req.setAttribute(SecurityAttributes.ATTR_SERVICE_PRINCIPAL, new ServicePrincipal(1L, "example-service", "sc-test"));
         interceptor.preHandle(req, resp, new Object());
         assertThat(AccessRequestContext.getServiceCode()).isEqualTo("example-service");
 
@@ -521,7 +592,7 @@ class RequestContextInterceptorTest {
         MockHttpServletResponse resp = new MockHttpServletResponse();
         req.addHeader("X-Tenant-Id", "1");
         req.addHeader("X-Service-Code", "example-service");
-        req.setAttribute(SecurityAttributes.ATTR_INTERNAL_AUTHENTICATED, Boolean.TRUE);
+        req.setAttribute(SecurityAttributes.ATTR_SERVICE_PRINCIPAL, new ServicePrincipal(1L, "example-service", "sc-test"));
 
         boolean result = interceptor.preHandle(req, resp, new Object());
 
@@ -535,7 +606,7 @@ class RequestContextInterceptorTest {
     @Test
     @DisplayName("内部凭证 + 无 X-Tenant-Id → 400（服务调用租户必填）")
     void shouldReject_whenInternalWithoutTenantHeader() throws Exception {
-        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/abstract-user/sync");
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/auth/interface-admission");
         MockHttpServletResponse resp = new MockHttpServletResponse();
         req.setAttribute(SecurityAttributes.ATTR_INTERNAL_AUTHENTICATED, Boolean.TRUE);
 
@@ -745,7 +816,7 @@ class RequestContextInterceptorTest {
         MockHttpServletResponse resp = new MockHttpServletResponse();
         req.addHeader("X-Tenant-Id", "1");
         req.addHeader("X-Service-Code", "example-service");
-        req.setAttribute(SecurityAttributes.ATTR_INTERNAL_AUTHENTICATED, Boolean.TRUE);
+        req.setAttribute(SecurityAttributes.ATTR_SERVICE_PRINCIPAL, new ServicePrincipal(1L, "example-service", "sc-test"));
         interceptor.preHandle(req, resp, new Object());
         assertThat(AccessRequestContext.getServiceCode()).isEqualTo("example-service");
 
@@ -766,7 +837,7 @@ class RequestContextInterceptorTest {
         req.addHeader("X-Tenant-Id", "1");
         req.addHeader("X-Service-Code", "example-service");
         req.addHeader("X-Request-Id", "550e8400-e29b-41d4-a716-446655440000");
-        req.setAttribute(SecurityAttributes.ATTR_INTERNAL_AUTHENTICATED, Boolean.TRUE);
+        req.setAttribute(SecurityAttributes.ATTR_SERVICE_PRINCIPAL, new ServicePrincipal(1L, "example-service", "sc-test"));
 
         boolean result = interceptor.preHandle(req, resp, new Object());
 

@@ -84,9 +84,21 @@ class ServiceCredentialPgIT {
             """, TENANT, SERVICE_CODE);
     }
 
-    @Test
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+        "/api/access/resource-entity/sync",
+        "/api/access/auth/check",
+        "/api/access/auth/batch-check",
+        "/api/access/auth/query-resources",
+        "/api/access/auth/query-scopes",
+        "/api/access/abstract-user/sync",
+        "/api/access/abstract-user/full-sync",
+        "/api/access/abstract-role/sync",
+        "/api/access/abstract-role/full-sync",
+        "/api/access/user-role/sync",
+        "/api/access/user-role/full-sync"})
     @DisplayName("全链：issue 落库 → verify 绿 → 仲裁器 principal → 上下文绑定 SERVICE（凭证行派生）")
-    void fullChain_issue_verify_arbiter_bindContext() throws Exception {
+    void fullChain_issue_verify_arbiter_bindContext(String path) throws Exception {
         insertActiveService();
         ServiceCredentialDomainService.IssuedCredential issued =
             domainService.issue(TENANT, SERVICE_CODE, null, 100L);
@@ -105,7 +117,7 @@ class ServiceCredentialPgIT {
         assertThat(verify.principal().serviceCode()).isEqualTo(SERVICE_CODE);
 
         // 仲裁器：真实凭证头 + M2M 白名单路径 → 放行并写 principal（自报头并存不采信）
-        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/resource-entity/sync");
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", path);
         req.addHeader("X-Credential-Id", issued.entity().getCredentialId());
         req.addHeader("X-Credential-Secret", issued.plainSecret());
         req.addHeader("X-Service-Code", "attacker");

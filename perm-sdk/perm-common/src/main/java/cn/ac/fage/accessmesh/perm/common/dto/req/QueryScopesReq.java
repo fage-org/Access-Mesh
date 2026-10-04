@@ -12,7 +12,7 @@ import java.util.Map;
  * 权限范围查询请求体（T-API-002 自 access-service 迁入 SDK 公共包）
  * <p>
  * 用于查询主资源上下文内的范围资源权限。
- * 租户ID不在请求体中，从X-Tenant-Id请求头获取。
+ * 租户ID不在请求体中，由可信认证上下文派生（服务调用绑定凭证租户）。
  * </p>
  *
  * @param subjectTypeCode       用户类型编码，必填

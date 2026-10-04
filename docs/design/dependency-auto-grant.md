@@ -11,7 +11,7 @@ last_reviewed: 2026-10-04
 
 > 本稿为已采纳的实施方向：资源同步与依赖声明保持独立，SDK 协调可选；保留写时物化，来源按需解释，不建立逐种子逐完整路径的持久 support。原完整路径存储、强制两步接入和跨 owner 手工 override 口径由本稿取代。
 >
-> 交付状态：070 服务认证与 078 协议校准已完成；071 声明编译、资源共序、生命周期、迁移及 SDK 已于 2026-09-21 收口（全量含 E2E 回归 + 双轨/外评处置完毕，风格清理转出 T-PERM-079）。072 角色物化已于 2026-09-21 落地：共享推导核心（AutoGrantDerivation，§6.3.1 全表单测）、物化器（AutoGrantMaterializationDomainService，完整 desired 重算 + 事实键精确 diff）、触发面六入口接线（apply-grant-plan/manifest/资源 DELETE 与 FULL/操作位与掩码变更/类型删除与所有权变更/角色删除）、操作引用拒绝 20069、INLINE 统一时序回收、M4 共同锁与提交闸门（PgIT 验证）；grant_dep_id 当前不作业务依据，已确定由 T-PERM-105 退役（T-PERM-103），角色删除回收含授权根（Q-023 留观守卫）。旧 autoGrant 与 20048 已退役。073 解释/界面已于 2026-09-21 落地：来源解释 explain（契约 §12.3.1）、授撤影响预览 preview-grant-plan（§11.4.1，prevalidate 拆纯准备 prepare + 保存阶段 INLINE 物化）、声明诊断 declaration-status（§12.3）、依赖页声明状态与来源解释查看器、授权页「预览影响」手动按钮与 M5 边界说明、对账 AutoGrantReconcileDomainService（只读发现，@JobInvocable + bootstrap 种子默认停用任务，[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 2026-09-21）；AutoGrantInsightPgIT 真实 PG 回归锁定。
+> 交付状态：070 服务认证与 078 协议校准已完成；071 声明编译、资源共序、生命周期、迁移及 SDK 已于 2026-09-21 收口（全量含 E2E 回归 + 双轨/外评处置完毕，风格清理转出 T-PERM-079）。072 角色物化已于 2026-09-21 落地：共享推导核心（AutoGrantDerivation，§6.3.1 全表单测）、物化器（AutoGrantMaterializationDomainService，完整 desired 重算 + 事实键精确 diff）、触发面六入口接线（apply-grant-plan/manifest/资源 DELETE 与 FULL/操作位与掩码变更/类型删除与所有权变更/角色删除）、操作引用拒绝 20069、INLINE 统一时序回收、M4 共同锁与提交闸门（PgIT 验证）；grant_dep_id 已由 T-PERM-105 退役（T-PERM-103），角色删除回收含授权根（Q-023 留观守卫）。旧 autoGrant 与 20048 已退役。073 解释/界面已于 2026-09-21 落地：来源解释 explain（契约 §12.3.1）、授撤影响预览 preview-grant-plan（§11.4.1，prevalidate 拆纯准备 prepare + 保存阶段 INLINE 物化）、声明诊断 declaration-status（§12.3）、依赖页声明状态与来源解释查看器、授权页「预览影响」手动按钮与 M5 边界说明、对账 AutoGrantReconcileDomainService（只读发现，@JobInvocable + bootstrap 种子默认停用任务，[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 2026-09-21）；AutoGrantInsightPgIT 真实 PG 回归锁定。
 
 <a id="scope"></a>
 ## 1. 目标与范围
@@ -90,7 +90,7 @@ auto_grant 已随声明通道退役，后端 DTO、前端请求/表单/列表及
 
 AUTO_DEP 行形状由唯一物化写者与既有唯一约束保证，不额外增加 DDL CHECK；若新增写者或改变行形状，须复核这项取舍。[来源](../archive/2026-09-26/decision-registry-before.md)（原第 152 行）。
 
-不新增 support 表，不把推导图/路径列表塞入授权行 JSON。grant_dep_id 不作存续或清理依据，单字段不能表达多来源，物化器不赋值。该闲置列已确定退役（T-PERM-103，2026-10-04 确认），由 [T-PERM-105](../tasks/T-PERM-105.md) 删除当前 schema、实体字段与通用复制点；采用重建库，不提供历史迁移/回滚 SQL。实施完成前列与字段仍存在，仅通用行复制原样携带，不参与业务判断。此决定取代原保留观察安排，不改变多来源推导、撤销及 explain。
+不新增 support 表，不把推导图/路径列表塞入授权行 JSON。单字段不能表达多来源，grant_dep_id 列、实体字段与通用复制点已由 [T-PERM-105](../archive/2026-10-04/tasks/T-PERM-105.md) 退役（T-PERM-103，2026-10-04 确认）。来源由 explain 按编译图推导，存续与清理按完整 desired 重算；采用当前 schema 重建库，不提供历史迁移/回滚 SQL。此决定取代原保留观察安排，不改变多来源推导、撤销及 explain。
 
 <a id="integration"></a>
 ## 4. 独立接入与可选协调
@@ -300,7 +300,7 @@ TypeDefinitionAppServiceImpl.deleteTypesByIds 的混合 resource_type/role_type 
 
 **当前支持边界（2026-10-03，T-ACCESS-073）**：已明确退出 071 自动授权旧库原地迁移，仅支持当前权威 schema 新建库。旧 `resource_dependency.auto_grant`/历史依赖保全、AUTO_DEP 存量升级门禁及迁移回退程序不再交付；原程序和手册仅作[历史追溯](../archive/2026-10-03/README.md#retired-migrations)。这项取舍不授权操作部署数据库，存在旧数据时须由环境负责人备份并决定重建，不能自动删权、伪造 MANUAL 或恢复旧写入口。
 
-当前 `AUTO_DEP` 不作推导种子、`grant_dep_id` 不作业务依据（待 T-PERM-105 退役），MANIFEST 是依赖图唯一来源；无授权种子时发布只编译图，不生成授权。真实发布、事务回滚、身份/服务拒绝由 PermissionManifestPgIT 保护，按租户和独立资源类型核验 no-seed，不依赖全库空态。API 旧库迁移支持的独立退出见契约 §25.1。
+当前 `AUTO_DEP` 不作推导种子、`grant_dep_id` 已退役，MANIFEST 是依赖图唯一来源；无授权种子时发布只编译图，不生成授权。真实发布、事务回滚、身份/服务拒绝由 PermissionManifestPgIT 保护，按租户和独立资源类型核验 no-seed，不依赖全库空态。API 旧库迁移支持的独立退出见契约 §25.1。
 
 manifest 不需要用户 API 快照/固定图授权行；管理 explain 仍需固定图及管理门禁。空库重建入口见 [重建手册](access-service-rebuild-runbook.md)，当前资源 full-sync 协议仍按其现役手册执行。
 

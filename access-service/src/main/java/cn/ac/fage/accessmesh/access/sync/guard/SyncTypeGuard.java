@@ -65,7 +65,7 @@ public class SyncTypeGuard {
      * </p>
      *
      * @param tenantId                租户 ID
-     * @param authenticatedServiceCode 已验证服务身份（凭证通过后绑定的 X-Service-Code）
+     * @param authenticatedServiceCode 已验证服务身份（凭证行派生的 serviceCode）
      * @param requested                本次写入事实涉及的类型集合
      * @return true=允许；false=拒绝（服务未注册/禁用/配置缺失损坏/类型未声明）
      */

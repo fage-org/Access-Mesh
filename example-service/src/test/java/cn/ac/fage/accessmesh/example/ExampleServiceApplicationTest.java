@@ -29,6 +29,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "spring.cloud.nacos.config.import-check.enabled=false",
         "spring.cloud.nacos.discovery.enabled=false",
         "spring.config.import=optional:classpath:/test-nope.yml",
+        "perm.tenant-id=1",
         "example.signature.secret=test-signature-secret"
     })
 class ExampleServiceApplicationTest {

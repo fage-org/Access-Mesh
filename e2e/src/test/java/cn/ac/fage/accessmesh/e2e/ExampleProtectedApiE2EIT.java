@@ -660,6 +660,7 @@ class ExampleProtectedApiE2EIT {
      */
     private static List<String> exampleServiceArgs(int port) {
         return List.of(
+            "--perm.tenant-id=1",
             "--spring.main.web-application-type=servlet",
             "--server.port=" + port,
             "--spring.config.import=optional:classpath:/e2e-nope.yml",

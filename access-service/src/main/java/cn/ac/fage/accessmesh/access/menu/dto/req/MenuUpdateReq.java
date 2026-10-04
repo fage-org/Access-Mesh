@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.menu.dto.req;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -24,6 +26,7 @@ import jakarta.validation.constraints.Size;
  * @param status       状态（可选，1=ENABLED，0=DISABLED）
  * @param resourceType 关联业务资源类型（可选，与 resourceCode 成对）
  * @param resourceCode 关联业务资源实例（可选，与 resourceType 成对，租户内唯一）
+ * @param iconClear 显式清空 icon 为 NULL，与新值同传拒绝
  */
 public record MenuUpdateReq(
     /**
@@ -59,6 +62,7 @@ public record MenuUpdateReq(
      * 图标名称
      */
     @Size(max = 64, message = "图标名称长度不能超过64")
+    @Pattern(regexp = "(?s)(?U).*\\S.*", message = "icon 不能为空白")
     String icon,
 
     /**
@@ -83,12 +87,20 @@ public record MenuUpdateReq(
      * 关联业务资源实例（与 resourceType 成对填写）
      */
     @Size(max = 64, message = "资源编码长度不能超过64")
-    String resourceCode
+    String resourceCode,
+    Boolean iconClear
 ) {
+    @AssertTrue(message = "icon 与 iconClear 不能同时提供")
+    @JsonIgnore
+    public boolean isIconConflictFree() {
+        return icon == null || !Boolean.TRUE.equals(iconClear);
+    }
+
     /**
      * resourceType 与 resourceCode 必须成对填写（同填或同空）
      */
     @AssertTrue(message = "resourceType 与 resourceCode 必须成对填写")
+    @JsonIgnore
     public boolean isResourceLinkPaired() {
         return (resourceType == null || resourceType.isBlank())
             == (resourceCode == null || resourceCode.isBlank());

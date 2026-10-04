@@ -77,7 +77,8 @@ export function usePermissionCondition() {
   async function submitCondition(
     form: ConditionFormData,
     mode: "create" | "edit",
-    editingCode?: string
+    editingCode?: string,
+    originalDescription?: string | null
   ): Promise<boolean> {
     try {
       const conditionRules = serializeRules(form.rules);
@@ -98,7 +99,9 @@ export function usePermissionCondition() {
           conditionRules,
           enabled: form.enabled,
           gatewayEvaluable: form.gatewayEvaluable,
-          description: form.description
+          description: form.description.trim() || null,
+          descriptionClear:
+            originalDescription != null && !form.description.trim()
         });
         message("条件更新成功", { type: "success" });
       }

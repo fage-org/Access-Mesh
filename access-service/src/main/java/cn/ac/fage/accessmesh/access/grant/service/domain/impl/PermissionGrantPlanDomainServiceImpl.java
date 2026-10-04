@@ -1057,7 +1057,6 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
         copy.setCanGrant(source.getCanGrant());
         copy.setConditionId(source.getConditionId());
         copy.setGrantSource(source.getGrantSource());
-        copy.setGrantDepId(source.getGrantDepId());
         copy.setCreatedBy(source.getCreatedBy());
         copy.setUpdatedBy(source.getUpdatedBy());
         copy.setDeletedBy(source.getDeletedBy());

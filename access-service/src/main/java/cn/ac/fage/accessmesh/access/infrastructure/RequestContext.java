@@ -11,7 +11,7 @@ package cn.ac.fage.accessmesh.access.infrastructure;
  *   <li>{@code tenantId}：已验证的租户 ID（会话租户 / 签名绑定头 / 凭证绑定头 / 任务显式租户）</li>
  *   <li>{@code operatorId}：已验证的操作者 ID（USER 为登录用户或签名代理主体；SERVICE/TASK/ANONYMOUS 为 null）</li>
  *   <li>{@code callerType}：调用方类型（USER / SERVICE / TASK / ANONYMOUS）</li>
- *   <li>{@code serviceCode}：已验证的服务编码（仅 SERVICE；凭证通过后由 X-Service-Code 头绑定，防无凭证伪造）</li>
+ *   <li>{@code serviceCode}：已验证的服务编码（仅 SERVICE；由服务凭证行派生；平台内部查询无服务编码）</li>
  *   <li>{@code delegatedClientId}：OAuth2 委托客户端标识（仅 OAuth2 JWT 认证分支非 null，T-ACCESS-013；
  *       callerType 仍为 USER——委托用户身份；审计/日志据此区分第三方委托调用与用户直调）</li>
  *   <li>{@code requestId}：请求 ID（X-Request-Id 头值，缺失时兜底生成 UUID——T-PERM-021 F1.d 定案）。
@@ -61,7 +61,7 @@ public record RequestContext(Long tenantId, Long operatorId, CallerType callerTy
         return new RequestContext(tenantId, operatorId, CallerType.USER, null, delegatedClientId, null);
     }
 
-    /** 注册业务服务上下文（内部凭证通过；serviceCode 由 X-Service-Code 头绑定）。 */
+    /** 注册业务服务上下文（服务凭证通过；serviceCode 由凭证行派生）。 */
     public static RequestContext service(Long tenantId, String serviceCode) {
         return new RequestContext(tenantId, null, CallerType.SERVICE, serviceCode, null, null);
     }

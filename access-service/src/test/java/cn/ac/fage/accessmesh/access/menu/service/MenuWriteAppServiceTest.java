@@ -145,7 +145,7 @@ class MenuWriteAppServiceTest {
         when(localProjectionDomainService.upsertAdminMenu(
             eq(TENANT), eq(MENU_ID), eq("菜单X"), eq(0L), eq(1))).thenReturn(400L);
 
-        service.updateMenu(new MenuUpdateReq(MENU_ID, "DIR", null, null, null, null, null, null, null, null));
+        service.updateMenu(new MenuUpdateReq(MENU_ID, "DIR", null, null, null, null, null, null, null, null, null));
 
         verify(localProjectionDomainService).upsertAdminMenu(anyLong(), anyLong(), anyString(), anyLong(), any());
         verify(localProjectionDomainService, never()).deleteAdminMenu(anyLong(), anyLong());
@@ -159,7 +159,7 @@ class MenuWriteAppServiceTest {
         when(menuDomainService.resourceExists(eq(TENANT), eq("USER"), eq("5"), eq(MENU_ID)))
             .thenReturn(false);
 
-        service.updateMenu(new MenuUpdateReq(MENU_ID, null, null, null, null, null, null, null, null, null));
+        service.updateMenu(new MenuUpdateReq(MENU_ID, null, null, null, null, null, null, null, null, null, null));
 
         // 树写锁无条件持有（T-PERM-044）：不带 parentId 的普通编辑同样接锁
         verify(treeWriteLockSupport).lockTreeWrites(TENANT,
@@ -188,7 +188,7 @@ class MenuWriteAppServiceTest {
         when(menuDomainService.resourceExists(eq(TENANT), eq("USER"), eq("5"), eq(MENU_ID)))
             .thenReturn(false);
 
-        service.updateMenu(new MenuUpdateReq(MENU_ID, null, "新名称", null, null, null, 9, 0, null, null));
+        service.updateMenu(new MenuUpdateReq(MENU_ID, null, "新名称", null, null, null, 9, 0, null, null, null));
 
         ArgumentCaptor<SysMenu> captor = ArgumentCaptor.forClass(SysMenu.class);
         verify(menuDomainService).update(captor.capture());
@@ -206,7 +206,7 @@ class MenuWriteAppServiceTest {
         when(menuDomainService.pathExists(TENANT, "/y", MENU_ID)).thenReturn(true);
 
         assertThatThrownBy(() -> service.updateMenu(
-            new MenuUpdateReq(MENU_ID, null, null, null, "/y", null, null, null, null, null)))
+            new MenuUpdateReq(MENU_ID, null, null, null, "/y", null, null, null, null, null, null)))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
             .isEqualTo(AccessErrorCode.MENU_PATH_EXISTS.getCode());
@@ -224,7 +224,7 @@ class MenuWriteAppServiceTest {
         when(localProjectionDomainService.upsertAdminMenu(
             eq(TENANT), eq(MENU_ID), eq("新名称"), eq(0L), eq(1))).thenReturn(400L);
 
-        service.updateMenu(new MenuUpdateReq(MENU_ID, null, "新名称", null, null, null, null, null, null, null));
+        service.updateMenu(new MenuUpdateReq(MENU_ID, null, "新名称", null, null, null, null, null, null, null, null));
 
         verify(menuDomainService).update(any(SysMenu.class));
     }
@@ -261,7 +261,7 @@ class MenuWriteAppServiceTest {
         when(localProjectionDomainService.upsertAdminMenu(
             eq(TENANT), eq(MENU_ID), eq("菜单X"), eq(0L), eq(1))).thenReturn(400L);
 
-        service.updateMenu(new MenuUpdateReq(MENU_ID, null, null, null, "  ", null, null, null, null, null));
+        service.updateMenu(new MenuUpdateReq(MENU_ID, null, null, null, "  ", null, null, null, null, null, null));
 
         ArgumentCaptor<SysMenu> captor = ArgumentCaptor.forClass(SysMenu.class);
         verify(menuDomainService).update(captor.capture());
@@ -317,7 +317,7 @@ class MenuWriteAppServiceTest {
             .thenReturn(java.util.List.of(MENU_ID));
 
         assertThatThrownBy(() -> service.updateMenu(
-            new MenuUpdateReq(MENU_ID, null, null, MENU_ID, null, null, null, null, null, null)))
+            new MenuUpdateReq(MENU_ID, null, null, MENU_ID, null, null, null, null, null, null, null)))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
             .isEqualTo(AccessErrorCode.MENU_PARENT_INVALID.getCode());
@@ -333,7 +333,7 @@ class MenuWriteAppServiceTest {
             .thenReturn(java.util.List.of(MENU_ID, 20L, 21L));
 
         assertThatThrownBy(() -> service.updateMenu(
-            new MenuUpdateReq(MENU_ID, null, null, 21L, null, null, null, null, null, null)))
+            new MenuUpdateReq(MENU_ID, null, null, 21L, null, null, null, null, null, null, null)))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
             .isEqualTo(AccessErrorCode.MENU_PARENT_INVALID.getCode());
@@ -347,7 +347,7 @@ class MenuWriteAppServiceTest {
         when(menuDomainService.selectValidById(TENANT, 999L)).thenReturn(null);
 
         assertThatThrownBy(() -> service.updateMenu(
-            new MenuUpdateReq(MENU_ID, null, null, 999L, null, null, null, null, null, null)))
+            new MenuUpdateReq(MENU_ID, null, null, 999L, null, null, null, null, null, null, null)))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
             .isEqualTo(AccessErrorCode.MENU_NOT_FOUND.getCode());
@@ -365,7 +365,7 @@ class MenuWriteAppServiceTest {
         when(menuDomainService.subtreeHeight(TENANT, MENU_ID)).thenReturn(2);
 
         assertThatThrownBy(() -> service.updateMenu(
-            new MenuUpdateReq(MENU_ID, null, null, 40L, null, null, null, null, null, null)))
+            new MenuUpdateReq(MENU_ID, null, null, 40L, null, null, null, null, null, null, null)))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
             .isEqualTo(AccessErrorCode.MENU_DEPTH_EXCEEDED.getCode());
@@ -389,7 +389,7 @@ class MenuWriteAppServiceTest {
         when(localProjectionDomainService.upsertAdminMenu(
             eq(TENANT), eq(MENU_ID), eq("菜单X"), eq(30L), eq(1))).thenReturn(400L);
 
-        service.updateMenu(new MenuUpdateReq(MENU_ID, null, null, 30L, null, null, null, null, null, null));
+        service.updateMenu(new MenuUpdateReq(MENU_ID, null, null, 30L, null, null, null, null, null, null, null));
 
         verify(menuDomainService).update(any(SysMenu.class));
     }
@@ -407,7 +407,7 @@ class MenuWriteAppServiceTest {
         when(localProjectionDomainService.upsertAdminMenu(
             eq(TENANT), eq(MENU_ID), eq("菜单X"), eq(0L), eq(1))).thenReturn(400L);
 
-        service.updateMenu(new MenuUpdateReq(MENU_ID, null, null, 0L, null, null, null, null, null, null));
+        service.updateMenu(new MenuUpdateReq(MENU_ID, null, null, 0L, null, null, null, null, null, null, null));
 
         verify(menuDomainService).update(any(SysMenu.class));
         // 顶级目标不调用 calculateDepth（0 会把不存在的父层多算一层）
@@ -427,7 +427,7 @@ class MenuWriteAppServiceTest {
         when(menuDomainService.subtreeHeight(TENANT, MENU_ID)).thenReturn(5);
 
         assertThatThrownBy(() -> service.updateMenu(
-            new MenuUpdateReq(MENU_ID, null, null, 11L, null, null, null, null, null, null)))
+            new MenuUpdateReq(MENU_ID, null, null, 11L, null, null, null, null, null, null, null)))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
             .isEqualTo(AccessErrorCode.MENU_DEPTH_EXCEEDED.getCode());
@@ -505,7 +505,7 @@ class MenuWriteAppServiceTest {
         when(menuDomainService.resourceExists(eq(TENANT), eq("USER"), eq("5"), eq(MENU_ID)))
             .thenReturn(false);
 
-        service.updateMenu(new MenuUpdateReq(MENU_ID, null, null, null, null, null, null, null, null, null));
+        service.updateMenu(new MenuUpdateReq(MENU_ID, null, null, null, null, null, null, null, null, null, null));
 
         org.mockito.InOrder order = org.mockito.Mockito.inOrder(treeWriteLockSupport, menuDomainService);
         order.verify(treeWriteLockSupport).lockTreeWrites(TENANT,

@@ -26,12 +26,21 @@ import static org.mockito.Mockito.when;
 /**
  * 业务最终检查门面单测（T-ACCESS-061）：
  * 主体纪律（subject=可信请求头值）、父上下文透传、fail-closed（信封非 200/data null/
- * 传输异常一律 30005）、租户上下文 set/clear 生命周期。
+ * 传输异常一律 30005）、租户与固定凭证绑定一致性。
  */
 class BusinessPermCheckerTest {
 
     private final PermissionFeignClient client = mock(PermissionFeignClient.class);
-    private final BusinessPermChecker checker = new BusinessPermChecker(client);
+    private final BusinessPermChecker checker = new BusinessPermChecker(client, 7L);
+
+    @Test
+    void shouldRejectOtherTenant_beforeCallingPermissionService() {
+        assertThatThrownBy(() -> checker.check("8", "42", null,
+            BusinessPermChecker.Target.of("EXAMPLE", "report-1", "VIEW")))
+            .isInstanceOf(BizException.class)
+            .satisfies(e -> assertThat(((BizException) e).getErrorCode()).isEqualTo(30004));
+        org.mockito.Mockito.verifyNoInteractions(client);
+    }
 
     @Test
     @DisplayName("单目标 DECISION：subject=可信请求头 userId（非任何客户端可控值），目标字段原样透传")
@@ -170,23 +179,7 @@ class BusinessPermCheckerTest {
     }
 
     @Test
-    @DisplayName("租户上下文生命周期：调用期间绑定可信租户，调用后清理（防线程复用串租户）")
-    void tenantContext_setDuringCallAndClearedAfter() {
-        when(client.checkAuth(any(AuthCheckReq.class)))
-            .thenAnswer(inv -> {
-                assertThat(PermCallContext.getTenantId()).isEqualTo("7");
-                return R.ok(AuthCheckResp.allow(List.of(), List.of(), false));
-            })
-            .thenReturn(R.ok(AuthCheckResp.allow(List.of(), List.of(), false)));
-
-        checker.check("7", "42", null, BusinessPermChecker.Target.of("EXAMPLE", "report-1", "VIEW"));
-        assertThat(PermCallContext.getTenantId()).isNull();
-
-        // fail-closed 路径同样必须清理（finally）
-        when(client.checkAuth(any(AuthCheckReq.class))).thenReturn(R.fail(500, "boom"));
-        assertThatThrownBy(() -> checker.check("7", "42", null,
-                BusinessPermChecker.Target.of("EXAMPLE", "report-1", "VIEW")))
-            .isInstanceOf(BizException.class);
-        assertThat(PermCallContext.getTenantId()).isNull();
+    void shouldRejectInvalidCredentialTenantConfiguration() {
+        assertThatThrownBy(() -> new BusinessPermChecker(client, 0L)).isInstanceOf(IllegalStateException.class);
     }
 }

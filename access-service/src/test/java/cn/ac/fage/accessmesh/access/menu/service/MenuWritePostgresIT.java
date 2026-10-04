@@ -234,7 +234,7 @@ class MenuWritePostgresIT {
             "MENU", "旧名称", null, "/upd", null, 3, 1, null, null, null));
 
         menuWriteAppService.updateMenu(new MenuUpdateReq(
-            id, null, "新名称", null, null, null, 9, 0, null, null));
+            id, null, "新名称", null, null, null, 9, 0, null, null, null));
 
         var row = jdbcTemplate.queryForMap(
             "SELECT display_name, sort_order, status, path FROM sys_menu WHERE id = ?", id);
@@ -339,7 +339,7 @@ class MenuWritePostgresIT {
             "MENU", "菜单", null, "/cycle/self", null, null, null, null, null, null));
 
         assertThatThrownBy(() -> menuWriteAppService.updateMenu(
-            new MenuUpdateReq(id, null, null, id, null, null, null, null, null, null)))
+            new MenuUpdateReq(id, null, null, id, null, null, null, null, null, null, null)))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
             .isEqualTo(AccessErrorCode.MENU_PARENT_INVALID.getCode());
@@ -358,7 +358,7 @@ class MenuWritePostgresIT {
             "MENU", "子", parent, "/cycle/c", null, null, null, null, null, null));
 
         assertThatThrownBy(() -> menuWriteAppService.updateMenu(
-            new MenuUpdateReq(parent, null, null, child, null, null, null, null, null, null)))
+            new MenuUpdateReq(parent, null, null, child, null, null, null, null, null, null, null)))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
             .isEqualTo(AccessErrorCode.MENU_PARENT_INVALID.getCode());
@@ -383,14 +383,14 @@ class MenuWritePostgresIT {
 
         // root（高度 2）移到 lv4（深度 4）下：子将达 4+2=6 层 → 拒绝
         assertThatThrownBy(() -> menuWriteAppService.updateMenu(
-            new MenuUpdateReq(root, null, null, lv4, null, null, null, null, null, null)))
+            new MenuUpdateReq(root, null, null, lv4, null, null, null, null, null, null, null)))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
             .isEqualTo(AccessErrorCode.MENU_DEPTH_EXCEEDED.getCode());
 
         // 移到 lv3（深度 3）下：子恰为第 5 层 → 允许
         menuWriteAppService.updateMenu(
-            new MenuUpdateReq(root, null, null, lv3, null, null, null, null, null, null));
+            new MenuUpdateReq(root, null, null, lv3, null, null, null, null, null, null, null));
         var rootRow = jdbcTemplate.queryForMap(
             "SELECT parent_id FROM sys_menu WHERE id = ?", root);
         assertThat(rootRow.get("parent_id")).isEqualTo(lv3);
@@ -412,7 +412,7 @@ class MenuWritePostgresIT {
 
         // s1（高度 5）移到 tmp（第 1 层）下：1 + 5 = 6 层 → 拒绝
         assertThatThrownBy(() -> menuWriteAppService.updateMenu(
-            new MenuUpdateReq(s1, null, null, tmp, null, null, null, null, null, null)))
+            new MenuUpdateReq(s1, null, null, tmp, null, null, null, null, null, null, null)))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
             .isEqualTo(AccessErrorCode.MENU_DEPTH_EXCEEDED.getCode());
@@ -422,7 +422,7 @@ class MenuWritePostgresIT {
             tmp, s1, TENANT);
         // 通过 API 移回顶级：父深度按 0，0 + 5 = 5 ≤ 5 → 放行（修复后 s5 回到第 5 层）
         menuWriteAppService.updateMenu(
-            new MenuUpdateReq(s1, null, null, 0L, null, null, null, null, null, null));
+            new MenuUpdateReq(s1, null, null, 0L, null, null, null, null, null, null, null));
         var row = jdbcTemplate.queryForMap("SELECT parent_id FROM sys_menu WHERE id = ?", s1);
         assertThat(row.get("parent_id")).isEqualTo(0L);
     }

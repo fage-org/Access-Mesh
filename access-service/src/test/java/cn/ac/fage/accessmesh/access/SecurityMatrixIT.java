@@ -96,6 +96,15 @@ class SecurityMatrixIT {
     @MockBean
     private DomainConfigAppService domainConfigAppService;
 
+    @MockBean
+    private cn.ac.fage.accessmesh.access.infrastructure.credential.service.domain.ServiceCredentialDomainService credentials;
+
+    private void stubCredential(long tenantId, String serviceCode) {
+        when(credentials.verify("sc-" + serviceCode, "sk-test"))
+            .thenReturn(cn.ac.fage.accessmesh.access.infrastructure.credential.service.domain.ServiceCredentialDomainService.VerifyResult.success(
+                new cn.ac.fage.accessmesh.access.infrastructure.ServicePrincipal(tenantId, serviceCode, "sc-" + serviceCode)));
+    }
+
     @Test
     @DisplayName("公开认证：/api/access/auth/captcha 匿名可访问（ANONYMOUS 上下文）")
     void authPublicPath_allowsAnonymous() throws Exception {
@@ -176,6 +185,7 @@ class SecurityMatrixIT {
             new cn.ac.fage.accessmesh.access.auth.entity.SysOauth2Client();
         client.setClientId("admin-web");
         client.setStatus(1);
+        client.setTenantId(1L);
         when(oauth2ClientDomainService.findActiveByClientId("admin-web")).thenReturn(client);
 
         // 模拟 OAuth2 签发链路（SaJwtUtil.createToken，loginType=oauth2、jwt-secret-key）
@@ -186,6 +196,7 @@ class SecurityMatrixIT {
         user.setId(100L);
         user.setTenantId(1L);
         user.setUsername("oauth2-user");
+        user.setStatus(1);
         when(userDomainService.selectValidById(1L, 100L)).thenReturn(user);
 
         mockMvc.perform(post("/api/access/auth/oauth2/userinfo")
@@ -223,10 +234,14 @@ class SecurityMatrixIT {
     @Test
     @DisplayName("外部 sync：内部凭证 + sourceService 与 X-Service-Code 一致 → 身份层放行（G2）")
     void sync_withInternalSecret_bindsServiceContext() throws Exception {
+        stubCredential(1L, "example-service");
+
         mockMvc.perform(post("/api/access/abstract-user/sync")
                 .header("X-Tenant-Id", "1")
                 .header("X-Internal-Secret", INTERNAL_SECRET)
                 .header("X-Service-Code", "example-service")
+                .header("X-Credential-Id", "sc-example-service")
+                .header("X-Credential-Secret", "sk-test")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"operation\":\"UPSERT\",\"subjectTypeCode\":\"USER\","
                     + "\"subjectExternalId\":\"u1\",\"name\":\"U1\",\"enabled\":true,"
@@ -284,11 +299,16 @@ class SecurityMatrixIT {
     @Test
     @DisplayName("跨请求隔离：前一请求 afterCompletion 清理后，后一请求绑定自己的租户（防租户串扰）")
     void requestIsolation_preventsTenantCrosstalk() throws Exception {
+        stubCredential(1L, "svc-a");
+        stubCredential(2L, "svc-b");
+
         // 请求 A：租户 1（SERVICE 上下文）
         mockMvc.perform(post("/api/access/abstract-user/sync")
                 .header("X-Tenant-Id", "1")
                 .header("X-Internal-Secret", INTERNAL_SECRET)
                 .header("X-Service-Code", "svc-a")
+                .header("X-Credential-Id", "sc-svc-a")
+                .header("X-Credential-Secret", "sk-test")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"operation\":\"UPSERT\",\"subjectTypeCode\":\"USER\","
                     + "\"subjectExternalId\":\"u1\",\"name\":\"U1\",\"enabled\":true,"
@@ -304,6 +324,8 @@ class SecurityMatrixIT {
                 .header("X-Tenant-Id", "2")
                 .header("X-Internal-Secret", INTERNAL_SECRET)
                 .header("X-Service-Code", "svc-b")
+                .header("X-Credential-Id", "sc-svc-b")
+                .header("X-Credential-Secret", "sk-test")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"operation\":\"UPSERT\",\"subjectTypeCode\":\"USER\","
                     + "\"subjectExternalId\":\"u1\",\"name\":\"U1\",\"enabled\":true,"

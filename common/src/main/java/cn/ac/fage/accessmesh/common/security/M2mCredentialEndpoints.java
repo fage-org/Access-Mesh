@@ -8,7 +8,7 @@ import java.util.List;
  * 认证方式 {@code authMethod=CREDENTIAL} 的请求允许到达的精确端点清单——
  * <b>Gateway M2M 放行链（skipAuth 识别）与服务端仲裁器白名单强制消费同一份</b>，
  * 防两处漂移；SDK 直连同样受服务端白名单约束（不依赖 Gateway，直连调清单外
- * 端点一律 403，防凭证能力半径扩大到管理/查询端点）。
+ * 端点一律 403，防凭证能力半径扩大到管理端点）。
  * </p>
  * <p>
  * 清单为不可变常量：新增端点（阶段二逐端点扩展至全部 sync 族，见
@@ -33,7 +33,17 @@ public final class M2mCredentialEndpoints {
         // T-ACCESS-059：操作准入两端点（Q-040 收敛方向——运行时查询族首批凭证化端点；
         // 凭证调用受「serviceCode=凭证所属服务」约束，网关沿用内部密钥平台信任域形态）
         new M2mEndpoint("POST", "/api/access/auth/interface-admission"),
-        new M2mEndpoint("POST", "/api/access/auth/interface-admission-snapshot"));
+        new M2mEndpoint("POST", "/api/access/auth/interface-admission-snapshot"),
+        new M2mEndpoint("POST", "/api/access/auth/check"),
+        new M2mEndpoint("POST", "/api/access/auth/batch-check"),
+        new M2mEndpoint("POST", "/api/access/auth/query-resources"),
+        new M2mEndpoint("POST", "/api/access/auth/query-scopes"),
+        new M2mEndpoint("POST", "/api/access/abstract-user/sync"),
+        new M2mEndpoint("POST", "/api/access/abstract-user/full-sync"),
+        new M2mEndpoint("POST", "/api/access/abstract-role/sync"),
+        new M2mEndpoint("POST", "/api/access/abstract-role/full-sync"),
+        new M2mEndpoint("POST", "/api/access/user-role/sync"),
+        new M2mEndpoint("POST", "/api/access/user-role/full-sync"));
 
     /** 不可变端点清单（消费方遍历/测试断言用）。 */
     public static List<M2mEndpoint> endpoints() {

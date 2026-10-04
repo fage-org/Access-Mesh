@@ -129,7 +129,7 @@ public class ServiceAuthArbiter implements HandlerInterceptor {
                 "credential verify failed: " + result.failure());
         }
         if (!M2mCredentialEndpoints.matches(request.getMethod(), request.getRequestURI())) {
-            // 服务端白名单强制：凭证请求只可达 M2M 通道端点（防直连调管理/查询端点
+            // 服务端白名单强制：凭证请求只可达 M2M 通道端点（防直连调管理端点
             // 扩大凭证能力半径——authMethod=CREDENTIAL × 精确路径）
             return rejectCredential(request, response, AccessErrorCode.SERVICE_CREDENTIAL_INVALID,
                 "credential auth not allowed on path " + request.getRequestURI());
