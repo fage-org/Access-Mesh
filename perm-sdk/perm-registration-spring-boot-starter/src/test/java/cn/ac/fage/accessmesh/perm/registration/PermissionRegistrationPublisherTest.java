@@ -31,10 +31,10 @@ class PermissionRegistrationPublisherTest {
         AtomicInteger reads = new AtomicInteger();
         var snapshot = publisher.capture("42","revision",() -> { reads.incrementAndGet(); return dependencies; });
         dependencies.clear();
-        when(client.fullSync(anyLong(),anyString(),anyString(),anyString(),any())).thenReturn(R.ok(success()));
+        when(client.fullSync(anyString(),anyString(),any())).thenReturn(R.ok(success()));
         publisher.publish(target,snapshot); publisher.publish(target,snapshot);
         assertThat(reads).hasValue(1); assertThat(snapshot.dependencies()).hasSize(1);
-        verify(client,times(2)).fullSync(1L,"reports","id-one","secret-one",snapshot);
+        verify(client,times(2)).fullSync("id-one","secret-one",snapshot);
     }
 
     @Test void shouldNeverTurnProviderFailureIntoEmptyPublication() {
@@ -63,9 +63,9 @@ class PermissionRegistrationPublisherTest {
         var first = publisher.prepareAndPublish(target,snapshot,t -> List.of(partial));
         assertThat(first.successful()).isFalse(); assertThat(first.manifestResult()).isNull();
         assertThat(first.preparationResults()).containsExactly(partial); verifyNoInteractions(client);
-        when(client.fullSync(anyLong(),anyString(),anyString(),anyString(),same(snapshot))).thenReturn(R.ok(success()));
+        when(client.fullSync(anyString(),anyString(),same(snapshot))).thenReturn(R.ok(success()));
         assertThat(publisher.prepareAndPublish(target,snapshot,t -> List.of(success())).successful()).isTrue();
-        verify(client).fullSync(1L,"reports","id-one","secret-one",snapshot);
+        verify(client).fullSync("id-one","secret-one",snapshot);
     }
 
     @Test void shouldStopExpiredResourceSnapshot_andNotTreatManifestPartialAsSuccess() {
@@ -76,7 +76,7 @@ class PermissionRegistrationPublisherTest {
         verifyNoInteractions(client);
         var failed = new SyncResultResp(false,false,false,"RETRYABLE","FULL_SYNC_PARTIAL_FAILURE",
                 new SyncResultResp.FullSyncDetail(0,0,1,0,List.of(new SyncResultResp.ItemResult("d",false,false,"NON_RETRYABLE","CROSS_OWNER"))));
-        when(client.fullSync(anyLong(),anyString(),anyString(),anyString(),any())).thenReturn(R.ok(failed));
+        when(client.fullSync(anyString(),anyString(),any())).thenReturn(R.ok(failed));
         assertThat(publisher.prepareAndPublish(target,snapshot,t -> List.of()).successful()).isFalse();
     }
 
@@ -97,16 +97,16 @@ class PermissionRegistrationPublisherTest {
         var other = new RegistrationTarget(2L,"reports","id-two","secret-two");
         var two = new TenantRegistrationProvider.TenantPublication(other,new PermissionManifestReq(1,"20","b",List.of()));
         var publications = publisher.capture(() -> List.of(one,two));
-        when(client.fullSync(anyLong(),anyString(),anyString(),anyString(),any())).thenReturn(R.ok(success()));
+        when(client.fullSync(anyString(),anyString(),any())).thenReturn(R.ok(success()));
         for (var item : publications) publisher.publish(item.target(),item.manifest());
-        verify(client).fullSync(1L,"reports","id-one","secret-one",one.manifest());
-        verify(client).fullSync(2L,"reports","id-two","secret-two",two.manifest());
+        verify(client).fullSync("id-one","secret-one",one.manifest());
+        verify(client).fullSync("id-two","secret-two",two.manifest());
         assertThat(target.toString()).doesNotContain("secret-one","id-one");
         assertThatThrownBy(() -> publisher.capture(() -> List.of(one,one))).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test void shouldRejectErrorEnvelopesAndMissingTrustDeclaration() {
-        when(client.fullSync(anyLong(),anyString(),anyString(),anyString(),any())).thenReturn(R.fail(20066,"expired"));
+        when(client.fullSync(anyString(),anyString(),any())).thenReturn(R.fail(20066,"expired"));
         assertThatThrownBy(() -> publisher.publish(target,new PermissionManifestReq(1,"1","r",List.of())))
                 .hasMessageContaining("20066");
         assertThatThrownBy(() -> new PermissionRegistrationPublisher(client,new ObjectMapper(),VALIDATORS.getValidator(),null))

@@ -202,10 +202,77 @@ class ClearFieldProtocolValidationTest {
     @DisplayName("Unicode 空白（全角空格/NBSP）同样拒绝（旧 ASCII-only 正则必红）")
     void unicodeWhitespaceMustBeRejected() {
         assertFalse(validator.validate(new UserUpdateReq(1L, null, "　　", null, null, null, null)).isEmpty());
-        assertFalse(validator.validate(new UserUpdateReq(1L, null, null, " ", null, null, null)).isEmpty());
+        assertFalse(validator.validate(new UserUpdateReq(1L, null, null, " ", null, null, null)).isEmpty());
         assertFalse(validator.validate(new TypeUpdateReq(1L, null, "　", null, null, null, null)).isEmpty());
-        assertFalse(validator.validate(new ServiceConfigReq("svc", "名", " ", null, null, null, null, null, null)).isEmpty());
+        assertFalse(validator.validate(new ServiceConfigReq("svc", "名", " ", null, null, null, null, null, null)).isEmpty());
         assertFalse(validator.validate(new ApiMappingUpdateReq(1L, 2L, null, null, null, null, "　", null, null)).isEmpty());
-        assertFalse(validator.validate(new AbstractUserUpdateReq(1L, null, null, " ", null)).isEmpty());
+        assertFalse(validator.validate(new AbstractUserUpdateReq(1L, null, null, " ", null)).isEmpty());
+    }
+
+    // ---- 2026-10-04 拍板 A：空白拒绝覆盖新建入口（此前沿六字段先例仅做更新面） ----
+    // 旧实现（Create DTO 无 @Pattern）下「空白必须拒绝」断言必红；ResourceBatchCreateReq
+    // 嵌套项沿 T-PERM-065 宽容收集拍板不级联校验，不在本表。
+
+    static java.util.stream.Stream<org.junit.jupiter.params.provider.Arguments> createSideFields() {
+        return java.util.stream.Stream.of(
+            org.junit.jupiter.params.provider.Arguments.of(
+                cn.ac.fage.accessmesh.access.rule.dto.req.ConditionCreateReq.class, "description",
+                "{\"code\":\"cond-a\",\"name\":\"条件A\",\"conditionRules\":\"[]\"}"),
+            org.junit.jupiter.params.provider.Arguments.of(
+                cn.ac.fage.accessmesh.access.menu.dto.req.MenuCreateReq.class, "icon",
+                "{\"menuType\":\"MENU\",\"displayName\":\"菜单A\"}"),
+            org.junit.jupiter.params.provider.Arguments.of(
+                cn.ac.fage.accessmesh.access.user.dto.req.UserCreateReq.class, "phone",
+                "{\"username\":\"user01\",\"name\":\"用户A\"}"),
+            org.junit.jupiter.params.provider.Arguments.of(
+                cn.ac.fage.accessmesh.access.user.dto.req.UserCreateReq.class, "email",
+                "{\"username\":\"user01\",\"name\":\"用户A\"}"),
+            org.junit.jupiter.params.provider.Arguments.of(
+                cn.ac.fage.accessmesh.access.type.dto.req.TypeCreateReq.class, "description",
+                "{\"typeKey\":\"REPORT\",\"name\":\"报表\"}"),
+            org.junit.jupiter.params.provider.Arguments.of(
+                cn.ac.fage.accessmesh.access.type.dto.req.TypeCreateReq.class, "extra",
+                "{\"typeKey\":\"REPORT\",\"name\":\"报表\"}"),
+            org.junit.jupiter.params.provider.Arguments.of(
+                cn.ac.fage.accessmesh.access.auth.dto.Oauth2ClientCreateReq.class, "grantTypes",
+                "{\"clientId\":\"client-a\",\"clientSecret\":\"secret-a\",\"clientName\":\"客户端A\"}"),
+            org.junit.jupiter.params.provider.Arguments.of(
+                cn.ac.fage.accessmesh.access.auth.dto.Oauth2ClientCreateReq.class, "redirectUris",
+                "{\"clientId\":\"client-a\",\"clientSecret\":\"secret-a\",\"clientName\":\"客户端A\"}"),
+            org.junit.jupiter.params.provider.Arguments.of(
+                cn.ac.fage.accessmesh.access.auth.dto.Oauth2ClientCreateReq.class, "scopes",
+                "{\"clientId\":\"client-a\",\"clientSecret\":\"secret-a\",\"clientName\":\"客户端A\"}"),
+            org.junit.jupiter.params.provider.Arguments.of(
+                cn.ac.fage.accessmesh.access.auth.dto.Oauth2ClientCreateReq.class, "audiences",
+                "{\"clientId\":\"client-a\",\"clientSecret\":\"secret-a\",\"clientName\":\"客户端A\"}"),
+            org.junit.jupiter.params.provider.Arguments.of(
+                cn.ac.fage.accessmesh.access.user.dto.req.AbstractUserCreateReq.class, "extra",
+                "{\"subjectTypeCode\":\"LOCAL_USER\",\"externalId\":\"ext-01\"}"),
+            org.junit.jupiter.params.provider.Arguments.of(
+                cn.ac.fage.accessmesh.access.resource.dto.req.ApiMappingAddReq.class, "extra",
+                "{\"resourceId\":1,\"serviceCode\":\"example-service\",\"httpMethod\":\"GET\",\"pathPattern\":\"/x\"}"),
+            org.junit.jupiter.params.provider.Arguments.of(
+                cn.ac.fage.accessmesh.perm.common.dto.req.RoleCreateReq.class, "extra",
+                "{\"roleTypeCode\":\"BASIC_ROLE\",\"name\":\"角色A\"}"),
+            org.junit.jupiter.params.provider.Arguments.of(
+                cn.ac.fage.accessmesh.perm.common.dto.req.ResourceCreateReq.class, "extra",
+                "{\"resourceTypeCode\":\"REPORT\",\"code\":\"report-a\",\"name\":\"报表A\"}")
+        );
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest(name = "{0}.{1} 新建入口空白拒绝（拍板 A）")
+    @org.junit.jupiter.params.provider.MethodSource("createSideFields")
+    void createSideBlankMustBeRejected(Class<?> dto, String field, String base) throws Exception {
+        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        var json = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(base);
+        assertTrue(validator.validate(mapper.treeToValue(json, dto)).isEmpty(), "基线载荷必须合法");
+        json.put(field, "\u3000");
+        assertFalse(validator.validate(mapper.treeToValue(json, dto)).isEmpty(),
+            field + " 新建入口纯空白必须拒绝");
+        json.put(field, " ");
+        assertFalse(validator.validate(mapper.treeToValue(json, dto)).isEmpty(),
+            field + " 新建入口空串必须拒绝");
+        json.remove(field);
+        assertTrue(validator.validate(mapper.treeToValue(json, dto)).isEmpty(), "缺省不传保持合法");
     }
 }

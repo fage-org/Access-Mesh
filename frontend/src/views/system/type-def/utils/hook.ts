@@ -65,9 +65,9 @@ export function useTypeDef() {
           typeKey: form.typeKey,
           typeCode: form.typeCode || undefined,
           name: form.name,
-          description: form.description || null,
+          description: form.description.trim() || null,
           sortOrder: form.sortOrder,
-          extra: form.extra || null,
+          extra: form.extra.trim() || null,
           // T-PERM-062：resource_type 所有者角色（选择器值；空=后端缺省引导角色），
           // 选项固定 BASIC_ROLE 功能角色；非 resource_type 后端忽略该字段
           ownerRoleTypeCode: form.ownerRoleExternalId

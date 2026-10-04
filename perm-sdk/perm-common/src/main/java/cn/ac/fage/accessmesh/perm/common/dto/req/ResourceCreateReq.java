@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.perm.common.dto.req;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 
 /**
  * 资源创建请求
@@ -45,5 +46,6 @@ public record ResourceCreateReq(
     /**
      * 扩展信息
      */
+    @Pattern(regexp = "(?s)(?U).*\\S.*", message = "extra 不能为空白")
     String extra
 ) {}

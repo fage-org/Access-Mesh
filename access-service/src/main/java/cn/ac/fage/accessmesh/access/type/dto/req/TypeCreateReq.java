@@ -30,9 +30,9 @@ public record TypeCreateReq(
     @Pattern(regexp = "^$|^[A-Z][A-Z0-9_]*$", message = "类型编码必须以大写字母开头，仅含大写字母/数字/下划线（留空由服务端生成）")
     String typeCode,
     @NotBlank @Size(max = 128) String name,
-    @Size(max = 512) String description,
+    @Size(max = 512) @Pattern(regexp = "(?s)(?U).*\\S.*", message = "description 不能为空白") String description,
     Integer sortOrder,
-    String extra,
+    @Pattern(regexp = "(?s)(?U).*\\S.*", message = "extra 不能为空白") String extra,
     @Size(max = 64) String ownerRoleTypeCode,
     @Size(max = 64) String ownerRoleExternalId
 ) {}

@@ -67,10 +67,10 @@ class PermRegistrationAutoConfigurationTest {
         staticRunner(file).run(context -> {
             assertThat(context).hasNotFailed();
             var client=context.getBean("testTransport",PermissionManifestClient.class);
-            when(client.fullSync(anyLong(),anyString(),anyString(),anyString(),any())).thenReturn(R.ok(
+            when(client.fullSync(anyString(),anyString(),any())).thenReturn(R.ok(
                     new SyncResultResp(true,true,false,null,null,new SyncResultResp.FullSyncDetail(0,0,0,0,List.of()))));
             context.getBean("permissionManifestStartupPublisher",ApplicationRunner.class).run(new DefaultApplicationArguments());
-            verify(client).fullSync(eq(3L),eq("reports"),eq("id"),eq("secret"),argThat(req -> req.publicationGeneration().equals("42") && req.revision().equals("file-42")));
+            verify(client).fullSync(eq("id"),eq("secret"),argThat(req -> req.publicationGeneration().equals("42") && req.revision().equals("file-42")));
         });
     }
     @Test void shouldRejectReadFailureAndPartialResultDuringStartup() throws Exception {
@@ -82,7 +82,7 @@ class PermRegistrationAutoConfigurationTest {
         });
         Files.writeString(file,"{\"schemaVersion\":1,\"publicationGeneration\":\"42\",\"revision\":\"r\",\"dependencies\":[]}");
         staticRunner(file).run(context -> {
-            when(context.getBean("testTransport",PermissionManifestClient.class).fullSync(anyLong(),anyString(),anyString(),anyString(),any())).thenReturn(R.ok(
+            when(context.getBean("testTransport",PermissionManifestClient.class).fullSync(anyString(),anyString(),any())).thenReturn(R.ok(
                     new SyncResultResp(false,false,false,"RETRYABLE","FULL_SYNC_PARTIAL_FAILURE",new SyncResultResp.FullSyncDetail(0,0,1,0,List.of()))));
             assertThatThrownBy(() -> context.getBean("permissionManifestStartupPublisher",ApplicationRunner.class).run(new DefaultApplicationArguments()))
                     .hasMessageContaining("publication incomplete");

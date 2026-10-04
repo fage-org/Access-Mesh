@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.user.dto.req;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 
 /**
  * 用户创建请求体
@@ -19,5 +20,6 @@ public record AbstractUserCreateReq(
     @NotBlank String externalId,
     String name,
     Boolean enabled,
+    @Pattern(regexp = "(?s)(?U).*\\S.*", message = "extra 不能为空白")
     String extra
 ) {}

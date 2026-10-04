@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.access.resource.dto.req;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 
 /**
  * API映射添加请求体
@@ -24,6 +25,7 @@ public record ApiMappingAddReq(
     @NotBlank String pathPattern,
     Integer matchOrder,
     Boolean enabled,
+    @Pattern(regexp = "(?s)(?U).*\\S.*", message = "extra 不能为空白")
     String extra,
     @jakarta.validation.Valid cn.ac.fage.accessmesh.access.resource.dto.RequiredPermission requiredPermission
 ) {}

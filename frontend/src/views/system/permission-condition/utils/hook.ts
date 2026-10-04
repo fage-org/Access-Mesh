@@ -89,7 +89,7 @@ export function usePermissionCondition() {
           conditionRules,
           enabled: form.enabled,
           gatewayEvaluable: form.gatewayEvaluable,
-          description: form.description
+          description: form.description.trim() || null
         });
         message("条件创建成功", { type: "success" });
       } else if (editingCode) {

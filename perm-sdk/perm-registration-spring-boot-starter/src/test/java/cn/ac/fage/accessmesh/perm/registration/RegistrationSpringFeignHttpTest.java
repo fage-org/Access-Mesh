@@ -25,8 +25,8 @@ class RegistrationSpringFeignHttpTest {
         AtomicReference<List<String>> headers=new AtomicReference<>();
         server.createContext("/api/access/integration/permission-manifest/full-sync",exchange -> {
             requestBody.set(new String(exchange.getRequestBody().readAllBytes(),StandardCharsets.UTF_8));
-            headers.set(List.of(exchange.getRequestHeaders().getFirst("X-Tenant-Id"),exchange.getRequestHeaders().getFirst("X-Service-Code"),
-                    exchange.getRequestHeaders().getFirst("X-Credential-Id"),exchange.getRequestHeaders().getFirst("X-Credential-Secret")));
+            headers.set(List.of(exchange.getRequestHeaders().getFirst("X-Credential-Id"),
+                    exchange.getRequestHeaders().getFirst("X-Credential-Secret")));
             byte[] body="{\"code\":200,\"message\":\"success\",\"data\":{\"accepted\":true,\"applied\":true,\"stale\":false,\"retryClass\":null,\"reason\":null,\"detail\":{\"appliedCount\":0,\"staleCount\":0,\"failedCount\":0,\"deactivatedCount\":0,\"itemResults\":[]}},\"requestId\":\"r\",\"traceId\":\"t\"}".getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().add("Content-Type","application/json");
             exchange.sendResponseHeaders(200,body.length);
@@ -47,7 +47,8 @@ class RegistrationSpringFeignHttpTest {
                         assertThat(result.accepted()).isTrue();
                         assertThat(result.detail().failedCount()).isZero();
                         assertThat(requestBody.get()).contains("\"publicationGeneration\":\"42\"");
-                        assertThat(headers.get()).containsExactly("7","reports","tenant-id","tenant-secret");
+                        // 只发凭证头：租户/服务身份由服务端从凭证行派生，自报头已退役
+                        assertThat(headers.get()).containsExactly("tenant-id","tenant-secret");
                     });
         } finally { server.stop(0); }
     }

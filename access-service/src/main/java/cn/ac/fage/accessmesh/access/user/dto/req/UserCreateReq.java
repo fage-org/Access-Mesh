@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.user.dto.req;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -37,12 +38,14 @@ public record UserCreateReq(
     /**
      * 手机号
      */
+    @Pattern(regexp = "(?s)(?U).*\\S.*", message = "phone 不能为空白")
     @Size(max = 32, message = "手机号不能超过32个字符")
     String phone,
 
     /**
      * 邮箱
      */
+    @Pattern(regexp = "(?s)(?U).*\\S.*", message = "email 不能为空白")
     @Size(max = 128, message = "邮箱不能超过128个字符")
     String email,
 

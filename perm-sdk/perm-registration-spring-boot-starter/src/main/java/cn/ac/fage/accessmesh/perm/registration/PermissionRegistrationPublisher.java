@@ -60,7 +60,7 @@ public final class PermissionRegistrationPublisher {
     public SyncResultResp publish(RegistrationTarget target, PermissionManifestReq manifest) {
         Objects.requireNonNull(target);
         validation.validate(manifest);
-        var response = client.fullSync(target.tenantId(), target.serviceCode(),
+        var response = client.fullSync(
                 target.credentialId(), target.credentialSecret(), manifest);
         if (response == null || response.getCode() != 200 || response.getData() == null || response.getData().detail() == null) {
             throw new IllegalStateException("manifest request failed or returned an invalid response envelope"

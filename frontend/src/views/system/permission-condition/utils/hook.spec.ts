@@ -1,6 +1,10 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { usePermissionCondition } from "./hook";
-import { updateCondition, getConditionList } from "@/api/permission-condition";
+import {
+  createCondition,
+  updateCondition,
+  getConditionList
+} from "@/api/permission-condition";
 import { createEmptyConditionForm } from "./types";
 
 vi.mock("@/utils/message", () => ({ message: vi.fn() }));
@@ -30,6 +34,22 @@ it("编辑清空原有描述，空值与 Clear 不同时发送", async () => {
       code: "condition",
       description: null,
       descriptionClear: true
+    })
+  );
+});
+
+it("新建空描述发送 null 而非空串（拍板 A：create 面空白拒绝，后端 400 兜底）", async () => {
+  const { submitCondition } = usePermissionCondition();
+  const form = {
+    ...createEmptyConditionForm(),
+    code: "cond-new",
+    name: "条件A"
+  };
+  expect(await submitCondition(form, "create")).toBe(true);
+  expect(createCondition).toHaveBeenCalledWith(
+    expect.objectContaining({
+      code: "cond-new",
+      description: null
     })
   );
 });

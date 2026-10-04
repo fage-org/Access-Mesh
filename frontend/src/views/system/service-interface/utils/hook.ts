@@ -206,8 +206,8 @@ export function useServiceInterface() {
       await saveServiceConfig({
         serviceCode: form.serviceCode,
         name: form.name,
-        basePath: form.basePath || null,
-        description: form.description || null,
+        basePath: form.basePath.trim() || null,
+        description: form.description.trim() || null,
         status: form.status,
         extra: form.extra.trim() || null,
         basePathClear: original?.basePath != null && !form.basePath,

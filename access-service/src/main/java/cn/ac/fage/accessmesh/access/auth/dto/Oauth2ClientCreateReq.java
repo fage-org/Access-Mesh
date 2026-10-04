@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Pattern;
 
 /**
  * OAuth2客户端创建请求记录类
@@ -42,21 +43,25 @@ public record Oauth2ClientCreateReq(
     /**
      * 授权类型（逗号分隔，如"authorization_code,refresh_token")
      */
+    @Pattern(regexp = "(?s)(?U).*\\S.*", message = "grantTypes 不能为空白")
     String grantTypes,
 
     /**
      * 重定向URI列表（逗号分隔）
      */
+    @Pattern(regexp = "(?s)(?U).*\\S.*", message = "redirectUris 不能为空白")
     String redirectUris,
 
     /**
      * 权限范围（逗号分隔）
      */
+    @Pattern(regexp = "(?s)(?U).*\\S.*", message = "scopes 不能为空白")
     String scopes,
 
     /**
      * 令牌受众/目标资源服务器标识（可选，逗号分隔；配置后签发的访问令牌写入 aud claim）
      */
+    @Pattern(regexp = "(?s)(?U).*\\S.*", message = "audiences 不能为空白")
     String audiences,
 
     /**

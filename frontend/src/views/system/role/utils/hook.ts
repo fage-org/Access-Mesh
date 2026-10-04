@@ -143,7 +143,7 @@ export function useRoleManage() {
           externalId: form.externalId || null,
           name: form.name,
           sortOrder: form.sortOrder,
-          extra: form.extra || null
+          extra: form.extra.trim() || null
         });
         message("创建成功", { type: "success" });
       } else if (editingId) {

@@ -211,7 +211,7 @@ export function useResourceOperation() {
           codeType: form.codeType || undefined,
           name: form.name,
           status: form.status,
-          extra: form.extra || null
+          extra: form.extra.trim() || null
         });
         message("资源创建成功", { type: "success" });
       } else if (editing) {

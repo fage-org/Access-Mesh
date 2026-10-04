@@ -10,10 +10,9 @@ import org.springframework.web.bind.annotation.RequestHeader;
 
 @FeignClient(name = "access-service", contextId = "permissionRegistration", primary = false)
 public interface PermissionManifestClient {
+    /** 租户/服务身份由服务端从凭证行派生，自报 X-Tenant-Id/X-Service-Code 头一律忽略——只发凭证头。 */
     @PostMapping("/api/access/integration/permission-manifest/full-sync")
-    R<SyncResultResp> fullSync(@RequestHeader("X-Tenant-Id") Long tenantId,
-                             @RequestHeader("X-Service-Code") String serviceCode,
-                             @RequestHeader("X-Credential-Id") String credentialId,
+    R<SyncResultResp> fullSync(@RequestHeader("X-Credential-Id") String credentialId,
                              @RequestHeader("X-Credential-Secret") String credentialSecret,
                              @RequestBody PermissionManifestReq manifest);
 }

@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.rule.dto.req;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -25,5 +26,5 @@ public record ConditionCreateReq(
     @NotBlank String conditionRules,
     Boolean enabled,
     Boolean gatewayEvaluable,
-    @Size(max = 512) String description
+    @Size(max = 512) @Pattern(regexp = "(?s)(?U).*\\S.*", message = "description 不能为空白") String description
 ) {}

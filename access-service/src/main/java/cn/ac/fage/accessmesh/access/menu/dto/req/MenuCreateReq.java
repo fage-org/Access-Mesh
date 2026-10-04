@@ -57,6 +57,7 @@ public record MenuCreateReq(
      * 图标名称
      */
     @Size(max = 64, message = "图标名称长度不能超过64")
+    @Pattern(regexp = "(?s)(?U).*\\S.*", message = "icon 不能为空白")
     String icon,
 
     /**
