@@ -9,3 +9,7 @@
 ## 清单定案后续实施
 
 [T-PERM-105](tasks/T-PERM-105.md)、[T-ADMIN-035](tasks/T-ADMIN-035.md)、[T-API-006](tasks/T-API-006.md)、[T-ACCESS-079](tasks/T-ACCESS-079.md)、[T-ACCESS-080](tasks/T-ACCESS-080.md) 全部完成，独立任务不追加进已归档计划。[综合验收](tasks/evidence/checklist-followup/final-audit.md)记录完整回归、双轨评审与真实部署边界。
+
+## 示例共享多租户接入
+
+[T-ACCESS-081](tasks/T-ACCESS-081.md) 已完成，替代示例固定单租户安排；当前规则见服务认证 §3.5，[验收证据](tasks/evidence/T-ACCESS-081/verification.md)记录并发、异步、请求头、真实多租户业务验证与完整回归。

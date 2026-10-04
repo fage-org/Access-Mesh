@@ -150,10 +150,8 @@ services:
       NACOS_SERVER_ADDR: nacos:8848
       # 身份签名校验：须与 Gateway 同值（不一致时经 Gateway 的请求一律信封 30003）
       ACCESSMESH_SIGNATURE_SECRET: ${ACCESSMESH_SIGNATURE_SECRET:-}
-      PERM_TENANT_ID: ${PERM_TENANT_ID:-1}
-      PERM_CREDENTIAL_ID: ${PERM_CREDENTIAL_ID:-}
-      PERM_CREDENTIAL_SECRET: ${PERM_CREDENTIAL_SECRET:-}
-      PERM_ALLOW_INSECURE: ${PERM_ALLOW_INSECURE:-}
+      # 共享实例按可信租户选择凭证，JSON 经 Spring Boot 原生绑定，不注入全局默认凭证。
+      SPRING_APPLICATION_JSON: ${EXAMPLE_PERMISSION_CONFIG_JSON:-}
     ports:
       - "127.0.0.1:9300:9300"
     depends_on:

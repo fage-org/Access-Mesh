@@ -358,7 +358,7 @@ perm-sdk/
 | 组件                           | 说明                                                                                                  |
 | ------------------------------ | ----------------------------------------------------------------------------------------------------- |
 | `PermissionFeignClient`        | `@FeignClient(name="access-service")`：checkAuth/batchCheckAuth 等远程查询与角色/资源/授权维护方法（api-contract 契约） |
-| `FeignCredentialInterceptor` | 对运行时查询与同步的 M2M 精确清单注入 `X-Credential-Id/Secret`；SDK 不再分发内部共享密钥，服务身份由凭证绑定租户/服务；当前契约见 [服务认证](service-authentication.md) §3 与契约 §24。 |
+| `FeignCredentialInterceptor` | 对运行时查询与同步的 M2M 精确清单注入 `X-Credential-Id/Secret`；四运行时查询另有显式凭证头重载，共享实例按可信租户选取；SDK 不再分发内部共享密钥，服务身份由凭证绑定租户/服务；当前契约见 [服务认证](service-authentication.md) §3 与契约 §24。 |
 
 #### 4.5.2 perm-gateway-spring-boot-starter
 

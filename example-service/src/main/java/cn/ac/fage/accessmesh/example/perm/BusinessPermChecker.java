@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.example.perm;
 
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.model.R;
@@ -23,7 +23,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 /**
  * 业务最终检查门面（T-ACCESS-061，设计 §8.6 / 契约 §25.7）。
@@ -46,6 +46,7 @@ import java.util.function.Supplier;
  * </p>
  */
 @Component
+@EnableConfigurationProperties(ExamplePermissionProperties.class)
 public class BusinessPermChecker {
 
     private static final Logger log = LoggerFactory.getLogger(BusinessPermChecker.class);
@@ -55,25 +56,21 @@ public class BusinessPermChecker {
     private static final String CONTEXT_KEY_CLIENT_IP = "clientIp";
 
     private final PermissionFeignClient permissionClient;
-    private final String credentialTenantId;
+    private final ExamplePermissionProperties credentials;
 
-    public BusinessPermChecker(PermissionFeignClient permissionClient,
-                               @Value("${perm.tenant-id}") Long credentialTenantId) {
-        if (credentialTenantId == null || credentialTenantId <= 0) {
-            throw new IllegalStateException("perm.tenant-id 必须为凭证所属的正租户 ID");
-        }
+    public BusinessPermChecker(PermissionFeignClient permissionClient, ExamplePermissionProperties credentials) {
         this.permissionClient = permissionClient;
-        this.credentialTenantId = credentialTenantId.toString();
+        this.credentials = credentials;
     }
 
     /** 单目标 DECISION（§8.6 查看/创建/导出/子权限行）。 */
     public Decision check(String tenantId, String userId, String clientIp, Target target) {
-        AuthCheckResp resp = call(tenantId, () -> permissionClient.checkAuth(new AuthCheckReq(
+        AuthCheckResp resp = call(tenantId, credential -> permissionClient.checkAuth(new AuthCheckReq(
             SUBJECT_TYPE_LOCAL_USER, userId,
             target.resourceTypeCode(), target.resourceCode(), target.operationCode(),
             null, null, null,
             target.parentResourceTypeCode(), target.parentResourceCode(), target.parentCodeType(),
-            target.parentOperationCodes(), contextOf(clientIp))));
+            target.parentOperationCodes(), contextOf(clientIp)), credential.credentialId(), credential.credentialSecret()));
         return new Decision(resp.allowed(), resp.reason());
     }
 
@@ -88,9 +85,9 @@ public class BusinessPermChecker {
         for (String code : resourceCodes) {
             items.add(new BatchAuthCheckReq.AuthCheckItem(resourceTypeCode, code, operationCode, null, null, null));
         }
-        BatchAuthCheckResp resp = call(tenantId, () -> permissionClient.batchCheckAuth(
+        BatchAuthCheckResp resp = call(tenantId, credential -> permissionClient.batchCheckAuth(
             new BatchAuthCheckReq(SUBJECT_TYPE_LOCAL_USER, userId, items,
-                null, null, null, null, contextOf(clientIp))));
+                null, null, null, null, contextOf(clientIp)), credential.credentialId(), credential.credentialSecret()));
         Map<String, Decision> byCode = new LinkedHashMap<>();
         for (BatchAuthCheckResp.AuthCheckItemResult item : resp.items()) {
             byCode.put(item.resourceCode(), new Decision(item.allowed(), item.reason()));
@@ -106,10 +103,10 @@ public class BusinessPermChecker {
      */
     public Scope accessibleScope(String tenantId, String userId, String clientIp,
                                  String resourceTypeCode, String operationCode) {
-        QueryResourcesResp resp = call(tenantId, () -> permissionClient.queryResources(
+        QueryResourcesResp resp = call(tenantId, credential -> permissionClient.queryResources(
             new QueryResourcesReq(SUBJECT_TYPE_LOCAL_USER, userId,
                 List.of(resourceTypeCode), List.of(operationCode),
-                null, null, null, null, contextOf(clientIp))));
+                null, null, null, null, contextOf(clientIp)), credential.credentialId(), credential.credentialSecret()));
         boolean all = false;
         Set<String> codes = new LinkedHashSet<>();
         for (QueryResourcesResp.ResourceEntry entry : resp.items()) {
@@ -122,14 +119,11 @@ public class BusinessPermChecker {
         return new Scope(all, codes);
     }
 
-    /** 单租户凭证边界：调用前核对可信租户，再按 fail-closed 解析信封。 */
-    private <T> T call(String tenantId, Supplier<R<T>> call) {
-        if (!credentialTenantId.equals(tenantId)) {
-            throw new BizException(ExampleErrorCode.PERMISSION_DENIED.getCode(),
-                ExampleErrorCode.PERMISSION_DENIED.getMessage());
-        }
+    /** 每次调用按可信租户选凭证；不依赖线程或可变拦截器状态。 */
+    private <T> T call(String tenantId, Function<ExamplePermissionProperties.Credential, R<T>> call) {
+        var credential = credentials.require(tenantId);
         try {
-            R<T> envelope = call.get();
+            R<T> envelope = call.apply(credential);
             if (envelope == null || envelope.getCode() != 200 || envelope.getData() == null) {
                 log.warn("Business final check unavailable: envelope={}, tenantId={}",
                     envelope == null ? "null" : envelope.getCode() + "/" + envelope.getMessage(), tenantId);

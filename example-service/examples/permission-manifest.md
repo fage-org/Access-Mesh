@@ -4,6 +4,8 @@ example-service 的接口鉴权仍由 Gateway 承担。registration starter 默�
 
 先注册来源服务，为 MONTHLY_REPORT 声明 SYNC + syncSourceService=example-service，定义 VIEW，并通过独立资源同步登记 sales-monthly 与 sales-template，再发布[示例清单](permission-manifest.json)。代次 42 仅为示例；实际代次由来源的可靠提交顺序分配并绑定完整快照，不使用本机时间、Git revision 或每次重试新取号。
 
+共享示例的运行时最终检查使用 `example.permission.tenant-credentials`，与本页发布目标分开配置；静态 profile 的 `perm.tenant-id/credential-*` 仅用于发布，不作为缺失运行时租户映射的兜底凭证。运行时配置见[服务认证 §3.5](../../docs/design/service-authentication.md)。
+
 ## 显式动态发布
 
 开启 `perm.registration.enabled=true`，显式声明 `perm.allow-insecure=true/false`，即可注入 PermissionRegistrationPublisher。Provider 仅提供依赖，不返回资源目录。

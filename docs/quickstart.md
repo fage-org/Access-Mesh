@@ -43,13 +43,13 @@ docker compose --profile app up -d --build frontend gateway access-service
 
 **登录**：浏览器打开 http://127.0.0.1/，用户名 `admin` + 你在 `.env` 填的密码（验证码看图输入）。
 
-登录后在「服务与接口」登记 `example-service`，持管理员会话调用 `POST /api/access/service-credential/create`，请求 `{"serviceCode":"example-service"}`。把响应的 `credentialId` 和一次性明文 `secret` 填入 `.env` 的 `PERM_CREDENTIAL_ID` / `PERM_CREDENTIAL_SECRET`，`PERM_TENANT_ID` 填当前租户（空库默认 1）；本地 compose 的 `PERM_ALLOW_INSECURE=true` 明示单信任域。然后运行：
+登录后在各接入租户的「服务与接口」登记 `example-service`，持该租户管理员会话调用 `POST /api/access/service-credential/create`，请求 `{"serviceCode":"example-service"}`。把各自返回的凭证填入 `.env` 的 `EXAMPLE_PERMISSION_CONFIG_JSON`，结构见模板（`example.permission.tenant-credentials`，键为租户 ID；空库默认租户为 1）。本地 `example.permission.allow-insecure=true` 明示单信任域；也可通过 Nacos 配置同一映射。然后运行：
 
 ```bash
 docker compose --profile app up -d --build example-service
 ```
 
-示例不再接收平台内部共享密钥；其他租户的业务最终检查立即拒绝。凭证签发细节见[服务认证契约](design/access-service-api-contract.md#24-服务凭证与-m2m-服务认证t-perm-070)。
+示例不再接收平台内部共享密钥；未配置凭证的租户立即拒绝，不回落默认凭证。凭证签发细节见[服务认证契约](design/access-service-api-contract.md#24-服务凭证与-m2m-服务认证t-perm-070)。
 
 **体验授权闭环**（example 演示接口 403 → 授权 → 200 → 撤销 → 403）：
 
@@ -78,8 +78,8 @@ ACCESSMESH_SIGNATURE_SECRET=<与上同值> PERM_INTERNAL_SECRET=<与上同值> \
   mvn spring-boot:run -pl gateway
 
 # 4. example-service（可选演示服务，另开终端）
-ACCESSMESH_SIGNATURE_SECRET=<与上同值> PERM_TENANT_ID=1 \
-  PERM_CREDENTIAL_ID=<签发标识> PERM_CREDENTIAL_SECRET=<一次性明文> PERM_ALLOW_INSECURE=true \
+ACCESSMESH_SIGNATURE_SECRET=<与上同值> \
+  SPRING_APPLICATION_JSON='<与 .env 模板相同结构的凭证映射 JSON>' \
   mvn spring-boot:run -pl example-service
 
 # 5. 前端（frontend/ 目录；preinstall 强制 pnpm，禁 npm/yarn）

@@ -119,3 +119,5 @@ Claude 按需技能位于 `.claude/skills/`。
 问题清单计划已于 2026-10-04 [完成归档](../archive/2026-10-04/pending-problems-clearance-plan.md)。本批当前结论分布于 API 契约、引擎、组织生命周期、服务认证与页面设计；实际已交付和后续实施的边界见[最终验收](../archive/2026-10-04/tasks/evidence/pending-problems-clearance/final-audit.md)。
 
 清单定案后续实施已于 2026-10-04 完成，当前规则已回写上述权威文档；验证与部署边界见[综合验收](../archive/2026-10-04/tasks/evidence/checklist-followup/final-audit.md)。
+
+示例共享多租户凭证接入已由 T-ACCESS-081 完成，当前规范见服务认证 §3.5；[验收证据](../archive/2026-10-04/tasks/evidence/T-ACCESS-081/verification.md)。

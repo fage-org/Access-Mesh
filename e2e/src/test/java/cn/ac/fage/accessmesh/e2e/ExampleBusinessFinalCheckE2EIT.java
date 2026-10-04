@@ -129,11 +129,16 @@ class ExampleBusinessFinalCheckE2EIT {
             st.execute(ddl);
             st.execute("INSERT INTO service_config (tenant_id, service_code, name, status) VALUES ("
                 + "1, 'example-service', 'Example Service', 1)");
+            st.execute("INSERT INTO service_config (tenant_id, service_code, name, status) VALUES ("
+                + "2, 'example-service', 'Shared Example Tenant Two', 1)");
             try (var ps = conn.prepareStatement("INSERT INTO service_credential "
-                + "(tenant_id, service_code, credential_id, secret_hash, status) VALUES (1, 'example-service', ?, ?, 1)")) {
-                ps.setString(1, "sc-example-e2e");
-                ps.setString(2, cn.dev33.satoken.secure.BCrypt.hashpw("sk-example-e2e"));
-                ps.executeUpdate();
+                + "(tenant_id, service_code, credential_id, secret_hash, status) VALUES (?, 'example-service', ?, ?, 1)")) {
+                for (int tenant = 1; tenant <= 2; tenant++) {
+                    ps.setLong(1, tenant);
+                    ps.setString(2, "sc-example-e2e-" + tenant);
+                    ps.setString(3, cn.dev33.satoken.secure.BCrypt.hashpw("sk-example-e2e-" + tenant));
+                    ps.executeUpdate();
+                }
             }
         }
 
@@ -151,9 +156,11 @@ class ExampleBusinessFinalCheckE2EIT {
             exampleServiceArgs(examplePort, accessPort),
             Map.of("JWT_SECRET_KEY", JWT_SECRET,
                 "ACCESSMESH_SIGNATURE_SECRET", SIGNATURE_SECRET,
-                "PERM_CREDENTIAL_ID", "sc-example-e2e",
-                "PERM_CREDENTIAL_SECRET", "sk-example-e2e",
-                "PERM_ALLOW_INSECURE", "true"),
+                "SPRING_APPLICATION_JSON", JSON.writeValueAsString(Map.of("example", Map.of("permission", Map.of(
+                    "allow-insecure", true,
+                    "tenant-credentials", Map.of(
+                        "1", Map.of("credential-id", "sc-example-e2e-1", "credential-secret", "sk-example-e2e-1"),
+                        "2", Map.of("credential-id", "sc-example-e2e-2", "credential-secret", "sk-example-e2e-2"))))))),
             URI.create("http://localhost:" + examplePort + "/api/example/demo/hello"),
             EXAMPLE_SERVICE_CLASSES_DIR);
 
@@ -594,6 +601,54 @@ class ExampleBusinessFinalCheckE2EIT {
         }
     }
 
+    @Test
+    @Order(12)
+    @DisplayName("共享 example：第二租户真实凭证查询成功，错主体/未接入租户拒绝，吊销不回落默认凭证")
+    void sharedInstance_selectsTenantCredentialForActualFinalCheck() throws Exception {
+        long secondUser = 9_820_001L;
+        try (var conn = java.sql.DriverManager.getConnection(
+            postgres.getJdbcUrl() + "?stringtype=unspecified", postgres.getUsername(), postgres.getPassword());
+             var st = conn.createStatement()) {
+            st.executeUpdate("INSERT INTO type_definition (tenant_id,type_key,type_code,type_value,name,is_system,sort_order,extra) "
+                + "SELECT 2,type_key,type_code,type_value,name,is_system,sort_order,extra FROM type_definition WHERE tenant_id=1 AND delete_flag=0");
+            st.executeUpdate("INSERT INTO operation_permission (tenant_id,resource_type,code,name,binary_bit,inherit_mask) "
+                + "SELECT 2,resource_type,code,name,binary_bit,inherit_mask FROM operation_permission WHERE tenant_id=1 AND delete_flag=0");
+            st.executeUpdate("INSERT INTO abstract_user(id,tenant_id,user_type,external_id,name,enabled) "
+                + "VALUES (9820001,2,3,'9820001','shared tenant user',true)");
+            long role = scalar(st, "INSERT INTO abstract_role(tenant_id,role_type,external_id,name,status) "
+                + "VALUES (2,6,'shared-role','shared role',1) RETURNING id");
+            st.executeUpdate("INSERT INTO user_role(tenant_id,abstract_user_id,target_type,target_id) VALUES (2,9820001,'ROLE'," + role + ")");
+            long type = scalar(st, "SELECT type_value FROM type_definition WHERE tenant_id=2 AND type_key='resource_type' AND type_code='EXAMPLE'");
+            st.executeUpdate("INSERT INTO resource_entity(tenant_id,resource_type,code,code_type,name,status) "
+                + "VALUES (2," + type + ",'report-1','default','tenant two report',1)");
+            long view = scalar(st, "SELECT binary_bit FROM operation_permission WHERE tenant_id=2 AND resource_type=" + type + " AND code='VIEW'");
+            st.executeUpdate("INSERT INTO role_resource_permission(tenant_id,abstract_role_id,resource_type,granted_bits,scope_all,grant_source) "
+                + "VALUES (2," + role + "," + type + "," + view + ",true,'MANUAL')");
+        }
+        String url = "http://localhost:" + exampleService.port() + "/api/example/report/view";
+        String body = "{\"reportCode\":\"report-1\"}";
+        var allowed = parseEnvelope(postEnvelope(url, null, body, signedExampleIdentity("2", secondUser)));
+        assertThat(allowed.path("code").asInt()).as(allowed.toString()).isEqualTo(200);
+        assertThat(allowed.path("data").path("reportCode").asText()).isEqualTo("report-1");
+        assertThat(parseEnvelope(postEnvelope(url, null, body, signedExampleIdentity("1", secondUser))).path("code").asInt()).isEqualTo(30004);
+        assertThat(parseEnvelope(postEnvelope(url, null, body, signedExampleIdentity("3", secondUser))).path("code").asInt()).isEqualTo(30004);
+        try (var conn = java.sql.DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+             var st = conn.createStatement()) {
+            st.executeUpdate("UPDATE service_credential SET status=0 WHERE tenant_id=2");
+        }
+        assertThat(parseEnvelope(postEnvelope(url, null, body, signedExampleIdentity("2", secondUser))).path("code").asInt()).isEqualTo(30005);
+    }
+
+    private static Map<String, String> signedExampleIdentity(String tenant, long user) throws Exception {
+        long timestamp = System.currentTimeMillis() / 1000;
+        var mac = javax.crypto.Mac.getInstance("HmacSHA256");
+        mac.init(new javax.crypto.spec.SecretKeySpec(SIGNATURE_SECRET.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+        String signature = java.util.HexFormat.of().formatHex(mac.doFinal(
+            (user + "|" + tenant + "|" + timestamp).getBytes(StandardCharsets.UTF_8)));
+        return Map.of("X-User-Id", Long.toString(user), "X-Tenant-Id", tenant,
+            "X-User-Signature", signature, "X-Signature-Timestamp", Long.toString(timestamp));
+    }
+
     private static int typeValue() throws Exception {
         try (var conn = java.sql.DriverManager.getConnection(
             postgres.getJdbcUrl() + "?stringtype=unspecified", postgres.getUsername(), postgres.getPassword());
@@ -611,7 +666,7 @@ class ExampleBusinessFinalCheckE2EIT {
             postgres.getJdbcUrl() + "?stringtype=unspecified", postgres.getUsername(), postgres.getPassword());
              var st = conn.createStatement();
              var rs = st.executeQuery(
-                "SELECT config_generation FROM service_config WHERE service_code = 'example-service'")) {
+                "SELECT config_generation FROM service_config WHERE tenant_id = 1 AND service_code = 'example-service'")) {
             rs.next();
             return rs.getLong(1);
         }
@@ -631,6 +686,7 @@ class ExampleBusinessFinalCheckE2EIT {
         while (System.nanoTime() < deadline) {
             try {
                 EnvelopeResult r = postEnvelope(gateway() + path, targetToken, body);
+                if (r.status() != 200) lastError = new IOException("HTTP " + r.status() + ": " + r.rawBody());
                 if (r.status() == 200) {
                     last = parseEnvelope(r);
                     if (expectation.test(last)) {
@@ -737,7 +793,6 @@ class ExampleBusinessFinalCheckE2EIT {
      */
     private static List<String> exampleServiceArgs(int port, int accessPort) {
         return List.of(
-            "--perm.tenant-id=1",
             "--spring.main.web-application-type=servlet",
             "--server.port=" + port,
             "--spring.config.import=optional:classpath:/e2e-nope.yml",

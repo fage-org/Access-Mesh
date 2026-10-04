@@ -81,7 +81,7 @@ dev 运行库初始盘点见 [T-ACCESS-061](../archive/2026-10-01/tasks/T-ACCESS
 
 ## 四、example-service 参考接入形态（T-ACCESS-061 拍板）
 
-- **客户端**：业务服务消费 `perm-client-spring-boot-starter`（Feign），通过 `perm.credential-id` / `perm.credential-secret` / `perm.allow-insecure` 配置服务凭证。example 固定单租户，`perm.tenant-id` 必须等于凭证绑定租户，最终检查前拒绝不匹配的网关验签租户。业务 SDK 不再持有平台共享密钥。
+- **客户端**：业务服务消费 `perm-client-spring-boot-starter`（Feign），通过 `perm.credential-id` / `perm.credential-secret` / `perm.allow-insecure` 配置服务凭证。example 通过 `example.permission.tenant-credentials` 配置各租户凭证，显式声明 `example.permission.allow-insecure`；最终检查按网关验签租户选择并传入 SDK，未接入租户拒绝，不回落固定凭证。业务 SDK 不再持有平台共享密钥。
 - **最终检查调用面**：`auth/check`（单目标 DECISION，含 depend_on 父上下文字段）、
   `auth/batch-check`（独立批量逐项）、`auth/query-resources`（列表/搜索范围）。
 - **失败语义**：业务最终拒绝=example 域信封 30004（HTTP 200，与网关准入 403 形成层次

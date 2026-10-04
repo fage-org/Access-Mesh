@@ -39,7 +39,7 @@ Nacos(8848)：服务注册/配置（三服务共同依赖）
 
 ### 服务凭证接入与内部密钥轮换
 
-外部业务查询/同步统一使用服务凭证，SDK 不再注入内部密钥。先启动 access-service 与 Gateway，管理员注册服务并调用 `/api/access/service-credential/create` 签发；把返回的 credentialId/secret 配到业务服务的 `PERM_CREDENTIAL_ID`/`PERM_CREDENTIAL_SECRET`，同时显式设置 `PERM_ALLOW_INSECURE`。example 另需 `PERM_TENANT_ID`，必须等于凭证绑定租户；不匹配的网关请求在业务最终检查前拒绝。
+外部业务查询/同步统一使用服务凭证，SDK 不再注入内部密钥。先启动 access-service 与 Gateway，管理员注册服务并调用 `/api/access/service-credential/create` 签发；把返回的 credentialId/secret 配到业务服务的 `PERM_CREDENTIAL_ID`/`PERM_CREDENTIAL_SECRET`，同时显式设置 `PERM_ALLOW_INSECURE`。example 使用 `example.permission.tenant-credentials` 映射与 `example.permission.allow-insecure`，通过 Nacos 或 Spring Boot 的 `SPRING_APPLICATION_JSON` 注入（Compose 从 `.env` 的 `EXAMPLE_PERMISSION_CONFIG_JSON` 传入）。每个映射项必须对应该租户真实签发的凭证；无映射的请求拒绝，不回落 SDK 固定凭证。配置更新后重启服务生效，本次不引入热刷新或自动轮换机制。
 
 本批确认无仓外旧调用方（2026-10-04），端点/SDK/示例同批切换。部署验收依次确认：有效凭证查询/同步成功、伪造租户头不改变身份、旧共享密钥加自报服务头拒绝、业务服务不再持有内部密钥。随后生成新的平台内部密钥，只更新 Gateway/access-service 等内部消费者并协调重启，再检查用户访问及 Gateway 准入链路、确认旧密钥失效。不要把签发服务凭证等同于已完成内部密钥轮换；仓库测试不代表真实环境已执行轮换。
 

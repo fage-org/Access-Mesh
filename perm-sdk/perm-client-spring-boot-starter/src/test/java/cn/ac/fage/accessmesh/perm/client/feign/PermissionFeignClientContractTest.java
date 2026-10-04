@@ -29,14 +29,14 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>
  * 封闭语义（评审 P2 修复）：接口的**全部**声明方法都必须满足 POST + 单一
  * {@code @RequestBody}——不以 @PostMapping 预过滤（否则新增 GET/未标注方法会逃逸）；
- * 路径清单为封闭集合且不得重复（Set 比对会掩盖重复映射，用 List 计数）。
+ * 单 DTO 方法路径清单封闭且不得重复；仅四运行时查询允许追加显式凭证头重载。
  * 新增或删除端点必须同步修改本清单。
  * （{@code SyncTaskFeignClient} 已随内部同步链路退役删除，不在契约范围。）
  * </p>
  */
 class PermissionFeignClientContractTest {
 
-    /** SDK 对外契约的封闭路径清单（与方法一一对应）。 */
+    /** SDK 对外契约的封闭路径清单（与单 DTO 方法一一对应）。 */
     private static final Set<String> CONTRACT_PATHS = Set.of(
         "/api/access/abstract-user/remove",
         "/api/access/auth/check",
@@ -77,30 +77,32 @@ class PermissionFeignClientContractTest {
     }
 
     @Test
-    @DisplayName("HTTP 契约：路径封闭清单逐一比对且无重复映射，增删端点必须同步本清单")
+    @DisplayName("HTTP 契约：路径封闭清单；仅运行时查询允许显式凭证重载")
     void contractPathsAreFrozen() {
         assertThat(allInstanceMethods())
             .as("全部方法必须标注 @PostMapping（未标注/GET 方法不得混入 SDK 契约）")
             .allMatch(m -> m.isAnnotationPresent(PostMapping.class));
 
         List<String> actualPaths = allInstanceMethods().stream()
+            .filter(m -> m.getParameterCount() == 1)
             .map(m -> m.getAnnotation(PostMapping.class).value()[0])
             .toList();
 
         assertThat((long) actualPaths.size())
-            .as("接口方法总数必须与契约清单一致（19，T-ACCESS-059 增操作准入两端点），防止增删端点静默漂移")
+            .as("接口方法总数必须与契约清单一致，防止增删端点静默漂移")
             .isEqualTo(CONTRACT_PATHS.size());
         assertThat(actualPaths)
             .as("SDK 声明的路径集合必须与契约清单完全一致")
             .containsExactlyInAnyOrderElementsOf(CONTRACT_PATHS);
-        assertThat(Set.copyOf(actualPaths))
-            .as("路径不得重复映射（两个方法声明同一路径会被 Set 比对掩盖）")
-            .hasSize(actualPaths.size());
+        assertThat(allInstanceMethods().stream().filter(m -> m.getParameterCount() == 3)
+            .map(m -> m.getAnnotation(PostMapping.class).value()[0]).toList())
+            .containsExactlyInAnyOrder("/api/access/auth/check", "/api/access/auth/batch-check",
+                "/api/access/auth/query-resources", "/api/access/auth/query-scopes");
     }
 
     @Test
-    @DisplayName("HTTP 契约：全部方法 POST + 恰好一个 @RequestBody，禁止 GET/路径参数/查询参数/请求头参数")
-    void contractMethodsAreAllPostWithSingleJsonBody() {
+    @DisplayName("HTTP 契约：全部方法 POST + 恰好一个 @RequestBody，禁止 GET/路径参数/查询参数；凭证重载仅允许指定头")
+    void contractMethodsAreAllPostWithSingleJsonBody() throws Exception {
         for (Method method : allInstanceMethods()) {
             PostMapping post = method.getAnnotation(PostMapping.class);
             assertThat(post)
@@ -114,10 +116,22 @@ class PermissionFeignClientContractTest {
             assertThat(post.headers()).as("%s 不得声明请求头", method.getName()).isEmpty();
 
             assertThat(method.getParameterCount())
-                .as("%s 必须有且仅有一个参数（单一 JSON Body）", method.getName()).isEqualTo(1);
+                .as("%s 仅允许单一 JSON Body，或追加独立凭证头", method.getName()).isIn(1, 3);
             assertThat(Arrays.stream(method.getParameterAnnotations()[0])
                 .anyMatch(RequestBody.class::isInstance))
                 .as("%s 的唯一参数必须标注 @RequestBody", method.getName()).isTrue();
+            if (method.getParameterCount() == 3) {
+                for (int index = 1; index <= 2; index++) {
+                    var parameter = method.getParameters()[index];
+                    assertThat(parameter.getType()).isEqualTo(String.class);
+                    assertThat(parameter.getAnnotations()).hasSize(1);
+                    assertThat(parameter.getAnnotation(RequestHeader.class).value())
+                        .isEqualTo(index == 1 ? "X-Credential-Id" : "X-Credential-Secret");
+                }
+                var base = PermissionFeignClient.class.getDeclaredMethod(method.getName(), method.getParameterTypes()[0]);
+                assertThat(base.getAnnotation(PostMapping.class).value()).containsExactly(post.value());
+                assertThat(base.getGenericReturnType()).isEqualTo(method.getGenericReturnType());
+            }
             // 禁用注解按注解实例判定（参数类型检查无效：DTO 参数可同时带 @RequestBody @RequestParam）
             assertThat(Arrays.stream(method.getParameterAnnotations()[0])
                 .noneMatch(a -> a instanceof RequestParam || a instanceof PathVariable || a instanceof RequestHeader))
@@ -175,6 +189,43 @@ class PermissionFeignClientContractTest {
             .containsExactly("subjectTypeCode", "subjectExternalId", "items",
                 "parentResourceTypeCode", "parentResourceCode", "parentCodeType", "parentOperationCodes",
                 "context");
+    }
+
+    @Test
+    void explicitCredentialHeadersReachFeignRequests_withoutGlobalFallback() throws Exception {
+        var json = new com.fasterxml.jackson.databind.ObjectMapper();
+        var requests = new java.util.ArrayList<feign.Request>();
+        var fixed = new cn.ac.fage.accessmesh.perm.common.feign.FeignCredentialInterceptor();
+        org.springframework.test.util.ReflectionTestUtils.setField(fixed, "credentialId", "sc-default");
+        org.springframework.test.util.ReflectionTestUtils.setField(fixed, "credentialSecret", "sk-default");
+        PermissionFeignClient client = feign.Feign.builder()
+            .contract(new org.springframework.cloud.openfeign.support.SpringMvcContract())
+            .encoder((body, type, template) -> {
+                try { template.body(json.writeValueAsString(body)); }
+                catch (com.fasterxml.jackson.core.JsonProcessingException e) { throw new IllegalStateException(e); }
+            })
+            .decoder((response, type) -> null)
+            .requestInterceptor(fixed)
+            .client((request, options) -> {
+                requests.add(request);
+                return feign.Response.builder().request(request).status(200).reason("OK")
+                    .headers(java.util.Map.of()).body("{}", java.nio.charset.StandardCharsets.UTF_8).build();
+            }).target(PermissionFeignClient.class, "http://localhost");
+        for (Method method : allInstanceMethods()) {
+            if (method.getParameterCount() != 3) continue;
+            Class<?> dto = method.getParameterTypes()[0];
+            var constructor = dto.getDeclaredConstructors()[0];
+            Object body = constructor.newInstance(new Object[constructor.getParameterCount()]);
+            method.invoke(client, body, "sc-selected", "sk-selected");
+        }
+        assertThat(requests).hasSize(4);
+        for (var request : requests) {
+            assertThat(request.httpMethod()).isEqualTo(feign.Request.HttpMethod.POST);
+            assertThat(request.headers().get("X-Credential-Id")).containsExactly("sc-selected");
+            assertThat(request.headers().get("X-Credential-Secret")).containsExactly("sk-selected");
+            assertThat(request.headers()).doesNotContainKeys("X-Tenant-Id", "X-Internal-Secret");
+            assertThat(json.readTree(request.body()).has("subjectExternalId")).isTrue();
+        }
     }
 
     private static List<String> recordComponents(Class<?> record) {

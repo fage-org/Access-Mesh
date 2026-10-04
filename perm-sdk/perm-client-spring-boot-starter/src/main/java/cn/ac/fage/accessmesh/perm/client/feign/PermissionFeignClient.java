@@ -19,6 +19,7 @@ import cn.ac.fage.accessmesh.perm.common.dto.resp.UserRolesResp;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 
 /**
  * 权限服务Feign客户端接口
@@ -56,6 +57,12 @@ public interface PermissionFeignClient {
     @PostMapping("/api/access/auth/check")
     R<AuthCheckResp> checkAuth(@RequestBody AuthCheckReq req);
 
+    /** 按请求显式携带服务凭证，用于共享实例的多租户调用；不修改全局拦截器。 */
+    @PostMapping("/api/access/auth/check")
+    R<AuthCheckResp> checkAuth(@RequestBody AuthCheckReq req,
+        @RequestHeader("X-Credential-Id") String credentialId,
+        @RequestHeader("X-Credential-Secret") String credentialSecret);
+
     /**
      * 批量权限校验（使用稳定业务键）
      * <p>
@@ -67,6 +74,12 @@ public interface PermissionFeignClient {
      */
     @PostMapping("/api/access/auth/batch-check")
     R<BatchAuthCheckResp> batchCheckAuth(@RequestBody BatchAuthCheckReq req);
+
+    /** 按请求显式携带服务凭证，用于共享实例的多租户调用；不修改全局拦截器。 */
+    @PostMapping("/api/access/auth/batch-check")
+    R<BatchAuthCheckResp> batchCheckAuth(@RequestBody BatchAuthCheckReq req,
+        @RequestHeader("X-Credential-Id") String credentialId,
+        @RequestHeader("X-Credential-Secret") String credentialSecret);
 
     /**
      * 查询主体可访问资源集合（T-API-002 补齐，core-flows §15 SDK 四件套之一）
@@ -81,6 +94,12 @@ public interface PermissionFeignClient {
     @PostMapping("/api/access/auth/query-resources")
     R<QueryResourcesResp> queryResources(@RequestBody QueryResourcesReq req);
 
+    /** 按请求显式携带服务凭证，用于共享实例的多租户调用；不修改全局拦截器。 */
+    @PostMapping("/api/access/auth/query-resources")
+    R<QueryResourcesResp> queryResources(@RequestBody QueryResourcesReq req,
+        @RequestHeader("X-Credential-Id") String credentialId,
+        @RequestHeader("X-Credential-Secret") String credentialSecret);
+
     /**
      * 查询主资源上下文内的范围权限四态（T-API-002 补齐，core-flows §15 SDK 四件套之一）
      * <p>
@@ -93,6 +112,12 @@ public interface PermissionFeignClient {
      */
     @PostMapping("/api/access/auth/query-scopes")
     R<QueryScopesResp> queryScopes(@RequestBody QueryScopesReq req);
+
+    /** 按请求显式携带服务凭证，用于共享实例的多租户调用；不修改全局拦截器。 */
+    @PostMapping("/api/access/auth/query-scopes")
+    R<QueryScopesResp> queryScopes(@RequestBody QueryScopesReq req,
+        @RequestHeader("X-Credential-Id") String credentialId,
+        @RequestHeader("X-Credential-Secret") String credentialSecret);
 
     // ========== 操作准入（T-ACCESS-059，M2M：per-service 凭证或平台内部密钥形态） ==========
 

@@ -129,7 +129,24 @@ CREATE TABLE service_credential (
 
 `interface-admission`/`interface-admission-snapshot` 的凭证调用仍限定请求 serviceCode 等于凭证服务。Gateway 保留内部密钥的平台查询形态（无自报 X-Service-Code）。签名用户态保持原验证；无用户的同步请求和携带自报服务编码的旧共享密钥请求均拒绝。
 
-示例服务固定单租户部署（2026-10-04 确认）：`perm.tenant-id` 显式配置为凭证所属租户；每次业务最终检查前比对网关验签租户，不匹配立即拒绝。移除原租户发头 ThreadLocal，不建立多租户凭证路由。
+示例服务采用共享实例、多租户独立凭证（T-ACCESS-081，2026-10-04 方案 B 确认，取代 T-ACCESS-079 的固定单租户安排）：按网关验签租户从 `example.permission.tenant-credentials` 选择凭证，通过 SDK 运行时查询显式头重载传入本次请求；无映射立即拒绝 30004，不回落全局固定凭证。配置非空时必须显式声明 `example.permission.allow-insecure`，含义沿 §3.2。异步任务按捕获的租户在执行时选择凭证并重新鉴权，不修改全局拦截器状态、不使用 ThreadLocal。映射由部署方维护，必须配对凭证真实租户；不新增签发/轮换框架或跨租户凭证。实现与验收由 [T-ACCESS-081](../archive/2026-10-04/tasks/T-ACCESS-081.md) 承载。
+
+示例配置（实际 secret 由部署环境/Nacos 注入，不提交仓库）：
+
+```yaml
+example:
+  permission:
+    allow-insecure: true # 本地单信任域；跨边界填 false 并部署 TLS
+    tenant-credentials:
+      "1":
+        credential-id: ${TENANT_1_CREDENTIAL_ID}
+        credential-secret: ${TENANT_1_CREDENTIAL_SECRET}
+      "7":
+        credential-id: ${TENANT_7_CREDENTIAL_ID}
+        credential-secret: ${TENANT_7_CREDENTIAL_SECRET}
+```
+
+映射不可变，配置缺少 secret/租户键非法/有映射而未声明信任域则启动失败；映射为空可以启动但拒绝全部业务最终检查。配置变更通过重启服务生效，不提供自动签发、存储、热刷新或轮换框架。SDK 的既有单 DTO 方法仍支持固定凭证调用方；新增重载只对 check/batch-check/query-resources/query-scopes 追加显式 `X-Credential-Id`/`X-Credential-Secret` 参数，HTTP JSON 请求体和端点不变。
 
 发布边界：当前无部署且已确认无仓外旧调用方（2026-10-04），查询和剩余同步端点、SDK、示例同批切换，取代原阶段一兼容窗口。验收节点为端点与 SDK 接线、仓内外旧业务调用清零、旧纯服务通道关闭、部署时轮换平台内部密钥。轮换操作见 [部署指南](../ops/deployment.md)，未执行真实轮换前不声称旧密钥副本已失效；Gateway/内部设施继续使用内部互信密钥，不以全仓密钥使用清零为退出标准。
 

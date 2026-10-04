@@ -67,7 +67,7 @@ last_reviewed: 2026-10-04
 ### 2.3 SDK 接线
 
 - `perm-client-spring-boot-starter` 通过 `PermissionFeignClient` 调用远程查询/同步；`FeignCredentialInterceptor` 仅对精确 M2M 清单注入凭证。配置 `perm.credential-id`、`perm.credential-secret` 和 `perm.allow-insecure`（true=单信任域明文 hop 可接受；false=跨边界要求 TLS，须由部署保障）。无需配置全局内部密钥。
-- example-service 固定单租户部署：额外设置 `perm.tenant-id` 为凭证绑定租户，每次业务最终检查前与网关验签租户比较；其他租户立即拒绝。没有按请求自动切换凭证的功能。
+- example-service 共享多租户部署：按可信请求租户从 `example.permission.tenant-credentials` 选择独立凭证，通过运行时查询的显式头重载传递；没有配置的租户拒绝，不回落全局固定凭证。非空映射须声明 `example.permission.allow-insecure`；异步导出也按捕获租户重新选择。配置示例见服务认证 §3.5。
 - Gateway 仍负责接口操作准入，业务服务负责实际对象最终检查。非 Java 服务可直接按契约发送凭证头，不必使用 SDK；管理面 Feign 方法仍需另行提供有效用户身份，服务凭证不能替代。
 - `perm-gateway-spring-boot-starter` 用于网关侧。可选 registration starter 只负责依赖发布。
 - SDK `DefaultOpCode.EDIT` 在服务端无预置操作，使用服务端已有的 `UPDATE`；不因本次身份切换改变操作码契约。

@@ -10,7 +10,7 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| access-service 归并（跨服务） | `T-ACCESS` | 081 |
+| access-service 归并（跨服务） | `T-ACCESS` | 082 |
 | permission-center | `T-PERM` | 106 |
 | admin-service | `T-ADMIN` | 036 |
 | gateway | `T-GW` | 011 |
@@ -74,6 +74,12 @@
 | [T-ACCESS-068](../archive/2026-10-04/tasks/T-ACCESS-068.md) | 服务凭证覆盖运行时查询端点阶段二规划 | ✅ | — |
 | [T-PERM-102](../archive/2026-10-04/tasks/T-PERM-102.md) | 外部查询不开放 TRACE 的适配边界核验 | ✅ | — |
 | [T-PERM-103](../archive/2026-10-04/tasks/T-PERM-103.md) | grant_dep_id 保留列处置评估 | ✅ | — |
+
+### 示例共享多租户接入（已完成并归档，2026-10-04）
+
+| ID | 标题 | 状态 | 直接依赖 |
+|---|---|---|---|
+| [T-ACCESS-081](../archive/2026-10-04/tasks/T-ACCESS-081.md) | 示例共享实例按租户选择服务凭证 | ✅ | T-ACCESS-079 |
 
 ### 清单定案后续实施（已完成并归档，2026-10-04）
 

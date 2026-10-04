@@ -2937,6 +2937,8 @@ schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正�
 
 ### 24.3 两类接入形态与 SDK 配置
 
+SDK 运行时查询方法保留单 DTO 入口，并增加 `(req, credentialId, credentialSecret)` 重载；只允许四运行时查询追加这两个认证头，JSON DTO 与服务端契约不变。共享实例必须依据可信租户选取对应凭证，不能修改全局拦截器凭证或按用户请求体选租户。示例配置见服务认证 §3.5。
+
 - **经 Gateway**：`M2mCredentialFilter`（-75，白名单后用户认证前）完整凭证头+M2M 路径 → skipAuth 语义（仅透传、服务端仲裁器终验）；`InternalSecretFilter` 收窄为「无凭证头才兜底注入」；半头/缺头回落 AuthTokenFilter 401。**禁止把 /api/access/** 整体加入白名单**。
 - **SDK 直连**：`perm-common` 的 `FeignCredentialInterceptor`（client 与 registration〔071〕两 starter 共用），配置键：
   - `perm.credential-id` + `perm.credential-secret`：成对必填（半配 fail-fast）；已显式声明凭证头的请求不覆盖；
@@ -3148,7 +3150,7 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
 **T-ACCESS-061 落地记录（2026-09-28，example-service 先行）**：
 
 - **参考路由族**（`ReportController`，示例资源族=EXAMPLE 报表）：`/api/example/report/view`（实际资源+对应操作）、`/batch-view`（独立批量逐项 DECISION，任一允许不放行整批）、`/list`（`query-resources` 范围过滤+分页 total 同口径）、`/create`（TYPE_LEVEL，resourceCode=null——实例准入不授予类型创建权）、`/sub-view`（depend_on 子权限真实父上下文，引擎验证父授权绑定）、`/export/submit`+`/export/status`（异步作业提交与执行时点各自鉴权——执行时点重查同一目标，提交后撤权→作业终态 DENIED）；既有 `/api/example/demo/hello` 的最终检查定位=身份头存在性（无资源目标的问候接口）。逐路由反向拒绝测试=`ReportControllerTest`（20 用例+`ReportControllerValidationTest` 3 用例 HTTP 层反例，迁移资格载体）。
-- **检查客户端形态（用户拍板 2026-09-28）**：业务服务消费 `perm-client-spring-boot-starter`（Feign）调 `auth/check`/`auth/batch-check`/`auth/query-resources`；服务认证=per-service 凭证（SDK `FeignCredentialInterceptor` 注入凭证头），租户由凭证派生；example 单租户部署，最终检查前比对 `perm.tenant-id` 与网关验签租户；主体恒取自可信认证链（已验签 `X-User-Id`），请求 DTO 不携带主体/租户字段。e2e 子进程拓扑注意：access/gateway 子进程须 `--perm.client.enabled=false`（e2e 共享类路径经 example→starter 传染，非消费进程显式关闭）。
+- **检查客户端形态（用户拍板 2026-09-28）**：业务服务消费 `perm-client-spring-boot-starter`（Feign）调 `auth/check`/`auth/batch-check`/`auth/query-resources`；服务认证=per-service 凭证（固定配置经 SDK 拦截器注入，显式重载按本次参数发头），租户由凭证派生；example 共享多租户部署，按网关验签租户选择 `example.permission.tenant-credentials` 中的独立凭证，并通过 SDK 显式请求头重载发送；无映射立即拒绝，不回落固定凭证；主体恒取自可信认证链（已验签 `X-User-Id`），请求 DTO 不携带主体/租户字段。e2e 子进程拓扑注意：access/gateway 子进程须 `--perm.client.enabled=false`（e2e 共享类路径经 example→starter 传染，非消费进程显式关闭）。
 - **业务最终拒绝响应形态**：example 域信封 30004（HTTP 200，与网关准入 403 形成层次区分——同一请求两层可区分）；鉴权服务不可用=fail-closed 30005（信封非 200/data=null/传输异常一律拒绝，不 stale-allow）。
 - **runbook 与演练**：`docs/ops/runbook-service-mode-switch.md`（接入资格核对、暂停恢复与运行库盘点）；演练证据=`ExampleBusinessFinalCheckE2EIT` 的服务暂停/恢复用例（暂停→空快照 403→恢复并更新配置代次→30 秒内放行，恢复以库为准）。
 

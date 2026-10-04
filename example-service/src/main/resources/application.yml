@@ -25,11 +25,9 @@ accessmesh:
   cache:
     enabled: false
 
-# 业务最终检查客户端：身份由服务凭证绑定，业务服务不持有平台内部密钥。
-# 凭证配置经部署环境传入 perm.credential-id / perm.credential-secret / perm.allow-insecure。
-# tenant-id 必填；未配置凭证时查询因缺身份 fail-closed，完成签发配置后再启用业务流量。
+# 运行时凭证由 example.permission.tenant-credentials 映射提供，每次调用显式选取。
+# 通过 Nacos 或 SPRING_APPLICATION_JSON 配置；缺少租户映射时拒绝，不回落 perm 固定凭证。
 perm:
-  tenant-id: ${PERM_TENANT_ID}
   client:
     enabled: true
 
