@@ -7,6 +7,7 @@ import {
   type OrgTreeConfig
 } from "@/api/user-manage";
 import { confirmOrgMoveIfNeeded } from "./confirmMove";
+import { relocateSelectionAfterReload } from "./relocate";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import { ElMessageBox } from "element-plus";
 import { message } from "@/utils/message";
@@ -169,6 +170,18 @@ async function loadTree() {
     // 树加载失败（如无默认树配置租户 11001 fail-closed）——空树降级，避免未处理 rejection
     rawOrgTree.value = [];
     message("组织树加载失败", { type: "error" });
+  }
+  // 刷新后按既有选中重定位：节点仍在树中以服务端新快照重发 org-change
+  //（编辑保存后消费方的 selectedOrg 不再持旧 status/父名）；节点消失走清空链路
+  const relocation = relocateSelectionAfterReload(
+    rawOrgTree.value,
+    selectedOrgId.value
+  );
+  if (relocation.kind === "keep") {
+    selectedOrgName.value = relocation.node.orgName;
+    emit("org-change", relocation.node.id);
+  } else if (relocation.kind === "clear") {
+    clearSelection();
   }
 }
 

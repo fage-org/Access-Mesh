@@ -75,6 +75,7 @@ export type ResourceTreeResp = {
 
 /** 资源树查询参数（对齐 ResourceTreeReq） */
 export type ResourceTreeQuery = {
+  enabledOnly?: boolean;
   resourceTypeCode?: string | null;
   domainCode?: string | null;
 };

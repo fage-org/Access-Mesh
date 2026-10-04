@@ -139,7 +139,7 @@ function findParentOrgName(
 
 /** 获取组织路径（从当前节点向上追溯） */
 function getOrgPath(position: PositionItem): string {
-  if (!props.orgTree) return "-";
+  if (!props.orgTree) return position.parentOrgName || "-";
   const parts: string[] = [];
   // 从当前节点向上追溯父组织链
   let currentId = position.parentOrgId;
@@ -154,7 +154,7 @@ function getOrgPath(position: PositionItem): string {
       break;
     }
   }
-  return parts.length > 0 ? parts.join(" > ") : "-";
+  return parts.length > 0 ? parts.join(" > ") : position.parentOrgName || "-";
 }
 
 /** 递归查找节点 */

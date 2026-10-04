@@ -108,7 +108,7 @@ export function useResourceDependency() {
   async function loadRefData() {
     try {
       const [treeRes, opRes] = await Promise.all([
-        getResourceTree({}),
+        getResourceTree({ enabledOnly: true }),
         getOperationList({})
       ]);
       // 资源映射

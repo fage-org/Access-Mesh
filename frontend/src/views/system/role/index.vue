@@ -312,17 +312,26 @@ function statusTagType(status: number) {
               </span>
             </div>
             <div class="role-info-actions">
-              <el-button
+              <el-tooltip
                 v-if="
                   canGrant && !isReadonlyRoleType(selectedRole.roleTypeCode)
                 "
-                type="primary"
-                size="small"
-                :icon="Key"
-                @click="goPermissionGrant(selectedRole)"
+                :disabled="selectedRole.status === 1"
+                content="角色已禁用，恢复启用后可在授权页选择"
+                placement="top"
               >
-                {{ grantEntryLabel }}
-              </el-button>
+                <span>
+                  <el-button
+                    type="primary"
+                    size="small"
+                    :icon="Key"
+                    :disabled="selectedRole.status !== 1"
+                    @click="goPermissionGrant(selectedRole)"
+                  >
+                    {{ grantEntryLabel }}
+                  </el-button>
+                </span>
+              </el-tooltip>
               <el-button
                 v-if="canEdit && isNodeEditable(selectedRole)"
                 type="primary"

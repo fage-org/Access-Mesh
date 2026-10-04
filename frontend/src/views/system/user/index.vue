@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { findParentOrgName } from "./utils/orgTree";
+import { getParentOrgLabel } from "./utils/orgTree";
 import UserDetailPanel from "./components/UserDetailPanel.vue";
 import MemberTab from "./components/MemberTab.vue";
 import PositionTab from "./components/PositionTab.vue";
@@ -121,12 +121,7 @@ function openOrgForm(mode: "create" | "edit", node?: OrgTreeNode) {
   const isEdit = mode === "edit";
   const parentOrgId = isEdit ? (node?.parentOrgId ?? null) : (node?.id ?? null);
   const parentOrgName = isEdit
-    ? node?.parentOrgId
-      ? (findParentOrgName(
-          orgTreePanelRef.value?.orgTree || [],
-          node.parentOrgId
-        ) ?? "未知")
-      : "根组织"
+    ? getParentOrgLabel(node)
     : (node?.orgName ?? "");
 
   // 编辑时准备初始数据
@@ -292,26 +287,28 @@ async function onNodeMove(node: OrgTreeNode, targetParentId: number) {
               {{ selectedOrg.status === 1 ? "启用" : "禁用" }}
             </el-tag>
             <span class="org-parent-info">
-              上级部门：{{
-                selectedOrg.parentOrgId
-                  ? (findParentOrgName(
-                      orgTreePanelRef?.orgTree || [],
-                      selectedOrg.parentOrgId
-                    ) ?? "未知")
-                  : "根组织"
-              }}
+              上级部门：{{ getParentOrgLabel(selectedOrg) }}
             </span>
           </div>
           <div class="org-info-actions">
-            <el-button
+            <el-tooltip
               v-if="canGrantPerm"
-              type="primary"
-              size="small"
-              :icon="Key"
-              @click="goPermissionGrant"
+              :disabled="selectedOrg.status === 1"
+              content="组织已禁用，恢复启用后可在授权页选择"
+              placement="top"
             >
-              {{ grantEntryLabel }}
-            </el-button>
+              <span>
+                <el-button
+                  type="primary"
+                  size="small"
+                  :icon="Key"
+                  :disabled="selectedOrg.status !== 1"
+                  @click="goPermissionGrant"
+                >
+                  {{ grantEntryLabel }}
+                </el-button>
+              </span>
+            </el-tooltip>
             <el-button
               v-if="canEditOrg"
               type="primary"

@@ -40,6 +40,7 @@ export type OrgTreeNode = {
   orgName: string;
   code: string;
   parentOrgId: number | null;
+  parentOrgName?: string | null;
   orgType: number; // 字典值（后端 Integer）
   status: number;
   sort: number;
@@ -149,12 +150,13 @@ export type OrgPageQuery = {
   orgId?: number;
 };
 
-/** 组织分页项（平铺；后端分页项即 OrgResp，无 parentOrgName——父组织名由调用方本地映射） */
+/** 组织分页项（平铺；后端分页项即 OrgResp，父名随响应提供） */
 export type OrgPageItem = {
   id: number;
   orgName: string;
   code: string;
   parentOrgId: number | null;
+  parentOrgName?: string | null;
   orgType: number;
   status: number;
   sort: number;

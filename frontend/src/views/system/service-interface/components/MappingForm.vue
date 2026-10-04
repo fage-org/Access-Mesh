@@ -72,7 +72,10 @@ const {
 } = useListLoad<TreeSelectNode>({
   errorText: "加载资源树失败",
   fetcher: async () => {
-    const res = await getResourceTree({ resourceTypeCode: treeTargetTypeCode });
+    const res = await getResourceTree({
+      resourceTypeCode: treeTargetTypeCode,
+      enabledOnly: true
+    });
     return toTreeSelectNodes(
       res.items.map(i => i.root).filter((n): n is ResourceTreeNode => n != null)
     );

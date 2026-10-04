@@ -6,6 +6,7 @@
  */
 import {
   computed,
+  nextTick,
   onActivated,
   onMounted,
   onBeforeUnmount,
@@ -197,7 +198,7 @@ export function usePermissionGrant() {
         // （访问控制由后端类型级 VIEW 门禁 T-PERM-042 承担，无权限者收到接口错误提示；
         // RESOURCE/OPERATION 虽已随 T-PERM-025 补入 /api/access/auth/user-menu 权限串白名单，
         // 仍维持不做前端前置的既有设计）
-        getResourceTree({}),
+        getResourceTree({ enabledOnly: true }),
         getOperationList({})
       ]);
       // 🔧 T-FE-040 v3.1（S5）：条件查看全租户开放（2026-08-08 产品确认），条件列表始终加载；
@@ -545,7 +546,10 @@ export function usePermissionGrant() {
         // 原子提交（context+baseline，无网络）；任一读失败整体失败、context 不提交，
         // 杜绝"树/操作/标记失败但主体已切换"的部分提交
         const [treeResp, opResp, markResp, baselineItems] = await Promise.all([
-          getResourceTree({ resourceTypeCode: opts.typeCode }),
+          getResourceTree({
+            resourceTypeCode: opts.typeCode,
+            enabledOnly: true
+          }),
           getOperationList({ resourceTypeCode: opts.typeCode }),
           // 全量主权限查询一次 → "已有权限类型"标记（§2.2 标记/排序；
           // 缺省 resourceTypeCode 返回全量，兼容契约 §6.4）
@@ -587,7 +591,7 @@ export function usePermissionGrant() {
       // 无部分提交问题；失败不回滚，§3.6 步骤 2 语义）
       const [storeOk, treeResp, opResp] = await Promise.all([
         grantStore.switchMatrixType(opts.typeCode),
-        getResourceTree({ resourceTypeCode: opts.typeCode }),
+        getResourceTree({ resourceTypeCode: opts.typeCode, enabledOnly: true }),
         getOperationList({ resourceTypeCode: opts.typeCode })
       ]);
       // 序号守卫：过期请求不写任何状态
@@ -729,9 +733,25 @@ export function usePermissionGrant() {
             subjectType.value === "ORG" ? undefined : "BASIC_ROLE"
           );
           if (!found) {
-            // 预选目标不存在（入口指向已停用/已删除主体或 query 失效）：清空旧主体并消费
-            // query——keep-alive 下旧 context/baseline 保留会让矩阵仍指向旧主体、
-            // 后续保存作用于错误主体（同 clearSubject 语义：主体失效即清空；作废在途防复活）
+            if (!(await confirmDiscardIfDirty())) {
+              // 放弃跳转时回到草稿所属入口，避免下次刷新用另一类主体树误清旧草稿。
+              const current = grantStore.context;
+              await router.replace({
+                query: {
+                  ...route.query,
+                  subjectType:
+                    current?.roleTypeCode === "ORG" ||
+                    current?.roleTypeCode === "POSITION"
+                      ? "ORG"
+                      : "ROLE",
+                  roleExternalId: undefined
+                }
+              });
+              await nextTick();
+              await subjectTreeRef.value?.loadTree();
+              break;
+            }
+            // 确认后清空旧主体并消费失效预选，作废在途响应防止旧主体复活。
             ++matrixToken;
             matrixLoading.value = false;
             grantStore.cancelPending();
@@ -740,9 +760,12 @@ export function usePermissionGrant() {
             router.replace({
               query: { ...route.query, roleExternalId: undefined }
             });
-            message(`未找到指定${subjectLabel.value}，请重新选择`, {
-              type: "warning"
-            });
+            message(
+              `未找到指定${subjectLabel.value}或该主体已停用，请重新选择`,
+              {
+                type: "warning"
+              }
+            );
             break;
           }
           if (isSamePresetSubject(grantStore.context, found)) {
