@@ -3,7 +3,7 @@ doc_type: design
 title: 微服务架构设计
 status: adopted
 domain: common
-last_reviewed: 2026-09-28（T-ACCESS-062 退役口径：接口资源注册/同步通道改 sync-v2、接口权限演示改操作准入+业务最终检查）；此前 2026-09-15 服务清单与拓扑图、§3 章节标题与正文、§6 决策表的域前缀表述清扫；结构契约 capability-structure）
+last_reviewed: 2026-10-04
 ---
 
 # 微服务架构设计
@@ -114,7 +114,7 @@ last_reviewed: 2026-09-28（T-ACCESS-062 退役口径：接口资源注册/同�
 - **路由转发**：按配置规则将请求转发到后端服务
 - **Token 校验**：解析 Sa-Token 令牌，提取租户和主体信息，清洗外部伪造 Header 后注入标准请求头
 - **接口鉴权**：快照模式对接 access-service（T-PERM-001），本地内存匹配判定接口权限，未覆盖场景回退实时鉴权
-- **白名单管理**：公开接口（登录、注册、公开资源等）免鉴权；健康检查不在主端口白名单——actuator 经独立管理端口提供（T-GW-007）
+- **白名单管理**：公开/自服务入口与 OAuth2 族按 [Gateway 设计](services/gateway.md) 的精确配置跳过网关鉴权；是否需要会话或 JWT 仍由下游入口判定。运行时鉴权/查询端点不因位于 auth 路径而豁免；健康检查经独立管理端口提供（T-GW-007）。
 - **请求头增强**：向下游注入 X-Tenant-Id、X-User-Id、X-Request-Id 等标准头
 
 ### 2.2 模块划分
@@ -168,7 +168,7 @@ last_reviewed: 2026-09-28（T-ACCESS-062 退役口径：接口资源注册/同�
 - 使用 `sa-token-reactor-spring-boot3-starter`（WebFlux 版本）
 - Token 存储对接 Redis（`sa-token-redis-jackson`）
 - Gateway 只做 Token 解析和校验，**不做登录签发**
-- 登录接口 `/api/access/auth/**` 在白名单中，请求透传到 access-service
+- 登录、自服务及 OAuth2 入口按 Gateway 精确白名单透传到 access-service；不将 `/api/access/auth/**` 整族放行，运行时查询仍受服务认证约束。
 
 ---
 
@@ -358,7 +358,8 @@ perm-sdk/
 | 组件                           | 说明                                                                                                  |
 | ------------------------------ | ----------------------------------------------------------------------------------------------------- |
 | `PermissionFeignClient`        | `@FeignClient(name="access-service")`：checkAuth/batchCheckAuth 等远程查询与角色/资源/授权维护方法（api-contract 契约） |
-| `FeignInternalSyncInterceptor` | 同步/写路径身份透传：注入 `X-Internal-Secret`（`${perm.internal-secret}`）与 `X-Service-Code`（`${perm.service-code}`） |
+| `FeignInternalSyncInterceptor` | 旧共享密钥通道身份透传（含当前运行时查询）：注入 `X-Internal-Secret`（`${perm.internal-secret}`）与 `X-Service-Code`（`${perm.service-code}`） |
+| `FeignCredentialInterceptor` | 仅对 M2M 精确清单注入 `X-Credential-Id/Secret`；与旧密钥拦截器并存时服务端凭证优先。当前 check/batch-check/query-resources/query-scopes 仍走旧身份边界，扩展归 T-ACCESS-068；当前契约见 [服务认证](service-authentication.md) §3 与契约 §24。 |
 
 #### 4.5.2 perm-gateway-spring-boot-starter
 

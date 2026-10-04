@@ -3,7 +3,7 @@ doc_type: design
 title: 项目开发规范（PROJECT RULES）
 status: adopted
 domain: common
-last_reviewed: 2026-09-26
+last_reviewed: 2026-10-04
 ---
 
 # 项目开发规范（PROJECT RULES）
@@ -467,6 +467,8 @@ private LocalDateTime deletedAt;
 生产与测试代码的局部变量均允许 `var`，可与显式类型混用，不要求统一改写存量声明。[来源](../archive/2026-09-26/decision-registry-before.md)（原第 157 行）。
 
 ### 7.6 可编辑字段显式清空协议（T-API-004，2026-09-24 U006 拍板）
+
+剩余字段的可清空范围按契约 §2.7 后续字段表（T-API-005，2026-10-04）执行，实施归 T-API-006；不从数据库列可空性自动推导 API 可清空。菜单路径/资源关联及 OAuth2 必需字段不提供 Clear，创建缺省行为保持。
 
 更新类 Req DTO 的可选字段统一三态语义：**未传/null=不修改**、**非空值=设置**、**`xxxClear=true`=清空为 NULL**（JSON null 无法区分「未传」与「清空」，显式布尔标志是唯一清空通道；协议详情见契约总册 §2.7）。硬约束：
 

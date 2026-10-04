@@ -1,0 +1,37 @@
+[
+  {
+    "class": "RetiredRoleApiContractTest",
+    "cases": 7,
+    "failed_or_skipped": 0
+  },
+  {
+    "class": "RetiredGrantApiContractTest",
+    "cases": 6,
+    "failed_or_skipped": 0
+  },
+  {
+    "class": "RJsonTest",
+    "cases": 1,
+    "failed_or_skipped": 0
+  },
+  {
+    "class": "RWireShapeTest",
+    "cases": 2,
+    "failed_or_skipped": 0
+  },
+  {
+    "class": "ResourceSortOrderRetiredTest",
+    "cases": 5,
+    "failed_or_skipped": 0
+  },
+  {
+    "class": "ServiceConfigSyncOperationCodeRetiredTest",
+    "cases": 2,
+    "failed_or_skipped": 0
+  },
+  {
+    "class": "FullSyncResponseContractTest",
+    "cases": 7,
+    "failed_or_skipped": 0
+  }
+]

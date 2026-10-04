@@ -48,6 +48,9 @@ docs/
 ├── tasks/                             # 任务（原子执行单元，看板为唯一权威清单）
 │   └── README.md
 └── archive/                           # 归档文档（仅追溯，不作为实现依据）
+    ├── 2026-10-04/
+    ├── 2026-10-03/
+    ├── 2026-10-01/
     ├── 2026-09-26/
     ├── 2026-09-21/
     ├── 2026-09-20/
@@ -101,7 +104,7 @@ docs/
 
 ## 执行计划
 
-当前无活跃计划。最近归档批次：[R2 权限查询引擎统一与操作准入（方案 A）](archive/2026-10-01/r2-query-engine-and-admission-plan.md)（2026-09-25 立项 → 2026-10-01 收口归档：24 任务全 done——旧执行体删除、全消费者迁新 execute、操作准入统一上线、引擎指标接 Micrometer 与上线门槛收口；[r2 设计稿](design/r2-unified-query-and-admission.md)转 superseded，稳定结论回写 [engine/implementation.md](design/engine/implementation.md)〔§3 族+§3.11〕/契约总册 §25/gateway.md）；[IAM核心正确性与用户任务闭环计划](archive/2026-09-24/iam-task-closure-plan.md)（2026-09-24 收口归档，18 任务全 done；[方案](design/iam-task-closure.md)为draft，未决取舍在对应任务启动时确定）。
+当前无活跃计划。已完成并归档：[问题清单转出](archive/2026-10-04/pending-problems-clearance-plan.md)、[测试证据精简与维护成本优化](archive/2026-10-04/testing-simplification-plan.md)。后续独立实施任务及实时状态见[任务看板](tasks/README.md)。
 
 | 主题 | 文档 |
 |------|------|
@@ -196,3 +199,5 @@ docs/
 | `archive/2026-05-30/` | 前端集成方案、Service 层重构审查、权限中心重构影响分析等阶段性文档。                                   | [archive/2026-05-30/README.md](archive/2026-05-30/README.md) |
 | `archive/2026-05-24/` | PermQueryEngine 设计与重构阶段归档。                                                                   | [archive/2026-05-24/README.md](archive/2026-05-24/README.md) |
 | `archive/2026-04-28/` | 文档重整前的旧版长文档和讨论清单。                                                                     | [archive/2026-04-28/README.md](archive/2026-04-28/README.md) |
+
+旧库迁移资产历史追溯：[2026-10-03 支持退出归档](archive/2026-10-03/README.md#retired-migrations)。当前支持范围以所属设计为准，归档脚本不是现役执行入口。

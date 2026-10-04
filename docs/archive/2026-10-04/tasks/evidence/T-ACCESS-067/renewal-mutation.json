@@ -1,0 +1,9 @@
+{
+  "exit": 1,
+  "cases": 1,
+  "failures": {
+    "perRequestRenewal_keepsContinuousUsageAlive": "[本次请求实际续写活动时间] \nExpecting actual:\n  1791040943493L\nto be greater than or equal to:\n  1791040943632L\n"
+  },
+  "errors": 0,
+  "skips": 0
+}

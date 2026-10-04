@@ -1,0 +1,44 @@
+[
+  {
+    "class": "PlatformSessionIdleTimeoutTest",
+    "cases": 2,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0
+  },
+  {
+    "class": "PlatformSessionAbsoluteTimeoutTest",
+    "cases": 3,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0
+  },
+  {
+    "class": "AuthTokenFilterTest",
+    "cases": 13,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0
+  },
+  {
+    "class": "GatewayInvalidationRaceTest",
+    "cases": 3,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0
+  },
+  {
+    "class": "DualInstanceCacheInvalidationTest",
+    "cases": 7,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0
+  },
+  {
+    "class": "TaskExecutionLeaseConcurrencyTest",
+    "cases": 10,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0
+  }
+]

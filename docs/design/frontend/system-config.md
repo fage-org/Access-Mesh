@@ -3,15 +3,15 @@ doc_type: design
 title: 6.2 系统配置页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-09-20   # T-FE-056 收口：「路由可达性」口径清扫为 menus 派生路由门禁（机制与回归锁见 login.md §路由级 UX 门禁）；此前 2026-09-15 # 2026-09-03 T-FE-022 联调收口（mock 退役/api 切 Gateway /perm 前缀/浏览器冒烟全过）——ConfigForm 键名 Pattern 对齐后端命名空间前缀强制；keyword LIKE CAST 修复；2026-08-31   # 2026-08-31 T-PERM-037 收口：路由级 auths 登记收口（menus 接线归 Phase 3 T-FE-015）；2026-08-28 T-PERM-024 收口：§5/§8/§9 终态化（契约要点补全、种子误报澄清、JSONB 实证+isSystem 修复、list 服务端分页）
+last_reviewed: 2026-10-04
 ---
 
 # 6.2 系统配置页 前端设计
 
 > **T-FE-022 联调注记（2026-09-03）**：api/system-config.ts 三端点（detail 页面不消费）切 Gateway `/api/access/system-config/*`；mock/system-config.ts 整删；ConfigForm configKey 校验由 `^[A-Z][A-Z0-9_]*$` 对齐后端 T-ACCESS-007 §5.2 命名空间前缀强制（`^(admin|permission|access)\.[A-Z][A-Z0-9_]*$`，旧 Pattern 与后端互斥致新建链路必被前端挡死）；后端 list keyword 过滤 CAST 修复（见 TypeDefinitionMapper 锚点注释）。
 
-> 任务：T-FE-004（Phase 1，mock 驱动）
-> 后端契约：`docs/design/access-service-api-contract.md`（契约总册）§17.2（系统配置仅 3 行表格条目，无独立字段契约章节——🔧 登记 T-PERM-024）
+> 当前实现：真实 system-config API；首版页面由 T-FE-004 建立。
+> 后端契约：`docs/design/access-service-api-contract.md` §17.2；描述清空目标与实施差异见 §2.7（T-API-005）。
 > 参照范式：6.1 类型定义页（`type-definition.md`，PureTableBar 表格列表范式 + SSOT/降级/核对清单结构）
 
 ## 1. 页面定位
@@ -73,22 +73,21 @@ PureTableBar 表格列表范式（遵循 `frontend-layout-patterns`），与 6.1
 
 ### 4.1 列表加载与过滤
 
-- **加载**：进入页面 `getSystemConfigList({})` → 后端返回 `ItemsResp`（全量，无分页/无过滤，见 §8 🔧 第 1 条）→ hook `loadTable` 本地做 keyword 过滤 + configKey 排序 + 切片分页。
-- **keyword 搜索**：hook 本地按 configKey / description 模糊匹配。
-- **分页**：`onPageChange` / `onPageSizeChange`，`pagination.total` = 本地过滤后长度，`tableData` = 切片后的当前页。
-- **配置项量小**：每次翻页重拉全量可接受；Phase 2 后端补 keyword/pageNum/pageSize 参数 + 返回 PageResp 后（T-PERM-024）可切回服务端分页。
+- 列表经 usePagedList 调用 getSystemConfigList，发送 keyword/pageNum/pageSize，后端返回 PageResp。
+- keyword 的 configKey/description 匹配及 configKey,id 排序由服务端完成；翻页重新请求当前页，total 取响应值。
+- 刷新与搜索沿公共列表机制处理请求代际、失败提示和分页状态，不在 hook 内重复全量切片。
 
 ### 4.2 新增
 
 - 顶部「新增配置」按钮（门禁 `SYSTEM_CONFIG:MANAGE`）→ 表单弹窗。
 - 表单：configKey 可填、configValue textarea（默认 `{}`）、description。提交前 `JSON.parse` 校验 configValue 合法性。
-- 提交 → `saveSystemConfig`（configKey + configValue + description）→ mock 按 configKey upsert（不存在则 insert，自动分配 id + 时间戳）→ 成功 `loadTable`。
+- 提交 → `saveSystemConfig`（configKey + configValue + description）→ 真实 API 按 configKey upsert（不存在则创建）→ 成功 `loadTable`。
 
 ### 4.3 编辑
 
 - 操作列「编辑」按钮（`v-if="canSave"`，门禁 `SYSTEM_CONFIG:MANAGE`）→ 表单弹窗。
 - 编辑态：configKey 只读（唯一键稳定），configValue/description 可改。提交前 `JSON.parse` 校验。
-- 提交 → `saveSystemConfig`（同 configKey 覆盖，upsert update 分支）→ mock 更新 configValue/description/updatedAt → 成功 `loadTable`。
+- 提交 → `saveSystemConfig`（同 configKey 覆盖，upsert update 分支）→ 真实 API 更新配置并返回结果 → 成功 `loadTable`。
 
 ### 4.4 删除
 
@@ -121,7 +120,7 @@ views/system/config/
 
 | 候选 | 本页使用场景 | 跨页复用 | 确认状态 |
 |---|---|---|---|
-| 分页表格 hook（tableData/pagination/loadTable/CRUD） | 本页表格 | 6.1 类型定义 / 7.1 操作日志 / 7.2 变更日志（同范式表格列表） | ⏳ 待确认（T-FE-005/012 推进时，模式一致则派生 ReTableHook） |
+| 分页表格 hook（tableData/pagination/loadTable/CRUD） | 本页表格 | 6.1 类型定义 / 7.1 操作日志 / 7.2 变更日志（同范式表格列表） | 已复用 usePagedList（当前分页与加载逻辑单源） |
 | JSON 编辑校验（textarea + JSON.parse） | 本页 configValue | 3.2 权限条件 extra / 6.1 类型定义 extra（JSON 字段编辑） | ⏳ 待确认（T-FE-009 推进时） |
 
 > 当前不提前抽取，待 2+ 页确认模式一致后由 T-FE-001 派生子任务。

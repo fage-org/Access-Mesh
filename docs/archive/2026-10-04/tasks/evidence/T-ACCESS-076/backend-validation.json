@@ -1,0 +1,2847 @@
+{
+  "verified_at": "2026-10-04T00:19:16.350067",
+  "base_head": "71e3c5e34ebe612c9940f97a3cba9d2abbd7d236",
+  "frozen_inputs": 1455,
+  "changed_inputs": [],
+  "reports": 282,
+  "testcases": 2429,
+  "modules": {
+    "common": 69,
+    "gateway": 124,
+    "access-service": 2108,
+    "example-service": 44,
+    "perm-sdk/perm-common": 26,
+    "perm-sdk/perm-client-spring-boot-starter": 15,
+    "perm-sdk/perm-registration-spring-boot-starter": 14,
+    "e2e": 29
+  },
+  "pg_classes": 70,
+  "heavy": {
+    "cn.ac.fage.accessmesh.access.engine.InterfaceAdmissionHeavyPgIT": 2,
+    "cn.ac.fage.accessmesh.access.sync.ResourcePublicationHeavyPgIT": 1
+  },
+  "critical_missing": [],
+  "maven_time": "17:58 min (Wall Clock)",
+  "rows": [
+    {
+      "module": "common",
+      "class": "cn.ac.fage.accessmesh.common.cache.CacheAutoConfigurationTest",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "4.878",
+      "report_sha256": "d395cdeab1f2f89703f68f2705ab0d14583dd9f3f284df87dc6d1a501b5b8cb8"
+    },
+    {
+      "module": "common",
+      "class": "cn.ac.fage.accessmesh.common.cache.CacheCatalogEntryTest",
+      "cases": 7,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.053",
+      "report_sha256": "296f327663945fbce88d10e712538571f99d1e6c5063d8743b8e304fe4a1f46e"
+    },
+    {
+      "module": "common",
+      "class": "cn.ac.fage.accessmesh.common.cache.CacheEffectiveTtlTest",
+      "cases": 8,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.141",
+      "report_sha256": "88b5292d8261a0541b761700e263c7bb32a4e1c11a4aced828c46579c3bc03e2"
+    },
+    {
+      "module": "common",
+      "class": "cn.ac.fage.accessmesh.common.cache.CacheInvalidationBroadcasterTest",
+      "cases": 6,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.3",
+      "report_sha256": "48a8d8927cbae789899dd6d87f1c1735b551468fedd74646fc07462e041c8e28"
+    },
+    {
+      "module": "common",
+      "class": "cn.ac.fage.accessmesh.common.cache.CacheKeyUtilTest",
+      "cases": 9,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.034",
+      "report_sha256": "de07849cedcc2c42cf0f8ea78dd985d059b27f857075d5ae2dcac0d176b005d6"
+    },
+    {
+      "module": "common",
+      "class": "cn.ac.fage.accessmesh.common.cache.CachePropertiesBindingTest",
+      "cases": 4,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.041",
+      "report_sha256": "ce3ddd5f566c7e62bd240f2cca66d21a71cb6ea02f08e43af7b8bd2b04f1cb8d"
+    },
+    {
+      "module": "common",
+      "class": "cn.ac.fage.accessmesh.common.cache.impl.CaffeineSecondsPrecisionTest",
+      "cases": 5,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.325",
+      "report_sha256": "fa422346c6cf38bc8cba1013e28ca5405ce15c52d12a1b1c89f75eac81751455"
+    },
+    {
+      "module": "common",
+      "class": "cn.ac.fage.accessmesh.common.cache.impl.CatalogWideEvictAllTest",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.097",
+      "report_sha256": "fa223c820878e221e2f8d771a1a15a41265feaa5b94a5bede744c3e969793abe"
+    },
+    {
+      "module": "common",
+      "class": "cn.ac.fage.accessmesh.common.cache.impl.CombinedL1L2BackfillGatingTest",
+      "cases": 4,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.443",
+      "report_sha256": "e7a32d16872172a7c9473d6d2f2ed639c8d7713170f0bd43dd2caa54bc239fbb"
+    },
+    {
+      "module": "common",
+      "class": "cn.ac.fage.accessmesh.common.cache.impl.RedissonSecondsPrecisionTest",
+      "cases": 8,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.037",
+      "report_sha256": "cac05b30514c1deda5f29d2a4461a3e37b067f5c715c23973d2f7f91951e1828"
+    },
+    {
+      "module": "common",
+      "class": "cn.ac.fage.accessmesh.common.cache.TypeRefTest",
+      "cases": 4,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.006",
+      "report_sha256": "b910dda93f4b7550c6d1d7575fe2cf36df3fd3a52a0be656b7df5220c9c2578f"
+    },
+    {
+      "module": "common",
+      "class": "cn.ac.fage.accessmesh.common.model.RJsonTest",
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.028",
+      "report_sha256": "b72e5da195dd0b533108b36319953364b6d2399549b656f29f855dbb50e8694b"
+    },
+    {
+      "module": "common",
+      "class": "cn.ac.fage.accessmesh.common.model.RWireShapeTest",
+      "cases": 2,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.013",
+      "report_sha256": "303c6ebaf615f255c46e430eacf60a08ce0d70e3eed6dee188365b2cb0fa9cc6"
+    },
+    {
+      "module": "common",
+      "class": "cn.ac.fage.accessmesh.common.security.M2mCredentialEndpointsTest",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.011",
+      "report_sha256": "6734506d64b77358ceba02f4d17d26e42350f82c007f7b40d9b0964c446067e7"
+    },
+    {
+      "module": "common",
+      "class": "cn.ac.fage.accessmesh.common.timezone.UtcTimezoneEnvironmentPostProcessorTest",
+      "cases": 2,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.047",
+      "report_sha256": "a89cac9a4a35e653b20ecb56102a373c406f48133bc9d30b2c7457aee1b404fc"
+    },
+    {
+      "module": "gateway",
+      "class": "cn.ac.fage.accessmesh.gateway.cache.GatewayInvalidationRaceTest",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "7.352",
+      "report_sha256": "c4409c4ab5f595520c62055c89356ae0e29b980cbc64c8a176fe49c01ee076ab"
+    },
+    {
+      "module": "gateway",
+      "class": "cn.ac.fage.accessmesh.gateway.cache.InterfaceSnapshotCacheInvalidatorTest",
+      "cases": 6,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.059",
+      "report_sha256": "34447a5c3cdeb0d86d0666032d2811457f82e894a8204980e0d5966ebb810df7"
+    },
+    {
+      "module": "gateway",
+      "class": "cn.ac.fage.accessmesh.gateway.cache.InterfaceSnapshotLoadRegistryTest",
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.03",
+      "report_sha256": "5418e69d3d1be05186b8ff1602ec3efe7b527118da02a6ce87e909d6698a8d44"
+    },
+    {
+      "module": "gateway",
+      "class": "cn.ac.fage.accessmesh.gateway.cache.InvalidationMarkerTest",
+      "cases": 5,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.029",
+      "report_sha256": "d10ce2894a94fc7d883456c25fe7c9c04b16d9ebd85f96a55171a7dd9a668a1d"
+    },
+    {
+      "module": "gateway",
+      "class": "cn.ac.fage.accessmesh.gateway.cache.PermInvalidationSubscriberTest",
+      "cases": 5,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "1.097",
+      "report_sha256": "d924b4d50653d11f35a014ac0897c3ec479857c07c0cc39be9de4bdee6ee8b37"
+    },
+    {
+      "module": "gateway",
+      "class": "cn.ac.fage.accessmesh.gateway.config.ForwardHeadersStrategyGuardTest",
+      "cases": 5,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.094",
+      "report_sha256": "1b54d065ae5c4f2749e2f7f9172369e949dbc56b0e59fe6e1dc04f2a58074f70"
+    },
+    {
+      "module": "gateway",
+      "class": "cn.ac.fage.accessmesh.gateway.config.GatewayCacheBoundaryValidatorTest",
+      "cases": 4,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.02",
+      "report_sha256": "c9c64cef10508be43c1a5e886c35705ac7d54168768d6dedee4ae566ca9de797"
+    },
+    {
+      "module": "gateway",
+      "class": "cn.ac.fage.accessmesh.gateway.config.GatewayCorsConfigValidatorTest",
+      "cases": 9,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.04",
+      "report_sha256": "a5ea60f30b03f5b0f7fd478979fe65ebf9e6ff5187608adbf046fb8161e2c215"
+    },
+    {
+      "module": "gateway",
+      "class": "cn.ac.fage.accessmesh.gateway.filter.AuthTokenFilterTest",
+      "cases": 13,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "6.745",
+      "report_sha256": "152e4b0ecfa8d707e64bbeefaa20f900b286031d039531309b4c63a890f6721f"
+    },
+    {
+      "module": "gateway",
+      "class": "cn.ac.fage.accessmesh.gateway.filter.GatewayFailModeRemovalTest",
+      "cases": 4,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.182",
+      "report_sha256": "a77c9bb588554e13daf710c0832e2a24a9cc5ea99f8439479236c0556dbf20bf"
+    },
+    {
+      "module": "gateway",
+      "class": "cn.ac.fage.accessmesh.gateway.filter.HeaderCleanFilterTest",
+      "cases": 8,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.041",
+      "report_sha256": "1e2df285bd326ab3af0af09db9004cf833263949f649f77c0a31b158a37b825e"
+    },
+    {
+      "module": "gateway",
+      "class": "cn.ac.fage.accessmesh.gateway.filter.InternalSecretFilterCredentialNarrowingTest",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.022",
+      "report_sha256": "0afe51ae88a2f125bb6e30585bca02001b588cf625f67ce38f8cfcac931de4cf"
+    },
+    {
+      "module": "gateway",
+      "class": "cn.ac.fage.accessmesh.gateway.filter.M2mCredentialFilterTest",
+      "cases": 5,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.038",
+      "report_sha256": "c5581733ca4c5ea30bdda21f29275b0041ceadc5502fd67b6e1c9148debec8b5"
+    },
+    {
+      "module": "gateway",
+      "class": "cn.ac.fage.accessmesh.gateway.filter.OAuth2PassthroughFilterTest",
+      "cases": 7,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.046",
+      "report_sha256": "ef75801cd9b7fd8d8b74d7bbb4c0d263a0ee5abdd2d59dbf788dc898420ae41a"
+    },
+    {
+      "module": "gateway",
+      "class": "cn.ac.fage.accessmesh.gateway.filter.PermissionFilterMetricsTest",
+      "cases": 4,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.282",
+      "report_sha256": "dca0f9833e9a67ba8f5834100c7149ae8e1bf8052389f286754dad7bb55b267e"
+    },
+    {
+      "module": "gateway",
+      "class": "cn.ac.fage.accessmesh.gateway.filter.PermissionFilterTest",
+      "cases": 11,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.865",
+      "report_sha256": "ce63f4df080bbfd7ea59c54924eee350124c5730b58a816daa9b7cb0dda3bd4b"
+    },
+    {
+      "module": "gateway",
+      "class": "cn.ac.fage.accessmesh.gateway.filter.SnapshotSafetyBoundaryTest",
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "13.73",
+      "report_sha256": "cbd0ce3cfe9421dfb08a98bdf84d879edd38b9e5a71e4ae8bd43db1229227f3e"
+    },
+    {
+      "module": "gateway",
+      "class": "cn.ac.fage.accessmesh.gateway.GatewayApplicationConfigTest",
+      "cases": 7,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "10.594",
+      "report_sha256": "a5421703ca1324f43a21cda56896a63442b95ab32f1011e5cce0ce7be995962b"
+    },
+    {
+      "module": "gateway",
+      "class": "cn.ac.fage.accessmesh.gateway.handler.GlobalExceptionHandlerTest",
+      "cases": 2,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.019",
+      "report_sha256": "bc874b1b2dbd08f94f7321a2d7ffdfed847bb76cfb379ccd5fb92d58d0dee6fe"
+    },
+    {
+      "module": "gateway",
+      "class": "cn.ac.fage.accessmesh.gateway.service.InterfaceAdmissionMatcherTest",
+      "cases": 20,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.066",
+      "report_sha256": "f22746e1095d3ca7c5820f76092b93e0cb9d4431edf48bb21d40873becf1fa34"
+    },
+    {
+      "module": "gateway",
+      "class": "cn.ac.fage.accessmesh.gateway.SnapshotDecodeBudgetTest",
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.975",
+      "report_sha256": "8968b508dd73c42039df931f4ae9a85bce1d8ec920fb67a885de88b2761672ac"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.AccessServiceApplicationTest",
+      "cases": 12,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "18.85",
+      "report_sha256": "9cb90e879dd88fddadac9a149b94b9955ce862d3fd5afc5070528b4985cebba2"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.architecture.AccessServiceArchitectureTest",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "5.78",
+      "report_sha256": "5c1b330df02f2a7712f0e6611c89c254657f0e3728a7f14619522466ab088b5f"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.architecture.QueryBoundaryArchitectureTest",
+      "cases": 10,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "2.367",
+      "report_sha256": "4338f75de24a082b641e87c707941dddd113634ccc40c51954e7b8c1cb613e0e"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.architecture.QueryMapperPgIT",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "29.71",
+      "report_sha256": "b8c2f3c4d1decf23ed3f375f5f8469e1a94488679f208e1f591c65c9d367d11d"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.architecture.QueryMapperXmlContractTest",
+      "cases": 6,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.358",
+      "report_sha256": "1f8e6a4e6f15e5f1c6934937b09e56845d8cd652bd2e5bafbb328f97152490aa"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.audit.aop.OperationLogAspectTest",
+      "cases": 17,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "1.065",
+      "report_sha256": "2d5c08d4a6b5ca3b92b3a94455b2efc53feafbc5b800bbc64b3004d936d2528f"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.audit.aop.OperationLogRuntimeContextAppServiceTest",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "2.76",
+      "report_sha256": "73c307e913ad13d90d7b7722b11758176c1ccff34132edabb6ff596818674789"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.audit.service.domain.impl.AuditDomainServiceImplTest",
+      "cases": 5,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.425",
+      "report_sha256": "f854631ecda0b9317af6827b2c58c1416840fbc72fd308c592bf7f3c52633a48"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.audit.service.domain.impl.LoginLogDomainServiceImplTest",
+      "cases": 4,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.151",
+      "report_sha256": "4f6c34006386977d30c2cefac3e19424138b2a5f00e67fda9444b248009e865b"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.audit.service.impl.LogQueryAppServiceImplChangeLogTest",
+      "cases": 4,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.04",
+      "report_sha256": "679e0155cc916303d0f99b0d7ffbb611bc81439931b08c18e57e3acb6857a669"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.audit.service.impl.LogQueryAppServiceImplOperationLogTest",
+      "cases": 4,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.03",
+      "report_sha256": "95db49f022d12ff0b077490d25d302e3e04d96c158647c12ba45543733eee1e0"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.auth.service.impl.OAuth2AudienceClaimTest",
+      "cases": 4,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "1.773",
+      "report_sha256": "f5f73288a4d358862e38ded008ad0010b645ccabbfca3521a1f1b51555cf2db1"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.auth.service.impl.OAuth2AuthCodeClientBindingTest",
+      "cases": 5,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.864",
+      "report_sha256": "80e38b4afa380667da01bf798c112023626519dbf5722bd5eced77409e34fc0f"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.auth.service.impl.OAuth2ClientTtlTest",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.323",
+      "report_sha256": "947c701c3eda86547a8bc991e3eecabb2249dae9c9229467905bb3d078fb7de6"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.auth.service.impl.OAuth2CodeExchangeNegativeTest",
+      "cases": 6,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.973",
+      "report_sha256": "0392af05aa79414935f6f693dcd4c0029bd67e2ac657448b778cce57980b0780"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.auth.service.impl.OAuth2JwtRevokeTest",
+      "cases": 4,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.016",
+      "report_sha256": "5f90af441703a19f660d099ff992f40b42efd30bf43e754044a1cf7046993be7"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.auth.service.impl.OAuth2LoginLogTest",
+      "cases": 4,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.289",
+      "report_sha256": "ca00e396ef7af3c668a7e8d47b50a157079ff8103613677910b492d32a61383f"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.auth.service.impl.OAuth2ScopeValidationTest",
+      "cases": 4,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.286",
+      "report_sha256": "ee9c035a006a23035e227bdb2fea8f7c9db78bfeb2b2741e954f2937025dd8dc"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.AuthLoginLockTest",
+      "cases": 7,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "9.019",
+      "report_sha256": "289adadd9241baeae2bcb3de0ec51c3978946345ab1633330295145cfe6edc42"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.bootstrap.AccessBootstrapPgIT",
+      "cases": 18,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "35.641",
+      "report_sha256": "a6658ee811e0f124991fa6982dea3abab5ca8083ab879a841ac292d0a3c68676"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.bootstrap.AccessBootstrapRunnerTest",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.164",
+      "report_sha256": "383c7676b499aaea16157d633a389d1b61c6e3ccd0d53b369efdd0f80f1efa63"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.bootstrap.BootstrapGraphUserSectionTest",
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.002",
+      "report_sha256": "984c181c0465f9a3e002e62c9e8f8f89c4ece62ec323bbd994da4681ef2118ed"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.bootstrap.FirstAdminUserTrackPgIT",
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "9.594",
+      "report_sha256": "21f007d5e73e9b1c68159b029a79cb214a0c34e34154c68368b11b92ee5249ec"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.characterization.AdminXmlPaginationPgIT",
+      "cases": 8,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "2.017",
+      "report_sha256": "e024f01bff65bc02e27269caf6f470a2ce2f84d042dca39b0f828424b069e17e"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.characterization.AncestorChainCycleGuardTest",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.31",
+      "report_sha256": "7b526074e4c0ff581f48dbce7cd7adbe9b10f721ed6177c7896b617ed28360f4"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.characterization.AuthorizationChangeInvalidationPgIT",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "10.541",
+      "report_sha256": "e5b7053f9ed14efaeafcb37dc2e04d857b013009984904df26954ecbaa2e9c4d"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.characterization.AutoGrantEngineContractPgIT",
+      "cases": 6,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "13.303",
+      "report_sha256": "4ac780811bba8c0af51d1a7d4c34e1e8780b26761557bdb41d8ec22ab891efac"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.characterization.BatchAuthCheckPgIT",
+      "cases": 11,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "10.851",
+      "report_sha256": "74f23bb5b5bfb640357a5297f2a9fa8f2fbe319b89bbb7cdda74aa3e757ad39b"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.characterization.DualTenantSameCodeIsolationPgIT",
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "9.77",
+      "report_sha256": "c237bda5acc9b7f4aea83d5ac31ec5d06515bc54cd35c9a3ebc8adf53d296b25"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.characterization.FileServiceSecurityPgIT",
+      "cases": 11,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "9.232",
+      "report_sha256": "81a3818a1e9c0ef8d5d3422ee8601b5e62d2e9c1dc23452f3dbcf1420f8cafa3"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.characterization.GoldenFixturePgIT",
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "6.526",
+      "report_sha256": "31b6a95874a4f31dc20135a8608e5744ebcf9d45b5bbbf25f56cbce312a8ac3b"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.characterization.InstanceGateBusinessCodePgIT",
+      "cases": 4,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "6.277",
+      "report_sha256": "804eaf39fdec28cd23ec9afffe40237e07f8d787754637695a92ce17abe3d4fa"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.characterization.KeywordLikeSearchPgIT",
+      "cases": 7,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "6.034",
+      "report_sha256": "71532f451df7863f21bbf78b46f49c130501100b484bd2c569062139d1f0e6d1"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.characterization.LocalSubjectIdUnificationPgIT",
+      "cases": 2,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "5.962",
+      "report_sha256": "bf79170b94316d0eb6f2f69a3f5674f1006bee61c6bf32cb3cf5378bd0a340d8"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.characterization.LoginLockTemporaryPgIT",
+      "cases": 2,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "6.538",
+      "report_sha256": "132f315b70848f0a507d769711c94cd850725a4f9b802d0e178a4a541464e151"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.characterization.LoginSessionPgIT",
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "5.726",
+      "report_sha256": "14f4f804f5e6256ca3670ea30fdec92cd3b27ec6dd68722e75aa6b4a563b1de4"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.characterization.MutexSemanticsCharacterizationPgIT",
+      "cases": 6,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "5.63",
+      "report_sha256": "85bcd84bdc96807eec46cd5aab7ff1fba1dc2d8c386d0bf22c8ca22f562386ed"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.characterization.OrgTreeIncludePositionsPgIT",
+      "cases": 21,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "10.095",
+      "report_sha256": "2bc21753096066a33737e4cb81a6a0712982b57a283baa709c223db15b50bd4c"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.characterization.PermissionCharacterizationPgIT",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "5.26",
+      "report_sha256": "2a8fc84c8459c69a615c99b26fb3f18d3453d023e0f3d0f805996391ab60045c"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.characterization.QuerySemanticsBaselinePgIT",
+      "cases": 20,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "6.886",
+      "report_sha256": "7f62a68b1d3da43428cae84ad6ec5a2b3856e598f34ad0dceb37001baa3a563a"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.characterization.TargetModeClosurePgIT",
+      "cases": 6,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "5.585",
+      "report_sha256": "27f5b6d0590d8491c11aeeef6f23eeecd5b2f10cbb868a236b75e5fa924d5b85"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.characterization.TreeCycleHardeningPgIT",
+      "cases": 6,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "7.272",
+      "report_sha256": "d48ee927ea2ef7870403b36753a9cca4f49b312108e8c8d37f3833bc20b800bc"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.contract.AdminPageRespShapeTest",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.482",
+      "report_sha256": "ea902591477f3b0329437dd4296f1e910d340eec900f15720b38d7f24a585a22"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.contract.AppServiceOperationLogCoverageTest",
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.157",
+      "report_sha256": "782e1aebec30ddf107d6e9dc5785939f6b5701db031726cc36d65015296e295b"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.contract.BatchEntrySizeValidationTest",
+      "cases": 8,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.313",
+      "report_sha256": "c77a19a5f7623279864144524a3c4b602101c5dc3ad1d916389ef4abf0194a1c"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.contract.CheckFamilyWireShapeTest",
+      "cases": 5,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.017",
+      "report_sha256": "70b67805ea7c4d26fdbb7528daf83f12c764b868ea9205da4116b73830a5c080"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.contract.ClearFieldProtocolValidationTest",
+      "cases": 8,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.102",
+      "report_sha256": "c34e66430f3daffb15d1416b9db15d0230d5152102404f631bbf267119fc5e9e"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.contract.ErrorCodeContractTest",
+      "cases": 7,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.021",
+      "report_sha256": "ae25e06188e202895746dcccac3331be8523d9803cb0e08d49dda3fc3dfc40c1"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.contract.ExplicitClearFieldsPgIT",
+      "cases": 5,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "6.146",
+      "report_sha256": "53ddca8f3e12322655468e2d674ea6d428e072c5cd602fe57a0dd61045cd3b14"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.contract.HttpApiPathSnapshotTest",
+      "cases": 8,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "1.85",
+      "report_sha256": "748fae42f65526deb0aaec9cd09567133296a1a1918cdf841ef707598d74254f"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.contract.LegacyInterfaceRetirementTest",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.591",
+      "report_sha256": "9ea96ba79511fec393083374783a10d6527a8b1d1f6a16d8fb1fba7235bb6d6d"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.contract.OperationCodeCaseValidationTest",
+      "cases": 7,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.094",
+      "report_sha256": "28f611952c53c7dd5198df5f943ef9adc3daf97923cef15323283f44ccbc08ee"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.contract.OperationPermissionWireFormatTest",
+      "cases": 2,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.022",
+      "report_sha256": "ff624ade74ee3befe991c79f93b085af3bf552d628b39050d38a2811c101ce7f"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.contract.PermCommonReqContractTest",
+      "cases": 2,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.02",
+      "report_sha256": "41357d3a29f79da8d40daaf92774ac28b418764928d37e2aad489db0f72dbdd0"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.contract.RetiredGrantApiContractTest",
+      "cases": 6,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.342",
+      "report_sha256": "8b352947efa685da6a595999da5aeadcf9698a9c2eb2736413572275698ebe53"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.contract.RetiredRoleApiContractTest",
+      "cases": 7,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.246",
+      "report_sha256": "3dc10061a2793a3d6b006a8732eefab2b7d17ac849b02c79813fd0bfb730bb72"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.contract.UserRoleRelationIdValidationTest",
+      "cases": 6,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.058",
+      "report_sha256": "4adcebccd6992460db71b03f9a9f756c94ddefb3d0601977486ea31bfc62fc01"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.domain.service.domain.impl.DomainClassifyServiceImplTest",
+      "cases": 13,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.573",
+      "report_sha256": "d3addebdcb623df9f7733b5ec4922cc9ebc7df77141eb6103df4d69d8c9e82dd"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.domain.service.impl.BizDomainAppServiceImplTest",
+      "cases": 18,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.091",
+      "report_sha256": "9677dd3994e1c41293780fc6e6adc17bc816d6f14765f977fe14cfe20a514f93"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.domain.service.impl.BizDomainConfigPgIT",
+      "cases": 7,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "5.836",
+      "report_sha256": "d12472ff3ab717af9178d924d44d2d7a5de39289cd66ab6b2d92038e4a8cda09"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.domain.service.impl.DomainConfigAppServiceImplTest",
+      "cases": 6,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.066",
+      "report_sha256": "6984eb69d98602fbea3613a4e345308eb3ab9e24fd5cd3145d6c379fb7ae3d21"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.DualInstanceContainerTest",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "16.11",
+      "report_sha256": "d58687c2806994e0a81046256a8a1fd90eaba5e36e224240c7716eec3bedb0d9"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.engine.AdminPermissionValidatorImplHasTypeLevelTest",
+      "cases": 4,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.02",
+      "report_sha256": "8c7cbd33f9726e4e0faa687e52729214270098d1d20b98aa781579fe876b4313"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.engine.AdminPermissionValidatorImplTest",
+      "cases": 9,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.052",
+      "report_sha256": "05260faa2127cb292ef47adb6bbd1278a490e85c79817490a9373b71abe276b5"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.engine.constant.OrgOperationCodeMapperTest",
+      "cases": 22,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.057",
+      "report_sha256": "ed867a5e821c01f36c37ccb1c5ca81d6e4cc6eb3e80b3b047023b04ed856095e"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.engine.controller.PermissionViewControllerTest",
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.169",
+      "report_sha256": "1fb36293c13f2cae742d0570add1cacf859bc11bbf63c6a107a895058c01b3af"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.engine.core.BatchConditionEvaluatorTest",
+      "cases": 6,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.33",
+      "report_sha256": "c702735dab6099850b191eaf2d834803598a4f07216f41ef25755bdf893f45dd"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.engine.core.BatchPermMutexEvaluatorTest",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.192",
+      "report_sha256": "8836fd9f35a0349756dfa3dfff15a96f342339ba82890f76d08adbe38e1a9209"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.engine.core.SubjectDomainServiceImplTest",
+      "cases": 7,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.537",
+      "report_sha256": "8e094f361e76f5a4fec130941e9b15003dcdbc56b927a72c182e16f3da3944d8"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.engine.core.TypeResolutionServiceImplTest",
+      "cases": 8,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.036",
+      "report_sha256": "9a53359595b2827d35c0addbe462ec7a5afd18ec778d2e8ac4bf97a231bd34a1"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.engine.dto.PermViewResultTest",
+      "cases": 2,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.005",
+      "report_sha256": "afe4ceea28754e28bb4d722a3bf5ef31926986fabf50063034bccbce30a3a30d"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.engine.InterfaceAdmissionHeavyPgIT",
+      "cases": 2,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "10.519",
+      "report_sha256": "164576ed454dbb1c2d6cc445d39694e5ac403e35ba2cdada42fb9f8b682fb53e"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.engine.InterfaceAdmissionPgIT",
+      "cases": 20,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "9.418",
+      "report_sha256": "f3446c92d0d2ea72b99167e83114f2f44f5741e9d3331b17cc21c2fa38bb1d25"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.engine.query.AdmissionStagesTest",
+      "cases": 31,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.464",
+      "report_sha256": "9247fbce4121b2614bc0e867ceab20954d4555449e512e37c0e01708bc65967e"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.engine.query.CandidateSelectorTest",
+      "cases": 6,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.091",
+      "report_sha256": "ab1a4edf5501096c4c6a0516dbb2c141c686d09dd539eaf2ea37be1f45024252"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.engine.query.EngineLimitsTest",
+      "cases": 7,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.042",
+      "report_sha256": "0da145e518e407201088512a3312c5ea9dd8985ec8872f0f3bd928b44c3bee2a"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.engine.query.MicrometerQueryEngineMetricsTest",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.05",
+      "report_sha256": "1c97c5b92af7f8bd8f52c1432124a5200e7c9502cbba8d44b0a7831908214a05"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.engine.query.QueryAuditAndTraceTest",
+      "cases": 18,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.139",
+      "report_sha256": "cf5c420192701a797ec7aed312009262a5030e60b89e10bd38a73bfd56650b34"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.engine.query.QueryBudgetPgIT",
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "6.312",
+      "report_sha256": "dde6d39ef82b63b3a1d69fb677e9566e2591085a8ccff0da82c8ace313d7d3c4"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.engine.query.QueryContractModelsTest",
+      "cases": 21,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.051",
+      "report_sha256": "55cb03167e536b3ae2563b1e624a495f6173cbf7e4f408ccc54de466fdbd0ea9"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.engine.query.QueryExecutionEngineTest",
+      "cases": 10,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.241",
+      "report_sha256": "a2a363f0ee83c218fb718bafa6af6c11fb1b0d86ccfc25144387583a04dc7c54"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.engine.query.QueryExecutionPgIT",
+      "cases": 24,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "9.19",
+      "report_sha256": "d42481ba19d877935ef0c404c82aae5c7ac8fabca8c5beee19849479d0208dec"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.engine.query.QueryGateTest",
+      "cases": 8,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.186",
+      "report_sha256": "6006ee98579a3b26626a71ef0552a2aac9369d8f98cf8ad63e8be6db03026307"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.engine.query.QueryReadSupportPgIT",
+      "cases": 6,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "7.199",
+      "report_sha256": "ae5af780caa052bb0c98b9e84165375ca3a3959132ae1dfce0d604fdcd96857a"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.engine.query.QueryReadSupportTest",
+      "cases": 25,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.346",
+      "report_sha256": "5d110ca7336b89fbdbbcddc1a3ae7a45c872133a0d2ebf2299191d13269b52ae"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.engine.query.QueryRequestValidationTest",
+      "cases": 20,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.08",
+      "report_sha256": "843d7211622dd35fa878a4edb8bf8c8067756ae6c73d29ec692e8e700ee30781"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.engine.query.QueryStagesTest",
+      "cases": 71,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.561",
+      "report_sha256": "94d4a3461d7282797961ecf03231ba919fbf19c0e2c9e20e100eeb515192ab4e"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.engine.service.impl.PermissionAdmissionAppServiceImplTest",
+      "cases": 4,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.298",
+      "report_sha256": "49c9e880a8c175cdbac9c4ce021d3ddcb663555bb82b255fd038d40ea977065f"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.engine.service.impl.PermissionCheckAppServiceImplTest",
+      "cases": 8,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.034",
+      "report_sha256": "3bc3372a5e484ee01871c0134399c591c2dd683e8a7ae8b1d14f5fba243c913b"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.engine.service.impl.PermissionQueryAppServiceImplTest",
+      "cases": 7,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.037",
+      "report_sha256": "a2e6ef2f90582454da5eccb298af8b0a0c3102026d10e07143dcb6ec6b36acfd"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.engine.service.impl.PermissionViewAppServiceImplTest",
+      "cases": 6,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.47",
+      "report_sha256": "7f1f9a14da69449464c6253e4aaf76613850e8710200d5a1e2be5ae58adb728a"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.engine.util.InterfaceAdmissionSnapshotLimitsTest",
+      "cases": 2,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.069",
+      "report_sha256": "f8a195c1afd7c3238c50c5ca89b16dd328462e0be31eae0da161ad032c3d845a"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.engine.util.PermViewAssemblerTest",
+      "cases": 4,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.019",
+      "report_sha256": "1f20f531978f374a806395b758e36f2968db907570143c2c55d816b066c6a897"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.engine.util.ScopeModeSupportTest",
+      "cases": 2,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.005",
+      "report_sha256": "a2f23fc310fba6e2ed9d9963c3a54aa945fe796584d6d8db12361bb76f398e52"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.extension.CustomResourceTypeSlicePgIT",
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "7.649",
+      "report_sha256": "12c7d08ba2e19d68e06a7ec6fabd6fa1bb38d8e4cf526bbe8ab0340851c0df87"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.grant.service.DelegatedDirectoryClosurePgIT",
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "7.973",
+      "report_sha256": "e7970a5e761665afa42200d57b71fdf815182511239ee64afb05495f9aa19f83"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantDerivationTest",
+      "cases": 12,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.023",
+      "report_sha256": "528278771d4513bfd64a5ee9cf7acd83ee64333c576d4486131e676954bac5ee"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.grant.service.domain.impl.AutoGrantMaterializationDomainServiceImplTest",
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.197",
+      "report_sha256": "ebff074cc90a4cc679f4642b33d4d4aa23a60442dc15ac769a14c6aef9d2f9d6"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.grant.service.domain.impl.GrantOriginDomainServiceImplTest",
+      "cases": 21,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.217",
+      "report_sha256": "89711d554c8efdca0d14833bb0fb816941da354c2686b172defde435029ad599"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.grant.service.domain.impl.PermissionGrantDomainServiceImplTest",
+      "cases": 16,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.061",
+      "report_sha256": "cf25a2f9ceb6d78275fd23fdd03de81ca28ef244ab05aee80860e89c78264669"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.grant.service.domain.impl.PermissionGrantPlanDomainServiceImplTest",
+      "cases": 77,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.664",
+      "report_sha256": "7377cf3edb295da72173c417e275cc8362a1ca4e500064b6485710a421d65874"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.grant.service.impl.AutoGrantInsightPgIT",
+      "cases": 20,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "9.039",
+      "report_sha256": "fe4b73da58059028e065671eb38299ed230f4a3008432017e53ece22f7b3917a"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.grant.service.impl.AutoGrantMaterializationPgIT",
+      "cases": 19,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "10.168",
+      "report_sha256": "1a6b0a880309dd3be61c747986cd3f48d560ce09f8e55f51bfa74fbdf952d885"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.grant.service.impl.PermissionGrantAppServiceImplTest",
+      "cases": 11,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.226",
+      "report_sha256": "d37cae89e7f2062e05f79c3e7ee6f328d774665ef271d3902a5a48061eb017f9"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.grant.util.DatabaseExceptionSupportTest",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.003",
+      "report_sha256": "54c6ad9065900874ea7420188ffc944bf42e8e784d4f93a6b9a1dd201ea7f15c"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContextTest",
+      "cases": 8,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.005",
+      "report_sha256": "ff80af2f6c3b8f928d394cd641066c662aea8740738f257f488b90543019fe84"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.infrastructure.AdmissionConfigurationExceptionHandlerTest",
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.026",
+      "report_sha256": "db31e8ff500d62d3b21140ce977f5a92c2002a895e4cba0271d0b6641307abca"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalogBoundaryTest",
+      "cases": 12,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.032",
+      "report_sha256": "1fe8cb1349193d11b8b45fd7cd1e45a7112b49e0852fef8108098fcb117f3a42"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.infrastructure.cache.AuthorizationCacheBypassToDbTest",
+      "cases": 2,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.005",
+      "report_sha256": "067780382a1b1e93ded38cf411932cc37b446f614f627a99648109ee918f4402"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.infrastructure.cache.DualInstanceCacheInvalidationTest",
+      "cases": 7,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "1.125",
+      "report_sha256": "bc0587726cfbea0252db79df8fcb30ce77aa0cbfcb3f6f9b97a6d806883b883d"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.infrastructure.cache.OperationPermissionCacheWireFormatTest",
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.011",
+      "report_sha256": "b9e5e52d763206756cc32c4155cf6621dfcde72b1ccdfe6dafab1137829609ac"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.infrastructure.cache.PermInvalidationPublisherTest",
+      "cases": 2,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.012",
+      "report_sha256": "541e61f8705b90021df64406cb7ad304fadebe11b8d272e6e1fbcaada6a552f1"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.infrastructure.cache.StaleBackfillLatchTest",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.015",
+      "report_sha256": "11c08c44ffd559d2e1e3001aba6006e644906622cf88fcd08ac1da245aa729c3"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.infrastructure.config.AsyncConfigTest",
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.005",
+      "report_sha256": "3e948cc0885c05d4e11cbb4c19be00519be2d6f5e84ca326d675f69ec97b1c85"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.infrastructure.config.HeaderSignatureInterceptorTest",
+      "cases": 10,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.029",
+      "report_sha256": "e314ffcf4544afec5e0df61a046faa956625df91c554fc1a6398c23499b36cbd"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.infrastructure.config.ServiceAuthArbiterTest",
+      "cases": 8,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.155",
+      "report_sha256": "f08296320555c78bc56c701c9713eac7159d9c2c8e9df1ac3c82253b64cd31fa"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.infrastructure.credential.service.domain.impl.ServiceCredentialDomainServiceImplTest",
+      "cases": 12,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "1.493",
+      "report_sha256": "9a0de28ad49a34e18e4a8f031ce105894a120f1e2859ac1f103427e48533fc7e"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.infrastructure.credential.service.impl.ServiceCredentialAppServiceImplTest",
+      "cases": 9,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.031",
+      "report_sha256": "8f3866da32bfa2c5ed4e9e931635bf0a17349544d1129c1d5020549d1156895e"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.infrastructure.credential.ServiceCredentialPgIT",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "6.564",
+      "report_sha256": "d8e82bed58890a41b40ac32c372b94ae591413f82afc2d8a07412224eeb58183"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.infrastructure.OAuth2JwtSupportSecretStrengthTest",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.006",
+      "report_sha256": "fe70670431b926d30c544d0a77d1f5dd6cfdcfe33f99c3e23492134831723568"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.infrastructure.OAuth2ResourcePathPropertiesTest",
+      "cases": 16,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.026",
+      "report_sha256": "35b87f978e3e93074c8ba9589a9d4f0565b9f7c903341f43aaa8b4d028bb34d9"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeAspectTest",
+      "cases": 5,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.472",
+      "report_sha256": "c047c339c503c54a899f4222b662d85a935ec3988cc4b08a1dcc33a967d0aade"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.infrastructure.QueryValidationExceptionHandlerTest",
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.028",
+      "report_sha256": "2652a095279dbec7fa71459ac23b91281eee73baeb252b28aba7562066457875"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.infrastructure.RequestContextInterceptorTest",
+      "cases": 43,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.16",
+      "report_sha256": "b58d3d007e8193196435d952c564c2d24c311f933ba9e434bbed20755075b141"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.infrastructure.task.impl.JobInvokeDomainServiceTest",
+      "cases": 7,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.042",
+      "report_sha256": "088b081f88ca34197b798884c9316a2c7e5cd6d2f790ea955a24df1ef7cf4cab"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.infrastructure.task.TaskExecutionDomainServiceImplTest",
+      "cases": 5,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.018",
+      "report_sha256": "2cf5848301dfaf5ad1264a4cc9b762ee74f4cf9f7c53ef6b7177465ec39502bf"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.infrastructure.task.TaskExecutorConfigTest",
+      "cases": 2,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.048",
+      "report_sha256": "99e1e80e33ca537c96cb9756844b09a6f8270cd21962e5b0faae8cf811d965b3"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.infrastructure.TimestamptzDualTimezonePgIT",
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "5.115",
+      "report_sha256": "ca0b13f84e24f1374ddc3641ce95e5dc5efa41285e4ce42069cad74361df5acd"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.infrastructure.TimestamptzLocalDateTimeTypeHandlerTest",
+      "cases": 5,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.849",
+      "report_sha256": "dc75e2710bb36397dc8c73ecbc2ad4280e79a92fc310e02da71be15a1cd17120"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContextTest",
+      "cases": 4,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.004",
+      "report_sha256": "a302019016f204ddcbc258f0fe4dfad7a8cdb846f46c8e7149f0e1884d9c5576"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.infrastructure.util.SensitiveDataUtilsTest",
+      "cases": 20,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.03",
+      "report_sha256": "5af13a794e63c7cf2c95087e18ad4bb92e4e04e05f162f6f4ec01c84ecd62082"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.it.SyncEndpointAuthIT",
+      "cases": 9,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.203",
+      "report_sha256": "8b8da4844f39a3bcdc7085404a08cdf142f516093802f48a02477ed1cf8e8cff"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.menu.service.domain.impl.MenuDomainServiceImplTest",
+      "cases": 2,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.004",
+      "report_sha256": "c98517f2135917f51cb162486ace814c5183d3550209efeb6cd0312a61d56eb4"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.menu.service.impl.UserMenuQueryAppServiceImplTest",
+      "cases": 19,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.298",
+      "report_sha256": "e2deca8f18cfa921827816b459887ac44cf2070646e8795e9e34dcc04fd1369a"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.menu.service.MenuWriteAppServiceTest",
+      "cases": 25,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.266",
+      "report_sha256": "fb847281dc3e1ac9533ef972a4d2a94b41835f3c89e2d7f3b3857251fe8b98ef"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.menu.service.MenuWritePostgresIT",
+      "cases": 16,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "6.104",
+      "report_sha256": "27d42b5caafa9802eb987c698b02fb488ef1628f53ccad5fca8ee9e90b0616dd"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.org.service.DefaultTreeDirectoryGuardPgIT",
+      "cases": 8,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "5.702",
+      "report_sha256": "e64e19418f430d6a83a8c4ef70840fff1f9c17c21bcb5cf8cf27dd777a495dc4"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.org.service.domain.impl.OrgTreeConfigDomainServiceResolveTest",
+      "cases": 11,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.043",
+      "report_sha256": "8f70635c57084163725f36b62e3dccdccd113ac729c79e534d11dade58b61ac6"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.org.service.impl.OrgAppServiceImplDelegatedDirectoryTest",
+      "cases": 4,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.618",
+      "report_sha256": "e06c3be5491f9022174b51c674db2ca320f387aa156d30d337f2fc690532c3d0"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.org.service.impl.OrgTreeConfigAppServiceImplTest",
+      "cases": 16,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.046",
+      "report_sha256": "91460fb552b637c629ad03983e9235aef5d037d0cdb4017c8e54aec0aae6ff66"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.org.service.impl.OrgVisibilityQueryAppServiceImplTest",
+      "cases": 8,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.144",
+      "report_sha256": "002ed299c1bac9e88a62a79e856e0d2cf6865bc8fac17ada4b7a8fd9ae5af1c2"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.org.service.MemberCandidatesGatePgIT",
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "6.557",
+      "report_sha256": "8f61eb7b6d8c203267ca645ce5cc7bd7f98c241c844abf0d8acb9b588ff947fb"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.org.service.OrgWriteAppServiceTest",
+      "cases": 32,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.099",
+      "report_sha256": "db5cc54cdeb2eaa22b7b7b709a749f951c5875c0b09ae97d5bbce0ed78ec2dad"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.org.service.PositionDisablePruneObservationPgIT",
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "6.429",
+      "report_sha256": "02ffaea0fe00dbe9d213638731ace996f688c251f61f969b289ff5c3934600f2"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.org.service.UserOrgAppServiceTest",
+      "cases": 2,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.134",
+      "report_sha256": "806552cb92d0ba1cd9fdc19f096c90376fbb062e947fd8d869d35a3369dd84be"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.org.service.UserOrgWriteAppServiceFaultInjectionIT",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "5.456",
+      "report_sha256": "a9fc8821c7985d31449763b3f23882cef964fdbe346ef08a107199b888612428"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.org.service.UserOrgWriteAppServiceTest",
+      "cases": 4,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.011",
+      "report_sha256": "069ff4e1382050c0366bb4ef7820558b2b9109d1cd142b7490b4f34d25e6bfff"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.platform.service.AdminFileFolderRegistrarImplTest",
+      "cases": 2,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.004",
+      "report_sha256": "fac7de98284ca4dccd267eb7dcfd6d33426f824936a4446b96eba06877cdae4e"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.platform.service.domain.impl.JobLogDomainServiceImplTest",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.185",
+      "report_sha256": "79399cca72fac534aabba85c38ff7ef859e3b74205459e293fd69e2efdf402b1"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.platform.service.impl.FileAppServiceImplTest",
+      "cases": 24,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.781",
+      "report_sha256": "f996303502901db08d7b2f74ba7cac37fee02e8cf4673fc6a2437e17f7268502"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.platform.service.impl.JobAppServiceImplTest",
+      "cases": 11,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.986",
+      "report_sha256": "2c01f25dd481e8eb7a10369afd513b3994eb0f3d970ef53fa72de0f66b169c08"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.platform.service.impl.SystemConfigAppServiceImplTest",
+      "cases": 10,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.222",
+      "report_sha256": "97541a0c5e3a274481e50feb275d15a423c7d8ac5325e30038c6629cf1ebcce6"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.platform.service.impl.SystemConfigJsonbPgIT",
+      "cases": 2,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "5.163",
+      "report_sha256": "f4457b7c74646f0b4bb6818cd32195e938f4b4f049d022262bc8f91f1d899d9b"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.platform.service.impl.TaskExecutionLeaseConcurrencyTest",
+      "cases": 10,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "10.958",
+      "report_sha256": "68c11cd6c493beaf65f6fcafa362cf75ec18da61f0c7a572927d6bcbf5d66e91"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.platform.service.NoticeLifecyclePgIT",
+      "cases": 2,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "7.907",
+      "report_sha256": "bd9d9308b69936354a4cf08ea91b06c3d0cb0e5394da401995e8e15a381c4adb"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.PlatformSessionAbsoluteTimeoutTest",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "9.454",
+      "report_sha256": "2b3fc775a384e54a353ad5ca374af913fb4d771fad9de4a87ba17cc9cab73476"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.PlatformSessionIdleTimeoutTest",
+      "cases": 2,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "11.012",
+      "report_sha256": "ba9019a4b277ff693616912b6cf350a419921c3082a421efb697fb4c3d71c236"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.projection.LocalProjectionBatchSqlIT",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "5.059",
+      "report_sha256": "71e9a81d3b7528c68676378e7757035c49930cf151bbfdad1b4d8b654f356e9b"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainServiceImplTest",
+      "cases": 27,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.145",
+      "report_sha256": "78c5aaa9b2db9c2e0903c964ccce0ec1b750d43e9f8602ff315c9199e70b8f26"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.resource.service.domain.DependencyCompilerTest",
+      "cases": 4,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.016",
+      "report_sha256": "4164b0177165d7149318d641768f053761b126e5085ebb44333ae0bd72aa7674"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.resource.service.domain.impl.ApiMappingWriteDomainServiceImplTest",
+      "cases": 9,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.027",
+      "report_sha256": "e83c1ccee2aad2d1a8d3d1cf9b158d05a009062e32d5887f524ed01ce440fccb"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.resource.service.domain.impl.MappingSyncHandlerImplTest",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.008",
+      "report_sha256": "314c2a572e1c38f68b6b550bedacf65c5dcacfb608a86df4aef567f253252414"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.resource.service.domain.PermissionManifestNormalizerTest",
+      "cases": 6,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.043",
+      "report_sha256": "34ad84ad2f0cbe50d0dfca49f2362bc5e22ff46a1f60d8f727474fa24da97c35"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.resource.service.impl.AdmissionMappingPgIT",
+      "cases": 12,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "6.59",
+      "report_sha256": "e1561ba20ef0b1d02919395ee1401e3fa881dc757c8aec1e50e5ba212723ebd4"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.resource.service.impl.DependencyAppServiceImplTest",
+      "cases": 4,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.419",
+      "report_sha256": "ff0a35666ece4f2b09ae8d9e1b9eb461ee9a4416c2ebbc4517daa5ab23c24abd"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.resource.service.impl.DependencyLifecyclePgIT",
+      "cases": 8,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "7.363",
+      "report_sha256": "2ffdf827bf3435a88760a7bd9c25c460d3a91af8a2f0ae9ad581b847b17a7be2"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.resource.service.impl.PermissionManifestPgIT",
+      "cases": 9,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "20.495",
+      "report_sha256": "bfb00cf57972dbda7f95e8aacb638b0a217c4077eef9f91e472ed471615cab52"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.resource.service.impl.RegistrationCoordinatorPgIT",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "10.972",
+      "report_sha256": "6aeae98c0418a92d7128b2b997d96757bb68d18b6531b42cb64c47ba4e76b852"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.resource.service.impl.ResourceBatchCreateCompositeIdentityPgIT",
+      "cases": 7,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "5.275",
+      "report_sha256": "bee327fbf559136012a94b07a048dc0089b545a9d2eecbef69727b09134dbd57"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.resource.service.impl.ResourceDeletePermChangeRegistrationTest",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.013",
+      "report_sha256": "54495db72cc4f6e0f41c520c9dcd9c9369b13d540c2168443b88bd08f183f473"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.resource.service.impl.ResourceEntitySyncAppServiceTest",
+      "cases": 24,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.414",
+      "report_sha256": "e1ae2499723bfa78c7157241ef1a78a9aa4ef0b77e5f3fd03526ce7b570be583"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.resource.service.impl.ResourceManageAppServiceImplTest",
+      "cases": 41,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.124",
+      "report_sha256": "de0d36f69ad4ecde96e8d1e36dea2c153c9c2c9294536b4da9781e7e400b9637"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.resource.service.impl.ResourceOperationKeyPgIT",
+      "cases": 4,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "6.379",
+      "report_sha256": "5ade788ae57c11dac9c218afd8e0cf4e477d3c8f06d5e43b9c737f75fb0075fa"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.resource.service.impl.ServiceConfigAppServiceImplTest",
+      "cases": 15,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.246",
+      "report_sha256": "3a3cc48504b4f0c31ce12acbed6acd9b12660efd2faf5fb91516cd25e8939479"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.resource.service.impl.ServiceConfigCascadePgIT",
+      "cases": 4,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "5.716",
+      "report_sha256": "536c4dfd9469750ea8b800c14d38c335a422d058e7d41bfc85d169530f04b085"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.resource.service.impl.ServiceSyncAppServiceImplTest",
+      "cases": 4,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.229",
+      "report_sha256": "43847257cc84d164ece459e84b943514b6a83e490a87941c51e65e13d06661ab"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.ResourceSortOrderRetiredTest",
+      "cases": 5,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "4.67",
+      "report_sha256": "b2d976cb66aa0f1c5ae10a15f48304625b3aa3a4bab914e80cbb70fc0557c709"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.RetiredSyncTaskEndpointTest",
+      "cases": 7,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "4.674",
+      "report_sha256": "ea2b85ab4d8e0d6426143da31d497b2d55a92e25839d9e358314a84516a58257"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.role.service.impl.AbstractRoleSyncAppServiceTest",
+      "cases": 21,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.168",
+      "report_sha256": "6b564e8e1079253d87dc06e46b9f0c86106c34fe02c61a768eff0ade388103da"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.role.service.impl.RoleGrantOriginGuardPgIT",
+      "cases": 5,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "5.39",
+      "report_sha256": "fef735636e144690fb83906e0285f6e529184a226d4433f6979a385d8451f970"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.role.service.impl.RoleManageAppServiceImplTest",
+      "cases": 26,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.075",
+      "report_sha256": "088ead3b4867c323acd659da9eb141d245d26df6d816bfbab38c75841bbb90e5"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.role.service.impl.RoleMutexGuardPgIT",
+      "cases": 9,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "6.194",
+      "report_sha256": "6485af65d92714debce4363640433645990f610850e68f8b8a5bfda4afbb51d1"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.role.service.impl.UserRoleQueryAppServiceImplTest",
+      "cases": 5,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.011",
+      "report_sha256": "2eec78c130a2dc94cdb0a8be868ae0ba04867e87f9698f9fa09313f0ed271096"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.role.service.impl.UserRoleReassignmentPgIT",
+      "cases": 13,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "5.771",
+      "report_sha256": "c7c8d3bb2859e24d0c11a6b4a23520c4ad4b04d14990c19f5f7192dca5629bef"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.role.service.impl.UserRoleSyncAppServiceTest",
+      "cases": 23,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.068",
+      "report_sha256": "99b1d80bc7436e3722cb0870a700bd13a0bddfa8e282cdbdcb870f1cc60a7e47"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.rule.service.domain.impl.PermissionConditionDomainServiceImplTest",
+      "cases": 6,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.017",
+      "report_sha256": "d64fcae458592e16ad5d8437b23635fa4f231c4937664b02f09a89f58429cf5d"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.rule.service.domain.impl.PermissionConflictDomainServiceImplTest",
+      "cases": 19,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.056",
+      "report_sha256": "b9950713c2d9db3e9063fe21426b9b33bd67f488a6899593d36062e76040f862"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.rule.service.impl.ConditionAppServiceImplTest",
+      "cases": 33,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.123",
+      "report_sha256": "98478f1b1ebfabe6238ff3d47b09492c956eace19bddc0bcb611c51dec3bf3b1"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.rule.service.impl.ConditionChangeEffectPgIT",
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "6.03",
+      "report_sha256": "9764d05c01ddcff252c59434c0b7ad8f2ea01e52574d0671f7ee2f0c8994a589"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.rule.service.impl.ConditionProjectionDualTrackPgIT",
+      "cases": 6,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "6.55",
+      "report_sha256": "fb94ca1071b1bf8c9b4da9aa143f93ae4da2c4606c6820aadd7e015fd1d42e84"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.rule.service.impl.ConflictRuleAppServiceImplTest",
+      "cases": 44,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.16",
+      "report_sha256": "8231ad1d417aaa12059c2168593ebc03bc30adb46b4927a18a4de19adf5da865"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.schema.AccessServiceSchemaPostgresTest",
+      "cases": 21,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.721",
+      "report_sha256": "abc1bc975bc942f4a37d9074858a58980131e2b9655bdcd219bf524b50e2384c"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.SecurityMatrixIT",
+      "cases": 14,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "5.06",
+      "report_sha256": "04125d020e6541c533b0d53ac5da825a17f9d443812d20eab34ea34ee0bbfa0b"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.ServiceConfigSyncOperationCodeRetiredTest",
+      "cases": 2,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "4.445",
+      "report_sha256": "e03190836f156eafb120068641359a7d85c5fdea9a2ba1c277c15557bf5fc146"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.sync.FullSyncN1GuardTest",
+      "cases": 7,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.073",
+      "report_sha256": "67e538f72537779863eb651330c87bb50e5aed337a7c7766d7a195afb2c7f420"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.sync.FullSyncResponseContractTest",
+      "cases": 7,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.017",
+      "report_sha256": "2ec241a09db96031b69b8c7ee73faf170e9a8b232f71b99b7ce98d3bac4955a0"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.sync.FullSyncStaleVersionTest",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.008",
+      "report_sha256": "ec42f16de39d3dff1bbd00359accd574b1e3f3fb382bf27eb169ebac547e30c1"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuardTest",
+      "cases": 5,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.004",
+      "report_sha256": "978820e9088d7f5400b3bba3b198edd4f4beb3f51e30280c201e673cf37bc476"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.sync.guard.SyncTypeGuardTest",
+      "cases": 19,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.022",
+      "report_sha256": "62994cf0f04daa6fe799480877abdcf868d76d4ab2d6106570fe500283fdb8ea"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.sync.metadata.SyncMetadataConcurrencyTest",
+      "cases": 5,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "5.764",
+      "report_sha256": "c427553d548c122c546fea45e3f5293a81a23a6c6f4654cf951c4deefce5ea28"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.sync.metadata.SyncMetadataDomainServiceTest",
+      "cases": 11,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.011",
+      "report_sha256": "770696b350a8d18bed755f010e3de9f1c591c775f23feb759c191840f0be6eea"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.sync.ResourcePublicationHeavyPgIT",
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "391.668",
+      "report_sha256": "ab2206325cd4c7e1a93271daa7d69a0b2cc4b0a7d61deeda094e70fa8a5f8e6b"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.sync.ResourcePublicationNormalizerTest",
+      "cases": 5,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.008",
+      "report_sha256": "3146809aa5da1c4ebcc8565ea0a4ec88f8527528f10d4ed02e7a11eac82c4576"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.sync.ResourcePublicationPgIT",
+      "cases": 16,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "7.552",
+      "report_sha256": "3bff50228fa5f99d92863ba50c40a2139dd837786cea597f0ff6ee413c32b535"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.sync.ResourcePublicationPolicyTest",
+      "cases": 4,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.002",
+      "report_sha256": "6aeb6b07b3e172dd5482003b44117b7afdcbfd6f48caab77d007f183fdec051c"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.sync.strategy.SyncResultStateTest",
+      "cases": 2,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.001",
+      "report_sha256": "0057226e770b8d67aa1e62dac34448c5fac16c970644f9085d1c7d654bc43ae5"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.sync.SyncFailureAtomicityPgIT",
+      "cases": 8,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "7.433",
+      "report_sha256": "db7a06e555e48399582914e8678c6ad09ddd7ea4868a8cb30f9fd00efaed5d10"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.sync.SyncKeyCodecUtilEquivalenceTest",
+      "cases": 4,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.002",
+      "report_sha256": "a4a63dd2efb0be1643a77a50c478e3b5c25c1475105fe4b3d14cd6944ee31925"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.sync.SyncKeyCodecUtilTest",
+      "cases": 10,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.003",
+      "report_sha256": "7223e1f32d81830563a32a6c05b77b88e4e7396a055cdbee18d3c5761b57f4e1"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.type.service.domain.ResourceTypeOwnershipGuardTest",
+      "cases": 20,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.039",
+      "report_sha256": "8bec760cc70e68127fb9095feba87b11528a402cef724b1ac40b651caeaec01b"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.type.service.impl.MixedTypeDeletionLockPgIT",
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "5.033",
+      "report_sha256": "91752efdfacabd4ac4e51fb395ca5626aa78f95f3a5e2031aef39513731a4d27"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.type.service.impl.OperationAppServiceImplTest",
+      "cases": 37,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.087",
+      "report_sha256": "0dad63359f95b4cacd29526517ea255233129554ab44231d694723b3223821e0"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.type.service.impl.OperationPermissionCacheEvictionPgIT",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "5.2",
+      "report_sha256": "576ba085ec57f0d00adb189f55c12efb937a153463c3feb3f173b5e709d5b8bf"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.type.service.impl.TypeDefinitionAppServiceImplTest",
+      "cases": 58,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.15",
+      "report_sha256": "0006bc1fd891ecaffd387098202ff20e5cdaad76b119f572a3e610e7832e829f"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.type.service.impl.TypeDefinitionProjectionPgIT",
+      "cases": 8,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "5.853",
+      "report_sha256": "45cfaf299a1e2c195b5fb74b153ec7d8f3dd0e2737d6d7955a0ea60795eba7b0"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.user.controller.AdminUserControllerTest",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.134",
+      "report_sha256": "de878e36b801426c006b5ecf7fd5f1898f0e191656631ac90dbc8a8d04239a11"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.user.dto.req.AbstractUserUpdateReqValidationTest",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.013",
+      "report_sha256": "dc6a337eeb7002a60f72c0afa1fdfba36deba95d3349132b4bddc027e4a24c0a"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.user.service.impl.AbstractUserSyncAppServiceTest",
+      "cases": 6,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.012",
+      "report_sha256": "a804e77a5a4e059567ccbab596e787e17ff120540de761df46b2d3af62b75eca"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.user.service.impl.UserManageAppServiceImplTest",
+      "cases": 25,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.078",
+      "report_sha256": "edc77f376f4dfd4ecc5287775843a221c887c260d2f9dca7fc743800e70bdc12"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.user.service.impl.UserRoleWriteProjectionPgIT",
+      "cases": 10,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "6.081",
+      "report_sha256": "4a7652beca4dcb8a661c4e821d0f396bc66f1adc44730d69b6c0b6c4130fb9aa"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.user.service.UserAppServiceMemberCandidatesGateTest",
+      "cases": 4,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.239",
+      "report_sha256": "a6fb44c69216d39eb073fe32cd7095b3117b3ec085fd7f876fc73b27993800a1"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.user.service.UserAppServiceResetPasswordGateTest",
+      "cases": 4,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.146",
+      "report_sha256": "03a7437756e88e018ad340823154342ab7a9014c9dbe2bf9aaf33f163f0bba82"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.user.service.UserCreateWithOrgPgIT",
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "5.329",
+      "report_sha256": "25277eb548e3e5cb0d580b6737e0e3c5cf0486b9a792b941659a9c84bb36ab70"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.user.service.UserWriteAppServiceCreateStatusTest",
+      "cases": 4,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.265",
+      "report_sha256": "37ddfde3cf71ad1850683329018cd108fe0f738e4ae1ecdc201f29d30ed225be"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.user.service.UserWriteAppServiceFaultInjectionIT",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "5.253",
+      "report_sha256": "a9c0ba717f93aaefaf68c0a0588b355c539fecf75be7f4fc1f87e7f8c47d3b6d"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.user.service.UserWriteAppServiceFaultInjectionTest",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.141",
+      "report_sha256": "65fd07d273dfaecea8e685a2a191d5d7d37ddaf9ef2a5db4082075f5dbd3af47"
+    },
+    {
+      "module": "access-service",
+      "class": "cn.ac.fage.accessmesh.access.user.service.UserWriteAppServiceUpdateGateTest",
+      "cases": 9,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.02",
+      "report_sha256": "64d3f19f9edd681469a31a478d8801116bafa693d98d3751e8e8eefe326a8255"
+    },
+    {
+      "module": "example-service",
+      "class": "cn.ac.fage.accessmesh.example.controller.DemoControllerTest",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.27",
+      "report_sha256": "1037c357a450896bad7f6db5f52f61840edff363831079ca6e9d4a6056d1bfc5"
+    },
+    {
+      "module": "example-service",
+      "class": "cn.ac.fage.accessmesh.example.controller.ReportControllerTest",
+      "cases": 20,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "10.27",
+      "report_sha256": "6d7943559a241c9b0eda00a764fe53515be7aea5c3cac4c68bae01e40032e957"
+    },
+    {
+      "module": "example-service",
+      "class": "cn.ac.fage.accessmesh.example.controller.ReportControllerValidationTest",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "3.615",
+      "report_sha256": "aaa0f658e250616557b3407dd9a126473feab3711047230c1889038cc8136057"
+    },
+    {
+      "module": "example-service",
+      "class": "cn.ac.fage.accessmesh.example.ExampleServiceApplicationTest",
+      "cases": 4,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "8.885",
+      "report_sha256": "4501eceeb19e3d450970b5371fa6b501b09c3b6697e2c5ab5b26523d875c2028"
+    },
+    {
+      "module": "example-service",
+      "class": "cn.ac.fage.accessmesh.example.perm.BusinessPermCheckerTest",
+      "cases": 9,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.346",
+      "report_sha256": "c848432c607b7a1d2f577db770d1ff9f84e26ddf2bd3af51fb27517cffd379a6"
+    },
+    {
+      "module": "example-service",
+      "class": "cn.ac.fage.accessmesh.example.perm.FeignTenantHeaderInterceptorTest",
+      "cases": 2,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.008",
+      "report_sha256": "cc24b180f1ba6a1e4f82935e08d18224af0c136817a3e9423dc49c9df1d77f5e"
+    },
+    {
+      "module": "example-service",
+      "class": "cn.ac.fage.accessmesh.example.security.GatewaySignatureFilterTest",
+      "cases": 3,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.081",
+      "report_sha256": "487c89a4ed902650b72c4fa0bd63e2b91fe5b4c95893c138d3714b614b9dcaf1"
+    },
+    {
+      "module": "perm-sdk/perm-common",
+      "class": "cn.ac.fage.accessmesh.perm.common.feign.FeignCredentialInterceptorTest",
+      "cases": 8,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.432",
+      "report_sha256": "c3ade5e5d05262cca3d610019691bf9defb97195cfe008fee7de560e649195d1"
+    },
+    {
+      "module": "perm-sdk/perm-common",
+      "class": "cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtilParityTest",
+      "cases": 18,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.168",
+      "report_sha256": "1082081da1636b60a2eca1014842ae50ffc738571b38c5f693ce25f8fadd2f22"
+    },
+    {
+      "module": "perm-sdk/perm-client-spring-boot-starter",
+      "class": "cn.ac.fage.accessmesh.perm.client.config.PermClientAutoConfigurationTest",
+      "cases": 4,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "2.057",
+      "report_sha256": "3f036fe6290ce8cdbc1abc799950844ea530c0aaa4897dfcc4ec8f138f37d563"
+    },
+    {
+      "module": "perm-sdk/perm-client-spring-boot-starter",
+      "class": "cn.ac.fage.accessmesh.perm.client.feign.FeignInternalSyncInterceptorTest",
+      "cases": 5,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.077",
+      "report_sha256": "9e57eba4fd9ca27786ba82778a6d52b339dcb7eca2e81838f01ae9bef46ab7ef"
+    },
+    {
+      "module": "perm-sdk/perm-client-spring-boot-starter",
+      "class": "cn.ac.fage.accessmesh.perm.client.feign.PermissionFeignClientContractTest",
+      "cases": 6,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.107",
+      "report_sha256": "829c8f82dce9823bd9d0b86ac8c9bc0e605617ecd213db3bae113be82ade892f"
+    },
+    {
+      "module": "perm-sdk/perm-registration-spring-boot-starter",
+      "class": "cn.ac.fage.accessmesh.perm.registration.PermissionRegistrationPublisherTest",
+      "cases": 8,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "7.031",
+      "report_sha256": "bf918e97859770e112a5b31e4327ae16e631252d34b907de5ce3d28f50743315"
+    },
+    {
+      "module": "perm-sdk/perm-registration-spring-boot-starter",
+      "class": "cn.ac.fage.accessmesh.perm.registration.PermRegistrationAutoConfigurationTest",
+      "cases": 5,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "1.245",
+      "report_sha256": "4f47a41473f522c964cc7289533cca07556a3e6be119bb1f53de3c422c6f6d05"
+    },
+    {
+      "module": "perm-sdk/perm-registration-spring-boot-starter",
+      "class": "cn.ac.fage.accessmesh.perm.registration.RegistrationSpringFeignHttpTest",
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "0.888",
+      "report_sha256": "75e4569630c22c8cb1a56acc3a92313e6e8bdfb06a6563e99f18bf65c64245f9"
+    },
+    {
+      "module": "e2e",
+      "class": "cn.ac.fage.accessmesh.e2e.BasicRoleGrantVerticalSliceE2EIT",
+      "cases": 8,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "94.199",
+      "report_sha256": "bf17bc06fe0d7be86ec333269ad3804db2222f5497d883b84fd97efb547d1f6b"
+    },
+    {
+      "module": "e2e",
+      "class": "cn.ac.fage.accessmesh.e2e.E2eProcessSupportTest",
+      "cases": 2,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "3.668",
+      "report_sha256": "36e39878199fe8219e6d4c04dfb410f1dd060ac6c20927b2a145cddd0d9c35e9"
+    },
+    {
+      "module": "e2e",
+      "class": "cn.ac.fage.accessmesh.e2e.ExampleBusinessFinalCheckE2EIT",
+      "cases": 11,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "81.959",
+      "report_sha256": "43969ebe7a7ce35aac14e928e6f65170571ca900463f59f55bfc669c085c4209"
+    },
+    {
+      "module": "e2e",
+      "class": "cn.ac.fage.accessmesh.e2e.ExampleProtectedApiE2EIT",
+      "cases": 8,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "suite_seconds": "56.556",
+      "report_sha256": "603c46a3ac9d6a31ae71eb3d060b155772d730c2255f64248d09c42d2b21667e"
+    }
+  ]
+}

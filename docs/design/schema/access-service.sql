@@ -31,7 +31,7 @@
 --     NULL            → 非本地管理投影（人工维护 / 外部同步，外部同步所有权以 sync_metadata 为准）
 --   resource_entity 复用既有 owner_service_code/maintain_source 字段，不复制到其他表
 --
--- 种子数据（各组计数以 AccessServiceSchemaH2Test 断言为准，注释不复制数字——project-rules §文档治理去计数化）：
+-- 种子数据（各组计数以 AccessServiceSchemaPostgresTest 断言为准，注释不复制数字——project-rules §文档治理去计数化）：
 --   sys_oauth2_client / system_config：原样保留（键名保持现状）
 --   type_definition：user_type/role_type/resource_type 三组；type_value 为权威数值，按
 --     T-ACCESS-016 §13 定稿重编（T-ACCESS-018 落地）；代码不硬编码数值，运行时经
@@ -217,7 +217,7 @@ CREATE INDEX idx_org_parent ON sys_org (tenant_id, parent_id) WHERE delete_flag 
 CREATE INDEX idx_org_path ON sys_org (tenant_id, path) WHERE delete_flag = 0;
 
 COMMENT ON TABLE sys_org IS '统一组织表：部门/岗位/团队同表；默认组织树承担用户目录语义，非默认树只管理成员关系；组织/岗位同步为 ORG resource_entity（管理权限，T-ACCESS-018 收敛，原 ADMIN_ORG 并入）和 ORG/POSITION abstract_role（角色容器），均使用业务键定位，不存权限面内部 ID';
-COMMENT ON COLUMN sys_org.parent_id IS '父节点ID，NULL=根节点';
+COMMENT ON COLUMN sys_org.parent_id IS '父节点ID，管理面创建与初始化以0表示根节点';
 COMMENT ON COLUMN sys_org.org_type IS '组织类型标签（字典管理），仅分类用';
 COMMENT ON COLUMN sys_org.code IS '组织编码，租户内唯一';
 COMMENT ON COLUMN sys_org.path IS '物化路径（如 /1/3/7/），加速树查询';
@@ -248,7 +248,7 @@ CREATE UNIQUE INDEX uk_tree_config_root ON sys_org_tree_config (tenant_id, root_
 CREATE UNIQUE INDEX uk_tree_config_default ON sys_org_tree_config (tenant_id) WHERE is_default = true AND delete_flag = 0;
 
 COMMENT ON TABLE sys_org_tree_config IS '组织树配置：每棵树一条记录，绑定根节点';
-COMMENT ON COLUMN sys_org_tree_config.root_org_id IS '根组织节点ID（sys_org.id，parent_id=NULL 的节点）';
+COMMENT ON COLUMN sys_org_tree_config.root_org_id IS '配置的树根组织ID（sys_org.id）；管理面顶级组织parent_id=0，树根配置还须满足不重叠约束';
 COMMENT ON COLUMN sys_org_tree_config.tree_type IS '树类型：ORG=组织树，POSITION=职位树';
 COMMENT ON COLUMN sys_org_tree_config.is_default IS '是否默认组织树（每租户最多一棵）；默认树即用户目录/身份池，不只是展示默认值';
 COMMENT ON COLUMN sys_org_tree_config.single_assoc IS '是否单关联（用户在该树下只能属于一个节点）。POSITION 树始终 false';

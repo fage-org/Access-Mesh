@@ -4,7 +4,7 @@ title: R2 权限查询引擎统一与操作准入（方案 A）设计
 status: superseded
 superseded_by: docs/design/engine/implementation.md
 domain: access-service
-last_reviewed: 2026-10-01
+last_reviewed: 2026-10-04
 ---
 
 # Access-Mesh：R2 权限查询引擎与 T-PERM-054 统一设计
@@ -642,13 +642,13 @@ T-ACCESS-062 删除旧在线检查、旧快照协议及专用 DTO/装配器，AP
 
 服务配置模式字段一并删除（数据库 `api_auth_mode`、请求/响应 `apiAuthMode`、枚举及前端选择入口），全部服务统一业务操作准入；新准入响应的协议常量保持，不存在配置切回旧模式的通道（2026-09-28 确认）。
 
-清理覆盖所有租户和所有来源的有效 API 类型授权；bootstrap 同样标为 MANUAL，不能只按来源识别。先备份再受控软删除；保留业务授权与 API 登记目录，业务子行引用待删 API 父行时停止并报告。此范围取代先前仅称「系统来源」的表述（2026-09-28 确认）。验收及实施进度以任务卡为准；部署操作见 [退役手册](../ops/runbook-api-retirement-062.md)。
+清理覆盖所有租户和所有来源的有效 API 类型授权；bootstrap 同样标为 MANUAL，不能只按来源识别。先备份再受控软删除；保留业务授权与 API 登记目录，业务子行引用待删 API 父行时停止并报告。此范围取代先前仅称「系统来源」的表述（2026-09-28 确认）。验收及实施进度以任务卡为准；部署操作见 [历史退役手册（已停止支持）](../archive/2026-10-03/ops/runbook-api-retirement-062.md)。
 
 <a id="operation-admission"></a>
 
 ## 7. T-PERM-054 方案 A：操作准入的精确定义和 R2 实现
 
-> 协议契约登记面＝[契约总册 §25](access-service-api-contract.md#operation-admission-protocol)（T-ACCESS-056 落账）；本章为实施期设计权威。
+> 协议契约登记面＝[契约总册 §25](access-service-api-contract.md#operation-admission-protocol)（T-ACCESS-056 落账）；本章仅保留历史实施说明，当前协议以契约总册 §25 为准。
 
 ### 7.1 两层判定，不生成第二份 API 授权
 
@@ -723,7 +723,7 @@ T-ACCESS-057 保留结构合法子行；父结构按候选 depend_on 并集分�
 
 ## 8. 映射、同步、网关快照和业务接入
 
-> **协议契约落账（T-ACCESS-056，2026-09-27）**：本章准入协议已落[契约总册 §25](access-service-api-contract.md#operation-admission-protocol)（OPERATION_ADMISSION／interface-admission 族：端点 DTO、requiredPermission 形态、错误码 20070/20071、reason 词表 NO_CANDIDATE、迁移门槛与 N 系分配）；本章仍为实施期设计权威，完结回写后以契约章为唯一权威落点。
+> **协议契约落账（T-ACCESS-056，2026-09-27）**：本章准入协议已落[契约总册 §25](access-service-api-contract.md#operation-admission-protocol)（OPERATION_ADMISSION／interface-admission 族：端点 DTO、requiredPermission 形态、错误码 20070/20071、reason 词表 NO_CANDIDATE、迁移门槛与 N 系分配）；本章已转为历史实施说明，当前协议以契约总册 §25 为唯一权威落点。
 
 ### 8.1 映射模型：API 是登记对象，业务操作是准入要求
 

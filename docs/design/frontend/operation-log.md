@@ -3,7 +3,7 @@ doc_type: design
 title: 7.1 操作日志页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-09-20   # T-FE-056 收口：「路由可达性」口径清扫为 menus 派生路由门禁（机制与回归锁见 login.md §路由级 UX 门禁）；此前 2026-09-15 # 2026-09-03 T-FE-022 联调收口（mock 退役/api 切 Gateway /perm 前缀/浏览器冒烟全过）——Gateway +2 端点；2026-08-31   # 2026-08-31 T-PERM-037 收口：路由级 auths 登记收口（menus 接线归 Phase 3 T-FE-015）；2026-08-28 T-PERM-025 收口：§5/§7/§8/§9 终态化（OPERATION_LOG:VIEW 审计分离、action 动态字典、五维筛选）
+last_reviewed: 2026-10-04
 ---
 
 # 7.1 操作日志页 前端设计
@@ -121,7 +121,7 @@ views/system/operation-log/
 
 | 候选 | 本页使用场景 | 跨页复用 | 确认状态 |
 |---|---|---|---|
-| 分页表格 hook（tableData/pagination/loadTable） | 本页表格（服务端分页变体） | 6.1 类型定义 / 6.2 系统配置 / 7.2 变更日志（同范式表格列表） | ⏳ 待确认（T-FE-012 推进时，模式一致则派生 ReTableHook，含本地过滤/服务端分页两种变体） |
+| 分页表格 hook（tableData/pagination/loadTable） | 本页表格（服务端分页） | 6.1 类型定义 / 6.2 系统配置 / 7.2 变更日志（同范式表格列表） | 已复用 usePagedList；类型定义、系统配置与日志页均消费服务端分页 |
 | 详情抽屉（el-drawer + el-descriptions 全字段） | 本页日志详情 | 7.2 变更日志（diff 快照详情）/ 4.2 权限解释（拒绝原因详情） | ⏳ 待确认（T-FE-012/013 推进时） |
 
 > 当前不提前抽取，待 2+ 页确认模式一致后由 T-FE-001 派生子任务。

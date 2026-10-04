@@ -1,0 +1,9 @@
+{
+  "exit": 1,
+  "cases": 1,
+  "failures": {
+    "shouldPublishThroughCredentialHttpRoute_withoutUserApiGrant": "\nexpected: 0\n but was: 1"
+  },
+  "errors": 0,
+  "skips": 0
+}

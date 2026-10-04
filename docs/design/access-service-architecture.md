@@ -4,7 +4,7 @@ title: access-service 目标架构与归并约束
 status: adopted
 domain: cross-service
 supersedes: docs/archive/2026-08-15/admin-permission-sync.md
-last_reviewed: 2026-09-28
+last_reviewed: 2026-10-04
 ---
 
 # access-service 目标架构与归并约束
@@ -209,9 +209,9 @@ OAuth2 资源服务器与开放路径清单（T-ACCESS-013 落地，2026-08-22 �
 - **scope → 权限映射采用独立映射模型**（设计定案，不接入权限判定面）：scope 保持 OAuth2 标准委托范围语义（签发时空格分隔、授权时校验 ⊆ 客户端注册 scopes），授权判定即"开放路径声明所需 scope、令牌 scope 必须全部包含"；委托主体是客户端而非用户，与平台权限正交互不冲突。
 - **audience**（设计定案：客户端注册配置加列）：`sys_oauth2_client.audiences`（逗号分隔资源服务器标识）非空时签发写入 JWT `aud` claim（List 形态）；`/api/access/auth/oauth2/userinfo` 默认豁免 audience 校验（旧令牌无 aud 兼容）；其他开放路径**强制** audience 匹配（令牌 aud 缺失或不含路径声明的受众 → 403）。种子客户端 audiences=`access-service`。
 - **委托上下文第五要素**：`RequestContext` 增加 `delegatedClientId`（仅 OAuth2 JWT 分支非 null，callerType 维持 USER——operatorId=JWT loginId 委托用户身份）；审计/日志经 `AccessRequestContext.getDelegatedClientId()` 区分第三方委托调用与用户直调。
-- **Gateway 透传**（设计定案：同步支持；评审 P1 修复：仅委托 JWT 启用）：`gateway.oauth2.passthrough-paths`（外部路径口径，默认为空 = 无业务路径默认开放）命中**且 Authorization 为 Bearer 三段式 JWT**（形态识别与下游 JWT 分支同口径，不验签——伪造 JWT 透传后下游验签 401）时 `OAuth2PassthroughFilter`（order -79）设 skipAuth=true——跳过会话校验（否则 OAuth2 JWT 被 uuid 会话校验 401）、权限校验与身份头注入/签名，Authorization 头原样透传下游验签。**平台用户 uuid 会话令牌与无 Authorization 头的请求不启用透传**（skipAuth 不设置）：走正常 AuthTokenFilter 会话校验 + PermissionFilter 接口鉴权，平台会话认证路径不变——否则透传路径上 uuid 会话会被下游共享 Redis 会话分支接受，绕过 Gateway 接口权限（评审 P1）。`/api/access/auth/**` 已由白名单覆盖（userinfo 无需重复配置）。**双侧路径口径（T-ACCESS-042 起同形）**：无 StripPrefix，Gateway 与下游匹配同一路径，开放业务路径双侧配置天然同形；`InternalSecretFilter` 会向透传请求注入 X-Internal-Secret——原「启动防护禁止开放路径位于 `/api/access/**`」已随单命名空间退役（双凭证并存不构成机制冲突），该头经 Gateway 恒存在、直连开放路径不校验（密钥拦截器豁免 oauth2/**）。
+- **Gateway 透传**（设计定案：同步支持；评审 P1 修复：仅委托 JWT 启用）：`gateway.oauth2.passthrough-paths`（外部路径口径，默认为空 = 无业务路径默认开放）命中**且 Authorization 为 Bearer 三段式 JWT**（形态识别与下游 JWT 分支同口径，不验签——伪造 JWT 透传后下游验签 401）时 `OAuth2PassthroughFilter`（order -79）设 skipAuth=true——跳过会话校验（否则 OAuth2 JWT 被 uuid 会话校验 401）、权限校验与身份头注入/签名，Authorization 头原样透传下游验签。**平台用户 uuid 会话令牌与无 Authorization 头的请求不启用透传**（skipAuth 不设置）：走正常 AuthTokenFilter 会话校验 + PermissionFilter 接口鉴权，平台会话认证路径不变——否则透传路径上 uuid 会话会被下游共享 Redis 会话分支接受，绕过 Gateway 接口权限（评审 P1）。公开/自服务入口与 `/api/access/auth/oauth2/**` 按 Gateway 精确白名单覆盖（oauth2/userinfo 无需重复配置），运行时查询不在此豁免范围。**双侧路径口径（T-ACCESS-042 起同形）**：无 StripPrefix，Gateway 与下游匹配同一路径，开放业务路径双侧配置天然同形；`InternalSecretFilter` 在未带服务凭证头时向透传请求注入 X-Internal-Secret——原「启动防护禁止开放路径位于 `/api/access/**`」已随单命名空间退役（双凭证并存不构成机制冲突），仅 SecurityWebMvcConfig 的精确 excludePathPatterns 入口（含 oauth2/**）豁免服务密钥；其他开放业务路径直连仍须通过服务认证，JWT 校验独立执行。
 
-平台用户会话只保留一套：`/api/access/auth/**` 是用户登录与会话签发入口，Gateway 负责校验并向 `access-service` 注入可信身份。Gateway 与 `access-service` 在 Redis logical DB 0 上使用兼容且唯一的 Sa-Token 权威配置（T-ACCESS-003 落实）：`token-name=Authorization`、`token-style=uuid`（uuid 模式无会话密钥概念，会话有效性以共享 Redis 条目为唯一事实，Redis 清空后两端一致失效 fail-closed）、`timeout=7200`（2 小时绝对有效期）、`active-timeout=1800`（30 分钟无操作滑动续期）、`is-concurrent=true`、`is-share=false`、token-prefix 均为 `Bearer`（Gateway 配置，access 签发返回 tokenType=Bearer）；登录类型两侧均为 `StpUtil.login()` 默认 `login`（Sa-Token 无 login-type 配置键，文档口径而非配置项）。`jwt-secret-key` 仅用于 OAuth2 访问令牌签发（HS256，`SaJwtUtil`），不属于平台用户会话密钥。平台用户会话固定为 2 小时绝对有效期和 30 分钟无操作有效期，登录、校验、续期、注销和失效必须端到端一致。Sa-Token 键命名空间只与业务缓存隔离，不得在 Gateway 与 `access-service` 之间相互隔离。两端配置一致性由部署配置约束保障，代码不实现跨进程启动校验（T-ACCESS-003 设计定案：运维部署部分不影响代码逻辑）；`jwt-secret-key` 配置无默认值（`${JWT_SECRET_KEY}`），缺失时 Spring 占位符解析失败导致启动失败。
+平台用户会话只保留一套：`/api/access/auth` 下的登录与自服务端点承担会话入口（同前缀还包括运行时查询，并非整族会话端点），Gateway 负责校验并向 `access-service` 注入可信身份。Gateway 与 `access-service` 在 Redis logical DB 0 上使用兼容且唯一的 Sa-Token 权威配置（T-ACCESS-003 落实）：`token-name=Authorization`、`token-style=uuid`（uuid 模式无会话密钥概念，会话有效性以共享 Redis 条目为唯一事实，Redis 清空后两端一致失效 fail-closed）、`timeout=7200`（2 小时绝对有效期）、`active-timeout=1800`（30 分钟无操作滑动续期）、`is-concurrent=true`、`is-share=false`、token-prefix 均为 `Bearer`（Gateway 配置，access 签发返回 tokenType=Bearer）；登录类型两侧均为 `StpUtil.login()` 默认 `login`（Sa-Token 无 login-type 配置键，文档口径而非配置项）。`jwt-secret-key` 仅用于 OAuth2 访问令牌签发（HS256，`SaJwtUtil`），不属于平台用户会话密钥。平台用户会话固定为 2 小时绝对有效期和 30 分钟无操作有效期，登录、校验、续期、注销和失效必须端到端一致。Sa-Token 键命名空间只与业务缓存隔离，不得在 Gateway 与 `access-service` 之间相互隔离。两端配置一致性由部署配置约束保障，代码不实现跨进程启动校验（T-ACCESS-003 设计定案：运维部署部分不影响代码逻辑）；`jwt-secret-key` 配置无默认值（`${JWT_SECRET_KEY}`），缺失时 Spring 占位符解析失败导致启动失败。
 
 登录响应 `LoginResp.expiresIn` 的单一权威来源为 `sa-token.timeout`（`SaManager.getConfig().getTimeout()`，即真实会话 TTL），无独立展示键——避免 Nacos 只覆盖一项配置时展示与真实会话漂移（T-ACCESS-003 评审 P2，2026-08-14）。Gateway 配置经 T-ACCESS-003 评审 P1 从 `bootstrap.yml` 迁移至 `application.yml`（Boot 3 标准 ConfigData + `spring.config.import: optional:nacos:gateway.yml`，与 access-service 同模式）；原 bootstrap.yml 在 Boot 3 默认不加载（无 starter-bootstrap），Gateway 的 sa-token/Redis/路由/Nacos 配置实际从未生效，且存在 7 个启动缺陷（WebMvc 组件冲突、Bean 名冲突、spring-webmvc 在 classpath 触发 SCG 异常、路由前缀错误等）已随迁移修复；Gateway 上下文配置测试（`GatewayApplicationConfigTest`）固化为回归保障。
 
@@ -224,7 +224,7 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 | 入口 | 调用方要求 | 关键约束 | 实现 |
 |---|---|---|---|
 | `/api/access/auth/**` 公开子集 | 匿名/会话/OAuth2 JWT | 精确拆分：{captcha, login, login/sms, oauth2/token, oauth2/refresh, oauth2/revoke, logout} 匿名放行（logout 保持未登录 200 幂等）；{userinfo, user-menu, oauth2/authorize} 需会话 → USER 分支；{oauth2/userinfo} 需 OAuth2 JWT（验签 + 撤销黑名单 + 客户端启用校验后绑定；revoke 验签后写黑名单防匿名 Redis 键 DoS） | ANONYMOUS / USER 上下文；登录会话键 tenantId + subjectTypeCode |
-| OAuth2 开放业务路径（`access.oauth2.resource-paths` 显式配置，默认零开放） | OAuth2 JWT（验签 + 黑名单 + 客户端启用 + scope/audience/clientIds 门禁） | 默认拒绝；启动防护禁覆盖会话端点与 /api/access/**；userinfo 豁免 audience、业务路径强制 | USER + delegatedClientId 委托上下文 |
+| OAuth2 开放业务路径（`access.oauth2.resource-paths` 显式配置，默认零开放） | OAuth2 JWT（验签 + 黑名单 + 客户端启用 + scope/audience/clientIds 门禁） | 默认拒绝；启动防护禁覆盖保留会话端点；userinfo 豁免 audience、业务路径强制 requiredScopes 与 audience | USER + delegatedClientId 委托上下文 |
 | 用户管理接口（`/api/access/user/**` 等） | 有效用户会话 | 租户与会话一致；X-Tenant-Id/X-User-Id 头存在必须与会话一致（不一致 403）；未登录显式 401 | 会话权威：operatorId=loginId、tenantId=session 租户 |
 | `/api/access/auth/**` | 已验证 Gateway 或注册业务服务 | 保持现有 SDK 请求头兼容；按服务和操作授权 | 内部凭证 → SERVICE（或签名用户态）；请求体主体非操作者 |
 | `/api/access/**/sync`、`/full-sync` | 已验证服务身份 | `sourceService` 必须等于已验证服务身份（凭证通过后绑定的 X-Service-Code，`SyncAuthVerifier` 从上下文比对） | SERVICE 上下文；不匹配 → SECURITY_DENIED |
@@ -272,6 +272,8 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 ## 8. 任务、异步与审计
 
 ### 8.1 多实例任务协调
+
+- **写前校验与注册观测（T-ADMIN-032，2026-10-04 确认）**：create/update 在持久化与撤旧调度前用 Spring `CronExpression` 校验，非法返回 10602。合法配置遇到本实例注册失败时，保留数据库启用配置，由现有 60 秒对账重试；详情/分页展示带实例标识的本地注册状态，不将单实例故障写成全局停用，不增加数据库状态或告警框架。字段定义见契约 §17.3。
 
 - 同一计划触发使用稳定的数据库执行键（例如 `jobId + scheduledTime`）和唯一约束。
 - 通过 `lease_owner`、`lease_until`、状态和原子抢占保证同一时刻最多一个活动执行者。
@@ -389,7 +391,7 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 
 - `resource_entity(USER).code` = 主体 ID 字符串化（`subjectId.toString()`）；`resource_entity(ROLE).code` = roleId 字符串化（`abstract_role.id.toString()`）。二者是实例级授权的业务编码（`resourceCode`），由 USER/ROLE 全写路径同事务投影维护（T-ACCESS-019 已落地 2026-08-23：管理面 user 能力 `UserWriteAppService`（既有）与权限面 `RoleManageAppService`/`UserManageAppService` 的 create/update/move/remove/启停全量经 `LocalProjectionDomainService` 维护投影；ROLE 投影 `parent_id` 镜像角色树且父投影缺失 fail-closed 回滚；`abstract-user/update` 门禁实例级（T-ACCESS-034 USER 轨细码化：name/extra 查 `USER:UPDATE`、enabled 查 `USER:ENABLE`，`deleteUsers` 查 `USER:DELETE`——原 `USER:MANAGE@subjectId` 已退役）。范围口径：外部 `/api/access/**/sync|full-sync` 三入口不产投影、亦无缓存失效登记，为登记遗留——外部主体的 USER 资源按 §4.3 由外部经 resource-entity sync 自行维护，`UserRoleSync` 缓存失效缺口见 T-ACCESS-019 任务卡遗留节）。
 - **`resource_entity(TYPE_DEFINITION).code` = 复合业务键 `{typeKey}:{typeCode}`（T-PERM-051，2026-09-05 定案）**：typeCode 仅 `tenant+type_key` 内唯一（种子 user_type 与 resource_type 均有 USER/SERVICE 同名行），裸 code 跨族撞 `uk_resource_entity`，故以复合键消歧；格式构造唯一入口 `BusinessKeyUtil.typeInstanceBusinessKey`（golden 锁）。投影由 type-definition 写路径同事务维护（create 联动 / name 变更同步 / 软删级联投影行与投影行下授权行）+ bootstrap 自愈补种（存量种子行，幂等）两条事实链产出（类型所有权 SYNC+access-service，见 §4.3）；无树形语义（parent 恒 null、status 恒启用）。实例级门禁（list 第二段 / detail / update / remove 批量）全部按该复合键编码轨判定（经 `hasPermissionByCode`/`getDeniedResourceCodes`，投影缺失的键 fail-closed 计入拒绝）；`resource_entity.code` 列宽 256 即为容纳最坏 64+1+64=129 复合键而加宽（2026-09-07 用户定案）。
-- **`resource_entity(CONDITION).code` = 条件业务键 code（T-PERM-048，2026-09-11 定案）**：条件 code 在 `uk_permission_condition(tenant_id, code)` 租户内唯一（不像 typeCode 仅 type_key 内唯一），投影 code 直传无需复合键（无拼接不涉 BusinessKeyUtil 构造）；投影 status 镜像条件 enabled（停用条件自动隐出授权资源树 status=1 过滤）、parent 恒 null。仅 source=MANAGED 条件投影（INLINE 内联条件不投影）；实例级写门禁 CONDITION:UPDATE/DELETE@{code}（create 维持类型级）经该投影编码轨判定，scope_all 存量授权天然覆盖全部实例零破坏。
+- **`resource_entity(CONDITION).code` = 条件业务键 code（T-PERM-048，2026-09-11 定案）**：条件 code 在 `uk_permission_condition(tenant_id, code)` 租户内唯一（不像 typeCode 仅 type_key 内唯一），投影 code 直传无需复合键（无拼接不涉 BusinessKeyUtil 构造）；投影 status 镜像条件 enabled（授权侧资源树查询显式 enabledOnly=true 时停用条件自动隐出，过滤由调用方参数决定——契约 §12.1）、parent 恒 null。仅 source=MANAGED 条件投影（INLINE 内联条件不投影）；实例级写门禁 CONDITION:UPDATE/DELETE@{code}（create 维持类型级）经该投影编码轨判定，scope_all 存量授权天然覆盖全部实例零破坏。
 - **`resource_entity.id` 边界**：USER/ROLE 等业务对象门禁与跨服务 SDK **不得使用** `resource_entity.id`，统一使用业务 code/externalId；权限面内部及直接管理资源实体的后台接口（资源树、API 映射、资源依赖、权限树等 `resource_entity` 自身的管理链路）允许继续使用，现有 `ApiMappingResp`/`ResourceDependencyResp` 等契约不因此重构（原 `ResourcePermissionTreeResp` 已随 T-PERM-059 删除，2026-09-10）。
 - 引擎门禁按业务编码判定的契约（`hasPermissionByCode`/`getDeniedResourceCodes` 等）以 `engine/implementation.md` §3.1 为准。
 
@@ -468,7 +470,7 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
   - **演进方向登记（2026-09-05，待启动时另行设计）——固定图→租户初始化引擎**：固定图内容全部租户隔离（资源/映射/授权/类型种子均带 tenant_id），机制参数化（`initialize(tenantId, …)`）后可作租户开通的初始化引擎，墓碑三分/属性漂移语义可继承用于租户修复场景；前置依赖=租户开通流程本身（现状不做租户开通），入口形态/管理员密码来源/图是否租户可配届时定案。
 - 不维护 SQL bootstrap 种子链路，不建 bootstrap 框架/独立模块/分布式锁；docker-compose 默认档仅基建（PostgreSQL/Redis/Nacos），全栈预览经 `--profile app`（T-ACCESS-047）——启动顺序与外部使用者路径见 docs/quickstart.md、部署基线见 docs/ops/deployment.md。
 
-**API 授权退役升级边界（T-ACCESS-062）**：固定图不再生成 API 授权；已初始化库若管理角色仍有有效 API 授权，启动 fail-fast，须先执行 [受控迁移](../ops/runbook-api-retirement-062.md) 或重建开发库。迁移按所有租户/来源清理，不借普通授权页修改受保护行。
+**API 授权退役升级边界（T-ACCESS-062）**：固定图不再生成 API 授权；已初始化库若管理角色仍有有效 API 授权，启动 fail-fast，旧库迁移支持已于 2026-10-03 退出（T-ACCESS-073），须按[当前 schema 重建开发库](access-service-rebuild-runbook.md)；不自动清理授权，不借普通授权页修改受保护行。
 
 ### 14.3 固定图组成与 bootstrap 管理 API 清单
 

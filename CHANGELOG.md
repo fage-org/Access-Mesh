@@ -33,7 +33,7 @@
 ### Removed
 
 - **功能角色候选端点 `/api/access/role/list` 退役（T-FE-058，破坏性）**：该端点服务端写死 `LIMIT 0,200` 且无 keyword/分页（第 201 个功能角色静默不可选），门禁仅类型级 `ROLE:VIEW`（与角色管理页实例准入口径分叉）——功能角色候选唯一消费方（用户详情「分配角色」选择器）迁 `POST /api/access/abstract-role/list`（`roleTypeCodes=[BASIC_ROLE,GROUP_ROLE,PERSONAL]`+keyword+分页；门禁随端点对齐实例准入），旧端点全链移除（无兼容层，POST 404；bootstrap 固定图行同批移除）。存量库资源行/映射/授权惰性残留的订正语句见 `docs/design/access-service-rebuild-runbook.md` 常见问题表。
-- **资源依赖管理写入口退役（T-PERM-071，破坏性）**：`resource-dependency/create|update|remove|batch-sync` 四端点、`ResourceDependencyResp.autoGrant` 字段、`DEPENDENCY:SYNC` 操作码与 bootstrap 固定图授权档、错误码 20048 全链移除——依赖声明唯一写入来源为所属服务 MANIFEST 发布；管理台只读（list/graph/check）。旧表保全迁移与运行手册见 `docs/ops/runbook-auto-grant-migration.md`。
+- **资源依赖管理写入口退役（T-PERM-071，破坏性）**：`resource-dependency/create|update|remove|batch-sync` 四端点、`ResourceDependencyResp.autoGrant` 字段、`DEPENDENCY:SYNC` 操作码与 bootstrap 固定图授权档、错误码 20048 全链移除——依赖声明唯一写入来源为所属服务 MANIFEST 发布；管理台只读（list/graph/check）。旧表保全迁移已于 2026-10-03 退出支持；原交付见 `docs/archive/2026-10-03/ops/runbook-auto-grant-migration.md`，当前按权威 schema 新建库。
 
 ### Fixed
 

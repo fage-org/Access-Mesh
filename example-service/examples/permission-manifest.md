@@ -51,4 +51,4 @@ TenantRegistrationProvider.publications() 返回各租户的 TenantPublication(t
 
 文件与 PermissionManifestReq 同构，自身包含 publicationGeneration，SDK 不补默认代次。只有配置文件位置才启动发布；缺文件、坏 JSON、尾随内容、字段缺失、业务部分失败或旧代次均使本次启动发布失败。未开启 profile 时普通 example-service 不调用清单接口。
 
-资源协议切换与旧数据保全分别见 [full-sync 手册](../../docs/ops/runbook-full-sync.md)和[迁移手册](../../docs/ops/runbook-auto-grant-migration.md)。
+资源协议切换见 [full-sync 手册](../../docs/ops/runbook-full-sync.md)。旧数据原地迁移已退出支持，当前采用[空库重建](../../docs/design/access-service-rebuild-runbook.md)。

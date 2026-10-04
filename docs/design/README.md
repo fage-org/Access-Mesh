@@ -28,6 +28,7 @@
 | 扩展指南（接入与二开全景） | [extension-guide.md](extension-guide.md)（T-FE-023 产出，2026-09-12 定稿 adopted——双通道外评两轮处置收口；场景驱动的接入方导引层，契约细节以 [access-service-api-contract.md](access-service-api-contract.md) 等权威文档为准） |
 | ~~admin 域对前端 API 契约~~ | 已 `status: superseded`（2026-09-13 T-ACCESS-040 并入契约总册；原文件在 services 目录保留原位作历史锚点，锚点对照见总册附录 C） |
 | 前端页面级设计 | [frontend/](frontend/)（UI 设计，随 T-FE 任务产出回写） |
+| 测试证据精简与维护成本优化 | [testing-simplification.md](testing-simplification.md)（adopted；当前处置、验证边界与归档验收） |
 | PostgreSQL 表结构     | [schema/access-service.sql](schema/access-service.sql)（唯一权威 DDL）；[schema/example-service.sql](schema/example-service.sql)（演示库） |
 
 ## 待实施方案
@@ -114,3 +115,5 @@ Claude 按需技能位于 `.claude/skills/`。
 | `../archive/2026-04-28/` | 文档重整前的旧版长文档和讨论清单                                                                                                              |
 
 `../archive/` 下文档可能包含旧接口、旧字段或已废弃设计，例如 `includeDataScope`、`query-data-scopes`、`AuthorizationService`、`ConfigManageServiceImpl` 等。实现时不要直接引用归档文档；如归档内容与权威文档冲突，以本页”权威来源”列出的文档为准。
+
+问题清单计划已于 2026-10-04 [完成归档](../archive/2026-10-04/pending-problems-clearance-plan.md)。本批当前结论分布于 API 契约、引擎、组织生命周期、服务认证与页面设计；实际已交付和后续实施的边界见[最终验收](../archive/2026-10-04/tasks/evidence/pending-problems-clearance/final-audit.md)。

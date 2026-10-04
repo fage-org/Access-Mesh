@@ -1,0 +1,54 @@
+[
+  {
+    "variant": "format",
+    "exits": [
+      0
+    ],
+    "cases": 6,
+    "failures": {},
+    "errors": 0,
+    "skips": 0
+  },
+  {
+    "variant": "empty-guard",
+    "exits": [
+      1,
+      1
+    ],
+    "cases": 2,
+    "failures": {
+      "batchInQueriesGuardEmptyCollections": "[src\\main\\resources\\mapper\\role\\UserRoleQueryMapper.xml#selectOrgBriefsByIds orgIds null=false] \nExpecting actual:\n  \"select id, name from sys_org where tenant_id = ? and delete_flag = 0\"\nto contain pattern:\n  \"\\bid\\s*=\\s*-1\\b\"",
+      "batchCollectionsAndOrganizationQueriesRespectTenantAndDeletion": "\nExpecting empty but was: [OrgBriefProjection[id=74301, name=root],\n    OrgBriefProjection[id=74302, name=child]]"
+    },
+    "errors": 0,
+    "skips": 0
+  },
+  {
+    "variant": "validity-filter",
+    "exits": [
+      1,
+      1
+    ],
+    "cases": 2,
+    "failures": {
+      "userRoleProjectionValidityWindow": "[src\\main\\resources\\mapper\\role\\UserRoleQueryMapper.xml#selectUserRoleProjections] \nExpecting actual:\n  \"select ur.relation_id as relationid, ur.target_type as targettype, ar.role_type as targetroletype, ar.external_id as roleexternalid, ar.name as rolename, ar_rel.external_id as relationexternalid, ur.valid_from as validfrom, ur.valid_to as validto from user_role ur left join abstract_role ar on ur.target_id = ar.id and ar.tenant_id = ur.tenant_id and ar.delete_flag = 0 left join abstract_role ar_rel on ur.relation_id = ar_rel.id and ar_rel.tenant_id = ur.tenant_id and ar_rel.delete_flag = 0 where ur.tenant_id = #{tenantid} and ur.abstract_user_id = #{abstractuserid} and ur.delete_flag = 0 and (ur.valid_from <= #{now} or ur.valid_from is null)\"\nto contain pattern:\n  \"ur\\.valid_to\\s*>=\\s*#\\{now}\\s+or\\s+ur\\.valid_to\\s+is\\s+null\"",
+      "roleWindowIncludesExactBoundsAndNull_butExcludesForeignDeletedAndOutsideRows": "\nExpecting actual:\n  [\"role-74101\", \"role-74102\", \"role-74104\"]\nto contain exactly in any order:\n  [\"role-74101\", \"role-74102\"]\nbut the following elements were unexpected:\n  [\"role-74104\"]\n"
+    },
+    "errors": 0,
+    "skips": 0
+  },
+  {
+    "variant": "tenant-filter",
+    "exits": [
+      1,
+      1
+    ],
+    "cases": 2,
+    "failures": {
+      "everySelectCarriesTenantId": "[src\\main\\resources\\mapper\\menu\\UserMenuQueryMapper.xml#selectMenus] \nExpecting actual:\n  \"select id, parent_id, menu_type, display_name as name, path, icon, sort_order, status, resource_type, resource_code from sys_menu where 1 = 1 and delete_flag = 0 order by sort_order asc, id asc\"\nto contain pattern:\n  \"\\btenant_id\\s*=\\s*#\\{\\s*tenantid\\s*}\"",
+      "batchCollectionsAndOrganizationQueriesRespectTenantAndDeletion": "\nExpecting actual:\n  [\"own\", \"foreign\"]\nto contain exactly (and in same order):\n  [\"own\"]\nbut some elements were not expected:\n  [\"foreign\"]\n"
+    },
+    "errors": 0,
+    "skips": 0
+  }
+]

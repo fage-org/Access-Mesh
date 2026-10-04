@@ -1,0 +1,23 @@
+{
+  "baseline_head": "71e3c5e34ebe612c9940f97a3cba9d2abbd7d236",
+  "before_files": 330,
+  "after_files": 331,
+  "before_lines": 85691,
+  "after_lines": 84710,
+  "added_files": [
+    "access-service/src/test/java/cn/ac/fage/accessmesh/access/architecture/QueryMapperPgIT.java",
+    "access-service/src/test/java/cn/ac/fage/accessmesh/access/it/GatewayTestSignatures.java",
+    "e2e/src/test/java/cn/ac/fage/accessmesh/e2e/E2eProcessSupport.java",
+    "e2e/src/test/java/cn/ac/fage/accessmesh/e2e/E2eProcessSupportTest.java",
+    "frontend/src/test-support/async.ts",
+    "gateway/src/test/java/cn/ac/fage/accessmesh/gateway/support/PermissionFilterTestSupport.java"
+  ],
+  "deleted_files": [
+    "access-service/src/test/java/cn/ac/fage/accessmesh/access/it/PermissionCenterIntegrationTest.java",
+    "access-service/src/test/java/cn/ac/fage/accessmesh/access/resource/service/impl/ManifestMigrationPublishPgIT.java",
+    "access-service/src/test/java/cn/ac/fage/accessmesh/access/schema/AccessServiceSchemaH2Test.java",
+    "access-service/src/test/java/cn/ac/fage/accessmesh/access/schema/ApiAuthorizationRetirementPgIT.java",
+    "access-service/src/test/java/cn/ac/fage/accessmesh/access/schema/AutoGrantMigrationPgIT.java"
+  ],
+  "net_lines": -981
+}

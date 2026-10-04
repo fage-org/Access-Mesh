@@ -1,0 +1,26 @@
+[
+  {
+    "class": "cn.ac.fage.accessmesh.e2e.BasicRoleGrantVerticalSliceE2EIT",
+    "cases": 8,
+    "time": "107.284",
+    "bad": 0
+  },
+  {
+    "class": "cn.ac.fage.accessmesh.e2e.E2eProcessSupportTest",
+    "cases": 2,
+    "time": "4.503",
+    "bad": 0
+  },
+  {
+    "class": "cn.ac.fage.accessmesh.e2e.ExampleBusinessFinalCheckE2EIT",
+    "cases": 11,
+    "time": "90.95",
+    "bad": 0
+  },
+  {
+    "class": "cn.ac.fage.accessmesh.e2e.ExampleProtectedApiE2EIT",
+    "cases": 8,
+    "time": "68.424",
+    "bad": 0
+  }
+]

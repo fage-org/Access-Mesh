@@ -3,7 +3,7 @@ doc_type: design
 title: 默认组织树与用户生命周期设计
 status: adopted
 domain: org-user
-last_reviewed: 2026-09-26
+last_reviewed: 2026-10-04
 ---
 
 # 默认组织树与用户生命周期设计
@@ -246,11 +246,13 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
 | `org-tree-config/update`（默认配置改 rootOrgId） | 复用同款归属判定，将使任一用户失去归属则拒绝；安全扩围（新根子树 ⊇ 旧子树）放行 | 11018 `ORG_TREE_CONFIG_DEFAULT_PROTECTED` |
 | `org-tree-config/delete` | 默认配置行无条件拒绝（身份目录结构性存在；无默认配置的租户放行） | 11018 `ORG_TREE_CONFIG_DEFAULT_PROTECTED` |
 
-共享判定收敛于 `OrgTreeConfigDomainService.findUsersLosingDefaultHome(old, new)`（批量两查、无逐用户 SQL）；锁覆盖=守卫族全部参与方：`org/delete` 守卫在三树锁内、树配置三守卫入口挂 SYS_ORG 树锁（锁内重读配置，防并发写窗口快照过期）、成员关系两写入口（`user-org/assign`/`remove`）在门禁后挂 SYS_ORG 树锁（claude 外评 P2：成员写不持锁时，并发 deleteOrg/setDefault 的守卫读与成员写交错可双放行致归属归 0——同锁串行后窗口闭合）。tenant 1 固定图根业务键漂移由 bootstrap 重启检测兜底（与菜单根 code 漂移同口径），写入口不重复拦截。`create` 新配置的根与其他树祖先/后代重叠校验不在守卫面内（不改变现有默认身份池；登记 Q-024 留观）。事故态（守卫上线前的存量/直改库）诊断与定点恢复见 [runbook-default-tree-recovery](../ops/runbook-default-tree-recovery.md)。
+共享判定收敛于 `OrgTreeConfigDomainService.findUsersLosingDefaultHome(old, new)`（批量两查、无逐用户 SQL）；锁覆盖=守卫族全部参与方：`org/delete` 守卫在三树锁内、树配置三守卫入口挂 SYS_ORG 树锁（锁内重读配置，防并发写窗口快照过期）、成员关系两写入口（`user-org/assign`/`remove`）在门禁后挂 SYS_ORG 树锁（claude 外评 P2：成员写不持锁时，并发 deleteOrg/setDefault 的守卫读与成员写交错可双放行致归属归 0——同锁串行后窗口闭合）。tenant 1 固定图根业务键漂移由 bootstrap 重启检测兜底（与菜单根 code 漂移同口径），写入口不重复拦截。树根重叠由 §7.1 的创建/改根共享守卫独立检查（T-ORG-004）；创建配置同样持 SYS_ORG 锁，默认身份目录守卫保持原范围。事故态（守卫上线前的存量/直改库）诊断与定点恢复见 [runbook-default-tree-recovery](../ops/runbook-default-tree-recovery.md)。
 
 `set-primary` 与 assign/remove 共用默认树解析和同一树写锁；目标不存在与无权分别按 10101/403 返回，不为隐藏存在性改写已采纳顺序。set-default 在有成员归属时拒绝，update 的安全扩围按本节既有规则放行；默认归属约束采用宁严勿松的取舍。[来源](../archive/2026-09-26/decision-registry-before.md)（原第 161 行）及[历史决定](../archive/2026-09-26/decision-registry-history.md)（原第 36 行）。
 
 ### 7.1 组织树归属解析约定
+
+**树根互斥（T-ORG-004，2026-10-04 确认）**：create 与 update 改根在既有 SYS_ORG 事务锁内共用领域守卫，候选根必须存在且与租户其他有效配置的根互不相同、互非祖先/后代，冲突返回 `11003 ORG_TREE_ROOT_OVERLAP`。更新时排除配置自身；默认与非默认树同规，T-ORG-002 归属保护同时成立。组织结构移动已由跨树移动拒绝和同一树写锁保护。当前无部署环境，开发脏库走既有重建流程，不新增存量迁移或多根择一兜底；新守卫不声称清理了历史/直写重叠数据。
 
 user-org / user_role 同步链路上的 `treeRootExternalId` 必须由统一 resolver 解析得出：
 

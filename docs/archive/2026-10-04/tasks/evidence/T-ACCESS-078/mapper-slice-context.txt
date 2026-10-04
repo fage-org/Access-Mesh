@@ -1,0 +1,6 @@
+beans=73
+configuration=com.mybatisflex.core.mybatis.FlexConfiguration
+datasource=com.zaxxer.hikari.HikariDataSource
+underscore=true
+timeHandler=cn.ac.fage.accessmesh.access.infrastructure.TimestamptzLocalDateTimeTypeHandler
+interceptors=[]

@@ -3,7 +3,7 @@ doc_type: design
 title: 「组织与用户」融合页 · 权限契约
 status: adopted
 domain: org-user
-last_reviewed: 2026-09-26
+last_reviewed: 2026-10-04
 ---
 
 # 「组织与用户」融合页 · 权限契约
@@ -143,8 +143,8 @@ v1.4 起前后端**共用同一套权限词法**（乙层 `资源类型:操作�
 
 | UI 动作 | 资源:操作（乙层 / 端点） | 前端 perm 码 | 无权降级 |
 |---|---|---|---|
-| 查看用户角色 | `USER:VIEW`（`/api/access/user-role/list`） | `USER:VIEW` | 角色区不显示 |
-| 分配/回收功能角色 | **`ROLE:MANAGE`** ³（目标角色实例；T-ACCESS-006 起由权限面 `/api/access/user-role/assign|revoke` 直接提供，admin 侧原 `/api/access/user-role/assign|revoke` 写代理已删除（T-ADMIN-024，无映射 404）；`/api/access/user-role/list` 保留经 `role.service` 聚合） | `ROLE:MANAGE` | 角色区只读 |
+| 查看用户角色 | `USER:VIEW`（`/api/access/user-role/view`） | `USER:VIEW` | 角色区不显示 |
+| 分配/回收功能角色 | **`ROLE:MANAGE`** ³（目标角色实例；T-ACCESS-006 起由权限面 `/api/access/user-role/assign|revoke` 直接提供，admin 侧原 `/api/access/user-role/assign|revoke` 写代理已删除（T-ADMIN-024，无映射 404）；`/api/access/user-role/view` 保留经 `role.service` 聚合） | `ROLE:MANAGE` | 角色区只读 |
 
 <a id="position-actions"></a>
 ### D. 岗位（Tab：岗位管理）—— 岗位 = 特殊组织 `ORG`（按 `orgType=2` 区分）⚠️ 配权贴近红线
@@ -161,6 +161,8 @@ v1.4 起前后端**共用同一套权限词法**（乙层 `资源类型:操作�
 ---
 
 ## 5. 关系动作归属契约（钉死，避免二义）
+
+创建用户并一步挂载组织也属于成员关系动作：USER:CREATE 保持，orgId 指向普通组织时检查 ORG:MANAGE_MEMBER，指向岗位时检查 ORG:ASSIGN_POSITION_USER；不再以 ORG:UPDATE 代替成员管理权限（T-ORG-005，2026-10-04 确认）。岗位候选可见性沿 T-ACCESS-055 已确认的 ORG:VIEW 裁剪边界，不在此项精化；候选动作仍由各入口门禁兜底。
 
 | 备注 | 规则（核对后定稿） |
 |------|------|
@@ -230,7 +232,7 @@ v1.4 起前后端**共用同一套权限词法**（乙层 `资源类型:操作�
 - **【本地投影闭环（T-ACCESS-005 已落地）】** 能力写编排层（原 access.application）同一事务维护本地投影：用户 → `abstract_user` + `resource_entity(USER)`；组织/岗位 → `resource_entity(ORG)` + `abstract_role(ORG/POSITION)`；`user-org` 变更 → `user_role`。投影使用业务键定位（不写 sync_metadata，owner=access-service），admin-service 不存储权限中心内部 ID。
 - **【ORG_ROLE 旧口径清理（T-ACCESS-006 已随代理删除完成）】** 原 admin-service `RoleProxyServiceImpl` 中 4 处硬编码 `ORG_ROLE` 已随代理类删除（T-ACCESS-006）；组织角色类型映射现由 `UserRoleQueryAppServiceImpl`（`ORG`/`POSITION`，T-ACCESS-033 迁移改名）与 `OrgOperationCodeMapper` 统一承载，`ORG_ROLE` 口径在代理层不再存在。
 - **【跨树关系修正】** `/api/access/user-org/assign` 禁止删除用户所有组织关系；必须改为关系级追加或显式树内替换。`set-primary` 首期只作用默认树。
-- **【功能角色分配（T-ACCESS-006 已落地）】**：分配/回收由权限面 `/api/access/user-role/assign|revoke` 直接提供（门禁 `ROLE:MANAGE` 备注 ³）；admin 侧原 `/api/access/user-role/assign|revoke` 写代理已删除（T-ADMIN-024，无映射 404），`/api/access/user-role/list` 保留经 `role.service` 的 `UserRoleQueryAppService`（T-ACCESS-033 迁移改名）聚合。
+- **【功能角色分配（T-ACCESS-006 已落地）】**：分配/回收由权限面 `/api/access/user-role/assign|revoke` 直接提供（门禁 `ROLE:MANAGE` 备注 ³）；admin 侧原 `/api/access/user-role/assign|revoke` 写代理已删除（T-ADMIN-024，无映射 404），`/api/access/user-role/view` 保留经 `role.service` 的 `UserRoleQueryAppService`（T-ACCESS-033 迁移改名）聚合。
 - **【岗位接线】**：岗位 Tab 经 `/api/access/org/*`（按 `orgType=2` 过滤）管理；用户↔岗位经 `/api/access/user-org/*`。前端 mock 若把岗位归 `/api/access/user-role/*`（roleTypeCode=POSITION），须按本契约校正为组织成员关系。
 - **【其他】** 菜单/按钮配置补齐本页 perm 码（§8.4）。
 

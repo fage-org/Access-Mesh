@@ -6,7 +6,7 @@ domain: cross-service
 supersedes:
   - docs/design/permission-center/api-contract.md
   - docs/design/services/admin-service-api-contract.md
-last_reviewed: 2026-10-03
+last_reviewed: 2026-10-04
 ---
 
 # access-service API 契约总册
@@ -37,6 +37,8 @@ last_reviewed: 2026-10-03
 - **多形态接入**：对外交付目标分为 Spring Boot starter、普通 Java client SDK 和其他语言 HTTP 接入文档三层，稳定 API 契约必须同时服务这三类调用方。
 
 ### 1.2 接口分层（perm 家族）
+
+外部查询与权限视图不开放引擎 TRACE，也不透传请求中的 trace；生产适配固定关闭该诊断输出。内部测试可显式启用 TRACE；未来新增真实诊断入口须先明确身份来源和诊断授权（T-PERM-102，2026-10-04 确认；引擎实现 §3.5）。
 
 | 分层                    | 路径前缀                     | 调用方                              | 特点                                 |
 | ----------------------- | ---------------------------- | ----------------------------------- | ------------------------------------ |
@@ -158,6 +160,10 @@ last_reviewed: 2026-10-03
 
 ### 2.7 可编辑字段显式清空协议（T-API-004，U006 拍板 2026-09-24）
 
+**后续字段目标（T-API-005，2026-10-04 确认，[T-API-006](../tasks/T-API-006.md) 待实施）**：condition.description 与 system-config.description 采用 descriptionClear，遵循本节 null 不更新、空白拒绝、值与 Clear 冲突拒绝、显式 NULL 持久化。role/resource.extra 的空白宽松边界退出，清空只走既有 extraClear；当前代码待实施卡兑现，不将定案视为已交付。
+
+菜单字段仅增加 iconClear，按相同冲突/空白规则真实置 NULL；path 与 resourceType/resourceCode 不提供清空通道，保留当前更新语义，不将菜单路由置空或把资源关联隐式解绑（T-API-005，2026-10-04 确认）。
+
 可选字段更新统一「三态」：**未传/null=不修改**（保持原值）；**非空值=设置**；**`xxxClear=true`=清空为 NULL**（JSON null 无法区分「未传」与「清空」，显式布尔标志是唯一清空通道）。统一规则：
 
 - **冲突拒绝（全端点）**：新值与 `xxxClear=true` 同传 → Bean Validation 400（90001）。取代 role/resource 旧「Clear 优先于 extra」的静默丢值口径（同批对齐，既有单用形态消费者不回退）。
@@ -165,8 +171,22 @@ last_reviewed: 2026-10-03
 - **false/缺省无清空作用**：仅 `true` 触发清空。
 - **落库语义**：清空经 MyBatis-Flex `UpdateEntity` 显式 NULL 列写入（`update(entity)` 默认忽略 null 列——T-PERM-028 起先例）。
 - **覆盖面**：user `phoneClear`/`emailClear`（§7.4）、abstract-user `extraClear`（§7.8）、type `descriptionClear`（§13.1——**type `extraClear` 任何非 null 值 20044（PERM_INVALID_PARAM）拒绝**：extra 含服务端管理键 managedMode/syncSourceService/grantOriginRole，不支持清空，U006 拍板）、service `basePathClear`/`descriptionClear`/`extraClear`（§12.2——创建分支携带任一 true 拒绝 20044〔PERM_INVALID_PARAM〕；extraClear 语义=撤销 syncTypes 同步白名单，该服务同步通道全拒 fail-closed）、api-mapping `extraClear`（§12.2）、role `extraClear`（§10.3）、resource `extraClear`（§12.1）。
-- role/resource 既有 `extraClear` 仅对齐冲突拒绝（空白拒绝维持既有宽松，随 Q-043 同型矩阵后续收敛）。
+- role/resource 既有 `extraClear` 已具备冲突拒绝；空白输入目前仍宽松，T-API-006 将按上述目标收紧，不把待实施目标视为当前已交付。
 - 前端表单统一公式：**原值非 null 且表单清空 → `xxxClear=true`**（role/resource 页既有公式推广）。
+
+
+| 后续字段族 | 清空通道/限制 | 清空后果 |
+|---|---|---|
+| condition.description、system-config.description | descriptionClear；null 不更新、空白/值与 Clear 冲突拒绝 | 真实 NULL；系统配置响应与重查一致。upsert 新建 Clear=true 按 service/save 既有先例拒绝 |
+| menu.icon | iconClear，同一协议 | 不显示图标 |
+| menu.path、resourceType/resourceCode | 不提供 Clear，保持既有更新语义 | 不置空路由、不隐式转为纯展示菜单 |
+| OAuth2 redirectUris | redirectUrisClear | 新 authorize 无合法回调而拒绝；不因此撤销既有授权码/令牌 |
+| OAuth2 scopes | scopesClear | 新 authorize 不接受非空 scope；既有码/刷新记录的 scope 不被隐式重写 |
+| OAuth2 audiences | audiencesClear | 此后签发令牌不含 aud，不能通过要求 audience 的业务路径；既有令牌不改写 |
+| OAuth2 grantTypes、clientName、clientSecret | 不提供 Clear；更新值拒绝空白，null 不更新 | 停用客户端使用 status=0，不用清空必需字段代替；创建缺省行为不改 |
+| role/resource.extra | 沿 extraClear，新增空白拒绝 | 清空唯一通道为 extraClear；不推广空串清空 |
+
+上述目标于 2026-10-04 确认，实施统一归 T-API-006；当前 DTO/持久化差异仍存在。T-ADMIN-035 的租户/用户有效性检查独立实施，不能用配置清空替代撤权。
 
 ## 3. 动词规范
 ### 3.1 动词表
@@ -222,7 +242,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 |------|----------|----------|--------|------|
 | `/api/access/user/page` | `USER` | 类型级 | `VIEW` | 默认树身份目录范围内列表 |
 | `/api/access/user/member-candidates` | `ORG` | 实例级 (目标 orgId) | `MANAGE_MEMBER` / `ASSIGN_POSITION_USER`（按目标 orgType 解析，T-ORG-003） | 与 user-org/assign 同权的成员动作码——先验证目标组织存在再按类型判权；候选用户范围由默认树可见性二次裁剪 |
-| `/api/access/user/create` | `USER` | 类型级 | `CREATE` | 若入参带 orgId, 同时需 `ORG:UPDATE@orgId` |
+| `/api/access/user/create` | `USER` | 类型级 | `CREATE` | 若入参带 orgId，普通组织需 `ORG:MANAGE_MEMBER@orgId`，岗位需 `ORG:ASSIGN_POSITION_USER@orgId` |
 | `/api/access/user/update` | `USER` | 实例级 (userId) | `UPDATE` | 档案字段自我豁免保留（T-PERM-067 Q-002 收窄）；`status` 变更不豁免（自身 status=0 硬拒 `CANNOT_DISABLE_SELF`、status=1 须 `USER:ENABLE`） |
 | `/api/access/user/delete` | `USER` | 实例级批量 (ids) | `DELETE` | 默认树身份目录边界 |
 | `/api/access/user/enable` | `USER` | 实例级批量 (ids) | `ENABLE` | 启停共用一码（toggle），按入参 `status` 设置实体字段 |
@@ -286,6 +306,10 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 ### 6.1 授权端点（/auth/oauth2/*）
 
 所有端点 POST + JSON Body；统一响应壳 `R<T>`。
+
+**委托边界目标（T-ADMIN-034，2026-10-04 确认；[T-ADMIN-035](../tasks/T-ADMIN-035.md) 待实施）**：客户端只获取本租户用户的委托。authorize 比对平台会话与客户端租户；匿名 token/refresh 仍全局解析 clientId，再比对授权码/刷新记录与客户端租户。authorize、token、refresh 以及每次 JWT 资源请求都确认用户属于同一租户、未删除且 status=1；JWT 同时校验客户端与载荷租户一致，不采用正向用户状态缓存，禁用/删除后下一请求拒绝。既有客户端有效性、黑名单、scope/audience、码与刷新令牌一次性消费保持，不增加令牌扫描或撤销广播。
+
+当前差异：现有代码尚未统一实施上述用户状态/租户检查；userinfo 只查未删除用户行，不能代表认证层已阻断禁用用户。开放路径扩展前须纳入上述目标检查，不能沿用「仅 userinfo」推断新路径的安全边界。
 
 #### 6.1.1 `POST /api/access/auth/oauth2/authorize`（需平台会话）
 
@@ -454,16 +478,20 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 ### 7.3 `POST /api/access/user/create` 🔧
 
+带 orgId 的一步挂载使用目标组织/岗位的成员管理操作（MANAGE_MEMBER / ASSIGN_POSITION_USER），并保留 USER:CREATE；不再额外要求组织编辑 UPDATE。默认树范围、事务和投影约束保持（T-ORG-005，2026-10-04 确认）。
+
 **目的**: 在默认组织树身份目录中新建用户; 可选一步完成组织挂载. 系统生成随机初始密码, 仅本次响应返回.
 
 **请求 DTO**: `UserCreateReq` (现有)
 
+字符串长度上限按 `sys_user` 列宽校验：username 64、name 128、phone 32、email 128；超长返回 HTTP 400 / 90001（T-ADMIN-033）。
+
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `username` | `String` | 是 | 登录账号, 租户内唯一 |
-| `name` | `String` | 是 | 显示名 |
-| `phone` | `String` | 否 | |
-| `email` | `String` | 否 | |
+| `username` | `String` | 是 | 登录账号, 租户内唯一；最长 64 字符 |
+| `name` | `String` | 是 | 显示名；最长 128 字符 |
+| `phone` | `String` | 否 | 最长 32 字符 |
+| `email` | `String` | 否 | 最长 128 字符 |
 | `status` | `Integer` | 否 | 默认 1 (启用)；1=启用, 0=停用（T-ACCESS-021 修正：原文「0=正常,1=禁用」与 DDL/启停接口语义矛盾）；仅接纳 0/1，其它值抛 `BizException(INVALID_PARAM)`（T-ADMIN-022 收口：create 为 status 写入口，与 update/enable 同口径） |
 | `orgId` | `Long` | 否 | 创建时一步完成挂载; **必须**属于默认组织树, 否则抛 `BizException(ORG_NOT_IN_DEFAULT_TREE)` |
 | `primaryOrg` | `Boolean` | 否 | 仅当 `orgId` 非空时生效, 默认 true |
@@ -475,7 +503,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 | `id` | `Long` | 新用户 ID |
 | `initialPassword` | `String` | 系统生成的随机初始密码明文, **仅本次返回** |
 
-**门禁**: `USER:CREATE` 类型级 (+ 若带 `orgId` 还需 `ORG:UPDATE@orgId`).
+**门禁**: `USER:CREATE` 类型级；若带 orgId，按目标类型检查 `ORG:MANAGE_MEMBER` / `ORG:ASSIGN_POSITION_USER` 实例级权限。
 
 **投影动作**:
 1. 主事务: INSERT `sys_user` (+ 可选 INSERT `sys_user_org`)
@@ -499,12 +527,14 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 **请求 DTO**: `UserUpdateReq`
 
+name、phone、email 长度上限分别为 128、32、128；null 保留原值，清空协议及已有空白约束不变，超长返回 HTTP 400 / 90001（T-ADMIN-033）。
+
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `id` | `Long` | 是 | sys_user.id |
-| `name` | `String` | 否 | |
-| `phone` | `String` | 否 | 空白拒绝 400（90001）——清空唯一通道 `phoneClear`（T-API-004） |
-| `email` | `String` | 否 | 空白拒绝 400（90001）——清空唯一通道 `emailClear`（T-API-004） |
+| `name` | `String` | 否 | 最长 128 字符 |
+| `phone` | `String` | 否 | 空白拒绝 400（90001）——清空唯一通道 `phoneClear`（T-API-004）；最长 32 字符 |
+| `email` | `String` | 否 | 空白拒绝 400（90001）——清空唯一通道 `emailClear`（T-API-004）；最长 128 字符 |
 | `status` | `Integer` | 否 | 1=启用, 0=停用；仅接纳 0/1，其它值抛 `BizException(INVALID_PARAM)`（T-ADMIN-022 语义收口，与 DDL `sys_user.status` 单一口径） |
 | `phoneClear` | `Boolean` | 否 | true=清空 phone 为 NULL（真实落库，`uk_user_phone` 部分唯一索引排除 NULL，多用户同清不冲突）；与 `phone` 同传 400 拒绝；false/缺省无清空作用（T-API-004/U006 拍板） |
 | `emailClear` | `Boolean` | 否 | true=清空 email 为 NULL；与 `email` 同传 400 拒绝；false/缺省无清空作用 |
@@ -641,6 +671,8 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 ## 8. org 能力（组织与用户-组织关系）
 ### 8.1 `POST /api/access/org/tree` ✅
 
+**父级名称（T-ACCESS-065 子项③，2026-10-04 确认）**：OrgResp 增加 `parentOrgName`，树、分页和详情统一携带当前允许展示的父级名称；缺省表示无父或不可展示。批量响应使用批量组装，不依赖前端当前树过滤；前端根据 parentOrgId 区分真正根节点与不可见父级，不能把缺父名显示成「根组织」。本字段不扩大组织可见范围。
+
 **目的**: 返回组织层级树（按树配置子树裁剪，顶层为配置根单根）. 入参 `operationCode` 控制语义: `VIEW`=可视范围, `CREATE`=作为新增用户挂载点 (限默认树). `includePositions=true` 返回组织+岗位一体树（T-ADMIN-021，2026-09-03 全字段落地）.
 
 **请求 DTO**: `OrgQuery`（T-ADMIN-021 起全字段落地，含原债务① `operationCode`/`treeConfigId`）
@@ -665,6 +697,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 | `orgType` | `Integer` | 1=组织, 2=岗位 (字典值) |
 | `orgName` | `String` | |
 | `parentOrgId` | `Long` | null=顶级 |
+| `parentOrgName` | `String` | 父组织名称（无父或父级不可见时为 null） |
 | `code` | `String` | |
 | `status` | `Integer` | 0/1 |
 | `sort` | `Integer` | |
@@ -735,12 +768,14 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 **请求 DTO**: `OrgCreateReq`
 
+orgName 最长 128、code 最长 64；orgName 必填且非空白，超长返回 HTTP 400 / 90001（T-ADMIN-033）。
+
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `orgType` | `Integer` | 是 | 1=组织, 2=岗位 |
-| `orgName` | `String` | 是 | |
+| `orgName` | `String` | 是 | 最长 128 字符 |
 | `parentOrgId` | `Long` | 否 | null=顶级; 顶级仅允许在默认树根 (业务策略) |
-| `code` | `String` | 否 | 租户内唯一 (有值时) |
+| `code` | `String` | 否 | 租户内唯一 (有值时)；最长 64 字符 |
 | `status` | `Integer` | 否 | 默认 1 (1=启用, 0=停用, 对齐 DDL) |
 | `sort` | `Integer` | 否 | |
 
@@ -772,12 +807,14 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 **请求 DTO**: `OrgUpdateReq`
 
+orgName 最长 128、code 最长 64；orgName=null 保持不更新，空串或纯空白拒绝 HTTP 400 / 90001，超长同码拒绝（T-ADMIN-033）。存量空名不由新校验自动清理：当前无部署环境，开发脏库沿用重建流程，不新增订正 SQL（2026-10-04 确认）；保留脏库时前端空名 fallback 仍可能显示「根组织」。
+
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `id` | `Long` | 是 | |
-| `orgName` | `String` | 否 | |
+| `orgName` | `String` | 否 | 最长 128 字符 |
 | `parentOrgId` | `Long` | 否 | 改动等价于移动 |
-| `code` | `String` | 否 | |
+| `code` | `String` | 否 | 最长 64 字符 |
 | `status` | `Integer` | 否 | |
 | `sort` | `Integer` | 否 | |
 
@@ -1158,6 +1195,8 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 ### 10.5 abstract-role/tree 与 GROUP_ROLE 写入口收口
 
+角色与资源的树响应采用过滤结果构树：父节点不在返回集合时，其可见子支成为展示根，节点真实 parentId 保留，不补回已过滤节点。该展示规则不改变权限过滤和数据库父子关系；组织树 §8.1 的既有范围/根过滤语义保持（T-ACCESS-065 子项①，2026-10-04 确认）。
+
 **`POST /api/access/abstract-role/tree`**：
 
 ```json
@@ -1169,7 +1208,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 - `domainCode` 可省略或显式 `null`：返回**全部**角色树（P1-1 修正：`abstract_role` 已移除 `biz_domain_id`，不按域过滤；原"仅返回全局域角色树（biz_domain_id 为空）"为旧模型残留文字）。
 - `domainCode` 有值：仅校验域存在性（域不存在→空树），并按域分类规则判断当前域是否覆盖角色管理资源类型（`RoleManageAppServiceImpl.getRoleTree` 域覆盖短路分支，`DomainQueryMode.GLOBAL_PLUS`）；**不按域过滤角色**（角色树本身返回全量）。
-- `enabledOnly`（可选，默认 false，T-PERM-022）：false/null 返回**全部有效角色**（`delete_flag=0`，含禁用——status 仅作展示字段，禁用角色在树中可见、可再启用）；true 仅返回启用角色（SQL 过滤，禁用节点整棵不返回）。消费方口径：角色管理页不传（需见禁用角色），授权页主体树传 true（T-PERM-022 设计定案：前端入参后端过滤）。
+- `enabledOnly`（可选，默认 false，T-PERM-022）：false/null 返回**全部有效角色**（`delete_flag=0`，含禁用——status 仅作展示字段，禁用角色在树中可见、可再启用）；true 仅返回启用角色（SQL 只过滤非启用节点，保留的子支按 §10.5 提升为展示根）。消费方口径：角色管理页不传（需见禁用角色），授权页主体树传 true（T-PERM-022 设计定案：前端入参后端过滤）。
 
 **T-PERM-043：GROUP_ROLE 写入口收口**：
 
@@ -1273,7 +1312,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 ### 11.4 聚合授权提交 apply-grant-plan（T-PERM-034 已落地 2026-08-30，收敛为唯一写入口，收窄）
 
-**API 授权退役（T-ACCESS-062）**：API 类型仅用于接口登记，不支持任何来源的独立授权。授权计划的预览与保存拒绝 API 主行、子行及对遗留 API 行的修改/删除；返回现有业务参数错误 `20044`，message 为「API 类型仅用于接口登记，不支持授权」。不新增专用旧客户端错误或兼容入口。系统种子通道同样不得生产 API 授权；受保护行由受控迁移清理，不能在普通授权页绕过只读规则。
+**API 授权退役（T-ACCESS-062）**：API 类型仅用于接口登记，不支持任何来源的独立授权。授权计划的预览与保存拒绝 API 主行、子行及对遗留 API 行的修改/删除；返回现有业务参数错误 `20044`，message 为「API 类型仅用于接口登记，不支持授权」。不新增专用旧客户端错误或兼容入口。系统种子通道同样不得生产 API 授权；旧库迁移支持已按 §25.1 退出，遗留行不经普通授权页绕过只读规则，旧库采用当前 schema 重建。
 
 
 > **自动授权预览已随 T-PERM-073 落地（2026-09-21，见 §11.4.1；2026-09-20 M5 采纳）**：按[自动授权设计 §12](dependency-auto-grant.md#admin-ui)，预览仅供参考，保存以事务内最新事实重新校验与计算；自动授撤影响与预览不同不构成拒绝保存或再次确认的条件，不新增强制预览凭证或版本匹配。保存成功后刷新实际权限与来源，预览/刷新失败不能冒充零影响或提交结果。现役提交校验与回滚规则保持。
@@ -1418,6 +1457,8 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 <a id="resource-directory"></a>
 ### 12.1 资源与操作（resource-entity + operation-permission）
 
+资源树的过滤后展示根规则与 §10.5 相同。资源树增加可选 `enabledOnly`：缺省/false 返回全部状态，true 仅返回启用资源。管理页缺省显示全部并沿用停用标识；授权、接口映射、依赖选择器显式请求 true，保持只选启用资源。资源列表继续显示全部状态（T-ACCESS-065 子项②，2026-10-04 确认）。
+
 资源目录可见集合维持门票加裁剪，不按本次请求类型收窄；IN 规模按 heavy 用例与实际负载观测。三处树裁剪保留互引同步而不强行泛型化；改一处时核对其余实现，不把接受既有形态当作新增副本许可。[来源](../archive/2026-09-26/decision-registry-before.md)（原第 175 行；role/list 与 mapping/list 的旧类型级限制已被后续任务取代）。
 | 接口                                          | 说明               |
 | --------------------------------------------- | ------------------ |
@@ -1561,7 +1602,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 ### 12.3 资源依赖只读查询（/api/access/resource-dependency/*）
 
-管理写路由 create/update/remove/batch-sync 已移除，管理台只读；所属服务使用 §19.10 manifest 发布声明。关闭路由不等于已迁移旧数据，071 的保全迁移与其余交付以任务卡为准。
+管理写路由 create/update/remove/batch-sync 已移除，管理台只读；所属服务使用 §19.10 manifest 发布声明。关闭路由不等于已迁移旧数据；旧库保全迁移支持已按自动授权设计 §10.1 退出，当前只支持当前 schema 新建库。
 
 | 接口 | 请求 | 返回 |
 | --- | --- | --- |
@@ -1937,6 +1978,12 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
 <a id="notice-contract"></a>
 ### 17.3 未成册端点族登记（dict / notice / job / login-log）
 
+**notice 标题长度（T-ADMIN-033）**：create/update 的 `title` 最长 256 字符，对齐 `sys_notice.title`；保留必填非空白校验，超长由入参校验返回 HTTP 400 / 90001，不进入持久化。
+
+**job 写入与注册观测（T-ADMIN-032，2026-10-04 确认）**：create/update 的 cron 使用 Spring `CronExpression` 同源解析；非法表达式返回 `10602 JOB_CRON_INVALID`，拒绝写入且不取消当前调度。update 缺省 cron 保留原值。运行时注册失败保留启用配置，由现有 60 秒对账重试；detail/page 增加本实例注册状态及实例标识，数据库 `status` 仍仅表示启停配置。本实例结果不代表其他实例或集群整体，不新增持久化注册状态或告警框架。
+
+响应新增 `localScheduled`（本实例存在未取消且未完成的调度）、`localCronExpression`（实际注册的 cron，未注册为 null）、`scheduleInstanceId`（进程内稳定、重启变化的不透明标识）。将数据库 `status`/`cronExpression` 与本地字段对照，可识别未注册及对账窗口内的配置差异；不返回内部主机名、执行目标或异常细节。空调度句柄及已完成/取消句柄均视为未注册，后续对账重试。
+
 公告 update 受众省略时沿当前全量语义。当前 my-notices 不分页、targetUserIds 未设 @Size，这是现状说明，不是永久不分页或不设容量上限的决定；权限引擎的 1000 项上限未覆盖公告端点。损坏受众数据反序列化失败上抛，门禁先于内容读取；新增分页/容量限制须定义兼容边界。[来源](../archive/2026-09-26/decision-registry-history.md)（原第 37 行）。
 
 > `/api/access/dict/*`（字典）、`/api/access/notice/*`（公告）、`/api/access/job/*`（任务调度）、`/api/access/login-log/page`（登录日志）四组管理面端点族未在原两册成册，契约以代码与 `HttpApiPathSnapshotTest` 快照为准（T-ACCESS-040 登记，不在本任务新增契约内容）。
@@ -2013,7 +2060,7 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
 
 ### 18.4 旧接口快照协议已退役
 
-`POST /api/access/auth/interface-snapshot`、旧快照 DTO 与 SnapshotAssembler 已删除（T-ACCESS-062）。网关使用 §25 的 `interface-admission-snapshot`；新旧快照不共用命名空间。全节点停流替换时清除旧进程缓存、负缓存和在途加载，操作步骤见 [退役手册](../ops/runbook-api-retirement-062.md)。
+`POST /api/access/auth/interface-snapshot`、旧快照 DTO 与 SnapshotAssembler 已删除（T-ACCESS-062）。网关使用 §25 的 `interface-admission-snapshot`；新旧快照不共用命名空间。全节点停流替换时清除旧进程缓存、负缓存和在途加载，发布与缓存处置见 [服务暂停恢复手册](../ops/runbook-service-mode-switch.md)。
 
 ### 18.5 通用资源权限查询 query-resources
 
@@ -2682,7 +2729,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 
 ### 19.10 独立依赖 manifest（071 已交付）
 
-> HTTP 入口、声明编译与发布状态事务已实现并经真实凭证验证；资源/定义变更 dirty 联动与保全迁移已实现；可选 SDK 已提供独立发布与显式资源前置；071 已于 2026-09-21 收口交付，072 角色物化已同日落地（AUTO_DEP 行同事务 diff 落库并随资源/声明/操作/角色生命周期收缩）。
+> HTTP 入口、声明编译与发布状态事务已实现并经真实凭证验证；资源/定义变更 dirty 联动已实现（旧库保全迁移已按自动授权设计 §10.1 退出支持）；可选 SDK 已提供独立发布与显式资源前置；071 已于 2026-09-21 收口交付，072 角色物化已同日落地（AUTO_DEP 行同事务 diff 落库并随资源/声明/操作/角色生命周期收缩）。
 
 `POST /api/access/integration/permission-manifest/full-sync`，仅服务身份入口，按 070 精确 M2M 白名单；tenant 与 service 从已认证上下文取得，不接受 body 中的 serviceCode。来源服务须注册、启用；资源/操作存在性及类型所有权由服务端校验。
 
@@ -2899,7 +2946,9 @@ schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正�
 
 ### 25.1 模式与两层判定（方案 A）
 
-全部服务统一使用业务操作准入。T-ACCESS-062 删除 `service_config.api_auth_mode`、服务配置请求/响应 `apiAuthMode`、模式枚举及前端选择入口；协议响应的 `mode="OPERATION_ADMISSION"` 仍是协议常量，不是可配置开关。API 登记目录保留，API 独立授权与旧在线/快照协议退役。存量先备份并受控清理所有租户、所有来源的有效 API 授权，存在业务子行引用时停止，见 [退役手册](../ops/runbook-api-retirement-062.md)。
+> **旧库支持边界（2026-10-03，T-ACCESS-073）**：已明确退出 062 API 授权旧库迁移及配套回滚支持，当前仅支持按权威 schema 重建库。旧 API 授权仍须触发既有拒启保护，不自动删权或放行。历史脚本和手册仅作[追溯](../archive/2026-10-03/README.md#retired-migrations)，当前处置入口为[空库重建](access-service-rebuild-runbook.md)。不对现有部署数据执行重建。
+
+全部服务统一使用业务操作准入。T-ACCESS-062 删除 `service_config.api_auth_mode`、服务配置请求/响应 `apiAuthMode`、模式枚举及前端选择入口；协议响应的 `mode="OPERATION_ADMISSION"` 仍是协议常量，不是可配置开关。API 登记目录保留，API 独立授权与旧在线/快照协议退役。旧库不再提供保留数据迁移；当前新库不生成 API 授权，残留旧授权仍按既有保护拒启，不借普通授权页清理。
 
 OPERATION_ADMISSION 模式下接口检查为两层判定，**不生成第二份 API 授权**：
 
@@ -2930,7 +2979,7 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
 - 新增 `POST /api/access/service-config/sync-v2`，顶层仍为 `{serviceCode, basePath?, syncMode:"FULL", groups:[{groupCode, groupName, apis:[]}]}`；ApiItem 仍有 `name/httpMethod/path/resourceCode/description?`，新增必填 `requiredPermission`。独立 DTO 与端点表达声明协议，旧 `/sync` 已退役。整批任一必要引用无效则回滚，成功响应沿用同步新增/更新/删除计数。
 - 凭证调用的 tenantId/serviceCode 来自可信认证链，body.serviceCode 必须一致；管理员调用仍校验该服务的 SERVICE:SYNC_INTERFACE。服务须已登记且启用，旧共享密钥的纯服务身份不开放新端点。
 - 手工、同步、bootstrap 共用映射保存校验，映射只能引用同租户 API 登记实体。FULL 只清该服务 SERVICE_SYNC 映射；仍被保留映射引用的登记实体保留。同一路由被其他维护来源占有时拒绝，不静默接管。
-- 存量来源保守回填 MANUAL，后续 T-ACCESS-061 盘点订正。bootstrap 同事务登记 access-service 配置并纳入固定图身份检查；不生成 API 授权。存量配置缺口由迁移脚本补齐。
+- 存量来源保守回填 MANUAL，后续 T-ACCESS-061 盘点订正。bootstrap 同事务登记 access-service 配置并纳入固定图身份检查；不生成 API 授权。当前支持范围采用新 schema，不再通过旧库迁移脚本补齐配置缺口。
 
 ### 25.2 端点契约 interface-admission / interface-admission-snapshot
 
@@ -3089,14 +3138,14 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
 | 异步作业 | 明确提交与实际执行／取数的鉴权时点；不永久复用准入结果绕过撤权 |
 | 直连／内部调用 | 同样验证可信身份并执行最终检查；不能依赖「只能从网关进入」的假设替代业务门禁 |
 
-主体／租户取自可信认证链，实际操作对象从业务请求及业务解析得到；不能检查 A 却按另一参数读取 B。继承模式与产品约定显式对齐：**菜单后代可见不能推导默认 SELF 的 check 已打开祖先**。权限服务自身的认证／内部调用链保持独立，不因新准入而递归调用自己的准入端点。首次迁移默认服务级暂停切换（暂停入口→确认逐路由最终检查→切模式→全节点确认并清旧缓存→恢复；runbook 与演练证据随 T-ACCESS-061）。
+主体／租户取自可信认证链，实际操作对象从业务请求及业务解析得到；不能检查 A 却按另一参数读取 B。继承模式与产品约定显式对齐：**菜单后代可见不能推导默认 SELF 的 check 已打开祖先**。权限服务自身的认证／内部调用链保持独立，不因新准入而递归调用自己的准入端点。服务上线/更新采用服务级暂停恢复（暂停入口→确认逐路由最终检查→发布或更新映射→全节点确认并清旧缓存→恢复；见服务暂停恢复手册）。旧模式字段与旧库迁移程序均已退出，不再执行“切模式”操作。
 
 **T-ACCESS-061 落地记录（2026-09-28，example-service 先行）**：
 
 - **参考路由族**（`ReportController`，示例资源族=EXAMPLE 报表）：`/api/example/report/view`（实际资源+对应操作）、`/batch-view`（独立批量逐项 DECISION，任一允许不放行整批）、`/list`（`query-resources` 范围过滤+分页 total 同口径）、`/create`（TYPE_LEVEL，resourceCode=null——实例准入不授予类型创建权）、`/sub-view`（depend_on 子权限真实父上下文，引擎验证父授权绑定）、`/export/submit`+`/export/status`（异步作业提交与执行时点各自鉴权——执行时点重查同一目标，提交后撤权→作业终态 DENIED）；既有 `/api/example/demo/hello` 的最终检查定位=身份头存在性（无资源目标的问候接口）。逐路由反向拒绝测试=`ReportControllerTest`（20 用例+`ReportControllerValidationTest` 3 用例 HTTP 层反例，迁移资格载体）。
 - **检查客户端形态（用户拍板 2026-09-28）**：业务服务消费 `perm-client-spring-boot-starter`（Feign）调 `auth/check`/`auth/batch-check`/`auth/query-resources`；服务认证=内部密钥通道（SDK `FeignInternalSyncInterceptor` 注入 `X-Internal-Secret`/`X-Service-Code`），`X-Tenant-Id` 由业务侧拦截器从调用上下文注入；主体恒取自可信认证链（已验签 `X-User-Id`），请求 DTO 不携带主体/租户字段。e2e 子进程拓扑注意：access/gateway 子进程须 `--perm.client.enabled=false`（e2e 共享类路径经 example→starter 传染，非消费进程显式关闭）。
 - **业务最终拒绝响应形态**：example 域信封 30004（HTTP 200，与网关准入 403 形成层次区分——同一请求两层可区分）；鉴权服务不可用=fail-closed 30005（信封非 200/data=null/传输异常一律拒绝，不 stale-allow）。
-- **runbook 与演练**：`docs/ops/runbook-service-mode-switch.md`（迁移资格核对+暂停切换五步+运行库盘点六查询）；演练证据=`ExampleBusinessFinalCheckE2EIT` 步骤⑪（暂停→空快照 403→切模式代次+1→恢复 30 秒内放行，恢复以库为准）。
+- **runbook 与演练**：`docs/ops/runbook-service-mode-switch.md`（接入资格核对、暂停恢复与运行库盘点）；演练证据=`ExampleBusinessFinalCheckE2EIT` 的服务暂停/恢复用例（暂停→空快照 403→恢复并更新配置代次→30 秒内放行，恢复以库为准）。
 
 ### 25.8 验收用例分配（N01~N30，设计 §10.3）
 

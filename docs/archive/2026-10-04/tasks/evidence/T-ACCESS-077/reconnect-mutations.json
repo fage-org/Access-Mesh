@@ -1,0 +1,34 @@
+[
+  {
+    "variant": "no-reconnect",
+    "exit": 1,
+    "cases": 5,
+    "failures": {
+      "shouldClearAllAndRebuild_whenSubscriptionStops(SignalType)[1]": "\nreactiveStringRedisTemplate.listenTo(\n    <any org.springframework.data.redis.listener.ChannelTopic>\n);\nWanted 2 times:\n-> at org.springframework.data.redis.core.ReactiveRedisTemplate.listenTo(ReactiveRedisTemplate.java:284)\nBut was 1 time:\n-> at cn.ac.fage.accessmesh.gateway.cache.PermInvalidationSubscriber.subscribe(PermInvalidationSubscriber.java:64)\n",
+      "shouldClearAllAndRebuild_whenSubscriptionStops(SignalType)[2]": "\nreactiveStringRedisTemplate.listenTo(\n    <any org.springframework.data.redis.listener.ChannelTopic>\n);\nWanted 2 times:\n-> at org.springframework.data.redis.core.ReactiveRedisTemplate.listenTo(ReactiveRedisTemplate.java:284)\nBut was 1 time:\n-> at cn.ac.fage.accessmesh.gateway.cache.PermInvalidationSubscriber.subscribe(PermInvalidationSubscriber.java:64)\n"
+    },
+    "errors": 0,
+    "skips": 0
+  },
+  {
+    "variant": "no-clear",
+    "exit": 1,
+    "cases": 5,
+    "failures": {
+      "shouldClearAllAndRebuild_whenSubscriptionStops(SignalType)[1]": "\nWanted but not invoked:\ninterfaceSnapshotCacheInvalidator.clearAll();\n-> at cn.ac.fage.accessmesh.gateway.cache.InterfaceSnapshotCacheInvalidator.clearAll(InterfaceSnapshotCacheInvalidator.java:197)\nActually, there were zero interactions with this mock.\n",
+      "shouldClearAllAndRebuild_whenSubscriptionStops(SignalType)[2]": "\nWanted but not invoked:\ninterfaceSnapshotCacheInvalidator.clearAll();\n-> at cn.ac.fage.accessmesh.gateway.cache.InterfaceSnapshotCacheInvalidator.clearAll(InterfaceSnapshotCacheInvalidator.java:197)\nActually, there were zero interactions with this mock.\n"
+    },
+    "errors": 0,
+    "skips": 0
+  },
+  {
+    "variant": "reconnect-after-stop",
+    "exit": 1,
+    "cases": 5,
+    "failures": {
+      "shouldNotReconnect_whenSubscriberStopped": "\nreactiveStringRedisTemplate.listenTo(\n    <any org.springframework.data.redis.listener.ChannelTopic>\n);\nWanted 1 time:\n-> at org.springframework.data.redis.core.ReactiveRedisTemplate.listenTo(ReactiveRedisTemplate.java:284)\nBut was 3 times:\n-> at cn.ac.fage.accessmesh.gateway.cache.PermInvalidationSubscriber.subscribe(PermInvalidationSubscriber.java:64)\n-> at cn.ac.fage.accessmesh.gateway.cache.PermInvalidationSubscriber.subscribe(PermInvalidationSubscriber.java:64)\n-> at cn.ac.fage.accessmesh.gateway.cache.PermInvalidationSubscriber.subscribe(PermInvalidationSubscriber.java:64)\n\n"
+    },
+    "errors": 0,
+    "skips": 0
+  }
+]

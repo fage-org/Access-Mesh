@@ -1,0 +1,46 @@
+[
+  {
+    "variant": "typed-code",
+    "exit_code": 1,
+    "cases": 1,
+    "failures": {
+      "shouldKeepPartialUniqueIndexSemantics": "uk_operation_permission_typed ==> Expected org.postgresql.util.PSQLException to be thrown, but nothing was thrown."
+    },
+    "errors": 0,
+    "skips": 0
+  },
+  {
+    "variant": "typed-bit",
+    "exit_code": 1,
+    "cases": 1,
+    "failures": {
+      "shouldKeepPartialUniqueIndexSemantics": "uk_operation_permission_typed_bit ==> Expected org.postgresql.util.PSQLException to be thrown, but nothing was thrown."
+    },
+    "errors": 0,
+    "skips": 0
+  },
+  {
+    "variant": "required-type",
+    "exit_code": 1,
+    "cases": 1,
+    "failures": {
+      "shouldKeepPartialUniqueIndexSemantics": "ck_operation_permission_resource_type_required ==> Expected org.postgresql.util.PSQLException to be thrown, but nothing was thrown."
+    },
+    "errors": 0,
+    "skips": 0
+  },
+  {
+    "variant": "other-constraints",
+    "exit_code": 1,
+    "cases": 5,
+    "failures": {
+      "shouldEnforceDomainConfigUniqueKey": "uk_domain_config ==> Expected org.postgresql.util.PSQLException to be thrown, but nothing was thrown.",
+      "shouldEnforceRoleResourcePermissionCheck": "ck_role_resource_permission_scope_all ==> Expected org.postgresql.util.PSQLException to be thrown, but nothing was thrown.",
+      "shouldEnforceSystemConfigUniqueKey": "uk_system_config ==> Expected org.postgresql.util.PSQLException to be thrown, but nothing was thrown.",
+      "shouldHaveTaskExecutionTable": "uk_task_execution ==> Expected org.postgresql.util.PSQLException to be thrown, but nothing was thrown.",
+      "shouldEnforceConditionCanGrantCheck": "ck_role_resource_permission_condition_can_grant ==> Expected org.postgresql.util.PSQLException to be thrown, but nothing was thrown."
+    },
+    "errors": 0,
+    "skips": 0
+  }
+]

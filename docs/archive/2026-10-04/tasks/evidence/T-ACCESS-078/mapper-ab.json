@@ -1,0 +1,16 @@
+[
+  {
+    "context": "full",
+    "exit": 0,
+    "cases": 8,
+    "suite_seconds": "18.274",
+    "failed_or_skipped": 0
+  },
+  {
+    "context": "slice",
+    "exit": 0,
+    "cases": 8,
+    "suite_seconds": "8.545",
+    "failed_or_skipped": 0
+  }
+]

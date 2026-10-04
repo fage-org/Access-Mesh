@@ -1,0 +1,102 @@
+[
+  {
+    "class": "OAuth2ClientTtlTest",
+    "cases": 3,
+    "failed_or_skipped": 0
+  },
+  {
+    "class": "OAuth2AuthCodeClientBindingTest",
+    "cases": 5,
+    "failed_or_skipped": 0
+  },
+  {
+    "class": "OAuth2CodeExchangeNegativeTest",
+    "cases": 6,
+    "failed_or_skipped": 0
+  },
+  {
+    "class": "QueryStagesTest",
+    "cases": 71,
+    "failed_or_skipped": 0
+  },
+  {
+    "class": "CacheEffectiveTtlTest",
+    "cases": 8,
+    "failed_or_skipped": 0
+  },
+  {
+    "class": "PermissionFilterTest",
+    "cases": 11,
+    "failed_or_skipped": 0
+  },
+  {
+    "class": "PermissionFilterMetricsTest",
+    "cases": 4,
+    "failed_or_skipped": 0
+  },
+  {
+    "class": "GatewayInvalidationRaceTest",
+    "cases": 3,
+    "failed_or_skipped": 0
+  },
+  {
+    "class": "SnapshotSafetyBoundaryTest",
+    "cases": 1,
+    "failed_or_skipped": 0
+  },
+  {
+    "class": "SecurityMatrixIT",
+    "cases": 14,
+    "failed_or_skipped": 0
+  },
+  {
+    "class": "DualTenantSameCodeIsolationPgIT",
+    "cases": 1,
+    "failed_or_skipped": 0
+  },
+  {
+    "class": "FileServiceSecurityPgIT",
+    "cases": 11,
+    "failed_or_skipped": 0
+  },
+  {
+    "class": "LoginLockTemporaryPgIT",
+    "cases": 2,
+    "failed_or_skipped": 0
+  },
+  {
+    "class": "OrgTreeIncludePositionsPgIT",
+    "cases": 21,
+    "failed_or_skipped": 0
+  },
+  {
+    "class": "CustomResourceTypeSlicePgIT",
+    "cases": 1,
+    "failed_or_skipped": 0
+  },
+  {
+    "class": "ConditionChangeEffectPgIT",
+    "cases": 1,
+    "failed_or_skipped": 0
+  },
+  {
+    "class": "NoticeLifecyclePgIT",
+    "cases": 2,
+    "failed_or_skipped": 0
+  },
+  {
+    "class": "MemberCandidatesGatePgIT",
+    "cases": 1,
+    "failed_or_skipped": 0
+  },
+  {
+    "class": "PositionDisablePruneObservationPgIT",
+    "cases": 1,
+    "failed_or_skipped": 0
+  },
+  {
+    "class": "DelegatedDirectoryClosurePgIT",
+    "cases": 1,
+    "failed_or_skipped": 0
+  }
+]

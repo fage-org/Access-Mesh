@@ -483,7 +483,7 @@ Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{
 
 **HttpApiPathSnapshotTest**：路径快照（EXPECTED_PATHS）**零变化**——URL 两风格维持（§6、Q-001）；签名快照（EXPECTED_SIGNATURES）因包名与裁决 1 改名**全量机械重生成**（`access.permission.dto.req.UserCreateReq` → `access.user.dto.req.AbstractUserCreateReq` 等），`normalize()` 剥离规则不变。迁移验收纪律：路径集合 diff 必须为空，任何路径增删即迁移引入契约漂移、禁止。RETIRED_PATHS 清单不变；037 执行时增补 `/config/*` 四条。
 
-**QueryMapperXmlContractTest**：query XML 目录由 `resources/mapper/query/` 改为 `resources/mapper/{org,menu,role}/`（随 QueryMapper 归位）；六组断言（只 select、显式 tenant_id、分页 ORDER BY+LIMIT、显式列、UserRoleProjection 有效期窗口与 LEFT JOIN、IN 空集合守卫）语义全部保留，仅文件路径断言更新。
+**QueryMapperXmlContractTest**：query XML 位于 `resources/mapper/{org,menu,role}/`。按 XML statement 检查只读、显式 tenant_id、非分页无 LIMIT、显式投影与 UserRoleProjection 有效期/LEFT JOIN；通过 MyBatis 实际生成空/null 集合 SQL 验证本语句守卫。原分页 selectFunctionalRoles 已随角色列表入口退役。真实租户隔离、有效期等值边界、缺失/异租户/软删关联保留关系行以及集合行为由 QueryMapperPgIT 保护（T-ACCESS-074）。
 
 ### 8.5 实施顺序与回归口径
 

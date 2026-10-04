@@ -3,7 +3,7 @@ doc_type: design
 title: 权限中心 — 核心功能实现设计
 status: adopted
 domain: access-service
-last_reviewed: 2026-10-03
+last_reviewed: 2026-10-04
 ---
 
 # 权限中心 — 核心功能实现设计
@@ -156,6 +156,8 @@ cn.ac.fage.accessmesh.permission
 ### 2.1 `SubjectDomainService` — 主体领域（角色解析 + 用户查询合并）
 
 合并了旧 `AbstractUserDomainService`、`AbstractRoleDomainService` 和 `UserRoleDomainService`。
+
+组角色的批量装载与内存遍历共用实现（T-PERM-101）：运行时解析剪掉 status≠1 的组及其子树，原始持有检查不剪禁用组；绑定有效期窗口仍由原始持有侧保留，缓存和基础角色有效性过滤保持原入口职责。
 
 ```java
 public interface SubjectDomainService {
@@ -483,6 +485,8 @@ scopeAll 条目不参与展开；query-resources 的树扩展（原 `expandResou
 已收编本轨道（includeChildren/includeInherited → CHILDREN/PARENTS/BOTH/NONE，判定与展示分离）。
 
 ### 3.5 条件评估、互斥与审计证据
+
+**TRACE 访问边界（T-PERM-102，2026-10-04 确认）**：外部查询不开放 TRACE；生产适配层固定 `OutputSpec.trace=false`，外部 DTO 不透传 trace。引擎内部的显式诊断规格供可信内部代码与测试验证真实执行阶段，不增加无调用方的身份/诊断授权机制。未来新增对外或运维诊断入口，必须先定义身份来源和诊断授权后再启用 TRACE；当前没有此入口，不宣称已有诊断门禁。
 
 - **条件评估模式**（`Evaluation`）：EVALUATE（运行时/门禁面默认，含拉平后的管理面写门禁）/
   PRESERVE（配置/转授资格面看原始授权行——条件身份保留、不下发评估结论）/ PRESERVE+SKIP
@@ -845,7 +849,7 @@ Gateway 使用已验证身份、服务编码和原始路由构建准入快照键
 
 网关以四态匹配（ALLOW/FALLBACK/DENY/CONFIG_FAULT）处理快照，需回源时调用同语义 `interface-admission`，不消费旧 API:ACCESS 授权。进入业务后仍执行实际目标最终鉴权。目录 `gw:interface-admission-snapshot` 为 L1_ONLY，TTL≤15s、加载截止≤5s，上游权限事实 L2≤10s，总陈旧边界≤30s。完整协议见 [契约总册 §25](../access-service-api-contract.md#operation-admission-protocol)。
 
-旧检查/快照/专用装配器已随 T-ACCESS-062 删除，所有服务统一操作准入，模式配置字段不存在；退役部署的缓存与在途清理见 [退役手册](../../ops/runbook-api-retirement-062.md)。
+旧检查/快照/专用装配器已随 T-ACCESS-062 删除，所有服务统一操作准入，模式配置字段不存在；当前发布的缓存与在途清理见[暂停恢复手册](../../ops/runbook-service-mode-switch.md)；旧库迁移支持见契约 §25.1。
 
 ---
 

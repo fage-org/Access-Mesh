@@ -60,7 +60,7 @@ last_reviewed: 2026-09-28
 
 ## 操作准入快照鉴权（T-ACCESS-059；旧 API:ACCESS 快照链随无迁移期切换删除）
 
-> 旧链（`interface-snapshot` 拉取 / `InterfaceSnapshotMatcher` / `check-interface` 回退）网关侧消费已删，服务端旧端点已随 T-ACCESS-062 删除；回退必须匹配代码、schema 与授权备份（见 [退役手册](../../ops/runbook-api-retirement-062.md)）。协议与判定序权威＝[契约总册 §25](../access-service-api-contract.md#operation-admission-protocol)。
+> 旧链（`interface-snapshot` 拉取 / `InterfaceSnapshotMatcher` / `check-interface` 回退）网关侧消费已删，服务端旧端点已随 T-ACCESS-062 删除；旧 API 授权迁移/配套回滚支持已退出（T-ACCESS-073），当前仅支持当前 schema 新建库。日常发布仍须停止旧节点并清除缓存/在途加载，见[暂停恢复手册](../../ops/runbook-service-mode-switch.md)。协议与判定序权威＝[契约总册 §25](../access-service-api-contract.md#operation-admission-protocol)。
 
 ### 缓存模型
 

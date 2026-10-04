@@ -3,7 +3,7 @@ doc_type: design
 title: 权限中心 v3.5 端到端设计（简化版）
 status: adopted
 domain: access-service
-last_reviewed: 2026-09-15 + frontmatter domain 改 access-service）；此前 2026-08-27
+last_reviewed: 2026-10-04
 ---
 
 # AccessMesh 权限中心 v3.5 端到端设计（简化版）
@@ -268,40 +268,15 @@ Response 304: 如 If-None-Match 与当前 ETag 匹配
 
 ### 7.2 缓存一致性总线
 
-权限缓存失效采用 **Redis pub/sub 主动广播 + TTL 兜底**，无持久化重投：
+本节原接口授权快照、三态 matcher、check-interface 与 stale-allow 设计已被替代；旧 DTO、端点与实现不再作为实施依据。当前操作准入协议与四态快照链以 [契约总册 §25](access-service-api-contract.md#operation-admission-protocol) 为准，网关处理见 [Gateway 设计](services/gateway.md)。
 
-- permission-center 写操作 afterCommit 阶段 `StringRedisTemplate.convertAndSend("perm:invalidate", <PermInvalidateEvent JSON>)`
-- Gateway 订阅该 topic，收到事件后 evict 本地 `interfaceSnapshotCache`；前端缓存仍按前端实施约定走 TTL / polling / BroadcastChannel / SSE 兜底
-- 失败兜底：广播丢失不影响事务；TTL（30-60s）自然过期最终一致
-
-> **实现进度（T-PERM-001，2026-06-20）**：Gateway 已落地快照模式——缓存 key 从 `(user,service,method,path)→Boolean` 改为 `(tenantId,subjectTypeCode,userId,serviceCode)→InterfaceSnapshotResp`，鉴权降为本地内存匹配（`InterfaceSnapshotMatcher`，支持 Ant 通配 + `scopeMode=ALL` 覆盖全服务 API），未命中回源拉取 `interface-snapshot`。`InterfaceSnapshotResp`/`InterfaceSnapshotReq` 已迁入 perm-common 供 Gateway 共享。fail-close 过渡期保留（stale-allow 见 T-GW-003）。
->
-> **实现进度（T-PERM-002，2026-06-20）**：写路径缓存失效与广播已统一到 AOP 框架——`PermissionChangeContext`（ThreadLocal 累积器）+ `@PermissionChange` 注解 + `PermissionChangeAspect`（@Around，proceed 后注册单一 afterCommit sync 统一 flush：`invalidateRoleCacheByRole/Batch` + `evictBatch(CONDITION_RULES/ROLE_PERM_SNAPSHOT)` + 发布 `PermInvalidateEvent`）。业务方法体内通过 `markRoles/markUsers/markConditions/markRoleSnapshots` 登记影响范围，afterCommit 注册由框架侧统一完成（铁律 P1-B 达标，业务侧 15 处手写 `TransactionSynchronizationManager` 全部消除）。`PermInvalidationPublisher` 通过 Redis topic `perm:invalidate` 发布，失败仅 warn 靠 TTL 兜底。Gateway 订阅器为 T-PERM-006 范围（发布端已就位）。
->
-> **实现进度（T-PERM-018，2026-06-20）：缓存下沉**。在 T-PERM-002 的 AOP flush 框架上落地：
-> - **事件载荷扩展 serviceCodes**：`PermInvalidateEvent(tenantId, roleIds, userIds, serviceCodes)`；`PermissionChangeContext` 加 `markServiceCodes(tenantId, Set<String>|String)` 重载，`Accumulator.isEmpty()` 纳入 serviceCodes。flush 对 `serviceCodes` 不清 permission-center 缓存，仅广播（Gateway 侧清本地快照，T-PERM-006）。
-> - **engine 读路径激活 ROLE_PERM_SNAPSHOT**：`queryForUserView` 走 `getBatch(ROLE_PERM_SNAPSHOT, roleIds)` → miss 集合 1 SQL（`selectValidByRoleIds`）→ `putBatch` 回填；空权限角色缓存 `List.of()`（非 null）防穿透。缓存值为条件评估前、互斥过滤前的原始权限记录（`List<RolePermEntry>`），条件实时评估 → 条件变更洞消失。flush 对 `roleIds` 追加 `evictBatch(ROLE_PERM_SNAPSHOT)`（roleId 级精确，非 evictAll）。`scopeAll`/`instance` 位掩码查询路径第一阶段不缓存（调用方多带过滤参数，缓存 key 复杂，留后续）。
-> - **移除 INTERFACE_SNAPSHOT(L2) + permissionVersion/notModified**：permission-center 侧删 `PermCacheCatalog.INTERFACE_SNAPSHOT`、`permission.vo.InterfaceSnapshot`、`PermissionVersionDomainService(Impl)` 及令牌构造/304 死代码；`InterfaceSnapshotResp`/`Req` 去 `permissionVersion`/`notModified`，`QueryResourcesResp`/`QueryScopesResp`/`PermissionTreeResp` 去 `permissionVersion`；Gateway `PermissionClient.interfaceSnapshot` 去令牌参数、`PermissionFilter` 去 notModified 分支。Gateway 本地 Caffeine `interfaceSnapshotCache` 保留。
-> - **写路径全路径登记**：资源软删（`deleteResources`）加 `@PermissionChange`，软删 perm 前双重登记 `markRoles`（查受影响 roleIds，新增 `selectRoleIdsByResourceIds`）+ `markServiceCodes`（资源→API mapping→serviceCode）；API mapping 增删改（`addApiMapping`/`updateApiMapping`/`removeApiMappingsByIds`）+ `syncInterfaces` 加 `@PermissionChange` 仅 `markServiceCodes`（perm 未变不 markRoles）。
-> **实现进度（T-PERM-006，2026-06-27）：Gateway Redis 广播订阅器已落地**。`PermInvalidateEvent` 契约迁入 `perm-common`，permission-center 发布端与 Gateway 订阅端共享同一事件结构；permission-center 通过 `StringRedisTemplate.convertAndSend("perm:invalidate", json)` 发布 JSON，避免 Redisson 对象 pub/sub 与 Gateway reactive Redis 订阅的编码不一致。Gateway `PermInvalidationSubscriber` 订阅 topic 后调用 `InterfaceSnapshotCacheInvalidator` 清本地 Caffeine：`serviceCodes` 非空按租户+服务清，`userIds` 非空按租户+用户清，仅 `roleIds` 非空时因 Gateway 无本地角色→用户反查能力，按租户级安全清理；广播丢失继续靠 TTL 兜底。
->
-
-> **实现进度（T-PERM-017，2026-06-24）：条件权限 Gateway 侧重评（混合方案）**。修复 T-PERM-001 评审 P1 — "快照模式下条件权限可能误放行"：
-> - **`permission_condition` 新增 `gateway_evaluable` 字段**（BOOLEAN，默认 false）：标记规则可下发 Gateway 评估。创建/更新写入门禁仅允许 `IP_WHITELIST` / `IP_BLACKLIST` / `DATE_RANGE` / `TIME_RANGE` 四类置 true（`ConditionEvalUtils.isGatewayPushable` 共用白名单），未来扩展类型（如 `ORG_SCOPE` / `DATA_OWNER`）默认 fail-close 不下发。
-> - **`ConditionEvalUtils` 迁入 `perm-common`**（硬切，无 DB 依赖，纯静态函数）：Gateway 与 permission-center 共享同一份评估逻辑。跨进程时钟一致性由 **NTP 同步保证**（中小企业 Gateway 与 permission-center 通常同机房，亚秒漂移 << 业务粒度小时级），不通过 context 传递 `timestamp`。
-> - **`ApiPermissionEntry` 内联 `conditionRules` JSON**：`SnapshotAssembler` 仅对 `gateway_evaluable=true` 条目内联（防御性二次过滤），引擎层 `PermQueryEngine.evaluateIfNeeded` 新增"只标记不过滤"模式（`PermQuery.markConditionsOnly`）让条件条目保留进快照。实例级条目按 `(resourceEntityId, conditionId)` 组合展开，同一资源含条件+无条件多条授权各产出独立 entry（修 P1-② 折叠误拒绝）。
-> - **`InterfaceSnapshotMatcher` 改三态语义（ALLOW / FALLBACK / DENY） + OR 合并**：含条件 entry 不再直接放行——`conditionRules` 内联则本地用请求 `clientIp` + 本进程时钟重评通过即 ALLOW；缺失（`gateway_evaluable=false`）则标记 FALLBACK 由 `PermissionFilter` 同步调 `/api/access/auth/check-interface` 实时鉴权（context 仅承载 `clientIp`）。`PermissionFilter` `clientIp`：直用 Gateway 自身观测的 remoteAddr（T-GW-008，2026-09-10——外部 XFF/X-Real-IP 已由 HeaderCleanFilter 清洗且不作为评估输入；下游消费 Gateway 重建的 XFF）。Fallback 失败 fail-close 503（与快照拉取一致）。
-> - **DTO 暴露面控制**：内联 `conditionRules` JSON 扩大敏感配置（IP CIDR 白名单）下发面，靠 `gateway_evaluable` 标志最小化下发；未标记的规则永不离开 permission-center。
-
-> **风险声明**：Redis 重启 / 网络分区 / 订阅断线时，权限主动撤销（HR 禁用员工 / 越权 token 紧急回收）退化为纯 TTL 失效，最长 stale 窗口 = `stale-grace-seconds` + TTL。与 PM「分钟级延迟可接受」决策一致。持久化 outbox 重投作为 v3.5.1+ 增量评估项。
-
-> 前端缓存兜底（TTL ≤120s + 60s 心跳 polling + BroadcastChannel 多 tab 同步 + SSE 断连切 polling）属前端实施约定，详细规范见 v3.5.1+。
+仍采用事务提交后 Redis pub/sub 失效广播与 TTL 兜底；当前授权陈旧预算、剩余 TTL 回填与 fail-closed 边界以 [服务架构 §7.2](access-service-architecture.md#cache-boundaries) 为准。条件可下发与本地重评边界沿现行准入契约执行。本节替代只涉及旧准入/快照协议，本文其他有效语义不因此撤销。
 
 ### 7.3 错误响应协议
 
 错误响应（reasonCode / HTTP 状态码 / 业务状态码）**不在本文档定义**，统一归 [access-service-api-contract.md](access-service-api-contract.md) §20.2 单源。
 
-> v3.5 立场：HTTP 响应码不作为业务状态码。reasonCode 分层、HTTP 与业务状态码分离、业务键解析失败语义等，纳入「项目响应码规范」统一设计（待设计项，见 §9.4）。
+HTTP 与业务状态码的映射遵循 project-rules 通用报文规范；操作准入专属错误码与 reason 词表遵循契约总册 §25，不由本节另定。
 
 ---
 
