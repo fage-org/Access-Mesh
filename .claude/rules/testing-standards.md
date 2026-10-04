@@ -23,6 +23,8 @@ metadata:
 2. **GREEN**: 用最少的代码让测试通过
 3. **REFACTOR**: 重构代码，保持测试通过
 
+既有测试的等价精简无需制造与行为无关的失败；先运行原证据，再核对重构后的案例与断言。补缺口或替代安全边界、真实事务等高风险证据时，以目标错误变体证明断言有效，编译错误、环境故障与未发现测试不算 RED。真实数据库约束按 §10 的 PG 轨验证，不由单元 Mock 替代。
+
 ```java
 // ✅ 正确 — TDD 流程
 // Step 1 (RED): 先写测试（getRole 未命中返回 null——与 list 空分页同口径，T-PERM-022；ROLE_NOT_FOUND 仅用于写路径）
@@ -81,6 +83,8 @@ const validateName = (name: string) => {
 
 **SHOULD** 保持业务逻辑代码 80%+ 测试覆盖率。
 
+下表和排除示例仅指无自定义行为的纯样板，不豁免 DTO 校验/序列化 wire shape、配置绑定/装配及安全门禁。适用性覆盖遵守 `docs/design/project-rules.md`，不为每层复制同一矩阵，也不以精简降低已有门槛。
+
 ```yaml
 # ✅ 正确 — 覆盖率配置示例 (JaCoCo)
 coverage:
@@ -112,6 +116,8 @@ fail_under = 80
 ## 3. 测试独立性
 
 **MUST** 确保测试可按任意顺序独立运行，**禁止**测试间共享可变状态。
+
+明确有序的业务旅程（如 bootstrap 初始化→登录→冲突）以整条旅程为隔离单元，须显式声明顺序并独占数据/清理；不能将这一边界扩展为任意单测共享状态。容器与静态状态隔离继续遵守 §10。
 
 ```java
 // ✅ 正确 — 每个测试独立准备数据
@@ -159,7 +165,7 @@ afterEach(() => {
 
 ## 4. Mock 外部依赖
 
-**MUST** Mock 外部依赖，**禁止** Mock 被测单元本身。
+单元测试 **MUST** Mock 被测边界外的依赖，**禁止** Mock 被测单元本身。真实 SQL、事务、约束或框架接线就是被测对象时，应使用对应集成轨；本节示例与 Mock 表不要求将 PG/Redis 集成测试改为 Mock。
 
 ```java
 // ✅ 正确 — Mock 外部依赖
@@ -304,7 +310,7 @@ class CreateRole {
 
 ## 7. 测试行为而非实现
 
-**MUST** 测试公开行为（输入/输出），**禁止**测试私有实现细节。
+**MUST** 优先测试公开行为（输入/输出），**禁止**仅为锁住偶然私有实现细节而测试。稳定架构边界、禁止副作用、调用阻断与契约要求的锁序是有效证据，应在能可靠发现违规的层验证；不能因它们涉及调用或结构而机械删除。
 
 ```java
 // ✅ 正确 — 测试行为（公开 API）
@@ -484,6 +490,8 @@ const user = createTestUser({ name: "admin", roles: ["admin"] });
 超大规模参数上限用例使用 `testcontainers-heavy` 标签。日常回归可 `-DskipHeavyIT=true`，任务收口必须跑 heavy 与 E2E；具体命令见 [AGENTS](../../AGENTS.md#常用命令开发阶段预估)。测试 Gateway 白名单中的普通用户自服务端点时，MockMvc 夹具模拟该路径的真实转发：密钥头与 Bearer 令牌，不额外注入用户/租户/签名头绕过会话解析。其他链路按自身真实转发契约构造，不能扩大本项头形态限制。[来源](../../docs/archive/2026-09-26/decision-registry-before.md)（原第 157 行）及[历史记录](../../docs/archive/2026-09-26/decision-registry-history.md)（原第 37 行）。
 
 ### 10.2 容器测试必须用 ItInfra（禁自建基建）
+
+当前权威 schema 采用 PG-only 校验（T-ACCESS-072）：日常非容器轨不再执行 H2 适配 DDL。DDL 变更必须定向运行 `AccessServiceSchemaPostgresTest` 并确认实际执行、零 skip；Docker 不可用时不能宣称 DDL 已验证。此处不移除其他 H2 上下文，也不改变双 execution 隔离。
 
 ```java
 // ❌ 错误 — 自起容器对 + 类内全量 DDL（T-ACCESS-030 前旧形态，28 类 × 15-30s 冗余基建）

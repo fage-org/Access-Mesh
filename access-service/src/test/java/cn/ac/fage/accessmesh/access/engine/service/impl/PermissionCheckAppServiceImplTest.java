@@ -238,6 +238,8 @@ class PermissionCheckAppServiceImplTest {
     private QueryRequest capturedRequest() {
         ArgumentCaptor<QueryRequest> captor = ArgumentCaptor.forClass(QueryRequest.class);
         verify(queryEngine, org.mockito.Mockito.atLeastOnce()).execute(captor.capture());
+        assertTrue(captor.getAllValues().stream().flatMap(request -> request.items().stream())
+            .noneMatch(item -> item.output().trace()), "外部 check/batch-check 不开放 TRACE");
         return captor.getValue();
     }
 

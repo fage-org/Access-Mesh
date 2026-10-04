@@ -1,185 +1,132 @@
 package cn.ac.fage.accessmesh.access.architecture;
 
+import org.apache.ibatis.builder.xml.XMLMapperBuilder;
+import org.apache.ibatis.builder.xml.XMLMapperEntityResolver;
+import org.apache.ibatis.parsing.XPathParser;
+import org.apache.ibatis.session.Configuration;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.w3c.dom.Element;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Stream;
+import java.util.Locale;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.fail;
 
-/**
- * QueryMapper XML 契约静态测试（T-ACCESS-006 验收标准 2/3/4；T-ACCESS-033 目录随 QueryMapper 归位更新）。
- * <p>
- * 断言专用 QueryMapper XML（resources/mapper/{org,menu,role}/ 下文件名 {@code *QueryMapper.xml}，
- * capability-structure §8.4——迁移后能力包目录混装普通 mapper XML，按文件名圈定 query 面，
- * 与 ArchUnit 规则 3 的 {@code *QueryMapper} 类名口径一致）：
- * 1. 只包含 select 标签，禁止 insert/update/delete（验收标准 2「只包含 SELECT」+ 验收标准 5「禁止写 SQL」）；
- * 2. 每个 select 显式携带 tenant_id 条件（验收标准 3「列表、树和详情查询显式包含 tenant_id 条件」）；
- * 3. 分页查询带 ORDER BY + LIMIT/OFFSET（分页语义完整，总数由调用方按同一条件统计时与结果一致）；
- * 4. 投影返回列显式声明（不 SELECT *，避免领域实体列漂移）。
- * </p>
- */
+/** QueryMapper 的只读、租户、投影与非分页结构；运行语义由 QueryMapperPgIT 验证。 */
 class QueryMapperXmlContractTest {
 
-    private static final Pattern SQL_STATEMENT = Pattern.compile(
-        "<(insert|update|delete|select)\\s", Pattern.CASE_INSENSITIVE);
-    private static final Pattern SELECT_OPEN = Pattern.compile(
-        "<select\\s", Pattern.CASE_INSENSITIVE);
-    private static final Pattern SELECT_CLOSE = Pattern.compile(
-        "</select>", Pattern.CASE_INSENSITIVE);
+    private record Statement(Path file, String namespace, Element node, Configuration configuration) {
+        String id() { return node.getAttribute("id"); }
+        String label() { return file + "#" + id(); }
+        String sql() { return normalize(node.getTextContent()); }
+        String boundSql(Map<String, Object> parameters) {
+            return normalize(configuration.getMappedStatement(namespace + "." + id()).getBoundSql(parameters).getSql());
+        }
+    }
 
-    /** QueryMapper XML 落位目录（T-ACCESS-033：query/ 解散，三件随 QueryMapper 归位能力包） */
-    private static final List<String> QUERY_MAPPER_DIRS = List.of("org", "menu", "role");
+    private static String normalize(String sql) {
+        return sql.replaceAll("\\s+", " ").trim().toLowerCase(Locale.ROOT);
+    }
 
-    private List<String> queryXmlFiles() throws IOException {
-        List<String> files = new ArrayList<>();
-        for (String dir : QUERY_MAPPER_DIRS) {
-            Path mapperDir = Paths.get("src", "main", "resources", "mapper", dir);
-            if (!Files.isDirectory(mapperDir)) {
-                fail("query mapper 归位目录不存在: " + mapperDir.toAbsolutePath());
-            }
-            try (Stream<Path> paths = Files.list(mapperDir)) {
-                paths.filter(p -> p.getFileName().toString().endsWith("QueryMapper.xml"))
-                    .map(Path::toString).forEach(files::add);
+    private List<Statement> statements() throws IOException {
+        List<Statement> statements = new ArrayList<>();
+        List<Path> files = new ArrayList<>();
+        for (String directory : List.of("org", "menu", "role")) {
+            Path path = Path.of("src", "main", "resources", "mapper", directory);
+            try (var paths = Files.list(path)) {
+                files.addAll(paths.filter(p -> p.getFileName().toString().endsWith("QueryMapper.xml")).sorted().toList());
             }
         }
-        assertThat(files).as("三个 QueryMapper XML 应各归其位（org/menu/role）").hasSize(3);
-        return files;
+        assertThat(files).as("org/menu/role 的 QueryMapper XML").hasSize(3);
+        for (Path file : files) {
+            Configuration configuration = new Configuration();
+            try (var input = Files.newInputStream(file)) {
+                new XMLMapperBuilder(input, configuration, file.toString(), configuration.getSqlFragments()).parse();
+            }
+            try (var input = Files.newInputStream(file)) {
+                var parser = new XPathParser(input, false, null, new XMLMapperEntityResolver());
+                String namespace = parser.evalString("/mapper/@namespace");
+                var nodes = parser.evalNodes("/mapper/select | /mapper/insert | /mapper/update | /mapper/delete");
+                assertThat(nodes).as("%s 的映射语句", file).isNotEmpty();
+                nodes.forEach(node -> statements.add(new Statement(file, namespace, (Element) node.getNode(), configuration)));
+            }
+        }
+        return statements;
     }
 
     @Test
-    @DisplayName("query XML 只包含 select 标签，禁止任何写 SQL")
+    @DisplayName("query XML 只包含 select 映射")
     void queryXmlsContainOnlySelects() throws IOException {
-        List<String> files = queryXmlFiles();
-        assertThat(files).as("query mapper XML 文件应存在").isNotEmpty();
-
-        for (String file : files) {
-            String content = Files.readString(Paths.get(file));
-            Matcher matcher = SQL_STATEMENT.matcher(content);
-            List<String> statements = new ArrayList<>();
-            while (matcher.find()) {
-                statements.add(matcher.group(1));
-            }
-            assertThat(statements)
-                .as("文件 %s 只允许 select 语句", file)
-                .allMatch("select"::equalsIgnoreCase);
+        for (Statement statement : statements()) {
+            assertThat(statement.node().getTagName()).as(statement.label()).isEqualTo("select");
         }
     }
 
     @Test
-    @DisplayName("每个 select 显式包含 tenant_id 条件")
+    @DisplayName("每个 statement 显式绑定 tenantId")
     void everySelectCarriesTenantId() throws IOException {
-        List<String> files = queryXmlFiles();
-        for (String file : files) {
-            String content = Files.readString(Paths.get(file));
-            Matcher open = SELECT_OPEN.matcher(content);
-            List<Integer> selectStarts = new ArrayList<>();
-            while (open.find()) {
-                selectStarts.add(open.start());
-            }
-            Matcher close = SELECT_CLOSE.matcher(content);
-            List<Integer> selectEnds = new ArrayList<>();
-            while (close.find()) {
-                selectEnds.add(close.start());
-            }
-            assertThat(selectStarts).as("文件 %s select 标签数", file).hasSize(selectEnds.size());
-
-            for (int i = 0; i < selectStarts.size(); i++) {
-                String sql = content.substring(selectStarts.get(i), selectEnds.get(i) + "</select>".length());
-                assertThat(sql)
-                    .as("文件 %s 第 %d 个 select 必须显式携带 tenant_id 条件", file, i + 1)
-                    .contains("tenant_id = #{tenantId}");
-            }
+        for (Statement statement : statements()) {
+            assertThat(statement.sql()).as(statement.label())
+                .containsPattern("\\btenant_id\\s*=\\s*#\\{\\s*tenantid\\s*}");
         }
     }
 
     @Test
-    @DisplayName("组合查询 select 无 LIMIT（非分页全量返回，避免隐式截断）")
+    @DisplayName("全量组合查询不允许 LIMIT 截断")
     void noSelectUsesLimit() throws IOException {
-        List<String> files = queryXmlFiles();
-        for (String file : files) {
-            String content = Files.readString(Paths.get(file));
-            // 全部组合查询 select 不允许出现 LIMIT（调用方全量消费，避免隐式截断）；
-            // 原唯一分页查询 selectFunctionalRoles 已随 /role/list 退役（T-FE-058）
-            for (String other : new String[]{"selectMenus", "selectUserOrgsByUserIds", "selectUserRoleProjections",
-                "selectOrgBriefsByIds", "selectDefaultTreeRootOrgIds", "selectDescendantOrgIds"}) {
-                int oi = content.indexOf(other);
-                if (oi >= 0) {
-                    String sql = content.substring(oi, Math.min(content.length(), oi + 1200));
-                    assertThat(sql)
-                        .as("%s 不应包含 LIMIT 分页（调用方全量消费）", other)
-                        .doesNotContain("LIMIT");
-                }
-            }
+        for (Statement statement : statements()) {
+            assertThat(statement.sql()).as(statement.label()).doesNotContainPattern("\\blimit\\b");
         }
     }
 
     @Test
-    @DisplayName("投影列显式声明，禁止 SELECT *（避免领域实体列漂移）")
+    @DisplayName("投影列显式声明，不使用 SELECT *")
     void projectionsUseExplicitColumns() throws IOException {
-        List<String> files = queryXmlFiles();
-        for (String file : files) {
-            String content = Files.readString(Paths.get(file));
-            assertThat(content)
-                .as("文件 %s 禁止 SELECT * 隐式列", file)
-                .doesNotContain("SELECT *")
-                .doesNotContain("select *");
+        for (Statement statement : statements()) {
+            assertThat(statement.sql()).as(statement.label()).doesNotContainPattern("\\bselect\\s+(?:[a-z_][a-z_0-9]*\\.)?\\*");
         }
     }
 
     @Test
-    @DisplayName("selectUserRoleProjections 有效期窗口与 LEFT JOIN 语义被静态钉住")
+    @DisplayName("角色投影的有效期和 LEFT JOIN 条件限定在本 statement")
     void userRoleProjectionValidityWindow() throws IOException {
-        List<String> files = queryXmlFiles();
-        String file = files.stream()
-            .filter(f -> f.endsWith("UserRoleQueryMapper.xml"))
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("UserRoleQueryMapper.xml 不存在"));
-        String content = Files.readString(Paths.get(file));
-        int idx = content.indexOf("selectUserRoleProjections");
-        String sql = content.substring(idx, Math.min(content.length(), idx + 1600));
-
-        // 有效期窗口：valid_from/valid_to 与 now 比较，NULL 放行（与旧 selectValidByUserIdWithValidity 一致）
-        assertThat(sql)
-            .as("有效期窗口条件（valid_from）")
-            .contains("ur.valid_from &lt;= #{now} OR ur.valid_from IS NULL");
-        assertThat(sql)
-            .as("有效期窗口条件（valid_to）")
-            .contains("ur.valid_to &gt;= #{now} OR ur.valid_to IS NULL");
-        // target/relation 均 LEFT JOIN 且限定租户与删除标记（target 缺失保留行语义）
-        assertThat(sql)
-            .as("target 角色 LEFT JOIN 含租户/删除条件")
-            .contains("LEFT JOIN abstract_role ar ON ur.target_id = ar.id")
-            .contains("ar.tenant_id = ur.tenant_id")
-            .contains("ar.delete_flag = 0");
-        assertThat(sql)
-            .as("relation 角色 LEFT JOIN 含租户/删除条件")
-            .contains("LEFT JOIN abstract_role ar_rel ON ur.relation_id = ar_rel.id")
-            .contains("ar_rel.tenant_id = ur.tenant_id")
-            .contains("ar_rel.delete_flag = 0");
+        Statement statement = statements().stream().filter(s -> s.id().equals("selectUserRoleProjections"))
+            .findFirst().orElseThrow();
+        assertThat(statement.sql()).as(statement.label())
+            .containsPattern("ur\\.valid_from\\s*<=\\s*#\\{now}\\s+or\\s+ur\\.valid_from\\s+is\\s+null")
+            .containsPattern("ur\\.valid_to\\s*>=\\s*#\\{now}\\s+or\\s+ur\\.valid_to\\s+is\\s+null")
+            .containsPattern("left join abstract_role ar on ur\\.target_id\\s*=\\s*ar\\.id")
+            .containsPattern("ar\\.tenant_id\\s*=\\s*ur\\.tenant_id")
+            .containsPattern("ar\\.delete_flag\\s*=\\s*0")
+            .containsPattern("left join abstract_role ar_rel on ur\\.relation_id\\s*=\\s*ar_rel\\.id")
+            .containsPattern("ar_rel\\.tenant_id\\s*=\\s*ur\\.tenant_id")
+            .containsPattern("ar_rel\\.delete_flag\\s*=\\s*0");
     }
 
     @Test
-    @DisplayName("批量 IN 查询空集合有守卫（避免 IN () 语法错误）")
+    @DisplayName("每个 foreach 的空/null 集合生成拒绝条件，不能借用相邻语句守卫")
     void batchInQueriesGuardEmptyCollections() throws IOException {
-        List<String> files = queryXmlFiles();
-        for (String file : files) {
-            String content = Files.readString(Paths.get(file));
-            // 每个含 <foreach> 的 IN 查询都必须在同一 select 内有空集合守卫
-            if (content.contains("<foreach")) {
-                assertThat(content)
-                    .as("文件 %s 的 IN 批量查询需有空集合守卫", file)
-                    .contains("size() > 0")
-                    .contains("id = -1");
+        for (Statement statement : statements()) {
+            var loops = statement.node().getElementsByTagName("foreach");
+            for (int i = 0; i < loops.getLength(); i++) {
+                String collection = ((Element) loops.item(i)).getAttribute("collection");
+                Map<String, Object> parameters = new HashMap<>();
+                parameters.put("tenantId", 1L);
+                for (boolean nullCollection : List.of(false, true)) {
+                    parameters.put(collection, nullCollection ? null : List.of());
+                    assertThat(statement.boundSql(parameters)).as("%s %s null=%s", statement.label(), collection, nullCollection)
+                        .containsPattern("\\bid\\s*=\\s*-1\\b").doesNotContainPattern("\\bin\\s*\\(\\s*\\)");
+                }
+                parameters.put(collection, List.of(1L, 2L));
+                assertThat(statement.boundSql(parameters)).as("%s 非空 %s", statement.label(), collection)
+                    .containsPattern("\\bin\\s*\\(\\s*\\?\\s*,\\s*\\?\\s*\\)").doesNotContainPattern("\\bid\\s*=\\s*-1\\b");
             }
         }
     }

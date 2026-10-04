@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.gateway.filter;
 
+import static cn.ac.fage.accessmesh.gateway.support.PermissionFilterTestSupport.routedExchange;
+
 import cn.ac.fage.accessmesh.common.cache.CacheProperties;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.common.cache.DefaultCacheService;
@@ -22,20 +24,15 @@ import org.junit.jupiter.api.Test;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.route.Route;
 import org.springframework.cloud.gateway.support.ServerWebExchangeUtils;
-import org.springframework.core.io.buffer.DefaultDataBufferFactory;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.net.URI;
 import java.time.Duration;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -112,27 +109,7 @@ class PermissionFilterTest {
             .method(HttpMethod.GET, URI.create("/api/test"))
             .build();
 
-        ServerHttpResponse response = mock(ServerHttpResponse.class);
-        HttpHeaders writableHeaders = new HttpHeaders();
-        when(response.getHeaders()).thenReturn(writableHeaders);
-        when(response.setStatusCode(any())).thenReturn(true);
-        when(response.bufferFactory()).thenReturn(new DefaultDataBufferFactory());
-        when(response.writeWith(any())).thenReturn(Mono.empty());
-        when(response.setComplete()).thenReturn(Mono.empty());
-
-        Map<String, Object> attributes = new HashMap<>();
-        attributes.put("userId", USER_ID);
-        attributes.put("tenantId", TENANT_ID);
-        attributes.put("subjectTypeCode", SUBJECT_TYPE_CODE);
-        attributes.put(ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR, route);
-
-        ServerWebExchange exchange = mock(ServerWebExchange.class);
-        when(exchange.getRequest()).thenReturn(request);
-        when(exchange.getResponse()).thenReturn(response);
-        when(exchange.getAttribute(anyString())).thenAnswer(inv -> attributes.get(inv.getArgument(0)));
-        when(exchange.getAttributes()).thenReturn(attributes);
-
-        return exchange;
+        return routedExchange(request, route, TENANT_ID, USER_ID, SUBJECT_TYPE_CODE);
     }
 
     private String cacheKey() {

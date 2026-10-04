@@ -5,6 +5,7 @@
  * 旧实现（无上下文绑定、无提交守卫）：切 B 失败保留 A 行、编辑/删除照发 A 的 ID——
  * 本组用例在旧实现下必失败。
  */
+import { flush } from "@/test-support/async";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockGetServiceApis = vi.fn();
@@ -31,11 +32,6 @@ vi.mock("@/api/service-interface", () => ({
 }));
 
 import { useServiceInterface } from "./hook";
-
-/** 排空微任务 + 一个宏任务周期（fetcher 包装多一跳微任务，T-FE-051 同款） */
-function flush() {
-  return new Promise<void>(resolve => setTimeout(resolve));
-}
 
 function mappingOf(id: number, serviceCode: string) {
   return {

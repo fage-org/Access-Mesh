@@ -5,6 +5,7 @@
  * 统一错误文案来源后优先透出后端 body message。
  * 既有失败提示行为（catch+message）用特征锁（旧新均绿），不造旧实现下天然为绿的假 old-fail。
  */
+import { defer, flush } from "@/test-support/async";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockGetSystemConfigList = vi.fn();
@@ -19,21 +20,6 @@ vi.mock("@/api/system-config", () => ({
 }));
 
 import { useSystemConfig } from "./hook";
-
-/** 受控 promise：手动 resolve/reject 驱动「A 慢 B 快」并发时序（禁裸 sleep） */
-function defer<T>() {
-  let resolve!: (v: T) => void;
-  let reject!: (e: unknown) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return { promise, resolve, reject };
-}
-
-function flush() {
-  return new Promise<void>(resolve => setTimeout(resolve));
-}
 
 describe("系统配置页列表加载（T-FE-051）", () => {
   beforeEach(() => {

@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.grant.service;
 
+import static cn.ac.fage.accessmesh.access.it.GatewayTestSignatures.hmac;
+
 import cn.ac.fage.accessmesh.access.bootstrap.AccessBootstrapInitializer;
 import cn.ac.fage.accessmesh.access.bootstrap.BootstrapGraphDefinition;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
@@ -405,7 +407,7 @@ class DelegatedDirectoryClosurePgIT {
             "X-Internal-Secret", INTERNAL_SECRET,
             "X-Tenant-Id", String.valueOf(TENANT),
             "X-User-Id", userId,
-            "X-User-Signature", hmac(userId, String.valueOf(TENANT), ts),
+            "X-User-Signature", hmac(SIGN_SECRET, userId, String.valueOf(TENANT), ts),
             "X-Signature-Timestamp", String.valueOf(ts));
     }
 
@@ -423,13 +425,6 @@ class DelegatedDirectoryClosurePgIT {
         return body.path("data").path("accessToken").asText();
     }
 
-    private static String hmac(String userId, String tenantId, long timestamp) throws Exception {
-        javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
-        mac.init(new javax.crypto.spec.SecretKeySpec(
-            SIGN_SECRET.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-        String payload = userId + "|" + tenantId + "|" + timestamp;
-        return java.util.HexFormat.of().formatHex(mac.doFinal(payload.getBytes(StandardCharsets.UTF_8)));
-    }
 
     private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
 }

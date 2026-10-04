@@ -102,6 +102,11 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>io.projectreactor</groupId>
+            <artifactId>reactor-test</artifactId>
+            <scope>test</scope>
+        </dependency>
         <!-- T-ACCESS-031：E2E 两个 IT 连同其跨服务 test 依赖（access-service /
              example-service / spring-webmvc）与容器轨基建（testcontainers 依赖、
              双 execution、-DskipTestcontainers 开关、api.version 钉版——容器轨唯一

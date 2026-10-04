@@ -312,6 +312,8 @@ class PermissionQueryAppServiceImplTest {
     private QueryRequest capturedRequest() {
         ArgumentCaptor<QueryRequest> captor = ArgumentCaptor.forClass(QueryRequest.class);
         verify(queryEngine, org.mockito.Mockito.atLeastOnce()).execute(captor.capture());
+        assertTrue(captor.getAllValues().stream().flatMap(request -> request.items().stream())
+            .noneMatch(item -> item.output().trace()), "外部资源与范围查询不开放 TRACE");
         return captor.getValue();
     }
 

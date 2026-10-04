@@ -31,6 +31,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongSupplier;
+import static org.awaitility.Awaitility.await;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -67,8 +70,10 @@ class DualInstanceCacheInvalidationTest {
         volatile boolean down;
         volatile boolean dropBroadcast;
 
+        LongSupplier clockMillis = System::currentTimeMillis;
+
         private long now() {
-            return System.currentTimeMillis();
+            return clockMillis.getAsLong();
         }
 
         private boolean alive(String key) {
@@ -292,8 +297,8 @@ class DualInstanceCacheInvalidationTest {
         assertThat(instanceB.get(l1l2Catalog, TENANT_ID, "k2")).isEqualTo("v2");
 
         // 越过 L1 TTL 后 B 归零（TTL 兜底最终一致）
-        Thread.sleep(400);
-        assertThat(instanceB.get(l1l2Catalog, TENANT_ID, "k2")).isNull();
+        await().pollInSameThread().pollInterval(Duration.ofMillis(20)).atMost(Duration.ofMillis(400))
+            .untilAsserted(() -> assertThat(instanceB.get(l1l2Catalog, TENANT_ID, "k2")).isNull());
     }
 
     @Test
@@ -339,29 +344,21 @@ class DualInstanceCacheInvalidationTest {
      * 三者合计 ≤ 30s（见 AccessCacheCatalogBoundaryTest.safetyBudget_shouldStayWithin30Seconds）。
      */
     @Test
-    void upstreamL2Backfill_shouldAnchorAbsoluteExpiryToReadStart() throws InterruptedException {
+    void upstreamL2Backfill_shouldAnchorAbsoluteExpiryToReadStart() {
+        AtomicLong millis = new AtomicLong();
+        redis.clockMillis = millis::get;
         CacheService instance = new DefaultCacheService(null,
             new RedissonBucketStore(redis.client(), objectMapper, redis.meterRegistry, properties),
-            null, properties, null);
-
-        long tokenStart = System.currentTimeMillis();
-        cn.ac.fage.accessmesh.common.cache.CacheReadToken<String> token = instance.beginRead(l2OnlyCatalog);
-        // 模拟 DB 读取耗时 catalog TTL - 0.5s（压缩目录 2s → 1.5s）——期间发生权限事务提交与失效
-        Thread.sleep(1_500);
+            null, properties, null, () -> millis.get() * 1_000_000L);
+        var token = instance.beginRead(l2OnlyCatalog);
+        millis.set(1_500);
         instance.evict(l2OnlyCatalog, TENANT_ID, "snap");
-        // 旧读取完成后回填：只获得剩余 0.5s
         instance.put(token, TENANT_ID, "snap", "value");
-
         assertThat(instance.get(l2OnlyCatalog, TENANT_ID, "snap")).isEqualTo("value");
-
-        // 绝对过期锚定读取起点而非写入时刻：再等 0.8s（起点+2.3s > 起点+2s）
-        // 条目必须已过期——即使距写入仅 0.8s（不得重新获得完整 TTL）
-        Thread.sleep(800);
+        assertThat(redis.store.values()).singleElement()
+            .extracting(FakeRedis.Entry::expireAtMillis).isEqualTo(2_000L);
+        millis.set(2_300);
         assertThat(instance.get(l2OnlyCatalog, TENANT_ID, "snap")).isNull();
-
-        // 条目总生命周期 ≤ catalog TTL（锚定起点，压缩目录 2s）
-        long upstreamLifeMs = System.currentTimeMillis() - tokenStart;
-        assertThat(upstreamLifeMs).isLessThan(3_000);
     }
 
     @Test

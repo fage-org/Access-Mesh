@@ -5,6 +5,7 @@
  * 分页层 total 回写 / onSearch 回第 1 页 / 失败保留数据与 total。
  * 并发时序用受控 promise（defer）确定性表达，禁裸 sleep 余量。
  */
+import { defer, flush } from "@/test-support/async";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockMessage = vi.fn();
@@ -14,22 +15,6 @@ vi.mock("@/utils/message", () => ({
 }));
 
 import { useListLoad, usePagedList } from "./list-load";
-
-/** 受控 promise：测试侧手动 resolve/reject，驱动「A 慢 B 快」等并发时序 */
-function defer<T>() {
-  let resolve!: (v: T) => void;
-  let reject!: (e: unknown) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return { promise, resolve, reject };
-}
-
-/** 排空微任务 + 一个宏任务周期，让 load() 的续体确定性跑完 */
-function flush() {
-  return new Promise<void>(resolve => setTimeout(resolve));
-}
 
 describe("useListLoad（T-FE-051 通用列表层）", () => {
   beforeEach(() => {

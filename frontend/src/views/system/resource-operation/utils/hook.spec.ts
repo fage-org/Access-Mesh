@@ -5,6 +5,7 @@
  * 旧实现（无上下文绑定、无提交守卫）：切类型失败保留 A 树、编辑/删除照发 A 的键——
  * 本组用例在旧实现下必失败。
  */
+import { flush } from "@/test-support/async";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockGetResourceTree = vi.fn();
@@ -43,11 +44,6 @@ vi.mock("@/api/type-def", () => ({
 }));
 
 import { useResourceOperation } from "./hook";
-
-/** 排空微任务 + 一个宏任务周期（fetcher 包装多一跳微任务，T-FE-051 同款） */
-function flush() {
-  return new Promise<void>(resolve => setTimeout(resolve));
-}
 
 function nodeOf(id: number, typeCode: string) {
   return {

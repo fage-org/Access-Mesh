@@ -9,6 +9,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
+import { flush } from "@/test-support/async";
 
 const getTypeDefList = vi.fn();
 const getResourceTree = vi.fn();
@@ -18,6 +19,7 @@ const hasPermsMock = vi.fn();
 const messageMock = vi.fn();
 const routerReplaceMock = vi.fn();
 const refreshCapabilityMock = vi.fn();
+const confirmDiscardMock = vi.fn();
 
 /** 可控 route（refreshAndPreset 预选分支按 query.roleExternalId 分发） */
 const routeMock: { query: Record<string, unknown> } = { query: {} };
@@ -34,7 +36,9 @@ vi.mock("@/router/utils", () => ({
   refreshSessionCapability: (...args: unknown[]) =>
     refreshCapabilityMock(...args)
 }));
-vi.mock("element-plus", () => ({ ElMessageBox: { confirm: vi.fn() } }));
+vi.mock("element-plus", () => ({
+  ElMessageBox: { confirm: (...args: unknown[]) => confirmDiscardMock(...args) }
+}));
 vi.mock("@/utils/http", () => ({ http: { request: vi.fn() } }));
 vi.mock("@/utils/auth", () => ({
   hasPerms: (...args: unknown[]) => hasPermsMock(...args)
@@ -60,16 +64,13 @@ vi.mock("@/api/permission-grant", () => ({
 import { ref } from "vue";
 import { PERMISSION_GRANT_PERMS } from "./perms";
 import { usePermissionGrant } from "./hook";
+import { buildAddChange, buildSummary } from "./grant-plan";
 
 /** SecurityException 经 GlobalExceptionHandler 映射：HTTP 403 + R code=403 */
 function axios403() {
   return Object.assign(new Error("Request failed with status code 403"), {
     response: { status: 403, data: { code: 403, message: "权限不足" } }
   });
-}
-
-async function flush() {
-  await new Promise(resolve => setTimeout(resolve, 0));
 }
 
 describe("授权页类型候选降级判定", () => {
@@ -102,6 +103,7 @@ describe("授权页类型候选降级判定", () => {
     try {
       await hook.retryLoadDeps();
       await flush();
+      expect(getResourceTree).toHaveBeenCalledWith({ enabledOnly: true });
       expect(hook.typeCandidates.value.map(t => t.typeCode)).toEqual([
         "REPORT"
       ]);
@@ -298,11 +300,60 @@ describe("预选失败状态清理（T-FE-037 评审修正回归锁）", () => {
       query: { subjectType: "ORG", roleExternalId: undefined }
     });
     expect(messageMock).toHaveBeenCalledWith(
-      "未找到指定组织/岗位，请重新选择",
+      "未找到指定组织/岗位或该主体已停用，请重新选择",
       { type: "warning" }
     );
     // 未走 preselect（目标不存在）
     expect(hook.subjectTreeRef.value.preselect).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])("失效预选先保护草稿：确认放弃=%s", async discard => {
+    const { useGrantStore } = await import("./grant-store");
+    const store = useGrantStore();
+    const hook = usePermissionGrant();
+    const context = {
+      domainCode: null,
+      roleTypeCode: "BASIC_ROLE",
+      roleExternalId: "1",
+      displayName: "旧角色"
+    };
+    store.commitSubject(context, []);
+    const recordKey = {
+      resourceTypeCode: "DATA",
+      resourceCode: "data:new",
+      codeType: "default",
+      operationCode: "VIEW",
+      scopeMode: "INSTANCE" as const,
+      conditionCode: null,
+      canGrant: false
+    };
+    const change = buildAddChange({
+      recordKey,
+      summary: buildSummary({ recordKey, resourceLabel: "新数据" })
+    });
+    store.applyChanges([change]);
+    hook.activeKey.value = "role:1";
+    routeMock.query = { subjectType: "ORG", roleExternalId: "99999" };
+    hook.subjectTreeRef.value = {
+      loadTree: vi.fn(async () => {}),
+      findNode: vi.fn(() => null),
+      preselect: vi.fn()
+    };
+    if (discard) confirmDiscardMock.mockResolvedValueOnce("confirm");
+    else confirmDiscardMock.mockRejectedValueOnce("cancel");
+
+    await hook.refreshAndPreset();
+
+    expect(confirmDiscardMock).toHaveBeenCalledTimes(1);
+    expect(store.context).toEqual(discard ? null : context);
+    expect(store.changes).toEqual(discard ? [] : [change]);
+    expect(hook.activeKey.value).toBe(discard ? null : "role:1");
+    expect(routerReplaceMock).toHaveBeenCalledWith({
+      query: {
+        subjectType: discard ? "ORG" : "ROLE",
+        roleExternalId: undefined
+      }
+    });
   });
 });
 

@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.extension;
 
+import static cn.ac.fage.accessmesh.access.it.GatewayTestSignatures.hmac;
+
 import cn.ac.fage.accessmesh.access.bootstrap.AccessBootstrapInitializer;
 import cn.ac.fage.accessmesh.access.bootstrap.BootstrapGraphDefinition;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
@@ -479,7 +481,7 @@ class CustomResourceTypeSlicePgIT {
             "X-Internal-Secret", INTERNAL_SECRET,
             "X-Tenant-Id", String.valueOf(TENANT),
             "X-User-Id", userId,
-            "X-User-Signature", hmac(userId, String.valueOf(TENANT), ts),
+            "X-User-Signature", hmac(SIGN_SECRET, userId, String.valueOf(TENANT), ts),
             "X-Signature-Timestamp", String.valueOf(ts)), 200);
     }
 
@@ -491,7 +493,7 @@ class CustomResourceTypeSlicePgIT {
             "X-Internal-Secret", INTERNAL_SECRET,
             "X-Tenant-Id", String.valueOf(TENANT),
             "X-User-Id", userId,
-            "X-User-Signature", hmac(userId, String.valueOf(TENANT), ts),
+            "X-User-Signature", hmac(SIGN_SECRET, userId, String.valueOf(TENANT), ts),
             "X-Signature-Timestamp", String.valueOf(ts)), expectedCode);
     }
 
@@ -505,7 +507,7 @@ class CustomResourceTypeSlicePgIT {
             "X-Internal-Secret", INTERNAL_SECRET,
             "X-Tenant-Id", String.valueOf(TENANT),
             "X-User-Id", userId,
-            "X-User-Signature", hmac(userId, String.valueOf(TENANT), ts),
+            "X-User-Signature", hmac(SIGN_SECRET, userId, String.valueOf(TENANT), ts),
             "X-Signature-Timestamp", String.valueOf(ts)).forEach(request::header);
         MvcResult result = mockMvc.perform(request).andReturn();
         return result.getResponse().getContentAsString(StandardCharsets.UTF_8);
@@ -534,14 +536,6 @@ class CustomResourceTypeSlicePgIT {
 
     private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
 
-    /** Gateway 转发签名（与 SecurityMatrixIT 同算法：HmacSHA256("userId|tenantId|timestamp") 十六进制）。 */
-    private static String hmac(String userId, String tenantId, long timestamp) throws Exception {
-        javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
-        mac.init(new javax.crypto.spec.SecretKeySpec(
-            SIGN_SECRET.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-        String payload = userId + "|" + tenantId + "|" + timestamp;
-        return java.util.HexFormat.of().formatHex(mac.doFinal(payload.getBytes(StandardCharsets.UTF_8)));
-    }
 
     // ===== 数据装配（jdbc 直插，先于相关主体首次引擎调用） =====
 

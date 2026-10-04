@@ -3,6 +3,7 @@
  * 切域时旧请求晚归不得把 A 域配置回写到 B 域（旧实现无请求序号守卫，慢响应直接覆盖 configData，
  * 且 B 标题下编辑/删除会操作 A 的配置值与 ID）。
  */
+import { flush } from "@/test-support/async";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const getDomainConfigList = vi.fn();
@@ -17,11 +18,6 @@ vi.mock("@/api/domain-config", () => ({
 }));
 
 import { useBizDomain } from "./hook";
-
-/** 排空微任务 + 一个宏任务周期（loadConfigs 经 useListLoad fetcher 包装后多一跳微任务，T-FE-051） */
-function flush() {
-  return new Promise<void>(resolve => setTimeout(resolve));
-}
 
 function domain(code: string) {
   return { id: 1, code, name: code, global: false } as any;

@@ -17,6 +17,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import java.time.Duration;
+import static org.awaitility.Awaitility.await;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
@@ -269,35 +271,36 @@ class AuthTokenFilterTest {
     }
 
     @Test
-    @DisplayName("无操作超时冻结：闲置超过 active-timeout（整秒除法余量 3.5s>2s）→ 401")
+    @DisplayName("只读轮询到闲置冻结后，网关拒绝且不进入下游")
     void idleFrozenToken_rejected401() throws Exception {
         String token = loginAsAccessService(true, true, true);
-        // 剩余时间 = activeTimeout - 整秒除法(idleMs/1000)，剩余 < 0 判冻结（-2）
-        Thread.sleep(3500);
+        await().pollInSameThread().pollInterval(Duration.ofMillis(100)).atMost(Duration.ofSeconds(10))
+            .until(() -> StpUtil.stpLogic.getTokenActiveTimeoutByToken(token) == SaTokenDao.NOT_VALUE_EXPIRE);
+        assertThat(StpUtil.getTokenTimeout(token)).as("令牌尚未绝对到期").isPositive();
         MockServerWebExchange exchange = exchangeWithBearer(token);
         AtomicBoolean chained = new AtomicBoolean(false);
-
-        filter.filter(exchange, chainOf(chained)).block();
-
-        assertThat(chained.get()).as("冻结令牌必须 401（与 access-service isLogin 口径一致）").isFalse();
+        filter.filter(exchange, chainOf(chained)).block(Duration.ofSeconds(5));
+        assertThat(chained.get()).isFalse();
         assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
     @Test
-    @DisplayName("滑动续期：每请求续写 last-active，1.2s 间隔连续 4 次调用全部放行")
+    @DisplayName("每次请求续写 last-active，持续使用跨过原始闲置失效窗口")
     void perRequestRenewal_keepsContinuousUsageAlive() throws Exception {
         String token = loginAsAccessService(true, true, true);
-        // 无续期时第 4 次（t≈3.6s，自登录闲置 3s > 2s+1s 余量）必冻结；
-        // 网关每请求续期后各次闲置均 ≤1.2s，全部放行
-        for (int i = 1; i <= 4; i++) {
-            MockServerWebExchange exchange = exchangeWithBearer(token);
-            AtomicBoolean chained = new AtomicBoolean(false);
-            filter.filter(exchange, chainOf(chained)).block();
-            assertThat(chained.get()).as("第 %d 次调用（间隔 1.2s）应放行（续期生效）", i).isTrue();
-            if (i < 4) {
-                Thread.sleep(1200);
-            }
-        }
+        long firstActive = StpUtil.stpLogic.getTokenLastActiveTime(token);
+        long idleWindowMillis = (StpUtil.stpLogic.getTokenUseActiveTimeoutOrGlobalConfig(token) + 1) * 1000;
+        await().pollInSameThread().pollInterval(Duration.ofMillis(100)).atMost(Duration.ofSeconds(10))
+            .until(() -> {
+                long requestStarted = System.currentTimeMillis();
+                MockServerWebExchange exchange = exchangeWithBearer(token);
+                AtomicBoolean chained = new AtomicBoolean(false);
+                filter.filter(exchange, chainOf(chained)).block(Duration.ofSeconds(5));
+                assertThat(chained.get()).as("活动请求应进入下游").isTrue();
+                long refreshed = StpUtil.stpLogic.getTokenLastActiveTime(token);
+                assertThat(refreshed).as("本次请求实际续写活动时间").isGreaterThanOrEqualTo(requestStarted);
+                return refreshed - firstActive >= idleWindowMillis;
+            });
     }
 
     @Test

@@ -6,11 +6,15 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.data.redis.connection.ReactiveSubscription;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.data.redis.listener.ChannelTopic;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
+import reactor.core.publisher.SignalType;
+import reactor.core.publisher.Sinks;
+import reactor.test.scheduler.VirtualTimeScheduler;
 
 import java.time.Duration;
 import java.util.Set;
@@ -22,6 +26,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 
 /**
  * PermInvalidationSubscriber 单元测试（T-PERM-006 / T-PERM-008）
@@ -35,9 +40,11 @@ class PermInvalidationSubscriberTest {
     private ObjectMapper objectMapper;
     private InterfaceSnapshotCacheInvalidator invalidator;
     private PermInvalidationSubscriber subscriber;
+    private VirtualTimeScheduler clock;
 
     @BeforeEach
     void setUp() {
+        clock = VirtualTimeScheduler.getOrSet();
         redisTemplate = mock(ReactiveStringRedisTemplate.class);
         objectMapper = new ObjectMapper();
         invalidator = mock(InterfaceSnapshotCacheInvalidator.class);
@@ -46,8 +53,13 @@ class PermInvalidationSubscriberTest {
 
     @AfterEach
     void tearDown() {
-        // 确保每个测试结束后停止 subscriber，避免后台重连循环持续运行串扰后续用例
-        subscriber.stop();
+        try {
+            subscriber.stop();
+        } finally {
+            VirtualTimeScheduler.reset();
+            clock.dispose();
+        }
+        assertThat(VirtualTimeScheduler.isFactoryEnabled()).isFalse();
     }
 
     // ─── 消息解析 ───
@@ -81,62 +93,39 @@ class PermInvalidationSubscriberTest {
     @Nested
     class ReconnectAndClearAll {
 
-        @Test
-        void shouldClearAllAndRebuild_whenSubscriptionCompletes() {
-            // 模拟 Redis 订阅在发出 onComplete 信号后停止
-            @SuppressWarnings("unchecked")
-            Flux<ReactiveSubscription.Message<String, String>> messageFlux = Flux.empty();
-            // 使用 doReturn 绕过通配符泛型匹配问题
-            doReturn(messageFlux).when(redisTemplate).listenTo(any(ChannelTopic.class));
-
-            // 启动 subscriber，触发首次订阅
+        @ParameterizedTest(name = "{0}: 5 秒到期重连并清空快照")
+        @EnumSource(value = SignalType.class, names = {"ON_COMPLETE", "ON_ERROR"})
+        void shouldClearAllAndRebuild_whenSubscriptionStops(SignalType signal) {
+            Sinks.Many<ReactiveSubscription.Message<String, String>> messages = Sinks.many().unicast().onBackpressureBuffer();
+            doReturn(messages.asFlux(), Flux.never()).when(redisTemplate).listenTo(any(ChannelTopic.class));
             subscriber.start();
             assertThat(subscriber.isRunning()).isTrue();
+            assertThat(messages.currentSubscriberCount()).isEqualTo(1);
 
-            // 首次订阅不会触发 clearAll（recovered=false）
+            if (signal == SignalType.ON_COMPLETE) {
+                assertThat(messages.tryEmitComplete()).isEqualTo(Sinks.EmitResult.OK);
+            } else {
+                assertThat(messages.tryEmitError(new IllegalStateException("Redis connection lost"))).isEqualTo(Sinks.EmitResult.OK);
+            }
+            clock.advanceTimeBy(Duration.ofMillis(4999));
+            verify(redisTemplate, times(1)).listenTo(any(ChannelTopic.class));
             verify(invalidator, never()).clearAll();
 
-            // 等待 reconnect delay (5s) + subscribe(true) 执行
-            Mono.delay(Duration.ofSeconds(7)).block(Duration.ofSeconds(15));
-
-            // 重建后应调用 clearAll
-            verify(invalidator).clearAll();
-        }
-
-        @Test
-        void shouldClearAllAndRebuild_whenSubscriptionErrors() {
-            // 模拟 Redis 订阅立即报错
-            @SuppressWarnings("unchecked")
-            Flux<ReactiveSubscription.Message<String, String>> errorFlux =
-                Flux.error(new RuntimeException("Redis connection lost"));
-            doReturn(errorFlux).when(redisTemplate).listenTo(any(ChannelTopic.class));
-
-            subscriber.start();
-            assertThat(subscriber.isRunning()).isTrue();
-
-            // 等待 reconnect delay + subscribe(true)
-            Mono.delay(Duration.ofSeconds(7)).block(Duration.ofSeconds(15));
-
-            // 重建后应调用 clearAll
+            clock.advanceTimeBy(Duration.ofMillis(1));
+            verify(redisTemplate, times(2)).listenTo(any(ChannelTopic.class));
             verify(invalidator).clearAll();
         }
 
         @Test
         void shouldNotReconnect_whenSubscriberStopped() {
-            @SuppressWarnings("unchecked")
-            Flux<ReactiveSubscription.Message<String, String>> errorFlux =
-                Flux.error(new RuntimeException("Redis connection lost"));
-            doReturn(errorFlux).when(redisTemplate).listenTo(any(ChannelTopic.class));
-
+            doReturn(Flux.error(new IllegalStateException("Redis connection lost")))
+                .when(redisTemplate).listenTo(any(ChannelTopic.class));
             subscriber.start();
-            // 立即停止
             subscriber.stop();
             assertThat(subscriber.isRunning()).isFalse();
 
-            // 等待足够长时间
-            Mono.delay(Duration.ofSeconds(7)).block(Duration.ofSeconds(15));
-
-            // 停止后不应触发 clearAll
+            clock.advanceTimeBy(Duration.ofSeconds(10));
+            verify(redisTemplate, times(1)).listenTo(any(ChannelTopic.class));
             verify(invalidator, never()).clearAll();
         }
     }

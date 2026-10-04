@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.gateway.cache;
 
+import static cn.ac.fage.accessmesh.gateway.support.PermissionFilterTestSupport.routedExchange;
+
 import cn.ac.fage.accessmesh.common.cache.CacheProperties;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.common.cache.DefaultCacheService;
@@ -18,19 +20,14 @@ import org.mockito.Mockito;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.route.Route;
 import org.springframework.cloud.gateway.support.ServerWebExchangeUtils;
-import org.springframework.core.io.buffer.DefaultDataBufferFactory;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.net.URI;
 import java.time.Duration;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -104,25 +101,7 @@ class GatewayInvalidationRaceTest {
         MockServerHttpRequest request = MockServerHttpRequest
             .method(HttpMethod.GET, URI.create("/api/test"))
             .build();
-        ServerHttpResponse response = mock(ServerHttpResponse.class);
-        when(response.getHeaders()).thenReturn(new HttpHeaders());
-        when(response.setStatusCode(any())).thenReturn(true);
-        when(response.bufferFactory()).thenReturn(new DefaultDataBufferFactory());
-        when(response.writeWith(any())).thenReturn(Mono.empty());
-        when(response.setComplete()).thenReturn(Mono.empty());
-
-        Map<String, Object> attributes = new HashMap<>();
-        attributes.put("userId", USER_ID);
-        attributes.put("tenantId", TENANT_ID);
-        attributes.put("subjectTypeCode", SUBJECT_TYPE_CODE);
-        attributes.put(ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR, route);
-
-        ServerWebExchange exchange = mock(ServerWebExchange.class);
-        when(exchange.getRequest()).thenReturn(request);
-        when(exchange.getResponse()).thenReturn(response);
-        when(exchange.getAttribute(anyString())).thenAnswer(inv -> attributes.get(inv.getArgument(0)));
-        when(exchange.getAttributes()).thenReturn(attributes);
-        return exchange;
+        return routedExchange(request, route, TENANT_ID, USER_ID, SUBJECT_TYPE_CODE);
     }
 
     private InterfaceAdmissionSnapshotResp snapshot(String marker) {
@@ -141,16 +120,22 @@ class GatewayInvalidationRaceTest {
     @Test
     void tenantWideEvictDuringSlowEvictAll_shouldDiscardStaleCommitAndRefetch()
         throws Exception {
-        // evictAll 阻塞 400ms：构造"清理进行中"窗口。旧回源提交闸门在窗口开启瞬间
+        // evictAll 等待重试开始：构造"清理进行中"窗口。旧回源提交闸门在窗口开启瞬间
         // （epoch 已递增、evictAll 即将执行）放行——确定性命中「失效期间到达」窗口；
         // 原 delayElement(150ms)+sleep(50) 固定余量在 -T 模块并行负载下会被主线程
         // 调度延迟击穿（T-ACCESS-031 场景③实证同族失败，用户拍板一并闸门化）
         CompletableFuture<Void> staleCommitGate = new CompletableFuture<>();
+        CompletableFuture<Void> evictionFinished = new CompletableFuture<>();
+        CountDownLatch retryStarted = new CountDownLatch(1);
         doAnswer(inv -> {
             // completeAsync：放行后的旧回源链在 FJ 池执行，不在被桩线程内联
             staleCommitGate.completeAsync(() -> null);
-            Thread.sleep(400);
-            return inv.callRealMethod();
+            try {
+                assertThat(retryStarted.await(3, TimeUnit.SECONDS)).as("清理期间必须已丢弃旧提交并开始重试").isTrue();
+                return inv.callRealMethod();
+            } finally {
+                evictionFinished.complete(null);
+            }
         }).when(cacheService).evictAll(any(), any());
 
         InterfaceAdmissionSnapshotResp stale = snapshot("stale");
@@ -164,9 +149,10 @@ class GatewayInvalidationRaceTest {
                     // 旧回源：闸门放行后返回（失效已递增 epoch、慢 evictAll 期间到达）
                     return Mono.just(R.ok(stale)).delayUntil(v -> Mono.fromFuture(staleCommitGate));
                 }
-                // 重试拉取新快照：延迟到慢 evictAll（400ms）完成后提交，
+                // 重试拉取新快照：等待 evictAll 实际完成后提交，
                 // 使最终缓存状态确定（新快照在清理结束后写入并保留）
-                return Mono.just(R.ok(fresh)).delayElement(Duration.ofMillis(600));
+                retryStarted.countDown();
+                return Mono.just(R.ok(fresh)).delayUntil(v -> Mono.fromFuture(evictionFinished));
             });
 
         ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -206,10 +192,16 @@ class GatewayInvalidationRaceTest {
         // 为不同重载），原桩在两参重载上从未生效——「慢 evictAll 窗口」此前是死桩代码，
         // 场景名义的清理期间竞态实际未发生过，本次闸门化按实际调用面拦截。
         CompletableFuture<Void> staleCommitGate = new CompletableFuture<>();
+        CompletableFuture<Void> evictionFinished = new CompletableFuture<>();
+        CountDownLatch retryStarted = new CountDownLatch(1);
         doAnswer(inv -> {
             staleCommitGate.completeAsync(() -> null);
-            Thread.sleep(400);
-            return inv.callRealMethod();
+            try {
+                assertThat(retryStarted.await(3, TimeUnit.SECONDS)).as("清理期间必须已丢弃旧提交并开始重试").isTrue();
+                return inv.callRealMethod();
+            } finally {
+                evictionFinished.complete(null);
+            }
         }).when(cacheService).evictAll(any());
 
         // 预置同租户另一用户的已跟踪快照：clearAll 据索引执行（慢）evictAll，
@@ -228,7 +220,8 @@ class GatewayInvalidationRaceTest {
                 if (calls.incrementAndGet() == 1) {
                     return Mono.just(R.ok(stale)).delayUntil(v -> Mono.fromFuture(staleCommitGate));
                 }
-                return Mono.just(R.ok(fresh)).delayElement(Duration.ofMillis(600));
+                retryStarted.countDown();
+                return Mono.just(R.ok(fresh)).delayUntil(v -> Mono.fromFuture(evictionFinished));
             });
 
         ExecutorService executor = Executors.newSingleThreadExecutor();

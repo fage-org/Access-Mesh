@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access;
 
+import static cn.ac.fage.accessmesh.access.it.GatewayTestSignatures.hmac;
+
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.CallerType;
 import cn.ac.fage.accessmesh.access.user.service.AbstractUserSyncAppService;
@@ -15,10 +17,6 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
-import java.util.HexFormat;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
@@ -268,7 +266,7 @@ class SecurityMatrixIT {
     @DisplayName("权限管理：内部凭证 + X-User-Id 有效签名 → 身份层放行（验签才绑定操作者）")
     void permManage_withInternalSecretAndVerifiedUserId_allowed() throws Exception {
         long ts = System.currentTimeMillis() / 1000;
-        String sig = hmac("100", "1", ts);
+        String sig = hmac(SIGN_SECRET, "100", "1", ts);
         mockMvc.perform(post("/api/access/domain-config/list")
                 .header("X-Tenant-Id", "1")
                 .header("X-Internal-Secret", INTERNAL_SECRET)
@@ -317,11 +315,4 @@ class SecurityMatrixIT {
         assertThat(AccessRequestContext.get()).isNull();
     }
 
-    /** 与生产相同算法生成 HMAC-SHA256（payload = userId|tenantId|timestamp）。 */
-    private static String hmac(String userId, String tenantId, long timestamp) throws Exception {
-        Mac mac = Mac.getInstance("HmacSHA256");
-        mac.init(new SecretKeySpec(SIGN_SECRET.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-        String payload = userId + "|" + tenantId + "|" + timestamp;
-        return HexFormat.of().formatHex(mac.doFinal(payload.getBytes(StandardCharsets.UTF_8)));
-    }
 }

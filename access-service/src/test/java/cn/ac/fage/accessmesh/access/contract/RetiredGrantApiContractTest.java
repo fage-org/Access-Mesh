@@ -5,6 +5,11 @@ import cn.ac.fage.accessmesh.access.grant.service.PermissionGrantAppService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.Arguments;
+import java.util.stream.Stream;
+import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -44,49 +49,21 @@ class RetiredGrantApiContractTest {
             .build();
     }
 
-    @Test
-    @DisplayName("/role-resource-permission/save 已删除：POST 无映射 404")
-    void save_deletedReturns404() throws Exception {
-        mockMvc.perform(post("/api/access/role-resource-permission/save")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"roleTypeCode\":\"BASIC_ROLE\",\"roleExternalId\":\"r-1\",\"adds\":[]}"))
-            .andExpect(status().isNotFound());
+    @ParameterizedTest(name = "{0} 无映射 404")
+    @MethodSource("deletedRoutes")
+    void deletedRoutes_haveNoHandler(String path, String body) throws Exception {
+        mockMvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(body))
+            .andExpect(status().isNotFound())
+            .andExpect(result -> assertThat(result.getHandler()).isNull());
     }
 
-    @Test
-    @DisplayName("/role-resource-permission/revoke 已删除：POST 无映射 404")
-    void revoke_deletedReturns404() throws Exception {
-        mockMvc.perform(post("/api/access/role-resource-permission/revoke")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"roleTypeCode\":\"BASIC_ROLE\",\"roleExternalId\":\"r-1\",\"permissionIds\":[1]}"))
-            .andExpect(status().isNotFound());
-    }
-
-    @Test
-    @DisplayName("/role-resource-permission/children 已删除：POST 无映射 404")
-    void children_deletedReturns404() throws Exception {
-        mockMvc.perform(post("/api/access/role-resource-permission/children")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"permissionId\":10}"))
-            .andExpect(status().isNotFound());
-    }
-
-    @Test
-    @DisplayName("/role-resource-permission/add-child 已删除：POST 无映射 404")
-    void addChild_deletedReturns404() throws Exception {
-        mockMvc.perform(post("/api/access/role-resource-permission/add-child")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"parentPermissionId\":10,\"children\":[]}"))
-            .andExpect(status().isNotFound());
-    }
-
-    @Test
-    @DisplayName("/role-resource-permission/remove-child 已删除：POST 无映射 404")
-    void removeChild_deletedReturns404() throws Exception {
-        mockMvc.perform(post("/api/access/role-resource-permission/remove-child")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"permissionId\":11}"))
-            .andExpect(status().isNotFound());
+    private static Stream<Arguments> deletedRoutes() {
+        return Stream.of(
+            Arguments.of("/api/access/role-resource-permission/save", "{\"roleTypeCode\":\"BASIC_ROLE\",\"roleExternalId\":\"r-1\",\"adds\":[]}"),
+            Arguments.of("/api/access/role-resource-permission/revoke", "{\"roleTypeCode\":\"BASIC_ROLE\",\"roleExternalId\":\"r-1\",\"permissionIds\":[1]}"),
+            Arguments.of("/api/access/role-resource-permission/children", "{\"permissionId\":10}"),
+            Arguments.of("/api/access/role-resource-permission/add-child", "{\"parentPermissionId\":10,\"children\":[]}"),
+            Arguments.of("/api/access/role-resource-permission/remove-child", "{\"permissionId\":11}"));
     }
 
     @Test

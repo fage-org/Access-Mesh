@@ -9,6 +9,7 @@
  * handleToggleStatus 原在 MemberTab SFC 内（不可 import 测试）且失败只显泛文案——
  * 移入 hook 后失败透出后端 error.message（对齐 handleDelete 形态）。
  */
+import { defer, flush } from "@/test-support/async";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockDeleteUser = vi.fn();
@@ -46,22 +47,6 @@ const USER = {
   orgs: [],
   createdAt: "2026-09-19 00:00:00"
 } as any;
-
-/** 受控 promise：手动 resolve/reject 驱动「A 慢 B 快」并发时序（禁裸 sleep） */
-function defer<T>() {
-  let resolve!: (v: T) => void;
-  let reject!: (e: unknown) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return { promise, resolve, reject };
-}
-
-/** 排空微任务 + 一个宏任务周期，让 loadTable 续体确定性跑完 */
-function flush() {
-  return new Promise<void>(resolve => setTimeout(resolve));
-}
 
 describe("用户删除二次确认与错误反馈（T-FE-047）", () => {
   beforeEach(() => {

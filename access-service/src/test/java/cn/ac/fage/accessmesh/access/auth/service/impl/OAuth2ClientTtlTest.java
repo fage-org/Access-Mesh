@@ -11,6 +11,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -106,10 +108,11 @@ class OAuth2ClientTtlTest {
             .isBetween(CUSTOM_TTL - 5L, CUSTOM_TTL + 0L);
     }
 
-    @Test
-    @DisplayName("刷新令牌：新访问令牌 expiresIn 与 JWT eff 均为客户端自定义 TTL（3600）")
-    void refreshTokenGrant_usesClientCustomTtl() throws Exception {
+    @ParameterizedTest(name = "refresh TTL={0} -> expiresIn/实际 JWT TTL={1}")
+    @CsvSource(value = {"3600,3600", "NULL,86400"}, nullValues = "NULL")
+    void refreshTokenGrant_usesConfiguredOrDefaultClientTtl(Integer configuredTtl, long expectedTtl) throws Exception {
         SysOauth2Client client = clientWithCustomTtl();
+        client.setAccessTokenTtl(configuredTtl);
         when(oauth2ClientDomainService.findActiveByClientId(CLIENT_ID)).thenReturn(client);
 
         OAuth2AppServiceImpl.RefreshTokenData stored = new OAuth2AppServiceImpl.RefreshTokenData();
@@ -121,31 +124,8 @@ class OAuth2ClientTtlTest {
             .thenReturn(objectMapper.writeValueAsString(stored));
 
         TokenResp resp = service.refreshToken("old-refresh-token", CLIENT_ID);
-
-        assertThat(resp.expiresIn()).isEqualTo(CUSTOM_TTL);
+        assertThat(resp.expiresIn()).isEqualTo(expectedTtl);
         assertThat(SaJwtUtil.getTimeout(resp.accessToken(), "oauth2", JWT_SECRET))
-            .isBetween(CUSTOM_TTL - 5L, CUSTOM_TTL + 0L);
-    }
-
-    @Test
-    @DisplayName("未配置 TTL 的客户端回落默认 86400（仍是客户端注册口径，非平台会话 7200）")
-    void clientWithoutTtl_fallsBackToDefault86400() throws Exception {
-        SysOauth2Client client = clientWithCustomTtl();
-        client.setAccessTokenTtl(null);
-        when(oauth2ClientDomainService.findActiveByClientId(CLIENT_ID)).thenReturn(client);
-
-        OAuth2AppServiceImpl.RefreshTokenData stored = new OAuth2AppServiceImpl.RefreshTokenData();
-        stored.setUserId(9L);
-        stored.setTenantId(1L);
-        stored.setClientId(CLIENT_ID);
-        stored.setScope("profile");
-        when(redisTemplate.execute(any(DefaultRedisScript.class), anyList()))
-            .thenReturn(objectMapper.writeValueAsString(stored));
-
-        TokenResp resp = service.refreshToken("old-refresh-token", CLIENT_ID);
-
-        assertThat(resp.expiresIn()).isEqualTo(86400);
-        assertThat(SaJwtUtil.getTimeout(resp.accessToken(), "oauth2", JWT_SECRET))
-            .isBetween(86400L - 5L, 86400L);
+            .isBetween(expectedTtl - 5L, expectedTtl);
     }
 }

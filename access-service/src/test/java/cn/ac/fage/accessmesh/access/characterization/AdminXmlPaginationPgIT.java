@@ -10,13 +10,26 @@ import cn.ac.fage.accessmesh.access.auth.mapper.SysOauth2ClientMapper;
 import cn.ac.fage.accessmesh.access.org.mapper.SysOrgMapper;
 import cn.ac.fage.accessmesh.access.user.mapper.SysUserMapper;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
+import cn.ac.fage.accessmesh.access.infrastructure.MybatisFlexTenantConfig;
+import cn.ac.fage.accessmesh.access.infrastructure.MybatisFlexTypeHandlerConfig;
+import com.mybatisflex.spring.boot.MybatisFlexAutoConfiguration;
+import org.mybatis.spring.annotation.MapperScan;
+import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
+import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
+import org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration;
+import org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration;
+import org.springframework.boot.autoconfigure.transaction.TransactionAutoConfiguration;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer;
+import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+import org.springframework.context.annotation.Import;
+import org.springframework.test.annotation.DirtiesContext;
 import cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.user.mapper.AbstractUserMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -33,8 +46,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>
  * 旧实现（MyBatis-Flex Page 参数 + XML 映射）在有行时直接 TooManyResultsException 500
  * ——RED 探针已实证（本任务执行记录）。本测试在真实 PostgreSQL + 真实 MyBatis 参数绑定下锁定：
- * ① 7 个改造后方法的分页切片/过滤/伴生 count 一致；② 同 created_at 多行跨页不重不丢
- * （id tie-breaker）；③ KeywordLikeSearchPgIT 未触达的 5 个既有 count 伴生语句与 paged 版同口径。
+ * 分页切片/过滤/伴生 count 一致；同 created_at 多行跨页不重不丢
+ * （id tie-breaker）；既有 count 伴生语句与 paged 版同口径。
  * 原 system-config 切片用例与 config service 层 PageResp 元数据边界用例随 admin /config 端点
  * 退役删除（T-ACCESS-037；元数据装配语义由 AdminPageRespShapeTest unit 轨继续锁定）。
  * </p>
@@ -44,7 +57,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * </p>
  */
 @Tag("testcontainers")
-@SpringBootTest
+@SpringJUnitConfig(classes = AdminXmlPaginationPgIT.MapperContext.class, initializers = ConfigDataApplicationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @ActiveProfiles("test")
 @Testcontainers(disabledWithoutDocker = true)
 @TestPropertySource(properties = {
@@ -57,6 +71,14 @@ import static org.assertj.core.api.Assertions.assertThat;
     "logging.level.cn.ac.fage.accessmesh=WARN",
 })
 class AdminXmlPaginationPgIT {
+
+    @TestConfiguration(proxyBeanMethods = false)
+    @ImportAutoConfiguration({DataSourceAutoConfiguration.class, DataSourceTransactionManagerAutoConfiguration.class,
+        JdbcTemplateAutoConfiguration.class, TransactionAutoConfiguration.class, MybatisFlexAutoConfiguration.class})
+    @Import({MybatisFlexTenantConfig.class, MybatisFlexTypeHandlerConfig.class})
+    @MapperScan(basePackageClasses = {SysOauth2ClientMapper.class, SysDictTypeMapper.class, SysLoginLogMapper.class,
+        SysOrgMapper.class, SysUserMapper.class, AbstractRoleMapper.class})
+    static class MapperContext {}
 
     @DynamicPropertySource
     static void configure(DynamicPropertyRegistry registry) {

@@ -1,7 +1,9 @@
 package cn.ac.fage.accessmesh.access.schema;
 
 import cn.ac.fage.accessmesh.access.it.ItInfra;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.postgresql.util.PSQLException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -15,6 +17,7 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Savepoint;
 import java.sql.Statement;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -29,8 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * （docs/design/schema/access-service.sql），验证表数量、种子数据、
  * 合并表字段、部分唯一索引与 CHECK 约束的完整语义（含 H2 无法表达的
  * 软删部分唯一索引 / NULLS NOT DISTINCT / COALESCE 索引列）。
- * Docker 不可用时由 Testcontainers 自动跳过，本地以
- * {@link AccessServiceSchemaH2Test} 为兜底验证。
+ * Docker 不可用时自动跳过，不构成 DDL 已验证；DDL 变更必须定向执行本类。
  * </p>
  */
 @Tag("testcontainers")
@@ -115,7 +117,7 @@ class AccessServiceSchemaPostgresTest {
     }
 
     @Test
-    @DisplayName("种子数据齐备（type_definition 33 / operation_permission 123 / system_config 9 / oauth2 3）")
+    @DisplayName("种子数据齐备")
     void shouldHaveAllSeedRows() throws SQLException {
         assertEquals(33, countRows("type_definition"));
         assertEquals(123, countRows("operation_permission")); // DEPENDENCY:SYNC 随 T-PERM-071 退役删除
@@ -162,7 +164,7 @@ class AccessServiceSchemaPostgresTest {
     @Test
     @DisplayName("运行时必需操作对完整性：代码实际校验的非 CRUD 操作全部有种子")
     void shouldHaveAllRuntimeRequiredOperations() throws SQLException {
-        // 与代码调用点交叉核对的必需清单（非 CRUD 部分，共 24 对 = 权限中心 12 + Admin 12；
+        // 与代码调用点交叉核对的必需非 CRUD 操作；
         // T-ACCESS-018 收敛：ADMIN_ORG 六码迁 ORG、ADMIN_USER 两码迁 USER、ADMIN_ROLE:GRANT/REVOKE 删除；
         // USER:MANAGE 随 T-ACCESS-034 USER 轨细粒度化退役——update/remove 门禁换绑 UPDATE/DELETE 通用码，种子删除）
         String[][] required = {
@@ -245,24 +247,19 @@ class AccessServiceSchemaPostgresTest {
     }
 
     @Test
-    @DisplayName("操作定义索引与 CHECK 语义：typed_bit 同类型同位不异码 + 全局行被拒（T-PERM-049 概念退役）")
+    @DisplayName("操作定义：跨类型复用 code/bit，同类型唯一且禁止全局行")
     void shouldKeepPartialUniqueIndexSemantics() throws SQLException {
-        // 部分唯一索引存在（uk_operation_permission_global 已随全局操作概念退役删除）
-        assertTrue(indexExists("uk_operation_permission_typed_bit"), "uk_operation_permission_typed_bit 应存在");
         try (Statement s = conn.createStatement()) {
-            // 跨类型同 code/同位互不影响（位空间按类型完全隔离）
             s.execute("INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, delete_flag) VALUES (1, 100, 'VIEW', '测试A', 1024, 0)");
             s.execute("INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, delete_flag) VALUES (1, 101, 'VIEW', '测试B', 1024, 0)");
-            // 同租户同 resource_type 同 code 受 typed 索引约束
-            assertThrows(SQLException.class, () -> s.execute(
-                "INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, delete_flag) VALUES (1, 100, 'VIEW', '测试C', 1024, 0)"));
-            // 同类型同位异码受 typed_bit 索引约束（同位不异码——授权行按位存取、身份可区分的根基）
-            assertThrows(SQLException.class, () -> s.execute(
-                "INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, delete_flag) VALUES (1, 100, 'EXPORT', '测试D', 1024, 0)"));
-            // 全局行被 ck_operation_permission_resource_type_required CHECK 拒绝（数据层焊死）
-            assertThrows(SQLException.class, () -> s.execute(
-                "INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, delete_flag) VALUES (1, NULL, 'VIEW', '测试E', 1024, 0)"));
         }
+        // code 冲突使用不同 bit，避免另一唯一索引掩盖目标约束缺失。
+        assertConstraintViolation("23505", "uk_operation_permission_typed",
+            "INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit) VALUES (1, 100, 'VIEW', '重复码', 2048)");
+        assertConstraintViolation("23505", "uk_operation_permission_typed_bit",
+            "INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit) VALUES (1, 100, 'EXPORT', '重复位', 1024)");
+        assertConstraintViolation("23514", "ck_operation_permission_resource_type_required",
+            "INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit) VALUES (1, NULL, 'VIEW', '全局行', 1024)");
     }
 
     @Test
@@ -273,39 +270,34 @@ class AccessServiceSchemaPostgresTest {
     }
 
     @Test
-    @DisplayName("role_resource_permission CHECK 约束拦截非法 scope_all 组合")
-    void shouldEnforceRoleResourcePermissionCheck() {
-        assertThrows(SQLException.class, () -> {
-            try (Statement s = conn.createStatement()) {
-                s.execute("INSERT INTO role_resource_permission " +
-                    "(tenant_id, abstract_role_id, resource_entity_id, granted_bits, resource_type) " +
-                    "VALUES (1, 1, NULL, 1, 1)");
-            }
-        });
+    @DisplayName("scope_all=false 必须指定实例，scope_all=true 允许 NULL 实例")
+    void shouldEnforceRoleResourcePermissionCheck() throws SQLException {
+        try (Statement s = conn.createStatement()) {
+            s.execute("INSERT INTO role_resource_permission (tenant_id, abstract_role_id, resource_entity_id, granted_bits, resource_type, scope_all) VALUES (1, 1, NULL, 1, 1, TRUE)");
+        }
+        assertConstraintViolation("23514", "ck_role_resource_permission_scope_all",
+            "INSERT INTO role_resource_permission (tenant_id, abstract_role_id, resource_entity_id, granted_bits, resource_type) VALUES (1, 1, NULL, 1, 1)");
     }
 
     @Test
     @DisplayName("system_config 唯一约束拦截重复 config_key")
-    void shouldEnforceSystemConfigUniqueKey() {
-        assertThrows(SQLException.class, () -> {
-            try (Statement s = conn.createStatement()) {
-                s.execute("INSERT INTO system_config (tenant_id, config_key, config_value, config_name, is_system) " +
-                    "VALUES (1, 'admin.LOGIN_CAPTCHA_ENABLED', 'true', '重复键测试', false)");
-            }
-        });
+    void shouldEnforceSystemConfigUniqueKey() throws SQLException {
+        assertConstraintViolation("23505", "uk_system_config",
+            "INSERT INTO system_config (tenant_id, config_key, config_value, config_name, is_system) VALUES (1, 'admin.LOGIN_CAPTCHA_ENABLED', 'true', '重复键测试', false)");
     }
 
     @Test
-    @DisplayName("sys_task_execution 执行键唯一约束")
+    @DisplayName("sys_task_execution 租约列与执行键唯一约束")
     void shouldHaveTaskExecutionTable() throws SQLException {
         assertTrue(tableExists("sys_task_execution"));
-        assertTrue(indexExists("uk_task_execution"));
-        assertThrows(SQLException.class, () -> {
-            try (Statement s = conn.createStatement()) {
-                s.execute("INSERT INTO sys_task_execution (tenant_id, execution_key, status) VALUES (1, 'job-1_t1', 'PENDING')");
-                s.execute("INSERT INTO sys_task_execution (tenant_id, execution_key, status) VALUES (1, 'job-1_t1', 'PENDING')");
-            }
-        });
+        for (String column : new String[]{"execution_key", "lease_owner", "lease_until", "attempt_count"}) {
+            assertTrue(columnExists("sys_task_execution", column), column);
+        }
+        String insert = "INSERT INTO sys_task_execution (tenant_id, execution_key, status) VALUES (1, 'job-1_t1', 'PENDING')";
+        try (Statement s = conn.createStatement()) {
+            s.execute(insert);
+        }
+        assertConstraintViolation("23505", "uk_task_execution", insert);
     }
 
     @Test
@@ -322,7 +314,7 @@ class AccessServiceSchemaPostgresTest {
     }
 
     /**
-     * eventType 筛选命中表达式索引（T-PERM-032 评审修复）：查询表达式必须与 DDL
+     * eventType 筛选命中表达式索引：查询表达式必须与 DDL
      * idx_change_log_event_time 的 (diff_snapshot->>'eventType') 同形——jsonb_extract_path_text
      * 形式经 EXPLAIN 实证只走顺序扫描（「表达式等价可命中」的既有结论已被实证推翻）。
      * SET LOCAL 随测试回滚蒸发，不污染共享连接的后续测试。
@@ -348,6 +340,151 @@ class AccessServiceSchemaPostgresTest {
             }
             org.assertj.core.api.Assertions.assertThat(plan.toString())
                     .contains("idx_change_log_event_time");
+        }
+    }
+
+
+    private static boolean columnExists(String table, String column) throws SQLException {
+        try (Statement s = conn.createStatement();
+             ResultSet rs = s.executeQuery(
+                 "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '" + table + "' AND column_name = '" + column + "'")) {
+            rs.next();
+            return rs.getLong(1) > 0;
+        }
+    }
+
+    @Test
+    @DisplayName("system_config 种子键均符合命名空间前缀 admin./permission./access.（T-ACCESS-007）")
+    void shouldHaveNamespacedSeedKeys() throws SQLException {
+        try (Statement s = conn.createStatement();
+             ResultSet rs = s.executeQuery(
+                 "SELECT config_key FROM system_config WHERE tenant_id = 1 AND delete_flag = 0")) {
+            while (rs.next()) {
+                String key = rs.getString(1);
+                assertTrue(key.startsWith("admin.") || key.startsWith("permission.") || key.startsWith("access."),
+                    "种子键应带合法命名空间前缀（admin./permission./access.），实际：" + key);
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("type_definition 种子数值与终值分配表一致：USER=1/SERVICE=2/LOCAL_USER=3/ORG=1/BASIC_ROLE=6/MENU=1/ORG=29")
+    void shouldHaveAuthoritativeTypeValues() throws SQLException {
+        assertTypeValue("user_type", "USER", 1);
+        assertTypeValue("user_type", "SERVICE", 2);
+        assertTypeValue("user_type", "LOCAL_USER", 3);
+        assertTypeValue("role_type", "ORG", 1);
+        assertTypeValue("role_type", "BASIC_ROLE", 6);
+        assertTypeValue("resource_type", "MENU", 1);
+        assertTypeValue("resource_type", "ORG", 29);
+        assertTypeValue("resource_type", "ROLE", 5);
+        assertTypeValue("resource_type", "USER", 6);
+    }
+
+    private void assertOperationBit(String typeCode, String opCode, long expectedBit, long expectedMask) throws SQLException {
+        try (Statement s = conn.createStatement();
+             ResultSet rs = s.executeQuery(
+                 "SELECT op.binary_bit, op.inherit_mask FROM operation_permission op " +
+                 "JOIN type_definition td ON td.tenant_id = op.tenant_id AND td.type_value = op.resource_type " +
+                 "WHERE op.tenant_id = 1 AND td.type_key = 'resource_type' AND td.type_code = '" + typeCode + "' " +
+                 "  AND op.code = '" + opCode + "' AND op.delete_flag = 0")) {
+            assertTrue(rs.next(), typeCode + ":" + opCode + " 操作种子缺失");
+            assertEquals(expectedBit, rs.getLong(1), typeCode + ":" + opCode + " binary_bit");
+            assertEquals(expectedMask, rs.getLong(2), typeCode + ":" + opCode + " inherit_mask");
+        }
+    }
+
+    private void assertTypeValue(String typeKey, String typeCode, int expected) throws SQLException {
+        try (Statement s = conn.createStatement();
+             ResultSet rs = s.executeQuery(
+                 "SELECT type_value FROM type_definition WHERE tenant_id = 1 AND type_key = '" + typeKey + "' AND type_code = '" + typeCode + "' AND delete_flag = 0")) {
+            assertTrue(rs.next(), "缺少类型种子 " + typeKey + ":" + typeCode);
+            assertEquals(expected, rs.getInt(1), typeKey + ":" + typeCode + " 数值");
+        }
+    }
+
+    @Test
+    @DisplayName("system_config 合并超集字段：description/config_name/remark/is_system 齐备")
+    void shouldHaveSystemConfigMergedColumns() throws SQLException {
+        assertTrue(columnExists("system_config", "description"));
+        assertTrue(columnExists("system_config", "config_name"));
+        assertTrue(columnExists("system_config", "remark"));
+        assertTrue(columnExists("system_config", "is_system"));
+    }
+
+    @Test
+    @DisplayName("operation_log 合并超集字段与 target_id 字符串化和双轨列收敛")
+    void shouldHaveOperationLogMergedColumns() throws SQLException {
+        assertTrue(columnExists("operation_log", "operator_id"));
+        assertTrue(columnExists("operation_log", "operator_name"));
+        // T-ACCESS-007 切面只写 operator 字段，原 admin 双轨 user_id/username 为永久空列，
+        assertFalse(columnExists("operation_log", "user_id"), "user_id 双轨列应删除（切面只写 operator_id）");
+        assertFalse(columnExists("operation_log", "username"), "username 双轨列应删除（切面只写 operator_name）");
+        assertTrue(columnExists("operation_log", "request_url"));
+        assertTrue(columnExists("operation_log", "request_body"));
+        assertTrue(columnExists("operation_log", "response_code"));
+        assertTrue(columnExists("operation_log", "cost_time"));
+        try (Statement s = conn.createStatement();
+             ResultSet rs = s.executeQuery(
+                 "SELECT data_type, character_maximum_length FROM information_schema.columns " +
+                 "WHERE table_schema = 'public' AND table_name = 'operation_log' AND column_name = 'target_id'")) {
+            assertTrue(rs.next(), "operation_log.target_id 列存在");
+            String type = rs.getString(1).toLowerCase();
+            assertTrue(type.contains("char") || type.contains("varchar"), "target_id 应为字符串类型，实际 " + type);
+            assertEquals(256, rs.getInt(2), "target_id 长度应为 256（覆盖 configKey 128 / roleExternalId 256 等业务键上限）");
+        }
+    }
+
+    @Test
+    @DisplayName("MENU/ORG/USER 操作位与继承掩码终值")
+    void shouldHaveAuthoritativeOperationBits() throws SQLException {
+        assertOperationBit("MENU", "CREATE", 1, 0);
+        assertOperationBit("MENU", "VIEW", 2, 0);
+        assertOperationBit("MENU", "UPDATE", 4, 2);
+        assertOperationBit("MENU", "DELETE", 8, 2);
+        assertOperationBit("ORG", "CREATE", 1, 0);
+        assertOperationBit("ORG", "VIEW_POSITION", 512, 0);
+        assertOperationBit("USER", "ENABLE", 32, 2);
+        assertOperationBit("USER", "RESET_PASSWORD", 64, 2);
+    }
+
+    @Test
+    @DisplayName("domain_config 同租户同域同配置类型唯一")
+    void shouldEnforceDomainConfigUniqueKey() throws SQLException {
+        String insert = "INSERT INTO domain_config (tenant_id, biz_domain_id, config_type, extra) VALUES (1, 1, 'CLASSIFY', '{}')";
+        try (Statement s = conn.createStatement()) {
+            s.execute(insert);
+        }
+        assertConstraintViolation("23505", "uk_domain_config", insert);
+    }
+
+    @Test
+    @DisplayName("带条件的主权限允许不可转授，拒绝 can_grant=true")
+    void shouldEnforceConditionCanGrantCheck() throws SQLException {
+        try (Statement s = conn.createStatement()) {
+            s.execute("INSERT INTO role_resource_permission (tenant_id, abstract_role_id, resource_entity_id, granted_bits, resource_type, condition_id, can_grant) VALUES (1, 1, 101, 1, 1, 30, FALSE)");
+        }
+        assertConstraintViolation("23514", "ck_role_resource_permission_condition_can_grant",
+            "UPDATE role_resource_permission SET can_grant = TRUE WHERE tenant_id = 1 AND abstract_role_id = 1 AND resource_entity_id = 101 AND condition_id = 30");
+    }
+
+    private static void assertConstraintViolation(String sqlState, String constraint, String sql) throws SQLException {
+        Savepoint savepoint = conn.setSavepoint();
+        try (Statement s = conn.createStatement()) {
+            PSQLException error = assertThrows(PSQLException.class, () -> s.execute(sql), constraint);
+            assertEquals(sqlState, error.getSQLState(), constraint);
+            assertEquals(constraint, error.getServerErrorMessage().getConstraint());
+        } finally {
+            // PG 约束异常会中止当前事务；恢复到负例前，后续断言才能执行真实 SQL。
+            conn.rollback(savepoint);
+            conn.releaseSavepoint(savepoint);
+        }
+    }
+
+    @AfterAll
+    static void closeConnection() throws SQLException {
+        if (conn != null) {
+            conn.close();
         }
     }
 }

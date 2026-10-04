@@ -215,6 +215,8 @@ class PermissionViewAppServiceImplTest {
 
             ArgumentCaptor<QueryRequest> captor = ArgumentCaptor.forClass(QueryRequest.class);
             verify(queryEngine).execute(captor.capture());
+            assertTrue(captor.getValue().items().stream().noneMatch(queryItem -> queryItem.output().trace()),
+                "外部权限视图不开放 TRACE");
             assertEquals("203.0.113.7", captor.getValue().context().clientIp(),
                 "视图面引擎请求必须装配当前请求 clientIp（IP 条件评估依据）");
         }

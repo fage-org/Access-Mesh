@@ -64,6 +64,9 @@ class PermissionManifestPgIT {
     @Test
     void shouldPublishThroughCredentialHttpRoute_withoutUserApiGrant() throws Exception {
         Fixture f = fixture(true);
+        // 独立资源类型没有任何授权种子；发布声明只能编译图，不能凭空生成授权。
+        String grantsForType = "SELECT count(*) FROM role_resource_permission WHERE tenant_id=1 AND resource_type=?";
+        assertThat(jdbc.queryForObject(grantsForType, Integer.class, f.type())).isZero();
         var credential = credentials.issue(1L, f.service(), null, 100L);
         var result = mvc.perform(post("/api/access/integration/permission-manifest/full-sync")
                 .header("X-Credential-Id", credential.entity().getCredentialId())
@@ -76,7 +79,9 @@ class PermissionManifestPgIT {
         var envelope = json.readTree(result.getContentAsString());
         assertThat(envelope.path("code").asInt()).isEqualTo(200);
         assertThat(envelope.path("data").path("detail").path("appliedCount").asInt()).isEqualTo(1);
+        assertThat(envelope.path("data").path("detail").path("failedCount").asInt()).isZero();
         assertThat(edgeCount(f)).isEqualTo(1);
+        assertThat(jdbc.queryForObject(grantsForType, Integer.class, f.type())).isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM resource_entity WHERE code='POST:/api/access/integration/permission-manifest/full-sync' AND delete_flag=0",
                 Integer.class)).isZero();
     }

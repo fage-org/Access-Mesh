@@ -1,5 +1,9 @@
 package cn.ac.fage.accessmesh.e2e;
 
+import cn.ac.fage.accessmesh.e2e.E2eProcessSupport.ServiceHandle;
+import static cn.ac.fage.accessmesh.e2e.E2eProcessSupport.filterOutTestClasses;
+import static cn.ac.fage.accessmesh.e2e.E2eProcessSupport.freePort;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.lettuce.core.RedisClient;
@@ -20,7 +24,6 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.ServerSocket;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -30,7 +33,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -607,47 +609,6 @@ class ExampleProtectedApiE2EIT {
     // 子进程服务管理
     // ------------------------------------------------------------------
 
-    private static final class ServiceHandle {
-        private final Process process;
-        private final int port;
-        private final Path workDir;
-
-        private ServiceHandle(Process process, int port, Path workDir) {
-            this.process = process;
-            this.port = port;
-            this.workDir = workDir;
-        }
-
-        int port() {
-            return port;
-        }
-
-        void destroy() {
-            process.destroy();
-            try {
-                if (!process.waitFor(15, TimeUnit.SECONDS)) {
-                    process.destroyForcibly();
-                    process.waitFor(10, TimeUnit.SECONDS);
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                process.destroyForcibly();
-            }
-            assertThat(process.isAlive()).as("子进程必须已退出").isFalse();
-        }
-
-        String logTail() {
-            try {
-                byte[] bytes = Files.readAllBytes(workDir.resolve("process.log"));
-                String text = new String(bytes, StandardCharsets.UTF_8);
-                List<String> lines = text.lines().toList();
-                return String.join("\n", lines.subList(Math.max(0, lines.size() - 40), lines.size()));
-            } catch (IOException e) {
-                return "<log unreadable: " + e.getMessage() + ">";
-            }
-        }
-    }
-
     private static List<String> accessServiceArgs(int port) {
         return List.of(
             "--server.port=" + port,
@@ -764,8 +725,6 @@ class ExampleProtectedApiE2EIT {
     private static ServiceHandle startService(String name, String mainClass, List<String> args,
                                               Map<String, String> env, URI readinessUrl,
                                               String prependClassesDir) throws Exception {
-        String javaBin = Path.of(System.getProperty("java.home"), "bin",
-            System.getProperty("os.name", "").toLowerCase().contains("win") ? "java.exe" : "java").toString();
         if (!Files.exists(Path.of(ACCESS_SERVICE_CLASSES_DIR))) {
             throw new IllegalStateException("缺少 access-service 生产 classes（" + ACCESS_SERVICE_CLASSES_DIR
                 + "）——请先构建上游模块（如 mvn -pl access-service -am install 或全量构建）");
@@ -778,32 +737,8 @@ class ExampleProtectedApiE2EIT {
         String childClasspath = prependClassesDir != null
             ? prependClassesDir + java.io.File.pathSeparator + baseClasspath
             : baseClasspath;
-        int port = parsePort(args);
-
-        Path workDir = Path.of("target", "e2e", name + "-" + System.nanoTime());
-        Files.createDirectories(workDir);
-        Path logFile = workDir.resolve("process.log");
-
-        List<String> command = new ArrayList<>();
-        command.add(javaBin);
-        command.add("-Xms128m");
-        command.add("-Xmx512m");
-        command.add("-Dfile.encoding=UTF-8");
-        command.add("-cp");
-        command.add(childClasspath);
-        command.add(mainClass);
-        command.addAll(args);
-
-        ProcessBuilder pb = new ProcessBuilder(command);
-        pb.directory(workDir.toFile());
-        pb.environment().putAll(env);
-        pb.redirectErrorStream(true);
-        pb.redirectOutput(logFile.toFile());
-        Process process = pb.start();
-
-        ServiceHandle handle = new ServiceHandle(process, port, workDir);
-        waitReady(name, readinessUrl, handle);
-        return handle;
+        ServiceHandle handle = E2eProcessSupport.launch(name, mainClass, args, env, childClasspath);
+        return E2eProcessSupport.readyOrDestroy(handle, () -> waitReady(name, readinessUrl, handle));
     }
 
     private static void waitReady(String name, URI url, ServiceHandle handle) throws InterruptedException {
@@ -858,33 +793,6 @@ class ExampleProtectedApiE2EIT {
             Thread.sleep(1000);
         }
         throw new IllegalStateException("bootstrap 首管理员 2 分钟内未落库");
-    }
-
-    private static int parsePort(List<String> args) {
-        return args.stream()
-            .filter(a -> a.startsWith("--server.port="))
-            .mapToInt(a -> Integer.parseInt(a.substring("--server.port=".length())))
-            .findFirst()
-            .orElseThrow(() -> new IllegalArgumentException("缺少 --server.port 参数"));
-    }
-
-    private static String filterOutTestClasses(String classpath) {
-        List<String> kept = new ArrayList<>();
-        for (String entry : classpath.split(java.io.File.pathSeparator)) {
-            String normalized = entry.replace('\\', '/');
-            if (!normalized.endsWith("/test-classes")) {
-                kept.add(entry);
-            }
-        }
-        return String.join(java.io.File.pathSeparator, kept);
-    }
-
-    private static int freePort() throws IOException {
-        try (ServerSocket socket = new ServerSocket()) {
-            socket.setReuseAddress(true);
-            socket.bind(new InetSocketAddress("127.0.0.1", 0));
-            return socket.getLocalPort();
-        }
     }
 
     // ------------------------------------------------------------------

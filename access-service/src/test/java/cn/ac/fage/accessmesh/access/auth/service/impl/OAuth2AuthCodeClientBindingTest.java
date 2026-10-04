@@ -14,6 +14,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -116,22 +118,10 @@ class OAuth2AuthCodeClientBindingTest {
             CODE, redirectUri, null, null));
     }
 
-    @Test
-    @DisplayName("同租户：B 的合法凭据兑换签发给 A 的授权码 → 拒绝 OAUTH2_CODE_INVALID（旧实现可成功）")
-    void crossClientExchange_sameTenant_rejected() throws Exception {
-        stubCode(client(CLIENT_B, SECRET_B, 1L, "aud-b"), codeFor(CLIENT_A, 1L, REDIRECT_A));
-
-        assertThatThrownBy(() -> exchange(CLIENT_B, SECRET_B, REDIRECT_A))
-            .isInstanceOf(BizException.class)
-            .extracting(e -> ((BizException) e).getErrorCode())
-            .isEqualTo(AccessErrorCode.OAUTH2_CODE_INVALID.getCode());
-    }
-
-    @Test
-    @DisplayName("跨租户：租户 2 的 B 兑换租户 1 签发给 A 的授权码 → 同样拒绝（客户端关联先于租户语义）")
-    void crossClientExchange_crossTenant_rejected() throws Exception {
-        stubCode(client(CLIENT_B, SECRET_B, 2L, "aud-b"), codeFor(CLIENT_A, 1L, REDIRECT_A));
-
+    @ParameterizedTest(name = "B 租户={0}：不能兑换 A（租户1）签发的授权码")
+    @ValueSource(longs = {1L, 2L})
+    void crossClientExchange_rejectedAcrossTenantVariants(long requestingTenant) throws Exception {
+        stubCode(client(CLIENT_B, SECRET_B, requestingTenant, "aud-b"), codeFor(CLIENT_A, 1L, REDIRECT_A));
         assertThatThrownBy(() -> exchange(CLIENT_B, SECRET_B, REDIRECT_A))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())

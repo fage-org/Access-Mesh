@@ -4,6 +4,7 @@
  * 1) 代际语义保持（特征锁：旧实现 reqSeq 已有，两实现下均绿）；
  * 2) 失败语义按全仓统一口径改为「保留旧数据 + 提示」（old-fail：旧实现清空旧数据）。
  */
+import { defer, flush } from "@/test-support/async";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockGetChangeLogList = vi.fn();
@@ -17,21 +18,6 @@ vi.mock("@/api/permission-change-log", () => ({
 }));
 
 import { usePermissionChangeLog } from "./hook";
-
-/** 受控 promise：手动 resolve/reject 驱动并发时序（禁裸 sleep） */
-function defer<T>() {
-  let resolve!: (v: T) => void;
-  let reject!: (e: unknown) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return { promise, resolve, reject };
-}
-
-function flush() {
-  return new Promise<void>(resolve => setTimeout(resolve));
-}
 
 describe("权限变更日志页列表加载收敛（T-FE-051）", () => {
   beforeEach(() => {

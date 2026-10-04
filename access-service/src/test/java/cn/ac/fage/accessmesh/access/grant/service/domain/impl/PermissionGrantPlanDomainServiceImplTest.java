@@ -114,7 +114,7 @@ class PermissionGrantPlanDomainServiceImplTest {
     @Test
     void shouldRejectTouchedLegacyApiRow_whenPlanUpdatesOrRemovesIt() {
         // T-ACCESS-062：update/remove/父引用触达的既有行若是已退役的 API 授权，同样拒绝——
-        // 存量 API 行只能走受控迁移脚本，不经授权页 update/removes 通道
+        // 旧库迁移已停止支持，存量 API 行不经授权页 update/removes 通道放行
         when(rolePermissionMapper.selectValidByRoleId(TENANT, ROLE)).thenReturn(List.of(existing(1L, null, "MANUAL")));
         when(typeResolutionService.resolveTypeValue(TENANT, "resource_type", "API")).thenReturn(4);
         var plan = new ApplyGrantPlanReq.GrantPlan(List.of(), List.of(), List.of(1L));
