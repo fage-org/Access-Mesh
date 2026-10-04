@@ -167,7 +167,7 @@ last_reviewed: 2026-10-04
 可选字段更新统一「三态」：**未传/null=不修改**（保持原值）；**非空值=设置**；**`xxxClear=true`=清空为 NULL**（JSON null 无法区分「未传」与「清空」，显式布尔标志是唯一清空通道）。统一规则：
 
 - **冲突拒绝（全端点）**：新值与 `xxxClear=true` 同传 → Bean Validation 400（90001）。取代 role/resource 旧「Clear 优先于 extra」的静默丢值口径（同批对齐，既有单用形态消费者不回退）。
-- **空串拒绝**：空白拒绝范围=六字段+perm 轨 extra（phone/email/type description+extra/service basePath+description+extra/mapping extra/abstract-user extra）——传空串或纯空白 → 400——杜绝空串入库与唯一索引空串撞车（`uk_user_phone` 部分索引含空串行）；清空唯一通道=`xxxClear`。
+- **空串拒绝**：空白拒绝作用于**更新入口**的可选字段——范围=六字段+perm 轨 extra（phone/email/type description+extra/service basePath+description+extra/mapping extra/abstract-user extra），及 T-API-006 扩展的 condition/system-config `description`、menu `icon`、oauth2-client `clientSecret/clientName/grantTypes/redirectUris/scopes/audiences` 与 role/resource `extra`——传空串或纯空白 → 400——杜绝空串入库与唯一索引空串撞车（`uk_user_phone` 部分索引含空串行）；清空唯一通道=`xxxClear`。新建入口可选字段缺省传 null（沿六字段先例，空白拒绝不覆盖新建入口）。
 - **false/缺省无清空作用**：仅 `true` 触发清空。
 - **落库语义**：清空经 MyBatis-Flex `UpdateEntity` 显式 NULL 列写入（`update(entity)` 默认忽略 null 列——T-PERM-028 起先例）。
 - **覆盖面**：user `phoneClear`/`emailClear`（§7.4）、abstract-user `extraClear`（§7.8）、type `descriptionClear`（§13.1——**type `extraClear` 任何非 null 值 20044（PERM_INVALID_PARAM）拒绝**：extra 含服务端管理键 managedMode/syncSourceService/grantOriginRole，不支持清空，U006 拍板）、service `basePathClear`/`descriptionClear`/`extraClear`（§12.2——创建分支携带任一 true 拒绝 20044〔PERM_INVALID_PARAM〕；extraClear 语义=撤销 syncTypes 同步白名单，该服务同步通道全拒 fail-closed）、api-mapping `extraClear`（§12.2）、role `extraClear`（§10.3）、resource `extraClear`（§12.1）。
@@ -309,7 +309,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 
 **委托边界（T-ADMIN-034 定案；[T-ADMIN-035](../archive/2026-10-04/tasks/T-ADMIN-035.md) 实施）**：客户端只获取本租户用户的委托。authorize 比对平台会话与客户端租户；匿名 token/refresh 仍全局解析 clientId，再比对授权码/刷新记录与客户端租户。authorize、token、refresh 以及每次 JWT 资源请求都确认用户属于同一租户、未删除且 status=1；JWT 同时校验客户端与载荷租户一致，不采用正向用户状态缓存，禁用/删除后下一请求拒绝。既有客户端有效性、黑名单、scope/audience、码与刷新令牌一次性消费保持，不增加令牌扫描或撤销广播。
 
-当前差异：现有代码尚未统一实施上述用户状态/租户检查；userinfo 只查未删除用户行，不能代表认证层已阻断禁用用户。开放路径扩展前须纳入上述目标检查，不能沿用「仅 userinfo」推断新路径的安全边界。
+当前差异：无——上述检查已由 T-ADMIN-035 全量实施（authorize/token/refresh 及每次 JWT 资源请求）。开放路径扩展前须确认新路径同样纳入上述检查，不能沿用「仅 userinfo」推断新路径的安全边界。
 
 #### 6.1.1 `POST /api/access/auth/oauth2/authorize`（需平台会话）
 
@@ -2595,9 +2595,9 @@ FULL 缺失/null/空白 `publicationGeneration`、缺失/null `items` 在 HTTP D
 
 | 入口 | 调用方要求 | 关键约束 | 实现 |
 |---|---|---|---|
-| `/api/access/**/sync`、`/full-sync` | 已验证服务身份 | `sourceService` 必须等于已验证服务身份（凭证通过后绑定的 X-Service-Code，`SyncAuthVerifier` 从上下文比对） | SERVICE 上下文；不匹配 → SECURITY_DENIED |
+| `/api/access/**/sync`、`/full-sync` | 已验证服务身份 | `sourceService` 必须等于已验证服务身份（凭证行派生，`SyncAuthVerifier` 从可信上下文比对；自报 `X-Service-Code` 不参与判定） | SERVICE 上下文；不匹配 → SECURITY_DENIED |
 
-- 服务身份由 `access-service` 统一校验（内部凭证验证通过后绑定 `X-Service-Code` 为凭证持有者声明的服务身份，防无凭证外部伪造），调用方**不得**自行声明或伪造服务身份。
+- 服务身份由 `access-service` 统一校验（认证链从服务凭证行派生 tenantId/serviceCode；自报 `X-Service-Code`/`X-Tenant-Id` 头一律忽略，内部密钥路径携带非空白自报服务头直接 403），调用方**不得**自行声明或伪造服务身份。
 - 内部同步子系统（`sys_sync_task` 调度、`SyncTaskFeignClient`/`FeignInternalSyncInterceptor`、`X-Internal-Secret` 调度链路）已随 T-ACCESS-005 删除；管理事实由 user/org/menu 能力写编排同事务维护本地投影，不再经 sync 接口进入。
 - 仅当配置了服务凭证时服务身份校验才生效；未配置的部署不会启动失败，但对应接口按矩阵 fail-closed。
 
@@ -2943,7 +2943,7 @@ SDK 运行时查询方法保留单 DTO 入口，并增加 `(req, credentialId, c
 - **SDK 直连**：`perm-common` 的 `FeignCredentialInterceptor`（client 与 registration〔071〕两 starter 共用），配置键：
   - `perm.credential-id` + `perm.credential-secret`：成对必填（半配 fail-fast）；已显式声明凭证头的请求不覆盖；
   - `perm.allow-insecure`：**启动声明式 TLS 信任域护栏**（2026-09-20 拍板；外评处置收紧为二值白名单）——配置凭证必须显式声明且值域仅 `true`/`false`（大小写不敏感，非法值如拼写错拒启并提示合法值；true=单信任域明文 hop 可接受；false=跨边界期望 TLS；缺省拒启）。护栏为纯声明（服务发现形态下静态地址校验无落点，true/false 无运行时行为差异——值校验仅防声明拼写错静默通过），Gateway→access-service 内网 hop 不校验（同部署单元信任域）。
-- **上线序**（服务端先行向后兼容）：①先发布 access-service 仲裁器（无凭证头存量调用方行为零变化）；②后发布 Gateway 改动与新版 SDK——「凭证头+注入密钥并存」由仲裁器凭证优先规则消解，无同批发布要求。
+- **上线序**（已被取代的历史阶段一安排）：「服务端先行向后兼容」两步上线序随 2026-10-04 同批硬切定案（T-ACCESS-079/080）退役——服务端、Gateway、SDK 与示例**同批切换**，旧「共享密钥+自报服务头」纯服务通道关闭、不留兼容开关（当前无部署环境，无存量调用方迁移窗口）。
 
 <a id="operation-admission-protocol"></a>
 

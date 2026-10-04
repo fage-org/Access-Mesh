@@ -144,6 +144,35 @@ class RequestContextInterceptorTest {
         assertThat(AccessRequestContext.get()).isNull();
     }
 
+    @Test
+    void shouldRejectPlainInternalSecret_onSyncEndpoint_withoutSelfDeclaredHeader() throws Exception {
+        // 旧「共享密钥+无自报头」纯服务通道的另一半：sync 族端点即使不带 X-Service-Code
+        // 也一律 403（参数化用例只锁了带自报头形态；旧实现该形态放行为 SERVICE(null) 即红）
+        var req = new MockHttpServletRequest("POST", "/api/access/abstract-user/sync");
+        req.setAttribute(SecurityAttributes.ATTR_INTERNAL_AUTHENTICATED, true);
+        req.addHeader("X-Tenant-Id", "1");
+        var resp = new MockHttpServletResponse();
+        assertThat(interceptor.preHandle(req, resp, new Object())).isFalse();
+        assertThat(resp.getStatus()).isEqualTo(403);
+        assertThat(AccessRequestContext.get()).isNull();
+    }
+
+    @Test
+    void shouldAllowPlatformInternalQuery_withoutServiceHeader_onAuthPrefixEndpoints() throws Exception {
+        // /api/access/auth/** 前缀排除保留平台内部查询形态：无自报头内部密钥 →
+        // SERVICE(serviceCode=null)——网关平台信任域，非纯服务通道复活
+        var req = new MockHttpServletRequest("POST", "/api/access/auth/check");
+        req.setAttribute(SecurityAttributes.ATTR_INTERNAL_AUTHENTICATED, true);
+        req.addHeader("X-Tenant-Id", "1");
+        var resp = new MockHttpServletResponse();
+        assertThat(interceptor.preHandle(req, resp, new Object())).isTrue();
+        assertThat(resp.getStatus()).isEqualTo(200);
+        assertThat(AccessRequestContext.get()).isNotNull();
+        assertThat(AccessRequestContext.get().callerType()).isEqualTo(CallerType.SERVICE);
+        assertThat(AccessRequestContext.get().serviceCode()).isNull();
+        assertThat(AccessRequestContext.get().tenantId()).isEqualTo(1L);
+    }
+
     @AfterEach
     void tearDown() {
         AccessRequestContext.clear();

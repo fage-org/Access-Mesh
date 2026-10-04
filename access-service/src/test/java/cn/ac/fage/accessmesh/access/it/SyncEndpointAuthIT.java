@@ -40,7 +40,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>覆盖矩阵：</p>
  * <table>
  *   <tr><th>#</th><th>路径</th><th>Headers</th><th>期望</th></tr>
- *   <tr><td>1</td><td>/api/access/abstract-user/sync</td><td>X-Tenant-Id + X-Internal-Secret(correct)</td><td>200</td></tr>
+ *   <tr><td>1</td><td>/api/access/abstract-user/sync</td><td>X-Tenant-Id + 服务凭证（X-Credential-Id/Secret）</td><td>200</td></tr>
+ *   <tr><td>1b</td><td>/api/access/abstract-user/sync</td><td>X-Tenant-Id + 正确 X-Internal-Secret（无自报头）</td><td>403（纯服务通道关闭）</td></tr>
  *   <tr><td>2</td><td>/api/access/abstract-user/sync</td><td>X-Tenant-Id + X-Internal-Secret(wrong)</td><td>403</td></tr>
  *   <tr><td>3</td><td>/api/access/abstract-user/sync</td><td>仅 X-Tenant-Id 无 secret 无 user</td><td>403</td></tr>
  *   <tr><td>4</td><td>/api/access/abstract-user/sync</td><td>X-User-Id + X-Tenant-Id 无 HMAC + InternalSecret</td><td>403（T-ACCESS-004 G1：用户头恒需验签）</td></tr>
@@ -101,8 +102,8 @@ class SyncEndpointAuthIT {
     }
 
     @Test
-    @DisplayName("用例1：调度 Feign 调用（X-Tenant-Id + 正确 X-Internal-Secret） → 200")
-    void case1_internalSecretCorrect_shouldPass() throws Exception {
+    @DisplayName("用例1：服务凭证调用同步端点（X-Tenant-Id + X-Credential-Id/Secret） → 200")
+    void case1_serviceCredential_shouldPass() throws Exception {
         mockMvc.perform(post("/api/access/abstract-user/sync")
                 .header(HEADER_TENANT_ID, "1")
                 .header("X-Credential-Id", "sc-test")
@@ -110,6 +111,17 @@ class SyncEndpointAuthIT {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"))
             .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("用例1b：正确 X-Internal-Secret（无自报头）→ 403（旧纯服务通道关闭，外部评审 P3 补锁）")
+    void case1b_plainInternalSecretOnSync_shouldReject() throws Exception {
+        mockMvc.perform(post("/api/access/abstract-user/sync")
+                .header(HEADER_TENANT_ID, "1")
+                .header(HEADER_INTERNAL_SECRET, INTERNAL_SECRET)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+            .andExpect(status().isForbidden());
     }
 
     @Test

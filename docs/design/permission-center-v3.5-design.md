@@ -97,13 +97,12 @@ sys_menu 表的权威 DDL 见 [`schema/access-service.sql`](schema/access-servic
 当前实体 schema 不变，不引入 JSON `depend_on` 结构：
 
 ```java
-// RoleResourcePermission 现状（v3.5 维持）
+// RoleResourcePermission 现状（v3.5 维持；grantDepId 已由 T-PERM-105 退役，来源由 explain 推导）
 private Long dependOn;          // 父权限引用（单一外键 ID）
 private Boolean scopeAll;       // L2 数据权限：全量范围标记
 private Boolean canGrant;
 private Long conditionId;       // L2 数据权限：自定义条件引用
 private String grantSource;
-private Long grantDepId;
 ```
 
 > 注：本字段清单仅列 v3.5 关心的语义字段（数据权限相关），**非完整结构**。完整 DDL 见 `schema/access-service.sql` `role_resource_permission` 表（含 `abstract_role_id` / `resource_entity_id` / `resource_type` / `granted_bits` 等核心定位字段）。

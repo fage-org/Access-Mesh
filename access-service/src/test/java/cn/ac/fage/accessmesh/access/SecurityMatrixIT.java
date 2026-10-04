@@ -232,8 +232,8 @@ class SecurityMatrixIT {
     // （MockHttpServletRequest.setDispatcherType(ERROR) 直接验证拦截器分支）
 
     @Test
-    @DisplayName("外部 sync：内部凭证 + sourceService 与 X-Service-Code 一致 → 身份层放行（G2）")
-    void sync_withInternalSecret_bindsServiceContext() throws Exception {
+    @DisplayName("外部 sync：服务凭证（身份由凭证行派生，sourceService 须与之一致）→ 身份层放行（G2）")
+    void sync_withServiceCredential_bindsServiceContext() throws Exception {
         stubCredential(1L, "example-service");
 
         mockMvc.perform(post("/api/access/abstract-user/sync")

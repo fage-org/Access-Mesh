@@ -337,7 +337,7 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 
 resource_dependency.resource_entity_id 是源，depends_on_resource_entity_id 是目标。自动权限可独立使用，不替代 depend_on 父上下文模型，也不包含 API 操作派生。类型级/父继承不作种子，条件与操作规范化按设计 M2 收敛。
 
-不按 grant_dep_id 单边清理，不建逐完整路径 support。共享来源最后一个撤销才删除自动结果，独立 MANUAL 保留；正常撤销由主事务保证，不等待后台对账。
+不按单来源字段单边清理（grantDepId 列已随 T-PERM-105 退役），不建逐完整路径 support。共享来源最后一个撤销才删除自动结果，独立 MANUAL 保留；正常撤销由主事务保证，不等待后台对账。
 
 ## 13. 场景十：审计排查
 

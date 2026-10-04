@@ -26,8 +26,9 @@
         </dependency>
         <!-- 业务最终检查客户端（T-ACCESS-061 用户拍板 2026-09-28：SDK starter 形态）：
              经 PermissionFeignClient 调 auth/check 族端点（§8.6 逐路由最终检查）；
-             服务认证=perm.internal-secret 旧密钥通道（FeignInternalSyncInterceptor），
-             X-Tenant-Id 由本服务 FeignTenantHeaderInterceptor 从调用上下文注入。 -->
+             服务认证=per-service 凭证——共享实例按网关验签租户从
+             example.permission.tenant-credentials 选凭证，经 SDK 显式头重载随请求发送
+             （T-ACCESS-081 方案 B；旧密钥通道与租户发头拦截器已随 T-ACCESS-079/080 退役）。 -->
         <dependency>
             <groupId>cn.ac.fage.accessmesh</groupId>
             <artifactId>perm-client-spring-boot-starter</artifactId>

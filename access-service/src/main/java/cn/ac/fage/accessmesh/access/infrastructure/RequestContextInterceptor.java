@@ -66,7 +66,7 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
 
     /** 请求 ID 请求头（Gateway 注入）。 */
     private static final String HEADER_REQUEST_ID = "X-Request-Id";
-    /** 服务编码请求头（perm-sdk / Gateway 注入，凭证通过后绑定）。 */
+    /** 服务编码请求头（凭证路径一律忽略、内部密钥路径携带即拒绝——服务身份由凭证行派生）。 */
     private static final String HEADER_SERVICE_CODE = "X-Service-Code";
 
     /** MDC 键（log4j2 JsonLayout properties=true 输出）。 */

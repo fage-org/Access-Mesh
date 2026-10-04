@@ -191,16 +191,20 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
         try {
             if (Boolean.TRUE.equals(req.iconClear())) {
                 menu.setIcon(null);
+                // 内存实体已同步置空（投影与库一致）；最小列 UpdateEntity：只写请求触达列 +
+                // icon 显式 NULL，不回写读取快照的未触达列——防并发窗口覆盖其他调用方已提交
+                // 的字段（§2.7 null 不更新；update 本就在 SYS_MENU 树写锁内，与 OAuth2/Condition
+                // 同批统一口径）
                 SysMenu patch = UpdateEntity.of(SysMenu.class);
                 patch.setId(menu.getId());
-                patch.setMenuType(menu.getMenuType());
-                patch.setDisplayName(menu.getDisplayName());
-                patch.setParentId(menu.getParentId());
-                patch.setPath(menu.getPath());
-                patch.setSortOrder(menu.getSortOrder());
-                patch.setStatus(menu.getStatus());
-                patch.setResourceType(menu.getResourceType());
-                patch.setResourceCode(menu.getResourceCode());
+                if (req.menuType() != null) patch.setMenuType(menu.getMenuType());
+                if (req.displayName() != null) patch.setDisplayName(menu.getDisplayName());
+                if (req.parentId() != null) patch.setParentId(menu.getParentId());
+                if (path != null) patch.setPath(menu.getPath());
+                if (req.sortOrder() != null) patch.setSortOrder(menu.getSortOrder());
+                if (req.status() != null) patch.setStatus(menu.getStatus());
+                if (resourceType != null) patch.setResourceType(menu.getResourceType());
+                if (resourceCode != null) patch.setResourceCode(menu.getResourceCode());
                 patch.setUpdatedAt(menu.getUpdatedAt());
                 patch.setIcon(null);
                 menuDomainService.update(patch);

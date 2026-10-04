@@ -206,12 +206,15 @@ public class ConditionAppServiceImpl implements ConditionAppService {
         condition.setUpdatedAt(LocalDateTime.now());
         if (Boolean.TRUE.equals(req.descriptionClear())) {
             condition.setDescription(null);
+            // 内存实体已同步置空（响应/投影与库一致）；最小列 UpdateEntity：只写请求触达列 +
+            // description 显式 NULL，不回写读取快照的未触达列——防并发窗口覆盖其他调用方
+            // 已提交的字段（§2.7 null 不更新）
             PermissionCondition patch = UpdateEntity.of(PermissionCondition.class);
             patch.setId(condition.getId());
-            patch.setName(condition.getName());
-            patch.setConditionRules(condition.getConditionRules());
-            patch.setEnabled(condition.getEnabled());
-            patch.setGatewayEvaluable(condition.getGatewayEvaluable());
+            if (req.name() != null) patch.setName(condition.getName());
+            if (req.conditionRules() != null) patch.setConditionRules(condition.getConditionRules());
+            if (req.enabled() != null) patch.setEnabled(condition.getEnabled());
+            if (req.gatewayEvaluable() != null) patch.setGatewayEvaluable(condition.getGatewayEvaluable());
             patch.setDescription(null);
             patch.setUpdatedBy(condition.getUpdatedBy());
             patch.setUpdatedAt(condition.getUpdatedAt());

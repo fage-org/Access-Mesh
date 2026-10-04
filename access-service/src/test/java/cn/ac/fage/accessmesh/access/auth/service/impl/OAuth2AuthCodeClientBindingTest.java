@@ -143,7 +143,7 @@ class OAuth2AuthCodeClientBindingTest {
             .isEqualTo(AccessErrorCode.OAUTH2_CODE_INVALID.getCode());
     }
 
-    @ParameterizedTest(name = "用户状态 {0} 不得兑换授权码")
+    @ParameterizedTest(name = "用户状态 {0} 不得兑换授权码；拒绝记失败审计（码可能已一次性消费）")
     @ValueSource(ints = {0, -1})
     void shouldRejectCode_whenUserDisabledOrDeleted(int status) throws Exception {
         stubCode(client(CLIENT_A, SECRET_A, 1L, "aud-a"), codeFor(CLIENT_A, 1L, REDIRECT_A));
@@ -158,6 +158,13 @@ class OAuth2AuthCodeClientBindingTest {
             .extracting(e -> ((BizException) e).getErrorCode())
             .isEqualTo(AccessErrorCode.OAUTH2_CODE_INVALID.getCode());
         org.mockito.Mockito.verifyNoInteractions(valueOperations);
+        // 服务架构 §8.2：租户可解析的失败尝试写 status=0——旧实现此处零审计即红
+        ArgumentCaptor<LoginLogDomainService.LoginLogEntry> audit =
+            ArgumentCaptor.forClass(LoginLogDomainService.LoginLogEntry.class);
+        verify(loginLogDomainService).recordLoginLog(audit.capture());
+        assertThat(audit.getValue().status()).isEqualTo(0);
+        assertThat(audit.getValue().clientId()).isEqualTo(CLIENT_A);
+        assertThat(audit.getValue().failReason()).contains("user inactive");
     }
 
     @Test
@@ -179,7 +186,7 @@ class OAuth2AuthCodeClientBindingTest {
         org.mockito.Mockito.verifyNoInteractions(valueOperations);
     }
 
-    @ParameterizedTest(name = "刷新记录租户={0}")
+    @ParameterizedTest(name = "刷新记录租户={0}；拒绝记失败审计（刷新记录已消费路径）")
     @ValueSource(longs = {1L, 2L})
     void shouldRejectRefresh_whenUserMissingOrTenantMismatched(long recordTenant) throws Exception {
         when(oauth2ClientDomainService.findActiveByClientId(CLIENT_A))
@@ -196,6 +203,14 @@ class OAuth2AuthCodeClientBindingTest {
             .extracting(e -> ((BizException) e).getErrorCode())
             .isEqualTo(AccessErrorCode.OAUTH2_TOKEN_INVALID.getCode());
         org.mockito.Mockito.verifyNoInteractions(valueOperations);
+        // 旧实现用户校验拒绝零审计即红；租户=刷新记录租户（refresh 绑定可信记录租户后落审计）
+        ArgumentCaptor<LoginLogDomainService.LoginLogEntry> audit =
+            ArgumentCaptor.forClass(LoginLogDomainService.LoginLogEntry.class);
+        verify(loginLogDomainService).recordLoginLog(audit.capture());
+        assertThat(audit.getValue().status()).isEqualTo(0);
+        assertThat(audit.getValue().tenantId()).isEqualTo(recordTenant);
+        assertThat(audit.getValue().failReason())
+            .contains(recordTenant == 1L ? "user inactive" : "refresh token tenant mismatch");
     }
 
     @Test

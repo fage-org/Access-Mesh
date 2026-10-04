@@ -76,9 +76,9 @@ public class AbstractUserSyncAppServiceImpl implements AbstractUserSyncAppServic
         targetId = "#req.subjectExternalId()",
         summary = "'sync abstract_user from ' + #req.sourceService()")
     public SyncResultResp sync(Long tenantId, AbstractUserSyncReq req, HttpServletRequest httpRequest) {
-        // 1. 服务身份校验
+        // 1. 服务身份校验（身份由认证链从凭证行派生；X-Service-Code 自报头不参与判定）
         if (!SyncAuthVerifier.verify(req.sourceService(), httpRequest)) {
-            return SyncResultBuilder.securityDenied("sourceService mismatch with X-Service-Code");
+            return SyncResultBuilder.securityDenied("sourceService mismatch with credential-derived service identity");
         }
         localProjectionGuard.rejectInternalSourceService(req.sourceService());
         localProjectionGuard.rejectReservedSubjectType(req.subjectTypeCode());
@@ -148,14 +148,14 @@ public class AbstractUserSyncAppServiceImpl implements AbstractUserSyncAppServic
         targetId = "",
         summary = "'full sync abstract_user from ' + #req.scope().sourceService()")
     public SyncResultResp fullSync(Long tenantId, AbstractUserFullSyncReq req, HttpServletRequest httpRequest) {
-        // 1. 服务身份校验
+        // 1. 服务身份校验（身份由认证链从凭证行派生；X-Service-Code 自报头不参与判定）
         if (!SyncAuthVerifier.verify(req.scope().sourceService(), httpRequest)) {
             SyncResultResp.ItemResult denied = new SyncResultResp.ItemResult(
                     null, false, false,
-                    SyncResultBuilder.RETRY_SECURITY_DENIED, "sourceService mismatch with X-Service-Code");
+                    SyncResultBuilder.RETRY_SECURITY_DENIED, "sourceService mismatch with credential-derived service identity");
             return SyncResultBuilder.fullSyncRejected(
                     SyncResultBuilder.RETRY_SECURITY_DENIED,
-                    "sourceService mismatch with X-Service-Code",
+                    "sourceService mismatch with credential-derived service identity",
                     req.items().size(), List.of(denied));
         }
         localProjectionGuard.rejectInternalSourceService(req.scope().sourceService());

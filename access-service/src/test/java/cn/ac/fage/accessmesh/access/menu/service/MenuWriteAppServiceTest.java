@@ -14,6 +14,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
+import com.mybatisflex.core.update.UpdateWrapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -22,6 +23,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -149,6 +152,28 @@ class MenuWriteAppServiceTest {
 
         verify(localProjectionDomainService).upsertAdminMenu(anyLong(), anyLong(), anyString(), anyLong(), any());
         verify(localProjectionDomainService, never()).deleteAdminMenu(anyLong(), anyLong());
+    }
+
+    @Test
+    @DisplayName("iconClear 最小列写入：仅 icon=NULL 与 updatedAt，不回写未触达列（并发覆盖防护）")
+    void iconClear_writesOnlyTouchedColumns() {
+        when(menuDomainService.selectValidById(TENANT, MENU_ID)).thenReturn(menu("MENU"));
+        when(menuDomainService.pathExists(eq(TENANT), eq("/x"), eq(MENU_ID))).thenReturn(false);
+        when(menuDomainService.resourceExists(eq(TENANT), eq("USER"), eq("5"), eq(MENU_ID)))
+            .thenReturn(false);
+        when(localProjectionDomainService.upsertAdminMenu(
+            eq(TENANT), eq(MENU_ID), eq("菜单X"), eq(0L), eq(1))).thenReturn(400L);
+
+        service.updateMenu(new MenuUpdateReq(MENU_ID, null, null, null, null, null,
+            null, null, null, null, true));
+
+        // 快照持有 icon="x"/path="/x"/resource 等值，但请求只触达 icon 清空——
+        // 回写它们会在「A 清图标、B 并发改路径」交错下覆盖 B 的提交（旧实现全快照复制即红）
+        ArgumentCaptor<SysMenu> captor = ArgumentCaptor.forClass(SysMenu.class);
+        verify(menuDomainService).update(captor.capture());
+        Map<String, Object> updates = UpdateWrapper.of(captor.getValue()).getUpdates();
+        assertThat(updates).containsOnlyKeys("id", "icon", "updatedAt");
+        assertThat(updates.get("icon")).isNull();
     }
 
     @Test

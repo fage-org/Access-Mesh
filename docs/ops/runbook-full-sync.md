@@ -20,7 +20,7 @@
 
 - [ ] **类型声明**（资源实体通道）：目标 `resourceTypeCode` 已经 `type-definition/create` 建为自有类型，且 `extra.managedMode=SYNC`、`extra.syncSourceService=<本服务>`。门禁不满足一律 `SECURITY_DENIED`/`RESOURCE_TYPE_OWNERSHIP_DENIED`（类型不存在同码 fail-closed，真实原因只在服务端日志）。事实链路七类型 `USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION/CONDITION` 为 access-service 内部独占，外部一律入口拒绝。
 - [ ] **主体/角色/成员通道**：`subjectTypeCode`/`roleTypeCode`/`sourceType` 均为本服务自有类型，且命中 service-config `extra.syncTypes` 三维白名单（subjectTypeCodes/roleTypeCodes/sourceTypes）；保留键 `LOCAL_USER`、`ORG|POSITION`、`SYS_USER_ORG` 一律 20045 拒绝。
-- [ ] **服务注册与凭证**：本服务在 service_config 注册、未软删、`status=1` 启用；服务凭证已配置并生效（凭证通过后绑定 `X-Service-Code`，`sourceService` 必须与之一致，不匹配 `SECURITY_DENIED`）。服务停用/注销 = 四个同步通道一起断。
+- [ ] **服务注册与凭证**：本服务在 service_config 注册、未软删、`status=1` 启用；服务凭证已配置并生效（身份由凭证行派生，`sourceService` 必须与凭证所属服务一致，不匹配 `SECURITY_DENIED`；自报 `X-Service-Code`/`X-Tenant-Id` 头不参与判定）。服务停用/注销 = 四个同步通道一起断。
 - [ ] **scope 规划**（full-sync）：明确 `scope`（资源实体=`sourceService+resourceTypeCode`；主体=`subjectTypeCode`；角色=`roleTypeCode+treeRootExternalId`；成员=`sourceType+roleTypeCode+treeRootExternalId`）。scope 是删除边界——**请求中缺失的同步事实会被软删/解绑**。
 - [ ] **租户备份**：full-sync 前对目标租户 `resource_entity`/`abstract_user`/`abstract_role`/`user_role` 做快照或备份（见 §6 回滚）。
 

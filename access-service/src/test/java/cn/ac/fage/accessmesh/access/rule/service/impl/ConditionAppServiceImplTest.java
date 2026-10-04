@@ -29,11 +29,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import com.mybatisflex.core.update.UpdateWrapper;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -207,6 +210,28 @@ class ConditionAppServiceImplTest {
 
             assertThatCode(() -> service.updateCondition(TENANT_ID, req, OPERATOR_ID))
                 .doesNotThrowAnyException();
+        }
+
+        @Test
+        void descriptionClear_writesOnlyTouchedColumns() {
+            // 外部评审 P2 处置：Clear 分支最小列写入锁——请求只触达 description 清空时，
+            // UpdateEntity 仅携带 description/updatedBy/updatedAt；回写快照其余列会在
+            // 「A 清描述、B 并发改名」交错下覆盖 B 的提交（旧实现全快照复制即红）
+            PermissionCondition existing = newCondition(false,
+                "{\"logic\":\"AND\",\"items\":[{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}]}");
+            existing.setDescription("旧描述");
+            when(conditionMapper.selectValidByCode(TENANT_ID, CONDITION_CODE)).thenReturn(existing);
+            when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(CONDITION_CODE), any()))
+                .thenReturn(true);
+
+            service.updateCondition(TENANT_ID,
+                new ConditionUpdateReq(CONDITION_CODE, null, null, null, null, null, true), OPERATOR_ID);
+
+            ArgumentCaptor<PermissionCondition> captor = ArgumentCaptor.forClass(PermissionCondition.class);
+            verify(conditionMapper).update(captor.capture());
+            Map<String, Object> updates = UpdateWrapper.of(captor.getValue()).getUpdates();
+            assertThat(updates).containsOnlyKeys("id", "description", "updatedBy", "updatedAt");
+            assertThat(updates.get("description")).isNull();
         }
 
         @Test

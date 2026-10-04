@@ -160,20 +160,26 @@ public class Oauth2ClientAppServiceImpl implements Oauth2ClientAppService {
 
         if (Boolean.TRUE.equals(req.redirectUrisClear()) || Boolean.TRUE.equals(req.scopesClear())
             || Boolean.TRUE.equals(req.audiencesClear())) {
+            // 内存实体同步置空（下游消费者与库一致）；最小列 UpdateEntity：只写请求触达列
+            // （新值列 + Clear 显式 NULL 列 + updatedAt），不回写读取快照中请求未提供的列——
+            // 防并发窗口覆盖其他调用方已提交的字段（§2.7 null 不更新）
             if (Boolean.TRUE.equals(req.redirectUrisClear())) existing.setRedirectUris(null);
             if (Boolean.TRUE.equals(req.scopesClear())) existing.setScopes(null);
             if (Boolean.TRUE.equals(req.audiencesClear())) existing.setAudiences(null);
             SysOauth2Client patch = UpdateEntity.of(SysOauth2Client.class);
             patch.setId(existing.getId());
-            patch.setClientSecret(existing.getClientSecret());
-            patch.setClientName(existing.getClientName());
-            patch.setGrantTypes(existing.getGrantTypes());
-            patch.setRedirectUris(existing.getRedirectUris());
-            patch.setScopes(existing.getScopes());
-            patch.setAudiences(existing.getAudiences());
-            patch.setAccessTokenTtl(existing.getAccessTokenTtl());
-            patch.setRefreshTokenTtl(existing.getRefreshTokenTtl());
-            patch.setStatus(existing.getStatus());
+            if (req.clientSecret() != null) patch.setClientSecret(existing.getClientSecret());
+            if (req.clientName() != null) patch.setClientName(existing.getClientName());
+            if (req.grantTypes() != null) patch.setGrantTypes(existing.getGrantTypes());
+            if (req.redirectUris() != null) patch.setRedirectUris(existing.getRedirectUris());
+            if (req.scopes() != null) patch.setScopes(existing.getScopes());
+            if (req.audiences() != null) patch.setAudiences(existing.getAudiences());
+            if (req.accessTokenTtl() != null) patch.setAccessTokenTtl(existing.getAccessTokenTtl());
+            if (req.refreshTokenTtl() != null) patch.setRefreshTokenTtl(existing.getRefreshTokenTtl());
+            if (req.status() != null) patch.setStatus(existing.getStatus());
+            if (Boolean.TRUE.equals(req.redirectUrisClear())) patch.setRedirectUris(null);
+            if (Boolean.TRUE.equals(req.scopesClear())) patch.setScopes(null);
+            if (Boolean.TRUE.equals(req.audiencesClear())) patch.setAudiences(null);
             patch.setUpdatedAt(existing.getUpdatedAt());
             oauth2ClientMapper.update(patch);
         } else {

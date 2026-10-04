@@ -169,7 +169,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
             throw new BizException(AccessErrorCode.OAUTH2_CLIENT_INVALID.getCode(),
                 AccessErrorCode.OAUTH2_CLIENT_INVALID.getMessage());
         }
-        requireActiveUser(tenantId, userId, AccessErrorCode.OAUTH2_CLIENT_INVALID);
+        requireActiveUser(tenantId, userId, AccessErrorCode.OAUTH2_CLIENT_INVALID, null);
 
         // 8. Generate authorization code
         String code = UUID.randomUUID().toString().replace("-", "");
@@ -288,7 +288,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
                     AccessErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
             }
             requireActiveUser(refreshTokenData.getTenantId(), refreshTokenData.getUserId(),
-                AccessErrorCode.OAUTH2_TOKEN_INVALID);
+                AccessErrorCode.OAUTH2_TOKEN_INVALID, clientId);
 
             // 生成新的访问令牌
             int accessTokenTtl = client.getAccessTokenTtl() != null ? client.getAccessTokenTtl() : 86400;
@@ -500,7 +500,8 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
             throw new BizException(AccessErrorCode.OAUTH2_CODE_INVALID.getCode(),
                 AccessErrorCode.OAUTH2_CODE_INVALID.getMessage());
         }
-        requireActiveUser(codeData.getTenantId(), codeData.getUserId(), AccessErrorCode.OAUTH2_CODE_INVALID);
+        requireActiveUser(codeData.getTenantId(), codeData.getUserId(), AccessErrorCode.OAUTH2_CODE_INVALID,
+            req.clientId());
 
         // 8. Generate tokens
         int accessTokenTtl = client.getAccessTokenTtl() != null ? client.getAccessTokenTtl() : 86400;
@@ -702,11 +703,21 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
         }
     }
 
-    /** 同源检查用户仍属于本租户、未删除且启用，技术故障不降级。 */
-    private void requireActiveUser(Long tenantId, Long userId, AccessErrorCode error) {
+    /**
+     * 同源检查用户仍属于本租户、未删除且启用，技术故障不降级。
+     * <p>
+     * 匿名兑换/刷新入口传 failureClientId：拒绝前记失败审计——此时码/刷新记录可能已被
+     * 一次性消费，无审计则该次失效凭据使用不可追踪（服务架构 §8.2）；authorize 为平台
+     * 会话态，传 null（会话入口失败另有审计面）。
+     * </p>
+     */
+    private void requireActiveUser(Long tenantId, Long userId, AccessErrorCode error, String failureClientId) {
         // 同源无缓存查询限定租户与未删除；技术故障原样传播，不能伪装成用户不存在。
         SysUser user = userDomainService.selectValidById(tenantId, userId);
         if (user == null || !Integer.valueOf(1).equals(user.getStatus())) {
+            if (failureClientId != null) {
+                recordOauth2Failure(failureClientId, "user inactive, deleted or tenant mismatch");
+            }
             throw new BizException(error.getCode(), error.getMessage());
         }
     }

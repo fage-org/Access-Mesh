@@ -66,8 +66,8 @@ class M2mCredentialFilterTest {
     }
 
     @Test
-    @DisplayName("完整凭证头 + 非 M2M 路径（管理/查询端点）→ 不 skipAuth（管理端点不被凭证旁路）")
-    void completeCredentialOnNonM2mPath_noSkipAuth() {
+    @DisplayName("完整凭证头 + M2M 清单端点（查询/同步族）→ skipAuth；管理端点 → 不 skipAuth（管理端点不被凭证旁路）")
+    void completeCredential_m2mListedSkipAuth_butManagementBlocked() {
         assertThat(invokesWithSkipAuth(exchange("POST", "/api/access/auth/query-resources", "sc-a", "sk-b"))).isTrue();
         assertThat(invokesWithSkipAuth(exchange("POST", "/api/access/service-credential/list", "sc-a", "sk-b"))).isFalse();
         assertThat(invokesWithSkipAuth(exchange("POST", "/api/access/abstract-user/full-sync", "sc-a", "sk-b"))).isTrue();
