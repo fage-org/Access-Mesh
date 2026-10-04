@@ -16,7 +16,7 @@ import java.util.Set;
  * @param effectiveOperations   是否输出有效操作展开
  * @param presentationExpansion 展示方向 NONE/PARENTS/CHILDREN/BOTH（与判定面继承分离）
  * @param extraOperationKeys    额外类型—操作配对（仅描述/投影）；null 归一为空集
- * @param trace                 是否输出 TRACE（仅受权诊断可用，门禁在应用层）
+ * @param trace                 是否输出内部 TRACE；外部适配层固定 false，新增诊断入口须先定义身份与授权
  */
 public record OutputSpec(FactDetail factDetail, boolean matchedIds, boolean descriptions,
                          boolean effectiveOperations, PresentationExpansion presentationExpansion,

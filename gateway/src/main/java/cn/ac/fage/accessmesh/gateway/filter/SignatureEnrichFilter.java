@@ -28,7 +28,7 @@ import java.util.HexFormat;
  * <p>签名请求头：X-User-Id、X-Tenant-Id
  * <p>签名格式：HMAC-SHA256(secretKey, userId + "|" + tenantId + "|" + timestamp)
  *
- * <p>执行顺序：-35（在HeaderEnrichFilter之后、InternalSecretFilter之前）
+ * <p>过滤器时序以 {@link #getOrder()} 的说明为唯一权威描述。
  * </p>
  */
 @Component
@@ -189,7 +189,7 @@ public class SignatureEnrichFilter implements GlobalFilter, Ordered {
     /**
      * 获取过滤器执行顺序
      * <p>
-     * 返回-35，确保在HeaderEnrichFilter(-50)之后、InternalSecretFilter(-40)之前执行。
+     * 返回-35，在 HeaderEnrichFilter(-50) 与 InternalSecretFilter(-40) 之后执行。
      * </p>
      *
      * @return 过滤器顺序值

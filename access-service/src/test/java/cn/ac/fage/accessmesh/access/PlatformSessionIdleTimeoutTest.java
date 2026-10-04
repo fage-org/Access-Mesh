@@ -6,7 +6,10 @@ import cn.ac.fage.accessmesh.access.auth.service.domain.OAuth2ClientDomainServic
 import cn.ac.fage.accessmesh.access.user.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.access.org.service.domain.UserOrgDomainService;
 import cn.ac.fage.accessmesh.access.menu.service.UserMenuQueryAppService;
+import cn.dev33.satoken.stp.StpUtil;
 import cn.dev33.satoken.dao.SaTokenDao;
+import java.time.Duration;
+import static org.awaitility.Awaitility.await;
 import cn.dev33.satoken.dao.SaTokenDaoDefaultImpl;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -133,30 +136,30 @@ class PlatformSessionIdleTimeoutTest {
     }
 
     @Test
-    @DisplayName("无操作失效：活跃期 200，静置超过 active-timeout=2（含整秒除法余量）后 401")
+    @DisplayName("无操作失效：只读轮询至冻结，绝对 TTL 仍有效时请求 401")
     void idleTimeout_invalidatesAfterInactivity() throws Exception {
         String token = login();
-        assertThat(userinfoStatus(token)).as("活跃期内应 200").isEqualTo(200);
-
-        // sa-token 1.38 剩余时间 = activeTimeout - 整秒除法(idleMs/1000)，且 -1 是
-        // 「未启用检查」哨兵：剩余 <= -2 才判冻结。active=2s 时需静置 >= 4s 稳定触发
-        Thread.sleep(4500);
-
-        assertThat(userinfoStatus(token))
-            .as("静置 4.5s（>active-timeout=2 且 <timeout=30）：401 只能来自无操作失效")
-            .isEqualTo(401);
+        assertThat(userinfoStatus(token)).isEqualTo(200);
+        // 只读剩余活动时间，不通过 HTTP 轮询续写 last-active。
+        await().pollInSameThread().pollInterval(Duration.ofMillis(100)).atMost(Duration.ofSeconds(10))
+            .until(() -> StpUtil.stpLogic.getTokenActiveTimeoutByToken(token) == SaTokenDao.NOT_VALUE_EXPIRE);
+        assertThat(StpUtil.getTokenTimeout(token)).as("绝对 TTL 尚未到期").isPositive();
+        assertThat(userinfoStatus(token)).isEqualTo(401);
     }
 
     @Test
-    @DisplayName("滑动续命：1.2s 间隔连续活跃 3 次（单窗口 2s 内不空闲）始终 200")
-    // 覆盖生产语义：30 分钟窗口内持续操作的用户不会被无操作超时踢出
+    @DisplayName("持续请求真实续写 last-active，并跨过原始闲置失效窗口")
     void continuousActivity_staysAlive() throws Exception {
         String token = login();
-        for (int i = 1; i <= 3; i++) {
-            Thread.sleep(1200);
-            assertThat(userinfoStatus(token))
-                .as("第 %d 次活跃请求（间隔 1.2s < active-timeout 2s）应续命 200", i)
-                .isEqualTo(200);
-        }
+        long firstActive = StpUtil.stpLogic.getTokenLastActiveTime(token);
+        long idleWindowMillis = (StpUtil.stpLogic.getTokenUseActiveTimeoutOrGlobalConfig(token) + 1) * 1000;
+        await().pollInSameThread().pollInterval(Duration.ofMillis(100)).atMost(Duration.ofSeconds(10))
+            .until(() -> {
+                long requestStarted = System.currentTimeMillis();
+                assertThat(userinfoStatus(token)).isEqualTo(200);
+                long refreshed = StpUtil.stpLogic.getTokenLastActiveTime(token);
+                assertThat(refreshed).as("本次请求确实续写活动时间").isGreaterThanOrEqualTo(requestStarted);
+                return refreshed - firstActive >= idleWindowMillis;
+            });
     }
 }

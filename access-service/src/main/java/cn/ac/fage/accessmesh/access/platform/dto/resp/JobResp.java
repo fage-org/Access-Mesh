@@ -54,7 +54,16 @@ public record JobResp(
     /**
      * 更新时间
      */
-    LocalDateTime updatedAt
+    LocalDateTime updatedAt,
+
+    /** 本次响应实例内是否存在未完成且未取消的调度，不代表集群整体。 */
+    boolean localScheduled,
+
+    /** 本实例实际注册的 cron；未注册时为 null，可与 cronExpression 对照。 */
+    String localCronExpression,
+
+    /** 进程内稳定、重启变化的不透明实例标识。 */
+    String scheduleInstanceId
 ) {
     /**
      * 从实体转换为响应DTO（隐藏敏感字段）
@@ -62,7 +71,8 @@ public record JobResp(
      * @param entity 定时任务实体
      * @return 定时任务响应DTO，entity为null时返回null
      */
-    public static JobResp from(SysJob entity) {
+    public static JobResp from(SysJob entity, boolean localScheduled,
+                               String localCronExpression, String scheduleInstanceId) {
         if (entity == null) {
             return null;
         }
@@ -73,7 +83,10 @@ public record JobResp(
             entity.getStatus(),
             entity.getRemark(),
             entity.getCreatedAt(),
-            entity.getUpdatedAt()
+            entity.getUpdatedAt(),
+            localScheduled,
+            localCronExpression,
+            scheduleInstanceId
         );
     }
 }

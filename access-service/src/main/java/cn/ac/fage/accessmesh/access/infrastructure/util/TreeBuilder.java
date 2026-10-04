@@ -50,11 +50,15 @@ public class TreeBuilder<E, N> {
      * 用于构建森林结构的场景。
      * </p>
      *
-     * @param roots       根实体列表
      * @param allEntities 所有实体列表（包含根节点和所有子孙节点）
      * @return 树节点列表
      */
-    public List<N> buildTrees(List<E> roots, List<E> allEntities) {
+    public List<N> buildTrees(List<E> allEntities) {
+        Set<Long> ids = allEntities.stream().map(idExtractor).collect(Collectors.toSet());
+        // 仅从调用方提供的过滤结果构树；缺父子支是展示根，不修改其真实 parentId。
+        List<E> roots = allEntities.stream()
+            .filter(entity -> !ids.contains(parentIdExtractor.apply(entity)))
+            .toList();
         Map<Long, List<E>> byParentId = allEntities.stream()
             .collect(Collectors.groupingBy(
                 e -> parentIdExtractor.apply(e) != null ? parentIdExtractor.apply(e) : -1L

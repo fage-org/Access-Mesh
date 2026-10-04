@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.access.org.dto.req;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 /**
  * 组织创建请求记录类
@@ -30,6 +31,7 @@ public record OrgCreateReq(
      * 组织名称
      */
     @NotBlank(message = "组织名称不能为空")
+    @Size(max = 128, message = "组织名称不能超过128个字符")
     String orgName,
 
     /**
@@ -40,6 +42,7 @@ public record OrgCreateReq(
     /**
      * 组织编码
      */
+    @Size(max = 64, message = "组织编码不能超过64个字符")
     String code,
 
     /**

@@ -148,7 +148,8 @@ public class ResourceController {
     @PostMapping("/tree")
     public R<ItemsResp<ResourceTreeResp>> getResourceTree(@Valid @RequestBody ResourceTreeReq req) {
         return R.ok(new ItemsResp<>(
-            resourceManageAppService.getResourceTree(TenantContextHolder.getTenantId(), req.resourceTypeCode(), req.domainCode())
+            resourceManageAppService.getResourceTree(TenantContextHolder.getTenantId(), req.resourceTypeCode(), req.domainCode(),
+                Boolean.TRUE.equals(req.enabledOnly()))
         ));
     }
 

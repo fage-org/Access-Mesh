@@ -355,7 +355,7 @@ public class AccessBootstrapInitializer {
             List<RoleResourcePermission> existingGrants = seedWriter.findValidGrants(tenantId, roleId);
             if (existingGrants.stream().anyMatch(grant -> Objects.equals(
                 grant.getResourceType(), resourceTypes.get(ResourceTypeCode.API)))) {
-                conflicts.add("固定图仍有已退役的 API 授权；请先执行 T-ACCESS-062 受控迁移或重建开发库");
+                conflicts.add("固定图仍有已退役的 API 授权；旧库迁移已停止支持，请按当前 schema 重建开发库（见 access-service-rebuild-runbook.md）");
             }
             Map<GrantIdentity, List<GrantKey>> existingByIdentity =
                 existingGrants.stream()

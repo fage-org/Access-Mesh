@@ -123,6 +123,25 @@ class ResourceOperationKeyPgIT {
 
     private final LocalDateTime now = LocalDateTime.now();
 
+    @Test
+    void resourceTreeIncludesDisabledResourcesByDefault() {
+        ResourceEntity parent = insertResource(6, "tree-state-parent", "default", null);
+        parent.setStatus(0);
+        resourceEntityMapper.update(parent);
+        ResourceEntity child = insertResource(6, "tree-state-child", "default", parent.getId());
+        var rows = resourceEntityMapper.selectResourceTree(TENANT, 6, false, false);
+        assertThat(rows).extracting(ResourceEntity::getId).contains(parent.getId(), child.getId());
+        assertThat(resourceEntityMapper.selectResourceTree(TENANT, 6, false, true))
+            .extracting(ResourceEntity::getId).contains(child.getId()).doesNotContain(parent.getId());
+        try (MockedStatic<OperatorContext> operator = mockStatic(OperatorContext.class)) {
+            operator.when(OperatorContext::getOperatorId).thenReturn(99L);
+            assertThat(newResourceManageAppService(permitAllEngine()).getResourceTree(TENANT, null, null, true))
+                .map(tree -> tree.root())
+                .filteredOn(root -> child.getId().equals(root.id()))
+                .singleElement().satisfies(root -> assertThat(root.parentId()).isEqualTo(parent.getId()));
+        }
+    }
+
     private QueryGate permitAllEngine() {
         QueryGate engine = mock(QueryGate.class);
         lenient().when(engine.hasPermissionByCode(anyLong(), any(), any(), any(), any())).thenReturn(true);

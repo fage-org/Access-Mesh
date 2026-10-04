@@ -6,6 +6,8 @@ import cn.ac.fage.accessmesh.access.platform.mapper.SysJobLogMapper;
 import cn.ac.fage.accessmesh.access.platform.mapper.SysJobMapper;
 import cn.ac.fage.accessmesh.access.platform.dto.req.JobLogPageReq;
 import cn.ac.fage.accessmesh.access.platform.dto.req.JobUpdateReq;
+import cn.ac.fage.accessmesh.access.platform.dto.req.JobCreateReq;
+import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
@@ -117,6 +119,95 @@ class JobAppServiceImplTest {
         job.setCronExpression(cron);
         job.setStatus(1);
         return job;
+    }
+
+    @Test
+    void invalidCronCannotBeSavedEvenWhenDisabled() {
+        TenantContextHolder.setTenantId(TENANT_ID);
+        try {
+            assertThatThrownBy(() -> newService().createJob(
+                new JobCreateReq("test-job", null, "someBean.run", "invalid-cron", null, 0, null)))
+                .isInstanceOf(BizException.class)
+                .extracting("errorCode").isEqualTo(10602);
+            verifyNoInteractions(jobMapper, taskScheduler);
+        } finally {
+            TenantContextHolder.clear();
+        }
+    }
+
+    @Test
+    void invalidUpdatePreservesOldScheduleAndConfiguration() {
+        SysJob job = enabledJob(1L, TENANT_ID, "0 0 0 * * *");
+        ScheduledFuture<?> future = mock(ScheduledFuture.class);
+        org.mockito.Mockito.doReturn(future).when(taskScheduler).schedule(any(Runnable.class), any(Trigger.class));
+        when(jobMapper.selectAllEnabledJobs()).thenReturn(List.of(job));
+        when(jobMapper.selectValidById(TENANT_ID, 1L)).thenReturn(job);
+        JobAppServiceImpl service = newService();
+        service.reconcileScheduledJobs();
+        TenantContextHolder.setTenantId(TENANT_ID);
+        try {
+            assertThatThrownBy(() -> service.updateJob(
+                new JobUpdateReq(1L, null, null, null, "invalid-cron", null, null, null)))
+                .isInstanceOf(BizException.class)
+                .extracting("errorCode").isEqualTo(10602);
+            assertThat(job.getCronExpression()).isEqualTo("0 0 0 * * *");
+            verify(future, never()).cancel(anyBoolean());
+            verify(jobMapper, never()).update(any(SysJob.class));
+        } finally {
+            TenantContextHolder.clear();
+        }
+    }
+
+    @Test
+    void registrationFailureIsVisibleAndReconcileCanRecover() {
+        SysJob job = enabledJob(1L, TENANT_ID, "0 0 0 * * *");
+        ScheduledFuture<?> future = mock(ScheduledFuture.class);
+        org.mockito.Mockito.doThrow(new TaskRejectedException("scheduler unavailable"))
+            .doReturn(future).when(taskScheduler).schedule(any(Runnable.class), any(Trigger.class));
+        when(jobMapper.selectAllEnabledJobs()).thenReturn(List.of(job));
+        when(jobMapper.selectValidById(TENANT_ID, 1L)).thenReturn(job);
+        when(jobMapper.countJobsByCondition(TENANT_ID, null)).thenReturn(1L);
+        when(jobMapper.selectJobsByCondition(TENANT_ID, null, 0, 10)).thenReturn(List.of(job));
+        JobAppServiceImpl service = newService();
+        TenantContextHolder.setTenantId(TENANT_ID);
+        try {
+            service.reconcileScheduledJobs();
+            assertThat(service.getJob(1L)).extracting("localScheduled").isEqualTo(false);
+            assertThat(job.getStatus()).isEqualTo(1);
+            service.reconcileScheduledJobs();
+            assertThat(service.getJob(1L)).extracting("localScheduled", "localCronExpression")
+                .containsExactly(true, "0 0 0 * * *");
+            assertThat(service.getJob(1L)).extracting("scheduleInstanceId").isNotNull();
+            PageReq page = new PageReq(1, 10, null);
+            assertThat(service.pageJobs(page, null).items()).singleElement()
+                .extracting("localScheduled").isEqualTo(true);
+        } finally {
+            TenantContextHolder.clear();
+        }
+    }
+
+    @Test
+    void completedScheduleIsReportedAbsentAndRetried() {
+        SysJob job = enabledJob(1L, TENANT_ID, "0 0 0 * * *");
+        ScheduledFuture<?> completed = mock(ScheduledFuture.class);
+        ScheduledFuture<?> replacement = mock(ScheduledFuture.class);
+        org.mockito.Mockito.doReturn(completed, replacement).when(taskScheduler)
+            .schedule(any(Runnable.class), any(Trigger.class));
+        when(jobMapper.selectAllEnabledJobs()).thenReturn(List.of(job));
+        when(jobMapper.selectValidById(TENANT_ID, 1L)).thenReturn(job);
+        JobAppServiceImpl service = newService();
+        service.reconcileScheduledJobs();
+        when(completed.isDone()).thenReturn(true);
+        TenantContextHolder.setTenantId(TENANT_ID);
+        try {
+            assertThat(service.getJob(1L)).extracting("localScheduled", "localCronExpression")
+                .containsExactly(false, null);
+            service.reconcileScheduledJobs();
+            verify(taskScheduler, times(2)).schedule(any(Runnable.class), any(Trigger.class));
+            assertThat(service.getJob(1L)).extracting("localScheduled").isEqualTo(true);
+        } finally {
+            TenantContextHolder.clear();
+        }
     }
 
     @Test

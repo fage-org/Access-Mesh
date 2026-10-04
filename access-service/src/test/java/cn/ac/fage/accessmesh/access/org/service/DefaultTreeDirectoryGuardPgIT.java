@@ -8,6 +8,8 @@ import cn.ac.fage.accessmesh.access.infrastructure.cache.PermInvalidationPublish
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
 import cn.ac.fage.accessmesh.access.org.service.domain.OrgTreeConfigDomainService;
+import cn.ac.fage.accessmesh.access.org.dto.req.OrgTreeConfigCreateReq;
+import cn.ac.fage.accessmesh.access.org.dto.req.OrgTreeConfigUpdateReq;
 import cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import org.junit.jupiter.api.AfterEach;
@@ -15,11 +17,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -79,11 +85,15 @@ class DefaultTreeDirectoryGuardPgIT {
     private UserOrgWriteAppService userOrgWriteAppService;
     @Autowired
     private OrgTreeConfigDomainService orgTreeConfigDomainService;
+    @Autowired
+    private OrgTreeConfigAppService orgTreeConfigAppService;
     /** 投影层 spy：故障注入用例在 batchUnbindUserOrg 注入异常，其余用例真实执行。 */
     @SpyBean
     private LocalProjectionDomainService localProjectionDomainService;
     @Autowired
     private JdbcTemplate jdbcTemplate;
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     /** 失效广播 mock：拒绝路径断言「不发布变更」。 */
     @MockBean
@@ -154,6 +164,89 @@ class DefaultTreeDirectoryGuardPgIT {
 
     private long validOrgRows(long orgId) {
         return count("sys_org", "tenant_id = 1 AND id = " + orgId + " AND delete_flag = 0");
+    }
+
+    @ParameterizedTest(name = "中间节点另立根，更新入口={0}")
+    @ValueSource(booleans = {false, true})
+    void overlappingTreeRootIsRejectedWithoutChangingConfiguration(boolean update) {
+        seedDefaultTree(999L, 250L, 500L);
+        insertOrg(800L, 0L, "separate-root");
+        Long separate = orgTreeConfigAppService.createOrgTreeConfig(
+            new OrgTreeConfigCreateReq(800L, "独立树", "CUSTOM", null));
+        assertThatThrownBy(() -> {
+            if (update) {
+                orgTreeConfigAppService.updateOrgTreeConfig(
+                    new OrgTreeConfigUpdateReq(separate, 250L, null, null, null));
+            } else {
+                orgTreeConfigAppService.createOrgTreeConfig(
+                    new OrgTreeConfigCreateReq(250L, "重叠树", "CUSTOM", null));
+            }
+        }).isInstanceOf(BizException.class).extracting("errorCode").isEqualTo(11003);
+        assertThat(count("sys_org_tree_config", "tenant_id = 1 AND delete_flag = 0")).isEqualTo(2);
+        assertThat(jdbcTemplate.queryForObject("SELECT root_org_id FROM sys_org_tree_config WHERE id = ?",
+            Long.class, separate)).isEqualTo(800L);
+    }
+
+    @Test
+    void concurrentNestedRootCreationCannotPassBothChecks() throws Exception {
+        insertOrg(999L, 0L, "root");
+        insertOrg(250L, 999L, "child");
+        var inserted = new java.util.concurrent.CountDownLatch(1);
+        var release = new java.util.concurrent.CountDownLatch(1);
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            var first = pool.submit(() -> {
+                TenantContextHolder.setTenantId(TENANT);
+                AccessRequestContext.bind(RequestContext.user(TENANT, OPERATOR));
+                try {
+                    new TransactionTemplate(transactionManager).executeWithoutResult(tx -> {
+                        orgTreeConfigAppService.createOrgTreeConfig(
+                            new OrgTreeConfigCreateReq(999L, "根树", "CUSTOM", null));
+                        inserted.countDown();
+                        try {
+                            assertThat(release.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new AssertionError(e);
+                        }
+                    });
+                } finally {
+                    AccessRequestContext.clear();
+                    TenantContextHolder.clear();
+                }
+            });
+            assertThat(inserted.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            var second = pool.submit(() -> {
+                TenantContextHolder.setTenantId(TENANT);
+                AccessRequestContext.bind(RequestContext.user(TENANT, OPERATOR));
+                try {
+                    return (Object) orgTreeConfigAppService.createOrgTreeConfig(
+                        new OrgTreeConfigCreateReq(250L, "子树", "CUSTOM", null));
+                } catch (BizException e) {
+                    return e;
+                } finally {
+                    AccessRequestContext.clear();
+                    TenantContextHolder.clear();
+                }
+            });
+            Object result = null;
+            try {
+                // 首事务未提交：有锁则等待，无锁则可能错误地完成插入；汇合后统一核终态。
+                result = second.get(2, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (java.util.concurrent.TimeoutException waitingForCommit) {
+                // 锁等待的有界观察，不用固定 sleep 构造时间余量。
+            } finally {
+                release.countDown();
+            }
+            first.get(5, java.util.concurrent.TimeUnit.SECONDS);
+            if (result == null) result = second.get(5, java.util.concurrent.TimeUnit.SECONDS);
+            assertThat(result).isInstanceOf(BizException.class).extracting("errorCode").isEqualTo(11003);
+            assertThat(count("sys_org_tree_config", "tenant_id = 1 AND delete_flag = 0")).isEqualTo(1);
+        } finally {
+            release.countDown();
+            pool.shutdownNow();
+            assertThat(pool.awaitTermination(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+        }
     }
 
     @Test

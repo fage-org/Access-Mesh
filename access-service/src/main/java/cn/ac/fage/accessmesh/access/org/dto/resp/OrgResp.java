@@ -16,6 +16,7 @@ import java.util.List;
  * @param orgType     组织类型
  * @param orgName     组织名称
  * @param parentOrgId 父级组织ID
+ * @param parentOrgName 当前允许展示的父组织名称
  * @param code        组织编码
  * @param status      状态（1=启用，0=停用）
  * @param sort        排序号
@@ -43,6 +44,9 @@ public record OrgResp(
      * 父级组织ID
      */
     Long parentOrgId,
+
+    /** 当前允许展示的父组织名称；无父或父级不可见时为 null。 */
+    String parentOrgName,
 
     /**
      * 组织编码

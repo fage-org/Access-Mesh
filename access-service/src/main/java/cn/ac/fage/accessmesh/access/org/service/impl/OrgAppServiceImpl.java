@@ -122,7 +122,7 @@ public class OrgAppServiceImpl implements OrgAppService {
             OrgOperationCodeMapper.resolve(org.getOrgType(), OperationCode.VIEW)
         );
 
-        return toResp(org, List.of());
+        return toResp(org, List.of(), parentNames(tenantId, List.of(org), null));
     }
 
     @Override
@@ -177,8 +177,9 @@ public class OrgAppServiceImpl implements OrgAppService {
             : orgMapper.selectOrgsByCondition(tenantId, req.orgName(), orgType, req.status(), orgIds,
                 (pageNum - 1) * pageSize, pageSize);
 
+        Map<Long, String> parentNames = parentNames(tenantId, records, null);
         List<OrgResp> items = records.stream()
-            .map(o -> toResp(o, List.of()))
+            .map(o -> toResp(o, List.of(), parentNames))
             .collect(Collectors.toList());
         return new PageResp<>(items, total, pageNum, pageSize,
             (pageNum - 1) * pageSize + items.size() < total);
@@ -307,7 +308,8 @@ public class OrgAppServiceImpl implements OrgAppService {
                 return List.of();
             }
         }
-        return List.of(toResp(top, buildTree(scoped, top.getId(), new HashSet<>())));
+        Map<Long, String> parentNames = parentNames(tenantId, scoped, byId);
+        return List.of(toResp(top, buildTree(scoped, top.getId(), new HashSet<>(), parentNames), parentNames));
     }
 
     /**
@@ -446,12 +448,42 @@ public class OrgAppServiceImpl implements OrgAppService {
             .collect(Collectors.toList());
     }
 
-    private OrgResp toResp(SysOrg org, List<OrgResp> children) {
+    private OrgResp toResp(SysOrg org, List<OrgResp> children, Map<Long, String> parentNames) {
         return new OrgResp(
             org.getId(), Integer.parseInt(org.getOrgType()), org.getName(),
-            org.getParentId(), org.getCode(),
+            org.getParentId(), org.getParentId() == null ? null : parentNames.get(org.getParentId()), org.getCode(),
             org.getStatus(), org.getSortOrder(), org.getCreatedAt(), org.getUpdatedAt(), children
         );
+    }
+
+    /** 批量补父名；响应中已有的导航节点可复用，其余父级仍按既有 VIEW 边界裁剪。 */
+    private Map<Long, String> parentNames(Long tenantId, List<SysOrg> records, Map<Long, SysOrg> loadedOrgs) {
+        Set<Long> parentIds = records.stream().map(SysOrg::getParentId)
+            .filter(id -> id != null && id > 0).collect(Collectors.toSet());
+        if (parentIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, SysOrg> parents = loadedOrgs != null ? loadedOrgs
+            : orgDomainService.batchSelectValidByIdsMap(tenantId, parentIds);
+        Set<Long> allowed = records.stream().map(SysOrg::getId).collect(Collectors.toSet());
+        if (permissionValidator.hasTypeLevel(ResourceTypeCode.ORG, OperationCode.VIEW)) {
+            allowed.addAll(parentIds);
+        } else {
+            Set<Long> unchecked = new HashSet<>(parentIds);
+            unchecked.removeAll(allowed);
+            if (!unchecked.isEmpty()) {
+                allowed.addAll(orgVisibilityQueryService.filterVisibleOrgIds(
+                    tenantId, OperatorContext.getOperatorId(), unchecked));
+            }
+        }
+        Map<Long, String> names = new java.util.HashMap<>();
+        for (Long parentId : parentIds) {
+            SysOrg parent = parents.get(parentId);
+            if (parent != null && allowed.contains(parentId)) {
+                names.put(parentId, parent.getName());
+            }
+        }
+        return names;
     }
 
     /**
@@ -506,18 +538,13 @@ public class OrgAppServiceImpl implements OrgAppService {
      * 子树构建递归。visited 防 parent 环脏数据下无限递归（T-PERM-044，对齐 TreeBuilder 先例——
      * 环成员作构建起点时子孙互指不终止，重访节点按叶子返回）；调用方每棵树传入独立 visited。
      */
-    private List<OrgResp> buildTree(List<SysOrg> all, Long parentId, Set<Long> visited) {
+    private List<OrgResp> buildTree(List<SysOrg> all, Long parentId, Set<Long> visited, Map<Long, String> parentNames) {
         if (!visited.add(parentId)) {
             return List.of();
         }
         return all.stream()
             .filter(o -> parentId.equals(o.getParentId()))
-            .map(o -> new OrgResp(
-                o.getId(), Integer.parseInt(o.getOrgType()), o.getName(),
-                o.getParentId(), o.getCode(),
-                o.getStatus(), o.getSortOrder(), o.getCreatedAt(), o.getUpdatedAt(),
-                buildTree(all, o.getId(), visited)
-            ))
+            .map(o -> toResp(o, buildTree(all, o.getId(), visited, parentNames), parentNames))
             .collect(Collectors.toList());
     }
 

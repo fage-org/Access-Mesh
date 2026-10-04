@@ -55,7 +55,7 @@ import java.util.stream.Collectors;
  *   读来源 DATABASE（bypassPermSnapshot 直查不回填语义保持）；本服务只保留 canGrant
  *   转授资格的领域判定——canGrant=true 且无条件挂载（20041 条件权限不可转授同源））
  * - 权限撤销：批量软删除权限并级联删除子权限
- * TODO: 自动授权解析（resolveAutoGrants）——依赖资源的自动授权尚未实现，当前仅使用 GrantSource.MANUAL
+ * 自动授权由 AutoGrantMaterializationDomainService 在写入口同事务重算；本服务不承担依赖物化。
  * 采用批量处理策略避免N+1查询问题。
  * </p>
  */

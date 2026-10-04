@@ -110,7 +110,7 @@ public interface ResourceManageAppService {
      * @param domainCode       业务域编码，可选
      * @return 资源树响应列表
      */
-    List<ResourceTreeResp> getResourceTree(Long tenantId, String resourceTypeCode, String domainCode);
+    List<ResourceTreeResp> getResourceTree(Long tenantId, String resourceTypeCode, String domainCode, boolean enabledOnly);
 
     /**
      * 查询资源列表

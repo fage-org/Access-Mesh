@@ -767,7 +767,8 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
     }
 
     @Override
-    public List<ResourceTreeResp> getResourceTree(Long tenantId, String resourceTypeCode, String domainCode) {
+    public List<ResourceTreeResp> getResourceTree(Long tenantId, String resourceTypeCode, String domainCode,
+                                                 boolean enabledOnly) {
         // T-PERM-042：授权页资源树读门禁（architecture §14.5 终态，类型级 RESOURCE:VIEW）；
         // T-ACCESS-052 实例准入：无类型级 VIEW 时持任一资源实例 VIEW（含继承覆盖）者可进入，
         // 树内容裁剪到可见实体（含祖先导航链）；无任何可见实例仍 403（fail-closed）
@@ -785,7 +786,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
                 .contains(ResourceTypeCode.RESOURCE);
         }
 
-        List<ResourceEntity> allEntities = resourceEntityMapper.selectResourceTree(tenantId, resourceType, matchNone);
+        List<ResourceEntity> allEntities = resourceEntityMapper.selectResourceTree(tenantId, resourceType, matchNone, enabledOnly);
         if (visibleEntityIds != null) {
             allEntities = filterTreeToVisibleWithAncestors(allEntities, visibleEntityIds);
         }
@@ -801,11 +802,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
             )
         );
 
-        List<ResourceEntity> roots = allEntities.stream()
-            .filter(r -> r.getParentId() == null)
-            .collect(Collectors.toList());
-
-        return treeBuilder.buildTrees(roots, allEntities).stream()
+        return treeBuilder.buildTrees(allEntities).stream()
             .map(ResourceTreeResp::new)
             .collect(Collectors.toList());
     }

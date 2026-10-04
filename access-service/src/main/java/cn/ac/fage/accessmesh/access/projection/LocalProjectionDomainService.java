@@ -266,8 +266,9 @@ public interface LocalProjectionDomainService {
      * <p>
      * 条件事实由调用方（ConditionAppService 编排）维护，本方法只写资源投影：
      * code = 条件 code（租户内唯一，直传无需复合键，architecture §12.3 口径）。
-     * 无树形语义：parent 恒 null；status 镜像条件 enabled（停用条件自动隐出
-     * 授权资源树 selectResourceTree status=1 过滤）。仅 MANAGED 来源条件调用
+     * 无树形语义：parent 恒 null；status 镜像条件 enabled（授权页/映射/依赖选择器
+     * 的资源树查询显式传 enabledOnly=true，停用条件投影行自动隐出——过滤由调用方
+     * 参数决定，非查询固有）。仅 MANAGED 来源条件调用
      * （INLINE 内联条件不投影——无资源身份消费者，2026-09-11 定案⑤）。
      * </p>
      */

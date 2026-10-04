@@ -541,11 +541,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
             )
         );
 
-        List<AbstractRole> roots = allRoles.stream()
-            .filter(r -> r.getParentId() == null)
-            .collect(Collectors.toList());
-
-        return treeBuilder.buildTrees(roots, allRoles).stream()
+        return treeBuilder.buildTrees(allRoles).stream()
             .map(RoleTreeResp::new)
             .collect(Collectors.toList());
     }

@@ -9,6 +9,8 @@ import cn.ac.fage.accessmesh.common.exception.BizException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -66,6 +68,35 @@ class OrgTreeConfigDomainServiceResolveTest {
         c.setRootOrgId(rootOrgId);
         c.setIsDefault(isDefault);
         return c;
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {999, 250, 100})
+    void rejectsSameDescendantAndAncestorRoots(long candidate) {
+        when(orgDomainService.selectValidById(TENANT_ID, candidate)).thenReturn(org(candidate));
+        when(orgTreeConfigMapper.selectAllValid(TENANT_ID)).thenReturn(List.of(treeConfig(999, true)));
+        when(orgDomainService.batchGetAncestorIds(eq(TENANT_ID), any()))
+            .thenReturn(Map.of(250L, List.of(999L, 100L), 999L, List.of(100L), 100L, List.of()));
+        assertThatThrownBy(() -> service.guardNonOverlappingRoot(TENANT_ID, candidate, null))
+            .isInstanceOf(BizException.class).extracting("errorCode").isEqualTo(11003);
+    }
+
+    @Test
+    void updatingOwnRootExcludesOwnConfiguration() {
+        SysOrgTreeConfig existing = treeConfig(999, false);
+        existing.setId(1L);
+        when(orgDomainService.selectValidById(TENANT_ID, 250L)).thenReturn(org(250L));
+        when(orgTreeConfigMapper.selectAllValid(TENANT_ID)).thenReturn(List.of(existing));
+        service.guardNonOverlappingRoot(TENANT_ID, 250L, 1L);
+        verify(orgDomainService, never()).batchGetAncestorIds(anyLong(), any());
+    }
+
+    @Test
+    void missingRootCannotCreateConfiguration() {
+        assertThatThrownBy(() -> service.guardNonOverlappingRoot(TENANT_ID, 250L, null))
+            .isInstanceOf(BizException.class).extracting("errorCode")
+            .isEqualTo(AccessErrorCode.ORG_NOT_FOUND.getCode());
+        verify(orgTreeConfigMapper, never()).selectAllValid(anyLong());
     }
 
     @BeforeEach

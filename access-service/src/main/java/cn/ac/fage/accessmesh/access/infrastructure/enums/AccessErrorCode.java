@@ -248,6 +248,8 @@ public enum AccessErrorCode {
      */
     JOB_NOT_FOUND(10601, "定时任务不存在"),
 
+    JOB_CRON_INVALID(10602, "Cron表达式无效"),
+
     // ===== OAuth2客户端相关错误（10801-10899） =====
 
     /**
@@ -328,6 +330,8 @@ public enum AccessErrorCode {
      * 组织树根无法解析（org 不属于任何已配置的组织树，游离 org）
      */
     ORG_TREE_ROOT_NOT_RESOLVED(11002, "组织树根无法解析"),
+
+    ORG_TREE_ROOT_OVERLAP(11003, "组织树根与已有树重叠"),
 
     // ===== 默认组织树边界（11011-11029） =====
 

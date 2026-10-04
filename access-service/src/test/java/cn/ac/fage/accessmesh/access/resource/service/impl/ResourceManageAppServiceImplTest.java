@@ -107,7 +107,7 @@ class ResourceManageAppServiceImplTest {
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
                 isNull(), eq(OperationCode.VIEW))).thenReturn(false);
 
-            assertThrows(SecurityException.class, () -> service.getResourceTree(1L, null, null));
+            assertThrows(SecurityException.class, () -> service.getResourceTree(1L, null, null, false));
         }
         verifyNoInteractions(typeResolutionService);
     }
@@ -119,10 +119,10 @@ class ResourceManageAppServiceImplTest {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
                 isNull(), eq(OperationCode.VIEW))).thenReturn(true);
-            when(resourceEntityMapper.selectResourceTree(eq(1L), isNull(), eq(false)))
+            when(resourceEntityMapper.selectResourceTree(eq(1L), isNull(), eq(false), eq(false)))
                 .thenReturn(List.<ResourceEntity>of());
 
-            assertEquals(List.of(), service.getResourceTree(1L, null, null));
+            assertEquals(List.of(), service.getResourceTree(1L, null, null, false));
         }
     }
 
@@ -272,13 +272,13 @@ class ResourceManageAppServiceImplTest {
             isNull(), eq(OperationCode.VIEW))).thenReturn(false);
         when(engine.getDeniedEntityIds(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
             any(), eq(OperationCode.VIEW))).thenReturn(java.util.Set.of(1L, 2L, 9L));
-        when(resourceEntityMapper.selectResourceTree(eq(1L), isNull(), eq(false)))
+        when(resourceEntityMapper.selectResourceTree(eq(1L), isNull(), eq(false), eq(false)))
             .thenReturn(List.of(root, mid, leaf, other));
 
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
 
-            var tree = service.getResourceTree(1L, null, null);
+            var tree = service.getResourceTree(1L, null, null, false);
             // 仅根节点（骨架 root>mid>leaf 一条链）；other 子树整支被裁
             assertEquals(1, tree.size());
             assertEquals(1L, tree.get(0).root().id());

@@ -8,8 +8,10 @@ package cn.ac.fage.accessmesh.access.resource.dto.req;
  *
  * @param resourceTypeCode 资源类型编码，可选，用于过滤
  * @param domainCode       业务域编码，可选，用于过滤
+ * @param enabledOnly      true 仅启用；缺省/false 包含停用资源，供管理面查看与恢复
  */
 public record ResourceTreeReq(
     String resourceTypeCode,
-    String domainCode
+    String domainCode,
+    Boolean enabledOnly
 ) {}

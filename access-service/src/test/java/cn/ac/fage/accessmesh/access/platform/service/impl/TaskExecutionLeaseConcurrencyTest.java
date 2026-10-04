@@ -16,6 +16,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.core.task.TaskExecutor;
+import java.time.Duration;
+import static org.awaitility.Awaitility.await;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
+import static org.mockito.ArgumentMatchers.any;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
@@ -110,6 +118,9 @@ class TaskExecutionLeaseConcurrencyTest {
     private JdbcTemplate jdbcTemplate;
     @Autowired
     private TaskLeaseTestJobBean testJobBean;
+
+    @SpyBean(name = "accessTaskExecutor")
+    private TaskExecutor taskExecutor;
 
     @BeforeAll
     static void initSchema() throws Exception {
@@ -404,15 +415,19 @@ class TaskExecutionLeaseConcurrencyTest {
         assertThat(testJobBean.invocationsPerKey.get(executionKey)).hasValue(1);
         assertThat(testJobBean.lastSeenTenantId).isEqualTo(TENANT_ID);
         assertThat(testJobBean.lastSeenJobId).isEqualTo(jobId);
-        // 已成功的执行键再次触发不再执行
+        // SUCCESS 先于 finally 中的执行日志写入，先等真实日志完成。
+        await().pollInSameThread().pollInterval(Duration.ofMillis(50)).atMost(Duration.ofSeconds(5))
+            .untilAsserted(() -> assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM sys_job_log WHERE tenant_id = ? AND job_id = ?",
+                Integer.class, TENANT_ID, jobId)).isEqualTo(1));
+        clearInvocations(taskExecutor);
+        // 抢占与入队在 executeJob 返回前完成；成功键重触发不得再次提交异步执行。
         jobService.executeJob(job, scheduledTime);
-        TimeUnit.MILLISECONDS.sleep(500);
+        verify(taskExecutor, never()).execute(any(Runnable.class));
         assertThat(testJobBean.invocationsPerKey.get(executionKey)).hasValue(1);
-        // 独立短事务执行日志落库
-        Integer logCount = jdbcTemplate.queryForObject(
+        assertThat(jdbcTemplate.queryForObject(
             "SELECT count(*) FROM sys_job_log WHERE tenant_id = ? AND job_id = ?",
-            Integer.class, TENANT_ID, jobId);
-        assertThat(logCount).isEqualTo(1);
+            Integer.class, TENANT_ID, jobId)).isEqualTo(1);
     }
 
     @Test

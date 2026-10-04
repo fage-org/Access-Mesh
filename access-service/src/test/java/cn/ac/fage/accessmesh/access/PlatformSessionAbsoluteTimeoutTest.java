@@ -6,7 +6,11 @@ import cn.ac.fage.accessmesh.access.auth.service.domain.OAuth2ClientDomainServic
 import cn.ac.fage.accessmesh.access.user.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.access.org.service.domain.UserOrgDomainService;
 import cn.ac.fage.accessmesh.access.menu.service.UserMenuQueryAppService;
+import cn.dev33.satoken.stp.StpUtil;
 import cn.dev33.satoken.dao.SaTokenDao;
+import java.time.Duration;
+import java.util.concurrent.atomic.AtomicInteger;
+import static org.awaitility.Awaitility.await;
 import cn.dev33.satoken.dao.SaTokenDaoDefaultImpl;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -165,28 +169,33 @@ class PlatformSessionAbsoluteTimeoutTest {
     }
 
     @Test
-    @DisplayName("绝对失效：持续活跃（<active-timeout 间隔续命）也不能超过 timeout=4s，之后 401")
+    @DisplayName("真实请求续写活动时间但不延长绝对 TTL，到期后 401")
     void absoluteTimeout_invalidatesDespiteContinuousActivity() throws Exception {
         String token = login();
         SysUser user = mockUser();
         when(userDomainService.selectValidById(anyLong(), anyLong())).thenReturn(user);
-
-        long start = System.nanoTime();
-        assertThat(userinfoStatus(token)).as("t≈0s 活跃请求应 200").isEqualTo(200);
-        Thread.sleep(1200);
-        assertThat(userinfoStatus(token)).as("t≈1.2s 活跃请求应 200（活动续命，未到绝对上限）").isEqualTo(200);
-        Thread.sleep(1200);
-        assertThat(userinfoStatus(token)).as("t≈2.4s 活跃请求应 200（活动续命，未到绝对上限）").isEqualTo(200);
-        Thread.sleep(1200);
-        assertThat(userinfoStatus(token)).as("t≈3.6s 活跃请求应 200（仍在 4s 绝对窗口内）").isEqualTo(200);
-
-        // 跨过 4s 绝对上限：距上次活跃仅 ~0.8s（远小于 active-timeout=10），仍必须 401
-        Thread.sleep(1200);
-        long elapsed = (System.nanoTime() - start) / 1_000_000;
-        assertThat(elapsed).as("测试时序保障：已跨过 4s 绝对窗口").isGreaterThan(4000);
-        assertThat(userinfoStatus(token))
-            .as("绝对失效：距上次活跃仅 ~0.8s（active-timeout=10 未到），401 只能来自 timeout=4")
-            .isEqualTo(401);
+        AtomicInteger successfulRequests = new AtomicInteger();
+        await().pollInSameThread().pollInterval(Duration.ofMillis(100)).atMost(Duration.ofSeconds(10))
+            .until(() -> {
+                long remainingBefore = StpUtil.getTokenTimeout(token);
+                long requestStarted = System.currentTimeMillis();
+                int status = userinfoStatus(token);
+                long remainingAfter = StpUtil.getTokenTimeout(token);
+                if (status == 401) {
+                    assertThat(remainingAfter).as("必须实际达到绝对过期，不能把其他 401 当作到期").isEqualTo(SaTokenDao.NOT_VALUE_EXPIRE);
+                    return true;
+                }
+                assertThat(status).isEqualTo(200);
+                successfulRequests.incrementAndGet();
+                assertThat(remainingAfter).as("活动请求不得延长令牌绝对 TTL").isLessThanOrEqualTo(remainingBefore);
+                long refreshed = StpUtil.stpLogic.getTokenLastActiveTime(token);
+                // 响应成功后令牌可能恰好到期；不再在绝对边界前强行断言仍有时间戳。
+                if (refreshed != SaTokenDao.NOT_VALUE_EXPIRE) {
+                    assertThat(refreshed).as("成功请求确实续写活动时间").isGreaterThanOrEqualTo(requestStarted);
+                }
+                return false;
+            });
+        assertThat(successfulRequests.get()).as("必须经过正常活跃请求再观察绝对到期").isPositive();
     }
 
     @Test

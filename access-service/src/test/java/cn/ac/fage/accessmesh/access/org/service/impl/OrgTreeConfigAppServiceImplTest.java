@@ -264,12 +264,19 @@ class OrgTreeConfigAppServiceImplTest {
         }
 
         @Test
-        @DisplayName("update：非默认配置改根 → 不触发默认树守卫")
-        void updateNonDefaultConfigRootSkipsGuard() {
+        @DisplayName("update：非默认配置改根同样检查重叠，不扩大默认身份目录守卫")
+        void updateNonDefaultRootChecksOverlapWithinTreeLock() {
             SysOrgTreeConfig existing = config(2L, 10L, false);
             when(orgTreeConfigMapper.selectByIdSafe(TENANT_ID, 2L)).thenReturn(existing);
 
             service.updateOrgTreeConfig(new OrgTreeConfigUpdateReq(2L, 50L, null, null, null));
+
+            var order = inOrder(treeWriteLockSupport, orgTreeConfigMapper, orgTreeConfigDomainService);
+            order.verify(treeWriteLockSupport).lockTreeWrites(TENANT_ID,
+                TreeWriteLockSupport.TreeLockTarget.SYS_ORG);
+            order.verify(orgTreeConfigMapper).selectByIdSafe(TENANT_ID, 2L);
+            order.verify(orgTreeConfigDomainService).guardNonOverlappingRoot(TENANT_ID, 50L, 2L);
+            order.verify(orgTreeConfigMapper).update(any(SysOrgTreeConfig.class));
 
             verify(orgTreeConfigDomainService, never()).findUsersLosingDefaultHome(anyLong(), any(), any());
             verify(orgTreeConfigMapper).update(any(SysOrgTreeConfig.class));

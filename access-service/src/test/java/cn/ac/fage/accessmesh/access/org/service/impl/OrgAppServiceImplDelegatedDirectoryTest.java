@@ -23,6 +23,8 @@ import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
@@ -61,6 +63,25 @@ class OrgAppServiceImplDelegatedDirectoryTest {
     @Mock private OrgVisibilityQueryAppService orgVisibilityQueryService;
 
     private OrgAppServiceImpl service;
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void parentNameUsesBatchDataAndDoesNotExposeInvisibleParent(boolean parentVisible) {
+        SysOrg parent = org(1L, "1", 0L);
+        parent.setName("上级部门");
+        SysOrg child = org(2L, "1", 1L);
+        when(orgDomainService.selectValidById(TENANT, 2L)).thenReturn(child);
+        when(orgDomainService.batchSelectValidByIdsMap(TENANT, Set.of(1L)))
+            .thenReturn(java.util.Map.of(1L, parent));
+        when(permissionValidator.hasTypeLevel(ResourceTypeCode.ORG, OperationCode.VIEW)).thenReturn(parentVisible);
+        try (MockedStatic<TenantContextHolder> tenant = mockStatic(TenantContextHolder.class);
+             MockedStatic<OperatorContext> operator = mockStatic(OperatorContext.class)) {
+            tenant.when(TenantContextHolder::getTenantId).thenReturn(TENANT);
+            operator.when(OperatorContext::getOperatorId).thenReturn(100L);
+            org.assertj.core.api.Assertions.assertThat(service.getOrg(2L)).extracting("parentOrgName")
+                .isEqualTo(parentVisible ? "上级部门" : null);
+        }
+    }
 
     @BeforeEach
     void setUp() {

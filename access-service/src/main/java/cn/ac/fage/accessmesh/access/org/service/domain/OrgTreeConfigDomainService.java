@@ -13,6 +13,9 @@ import java.util.Set;
  */
 public interface OrgTreeConfigDomainService {
 
+    /** 候选根须存在且不与其他配置根相同或互为祖先；调用方须持 SYS_ORG 树写锁。 */
+    void guardNonOverlappingRoot(Long tenantId, Long rootOrgId, Long excludedConfigId);
+
     /**
      * 写入组织树配置（bootstrap 固定图专用入口——管理链写入口在 OrgTreeConfigAppService，
      * 带操作者门禁与变更日志，bootstrap 无登录态不可复用）。

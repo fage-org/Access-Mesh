@@ -4,6 +4,7 @@ import jakarta.validation.constraints.AssertTrue;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 /**
  * 用户更新请求记录类
@@ -31,18 +32,21 @@ public record UserUpdateReq(
     /**
      * 姓名（显示名称）
      */
+    @Size(max = 128, message = "姓名不能超过128个字符")
     String name,
 
     /**
      * 手机号（空白拒绝——清空唯一通道 phoneClear，杜绝空串入库与唯一索引空串撞车）
      */
     @Pattern(regexp = "(?s)(?U).*\\S.*", message = "phone 不能为空白；清空请传 phoneClear=true")
+    @Size(max = 32, message = "手机号不能超过32个字符")
     String phone,
 
     /**
      * 邮箱（空白拒绝——清空唯一通道 emailClear）
      */
     @Pattern(regexp = "(?s)(?U).*\\S.*", message = "email 不能为空白；清空请传 emailClear=true")
+    @Size(max = 128, message = "邮箱不能超过128个字符")
     String email,
 
     /**

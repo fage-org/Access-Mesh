@@ -5,6 +5,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.projection.PermConstants;
 import cn.ac.fage.accessmesh.access.role.entity.UserRole;
+import cn.ac.fage.accessmesh.access.role.entity.AbstractRole;
 import cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.user.mapper.AbstractUserMapper;
 import cn.ac.fage.accessmesh.access.role.mapper.UserRoleMapper;
@@ -12,6 +13,8 @@ import cn.ac.fage.accessmesh.common.exception.BizException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -81,6 +84,45 @@ class SubjectDomainServiceImplTest {
             cn.ac.fage.accessmesh.common.cache.CacheReadToken.class);
         verify(cacheService).putBatch(tokenCaptor.capture(), eq(1L), eq(Map.of(2L, Set.of())));
         assertEquals(AccessCacheCatalog.EFFECTIVE_ROLES, tokenCaptor.getValue().catalog());
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 1, 2})
+    void rawHoldingsKeepDisabledSubtreeWhileEffectiveHoldingsPruneIt(int nestedStatus) {
+        UserRole binding = new UserRole();
+        binding.setAbstractUserId(1L);
+        binding.setTargetType(PermConstants.TargetType.GROUP_ROLE);
+        binding.setTargetId(10L);
+        LocalDateTime validTo = LocalDateTime.of(2030, 1, 1, 0, 0);
+        binding.setValidTo(validTo);
+        when(userRoleMapper.selectValidByUserIdsUnexpired(eq(1L), eq(Set.of(1L)), any()))
+            .thenReturn(List.of(binding));
+        when(userRoleMapper.selectValidByUserIdsWithValidity(eq(1L), eq(Set.of(1L)), any()))
+            .thenReturn(List.of(binding));
+        AbstractRole outer = expansionRole(10L, null, 5, 1, "{\"basicRoleIds\":[20,40,999]}");
+        AbstractRole inner = expansionRole(20L, 10L, 5, nestedStatus, "{\"basicRoleIds\":[10]}");
+        AbstractRole nestedLeaf = expansionRole(30L, 20L, 1, 1, null);
+        AbstractRole directLeaf = expansionRole(40L, null, 1, 1, null);
+        when(abstractRoleMapper.selectRoleTreeByGroupIds(Set.of(10L), 1L))
+            .thenReturn(List.of(outer, inner, nestedLeaf, directLeaf));
+        when(abstractRoleMapper.selectEnabledIdsByIds(eq(1L), any()))
+            .thenAnswer(inv -> List.copyOf(inv.<Set<Long>>getArgument(1)));
+
+        assertEquals(Set.of(new SubjectDomainService.RawHolding(30L, null, validTo),
+            new SubjectDomainService.RawHolding(40L, null, validTo)),
+            service.batchResolveRawHoldings(1L, Set.of(1L)).get(1L));
+        assertEquals(nestedStatus == 1 ? Set.of(30L, 40L) : Set.of(40L),
+            service.batchResolveEffectiveRoles(1L, Set.of(1L)).get(1L));
+    }
+
+    private static AbstractRole expansionRole(long id, Long parent, int type, int status, String extra) {
+        AbstractRole role = new AbstractRole();
+        role.setId(id);
+        role.setParentId(parent);
+        role.setRoleType(type);
+        role.setStatus(status);
+        role.setExtra(extra);
+        return role;
     }
 
     /**

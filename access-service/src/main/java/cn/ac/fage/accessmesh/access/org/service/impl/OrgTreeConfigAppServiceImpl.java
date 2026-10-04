@@ -78,7 +78,7 @@ public class OrgTreeConfigAppServiceImpl implements OrgTreeConfigAppService {
      * 创建组织树配置
      * <p>
      * 创建新的组织树配置方案，定义组织树的展示规则。
-     * 如果设置为默认配置，会自动清除其他配置的默认标记。
+     * 新建配置恒为非默认（T-ORG-004）；默认标记只能经 set-default 切换，受默认树归属守卫约束。
      * 执行类型级权限校验(CREATE)。
      * </p>
      *
@@ -96,11 +96,15 @@ public class OrgTreeConfigAppServiceImpl implements OrgTreeConfigAppService {
 
         permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_ORG_TREE_CONFIG, OperationCode.CREATE);
 
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.SYS_ORG);
+        orgTreeConfigDomainService.guardNonOverlappingRoot(tenantId, req.orgId(), null);
+
         SysOrgTreeConfig config = new SysOrgTreeConfig();
         config.setTenantId(tenantId);
         config.setRootOrgId(req.orgId());
         config.setTreeName(req.treeName());
         config.setTreeType(req.treeType());
+        config.setIsDefault(false);
         config.setSingleAssoc(resolveSingleAssoc(req.treeType(), req.singleAssoc(), true));
         config.setCreatedAt(LocalDateTime.now());
         config.setUpdatedAt(LocalDateTime.now());
@@ -114,7 +118,7 @@ public class OrgTreeConfigAppServiceImpl implements OrgTreeConfigAppService {
      * <p>
      * 更新组织树配置的名称、规则定义等属性。
      * 执行实例级权限校验(UPDATE)。
-     * 如果设置为默认配置，会自动清除其他配置的默认标记。
+     * 本入口不改默认标记——默认切换只能经 set-default（默认树归属守卫约束）。
      * </p>
      *
      * @param config 组织树配置实体，包含配置ID和新属性值
@@ -146,6 +150,9 @@ public class OrgTreeConfigAppServiceImpl implements OrgTreeConfigAppService {
         SysOrgTreeConfig existing = orgTreeConfigMapper.selectByIdSafe(tenantId, req.id());
         if (existing == null) {
             throw new BizException(AccessErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getCode(), AccessErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getMessage());
+        }
+        if (req.orgId() != null && !req.orgId().equals(existing.getRootOrgId())) {
+            orgTreeConfigDomainService.guardNonOverlappingRoot(tenantId, req.orgId(), req.id());
         }
         if (req.orgId() != null && !req.orgId().equals(existing.getRootOrgId())
                 && Boolean.TRUE.equals(existing.getIsDefault())) {

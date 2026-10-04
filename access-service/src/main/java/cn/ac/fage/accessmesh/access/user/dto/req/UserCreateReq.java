@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.user.dto.req;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 /**
  * 用户创建请求记录类
@@ -23,22 +24,26 @@ public record UserCreateReq(
      * 用户名（登录账号）
      */
     @NotBlank(message = "用户名不能为空")
+    @Size(max = 64, message = "用户名不能超过64个字符")
     String username,
 
     /**
      * 姓名（显示名称）
      */
     @NotBlank(message = "姓名不能为空")
+    @Size(max = 128, message = "姓名不能超过128个字符")
     String name,
 
     /**
      * 手机号
      */
+    @Size(max = 32, message = "手机号不能超过32个字符")
     String phone,
 
     /**
      * 邮箱
      */
+    @Size(max = 128, message = "邮箱不能超过128个字符")
     String email,
 
     /**

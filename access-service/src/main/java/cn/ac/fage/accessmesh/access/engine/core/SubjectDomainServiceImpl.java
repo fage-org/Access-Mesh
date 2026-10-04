@@ -402,7 +402,7 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
         allRoleIds.addAll(groupRoleIds);
 
         // 批量解析组角色
-        Map<Long, Set<Long>> groupRoleExpandCache = resolveGroupRolesBatch(tenantId, groupRoleIds);
+        Map<Long, Set<Long>> groupRoleExpandCache = resolveGroupRolesBatch(tenantId, groupRoleIds, true);
 
         // 将展开后的角色添加到用户角色集合
         for (UserRole ur : allUserRoles) {
@@ -508,7 +508,7 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
                 groupRoleIds.add(ur.getTargetId());
             }
         }
-        Map<Long, Set<Long>> groupRoleExpandCache = resolveGroupRolesAllSubtreeBatch(tenantId, groupRoleIds);
+        Map<Long, Set<Long>> groupRoleExpandCache = resolveGroupRolesBatch(tenantId, groupRoleIds, false);
         for (Map.Entry<Long, List<UserRole>> entry : groupBindingsByUser.entrySet()) {
             List<SubjectDomainService.RawHolding> holdings = userToHoldings.get(entry.getKey());
             for (UserRole binding : entry.getValue()) {
@@ -529,79 +529,17 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
     }
 
     /**
-     * 批量展开组角色（含禁用组与禁用子树，T-PERM-075）。
-     * <p>
-     * 与 {@link #resolveGroupRolesBatch} 同数据源（selectRoleTreeByGroupIds 递归 CTE + extra.basicRoleIds），
-     * 差别仅在不按 status 剪枝——原始持有候选要求禁用可逆状态下的完整子树
-     * （启用后持有即参与判定，U002-2 绑定写时堵死口径）。
-     * </p>
-     */
-    private Map<Long, Set<Long>> resolveGroupRolesAllSubtreeBatch(Long tenantId, Set<Long> groupRoleIds) {
-        Map<Long, Set<Long>> result = new HashMap<>();
-        if (groupRoleIds == null || groupRoleIds.isEmpty()) {
-            return result;
-        }
-
-        List<AbstractRole> allRoles = abstractRoleMapper.selectRoleTreeByGroupIds(groupRoleIds, tenantId);
-        Map<Long, List<AbstractRole>> parentToChildren = allRoles.stream()
-            .filter(r -> r.getParentId() != null)
-            .collect(Collectors.groupingBy(AbstractRole::getParentId));
-        Map<Long, AbstractRole> roleMap = allRoles.stream()
-            .collect(Collectors.toMap(AbstractRole::getId, r -> r));
-
-        for (Long groupRoleId : groupRoleIds) {
-            result.put(groupRoleId, expandAllSubtree(groupRoleId, parentToChildren, roleMap, new HashSet<>()));
-        }
-        return result;
-    }
-
-    /**
-     * 在内存中递归展开组角色全子树（不剪禁用节点，visited 防环）。
-     */
-    private Set<Long> expandAllSubtree(Long roleId, Map<Long, List<AbstractRole>> parentToChildren,
-                                       Map<Long, AbstractRole> roleMap, Set<Long> visited) {
-        if (roleId == null || visited.contains(roleId)) {
-            return Set.of();
-        }
-        visited.add(roleId);
-
-        Set<Long> result = new HashSet<>();
-        AbstractRole role = roleMap.get(roleId);
-        if (role != null) {
-            for (Long basicId : parseBasicRoleIds(role.getExtra())) {
-                AbstractRole basicRole = roleMap.get(basicId);
-                if (basicRole == null) {
-                    continue;
-                }
-                if (basicRole.getRoleType() != null
-                    && basicRole.getRoleType() == RoleType.GROUP_ROLE.getValue()) {
-                    result.addAll(expandAllSubtree(basicId, parentToChildren, roleMap, visited));
-                } else {
-                    result.add(basicId);
-                }
-            }
-        }
-
-        for (AbstractRole child : parentToChildren.getOrDefault(roleId, List.of())) {
-            if (child.getRoleType() != null && child.getRoleType() == RoleType.GROUP_ROLE.getValue()) {
-                result.addAll(expandAllSubtree(child.getId(), parentToChildren, roleMap, visited));
-            } else {
-                result.add(child.getId());
-            }
-        }
-        return result;
-    }
-
-    /**
-     * 批量解析组角色
+     * 批量解析组角色；装载和遍历共用，按调用语义决定是否剪掉禁用组。
      * <p>
      * 使用PostgreSQL递归CTE一次性查询所有子孙角色，然后在内存中展开。
-     * 仅 status=1 的组角色参与展开（fail-closed：写入口未限定 status 取值，
+     * 运行时仅 status=1 的组角色参与展开（fail-closed：写入口未限定 status 取值，
      * 非 0/1 值不得视为启用；与基础角色 selectEnabledIdsByIds 的 status=1 口径对齐）：
      * 根组角色非启用 → 展开为空；递归遇非启用嵌套组 → 剪枝其整棵子树。
+     * 写入守卫传 false，保留禁用组的完整子树与原绑定有效期窗口。
      * </p>
      */
-    private Map<Long, Set<Long>> resolveGroupRolesBatch(Long tenantId, Set<Long> groupRoleIds) {
+    private Map<Long, Set<Long>> resolveGroupRolesBatch(Long tenantId, Set<Long> groupRoleIds,
+                                                          boolean pruneDisabledGroups) {
         Map<Long, Set<Long>> result = new HashMap<>();
         if (groupRoleIds == null || groupRoleIds.isEmpty()) {
             return result;
@@ -616,22 +554,17 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
         Map<Long, AbstractRole> roleMap = allRoles.stream()
             .collect(Collectors.toMap(AbstractRole::getId, r -> r));
 
-        Set<Long> nestedGroupRoleIds = allRoles.stream()
-            .filter(r -> r.getRoleType() != null && r.getRoleType() == RoleType.GROUP_ROLE.getValue())
-            .map(AbstractRole::getId)
-            .collect(Collectors.toSet());
-
-        Set<Long> disabledRoleIds = allRoles.stream()
+        Set<Long> disabledRoleIds = pruneDisabledGroups ? allRoles.stream()
             .filter(r -> r.getStatus() == null || r.getStatus() != 1)
             .map(AbstractRole::getId)
-            .collect(Collectors.toSet());
+            .collect(Collectors.toSet()) : Set.of();
 
         for (Long groupRoleId : groupRoleIds) {
             if (disabledRoleIds.contains(groupRoleId)) {
                 result.put(groupRoleId, Set.of());
                 continue;
             }
-            Set<Long> expanded = expandInMemory(groupRoleId, parentToChildren, roleMap, nestedGroupRoleIds,
+            Set<Long> expanded = expandInMemory(groupRoleId, parentToChildren, roleMap,
                 disabledRoleIds, new HashSet<>());
             result.put(groupRoleId, expanded);
         }
@@ -640,10 +573,10 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
     }
 
     /**
-     * 在内存中递归展开组角色；遇非启用（status≠1）嵌套组剪枝其整棵子树（fail-closed）
+     * 共用内存遍历；按调用方给出的禁用集合剪枝，空集合表示保留全子树。
      */
     private Set<Long> expandInMemory(Long roleId, Map<Long, List<AbstractRole>> parentToChildren,
-                                     Map<Long, AbstractRole> roleMap, Set<Long> nestedGroupRoleIds,
+                                     Map<Long, AbstractRole> roleMap,
                                      Set<Long> disabledRoleIds, Set<Long> visited) {
         if (roleId == null || visited.contains(roleId)) {
             return Set.of();
@@ -660,7 +593,7 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
                 if (basicRole != null && basicRole.getRoleType() != null
                     && basicRole.getRoleType() == RoleType.GROUP_ROLE.getValue()) {
                     if (!disabledRoleIds.contains(basicId)) {
-                        result.addAll(expandInMemory(basicId, parentToChildren, roleMap, nestedGroupRoleIds,
+                        result.addAll(expandInMemory(basicId, parentToChildren, roleMap,
                             disabledRoleIds, visited));
                     }
                 } else if (basicRole != null) {
@@ -673,7 +606,7 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
         for (AbstractRole child : children) {
             if (child.getRoleType() != null && child.getRoleType() == RoleType.GROUP_ROLE.getValue()) {
                 if (!disabledRoleIds.contains(child.getId())) {
-                    result.addAll(expandInMemory(child.getId(), parentToChildren, roleMap, nestedGroupRoleIds,
+                    result.addAll(expandInMemory(child.getId(), parentToChildren, roleMap,
                         disabledRoleIds, visited));
                 }
             } else {

@@ -3,6 +3,7 @@ package cn.ac.fage.accessmesh.access.platform.dto.req;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 import java.util.List;
 
@@ -24,6 +25,7 @@ public record NoticeCreateReq(
      * 公告标题
      */
     @NotBlank(message = "公告标题不能为空")
+    @Size(max = 256, message = "公告标题不能超过256个字符")
     String title,
 
     /**

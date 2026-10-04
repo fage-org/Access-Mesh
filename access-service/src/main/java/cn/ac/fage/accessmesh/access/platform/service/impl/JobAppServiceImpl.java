@@ -35,6 +35,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.support.CronTrigger;
+import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -84,6 +85,7 @@ public class JobAppServiceImpl implements JobAppService {
     private final JobLogDomainService jobLogDomainService;
     private final TaskExecutor taskExecutor;
     private final String leaseOwner;
+    private final String scheduleInstanceId = java.util.UUID.randomUUID().toString();
     private final Map<Long, ScheduledFuture<?>> scheduledTasks = new ConcurrentHashMap<>();
 
     /**
@@ -207,6 +209,7 @@ public class JobAppServiceImpl implements JobAppService {
         Long tenantId = TenantContextHolder.getTenantId();
 
         permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_JOB, OperationCode.CREATE);
+        validateCron(req.cronExpression());
 
         SysJob job = new SysJob();
         job.setTenantId(tenantId);
@@ -253,7 +256,11 @@ public class JobAppServiceImpl implements JobAppService {
             throw new BizException(AccessErrorCode.JOB_NOT_FOUND.getCode(), AccessErrorCode.JOB_NOT_FOUND.getMessage());
         }
 
-        // 若当前正在运行，先取消调度
+        if (req.cronExpression() != null) {
+            validateCron(req.cronExpression());
+        }
+
+        // 新 cron 已校验，才可取消当前调度
         if (existing.getStatus() == JOB_STATUS_ENABLED) {
             unscheduleJob(req.id());
         }
@@ -386,7 +393,7 @@ public class JobAppServiceImpl implements JobAppService {
         // T-ACCESS-054：读端点补 ADMIN_JOB:VIEW 类型级门禁（此前零门禁——任务名/cron/状态可被翻阅；invokeTarget 经 JobResp 掩码不外泄）
         permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_JOB, OperationCode.VIEW);
         SysJob job = jobMapper.selectValidById(tenantId, id);
-        return JobResp.from(job);
+        return toJobResp(job);
     }
 
     /**
@@ -413,7 +420,7 @@ public class JobAppServiceImpl implements JobAppService {
             : jobMapper.selectJobsByCondition(tenantId, jobGroup, (pageNum - 1) * pageSize, pageSize);
 
         List<JobResp> items = records.stream()
-            .map(JobResp::from)
+            .map(this::toJobResp)
             .toList();
 
         return new PageResp<>(items, total, pageNum, pageSize,
@@ -452,28 +459,56 @@ public class JobAppServiceImpl implements JobAppService {
             (pageNum - 1) * pageSize + items.size() < total);
     }
 
+    private static void validateCron(String cron) {
+        try {
+            CronExpression.parse(cron);
+        } catch (IllegalArgumentException e) {
+            throw new BizException(AccessErrorCode.JOB_CRON_INVALID.getCode(),
+                AccessErrorCode.JOB_CRON_INVALID.getMessage());
+        }
+    }
+
+    private boolean isLocallyScheduled(Long jobId) {
+        ScheduledFuture<?> future = scheduledTasks.get(jobId);
+        return future != null && !future.isCancelled() && !future.isDone();
+    }
+
+    private JobResp toJobResp(SysJob job) {
+        if (job == null) {
+            return null;
+        }
+        ReentrantLock lock = getLockForJob(job.getId());
+        lock.lock();
+        try {
+            boolean scheduled = isLocallyScheduled(job.getId());
+            return JobResp.from(job, scheduled,
+                scheduled ? scheduledCrons.get(job.getId()) : null, scheduleInstanceId);
+        } finally {
+            lock.unlock();
+        }
+    }
+
     /**
-     * 调度任务（真 diff：cron 未变化直接跳过，避免对账每轮全量取消/重建）
-     * <p>
-     * 使用ReentrantLock保护调度操作，解决并发问题。
-     * 先构造 Trigger 再取消旧调度：cron 非法等构造失败时保留旧调度，
-     * 不因一次失败把任务打成未调度。
-     * </p>
-     *
-     * @param job 任务实体
+     * 按 cron 与存活的调度句柄做 diff；构造 Trigger 失败时保留旧调度。
+     * 注册失败保持未注册状态，由查询暴露并在下一次对账重试。
      */
     private void scheduleJob(SysJob job) {
         ReentrantLock lock = getLockForJob(job.getId());
         lock.lock();
         try {
             String scheduledCron = scheduledCrons.get(job.getId());
-            if (scheduledCron != null && scheduledCron.equals(job.getCronExpression())) {
+            if (scheduledCron != null && scheduledCron.equals(job.getCronExpression())
+                    && isLocallyScheduled(job.getId())) {
                 return;
             }
             ExecutionKeyCronTrigger trigger = new ExecutionKeyCronTrigger(job.getCronExpression());
             unscheduleJobInternal(job.getId());
             ScheduledFuture<?> future = taskScheduler.schedule(
                 () -> executeJob(job, trigger.lastComputedFireTime()), trigger);
+            if (future == null) {
+                log.warn("Job has no next scheduled execution: id={}", job.getId());
+                return;
+            }
             scheduledTasks.put(job.getId(), future);
             scheduledCrons.put(job.getId(), job.getCronExpression());
             log.info("Scheduled job: id={}, cron={}", job.getId(), job.getCronExpression());

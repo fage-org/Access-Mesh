@@ -162,6 +162,28 @@ class RoleManageAppServiceImplTest {
         verify(abstractRoleMapper).selectValidRoleTree(1L, true);
     }
 
+    @Test
+    void filteredParentDoesNotHideEnabledChild() {
+        AbstractRole child = new AbstractRole();
+        child.setId(104L);
+        child.setParentId(103L);
+        child.setTenantId(1L);
+        child.setRoleType(6);
+        child.setName("启用子角色");
+        child.setStatus(1);
+        when(abstractRoleMapper.selectValidRoleTree(1L, true)).thenReturn(List.of(child));
+        when(typeResolutionService.resolveTypeCode(1L, "role_type", 6)).thenReturn("BASIC_ROLE");
+        try (MockedStatic<OperatorContext> context = mockStatic(OperatorContext.class)) {
+            context.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+                isNull(), eq(OperationCode.VIEW))).thenReturn(true);
+            var tree = service.getRoleTree(1L, null, true);
+            assertEquals(1, tree.size());
+            assertEquals(104L, tree.get(0).root().id());
+            assertEquals(103L, tree.get(0).root().parentId());
+        }
+    }
+
     /** T-PERM-022：detail 用业务键二元组定位，禁用角色可查（再启用流程依赖）。 */
     @Test
     void shouldResolveDetailByBusinessKey() {

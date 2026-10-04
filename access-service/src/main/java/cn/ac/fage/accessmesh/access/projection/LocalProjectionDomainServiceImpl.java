@@ -468,7 +468,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
     @Override
     public void upsertConditionResource(Long tenantId, String code, String name, boolean enabled) {
         Integer resourceType = requireType(tenantId, "resource_type", ResourceTypeCode.CONDITION);
-        // status 镜像条件 enabled：停用条件投影行 status=0，授权资源树 status=1 过滤自动隐出
+        // status 镜像条件 enabled：停用条件投影行 status=0，授权侧资源树查询显式 enabledOnly=true 时自动隐出
         upsertResource(tenantId, resourceType, code, name, null,
             enabled ? STATUS_ENABLED : STATUS_DISABLED, LocalDateTime.now());
     }

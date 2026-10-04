@@ -12,7 +12,7 @@ import java.util.Set;
  * - 授权传递检查（canGrant验证）
  * - 权限撤销
  *
- * TODO: 自动授权解析（resolveAutoGrants）——依赖资源的自动授权尚未实现
+ * 自动授权由 AutoGrantMaterializationDomainService 在写入口同事务重算，本接口负责转授与撤销。
  * </p>
  */
 public interface PermissionGrantDomainService {

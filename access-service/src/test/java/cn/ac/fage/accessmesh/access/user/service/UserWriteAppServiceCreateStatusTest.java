@@ -21,6 +21,10 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
+import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
@@ -86,6 +90,30 @@ class UserWriteAppServiceCreateStatusTest {
 
     private UserCreateReq req(Integer status) {
         return new UserCreateReq("carol", "评审测试用户", null, null, status, null, null);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"1,MANAGE_MEMBER", "2,ASSIGN_POSITION_USER"})
+    void creatingUserWithMembershipDoesNotRequireEditingOrganization(String orgType, String memberOperation) {
+        SysOrg targetOrg = new SysOrg();
+        targetOrg.setId(50L);
+        targetOrg.setOrgType(orgType);
+        when(localProjectionDomainService.createLocalUserSubject(anyLong(), anyString(), anyBoolean()))
+            .thenReturn(601L);
+        when(orgTreeConfigDomainService.resolveDefaultTreeOrgIds(TENANT)).thenReturn(List.of(50L));
+        when(orgDomainService.selectValidById(TENANT, 50L)).thenReturn(targetOrg);
+        org.mockito.Mockito.doAnswer(invocation -> {
+            if (!memberOperation.equals(invocation.getArgument(2))) {
+                throw new SecurityException("Only member management is granted");
+            }
+            return null;
+        }).when(permissionValidator).checkInstanceLevel(
+            org.mockito.ArgumentMatchers.eq(ResourceTypeCode.ORG), org.mockito.ArgumentMatchers.eq("50"), anyString());
+
+        assertThat(service.createUser(new UserCreateReq("carol", "测试用户", null, null, 1, 50L, null)).id())
+            .isEqualTo(601L);
+        verify(permissionValidator).checkTypeLevel(ResourceTypeCode.USER, OperationCode.CREATE);
+        verify(permissionValidator).checkInstanceLevel(ResourceTypeCode.ORG, "50", memberOperation);
     }
 
     @Test

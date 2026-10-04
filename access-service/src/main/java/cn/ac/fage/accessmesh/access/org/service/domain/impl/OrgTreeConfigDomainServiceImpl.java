@@ -32,6 +32,33 @@ import java.util.stream.Collectors;
 @Service
 public class OrgTreeConfigDomainServiceImpl implements OrgTreeConfigDomainService {
 
+    @Override
+    public void guardNonOverlappingRoot(Long tenantId, Long rootOrgId, Long excludedConfigId) {
+        if (rootOrgId == null || orgDomainService.selectValidById(tenantId, rootOrgId) == null) {
+            throw new BizException(AccessErrorCode.ORG_NOT_FOUND.getCode(),
+                AccessErrorCode.ORG_NOT_FOUND.getMessage());
+        }
+        Set<Long> otherRoots = orgTreeConfigMapper.selectAllValid(tenantId).stream()
+            .filter(config -> excludedConfigId == null || !excludedConfigId.equals(config.getId()))
+            .map(SysOrgTreeConfig::getRootOrgId)
+            .filter(java.util.Objects::nonNull)
+            .collect(Collectors.toSet());
+        if (otherRoots.isEmpty()) {
+            return;
+        }
+        Set<Long> roots = new HashSet<>(otherRoots);
+        roots.add(rootOrgId);
+        Map<Long, List<Long>> ancestors = orgDomainService.batchGetAncestorIds(tenantId, roots);
+        List<Long> candidateAncestors = ancestors.getOrDefault(rootOrgId, List.of());
+        boolean overlaps = otherRoots.stream().anyMatch(other -> other.equals(rootOrgId)
+            || candidateAncestors.contains(other)
+            || ancestors.getOrDefault(other, List.of()).contains(rootOrgId));
+        if (overlaps) {
+            throw new BizException(AccessErrorCode.ORG_TREE_ROOT_OVERLAP.getCode(),
+                AccessErrorCode.ORG_TREE_ROOT_OVERLAP.getMessage());
+        }
+    }
+
     private final SysOrgTreeConfigMapper orgTreeConfigMapper;
     private final OrgDomainService orgDomainService;
     private final UserOrgDomainService userOrgDomainService;

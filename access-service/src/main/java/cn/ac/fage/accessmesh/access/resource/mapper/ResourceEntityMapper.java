@@ -247,7 +247,7 @@ public interface ResourceEntityMapper extends BaseMapper<ResourceEntity> {
                                                      @Param("resourceTypes") Set<Integer> resourceTypes);
 
     /**
-     * 查询资源树（所有有效且启用的资源，可选资源类型过滤）
+     * 查询资源树（默认所有未删除资源，可选启用态与资源类型过滤）
      * <p>
      * 树形实例裁剪（T-ACCESS-052 可见节点∪祖先链）由调用方内存执行
      * （filterTreeToVisibleWithAncestors），本查询不做 SQL 下推——树本就全量拉回建树。
@@ -260,7 +260,8 @@ public interface ResourceEntityMapper extends BaseMapper<ResourceEntity> {
      */
     List<ResourceEntity> selectResourceTree(@Param("tenantId") Long tenantId,
                                              @Param("resourceType") Integer resourceType,
-                                             @Param("matchNone") boolean matchNone);
+                                             @Param("matchNone") boolean matchNone,
+                                             @Param("enabledOnly") boolean enabledOnly);
 
     /**
      * 分页查询资源列表（带过滤条件）

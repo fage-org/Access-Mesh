@@ -13,6 +13,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import com.mybatisflex.core.util.UpdateEntity;
 
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
+import cn.ac.fage.accessmesh.access.engine.constant.OrgOperationCodeMapper;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.org.service.domain.OrgDomainService;
@@ -141,14 +142,17 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         PermissionChangeContext.markUsers(tenantId, Set.of(subjectId));
 
         if (req.orgId() != null) {
+            treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.SYS_ORG);
+            SysOrg targetOrg = orgDomainService.selectValidById(tenantId, req.orgId());
             permissionValidator.checkInstanceLevel(
-                ResourceTypeCode.ORG, String.valueOf(req.orgId()), OperationCode.UPDATE);
+                ResourceTypeCode.ORG, String.valueOf(req.orgId()),
+                OrgOperationCodeMapper.resolveForUserOrg(
+                    targetOrg != null ? targetOrg.getOrgType() : null, OperationCode.UPDATE));
 
-            // SYS_ORG 树锁（外评 R4，2026-09-22）：默认树范围校验与成员挂载须与切默认/改默认根
+            // SYS_ORG 树锁：默认树范围校验与成员挂载须与切默认/改默认根
             // 串行——否则并发 setDefault 的归属守卫看不到本事务未提交的新成员关系而放行切树，
             // 新用户只落在旧树（创建成功却不在默认身份目录，用户列表不可见）。锁先于默认树
-            // 范围首读（validateOrgInDefaultTree），门禁留在锁前（对齐 assignUserToOrgs 先例）
-            treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.SYS_ORG);
+            // 范围首读；目标类型与成员动作码在同一锁内解析，避免结构变化穿过检查。
             validateOrgInDefaultTree(tenantId, req.orgId());
 
             SysUserOrg userOrg = new SysUserOrg();
@@ -161,7 +165,6 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
             userOrg.setDeleteFlag(0L);
             userOrgDomainService.insertBatch(List.of(userOrg));
 
-            SysOrg targetOrg = orgDomainService.selectValidById(tenantId, req.orgId());
             String roleTypeCode = resolveOrgRoleTypeCode(targetOrg);
             // POSITION 绑定 relation 指向所属组织（岗位的 parentId）
             Long userRoleId = localProjectionDomainService.bindUserOrg(

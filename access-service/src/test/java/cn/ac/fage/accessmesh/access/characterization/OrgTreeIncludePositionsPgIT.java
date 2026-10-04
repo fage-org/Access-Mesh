@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.characterization;
 
+import static cn.ac.fage.accessmesh.access.it.GatewayTestSignatures.hmac;
+
 import cn.ac.fage.accessmesh.access.it.ItInfra;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -74,19 +76,6 @@ class OrgTreeIncludePositionsPgIT {
     private static final String INTERNAL_SECRET = "test-internal-secret-for-access-service";
     private static final String SIGN_SECRET = "test-signature-secret-for-access-service";
 
-    /** Gateway 转发签名（与 SecurityMatrixIT 同算法：HmacSHA256("userId|tenantId|timestamp") 十六进制）。 */
-    private static String hmac(String userId, String tenantId, long timestamp) throws Exception {
-        javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
-        mac.init(new javax.crypto.spec.SecretKeySpec(
-            SIGN_SECRET.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256"));
-        byte[] digest = mac.doFinal((userId + "|" + tenantId + "|" + timestamp)
-            .getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        StringBuilder sb = new StringBuilder();
-        for (byte b : digest) {
-            sb.append(String.format("%02x", b));
-        }
-        return sb.toString();
-    }
 
     /** Gateway 转发形态身份头（T-ACCESS-042：/api/access/** 统一内部密钥边界，MockMvc 直连按 Gateway 注入形态模拟）。 */
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder gatewayHeaders(
@@ -96,7 +85,7 @@ class OrgTreeIncludePositionsPgIT {
             .header("X-Internal-Secret", INTERNAL_SECRET)
             .header("X-Tenant-Id", String.valueOf(TENANT))
             .header("X-User-Id", String.valueOf(userId))
-            .header("X-User-Signature", hmac(String.valueOf(userId), String.valueOf(TENANT), ts))
+            .header("X-User-Signature", hmac(SIGN_SECRET, String.valueOf(userId), String.valueOf(TENANT), ts))
             .header("X-Signature-Timestamp", String.valueOf(ts));
     }
 
@@ -527,6 +516,9 @@ class OrgTreeIncludePositionsPgIT {
         assertThat(pivot.get("data").get("items").size()).isEqualTo(1);
         assertThat(pivot.get("data").get("items").get(0).get("id").asLong())
             .as("parentOrgId 透视可取到停用节点").isEqualTo(disabledOrgId);
+        assertThat(pivot.get("data").get("items").get(0).path("parentOrgName").asText())
+            .as("父级被状态过滤后，仍提供允许查看的父名")
+            .isEqualTo(jdbc.queryForObject("SELECT name FROM sys_org WHERE id = ?", String.class, ORG_A_ID));
     }
 
     @Test
