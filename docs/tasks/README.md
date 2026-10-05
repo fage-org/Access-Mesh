@@ -10,13 +10,13 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| access-service 归并（跨服务） | `T-ACCESS` | 082 |
-| permission-center | `T-PERM` | 106 |
+| access-service 归并（跨服务） | `T-ACCESS` | 091 |
+| permission-center | `T-PERM` | 109 |
 | admin-service | `T-ADMIN` | 036 |
-| gateway | `T-GW` | 011 |
+| gateway | `T-GW` | 013 |
 | 组织/用户（跨 admin+perm） | `T-ORG` | 006 |
-| 跨服务 API 契约 | `T-API` | 007 |
-| 前端 | `T-FE` | 064 |
+| 跨服务 API 契约 | `T-API` | 014 |
+| 前端 | `T-FE` | 067 |
 
 > 新建任务时从对应领域取下一编号，计数器 +1。
 
@@ -25,6 +25,37 @@
 > 状态简写：⚙️=proposed / 🔨=in-progress / 👀=review / ✅=done / ❌=cancelled。回写：⏳=pending / ✓=done。
 
 > **后端门禁已解除（2026-08-22，T-ACCESS-012 完成）**：`T-PERM-*` / `T-ADMIN-*` 后端任务已全部重基线到 access-service 单模块与 `schema/access-service.sql`，可按各自 `depends_on` 推进；前端真接口联调等待对应 Phase 2 后端任务完成。归并主计划已归档（[archive/2026-08-22/access-service-merge-plan.md](../archive/2026-08-22/access-service-merge-plan.md)），后续强化计划亦已归档（[access-post-merge-plan](../archive/2026-08-27/access-post-merge-plan.md)，T-ACCESS-013~015 全 done，CI 准入前置由 T-ACCESS-017 最小 CI 关闭；68 项为 2026-08-22 外部主机历史验证基线，CI 以退出状态判定成功）。
+
+### 使用者视角评审问题修复（2026-10-05 立项）
+
+[计划](../plans/usage-review-remediation-plan.md)。2026-10-04~05 使用者视角全量评审 86 条核实成立问题 → 24 任务；方向性分叉 D1~D18 已于 2026-10-05 全部用户拍板（结论在各任务卡「当前口径」）；延后项登记 Q-059~Q-063。
+
+| ID | 标题 | 状态 | 直接依赖 |
+|---|---|---|---|
+| [T-ACCESS-082](T-ACCESS-082.md) | 密码重置会话吊销与凭据代际闭环 | ⚙️ | — |
+| [T-ACCESS-086](T-ACCESS-086.md) | 备份恢复与运维基线 | ⚙️ | — |
+| [T-PERM-107](T-PERM-107.md) | 权限拒绝解释字段修正 | ⚙️ | — |
+| [T-PERM-106](T-PERM-106.md) | 管理员种子行锁死与转授前提声明 | ⚙️ | — |
+| [T-ACCESS-083](T-ACCESS-083.md) | 认证链防护收敛 | ⚙️ | — |
+| [T-ACCESS-085](T-ACCESS-085.md) | 审计门禁与留痕补齐 | ⚙️ | T-ACCESS-086 |
+| [T-FE-065](T-FE-065.md) | 管理界面补齐（凭证/登录日志/同步状态） | ⚙️ | T-ACCESS-086, T-ACCESS-085 |
+| [T-API-009](T-API-009.md) | DTO 契约同步对账机制 | ⚙️ | — |
+| [T-API-010](T-API-010.md) | 分页口径统一 200+hasNext | ⚙️ | — |
+| [T-FE-066](T-FE-066.md) | 前端工程门禁进 CI | ⚙️ | — |
+| [T-PERM-108](T-PERM-108.md) | 同步对接方体验补齐 | ⚙️ | — |
+| [T-ACCESS-090](T-ACCESS-090.md) | 租户条件接线与容量基线 | ⚙️ | — |
+| [T-ACCESS-084](T-ACCESS-084.md) | OAuth2 公开客户端实现 | ⚙️ | T-ACCESS-086 |
+| [T-API-007](T-API-007.md) | SDK 集成安全收编与文档前提 | ⚙️ | — |
+| [T-ACCESS-087](T-ACCESS-087.md) | 管理面一致性杂项收敛 | ⚙️ | — |
+| [T-API-011](T-API-011.md) | orgType 线格式统一 Integer | ⚙️ | — |
+| [T-ACCESS-088](T-ACCESS-088.md) | 安全语义失败形态判别表 | ⚙️ | — |
+| [T-FE-064](T-FE-064.md) | 管理台登录与会话打磨 | ⚙️ | — |
+| [T-API-008](T-API-008.md) | SDK 与公共模块卫生 | ⚙️ | — |
+| [T-API-012](T-API-012.md) | 扩展面文档对齐与 JSON 校验收紧 | ⚙️ | — |
+| [T-ACCESS-089](T-ACCESS-089.md) | 维护者工程基线 | ⚙️ | — |
+| [T-API-013](T-API-013.md) | 契约册导航与错误码索引 | ⚙️ | — |
+| [T-GW-011](T-GW-011.md) | Gateway 白名单死路由与死配置清理 | ⚙️ | — |
+| [T-GW-012](T-GW-012.md) | sa-token 双端配置对照测试 | ⚙️ | — |
 
 ### 测试证据精简（已完成并归档，2026-10-04）
 
