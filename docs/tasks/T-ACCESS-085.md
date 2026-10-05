@@ -7,7 +7,7 @@ plan: docs/plans/usage-review-remediation-plan.md
 domain: access-service
 design_refs:
   - docs/design/access-service-api-contract.md（§17.3 job 族门禁口径/login-log 契约）
-  - docs/design/services/access-service.md（audit 能力包）
+  - docs/design/access-service-architecture.md（audit 能力包/审计章节）
 depends_on:
   - T-ACCESS-086
 blocks: []
@@ -15,8 +15,9 @@ acceptance:
   - "login-log/page 注册进 bootstrap 固定图（新 API 行）+服务层补 OPERATION_LOG:VIEW 门禁；经 Gateway 持权限可查、无权限 403（存量库升级须重建，deployment.md 注明）"
   - "OperationLogAspect 在 proceed 异常时记录失败再上抛（@OperationLog 写端点覆盖）；无 SERVICE:MANAGE 会话直连 service-credential/create →403+operation_log 落一条"
   - "responseCode 记录真值（不再硬编码 200）用例"
-  - "Gateway DENY 拒绝（PermissionFilter:245 不达下游）的取证出口设计落地或显式登记"
-  - "bootstrap 种子写入审计与 PII 统一脱敏层：评估结论登记（至少登记，不强制实现）"
+  - "Gateway DENY 拒绝（PermissionFilter:245 不达下游，服务层切面无法覆盖）的取证出口随 login-log 路由注册一并设计并**落地**（拒绝留痕可见，非仅登记）"
+  - "bootstrap 种子写入审计：评估结论登记（不强制实现）"
+  - "PII 统一脱敏层**落地**：登录/操作/变更日志的读取与响应转换层统一脱敏（密码路径 username、摘要 SpEL、diff_snapshot.extra 三处来源面），保留审计原始记录"
 design_writeback:
   required: true
   status: pending
@@ -35,15 +36,16 @@ login-log 转正（固定图路由+门禁）、两类审计留痕（服务层失
 
 ## 当前口径
 
-login-log 注册进固定图供管理员经 Gateway 使用（2026-10-05 拍板 D2=②），服务层复用 OPERATION_LOG:VIEW（零新增权限码）。留痕分两类：服务层切面 catch 记失败再上抛（覆盖 @OperationLog 写端点）；拒绝尝试审计最小改=服务层业务门禁拒绝处显式留痕（复用 requestId），Gateway 层拒绝的取证出口随路由注册一并设计。本卡固定图加行以 T-ACCESS-086 备份规程为前置（存量库 fail-fast 重建）。
+login-log 注册进固定图供管理员经 Gateway 使用（2026-10-05 拍板 D2=②），服务层复用 OPERATION_LOG:VIEW（零新增权限码）。留痕分两类：服务层切面 catch 记失败再上抛（覆盖 @OperationLog 写端点）；拒绝尝试审计最小改=服务层业务门禁拒绝处显式留痕（复用 requestId），Gateway 层拒绝的取证出口随路由注册**一并落地**。PII 统一脱敏层为交付项（读取/响应转换层统一实现，保留审计原始记录）；bootstrap 审计为评估登记。本卡固定图加行以 T-ACCESS-086 备份规程为前置（存量库 fail-fast 重建）。
 
 ## 验收对照
 
 - [ ] login-log 经 Gateway 可查+门禁生效
 - [ ] 写端点失败留痕（指明端点的用例）
 - [ ] responseCode 真值用例
-- [ ] Gateway 拒绝取证出口落地或登记
-- [ ] bootstrap 审计与 PII 脱敏评估登记
+- [ ] Gateway 拒绝留痕落地（随路由②一并交付）
+- [ ] bootstrap 审计评估登记
+- [ ] PII 统一脱敏层落地（三日志读取面，保留原始记录）
 
 ## 非目标 / 遗留
 

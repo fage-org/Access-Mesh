@@ -7,7 +7,7 @@ plan: docs/plans/usage-review-remediation-plan.md
 domain: access-service
 design_refs:
   - docs/design/access-service-api-contract.md（§6.1 OAuth2 / §7.7 重置密码）
-  - docs/design/services/access-service.md（认证与会话）
+  - docs/design/access-service-architecture.md（认证/会话相关章节）
 depends_on: []
 blocks: []
 acceptance:
@@ -26,7 +26,7 @@ last_updated: 2026-10-05
 
 ## 背景
 
-resetPassword 只更新密码哈希与 force_reset_pwd 标记，无任何会话吊销（`UserAppServiceImpl.java:350-390` 止于 return，全文无 StpUtil.logout/kickout）；force_reset_pwd 的阻断只在前端路由守卫（自述「UX 层非安全层」）。OAuth2 侧 refresh 每次轮换签发新 token 并重新给足整段 TTL，链上唯一闸门是用户 status=1（`OAuth2AppServiceImpl.java:279-309`）；种子客户端单 refresh token 30 天（超 DTO 上限）；授权码兑换（`:496-523`）只查用户状态——改密前已签发的授权码与 access JWT 无失效规则，凭据吊销闭环缺失。
+resetPassword 只更新密码哈希与 force_reset_pwd 标记，无任何会话吊销（`UserAppServiceImpl.java:350-391` 止于 return，全文无 StpUtil.logout/kickout）；force_reset_pwd 的阻断只在前端路由守卫（自述「UX 层非安全层」）。OAuth2 侧 refresh 每次轮换签发新 token 并重新给足整段 TTL，链上唯一闸门是用户 status=1（`OAuth2AppServiceImpl.java:279-309`）；种子客户端单 refresh token 30 天（超 DTO 上限）；授权码兑换（`:496-523`）只查用户状态——改密前已签发的授权码与 access JWT 无失效规则，凭据吊销闭环缺失。
 
 ## 范围
 

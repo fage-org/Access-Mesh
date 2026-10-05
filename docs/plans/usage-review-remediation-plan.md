@@ -11,7 +11,7 @@ design_refs:
   - docs/design/service-authentication.md
   - docs/design/extension-guide.md
   - docs/ops/deployment.md
-  - docs/ops/rebuild-runbook.md
+  - docs/design/access-service-rebuild-runbook.md
 tasks:
   - T-ACCESS-082
   - T-ACCESS-083
@@ -58,6 +58,7 @@ last_updated: 2026-10-05
 - [x] 86 条问题三源复核终局（61 完全成立/22 基本成立/3 核心改写）。
 - [x] 计划经 claude / codex sol 双通道评审并采纳全部 14 项修订。
 - [x] D1~D18 全部用户拍板（2026-10-05）。
+- [x] 评审核实终局（86 条）与覆盖矩阵落仓证据件：[evidence/usage-review-20261005/](../tasks/evidence/usage-review-20261005/)（评审终局 `usage-review-final-86.md` + 拍板落定版 `fix-plan-v3-decided.md`——86 条→24 任务单点归属以证据件矩阵为准）。
 
 ## 任务清单
 

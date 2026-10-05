@@ -11,9 +11,9 @@ design_refs:
 depends_on: []
 blocks: []
 acceptance:
-  - "deny 路径 conditionEvaluated 传真实评估事实（CONDITION_NOT_MET_OR_CONFLICT 时为 true），旧实现下失败的回归用例"
+  - "deny 路径 conditionEvaluated 传真实评估事实——与 allow 侧同源派生（有效事实中存在挂条件行才为 true；CONDITION_NOT_MET_OR_CONFLICT 不恒置 true：纯互斥清空且无挂条件行时为 false），旧实现下失败的回归用例"
   - "「条件不满足」与「被互斥清空」在 check 线格式可区分（reason 拆分或附加互斥标识），拒绝原因可区分用例"
-  - "batch-check 各项语义与单点一致"
+  - "用例覆盖三场景：条件失败拒绝 / 纯无条件互斥拒绝 / 有条件互斥拒绝；batch-check 各项语义与单点一致"
   - "不开放外部 TRACE（Q-045 已定边界不越线）；引擎内部 ExecutionTrace/ConflictEvidence 结构复用，不新建证据通道"
 design_writeback:
   required: true
@@ -37,9 +37,9 @@ G2：deny 工厂签名加评估事实标志，CONDITION_NOT_MET_OR_CONFLICT 分�
 
 ## 验收对照
 
-- [ ] conditionEvaluated 真值（旧实现下失败的红跑实证）
+- [ ] conditionEvaluated 真值（与 allow 侧同源派生，不恒置 true；旧实现下失败的红跑实证）
 - [ ] 拒绝原因可区分用例
-- [ ] batch-check 语义一致
+- [ ] 三场景用例（条件失败/纯无条件互斥/有条件互斥）+batch-check 语义一致
 - [ ] 不越 Q-045 边界
 
 ## 非目标 / 遗留

@@ -25,7 +25,7 @@ last_updated: 2026-10-05
 
 ## 背景
 
-撤权轨（apply-grant-plan removes）零委托校验：delegationKeys 仅由 creates/updates 构建（`PermissionGrantPlanDomainServiceImpl.java:340,355-356,495`），assertMutable 只挡 AUTO_DEP/AUTHORITY_ROOT（`:978-990`）——持 ROLE:MANAGE 者可无条件拆任何 MANUAL 行含 bootstrap-admin 管理位种子行，拆完即管理面死锁（无自动恢复；人工规程在 rebuild-runbook.md:104）。另：四条 canGrant=true 种子（T-ACCESS-052 最小集）转授不衰减、链深无上限，其中 SERVICE:MANAGE=全租户凭证签发权。
+撤权轨（apply-grant-plan removes）零委托校验：delegationKeys 仅由 creates/updates 构建（`PermissionGrantPlanDomainServiceImpl.java:340,355-356,495`），assertMutable 只挡 AUTO_DEP/AUTHORITY_ROOT（`:978-990`）——持 ROLE:MANAGE 者可无条件拆任何 MANUAL 行含 bootstrap-admin 管理位种子行，拆完即管理面死锁（无自动恢复；人工规程在 `docs/design/access-service-rebuild-runbook.md:104`）。另：四条 canGrant=true 种子（T-ACCESS-052 最小集）转授不衰减、链深无上限，其中 SERVICE:MANAGE=全租户凭证签发权。
 
 ## 范围
 

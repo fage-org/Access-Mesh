@@ -13,7 +13,7 @@ blocks: []
 acceptance:
   - "deployment.md 补 pg_dump 定时备份+恢复章节、忘 bootstrap 密码离线重置规程、JWT/签名密钥轮换 runbook（含 X-Credential-Secret 可重放后果修正）"
   - "凭据姿态统一：PostgreSQL trust→必填密码、Redis 弱默认→必填校验"
-  - "compose 补 restart: unless-stopped 与 nacos 持久化卷；删 log4j2 死 file include 或接通；example 补 actuator+healthcheck；NACOS_SERVER_ADDR 进 .env.example"
+  - "compose 修整：restart: unless-stopped 与 nacos 持久化卷；删 log4j2 死 file include 或接通；example 补 actuator+healthcheck 且 gateway/example 的 depends_on 按既有 healthcheck 升级为 service_healthy（docker-compose.yml:142 现为 service_started）；NACOS_SERVER_ADDR 进 .env.example 并接线 compose 三处硬编码 nacos:8848（:81/:117/:150）实际消费该变量"
   - "deployment.md 明示凭证明文经环境变量注入（docker inspect 可见）并给出 secrets 文件替代指引"
   - "runbook 演练：备份→恢复→忘密重置→授权墓碑复活（rebuild-runbook.md:104 规程）各走一遍"
 design_writeback:
@@ -34,13 +34,13 @@ deployment.md/rebuild-runbook 与 compose/.env.example 的运维基线补齐与�
 
 ## 当前口径
 
-本任务是固定图加行类任务（T-ACCESS-085/T-FE-065 等）的前置：存量库升级 fail-fast 的处置规程（备份→重建）先于一切固定图变更交付。演练含授权墓碑复活路径（直改库复活软删授权行的规程核验，配合 T-PERM-106 种子行锁死后的恢复面）。
+本任务是固定图加行类任务（T-ACCESS-085/T-FE-065 等）的前置：存量库升级 fail-fast 的处置规程（备份→重建）先于一切固定图变更交付。演练含授权墓碑复活路径（直改库复活软删授权行的规程核验，见 `docs/design/access-service-rebuild-runbook.md:104`，配合 T-PERM-106 种子行锁死后的恢复面）。
 
 ## 验收对照
 
 - [ ] 备份/恢复/忘密重置/密钥轮换 runbook 四章节在册且演练通过
 - [ ] 凭据姿态统一（trust/弱默认消除）
-- [ ] compose 六项修整落地
+- [ ] compose 修整落地（含 gateway/example 依赖升 service_healthy 与 NACOS 变量接线消费）
 - [ ] 凭证明文暴露面文档明示+替代指引
 - [ ] 演练四路径走通（备份→恢复→忘密重置→墓碑复活）
 

@@ -7,7 +7,7 @@ plan: docs/plans/usage-review-remediation-plan.md
 domain: access-service
 design_refs:
   - docs/design/access-service-api-contract.md（§6.1 登录族/§7.7 密码策略）
-  - docs/design/services/access-service.md（认证）
+  - docs/design/access-service-architecture.md（认证相关章节）
 depends_on: []
 blocks: []
 acceptance:

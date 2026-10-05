@@ -7,7 +7,9 @@ plan: docs/plans/usage-review-remediation-plan.md
 domain: cross-service
 design_refs:
   - docs/design/access-service-api-contract.md（册首导航/错误码索引）
-depends_on: []
+depends_on:
+  - T-ACCESS-085
+  - T-FE-065
 blocks: []
 acceptance:
   - "册首指针强化：未成册五族+四零散端点「读哪里」导航一并完成（五族补册本身不做，等接口完全稳定）"

@@ -16,6 +16,7 @@ acceptance:
   - "TenantFactory 无租户上下文即抛错（现空数组返回=TableInfo.buildTenantCondition 静默跳过条件 fail-open，字节码实证——必须换掉）"
   - "BootstrapSeedWriterImpl 等启动期无上下文路径走 TenantManager.withoutTenantCondition 显式豁免；XML 手写显式约束全部保留，双机制并存语义文档化"
   - "BaseMapper 插入自动填充与现有显式 set tenantId 的叠加回归；DualTenantSameCodeIsolationPgIT 扩展+无上下文抛错用例（fail-fast 锁）"
+  - "无上下文 Flex 路径全量清点（QueryWrapper/Db+BaseMapper 全部消费点，含启动与调度路径）+豁免清单为实现前置步骤并随卡记录"
   - "Javadoc/README 改真实口径（「自动为所有 SQL 追加」→按机制如实描述）"
   - "user-menu 读路径缓存评估（档位按 CacheCatalogEntry 目录）与 HikariCP/双调度器容量基线表进 deployment.md（结论至少登记）"
 design_writeback:
@@ -36,7 +37,7 @@ MybatisFlexTenantConfig Javadoc 承诺「自动为所有 SQL 追加 tenant_id �
 
 ## 当前口径
 
-接线全局配置（2026-10-05 拍板 D8=B）：一行 yml+工厂无上下文抛错（空数组的静默跳过=fail-open 不可接受）+启动期显式豁免+插入填充回归；XML 手写约束不迁移（双机制并存，语义文档化）。接线范围限定为 Flex 生成 SQL（现仅 4 文件消费）。
+接线全局配置（2026-10-05 拍板 D8=B）：一行 yml+工厂无上下文抛错（空数组的静默跳过=fail-open 不可接受）+启动期显式豁免+插入填充回归；XML 手写约束不迁移（双机制并存，语义文档化）。接线影响面=Flex 全部生成 SQL：QueryWrapper/Db 类查询 4 文件+**BaseMapper 生成方法消费面实测 ≥40 文件**（含启动期 BootstrapSeedWriterImpl/AccessBootstrapInitializer 与调度等非请求路径）——**无上下文 Flex 路径全量清点+豁免清单为实现前置步骤**。
 
 ## 验收对照
 

@@ -7,7 +7,7 @@ plan: docs/plans/usage-review-remediation-plan.md
 domain: access-service
 design_refs:
   - docs/design/access-service-api-contract.md（§2.5 同步契约）
-  - docs/ops/rebuild-runbook.md（对接 runbook 章节）
+  - docs/ops/runbook-full-sync.md（对接指引章节）
 depends_on: []
 blocks: []
 acceptance:
