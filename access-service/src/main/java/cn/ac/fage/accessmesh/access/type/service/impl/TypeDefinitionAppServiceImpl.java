@@ -15,6 +15,7 @@ import cn.ac.fage.accessmesh.access.resource.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.access.type.entity.TypeDefinition;
 import com.mybatisflex.core.util.UpdateEntity;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
+import cn.ac.fage.accessmesh.access.audit.util.JsonValidationUtils;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceApiMappingDomainService;
@@ -174,6 +175,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         // T-PERM-052：extra 所有权声明结构校验（managedMode/syncSourceService 仅 resource_type、
         // 值域/首尾空白/来源引用/API 类型禁 SYNC 校验；对齐 SyncTypeGuard.validateSyncTypesExtra
         // 的保存边界先例）。create 恒 is_system=false——内部来源 access-service 仅系统预置类型可声明（种子）
+        if (req.extra() != null) JsonValidationUtils.validateJson(req.extra());
         try {
             resourceTypeOwnershipGuard.validateExtraDeclaration(tenantId, req.typeKey(), typeCode, req.extra(), false);
         } catch (IllegalArgumentException e) {
@@ -494,6 +496,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         // T-PERM-052：extra 所有权声明结构校验 + 有效值变更守卫（类型下存在有效资源行时
         // managedMode/syncSourceService 不得变更，含删键隐式切回 MANAGED；20056）。
         // is_system 类型允许声明内部来源 access-service（事实链路类型种子同款，含 T-ADMIN-025 的 ADMIN_FILE）
+        if (req.extra() != null) JsonValidationUtils.validateJson(req.extra());
         try {
             resourceTypeOwnershipGuard.validateExtraDeclaration(tenantId, type.getTypeKey(),
                 type.getTypeCode(), req.extra(), Boolean.TRUE.equals(type.getIsSystem()));

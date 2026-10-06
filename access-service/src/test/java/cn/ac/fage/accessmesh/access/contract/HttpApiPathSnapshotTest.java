@@ -154,9 +154,9 @@ class HttpApiPathSnapshotTest {
 /api/access/user-role/sync
 /api/access/auth/captcha
 /api/access/auth/login
-/api/access/auth/login/sms
 /api/access/auth/logout
 /api/access/auth/oauth2/authorize
+/api/access/auth/oauth2/authorize-preview
 /api/access/auth/oauth2/refresh
 /api/access/auth/oauth2/revoke
 /api/access/auth/oauth2/token
@@ -184,7 +184,9 @@ class HttpApiPathSnapshotTest {
 /api/access/job/toggle
 /api/access/job/trigger
 /api/access/job/update
+/api/access/internal-audit/gateway-denial
 /api/access/login-log/page
+/api/access/sync-status/list
 /api/access/menu/create
 /api/access/menu/delete
 /api/access/menu/detail
@@ -307,8 +309,8 @@ class HttpApiPathSnapshotTest {
 /api/access/resource-entity/sync|access.sync.dto.ResourceEntitySyncReq|common.model.R<perm.common.dto.resp.SyncResultResp>
 /api/access/resource-entity/tree|access.resource.dto.req.ResourceTreeReq|common.model.R<perm.common.dto.resp.ItemsResp<access.resource.dto.resp.ResourceTreeResp>>
 /api/access/resource-entity/update|perm.common.dto.req.ResourceUpdateReq|common.model.R<access.resource.dto.resp.ResourceResp>
-/api/access/role-resource-permission/apply-grant-plan|access.grant.dto.req.ApplyGrantPlanReq|common.model.R<access.grant.dto.resp.RolePermissionItemsResp>
-/api/access/role-resource-permission/list|access.grant.dto.req.RolePermissionListReq|common.model.R<access.grant.dto.resp.RolePermissionItemsResp>
+/api/access/role-resource-permission/apply-grant-plan|access.grant.dto.req.ApplyGrantPlanReq|common.model.R<perm.common.dto.resp.RolePermissionItemsResp>
+/api/access/role-resource-permission/list|access.grant.dto.req.RolePermissionListReq|common.model.R<perm.common.dto.resp.RolePermissionItemsResp>
 /api/access/role-resource-permission/preview-grant-plan|access.grant.dto.req.PreviewGrantPlanReq|common.model.R<access.grant.dto.resp.GrantPlanPreviewResp>
 /api/access/role-resource-permission/sub-perm-allowed-types|access.grant.dto.req.SubPermAllowedTypesReq|common.model.R<access.grant.dto.resp.SubPermAllowedTypesResp>
 /api/access/service-config/apis|access.resource.dto.req.ServiceConfigApisReq|common.model.R<perm.common.dto.resp.ItemsResp<access.resource.dto.resp.ApiMappingResp>>
@@ -336,10 +338,10 @@ class HttpApiPathSnapshotTest {
 /api/access/user-role/revoke|perm.common.dto.req.UserRoleBatchRevokeReq|common.model.R<Void>
 /api/access/user-role/sync|access.sync.dto.UserRoleSyncReq|common.model.R<perm.common.dto.resp.SyncResultResp>
 /api/access/auth/captcha|-|common.model.R<access.auth.dto.CaptchaResp>
-/api/access/auth/login/sms|access.auth.dto.SmsLoginReq|common.model.R<access.auth.dto.LoginResp>
 /api/access/auth/login|access.auth.dto.LoginReq|common.model.R<access.auth.dto.LoginResp>
 /api/access/auth/logout|-|common.model.R<Void>
 /api/access/auth/oauth2/authorize|access.auth.dto.AuthorizeReq|common.model.R<access.auth.dto.AuthorizeResp>
+/api/access/auth/oauth2/authorize-preview|access.auth.dto.AuthorizeReq|common.model.R<access.auth.dto.AuthorizationPreviewResp>
 /api/access/auth/oauth2/refresh|access.auth.controller.OAuth2Controller$RefreshTokenReq|common.model.R<access.auth.dto.TokenResp>
 /api/access/auth/oauth2/revoke|access.auth.controller.OAuth2Controller$RevokeTokenReq|common.model.R<Void>
 /api/access/auth/oauth2/token|access.auth.dto.TokenReq|common.model.R<access.auth.dto.TokenResp>
@@ -367,7 +369,9 @@ class HttpApiPathSnapshotTest {
 /api/access/job/toggle|access.platform.controller.JobController$ToggleJobReq|common.model.R<Void>
 /api/access/job/trigger|common.model.IdReq|common.model.R<Void>
 /api/access/job/update|access.platform.dto.req.JobUpdateReq|common.model.R<Void>
+/api/access/internal-audit/gateway-denial|common.model.GatewayDenialAuditReq|common.model.R<Void>
 /api/access/login-log/page|common.model.PageReq|common.model.R<perm.common.dto.resp.PageResp<access.audit.dto.resp.LoginLogResp>>
+/api/access/sync-status/list|access.sync.dto.SyncStatusListReq|common.model.R<perm.common.dto.resp.PageResp<access.sync.dto.SyncStatusResp>>
 /api/access/menu/create|access.menu.dto.req.MenuCreateReq|common.model.R<Long>
 /api/access/menu/delete|common.model.IdReq|common.model.R<Void>
 /api/access/menu/detail|common.model.IdReq|common.model.R<access.menu.dto.resp.MenuResp>

@@ -2,6 +2,7 @@ import type { OperationLogResp } from "@/api/operation-log";
 
 /** 操作日志筛选表单（对齐后端 OperationLogListReq 过滤维度，T-PERM-025 扩展）。 */
 export interface OperationLogSearchForm {
+  requestId: string | null;
   /** 模块筛选（null=全部） */
   module: string | null;
   /** 操作类型筛选（null=全部；选项由 /log/operation/action-options 动态拉取） */
@@ -17,6 +18,7 @@ export interface OperationLogSearchForm {
 /** 空筛选表单工厂（全部维度 null=不过滤） */
 export function createEmptySearchForm(): OperationLogSearchForm {
   return {
+    requestId: null,
     module: null,
     action: null,
     operatorId: null,

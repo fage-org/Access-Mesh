@@ -200,7 +200,7 @@ public class UserOrgDomainServiceImpl implements UserOrgDomainService {
         return userOrgs.stream().map(uo -> {
             SysOrg org = orgMap.get(uo.getOrgId());
             String orgName = org != null ? org.getName() : null;
-            String orgType = org != null ? org.getOrgType() : null;
+            Integer orgType = org != null && org.getOrgType() != null ? Integer.valueOf(org.getOrgType()) : null;
             return new UserPageItemResp.OrgBrief(uo.getOrgId(), orgName, orgType, Boolean.TRUE.equals(uo.getIsPrimary()));
         }).collect(Collectors.toList());
     }

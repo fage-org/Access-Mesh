@@ -37,21 +37,20 @@ public final class PermResultUtils {
      * 转换新 DecisionResult 为 AuthCheckResp
      * <p>
      * 将新引擎单项最终判定转换为权限校验响应 DTO（纯转换，T-PERM-089）。
-     * 拒绝原因词表 1:1（枚举 name 与旧 reason 字符串一致）；允许时命中 ID 与
-     * 条件评估状态从结果详情派生（conditionEvaluated=保留事实中存在挂条件行，
-     * 拒绝时为空列表/false）。
+     * 拒绝原因取枚举 name；允许/拒绝的条件参与状态同源来自上下文筛选后的候选事实，
+     * 不能从评估后保留集合判断（条件失败与互斥会移除这些事实）。拒绝命中 ID 恒为空。
      * </p>
      *
      * @param r 新引擎单项最终判定结果
      * @return 权限校验响应
      */
     public static AuthCheckResp toAuthCheckResp(DecisionResult r) {
-        if (r.outcome() == DecisionResult.Decision.DENY) {
-            return AuthCheckResp.deny(r.reason() != null ? r.reason().name() : "DENIED");
-        }
         boolean conditionEvaluated = r.details().stageFacts().stream()
-            .flatMap(facts -> facts.retainedAfterEvaluation().stream())
+            .flatMap(facts -> facts.rawAfterContext().stream())
             .anyMatch(GrantFact::hasCondition);
+        if (r.outcome() == DecisionResult.Decision.DENY) {
+            return AuthCheckResp.deny(r.reason().name(), conditionEvaluated);
+        }
         return AuthCheckResp.allow(
             r.details().matchedRoleIds().stream().toList(),
             r.details().matchedPermissionIds().stream().toList(), conditionEvaluated);

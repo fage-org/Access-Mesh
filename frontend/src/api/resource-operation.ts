@@ -1,8 +1,6 @@
 /**
  * 资源与操作定义 API
- * 经 @/utils/http 调用 Gateway 外部路径
- * （`/api/access/resource-entity/*` + `/api/access/operation-permission/*`，
- * Gateway StripPrefix=1 后到 access-service `/api/access/...`）。
+ * 经 @/utils/http 使用 POST + JSON 调用 /api/access/**；Gateway 外部路径与服务路径一致。
  * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；分页/列表包络复用 role-manage 定义。
  *
@@ -92,6 +90,11 @@ export type ResourceListQuery = {
 /** 资源创建请求（对齐 ResourceCreateReq） */
 export type ResourceCreateReq = {
   parentId?: number | null;
+  /** 可选父资源业务键；同 parentId 定位现有父资源，类型须同源。 */
+  parentResourceTypeCode?: string | null;
+  parentResourceCode?: string | null;
+  parentCodeType?: string | null;
+  parentDomainCode?: string | null;
   resourceTypeCode: string;
   code: string;
   codeType?: string | null;

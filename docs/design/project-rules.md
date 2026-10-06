@@ -3,7 +3,7 @@ doc_type: design
 title: 项目开发规范（PROJECT RULES）
 status: adopted
 domain: common
-last_reviewed: 2026-10-04
+last_reviewed: 2026-10-06
 ---
 
 # 项目开发规范（PROJECT RULES）
@@ -81,6 +81,8 @@ last_reviewed: 2026-10-04
 - 禁止因服务重命名而重编号，禁止为 `access-service` 新增 `4xxxx` 错误码段。
 - 每个服务维护一个错误码枚举册（access-service 单册 `infrastructure.enums.AccessErrorCode`，T-ACCESS-038 合类不合号——原两域枚举已合一，`1xxxx`/`2xxxx` 两段同册、编号零重排；`common` 模块 `GlobalErrorCode` 承载 `9xxxx` 公共段，各业务模块不得重复定义），字段格式：`CODE(int code, String msg)`。
 
+签名校验迁入 perm-client starter 后，30003 保留原示例服务的公开编号，定义归 SDK PermClientErrorCode，ExampleErrorCode 不再重复定义；其 HTTP 200 + 业务码形态保持。GatewayResponse 复用 common.R 的唯一字段定义，仅保留 Gateway 原有 NON_NULL 序列化策略与工厂入口，不再声明同形字段。
+
 ### 1.3 分页入参与响应规范
 
 所有分页查询接口的分页参数统一命名：
@@ -96,7 +98,7 @@ last_reviewed: 2026-10-04
 | 字段       | 类型     | 说明                                                   |
 | ---------- | -------- | ------------------------------------------------------ |
 | `pageNum`  | `int`    | 当前页码，从 1 开始                                    |
-| `pageSize` | `int`    | 每页条数，默认 10，最大 200（`PageUtil`）                |
+| `pageSize` | `int`    | 每页条数，默认 20，最大 200（`PageUtil`）                |
 | `sort`     | `String` | 排序字段和方向，格式 `field,asc` 或 `field,desc`，可空 |
 
 分页响应结构统一放在 `data` 对象内：
@@ -123,7 +125,9 @@ last_reviewed: 2026-10-04
 
 ---
 
-分页公共类型选用 `PageResp`，避免与 MyBatis-Flex `Page` 同名。接口 Req 的专属默认值和上限优先于 PageUtil 的通用缺省；管理面 FilePageReq/JobLogPageReq 等保留 1/20 与 1..100，不按通则机械改写。[来源](../archive/2026-09-26/decision-registry-before.md)（原第 48、50 行）。
+分页公共类型选用 `PageResp`，避免与 MyBatis-Flex `Page` 同名。全部分页端点的 pageSize 上限统一为 200，显式超过上限返回 HTTP 400，不截断；普通列表默认每页 20；字典首批/完整枚举每批可取 200，但仍须按 hasNext 翻页。调用方需要完整列表时，必须循环至 `hasNext=false`，不可将单页视为全量。full-sync 的 items 是完整快照，不受分页上限约束。此口径由 2026-10-05 D5 与 2026-10-06 超限处置决定，取代原「专属上限优先、部分 DTO 上限 100」定案（历史来源仍见 [2026-09-26 迁移前登记](../archive/2026-09-26/decision-registry-before.md)）。
+
+偏移量按 long 中间值计算；超出当前数据库 Mapper int 偏移范围的请求返回 HTTP 400，不允许溢出为负数。hasNext 的加法同样使用 long。
 
 ## 2. 接口规范
 
@@ -400,6 +404,12 @@ ERROR 级别单独写入 error.log，保留 180 天
 - 禁止在工具类中直接操作数据库或发起 HTTP 请求。
 
 ---
+
+### 6.4 工程验证入口
+
+前端 CI 在 push/PR/手动触发均执行只读 lint、TypeScript/Vue 类型检查、Vitest 与 DTO 字段对账；本地同入口为 `pnpm -C frontend lint:check/typecheck/test:run/contracts:check`（各命令分别运行）。对账注册、覆盖边界与字段表见 [DTO 字段对账覆盖](dto-field-coverage.md)。共享 record 优先直接引用 perm-common，不保留同构副本；变更已锁字段须同步前端、仍存在的 SDK 镜像和公开字段表。
+
+局部构建的防旧 SNAPSHOT 入口为 `tools/build.ps1 <模块目录>`（或等价 `mvn install -pl <模块目录> -am -DskipTests`），目标与上游一起 install。当前 CI 时长、分层守护覆盖、push/PR 收口安排与工作区日志规约见 [工程验证基线](../ops/engineering-baseline.md)。不把单模块 compile 作为刷新依赖的证明。
 
 ## 7. 对象设计规范
 
@@ -954,12 +964,12 @@ deleted_at  TIMESTAMPTZ
 - **无物理外键**：所有表关联为逻辑 ID，由应用层保证数据一致性。
 - **软删除**：统一使用 `delete_flag`（删除时设为本行 id 值），可变业务表的唯一约束必须附加 `WHERE delete_flag = 0`；四类日志表与纯关联状态表例外见 §13.2。
 - **无 ENUM 类型**：枚举值使用 `INT` 或 `VARCHAR`，枚举含义在代码枚举类中维护。
-- **租户隔离（MyBatis-Flex TenantFactory 自动处理）**：
-  - 所有多租户数据表必须包含 `tenant_id` 列。
-  - **已全局配置 TenantFactory**：`MybatisFlexTenantConfig` 通过 `TenantManager.setTenantFactory()` 自动为所有 SQL 查询添加 `tenant_id = ?` 条件。
-  - **开发者无需手动添加 tenant_id 条件**：`selectOneById(id)`、`selectListByQuery()` 等方法会自动注入租户过滤。
-  - **前提条件**：请求入口必须经过 `RequestContextInterceptor`（唯一绑定 `AccessRequestContext` 的 HTTP 入口，T-ACCESS-004 起替换旧 TenantInterceptor/PermTenantInterceptor 双链）设置租户上下文，否则租户过滤不生效；`TenantContextHolder` 仅作兼容门面委托该上下文，新代码直接用 `AccessRequestContext`。
-  - **特殊场景**：如需跨租户查询（仅限系统管理场景），使用 `TenantManager.ignore()` 临时绕过，但必须在代码中添加注释说明原因。
+- **租户隔离（生成 SQL 与显式 SQL 并存）**：
+  - 所有多租户数据表必须包含 `tenant_id` 列；`mybatis-flex.global-config.tenant-column=tenant_id` 按实体列名接线。
+  - BaseMapper/QueryWrapper 生成的查询与更新 SQL 从可信 AccessRequestContext 取得租户并追加条件；工厂被调用而上下文缺失时立即抛错，不返回空数组跳过隔离。
+  - 手写 XML/注解 SQL 不由 TenantFactory 改写，必须继续显式传递与约束 tenant_id，不能删除现有租户 WHERE。身份识别与系统调度的特定全局 SQL 按各自契约限定调用来源。
+  - INSERT 已显式赋值的 tenantId 不被 Flex 覆盖；未赋值时由当前可信租户填充。实体租户必须来自已验证上下文或内部任务/日志条目，不接受用户请求体自报租户。
+  - 唯一生产生成 SQL 豁免为固定图初始化：initialize 最外层用 `TenantManager.withoutTenantCondition` 包裹，固定图显式写种子租户；禁止裸 ignore 或嵌套豁免。任务执行显式建立 TASK 作用域并在 finally 清理，异步日志显式传 tenantId。
 - **禁止存储明文密码**。
 - 大字段（JSON 配置等）使用 PostgreSQL `JSONB` 类型。
 - 时间字段统一使用 `TIMESTAMPTZ`（带时区）。

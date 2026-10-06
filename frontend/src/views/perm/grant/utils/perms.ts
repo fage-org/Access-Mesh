@@ -1,3 +1,4 @@
+import { PERMISSION_CODE } from "@/constants/access";
 /**
  * 「权限授予」页（4.1 v3）按钮权限码（perm 串）目录 —— 单一事实源 (SSOT)。
  *
@@ -31,16 +32,16 @@
 export const PERMISSION_GRANT_PERMS = {
   // ===== 配权门禁（轨道 2，目标抽象角色） =====
   /** 矩阵查看（两入口通用） */
-  ROLE_VIEW: "ROLE:VIEW",
+  ROLE_VIEW: PERMISSION_CODE.ROLE_VIEW,
   /** 授权弹窗内授予/撤销；权限详情保持只读 */
-  ROLE_MANAGE: "ROLE:MANAGE",
+  ROLE_MANAGE: PERMISSION_CODE.ROLE_MANAGE,
 
   // ===== 只读依赖数据门控 =====
   /**
    * 🔧 T-FE-040 v3.1（S5）：条件查看已全租户开放（2026-08-08 产品确认，无读取门禁），
    * 本串保留仅对齐后端枚举；不再参与条件列表加载门控与矩阵登记。
    */
-  CONDITION_VIEW: "CONDITION:VIEW",
+  CONDITION_VIEW: PERMISSION_CODE.CONDITION_VIEW,
   /**
    * 🔧 T-FE-018（2026-09-02 定案，理解 A）：类型候选数据源 type-definition/list 的
    * 只读依赖声明（后端 TypeDefinitionAppServiceImpl 强制门禁）。**软依赖**：缺失时
@@ -48,15 +49,15 @@ export const PERMISSION_GRANT_PERMS = {
    * meta.auths 硬门禁**——无类型管理权的配权用户仍可进入页面查看其余部分。
    * 登录权限串白名单已含 TYPE_DEFINITION（T-PERM-025，2026-08-28 补齐）。
    */
-  TYPE_VIEW: "TYPE_DEFINITION:VIEW",
+  TYPE_VIEW: PERMISSION_CODE.TYPE_DEFINITION_VIEW,
 
   // ===== 左栏数据源门禁（轨道 1，组织入口已联调 T-FE-037；个人入口移除后 USER:VIEW 暂无消费方） =====
   /** 组织树数据源（组织入口，T-FE-037 消费于 SubjectTreePanel canViewOrgTree 探查） */
-  ORG_VIEW: "ORG:VIEW",
+  ORG_VIEW: PERMISSION_CODE.ORG_VIEW,
   /** 用户列表数据源（个人入口预留已移除，常量保留对齐枚举；暂无消费方） */
-  USER_VIEW: "USER:VIEW",
+  USER_VIEW: PERMISSION_CODE.USER_VIEW,
   /** 岗位数据源（组织入口，岗位为组织子节点；后端按调用者权限裁剪，前端不探查） */
-  POSITION_VIEW: "ORG:VIEW_POSITION"
+  POSITION_VIEW: PERMISSION_CODE.ORG_VIEW_POSITION
 } as const;
 
 export type PermissionGrantPermKey = keyof typeof PERMISSION_GRANT_PERMS;

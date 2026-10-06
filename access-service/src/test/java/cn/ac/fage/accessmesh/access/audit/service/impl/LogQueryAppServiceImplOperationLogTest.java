@@ -85,17 +85,17 @@ class LogQueryAppServiceImplOperationLogTest {
             LocalDateTime since = LocalDateTime.of(2026, 8, 1, 0, 0);
             LocalDateTime until = LocalDateTime.of(2026, 8, 28, 0, 0);
             when(operationLogMapper.selectPageByCondition(eq(1L), eq("PERMISSION"), eq("ROLE_CREATE"),
-                eq(100L), eq(since), eq(until), isNull(), eq(0), eq(15)))
+                eq(100L), eq(since), eq(until), isNull(), eq(0), eq(15), isNull()))
                 .thenReturn(List.of(row));
 
             List<OperationLogResp> result = service().listOperationLogs(1L, " PERMISSION ", " ROLE_CREATE ",
-                100L, since, until, "  ", 0, 15);
+                100L, since, until, "  ", 0, 15, null);
 
             assertEquals(1, result.size());
             assertEquals("ROLE_CREATE", result.get(0).action());
             // 空白 targetType 规整为 null；module/action trim 后透传
             verify(operationLogMapper).selectPageByCondition(eq(1L), eq("PERMISSION"), eq("ROLE_CREATE"),
-                eq(100L), eq(since), eq(until), isNull(), eq(0), eq(15));
+                eq(100L), eq(since), eq(until), isNull(), eq(0), eq(15), isNull());
         }
     }
 
@@ -105,13 +105,13 @@ class LogQueryAppServiceImplOperationLogTest {
             ctx.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any())).thenReturn(true);
             when(operationLogMapper.countByCondition(eq(1L), isNull(), isNull(),
-                eq(100L), isNull(), isNull(), eq("ROLE"))).thenReturn(5L);
+                eq(100L), isNull(), isNull(), eq("ROLE"), isNull())).thenReturn(5L);
 
-            long total = service().countOperationLogs(1L, "  ", null, 100L, null, null, " ROLE ");
+            long total = service().countOperationLogs(1L, "  ", null, 100L, null, null, " ROLE ", null);
 
             assertEquals(5L, total);
             verify(operationLogMapper).countByCondition(eq(1L), isNull(), isNull(),
-                eq(100L), isNull(), isNull(), eq("ROLE"));
+                eq(100L), isNull(), isNull(), eq("ROLE"), isNull());
         }
     }
 }

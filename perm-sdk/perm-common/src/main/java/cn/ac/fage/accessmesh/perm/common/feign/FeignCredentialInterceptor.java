@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.perm.common.feign;
 
 import feign.RequestInterceptor;
+import cn.ac.fage.accessmesh.common.security.M2mCredentialEndpoints;
 import feign.RequestTemplate;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,25 +23,6 @@ public class FeignCredentialInterceptor implements RequestInterceptor {
 
     /** 内部调用统一路径前缀；仅匹配该前缀的请求才考虑注入，避免污染其他 Feign 调用。 */
     private static final String ACCESS_PATH_MARKER = "/api/access/";
-
-    /** 服务端单源清单的 SDK 镜像（SDK 不依赖 common 模块）。 */
-    private static final java.util.Set<String> M2M_PATHS = java.util.Set.of(
-        "/api/access/resource-entity/sync",
-        "/api/access/resource-entity/full-sync",
-        "/api/access/service-config/sync-v2",
-        "/api/access/integration/permission-manifest/full-sync",
-        "/api/access/auth/interface-admission",
-        "/api/access/auth/interface-admission-snapshot",
-        "/api/access/auth/check",
-        "/api/access/auth/batch-check",
-        "/api/access/auth/query-resources",
-        "/api/access/auth/query-scopes",
-        "/api/access/abstract-user/sync",
-        "/api/access/abstract-user/full-sync",
-        "/api/access/abstract-role/sync",
-        "/api/access/abstract-role/full-sync",
-        "/api/access/user-role/sync",
-        "/api/access/user-role/full-sync");
 
     @Value("${perm.credential-id}")
     private String credentialId;
@@ -95,8 +77,8 @@ public class FeignCredentialInterceptor implements RequestInterceptor {
         if (queryIndex >= 0) {
             path = path.substring(0, queryIndex);
         }
-        if (!M2M_PATHS.contains(path)) {
-            // 仅 M2M 通道端点注入（精确镜像清单）——其余 /api/access/ 调用
+        if (!M2mCredentialEndpoints.matches(template.method(), path)) {
+            // 仅 M2M 通道端点注入（common 单源精确清单）——其余 /api/access/ 调用
             // 不携带凭证头（白名单外携带=服务端 403，见类注释）
             return;
         }

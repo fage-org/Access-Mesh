@@ -1,9 +1,6 @@
 /**
  * 角色管理 API
- * 经 @/utils/http 调用 Gateway 外部路径 `/api/access/abstract-role/*`
- *（Gateway StripPrefix=1 后到 access-service `/api/access/abstract-role`）。
- * T-FE-041 切换真实链路后旧 `/api/access/**` mock 路径自然失配；T-FE-016 联调收口，
- * mock/role-manage.ts 已随切换退役删除（Phase 3 模式，同 mock/user-manage.ts）。
+ * 经 @/utils/http 使用 POST + JSON 调用 /api/access/**；Gateway 外部路径与服务路径一致。
  * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`。
  *
@@ -19,10 +16,9 @@ import { type R, unwrap } from "./_envelope";
 
 /**
  * 5 种抽象角色类型编码（对齐 access-service overview §角色模型）。
- * - ORG / POSITION / PERSONAL：外部同步自动生成（ORG/POSITION 由组织同步、
- *   PERSONAL 由用户同步连带创建 PERSONAL_{external_id}），不在角色管理页展示，
- *   其权限分配归「权限授予」(页面待重做，原 T-FE-014 已废弃) 与「用户详情」(2.1)。
- * - BASIC_ROLE：首期唯一功能角色，本页可 CRUD。
+ * - ORG / POSITION：由组织与岗位投影维护，不在角色管理页手工维护。
+ * - PERSONAL：后端创建与授权 API、用户详情分配入口可用；角色管理页暂不提供维护入口。
+ * - BASIC_ROLE：角色管理页提供 CRUD。
  * - GROUP_ROLE：T-PERM-043 后端写入口已删除，本页隐藏（读模型类型码保留，
  *   供权限授予等读场景识别）。
  */
@@ -47,11 +43,11 @@ export const ROLE_TYPE_LABEL: Record<string, string> = {
 
 /**
  * 角色管理页可手工 CRUD 的功能角色类型。
- * T-PERM-043 后仅 BASIC_ROLE——首期唯一功能角色；GROUP_ROLE 后端写入口已删除
+ * 本页仅 BASIC_ROLE；GROUP_ROLE 后端写入口已删除
  * （extra-roles/* 退役、create/update 拒绝 20022），选项从本页隐藏。
  * GROUP_ROLE 读模型类型码保留（ROLE_TYPE_CODE/LABEL，读场景识别）；额外角色面板
  * 与 extra-roles API 封装已随 2026-09-14 轻量清扫批次删除（git 历史可恢复）。
- * 其余三类（ORG/POSITION/PERSONAL）由外部同步生成，不在本页管理。
+ * ORG/POSITION 由投影维护；PERSONAL 的 API 与分配入口可用，本页暂不维护。
  */
 export const MANAGEABLE_ROLE_TYPES: RoleTypeCode[] = [
   ROLE_TYPE_CODE.BASIC_ROLE

@@ -2,7 +2,6 @@ package cn.ac.fage.accessmesh.access.platform.controller;
 
 import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.access.infrastructure.dto.IdsReq;
-import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.access.platform.dto.req.FilePageReq;
 import cn.ac.fage.accessmesh.access.platform.dto.resp.FileResp;
 import cn.ac.fage.accessmesh.access.platform.service.FileAppService;

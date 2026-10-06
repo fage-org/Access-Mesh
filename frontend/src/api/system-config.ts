@@ -1,7 +1,6 @@
 /**
  * 系统配置 API
- * 经 @/utils/http 调用 Gateway 外部路径 `/api/access/system-config/*`
- *（Gateway StripPrefix=1 后到 access-service `/api/access/system-config`）。
+ * 经 @/utils/http 使用 POST + JSON 调用 /api/access/**；Gateway 外部路径与服务路径一致。
  * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；列表包络复用 role-manage 定义。
  *
@@ -34,7 +33,6 @@ export type SystemConfigResp = {
   /** 是否系统内置（内置行仅走种子，save 拒改 20064；列表据此展示属性标签并隐藏编辑入口） */
   isSystem: boolean;
   updatedAt?: string;
-  createdAt?: string;
 };
 
 /** 系统配置列表查询参数（T-PERM-024 收口：服务端 keyword 过滤 + 分页）。

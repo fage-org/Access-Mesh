@@ -6,7 +6,6 @@
         properties=true 输出 MDC 上下文（traceId/userId/tenantId/serviceCode 由
         应用侧注入），includeStacktrace=true 保留异常堆栈，eventEol 每条一行便于采集。 -->
 <configuration scan="true" scanPeriod="60 seconds">
-    <include resource="org/springframework/boot/logging/log4j2/log4j2-file.xml"/>
 
     <Appenders>
         <Console name="Console" target="SYSTEM_OUT">

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { DEFAULT_PAGE_SIZE, ORG_TYPE } from "@/constants/access";
+
 import { ref, reactive, computed, watch, h } from "vue";
 import { useRouter } from "vue-router";
 import {
@@ -102,7 +104,7 @@ const statusFilter = ref<number>();
 
 // 分页（T-FE-058）：不再固定第一页 100 条——第 101 个岗位须可翻页到
 const positionPage = ref(1);
-const positionPageSize = ref(20);
+const positionPageSize = ref(DEFAULT_PAGE_SIZE);
 const positionTotal = ref(0);
 
 // 用户选择弹窗
@@ -270,7 +272,7 @@ function openCreatePositionDialog() {
         parentOrgId: props.orgId,
         parentOrgName,
         initialData: {
-          orgType: 2,
+          orgType: ORG_TYPE.POSITION,
           status: 1
         }
       }),
@@ -289,7 +291,7 @@ function openCreatePositionDialog() {
         await createOrg({
           orgName: formData.orgName,
           code: formData.code,
-          orgType: 2,
+          orgType: ORG_TYPE.POSITION,
           parentOrgId: formData.parentOrgId,
           status: formData.status,
           sort: formData.sort
@@ -438,7 +440,7 @@ const {
     };
   },
   {
-    pageSize: 20,
+    pageSize: DEFAULT_PAGE_SIZE,
     onError: e => message(toErrorMessage(e, "加载用户失败"), { type: "error" })
   }
 );

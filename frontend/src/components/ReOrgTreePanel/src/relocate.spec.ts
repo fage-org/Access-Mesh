@@ -37,7 +37,10 @@ describe("relocateSelectionAfterReload（评审 P2：刷新后按选中重定位
     ];
     const result = relocateSelectionAfterReload(reloaded, 3);
 
-    expect(result).toEqual({ kind: "keep", node: reloaded[0]!.children![0]!.children![0] });
+    expect(result).toEqual({
+      kind: "keep",
+      node: reloaded[0]!.children![0]!.children![0]
+    });
   });
 
   it("选中节点从新树消失（被删/被过滤/树配置切换裁剪）：clear（消费方走既有清空链路）", () => {

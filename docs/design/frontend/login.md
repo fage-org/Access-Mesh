@@ -3,7 +3,7 @@ doc_type: design
 title: 登录页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-10-04
+last_reviewed: 2026-10-06
 ---
 
 # 登录页 前端设计（T-FE-041 真实登录链路）
@@ -17,7 +17,7 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 3. **验证码输入框（4 位，append 区嵌验证码图片，120×40）**——图片点击即刷新；图片未加载时显示"点击加载"占位
 4. 登录按钮（loading/disabled 防重复提交；Enter/NumpadEnter 防抖触发）
 
-无"记住我"勾选 UI（模板 store 保留 isRemembered 机制，未挂页面控件）；无短信登录/OAuth2 入口。
+无"记住我"勾选 UI（模板 store 保留 isRemembered 机制，未挂页面控件）；无短信登录或外部 OAuth2 登录按钮；第三方应用授权从独立 `/oauth2/authorize` 页发起，必要时复用本登录页后返回确认页。
 
 ## 字段定义
 
@@ -152,3 +152,7 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 
 - `mock/login.ts` 由 `VITE_MOCK_LOGIN`（.env.development，默认 **false**）控制注册；开启时注册 `/api/access/auth/captcha`（SVG 占位图）+ `/api/access/auth/login` + `/api/access/auth/user-menu`，响应壳已对齐 R，前端代码零分支（开关经 wrapperEnv 写回 `process.env` 生效，已端到端验证：后端未启动时三端点全走 mock；关闭时请求穿透 vite 代理）。生产构建 mock 由 `VITE_ENABLE_PROD_MOCK=false` 关闭。mock user-menu 自 T-FE-015 起下发最小菜单树（welcome 纯展示，对齐 bootstrap 种子形态）——侧栏唯一数据源已切本接口 menus 树，空数组（拉取成功形态）渲染为「当前账号无可用菜单」占位（T-FE-049 两态——mock 场景不触发失败态）。
 - 纯静态路由：`initRouter` 不再请求 `/get-async-routes`（`src/api/routes.ts` 已删除），路由注册由 `router/modules/*.ts` 静态维护；**侧栏菜单已切后端派生（T-FE-015 已接线 2026-08-31）**——`initRouter` 将 `/api/access/auth/user-menu` 的 menus 树直接渲染为侧栏（标题/图标/层级来自 sys_menu bootstrap 种子，可见性 = v3.5 §4.1 ∃op 派生），`meta.showLink` 不再控制侧栏；会话恢复 = 已登录 F5/启动重取 user-menu，失败 fail-closed 空菜单，不持久化、不回退全量静态菜单。**会话已终结分支（Q-020 收口，T-FE-054；外评 P2 收口后判据单源）**：`initRouter` 开头经 `isSessionTerminated()`（无凭证 ∨ 本地过期，与请求拦截器短路同源）判会话已终结时统一提示「会话已过期」+ `logOut` 跳登录 + 抛 `SessionExpiredError`（调用方 catch 后跳过按陈旧菜单状态的业务提示）——/menu-retry 重试不再零请求误报「仍无可用菜单，请联系管理员」（含 cookie 过期被清+userKey 残留形态）；本地过期后的 F5 会话恢复同样命中本分支（守卫 `initRouter().then` 已补 catch 留痕）；登录路径刚 setToken 恒不触达。**空侧栏占位项两态（T-FE-049，`resolveSidebarFallback` 按 `menuLoadFailed` 区分）**：拉取失败=「菜单加载失败，点击重试」（既有，跳 `/menu-retry` 重试页）；拉取成功但账号无菜单=「当前账号无可用菜单」——重试对该形态无意义，着陆页（同为 `/menu-retry`，页内自适应）引导联系管理员、保留「重新检查」入口（管理员补配后点击即恢复，无需重登）。
+
+OAuth2 授权续接 query 为 returnTo，仅允许本地 /oauth2/authorize 路径。平台强制改密门禁仍优先，改密成功后再返回确认页；菜单加载失败不把未确认的授权请求自动签码。
+
+登录响应中的 userId/tenantId 随本地会话元数据保存，供授权草稿隔离。当前登录 tenantId 固定字符串 "1"，仍是单租户试运行过渡形态；升级前缺 tenantId 的本地会话仅按固定租户补全草稿键。未来启用租户选择/tenantCode 登录时必须移除这一固定值与补全，并重审登录契约及草稿分区。

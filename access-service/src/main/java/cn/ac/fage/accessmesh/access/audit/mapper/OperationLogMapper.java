@@ -42,7 +42,7 @@ public interface OperationLogMapper extends BaseMapper<OperationLog> {
                                               @Param("until") LocalDateTime until,
                                               @Param("targetType") String targetType,
                                               @Param("offset") int offset,
-                                              @Param("limit") int limit);
+                                              @Param("limit") int limit, @Param("requestId") String requestId);
 
     /**
      * 按条件统计操作日志数量
@@ -62,7 +62,7 @@ public interface OperationLogMapper extends BaseMapper<OperationLog> {
                            @Param("operatorId") Long operatorId,
                            @Param("since") LocalDateTime since,
                            @Param("until") LocalDateTime until,
-                           @Param("targetType") String targetType);
+                           @Param("targetType") String targetType, @Param("requestId") String requestId);
 
     /**
      * 查询操作日志当前实际存在的 action 去重集合（字典接口，T-PERM-025）

@@ -5,7 +5,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.util.PermissionConstants;
 import cn.ac.fage.accessmesh.access.grant.dto.req.ApplyGrantPlanReq;
 import cn.ac.fage.accessmesh.access.grant.dto.req.RolePermissionListReq;
 import cn.ac.fage.accessmesh.access.grant.dto.req.SubPermAllowedTypesReq;
-import cn.ac.fage.accessmesh.access.grant.dto.resp.RolePermissionItemResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.RolePermissionItemResp;
 import cn.ac.fage.accessmesh.access.grant.dto.resp.SubPermAllowedTypesResp;
 import cn.ac.fage.accessmesh.access.role.entity.AbstractRole;
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;

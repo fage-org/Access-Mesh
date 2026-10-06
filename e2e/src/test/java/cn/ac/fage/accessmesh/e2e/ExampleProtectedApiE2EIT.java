@@ -639,8 +639,7 @@ class ExampleProtectedApiE2EIT {
                 + "org.springframework.cloud.gateway.config.GatewayMetricsAutoConfiguration,"
                 + "org.springframework.cloud.gateway.config.GatewayResilience4JCircuitBreakerAutoConfiguration,"
                 + "cn.dev33.satoken.reactor.spring.SaTokenContextRegister",
-            "--perm.gateway.enabled=false",
-            "--perm.client.enabled=false");
+                        "--perm.client.enabled=false");
     }
 
     private static Map<String, String> accessServiceEnv() {

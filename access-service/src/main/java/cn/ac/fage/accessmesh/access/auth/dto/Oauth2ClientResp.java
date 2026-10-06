@@ -89,7 +89,8 @@ public record Oauth2ClientResp(
     /**
      * 更新时间
      */
-    LocalDateTime updatedAt
+    LocalDateTime updatedAt,
+    String clientType
 ) {
     /**
      * 从实体转换为响应DTO（排除clientSecret）
@@ -112,7 +113,8 @@ public record Oauth2ClientResp(
             entity.getRefreshTokenTtl(),
             entity.getStatus(),
             entity.getCreatedAt(),
-            entity.getUpdatedAt()
+            entity.getUpdatedAt(),
+            entity.getClientType()
         );
     }
 }

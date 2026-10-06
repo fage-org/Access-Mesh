@@ -27,5 +27,6 @@ public record OperationLogListReq(
     LocalDateTime until,
     String targetType,
     @NotNull Integer pageNum,
-    @NotNull Integer pageSize
+    @NotNull Integer pageSize,
+    @jakarta.validation.constraints.Size(max = 64) String requestId
 ) {}

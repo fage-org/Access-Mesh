@@ -1,3 +1,4 @@
+import { PERMISSION_CODE } from "@/constants/access";
 /**
  * 「操作日志」页按钮权限码（perm 串）目录 —— 单一事实源 (SSOT)。
  *
@@ -17,7 +18,7 @@
  */
 export const OPERATION_LOG_PERMS = {
   /** 查看操作日志列表 —— 独立 OPERATION_LOG:VIEW（T-PERM-025 审计分离） */
-  LOG_VIEW: "OPERATION_LOG:VIEW"
+  LOG_VIEW: PERMISSION_CODE.OPERATION_LOG_VIEW
 } as const;
 
 export type OperationLogPermKey = keyof typeof OPERATION_LOG_PERMS;

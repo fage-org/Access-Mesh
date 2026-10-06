@@ -1,0 +1,702 @@
+[
+  {
+    "name": "RolePermissionItemResp",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "perm-sdk/perm-common/src/main/java/cn/ac/fage/accessmesh/perm/common/dto/resp/RolePermissionItemResp.java",
+        "name": "RolePermissionItemResp"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/permission-grant.ts",
+        "name": "RolePermissionItem"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "RolePermissionItemResp"
+      }
+    ]
+  },
+  {
+    "name": "TypeDefinitionResp",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/type/dto/resp/TypeDefinitionResp.java",
+        "name": "TypeDefinitionResp"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/type-def.ts",
+        "name": "TypeDefResp"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "TypeDefinitionResp"
+      }
+    ]
+  },
+  {
+    "name": "SystemConfigResp",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/platform/dto/resp/SystemConfigResp.java",
+        "name": "SystemConfigResp"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/system-config.ts",
+        "name": "SystemConfigResp"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "SystemConfigResp"
+      }
+    ]
+  },
+  {
+    "name": "RoleResp",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/role/dto/resp/RoleResp.java",
+        "name": "RoleResp"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/role-manage.ts",
+        "name": "RoleResp"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "RoleResp"
+      }
+    ]
+  },
+  {
+    "name": "ResourceResp",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/resource/dto/resp/ResourceResp.java",
+        "name": "ResourceResp"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/resource-operation.ts",
+        "name": "ResourceResp"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "ResourceResp"
+      }
+    ]
+  },
+  {
+    "name": "OperationPermissionResp",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/type/dto/resp/OperationPermissionResp.java",
+        "name": "OperationPermissionResp"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/resource-operation.ts",
+        "name": "OperationPermissionResp"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "OperationPermissionResp"
+      }
+    ]
+  },
+  {
+    "name": "ConditionResp",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/rule/dto/resp/ConditionResp.java",
+        "name": "ConditionResp"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/permission-condition.ts",
+        "name": "ConditionResp"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "ConditionResp"
+      }
+    ]
+  },
+  {
+    "name": "ConflictRuleResp",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/rule/dto/resp/ConflictRuleResp.java",
+        "name": "ConflictRuleResp"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/conflict-rule.ts",
+        "name": "ConflictRuleResp"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "ConflictRuleResp"
+      }
+    ]
+  },
+  {
+    "name": "BizDomainResp",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/domain/dto/resp/BizDomainResp.java",
+        "name": "BizDomainResp"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/biz-domain.ts",
+        "name": "BizDomainResp"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "BizDomainResp"
+      }
+    ]
+  },
+  {
+    "name": "DomainConfigResp",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/domain/dto/resp/DomainConfigResp.java",
+        "name": "DomainConfigResp"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/domain-config.ts",
+        "name": "DomainConfigResp"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "DomainConfigResp"
+      }
+    ]
+  },
+  {
+    "name": "ServiceConfigResp",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/resource/dto/resp/ServiceConfigResp.java",
+        "name": "ServiceConfigResp"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/service-interface.ts",
+        "name": "ServiceConfigResp"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "ServiceConfigResp"
+      }
+    ]
+  },
+  {
+    "name": "OperationLogResp",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/audit/dto/resp/OperationLogResp.java",
+        "name": "OperationLogResp"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/operation-log.ts",
+        "name": "OperationLogResp"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "OperationLogResp"
+      }
+    ]
+  },
+  {
+    "name": "ChangeLogResp",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/audit/dto/resp/ChangeLogResp.java",
+        "name": "ChangeLogResp"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/permission-change-log.ts",
+        "name": "ChangeLogResp"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "ChangeLogResp"
+      }
+    ]
+  },
+  {
+    "name": "TypeCreateReq",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/type/dto/req/TypeCreateReq.java",
+        "name": "TypeCreateReq"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/type-def.ts",
+        "name": "TypeDefCreateReq"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "TypeCreateReq"
+      }
+    ]
+  },
+  {
+    "name": "TypeUpdateReq",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/type/dto/req/TypeUpdateReq.java",
+        "name": "TypeUpdateReq"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/type-def.ts",
+        "name": "TypeDefUpdateReq"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "TypeUpdateReq"
+      }
+    ]
+  },
+  {
+    "name": "RoleCreateReq",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "perm-sdk/perm-common/src/main/java/cn/ac/fage/accessmesh/perm/common/dto/req/RoleCreateReq.java",
+        "name": "RoleCreateReq"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/role-manage.ts",
+        "name": "RoleCreateReq"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "RoleCreateReq"
+      }
+    ]
+  },
+  {
+    "name": "RoleUpdateReq",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/role/dto/req/RoleUpdateReq.java",
+        "name": "RoleUpdateReq"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/role-manage.ts",
+        "name": "RoleUpdateReq"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "RoleUpdateReq"
+      }
+    ]
+  },
+  {
+    "name": "ResourceCreateReq",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "perm-sdk/perm-common/src/main/java/cn/ac/fage/accessmesh/perm/common/dto/req/ResourceCreateReq.java",
+        "name": "ResourceCreateReq"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/resource-operation.ts",
+        "name": "ResourceCreateReq"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "ResourceCreateReq"
+      }
+    ]
+  },
+  {
+    "name": "ResourceUpdateReq",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "perm-sdk/perm-common/src/main/java/cn/ac/fage/accessmesh/perm/common/dto/req/ResourceUpdateReq.java",
+        "name": "ResourceUpdateReq"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/resource-operation.ts",
+        "name": "ResourceUpdateReq"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "ResourceUpdateReq"
+      }
+    ]
+  },
+  {
+    "name": "ConditionCreateReq",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/rule/dto/req/ConditionCreateReq.java",
+        "name": "ConditionCreateReq"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/permission-condition.ts",
+        "name": "ConditionCreateReq"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "ConditionCreateReq"
+      }
+    ]
+  },
+  {
+    "name": "ConditionUpdateReq",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/rule/dto/req/ConditionUpdateReq.java",
+        "name": "ConditionUpdateReq"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/permission-condition.ts",
+        "name": "ConditionUpdateReq"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "ConditionUpdateReq"
+      }
+    ]
+  },
+  {
+    "name": "DomainConfigReq",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/domain/dto/req/DomainConfigReq.java",
+        "name": "DomainConfigReq"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/domain-config.ts",
+        "name": "DomainConfigSaveReq"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "DomainConfigReq"
+      }
+    ]
+  },
+  {
+    "name": "SystemConfigReq",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/platform/dto/req/SystemConfigReq.java",
+        "name": "SystemConfigReq"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/system-config.ts",
+        "name": "SystemConfigSaveReq"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "SystemConfigReq"
+      }
+    ]
+  },
+  {
+    "name": "OperationLogListReq",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/audit/dto/req/OperationLogListReq.java",
+        "name": "OperationLogListReq"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/operation-log.ts",
+        "name": "OperationLogListReq"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "OperationLogListReq"
+      }
+    ]
+  },
+  {
+    "name": "AuthCheckResp",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/engine/dto/AuthCheckResp.java",
+        "name": "AuthCheckResp"
+      },
+      {
+        "kind": "java",
+        "file": "perm-sdk/perm-common/src/main/java/cn/ac/fage/accessmesh/perm/common/dto/resp/AuthCheckResp.java",
+        "name": "AuthCheckResp"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "AuthCheckResp"
+      }
+    ]
+  },
+  {
+    "name": "BatchAuthCheckResp",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/engine/dto/BatchAuthCheckResp.java",
+        "name": "BatchAuthCheckResp"
+      },
+      {
+        "kind": "java",
+        "file": "perm-sdk/perm-common/src/main/java/cn/ac/fage/accessmesh/perm/common/dto/resp/BatchAuthCheckResp.java",
+        "name": "BatchAuthCheckResp"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "BatchAuthCheckResp"
+      }
+    ]
+  },
+  {
+    "name": "AuthorizeReq",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/auth/dto/AuthorizeReq.java",
+        "name": "AuthorizeReq"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/oauth-consent.ts",
+        "name": "OAuthAuthorizeReq"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "AuthorizeReq"
+      }
+    ]
+  },
+  {
+    "name": "AuthorizationPreviewResp",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/auth/dto/AuthorizationPreviewResp.java",
+        "name": "AuthorizationPreviewResp"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/oauth-consent.ts",
+        "name": "AuthorizationPreview"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "AuthorizationPreviewResp"
+      }
+    ]
+  },
+  {
+    "name": "ServiceCredentialResp",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/credential/dto/resp/ServiceCredentialResp.java",
+        "name": "ServiceCredentialResp"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/service-credential.ts",
+        "name": "ServiceCredential"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "ServiceCredentialResp"
+      }
+    ]
+  },
+  {
+    "name": "ServiceCredentialCreateResp",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/credential/dto/resp/ServiceCredentialCreateResp.java",
+        "name": "ServiceCredentialCreateResp"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/service-credential.ts",
+        "name": "IssuedCredential"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "ServiceCredentialCreateResp"
+      }
+    ]
+  },
+  {
+    "name": "ServiceCredentialCreateReq",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/credential/dto/req/ServiceCredentialCreateReq.java",
+        "name": "ServiceCredentialCreateReq"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/service-credential.ts",
+        "name": "ServiceCredentialCreateReq"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "ServiceCredentialCreateReq"
+      }
+    ]
+  },
+  {
+    "name": "ServiceCredentialUpdateReq",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/credential/dto/req/ServiceCredentialUpdateReq.java",
+        "name": "ServiceCredentialUpdateReq"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/service-credential.ts",
+        "name": "ServiceCredentialUpdateReq"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "ServiceCredentialUpdateReq"
+      }
+    ]
+  },
+  {
+    "name": "LoginLogResp",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/audit/dto/resp/LoginLogResp.java",
+        "name": "LoginLogResp"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/login-log.ts",
+        "name": "LoginLog"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "LoginLogResp"
+      }
+    ]
+  },
+  {
+    "name": "SyncStatusResp",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/sync/dto/SyncStatusResp.java",
+        "name": "SyncStatusResp"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/sync-status.ts",
+        "name": "SyncStatus"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "SyncStatusResp"
+      }
+    ]
+  },
+  {
+    "name": "SyncStatusListReq",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/sync/dto/SyncStatusListReq.java",
+        "name": "SyncStatusListReq"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/sync-status.ts",
+        "name": "SyncStatusQuery"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "SyncStatusListReq"
+      }
+    ]
+  }
+]

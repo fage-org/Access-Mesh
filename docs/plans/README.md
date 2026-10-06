@@ -6,7 +6,7 @@
 
 | 文档 | 类型 | 状态 | 说明 |
 |------|------|------|------|
-| [usage-review-remediation-plan](usage-review-remediation-plan.md) | 使用者视角评审问题修复 | active | 2026-10-05 立项：86 条评审核实问题 → 24 任务（T-ACCESS-082~090 / T-PERM-106~108 / T-FE-064~066 / T-API-007~013 / T-GW-011~012）；D1~D18 方向分叉已全部用户拍板（结论在各任务卡）；波次编排与固定图加行前置约束见计划；延后项登记 [Q-059~Q-063](../pending-problems.md) |
+| [usage-review-remediation-plan](../archive/2026-10-06/usage-review-remediation-plan.md) | 使用者视角评审问题修复 | archived | 2026-10-06：24 项任务全部 done；任务卡与证据随批归档，现行契约已回写；历史删除项按用户决定排除 |
 
 ## 已归档计划
 

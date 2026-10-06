@@ -284,6 +284,22 @@ const columns = [
             :model="searchForm"
             class="search-form-inline"
           >
+            <el-form-item label="用户名" class="mb-0!">
+              <el-input
+                v-model="searchForm.username"
+                placeholder="请输入用户名"
+                clearable
+                @keyup.enter="onSearch"
+              />
+            </el-form-item>
+            <el-form-item label="手机号" class="mb-0!">
+              <el-input
+                v-model="searchForm.phone"
+                placeholder="请输入手机号"
+                clearable
+                @keyup.enter="onSearch"
+              />
+            </el-form-item>
             <el-form-item label="姓名" class="mb-0!">
               <el-input
                 v-model="searchForm.name"

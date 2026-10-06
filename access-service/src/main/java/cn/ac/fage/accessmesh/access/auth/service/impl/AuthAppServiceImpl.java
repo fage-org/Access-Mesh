@@ -3,7 +3,6 @@ package cn.ac.fage.accessmesh.access.auth.service.impl;
 import cn.ac.fage.accessmesh.access.auth.dto.CaptchaResp;
 import cn.ac.fage.accessmesh.access.auth.dto.LoginReq;
 import cn.ac.fage.accessmesh.access.auth.dto.LoginResp;
-import cn.ac.fage.accessmesh.access.auth.dto.SmsLoginReq;
 import cn.ac.fage.accessmesh.access.auth.dto.UserInfoResp;
 import cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionOwner;
 import cn.ac.fage.accessmesh.access.menu.dto.resp.UserMenuResp;
@@ -63,13 +62,11 @@ public class AuthAppServiceImpl implements AuthAppService {
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final String CAPTCHA_KEY_PREFIX = "captcha:";
     private static final String LOGIN_FAIL_PREFIX = "login:fail:";
-    private static final String SMS_CODE_PREFIX = "sms:code:";
     private static final int MAX_LOGIN_FAIL_COUNT = 5;
     private static final long LOCK_DURATION_MINUTES = 30;
 
     /** 登录方式（对齐 sys_login_log.login_type 列注释：PASSWORD/SMS/OAUTH2） */
     private static final String LOGIN_TYPE_PASSWORD = "PASSWORD";
-    private static final String LOGIN_TYPE_SMS = "SMS";
 
     /**
      * Lua脚本：INCR + EXPIRE 合并为原子操作
@@ -178,33 +175,34 @@ public class AuthAppServiceImpl implements AuthAppService {
      */
     @Override
     public LoginResp login(LoginReq req) {
-        validateCaptcha(req.captchaId(), req.captchaCode());
-        validateClient(req.clientId());
-
         Long tenantId = Long.parseLong(req.tenantId());
-        SysUser user = userDomainService.findByUsername(tenantId, req.username());
-        if (user == null) {
+        try {
+            validateCaptcha(req.captchaId(), req.captchaCode());
+        } catch (BizException e) {
             recordLoginFail(tenantId, req.username());
-            safeRecordLoginLog(tenantId, null, req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 0, "用户不存在");
-            throw new BizException(AccessErrorCode.ADMIN_USER_NOT_FOUND.getCode(), AccessErrorCode.ADMIN_USER_NOT_FOUND.getMessage());
+            safeRecordLoginLog(tenantId, null, req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 0, "验证码错误");
+            throw e;
         }
+        validateClient(req.clientId());
+        SysUser user = userDomainService.findByUsername(tenantId, req.username());
         // 停用检查用 status != 1 fail-closed：仅 0/1 收口后任何未定义值
         // 都不应进入会话（与投影 isEnabled(status)==1 对齐，防止认证放行+主体停用分裂）
-        if (user.getStatus() == null || user.getStatus() != 1) {
+        if (user != null && (user.getStatus() == null || user.getStatus() != 1)) {
             safeRecordLoginLog(tenantId, user.getId(), req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 0, "用户已停用");
             throw new BizException(AccessErrorCode.USER_DISABLED.getCode(), AccessErrorCode.USER_DISABLED.getMessage());
         }
         if (isAccountLocked(tenantId, req.username())) {
             // T-ADMIN-022：计数键即锁（临时，键过期自动恢复），拒绝时补记登录日志留审计痕迹；
             // 停用（管理员事实）优先于临时锁定提示，避免重叠时误导「30分钟后重试」
-            safeRecordLoginLog(tenantId, user.getId(), req.username(),
+            safeRecordLoginLog(tenantId, user == null ? null : user.getId(), req.username(),
                 LOGIN_TYPE_PASSWORD, req.clientId(), 0, "登录失败次数过多，账号临时锁定");
             throw new BizException(AccessErrorCode.USER_LOCKED.getCode(),
                 "登录失败次数过多，账号已临时锁定，请" + LOCK_DURATION_MINUTES + "分钟后重试");
         }
-        if (user.getPassword() == null || !BCrypt.checkpw(req.password(), user.getPassword())) {
+        if (user == null || user.getPassword() == null || !BCrypt.checkpw(req.password(), user.getPassword())) {
             recordLoginFail(tenantId, req.username());
-            safeRecordLoginLog(tenantId, user.getId(), req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 0, "密码错误");
+            safeRecordLoginLog(tenantId, user == null ? null : user.getId(), req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 0,
+                user == null ? "用户不存在" : "密码错误");
             throw new BizException(AccessErrorCode.PASSWORD_INCORRECT.getCode(), AccessErrorCode.PASSWORD_INCORRECT.getMessage());
         }
 
@@ -254,58 +252,6 @@ public class AuthAppServiceImpl implements AuthAppService {
             log.warn("记录登录日志失败（已隔离，不影响登录流程）: tenantId={}, username={}, status={}, error={}",
                 tenantId, username, status, e.getMessage());
         }
-    }
-
-    /**
-     * 用户短信验证码登录
-     * <p>
-     * 通过手机号和短信验证码登录，无需密码。
-     * 验证短信验证码后查询用户，创建Sa-Token会话。
-     * </p>
-     *
-     * @param req 短信登录请求，包含租户ID、手机号、短信验证码等
-     * @return 登录响应，包含令牌、用户信息等
-     * @throws BizException 短信验证码错误、用户不存在、用户已停用等
-     */
-    @Override
-    public LoginResp smsLogin(SmsLoginReq req) {
-        validateClient(req.clientId());
-        Long tenantId = Long.parseLong(req.tenantId());
-
-        validateSmsCode(req.phone(), req.smsCode());
-
-        SysUser user = userDomainService.findByPhone(tenantId, req.phone());
-        if (user == null) {
-            // 手机号为 PII：登录失败不落完整明文，仅存掩码（避免 sys_login_log.username 明文泄漏）
-            safeRecordLoginLog(tenantId, null, maskPhone(req.phone()), LOGIN_TYPE_SMS, req.clientId(), 0, "用户不存在");
-            throw new BizException(AccessErrorCode.ADMIN_USER_NOT_FOUND.getCode(), AccessErrorCode.ADMIN_USER_NOT_FOUND.getMessage());
-        }
-        if (user.getStatus() == null || user.getStatus() != 1) {
-            safeRecordLoginLog(tenantId, user.getId(), user.getUsername(), LOGIN_TYPE_SMS, req.clientId(), 0, "用户已停用");
-            throw new BizException(AccessErrorCode.USER_DISABLED.getCode(), AccessErrorCode.USER_DISABLED.getMessage());
-        }
-
-        StpUtil.login(user.getId());
-        // FIX #1: Store tenantId in session for security validation (sms login)
-        SaSession session = StpUtil.getSession();
-        session.set("tenantId", user.getTenantId());
-        session.set("subjectTypeCode", LocalProjectionOwner.SUBJECT_LOCAL_USER);
-        // 操作者名称供 @OperationLog AOP 会话回填（未登录/无会话调用为 null）
-        session.set("operatorName", user.getUsername());
-        String token = StpUtil.getTokenValue();
-
-        safeRecordLoginLog(tenantId, user.getId(), user.getUsername(), LOGIN_TYPE_SMS, req.clientId(), 1, null);
-
-        return new LoginResp(
-            token,
-            null,
-            expiresInSeconds(),
-            "Bearer",
-            user.getId(),
-            user.getUsername(),
-            user.getTenantId(),
-            user.getForceResetPwd() != null && user.getForceResetPwd()
-        );
     }
 
     /**
@@ -490,51 +436,6 @@ public class AuthAppServiceImpl implements AuthAppService {
     private void clearLoginFail(Long tenantId, String username) {
         String key = LOGIN_FAIL_PREFIX + tenantId + ":" + username;
         redisTemplate.delete(key);
-    }
-
-    /**
-     * 验证短信验证码
-     * <p>
-     * 使用Lua脚本原子性地获取并删除短信验证码，确保一次性使用。
-     * </p>
-     *
-     * @param phone 手机号
-     * @param smsCode 短信验证码
-     * @throws BizException 短信验证码参数缺失、错误或已过期
-     */
-    /**
-     * 手机号掩码：保留前 3 位与后 4 位，中间替换为 {@code ****}（11 位标准手机号）。
-     * <p>
-     * 用于短信登录失败等场景的日志记录——手机号为 PII，避免完整明文写入
-     * sys_login_log.username。超短或不规范输入原样返回，宁可不掩码
-     * 也不抛错阻断登录流程。
-     * </p>
-     *
-     * @param phone 手机号
-     * @return 掩码后的手机号；null 返回 null
-     */
-    private static String maskPhone(String phone) {
-        if (phone == null || phone.length() <= 7) {
-            return phone;
-        }
-        return phone.substring(0, 3) + "****" + phone.substring(phone.length() - 4);
-    }
-
-    private void validateSmsCode(String phone, String smsCode) {
-        if (phone == null || smsCode == null) {
-            throw new BizException(AccessErrorCode.CAPTCHA_INCORRECT.getCode(), "短信验证码参数缺失");
-        }
-
-        String key = SMS_CODE_PREFIX + phone;
-        // 使用 Lua 脚本原子性地获取并删除短信验证码，确保一次性使用
-        String stored = redisTemplate.execute(
-            new DefaultRedisScript<>(LUA_GET_AND_DELETE, String.class),
-            Collections.singletonList(key)
-        );
-
-        if (stored == null || !stored.equals(smsCode)) {
-            throw new BizException(AccessErrorCode.CAPTCHA_INCORRECT.getCode(), "短信验证码错误或已过期");
-        }
     }
 
     /**

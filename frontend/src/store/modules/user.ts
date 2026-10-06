@@ -118,6 +118,7 @@ export const useUserStore = defineStore("pure-user", {
       storageLocal().setItem(userKey, {
         ...stored,
         userId: loginData.userId,
+        tenantId: loginData.tenantId,
         forceResetPwd: loginData.forceResetPwd ?? false
       });
       try {

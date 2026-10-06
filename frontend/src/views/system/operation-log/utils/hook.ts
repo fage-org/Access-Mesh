@@ -39,6 +39,7 @@ export function useOperationLog() {
     errorText: "加载操作日志失败",
     fetcher: (page, size) =>
       getOperationLogList({
+        requestId: searchForm.requestId?.trim() || undefined,
         module: searchForm.module || undefined,
         action: searchForm.action || undefined,
         operatorId: searchForm.operatorId ?? undefined,
@@ -68,6 +69,7 @@ export function useOperationLog() {
   }
 
   function onReset() {
+    searchForm.requestId = null;
     searchForm.module = null;
     searchForm.action = null;
     searchForm.operatorId = null;

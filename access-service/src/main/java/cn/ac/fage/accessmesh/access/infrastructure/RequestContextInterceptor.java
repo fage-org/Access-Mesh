@@ -454,6 +454,12 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
             return false;
         }
 
+        if (!OAuth2JwtSupport.isCurrentCredential(user.getPassword(), payloads)) {
+            logSecurity(request, "oauth2 credential generation invalid or chain expired");
+            writeJson(response, HttpServletResponse.SC_UNAUTHORIZED, "认证失败");
+            return false;
+        }
+
         AccessRequestContext.bind(
             RequestContext.delegatedUser(tenantId, operatorId, clientId).withRequestId(requestId));
         setMdc(requestId, String.valueOf(operatorId),
@@ -467,7 +473,7 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
      */
     private static boolean isPublicAuthEndpoint(String uri) {
         return uri.equals("/api/access/auth/captcha")
-            || uri.equals("/api/access/auth/login") || uri.equals("/api/access/auth/login/sms")
+            || uri.equals("/api/access/auth/login")
             || uri.equals("/api/access/auth/oauth2/token")
             || uri.equals("/api/access/auth/oauth2/refresh")
             || uri.equals("/api/access/auth/oauth2/revoke")

@@ -15,13 +15,13 @@ import jakarta.validation.constraints.NotNull;
  *
  * @param targetOrgId 目标组织/岗位 ID（必填，用户即将被加入的组织）
  * @param pageNum     页码（默认 1）
- * @param pageSize    每页大小（默认 20，范围 1-100）
+ * @param pageSize    每页大小（默认 20，范围 1-200）
  * @param keyword     关键字（按 username/name/phone/email 模糊匹配）
  */
 public record MemberCandidatesReq(
     @NotNull Long targetOrgId,
     @Min(1) Integer pageNum,
-    @Min(1) @Max(100) Integer pageSize,
+    @Min(1) @Max(200) Integer pageSize,
     String keyword
 ) {
     public int getPageNum() { return pageNum != null ? pageNum : 1; }

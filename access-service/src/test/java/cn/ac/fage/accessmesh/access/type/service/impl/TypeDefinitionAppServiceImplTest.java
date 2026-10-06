@@ -431,6 +431,21 @@ class TypeDefinitionAppServiceImplTest {
     }
 
     @Test
+    void trailingJsonRejectedByRealSaveEndpointAsBusinessParameterError() throws Exception {
+        when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any())).thenReturn(true);
+        var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(
+            new cn.ac.fage.accessmesh.access.type.controller.TypeDefinitionController(service))
+            .setControllerAdvice(new cn.ac.fage.accessmesh.common.exception.GlobalExceptionHandler()).build();
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .post("/api/access/type-definition/create")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .content("{\"typeKey\":\"group_type\",\"typeCode\":\"CUSTOM\",\"name\":\"Custom\",\"extra\":\"{} {}\"}"))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.code").value(20044));
+        verify(typeDefinitionMapper, never()).insert(any(TypeDefinition.class));
+    }
+
+    @Test
     void shouldRejectDeclarationOnNonResourceTypeKey() {
         when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any())).thenReturn(true);
 

@@ -3,7 +3,7 @@ doc_type: design
 title: access-service 能力包结构与两域融合
 status: adopted
 domain: cross-service
-last_reviewed: 2026-09-28（T-ACCESS-062 退役清扫：engine 归位表 check-interface/interface-snapshot/SnapshotAssembler/CheckInterfaceResp 标注删除）；此前 2026-09-26
+last_reviewed: 2026-10-06（T-ACCESS-062 退役清扫：engine 归位表 check-interface/interface-snapshot/SnapshotAssembler/CheckInterfaceResp 标注删除）；此前 2026-09-26
 ---
 
 # access-service 能力包结构与两域融合
@@ -346,7 +346,7 @@ Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{
 | 源 | 目标 | 说明 |
 |---|---|---|
 | admin.controller：AdminAuthController（/auth/**）、OAuth2Controller、Oauth2ClientController | auth.controller | |
-| admin.dto.auth：CaptchaResp、LoginReq、LoginResp、SmsLoginReq、UserInfoResp、UserMenuResp→menu；admin.dto.oauth2：AuthorizeReq、AuthorizeResp、TokenReq、TokenResp、OAuth2UserInfoResp | auth.dto | UserInfoResp 主入口在 auth（/auth/userinfo），menu/role 查询跨包复用 |
+| admin.dto.auth：CaptchaResp、LoginReq、LoginResp、UserInfoResp、UserMenuResp→menu；admin.dto.oauth2：AuthorizeReq、AuthorizeResp、TokenReq、TokenResp、OAuth2UserInfoResp | auth.dto | UserInfoResp 主入口在 auth（/auth/userinfo），menu/role 查询跨包复用 |
 | admin.dto.req：Oauth2ClientCreateReq、Oauth2ClientPageReq、Oauth2ClientUpdateReq；resp：Oauth2ClientResp | auth.dto | |
 | admin.service：AuthService→**AuthAppService**、OAuth2Service→**OAuth2AppService**、Oauth2ClientService→**Oauth2ClientAppService**（各含 Impl） | auth.service | 改名（§2.5） |
 | admin.service.domain.OAuth2ClientDomainService/Impl | auth.service.domain | |

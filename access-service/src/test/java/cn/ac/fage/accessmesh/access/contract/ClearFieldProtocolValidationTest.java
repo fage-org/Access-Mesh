@@ -234,17 +234,14 @@ class ClearFieldProtocolValidationTest {
                 cn.ac.fage.accessmesh.access.type.dto.req.TypeCreateReq.class, "extra",
                 "{\"typeKey\":\"REPORT\",\"name\":\"报表\"}"),
             org.junit.jupiter.params.provider.Arguments.of(
-                cn.ac.fage.accessmesh.access.auth.dto.Oauth2ClientCreateReq.class, "grantTypes",
-                "{\"clientId\":\"client-a\",\"clientSecret\":\"secret-a\",\"clientName\":\"客户端A\"}"),
-            org.junit.jupiter.params.provider.Arguments.of(
                 cn.ac.fage.accessmesh.access.auth.dto.Oauth2ClientCreateReq.class, "redirectUris",
-                "{\"clientId\":\"client-a\",\"clientSecret\":\"secret-a\",\"clientName\":\"客户端A\"}"),
+                "{\"clientId\":\"client-a\",\"clientSecret\":\"secret-a\",\"clientName\":\"客户端A\",\"grantTypes\":\"authorization_code\"}"),
             org.junit.jupiter.params.provider.Arguments.of(
                 cn.ac.fage.accessmesh.access.auth.dto.Oauth2ClientCreateReq.class, "scopes",
-                "{\"clientId\":\"client-a\",\"clientSecret\":\"secret-a\",\"clientName\":\"客户端A\"}"),
+                "{\"clientId\":\"client-a\",\"clientSecret\":\"secret-a\",\"clientName\":\"客户端A\",\"grantTypes\":\"authorization_code\"}"),
             org.junit.jupiter.params.provider.Arguments.of(
                 cn.ac.fage.accessmesh.access.auth.dto.Oauth2ClientCreateReq.class, "audiences",
-                "{\"clientId\":\"client-a\",\"clientSecret\":\"secret-a\",\"clientName\":\"客户端A\"}"),
+                "{\"clientId\":\"client-a\",\"clientSecret\":\"secret-a\",\"clientName\":\"客户端A\",\"grantTypes\":\"authorization_code\"}"),
             org.junit.jupiter.params.provider.Arguments.of(
                 cn.ac.fage.accessmesh.access.user.dto.req.AbstractUserCreateReq.class, "extra",
                 "{\"subjectTypeCode\":\"LOCAL_USER\",\"externalId\":\"ext-01\"}"),
@@ -275,4 +272,17 @@ class ClearFieldProtocolValidationTest {
         json.remove(field);
         assertTrue(validator.validate(mapper.treeToValue(json, dto)).isEmpty(), "缺省不传保持合法");
     }
+    @Test
+    void oauthGrantTypesIsRequiredAtCreation() throws Exception {
+        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        var json = mapper.createObjectNode().put("clientId", "client-a")
+            .put("clientSecret", "secret-a").put("clientName", "client-a");
+        var type = cn.ac.fage.accessmesh.access.auth.dto.Oauth2ClientCreateReq.class;
+        assertFalse(validator.validate(mapper.treeToValue(json, type)).isEmpty());
+        json.put("grantTypes", "authorization_code");
+        assertTrue(validator.validate(mapper.treeToValue(json, type)).isEmpty());
+        json.put("grantTypes", " ");
+        assertFalse(validator.validate(mapper.treeToValue(json, type)).isEmpty());
+    }
+
 }

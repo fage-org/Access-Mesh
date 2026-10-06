@@ -4,7 +4,6 @@ import cn.ac.fage.accessmesh.access.auth.dto.UserInfoResp;
 import cn.ac.fage.accessmesh.access.infrastructure.dto.IdsReq;
 import cn.ac.fage.accessmesh.access.user.dto.req.MemberCandidatesReq;
 import cn.ac.fage.accessmesh.access.user.dto.req.ResetPasswordReq;
-import cn.ac.fage.accessmesh.access.user.dto.req.UserBatchCreateReq;
 import cn.ac.fage.accessmesh.access.user.dto.req.UserCreateReq;
 import cn.ac.fage.accessmesh.access.user.dto.req.UserPageReq;
 import cn.ac.fage.accessmesh.access.user.dto.req.UserUpdateReq;

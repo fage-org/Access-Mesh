@@ -7,6 +7,9 @@ import cn.ac.fage.accessmesh.example.report.ReportStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import java.util.Set;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -16,6 +19,8 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -35,10 +40,11 @@ class ReportControllerValidationTest {
 
     private final BusinessPermChecker permChecker = mock(BusinessPermChecker.class);
     private MockMvc mockMvc;
+    private final ReportStore reportStore = new ReportStore();
 
     @BeforeEach
     void setUp() {
-        ReportController controller = new ReportController(permChecker, new ReportStore(),
+        ReportController controller = new ReportController(permChecker, reportStore,
             new ExportJobRunner(permChecker, new ReportStore(), 10));
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
             .setControllerAdvice(new GlobalExceptionHandler())
@@ -87,4 +93,40 @@ class ReportControllerValidationTest {
         verify(permChecker, never()).batchCheck(anyString(), anyString(), any(), anyString(),
             any(), anyString());
     }
+    @Test
+    void listUsesSharedPaginationAndReportsRemainingRows() throws Exception {
+        for (int i = 0; i < 196; i++) reportStore.create(TENANT, "report " + i);
+        when(permChecker.accessibleScope(TENANT, USER, null, "EXAMPLE", "VIEW"))
+            .thenReturn(new BusinessPermChecker.Scope(true, Set.of()));
+        mockMvc.perform(post("/api/example/report/list")
+                .header("X-User-Id", USER).header("X-Tenant-Id", TENANT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"pageNum\":1,\"pageSize\":200}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.items.length()").value(200))
+            .andExpect(jsonPath("$.data.total").value(201))
+            .andExpect(jsonPath("$.data.pageNum").value(1))
+            .andExpect(jsonPath("$.data.pageSize").value(200))
+            .andExpect(jsonPath("$.data.hasNext").value(true))
+            .andExpect(jsonPath("$.data.page").doesNotExist())
+            .andExpect(jsonPath("$.data.size").doesNotExist());
+        mockMvc.perform(post("/api/example/report/list")
+                .header("X-User-Id", USER).header("X-Tenant-Id", TENANT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"pageNum\":2147483647,\"pageSize\":200}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.items.length()").value(0))
+            .andExpect(jsonPath("$.data.hasNext").value(false));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{\"pageSize\":201}", "{\"pageSize\":0}", "{\"pageNum\":0}"})
+    void invalidPaginationIsRejectedBeforePermissionQuery(String body) throws Exception {
+        mockMvc.perform(post("/api/example/report/list")
+                .header("X-User-Id", USER).header("X-Tenant-Id", TENANT)
+                .contentType(MediaType.APPLICATION_JSON).content(body))
+            .andExpect(status().isBadRequest());
+        verifyNoInteractions(permChecker);
+    }
+
 }

@@ -447,6 +447,30 @@ class BasicRoleGrantVerticalSliceE2EIT {
         assertThat(denied).as("撤权后 30 秒内必须恢复 403（最后错误：" + lastError + "）").isEqualTo(403);
     }
 
+    @Test
+    @Order(9)
+    @DisplayName("管理界面三入口经 Gateway 可用：凭证签发/停用/删除、登录日志、同步状态")
+    void managementPagesUseGatewayRoutes() {
+        JsonNode menus = postForData(gateway() + "/api/access/auth/user-menu", adminToken, JSON.createObjectNode());
+        assertThat(menus.toString()).contains("/system/service-credential", "/system/login-log", "/system/sync-status");
+        postForData(gateway() + "/api/access/service-config/save", adminToken,
+            JSON.createObjectNode().put("serviceCode", "e2e-credential-service").put("name", "凭证测试服务").put("status", 1));
+        JsonNode issued = postForData(gateway() + "/api/access/service-credential/create", adminToken,
+            JSON.createObjectNode().put("serviceCode", "e2e-credential-service"));
+        assertThat(issued.path("secret").asText()).startsWith("sk-");
+        long id = issued.path("id").asLong();
+        JsonNode listed = postForData(gateway() + "/api/access/service-credential/list", adminToken,
+            JSON.createObjectNode().put("serviceCode", "e2e-credential-service"));
+        assertThat(listed.toString()).doesNotContain(issued.path("secret").asText(), "secretHash");
+        postForData(gateway() + "/api/access/service-credential/update", adminToken,
+            JSON.createObjectNode().put("id", id).put("status", 0));
+        postForData(gateway() + "/api/access/service-credential/remove", adminToken, JSON.createObjectNode().put("id", id));
+        assertThat(postForData(gateway() + "/api/access/login-log/page", adminToken,
+            JSON.createObjectNode().put("pageNum", 1).put("pageSize", 20)).path("total").asLong()).isPositive();
+        assertThat(postForData(gateway() + "/api/access/sync-status/list", adminToken,
+            JSON.createObjectNode().put("pageNum", 1).put("pageSize", 20)).path("items").isArray()).isTrue();
+    }
+
     // ------------------------------------------------------------------
     // 子进程服务管理
     // ------------------------------------------------------------------
@@ -489,8 +513,6 @@ class BasicRoleGrantVerticalSliceE2EIT {
                 // 共享类路径同时有 reactor 版 sa-token starter（网关用）：其注册器同样无条件生效，
                 // servlet 侧会出现两个 SaTokenContext Bean（注入歧义启动失败），排除 reactor 版
                 + "cn.dev33.satoken.reactor.spring.SaTokenContextRegister",
-            // 共享类路径带入了 perm-gateway starter（网关鉴权插件），非网关侧关闭
-            "--perm.gateway.enabled=false",
             "--perm.client.enabled=false");
     }
 

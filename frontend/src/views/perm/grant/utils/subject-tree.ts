@@ -1,3 +1,4 @@
+import { ORG_TYPE } from "@/constants/access";
 /**
  * 主体树构造纯函数（评审问题 5：递归保留真实 children）。
  *
@@ -55,7 +56,7 @@ export function filterVisibleTree(nodes: RoleTreeNode[]): SubjectTreeNode[] {
 export function buildOrgSubjectTree(nodes: OrgTreeNode[]): SubjectTreeNode[] {
   return nodes.map(node => {
     const kind: SubjectTreeNode["kind"] =
-      node.orgType === 2 ? "POSITION" : "ORG";
+      node.orgType === ORG_TYPE.POSITION ? "POSITION" : "ORG";
     return {
       key: `org:${node.id}`,
       kind,

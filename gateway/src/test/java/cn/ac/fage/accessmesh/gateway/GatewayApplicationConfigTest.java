@@ -220,7 +220,7 @@ class GatewayApplicationConfigTest {
         // 密钥豁免同源
         var wl = props.getWhitelist().getPaths();
         for (String p : java.util.List.of("/api/access/auth/captcha", "/api/access/auth/login",
-                "/api/access/auth/login/sms", "/api/access/auth/logout", "/api/access/auth/userinfo",
+                "/api/access/auth/logout", "/api/access/auth/userinfo",
                 "/api/access/auth/user-menu", "/api/access/auth/oauth2/**",
                 // T-GW-009：自助改密通道（forceResetPwd 阻断人群经 Gateway 必达，回归锁=本断言在
                 // 未纳入白名单的旧实现下失败；服务层 Sa-Token 登录校验兜底不变）
@@ -249,6 +249,10 @@ class GatewayApplicationConfigTest {
         // T-GW-009（claude 外评处置补强）：Java 默认清单（yml 键丢失/Nacos 空覆盖时的兜底回退位）
         // 与 yml 同源同步——删除默认条目时本断言红，防三载体（yml/默认值/密钥豁免）漂移回归
         var defaults = new GatewayProperties().getWhitelist().getPaths();
+        org.assertj.core.api.Assertions.assertThat(wl).doesNotContain("/public/**", "/captcha/**");
+        org.assertj.core.api.Assertions.assertThat(defaults).doesNotContain("/public/**", "/captcha/**");
+        org.assertj.core.api.Assertions.assertThat(applicationContext.getEnvironment()
+            .containsProperty("gateway.permission.unregistered-policy")).isFalse();
         assertTrue(defaults.contains("/api/access/user/reset-password"),
             "GatewayProperties.Whitelist.paths 默认值必须包含 /api/access/user/reset-password（与 yml 同源），实际 " + defaults);
         assertTrue(defaults.contains("/api/access/notice/my-notices") && defaults.contains("/api/access/notice/read"),

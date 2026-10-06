@@ -1,3 +1,4 @@
+import { oauthReturnTarget } from "@/views/oauth-consent/flow";
 // import "@/utils/sso";
 import Cookies from "js-cookie";
 import { getConfig } from "@/config";
@@ -266,7 +267,12 @@ router.beforeEach((to: ToRouteType, _from, next) => {
     // 强制改密阻断（T-FE-046）：forceResetPwd=true 只放行改密页/登录页/公共
     // 错误页，其余路由 redirect /change-password；改密成功清标记后放行
     if (userInfo.forceResetPwd && !forceResetAllowPaths.includes(to.path)) {
-      next({ path: "/change-password" });
+      const returnTo = oauthReturnTarget(to.fullPath);
+      next(
+        returnTo
+          ? { path: "/change-password", query: { returnTo } }
+          : { path: "/change-password" }
+      );
       return;
     }
     // 开启隐藏首页后在浏览器地址栏手动输入首页welcome路由则跳转到404页面
@@ -294,7 +300,12 @@ router.beforeEach((to: ToRouteType, _from, next) => {
         return;
       } else {
         removeToken();
-        next({ path: "/login" });
+        const returnTo = oauthReturnTarget(to.fullPath);
+        next(
+          returnTo
+            ? { path: "/login", query: { returnTo } }
+            : { path: "/login" }
+        );
         return;
       }
     } else {

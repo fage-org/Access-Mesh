@@ -1,7 +1,8 @@
 package cn.ac.fage.accessmesh.access.auth.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.AssertTrue;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
@@ -14,9 +15,9 @@ import jakarta.validation.constraints.Pattern;
  * </p>
  *
  * @param clientId        客户端标识（必填）
- * @param clientSecret    客户端密钥（必填）
+ * @param clientSecret    机密客户端必填，公开客户端必须省略
  * @param clientName      客户端名称（必填）
- * @param grantTypes      授权类型（可选，逗号分隔）
+ * @param grantTypes      授权类型（必填，逗号分隔）
  * @param redirectUris    重定向URI列表（可选，逗号分隔）
  * @param scopes          权限范围（可选，逗号分隔）
  * @param audiences       令牌受众/资源服务器标识（可选，逗号分隔；配置后签发写入 aud claim）
@@ -33,7 +34,7 @@ public record Oauth2ClientCreateReq(
     /**
      * 客户端密钥（OAuth2协议中的client_secret）
      */
-    @NotBlank String clientSecret,
+    String clientSecret,
 
     /**
      * 客户端名称（显示名称）
@@ -43,7 +44,7 @@ public record Oauth2ClientCreateReq(
     /**
      * 授权类型（逗号分隔，如"authorization_code,refresh_token")
      */
-    @Pattern(regexp = "(?s)(?U).*\\S.*", message = "grantTypes 不能为空白")
+    @NotBlank(message = "grantTypes 不能为空白")
     String grantTypes,
 
     /**
@@ -77,5 +78,15 @@ public record Oauth2ClientCreateReq(
     /**
      * 状态（0=停用，1=启用）
      */
-    Integer status
-) {}
+    Integer status,
+
+    /** 缺省 CONFIDENTIAL；PUBLIC 使用 S256 PKCE，无客户端密钥。 */
+    @Pattern(regexp = "CONFIDENTIAL|PUBLIC") String clientType
+) {
+    @AssertTrue(message = "CONFIDENTIAL 必须提供密钥；PUBLIC 必须省略密钥")
+    @JsonIgnore
+    public boolean isClientSecretValid() {
+        return "PUBLIC".equals(clientType) ? clientSecret == null
+            : clientSecret != null && !clientSecret.isBlank();
+    }
+}

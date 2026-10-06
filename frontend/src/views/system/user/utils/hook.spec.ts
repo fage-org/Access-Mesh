@@ -331,3 +331,20 @@ describe("共享列表上下文与可写对象绑定（T-FE-059 / F011 同模式
     expect(row.status).toBe(1); // 拒绝时回滚开关
   });
 });
+
+describe("成员搜索维度", () => {
+  it("用户名和手机号随查询提交，重置时一并清空", async () => {
+    mockGetUserPage.mockReset().mockResolvedValue({ items: [], total: 0 });
+    const hook = useUserManage();
+    Object.assign(hook.searchForm, { username: "alice", phone: "138" });
+    await hook.loadTable();
+    expect(mockGetUserPage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ username: "alice", phone: "138" })
+    );
+    hook.onReset();
+    await flush();
+    expect(mockGetUserPage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ username: undefined, phone: undefined })
+    );
+  });
+});

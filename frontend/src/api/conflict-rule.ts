@@ -1,9 +1,6 @@
 /**
  * 冲突规则 API
- * 经 @/utils/http 调用 Gateway 外部路径 `/api/access/conflict-rule/*`
- *（Gateway StripPrefix=1 后到 access-service `/api/access/conflict-rule`）。
- * T-FE-020 修正：本文件原用裸 `/api/access/conflict-rule/*`（T-FE-041 全局切 Gateway 路径时漏改
- * 本页），Gateway 仅路由 /api/**（T-ACCESS-042 单命名空间），旧双前缀/裸路径形态必 404；mock/conflict-rule.ts 已随真实链路退役删除。
+ * 经 @/utils/http 使用 POST + JSON 调用 /api/access/**；Gateway 外部路径与服务路径一致。
  * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；列表包络复用 role-manage 定义。
  *

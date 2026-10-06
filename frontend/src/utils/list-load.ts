@@ -1,3 +1,4 @@
+import { DEFAULT_PAGE_SIZE } from "@/constants/access";
 /**
  * 列表加载 composable（T-FE-051）：全仓列表 hook 统一接线点。
  *
@@ -123,7 +124,7 @@ export interface PagedListOptions<T> {
   ) => Promise<{ items: T[]; total: number }>;
   /** 失败提示 fallback */
   errorText: string;
-  /** 初始页大小（默认 15，对齐各页现行值） */
+  /** 初始页大小（默认 20，各普通列表同口径） */
   initialSize?: number;
   /** 上下文键（T-FE-059）：透传列表层——切换上下文清空时 total/page 同步复位 */
   contextKey?: () => unknown;
@@ -132,7 +133,7 @@ export interface PagedListOptions<T> {
 export function usePagedList<T>(opts: PagedListOptions<T>) {
   const pagination = reactive({
     page: 1,
-    size: opts.initialSize ?? 15,
+    size: opts.initialSize ?? DEFAULT_PAGE_SIZE,
     total: 0
   });
 

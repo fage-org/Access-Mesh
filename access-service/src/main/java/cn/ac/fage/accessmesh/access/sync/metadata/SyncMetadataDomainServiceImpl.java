@@ -181,4 +181,14 @@ public class SyncMetadataDomainServiceImpl implements SyncMetadataDomainService 
                             + ", allowed: " + allowed);
         }
     }
+    @Override
+    public List<cn.ac.fage.accessmesh.access.sync.dto.SyncStatusResp> listAppliedScopes(
+            Long tenantId, String sourceService, int limit, int offset) {
+        return syncMetadataMapper.selectAppliedScopes(tenantId, sourceService, limit, offset);
+    }
+
+    @Override
+    public long countAppliedScopes(Long tenantId, String sourceService) {
+        return syncMetadataMapper.countAppliedScopes(tenantId, sourceService);
+    }
 }

@@ -49,6 +49,11 @@ public class OAuth2Controller {
         return R.ok(oauth2Service.authorize(req));
     }
 
+    @PostMapping("/authorize-preview")
+    public R<AuthorizationPreviewResp> preview(@Valid @RequestBody AuthorizeReq req) {
+        return R.ok(oauth2Service.previewAuthorization(req));
+    }
+
     /**
      * OAuth2令牌接口
      * <p>

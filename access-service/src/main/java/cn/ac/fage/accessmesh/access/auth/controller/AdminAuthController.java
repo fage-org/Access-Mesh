@@ -3,7 +3,6 @@ package cn.ac.fage.accessmesh.access.auth.controller;
 import cn.ac.fage.accessmesh.access.auth.dto.CaptchaResp;
 import cn.ac.fage.accessmesh.access.auth.dto.LoginReq;
 import cn.ac.fage.accessmesh.access.auth.dto.LoginResp;
-import cn.ac.fage.accessmesh.access.auth.dto.SmsLoginReq;
 import cn.ac.fage.accessmesh.access.auth.dto.UserInfoResp;
 import cn.ac.fage.accessmesh.access.menu.dto.resp.UserMenuResp;
 import cn.ac.fage.accessmesh.access.auth.service.AuthAppService;
@@ -19,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 认证控制器
  * <p>
  * 提供用户认证相关功能，包括登录、注销、验证码、用户信息查询等。
- * 使用Sa-Token作为认证框架，支持账号密码登录和短信验证码登录。
+ * 使用Sa-Token作为认证框架，支持账号密码登录。
  * 所有接口采用POST + JSON Body方式。
  * </p>
  */
@@ -65,21 +64,6 @@ public class AdminAuthController {
     @PostMapping("/login")
     public R<LoginResp> login(@Valid @RequestBody LoginReq req) {
         return R.ok(authService.login(req));
-    }
-
-    /**
-     * 短信验证码登录
-     * <p>
-     * 使用手机号和短信验证码进行登录认证。
-     * 用于无密码登录场景。
-     * </p>
-     *
-     * @param req 短信登录请求，包含手机号、验证码
-     * @return 登录响应，包含访问令牌和用户基本信息
-     */
-    @PostMapping("/login/sms")
-    public R<LoginResp> smsLogin(@Valid @RequestBody SmsLoginReq req) {
-        return R.ok(authService.smsLogin(req));
     }
 
     /**

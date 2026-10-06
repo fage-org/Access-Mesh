@@ -103,6 +103,70 @@ class DualTenantSameCodeIsolationPgIT {
     @Autowired
     private AccessBootstrapInitializer initializer;
 
+    @Autowired
+    private cn.ac.fage.accessmesh.access.platform.mapper.SysDictTypeMapper dictTypes;
+
+    @Test
+    void flexGeneratedReadsAndUpdatesUseTrustedTenant() {
+        long tenant = 98101L;
+        String code = "flex-" + UUID.randomUUID();
+        Long own = jdbc.queryForObject("INSERT INTO sys_dict_type (tenant_id, dict_type, dict_name) VALUES (?, ?, 'own') RETURNING id", Long.class, tenant, code);
+        Long other = jdbc.queryForObject("INSERT INTO sys_dict_type (tenant_id, dict_type, dict_name) VALUES (?, ?, 'other') RETURNING id", Long.class, tenant + 1, code);
+        var previous = cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext.snapshot();
+        try {
+            cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext.bind(
+                cn.ac.fage.accessmesh.access.infrastructure.RequestContext.task(tenant));
+            assertThat(dictTypes.selectOneById(other)).isNull();
+            assertThat(dictTypes.selectListByQuery(com.mybatisflex.core.query.QueryWrapper.create().where("dict_type = ?", code)))
+                .extracting(cn.ac.fage.accessmesh.access.platform.entity.SysDictType::getId).containsExactly(own);
+            var patch = new cn.ac.fage.accessmesh.access.platform.entity.SysDictType();
+            patch.setId(other);
+            patch.setDictName("must-not-write");
+            assertThat(dictTypes.update(patch)).isZero();
+            assertThat(jdbc.queryForObject("SELECT dict_name FROM sys_dict_type WHERE id = ?", String.class, other)).isEqualTo("other");
+        } finally {
+            cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext.restore(previous);
+        }
+    }
+
+    @Test
+    void flexInsertFillsMissingTenantAndPreservesExplicitTenant() {
+        long tenant = 98103L;
+        var previous = cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext.snapshot();
+        try {
+            cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext.bind(
+                cn.ac.fage.accessmesh.access.infrastructure.RequestContext.task(tenant));
+            for (boolean explicit : new boolean[]{false, true}) {
+                var row = new cn.ac.fage.accessmesh.access.platform.entity.SysDictType();
+                row.setDictType("fill-" + UUID.randomUUID());
+                row.setDictName("fill");
+                row.setStatus(1);
+                row.setDeleteFlag(0L);
+                row.setCreatedAt(java.time.LocalDateTime.now());
+                row.setUpdatedAt(java.time.LocalDateTime.now());
+                if (explicit) row.setTenantId(tenant);
+                assertThat(dictTypes.insert(row)).isEqualTo(1);
+                assertThat(row.getTenantId()).isEqualTo(tenant);
+                assertThat(dictTypes.selectByIdSafe(tenant, row.getId())).isNotNull();
+                assertThat(dictTypes.selectByIdSafe(tenant + 1, row.getId())).isNull();
+            }
+        } finally {
+            cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext.restore(previous);
+        }
+    }
+
+    @Test
+    void flexQueryWithoutContextFailsBeforeReadingRows() {
+        var previous = cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext.snapshot();
+        cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext.clear();
+        try {
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> dictTypes.selectOneById(-1L))
+                .hasStackTraceContaining("租户上下文");
+        } finally {
+            cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext.restore(previous);
+        }
+    }
+
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Test

@@ -2,12 +2,15 @@ package cn.ac.fage.accessmesh.access.platform.service.impl;
 
 import cn.ac.fage.accessmesh.access.platform.entity.SystemConfig;
 import cn.ac.fage.accessmesh.access.platform.mapper.SystemConfigMapper;
+import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
@@ -50,6 +53,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 class SystemConfigJsonbPgIT {
 
     private static final Long TENANT = 1L;
+
+    @BeforeEach
+    void bindTenantContext() {
+        TenantContextHolder.setTenantId(TENANT);
+    }
+
+    @AfterEach
+    void clearTenantContext() {
+        TenantContextHolder.clear();
+    }
+
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 

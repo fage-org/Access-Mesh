@@ -1,3 +1,4 @@
+import { OPERATION_CODE } from "@/constants/access";
 import type {
   ApiMappingResp,
   ServiceConfigResp,
@@ -116,7 +117,7 @@ export function createSyncPayload(service: ServiceConfigResp): SyncFormData {
   ];
   sampleGroups[0].apis[0].requiredPermission = {
     resourceTypeCode: "REPORT",
-    operationCode: "VIEW"
+    operationCode: OPERATION_CODE.VIEW
   };
   return {
     basePath: service.basePath || "/",

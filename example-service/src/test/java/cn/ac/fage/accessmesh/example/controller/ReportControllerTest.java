@@ -9,7 +9,6 @@ import cn.ac.fage.accessmesh.example.dto.DemoReportDtos.ExportStatusReq;
 import cn.ac.fage.accessmesh.example.dto.DemoReportDtos.ExportStatusResp;
 import cn.ac.fage.accessmesh.example.dto.DemoReportDtos.ExportSubmitReq;
 import cn.ac.fage.accessmesh.example.dto.DemoReportDtos.ListReq;
-import cn.ac.fage.accessmesh.example.dto.DemoReportDtos.ListResp;
 import cn.ac.fage.accessmesh.example.dto.DemoReportDtos.SubViewReq;
 import cn.ac.fage.accessmesh.example.dto.DemoReportDtos.ViewReq;
 import cn.ac.fage.accessmesh.example.dto.DemoReportDtos.ViewResp;
@@ -173,7 +172,7 @@ class ReportControllerTest {
         when(permChecker.accessibleScope(anyString(), anyString(), any(), anyString(), anyString()))
             .thenReturn(new Scope(false, java.util.Set.of("report-1", "report-2"))); // report-3 与明细行不在范围内
 
-        ListResp resp = controller.list(new ListReq(null, 1, 10), USER, TENANT, CLIENT_IP).getData();
+        var resp = controller.list(new ListReq(null, 1, 10), USER, TENANT, CLIENT_IP).getData();
 
         assertThat(resp.items()).extracting("reportCode")
             .containsExactly("report-1", "report-2");
@@ -186,7 +185,7 @@ class ReportControllerTest {
         when(permChecker.accessibleScope(anyString(), anyString(), any(), anyString(), anyString()))
             .thenReturn(new Scope(true, java.util.Set.of()));
 
-        ListResp resp = controller.list(new ListReq(null, 1, 10), USER, TENANT, CLIENT_IP).getData();
+        var resp = controller.list(new ListReq(null, 1, 10), USER, TENANT, CLIENT_IP).getData();
 
         // 仓内 5 份种子报表全部可见（旧实现只收集 resourceCode，ALL 行 code=null → total=0）
         assertThat(resp.total()).isEqualTo(5);
@@ -199,7 +198,7 @@ class ReportControllerTest {
         when(permChecker.accessibleScope(anyString(), anyString(), any(), anyString(), anyString()))
             .thenReturn(new Scope(false, java.util.Set.of()));
 
-        ListResp resp = controller.list(new ListReq(null, 1, 10), USER, TENANT, null).getData();
+        var resp = controller.list(new ListReq(null, 1, 10), USER, TENANT, null).getData();
 
         assertThat(resp.items()).isEmpty();
         assertThat(resp.total()).isZero();
@@ -211,7 +210,7 @@ class ReportControllerTest {
         when(permChecker.accessibleScope(anyString(), anyString(), any(), anyString(), anyString()))
             .thenReturn(new Scope(false, java.util.Set.of("report-1", "report-2")));
 
-        ListResp resp = controller.list(new ListReq("库存", 1, 10), USER, TENANT, null).getData();
+        var resp = controller.list(new ListReq("库存", 1, 10), USER, TENANT, null).getData();
 
         assertThat(resp.items()).extracting("reportCode").containsExactly("report-2");
         assertThat(resp.total()).isEqualTo(1);
@@ -398,9 +397,9 @@ class ReportControllerTest {
 
         var created = controller.create(new CreateReq("仅A可见"), USER, TENANT, null).getData();
 
-        ListResp inA = controller.list(new ListReq(null, 1, 10), USER, TENANT, null).getData();
+        var inA = controller.list(new ListReq(null, 1, 10), USER, TENANT, null).getData();
 
-        ListResp inB = controller.list(new ListReq(null, 1, 100), "50", OTHER_TENANT, null).getData();
+        var inB = controller.list(new ListReq(null, 1, 100), "50", OTHER_TENANT, null).getData();
 
         assertThat(inA.total()).isEqualTo(6); // 5 种子 + 1 新建
         assertThat(inB.total()).isEqualTo(5); // B 只见自己的种子，A 的 create 产物不可见

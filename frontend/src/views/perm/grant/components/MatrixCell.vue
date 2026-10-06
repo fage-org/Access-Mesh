@@ -14,6 +14,10 @@
  * - 子权限数量使用独立蓝色标识，与来源形态和状态颜色正交。
  * - diff 背景只表达 add/partial-add；update/remove 由黄/红图标表达。
  */
+import {
+  GRANT_SOURCE_LABELS,
+  GRANT_SOURCE_READONLY_HINTS
+} from "@/api/permission-grant";
 import { computed } from "vue";
 import type { CellSource } from "../utils/source-chain";
 import {
@@ -129,6 +133,7 @@ function sourceLabel(s: CellSource): string {
   const parts: string[] = [];
   if (s.grantSource === "AUTO_DEP") parts.push("由资源依赖自动补全");
   else if (s.grantSource === "AUTHORITY_ROOT") parts.push("类型授权根种子");
+  else if (s.grantSource === "BOOTSTRAP_SEED") parts.push("平台初始化种子");
   else if (isDirect(s)) parts.push("直接授权");
   if (s.nodeInheritFromCode) {
     parts.push(`资源继承自 ${s.nodeInheritFromName ?? s.nodeInheritFromCode}`);
@@ -214,9 +219,7 @@ function handleClick() {
             :key="s.recordId"
             class="source-item"
             :class="{
-              'auto-dep':
-                s.grantSource === 'AUTO_DEP' ||
-                s.grantSource === 'AUTHORITY_ROOT'
+              'auto-dep': !!GRANT_SOURCE_READONLY_HINTS[s.grantSource]
             }"
           >
             <div class="source-line">
@@ -225,13 +228,7 @@ function handleClick() {
                 :type="s.grantSource === 'MANUAL' ? 'primary' : 'info'"
                 effect="plain"
               >
-                {{
-                  s.grantSource === "AUTO_DEP"
-                    ? "自动补全"
-                    : s.grantSource === "AUTHORITY_ROOT"
-                      ? "授权根"
-                      : "手动"
-                }}
+                {{ GRANT_SOURCE_LABELS[s.grantSource] ?? s.grantSource }}
               </el-tag>
               <span>{{ sourceLabel(s) }}</span>
               <el-tag
@@ -258,17 +255,10 @@ function handleClick() {
               <span v-if="s.createdAt">创建：{{ s.createdAt }}</span>
             </div>
             <div
-              v-if="
-                s.grantSource === 'AUTO_DEP' ||
-                s.grantSource === 'AUTHORITY_ROOT'
-              "
+              v-if="!!GRANT_SOURCE_READONLY_HINTS[s.grantSource]"
               class="readonly-hint"
             >
-              {{
-                s.grantSource === "AUTHORITY_ROOT"
-                  ? "授权根种子行只读（随类型生命周期维护），不可编辑/删除"
-                  : "自动补全记录只读，不可编辑/删除"
-              }}
+              {{ GRANT_SOURCE_READONLY_HINTS[s.grantSource] }}
             </div>
           </div>
         </div>

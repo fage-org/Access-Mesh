@@ -76,9 +76,9 @@ public class AuditDomainServiceImpl implements AuditDomainService {
             cl.setOldSnapshot(entry.oldSnapshot());
             cl.setNewSnapshot(entry.newSnapshot());
             cl.setDiffSnapshot(entry.diffSnapshot());
-            if (entry.oldSnapshot() != null) JsonValidationUtils.validateJson(entry.oldSnapshot());
-            if (entry.newSnapshot() != null) JsonValidationUtils.validateJson(entry.newSnapshot());
-            if (entry.diffSnapshot() != null) JsonValidationUtils.validateJson(entry.diffSnapshot());
+            if (entry.oldSnapshot() != null) JsonValidationUtils.validateSnapshot(entry.oldSnapshot());
+            if (entry.newSnapshot() != null) JsonValidationUtils.validateSnapshot(entry.newSnapshot());
+            if (entry.diffSnapshot() != null) JsonValidationUtils.validateSnapshot(entry.diffSnapshot());
             cl.setAffectedAbstractUserIds(entry.affectedUserIds());
             cl.setAffectedAbstractRoleIds(entry.affectedRoleIds());
             cl.setChangeReason(context.changeReason());

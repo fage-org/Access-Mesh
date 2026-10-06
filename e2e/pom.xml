@@ -73,7 +73,7 @@
              是全树最浅同名节点（Maven nearest-wins），不带排除时 starter-logging（Logback +
              log4j-to-slf4j）会与经 gateway 传递的 log4j-slf4j2-impl 共存——log4j2 双桥接互斥，
              静态初始化即炸，@Testcontainers 的 Docker 探测随之雪崩为「无 Docker」整类跳过（实测）。
-             gateway/access 自身靠 perm-gateway-starter 的同名排除路径赢得去重，本模块无此拓扑。 -->
+             跨服务测试直接组合多模块测试类路径，统一排除旧日志桥，避免双 Provider。 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

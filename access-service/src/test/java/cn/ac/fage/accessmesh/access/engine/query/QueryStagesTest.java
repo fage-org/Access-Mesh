@@ -515,7 +515,7 @@ class QueryStagesTest {
         assertThat(result.orderedResults()).extracting(ItemResult::key).containsExactly("x", "y", "both");
         assertThat(decision(result, 0).outcome()).isEqualTo(DecisionResult.Decision.ALLOW);
         assertThat(decision(result, 1).outcome()).isEqualTo(DecisionResult.Decision.ALLOW);
-        assertThat(decision(result, 2).reason()).isEqualTo(DecisionResult.Reason.CONDITION_NOT_MET_OR_CONFLICT);
+        assertThat(decision(result, 2).reason()).isEqualTo(DecisionResult.Reason.PERMISSION_CONFLICT);
         assertThat(decision(result, 2).details().matchedPermissionIds()).isEmpty();
         verify(audit, times(1)).asyncRecordLog(any());
     }
@@ -523,7 +523,7 @@ class QueryStagesTest {
     @Test
     void should_denySameTargetWithBothEndpoints_whenFirstGrantAloneWouldAllow() {
         mutex(); instanceRows.add(grant(101, 1, 100L, 2)); instanceRows.add(grant(102, 1, 100L, 4));
-        assertThat(decision(execute(item("x", clause(100))), 0).reason()).isEqualTo(DecisionResult.Reason.CONDITION_NOT_MET_OR_CONFLICT);
+        assertThat(decision(execute(item("x", clause(100))), 0).reason()).isEqualTo(DecisionResult.Reason.PERMISSION_CONFLICT);
     }
 
     @Test
@@ -579,7 +579,7 @@ class QueryStagesTest {
             QueryItem.decision("unknown", target(Inheritance.SELF, TypeFallback.ALLOW,
                 new TargetClause(new TypeOperation("REPORT", "VIEW"), new ByCode("unknown", null, null))), OutputSpec.minimal()));
         assertThat(decision(result, 0).outcome()).isEqualTo(DecisionResult.Decision.ALLOW);
-        assertThat(decision(result, 1).reason()).isEqualTo(DecisionResult.Reason.CONDITION_NOT_MET_OR_CONFLICT);
+        assertThat(decision(result, 1).reason()).isEqualTo(DecisionResult.Reason.CONDITION_NOT_MET);
         verify(conditionMapper, times(1)).selectValidByIds(1L, Set.of(500L));
     }
 
@@ -592,7 +592,7 @@ class QueryStagesTest {
         QueryResult result = execute(item("self", clause(100)), QueryItem.decision("parents",
             target(Inheritance.SELF_AND_ANCESTORS, TypeFallback.DISALLOW, clause(100)), OutputSpec.minimal()));
         assertThat(decision(result, 0).outcome()).isEqualTo(DecisionResult.Decision.ALLOW);
-        assertThat(decision(result, 1).reason()).isEqualTo(DecisionResult.Reason.CONDITION_NOT_MET_OR_CONFLICT);
+        assertThat(decision(result, 1).reason()).isEqualTo(DecisionResult.Reason.PERMISSION_CONFLICT);
         verify(resourceMapper, times(1)).selectSelfAndAncestorClosureBatch(anyLong(), anySet());
     }
 
@@ -623,7 +623,7 @@ class QueryStagesTest {
     void should_evaluateMutexOnlyAfterAllSqlChunks_whenOneItemSpansBatchBoundary() {
         mutex(); instanceRows.add(grant(101, 1, 1L, 2)); instanceRows.add(grant(102, 1, 501L, 4));
         TargetClause[] clauses = LongStream.rangeClosed(1, 501).mapToObj(QueryStagesTest::clause).toArray(TargetClause[]::new);
-        assertThat(decision(execute(item("large", clauses)), 0).reason()).isEqualTo(DecisionResult.Reason.CONDITION_NOT_MET_OR_CONFLICT);
+        assertThat(decision(execute(item("large", clauses)), 0).reason()).isEqualTo(DecisionResult.Reason.PERMISSION_CONFLICT);
         verify(grants, times(2)).selectInstancePermsByBitsBatch(eq(1L), anySet(), anySet(), anyList());
     }
 
@@ -687,7 +687,7 @@ class QueryStagesTest {
             .thenReturn(Map.of(AccessCacheCatalog.operationPermissionsByTypeKey(1),
                 Map.of(11L, op(11, 1, "VIEW", 2, 0), 99L, op(99, 1, "UPDATE", 4, 2))));
         instanceRows.add(grant(101, 1, 100L, 2)); instanceRows.add(grant(102, 1, 100L, 4));
-        assertThat(decision(execute(item("x", clause(100))), 0).reason()).isEqualTo(DecisionResult.Reason.CONDITION_NOT_MET_OR_CONFLICT);
+        assertThat(decision(execute(item("x", clause(100))), 0).reason()).isEqualTo(DecisionResult.Reason.PERMISSION_CONFLICT);
         verify(operations, times(1)).selectByTenantAndResourceTypes(1L, Set.of(1));
         verify(grants, never()).selectValidByRoleIds(anyLong(), anySet());
         verify(cache, never()).getBatch(eq(AccessCacheCatalog.ROLE_PERM_SNAPSHOT), anyLong(), anySet());
@@ -1126,5 +1126,52 @@ class QueryStagesTest {
         PermissionCondition row = new PermissionCondition();
         row.setId(id); row.setTenantId(1L); row.setEnabled(enabled); row.setConditionRules(rules);
         return row;
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @org.junit.jupiter.params.provider.CsvSource({
+        "condition-only,true,false,CONDITION_NOT_MET",
+        "mutex-only,false,true,PERMISSION_CONFLICT",
+        "conditional-mutex,true,true,PERMISSION_CONFLICT"
+    })
+    void deniedCheckExplainsActualConditionAndMutex(String scenario, boolean conditional,
+                                                    boolean conflicting, String expectedReason) {
+        var first = grant(101, 1, 100L, 2);
+        if (conditional) {
+            first.setConditionId(500L);
+            String start = conflicting ? "2000-01-01" : "2100-01-01";
+            when(conditionMapper.selectValidByIds(1L, Set.of(500L))).thenReturn(List.of(condition(500, true,
+                "{\"logic\":\"AND\",\"items\":[{\"type\":\"DATE_RANGE\",\"params\":{\"start\":\"" + start
+                    + "\",\"end\":\"2101-01-01\"}}]}")));
+        }
+        instanceRows.add(first);
+        if (conflicting) {
+            mutex();
+            instanceRows.add(grant(102, 1, 100L, 4));
+        }
+        var item = QueryItem.decision("check", target(Inheritance.SELF, TypeFallback.ALLOW, clause(100)),
+            OutputSpec.rawAndKept());
+        var result = decision(execute(item), 0);
+        var response = cn.ac.fage.accessmesh.access.engine.util.PermResultUtils.toAuthCheckResp(result);
+        assertThat(response.allowed()).isFalse();
+        assertThat(response.conditionEvaluated()).isEqualTo(conditional);
+        assertThat(response.reason()).isEqualTo(expectedReason);
+        assertThat(result.details().trace().stages()).isEmpty();
+        assertThat(response.matchedPermissionIds()).isEmpty();
+    }
+
+    @Test
+    void actualMutexTakesPriorityWhenScopeConditionAlsoFails() {
+        var scope = grant(100, 1, null, 2);
+        scope.setConditionId(500L);
+        scopeRows.add(scope);
+        mutex();
+        instanceRows.add(grant(101, 1, 100L, 2));
+        instanceRows.add(grant(102, 1, 100L, 4));
+        var item = QueryItem.decision("mixed", target(Inheritance.SELF, TypeFallback.ALLOW, clause(100)),
+            OutputSpec.rawAndKept());
+        var response = cn.ac.fage.accessmesh.access.engine.util.PermResultUtils.toAuthCheckResp(decision(execute(item), 0));
+        assertThat(response.reason()).isEqualTo("PERMISSION_CONFLICT");
+        assertThat(response.conditionEvaluated()).isTrue();
     }
 }

@@ -11,7 +11,7 @@ import jakarta.validation.constraints.Min;
  * </p>
  *
  * @param pageNum     页码（可选，默认1，最小1）
- * @param pageSize    每页大小（可选，默认20，范围1-100）
+ * @param pageSize    每页大小（可选，默认20，范围1-200）
  * @param sort        排序字段（可选）
  * @param orgName     组织名称（可选，模糊匹配）
  * @param orgType     组织类型（必填——分页查询按 orgType 分发 VIEW/VIEW_POSITION 门禁，缺省报 ORG_TYPE_REQUIRED）
@@ -26,9 +26,9 @@ public record OrgPageReq(
     @Min(1) Integer pageNum,
 
     /**
-     * 每页大小（范围1-100）
+     * 每页大小（范围1-200）
      */
-    @Min(1) @Max(100) Integer pageSize,
+    @Min(1) @Max(200) Integer pageSize,
 
     /**
      * 排序字段

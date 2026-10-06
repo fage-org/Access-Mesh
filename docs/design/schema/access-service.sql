@@ -87,14 +87,15 @@ CREATE TABLE sys_oauth2_client (
     id                BIGSERIAL PRIMARY KEY,
     tenant_id         BIGINT NOT NULL,
     client_id         VARCHAR(128) NOT NULL,
-    client_secret     VARCHAR(256) NOT NULL,
+    client_secret     VARCHAR(256),
+    client_type       VARCHAR(16) NOT NULL DEFAULT 'CONFIDENTIAL',
     client_name       VARCHAR(128) NOT NULL,
     grant_types       VARCHAR(256) NOT NULL,
     redirect_uris     VARCHAR(1024),
     scopes            VARCHAR(512),
     audiences         VARCHAR(512),
     access_token_ttl  INT NOT NULL DEFAULT 7200,
-    refresh_token_ttl INT NOT NULL DEFAULT 2592000,
+    refresh_token_ttl INT NOT NULL DEFAULT 604800,
     status            SMALLINT NOT NULL DEFAULT 1,
     created_by        BIGINT,
     updated_by        BIGINT,
@@ -102,28 +103,33 @@ CREATE TABLE sys_oauth2_client (
     created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at        TIMESTAMPTZ,
-    delete_flag       BIGINT NOT NULL DEFAULT 0
+    delete_flag       BIGINT NOT NULL DEFAULT 0,
+    CONSTRAINT ck_oauth2_client_type_secret CHECK (
+        (client_type = 'PUBLIC' AND client_secret IS NULL)
+        OR (client_type = 'CONFIDENTIAL' AND client_secret IS NOT NULL)
+    )
 );
 
 CREATE UNIQUE INDEX uk_oauth2_client_id ON sys_oauth2_client (client_id) WHERE delete_flag = 0;
 
 COMMENT ON TABLE sys_oauth2_client IS 'OAuth2 客户端配置';
 COMMENT ON COLUMN sys_oauth2_client.client_id IS '客户端标识，全局唯一';
-COMMENT ON COLUMN sys_oauth2_client.client_secret IS '客户端密钥（BCrypt 加密存储）';
+COMMENT ON COLUMN sys_oauth2_client.client_secret IS '机密客户端 BCrypt 密钥；公开客户端为 NULL';
+COMMENT ON COLUMN sys_oauth2_client.client_type IS 'CONFIDENTIAL（缺省）/PUBLIC；类型创建后不可切换，PUBLIC 必须使用 S256 PKCE';
 COMMENT ON COLUMN sys_oauth2_client.grant_types IS '允许的授权模式（逗号分隔）：authorization_code,password,client_credentials,refresh_token';
 COMMENT ON COLUMN sys_oauth2_client.redirect_uris IS '允许的回调地址（逗号分隔）';
 COMMENT ON COLUMN sys_oauth2_client.scopes IS '允许的权限范围（逗号分隔）';
 COMMENT ON COLUMN sys_oauth2_client.audiences IS '允许的令牌受众/目标资源服务器标识（逗号分隔，T-ACCESS-013）；配置后签发的访问令牌写入 aud claim，业务开放路径按 audience 强制校验';
 COMMENT ON COLUMN sys_oauth2_client.access_token_ttl IS 'Access Token 有效期（秒），默认 7200（2小时）';
-COMMENT ON COLUMN sys_oauth2_client.refresh_token_ttl IS 'Refresh Token 有效期（秒），默认 2592000（30天）';
+COMMENT ON COLUMN sys_oauth2_client.refresh_token_ttl IS 'Refresh Token 有效期（秒），首次授权链绝对期限，默认 604800（7天）';
 COMMENT ON COLUMN sys_oauth2_client.status IS '状态：0=停用，1=启用';
 COMMENT ON COLUMN sys_oauth2_client.delete_flag IS '逻辑删除：0=未删除，删除时填本行id';
 
 -- 预置客户端数据
 INSERT INTO sys_oauth2_client (tenant_id, client_id, client_secret, client_name, grant_types, redirect_uris, scopes, audiences, access_token_ttl, refresh_token_ttl, status, created_by, created_at, updated_at)
 VALUES
-    (1, 'admin-web',        '$2a$10$PLACEHOLDER_HASH_1', '管理端前端',  'authorization_code,password,refresh_token', 'http://localhost:3000/callback', 'all', 'access-service', 7200, 2592000, 1, 0, now(), now()),
-    (1, 'example-web',      '$2a$10$PLACEHOLDER_HASH_2', '演示端前端',  'authorization_code,password,refresh_token', 'http://localhost:3001/callback', 'all', 'access-service', 7200, 2592000, 1, 0, now(), now()),
+    (1, 'admin-web',        '$2a$10$PLACEHOLDER_HASH_1', '管理端前端',  'authorization_code,password,refresh_token', 'http://localhost:3000/callback', 'all', 'access-service', 7200, 604800, 1, 0, now(), now()),
+    (1, 'example-web',      '$2a$10$PLACEHOLDER_HASH_2', '演示端前端',  'authorization_code,password,refresh_token', 'http://localhost:3001/callback', 'all', 'access-service', 7200, 604800, 1, 0, now(), now()),
     (1, 'internal-service', '$2a$10$PLACEHOLDER_HASH_3', '服务间调用',  'client_credentials',                        NULL,                            'all', 'access-service', 7200, 0,       1, 0, now(), now());
 
 -- -----------------------------------------------------------------------------
@@ -601,7 +607,7 @@ COMMENT ON COLUMN operation_log.operator_id IS '操作人ID（permission 侧语�
 COMMENT ON COLUMN operation_log.operator_name IS '操作人名称（permission 侧语义）';
 COMMENT ON COLUMN operation_log.request_url IS '请求URL（admin 侧语义）';
 COMMENT ON COLUMN operation_log.request_body IS '停用恒 NULL（T-ACCESS-025 操作日志参数序列化收敛；列保留兼容既有数据）';
-COMMENT ON COLUMN operation_log.response_code IS '响应状态码（admin 侧语义）';
+COMMENT ON COLUMN operation_log.response_code IS '公开响应信封 code：成功200、业务失败业务码、安全拒绝403、兜底99999（不等同于HTTP状态码）';
 COMMENT ON COLUMN operation_log.cost_time IS '耗时（毫秒）';
 COMMENT ON COLUMN operation_log.request_id IS '请求 ID（Gateway X-Request-Id 或 access-service 直连兜底生成 UUID；兼作链路追踪 ID——日志 MDC traceId 与网关响应 traceId 字段为同一值，无第二套追踪体系。T-PERM-021 F1.d 定案 2026-09-12：全链路单 ID 语义收敛 + NOT NULL 收紧，无请求上下文写入由审计落点合成 UUID）';
 
@@ -1228,7 +1234,7 @@ COMMENT ON COLUMN role_resource_permission.depend_on IS '父权限ID（本表自
 COMMENT ON COLUMN role_resource_permission.scope_all IS '是否覆盖该 resource_type 下全部范围资源；true 时 resource_entity_id 必须为空';
 COMMENT ON COLUMN role_resource_permission.can_grant IS '是否可授权(该权限可被当前角色关联的用户授予他人)';
 COMMENT ON COLUMN role_resource_permission.condition_id IS '生效条件ID（引用 permission_condition），NULL 表示始终生效';
-COMMENT ON COLUMN role_resource_permission.grant_source IS '授权来源：MANUAL=手动授权，AUTO_DEP=resource_dependency 自动补全，AUTHORITY_ROOT=类型授权根种子（T-PERM-062：自定义 resource_type 的首授基座，类型创建/追加操作自动补种、所有者变更同事务迁移（先清后种）、类型删除级联清理（T-PERM-050）；apply-grant-plan 不可改删 20061，形状由 ck_role_resource_permission_authority_root 焊死）';
+COMMENT ON COLUMN role_resource_permission.grant_source IS '授权来源：MANUAL=手动授权，BOOTSTRAP_SEED=平台初始化固定图（授权 API 只读 20074，旧库备份后重建），AUTO_DEP=resource_dependency 自动补全，AUTHORITY_ROOT=类型授权根种子（T-PERM-062：自定义 resource_type 的首授基座，类型创建/追加操作自动补种、所有者变更同事务迁移（先清后种）、类型删除级联清理（T-PERM-050）；apply-grant-plan 不可改删 20061，形状由 ck_role_resource_permission_authority_root 焊死）';
 
 -- -----------------------------------------------------------------------------
 -- 29. domain_config - 域配置表（SUB_PERM 子权限 / CLASSIFY 域分类；SCOPE/RELATION/BINDING 为历史设想类型，未实现）

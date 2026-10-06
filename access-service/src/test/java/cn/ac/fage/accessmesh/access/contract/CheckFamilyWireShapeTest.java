@@ -75,7 +75,7 @@ class CheckFamilyWireShapeTest {
             .containsExactly("items");
         assertThat(components(cn.ac.fage.accessmesh.access.engine.dto.BatchAuthCheckResp.AuthCheckItemResult.class))
             .containsExactly("resourceTypeCode", "resourceCode", "operationCode", "allowed", "reason",
-                "matchedRoleIds", "matchedPermissionIds");
+                "matchedRoleIds", "matchedPermissionIds", "conditionEvaluated");
     }
 
     @Test

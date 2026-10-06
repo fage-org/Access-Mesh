@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.infrastructure;
 
+import cn.ac.fage.accessmesh.access.support.OAuth2CredentialFixtures;
 import cn.ac.fage.accessmesh.access.auth.entity.SysOauth2Client;
 import cn.ac.fage.accessmesh.access.auth.service.domain.OAuth2ClientDomainService;
 import cn.dev33.satoken.session.SaSession;
@@ -74,9 +75,29 @@ class RequestContextInterceptorTest {
         activeClient.setTenantId(1L);
         var activeUser = new cn.ac.fage.accessmesh.access.user.entity.SysUser();
         activeUser.setStatus(1);
+        activeUser.setPassword(OAuth2CredentialFixtures.PASSWORD_HASH);
         when(userDomainService.selectValidById(1L, 100L)).thenReturn(activeUser);
         when(oauth2ClientDomainService.findActiveByClientId(CLIENT_ID)).thenReturn(activeClient);
         when(stringRedisTemplate.hasKey(anyString())).thenReturn(false);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"password", "legacy", "expired"})
+    void jwtWithInvalidCredentialGenerationIsRejected(String invalid) throws Exception {
+        var claims = oauth2Claims(null, null);
+        switch (invalid) {
+            case "password" -> claims.put("pwd_generation", "$2a$10$changed-password-salt00");
+            case "legacy" -> claims.remove("pwd_generation");
+            case "expired" -> claims.put("chain_exp", System.currentTimeMillis() / 1000 - 1);
+            default -> throw new IllegalArgumentException(invalid);
+        }
+        String jwt = cn.dev33.satoken.jwt.SaJwtUtil.createToken("oauth2", 100L, "oauth2", 3600, claims, JWT_SECRET);
+        var req = new MockHttpServletRequest("POST", "/api/access/auth/oauth2/userinfo");
+        req.addHeader("Authorization", "Bearer " + jwt);
+        var resp = new MockHttpServletResponse();
+        assertThat(interceptor.preHandle(req, resp, new Object())).isFalse();
+        assertThat(resp.getStatus()).isEqualTo(401);
+        assertThat(AccessRequestContext.get()).isNull();
     }
 
     @org.junit.jupiter.params.ParameterizedTest
@@ -925,7 +946,7 @@ class RequestContextInterceptorTest {
         if (aud != null) {
             claims.put("aud", List.of(aud));
         }
-        return claims;
+        return OAuth2CredentialFixtures.claims(claims);
     }
 
     /** 以测试密钥签发 OAuth2 JWT（与拦截器验签密钥一致）。 */

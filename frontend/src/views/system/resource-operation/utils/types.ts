@@ -1,3 +1,4 @@
+import { OPERATION_CODE } from "@/constants/access";
 /**
  * 资源与操作定义页表单类型与常量。
  *
@@ -46,10 +47,10 @@ export const RESOURCE_STATUS_OPTIONS = [
 
 /** 操作权限 binaryBit 预置示例（schema 注释：CREATE(1,0) VIEW(2,0) UPDATE(4,2) DELETE(8,2)） */
 export const PRESET_OPERATION_EXAMPLES = [
-  { code: "CREATE", name: "创建", binaryBit: 1, inheritMask: 0 },
-  { code: "VIEW", name: "查看", binaryBit: 2, inheritMask: 0 },
-  { code: "UPDATE", name: "更新", binaryBit: 4, inheritMask: 2 },
-  { code: "DELETE", name: "删除", binaryBit: 8, inheritMask: 2 }
+  { code: OPERATION_CODE.CREATE, name: "创建", binaryBit: 1, inheritMask: 0 },
+  { code: OPERATION_CODE.VIEW, name: "查看", binaryBit: 2, inheritMask: 0 },
+  { code: OPERATION_CODE.UPDATE, name: "更新", binaryBit: 4, inheritMask: 2 },
+  { code: OPERATION_CODE.DELETE, name: "删除", binaryBit: 8, inheritMask: 2 }
 ] as const;
 
 /** 资源新增/编辑表单数据 */

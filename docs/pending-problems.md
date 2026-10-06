@@ -1,8 +1,8 @@
 ---
 doc_type: problems
 title: 待解决问题清单
-counter: Q-063           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-10-05
+counter: Q-065           # 已分配最大问题号；分配后冻结，不复用不重排
+last_updated: 2026-10-06
 ---
 
 # 待解决问题清单（pending problems）
@@ -21,7 +21,7 @@ last_updated: 2026-10-05
 - **状态**：open
 - **登记**：2026-10-05
 - **来源**：使用者视角评审立项拍板（D1=B′ 收窄为种子行锁死，两项延后——用户明示「先记录，后面再考虑」）
-- **关联**：[T-PERM-106](tasks/T-PERM-106.md)（已承接的种子行锁死）；[计划](plans/usage-review-remediation-plan.md)
+- **关联**：[T-PERM-106](archive/2026-10-06/tasks/T-PERM-106.md)（已承接的种子行锁死）；[计划](archive/2026-10-06/usage-review-remediation-plan.md)
 
 **现象与证据**：①user-role/assign 唯一门禁=操作者对目标角色持 ROLE:MANAGE（`UserManageAppServiceImpl.java:483-487,590-595`），对目标用户零门禁、bootstrap-admin 非保留角色——绑入全权角色无专项守卫与强审计；②无「最后管理员」概念——移除 bootstrap-admin 最后成员/停用最后管理员账号无任何关卡（种子行锁死后剩余的残余风险面）。
 
@@ -35,7 +35,7 @@ last_updated: 2026-10-05
 - **状态**：open
 - **登记**：2026-10-05
 - **来源**：使用者视角评审立项拍板（D16=B 只做 G2/G3 小改，重做待重启；G4/G5 首次归属重做面）
-- **关联**：[T-PERM-107](tasks/T-PERM-107.md)（已承接的解释字段小修）；既有安排载体=[T-PERM-059](archive/2026-09-12/tasks/T-PERM-059.md)（done，「新设计方向另立任务」定案）与 [T-FE-043](archive/2026-09-12/tasks/T-FE-043.md)（cancelled，重做考虑事项随卡归档）；同事项旧登记 [Q-005](#q-005)（已收敛）；[计划](plans/usage-review-remediation-plan.md)
+- **关联**：[T-PERM-107](archive/2026-10-06/tasks/T-PERM-107.md)（已承接的解释字段小修）；既有安排载体=[T-PERM-059](archive/2026-09-12/tasks/T-PERM-059.md)（done，「新设计方向另立任务」定案）与 [T-FE-043](archive/2026-09-12/tasks/T-FE-043.md)（cancelled，重做考虑事项随卡归档）；同事项旧登记 [Q-005](#q-005)（已收敛）；[计划](archive/2026-10-06/usage-review-remediation-plan.md)
 
 **现象与证据**：2026-09-10 旧 permission-query 页面与 7 个诊断端点整体删除，重做安排既有载体在归档卡（T-PERM-059 定案③「另立任务」+T-FE-043 重做基线）——2026-10-05 D16=B 拍板维持延后并**新增 G4（实例粒度）/G5（授权时间线）归属重做面**，故立本条作活跃指针（延续 Q-005 收敛时「重做启动时从看板计数器取号」的裁定，编号即取号入口）。现存排障手段=auth/check（服务凭证专用面，管理员无开箱通道）+用户详情角色列表+自行拼四层接口心算条件与互斥；effective-permission-codes 粒度只到类型:操作；授权溯源无时间线读端点。
 
@@ -49,7 +49,7 @@ last_updated: 2026-10-05
 - **状态**：open
 - **登记**：2026-10-05
 - **来源**：使用者视角评审立项拍板（D11=维持现状永久保留，导出/分区/TTL 后续考虑）
-- **关联**：[T-ACCESS-085](tasks/T-ACCESS-085.md)（已承接的门禁与留痕）；[计划](plans/usage-review-remediation-plan.md)
+- **关联**：[T-ACCESS-085](archive/2026-10-06/tasks/T-ACCESS-085.md)（已承接的门禁与留痕）；[计划](archive/2026-10-06/usage-review-remediation-plan.md)
 
 **现象与证据**：operation_log/change_log/sys_login_log 三表 DDL 注释「永久保留」，全文 0 处 PARTITION、无清理作业、无导出端点（audit 包 grep export/csv/download 零命中）——「把三个月审计交给合规」只能分页 API 手动翻页或直连库导。`sys_login_log.location` 列 DDL 有、代码从不写入（死列）。
 
@@ -63,7 +63,7 @@ last_updated: 2026-10-05
 - **状态**：open
 - **登记**：2026-10-05
 - **来源**：使用者视角评审立项拍板（D9=暂不补写，等接口完全稳定再做）
-- **关联**：[T-API-013](tasks/T-API-013.md)（已承接的导航件：册首指针/跨册锚链/错误码索引）；[计划](plans/usage-review-remediation-plan.md)
+- **关联**：[T-API-013](archive/2026-10-06/tasks/T-API-013.md)（已承接的导航件：册首指针/跨册锚链/错误码索引）；[计划](archive/2026-10-06/usage-review-remediation-plan.md)
 
 **现象与证据**：契约总册明示五族不在册内补写（auth 登录族/dict/notice/job/login-log，T-ACCESS-040 登记）+四个零散端点，合计 36 端点无契约形状文档——外部消费者唯一出处是 Java DTO 源码。
 
@@ -77,13 +77,27 @@ last_updated: 2026-10-05
 - **状态**：open
 - **登记**：2026-10-05
 - **来源**：使用者视角评审立项拍板（D4=A 维持 tenantId="1"+文档明示；租户开通/运营列为后续开发路线——用户补充）
-- **关联**：[T-FE-064](tasks/T-FE-064.md)（已承接的过渡形态文档化）；[计划](plans/usage-review-remediation-plan.md)
+- **关联**：[T-FE-064](archive/2026-10-06/tasks/T-FE-064.md)（已承接的过渡形态文档化）；[计划](archive/2026-10-06/usage-review-remediation-plan.md)
 
 **现象与证据**：登录入参是数字租户主键（`AuthAppServiceImpl.java:184` Long.parseLong）且前端硬编码 "1"——内部主键作登录契约入参，多租户开启后须破坏性迁移；租户开通/停用/运营面（tenantCode 登录、统一图同事务、停用三入口即时拒、租户 1 特权等）2026-09-16 设计座谈定过方向、2026-09-17 用户停摆再考虑。
 
 **影响与边界**：单租户试运行期（README 已声明）无实际影响；多租户开启即触达迁移点。
 
 **设想方向（未定案）**：重启 2026-09-16 设计稿（grill 九问结论在案）再立项；重启需用户再拍板。
+
+<a id="q-065"></a>
+## Q-065 大型应用服务的职责拆分评估
+
+- **状态**：open
+- **登记**：2026-10-06
+- **来源**：[T-ACCESS-089](archive/2026-10-06/tasks/T-ACCESS-089.md) 已定范围：本次只评估，实际拆分进入路线图
+- **关联**：[工程基线](ops/engineering-baseline.md)
+
+**现象与证据**：资源管理、授权计划、用户管理、OAuth2 应用服务在本次盘点分别约 1231/1074/1044/959 行，聚合多个相关入口和校验步骤，改动定位与测试准备成本较高。
+
+**影响与边界**：现有功能有回归覆盖；尚无证据表明仅按行数拆分能改善事务边界或复用。不能为缩短文件把同一事务拆成分散编排。
+
+**设想方向（未定案）**：后续真实功能改动时识别独立职责与复用单元，再决定是否抽取 DomainService；本计划不做大型重构。
 
 <a id="q-058"></a>
 ## Q-058 MenuDomainService 两个零调用树写方法（deleteWithChildren/insertBatch）
@@ -110,6 +124,18 @@ last_updated: 2026-10-05
 **现象与证据**：`BusinessKeyUtil.apiRouteResourceKey(method, path, resourceCode)` 以 `|` 拼三段做映射同步的内存索引，消费点 [MappingSyncHandlerImpl.java:79/90/95](../access-service/src/main/java/cn/ac/fage/accessmesh/access/resource/service/domain/impl/MappingSyncHandlerImpl.java)（存量行索引、incoming 活跃集、按资源 id 拼回查）。`pathPattern` 为 URL 自由文本（`|` 是合法 URL 字符无需转义）、`resourceCode` 自由文本且处尾段之前——与 Q-044 已修的「多个自由文本段相邻拼接」同形态。
 
 **影响与边界**：碰撞需同时满足「某行 path 含 `|`」且「同方法下另一行字段恰可拼出同串」（如 `POST|/api/x|y` 与 path=`/api/x`、resourceCode=`y` 的行），当前实际注册路径未出现该形态；后果为同步过期清理误判（漏删/误删映射行），不涉及权限判定面。修法方向可循 Q-044 元组化先例（record 键或 percent-encode 中段）；属 Q-044 设想「内部消费者全量迁移分开评估」范围，随问题清单批次排期。
+
+<a id="q-064"></a>
+## Q-064 不存在的 MVC 资源被兜底映射为 HTTP 500
+
+- **状态**：open
+- **登记**：2026-10-06
+- **来源**：T-ACCESS-086 示例健康端口验证
+- **关联**：—
+
+**现象与证据**：示例服务业务端口没有注册 `/actuator/health`，请求该路径触发 `NoResourceFoundException`，被 `common/.../GlobalExceptionHandler.java:161` 的 `Exception` 兜底映射为 500。2026-10-06 `ExampleServiceApplicationTest.healthProbeIsAvailableOnlyOnManagementPort` 初始 HTTP 404 断言实跑得到 500；管理端口健康检查返回 200，业务端口的 actuator 注册表为空。现有处理器没有针对资源/路由不存在异常的映射。
+
+**影响**：拼错路径或扫描不存在资源会被监控算作服务故障；不影响管理端口健康检查的隔离。缺失路由的公开错误契约及两种 MVC 异常适用范围尚待核对，未在运维配置任务中变更公共异常语义。
 
 ## 已收敛（含合并索引；详情在关联问题/任务或历史来源）
 

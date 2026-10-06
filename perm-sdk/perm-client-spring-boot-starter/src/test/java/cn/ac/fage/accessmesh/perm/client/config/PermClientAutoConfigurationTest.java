@@ -20,6 +20,7 @@ class PermClientAutoConfigurationTest {
             "perm.allow-insecure=true").run(context -> {
                 assertThat(context).hasSingleBean(FeignCredentialInterceptor.class);
                 var template = new RequestTemplate();
+                template.method("POST");
                 template.uri("/api/access/auth/check");
                 context.getBean(FeignCredentialInterceptor.class).apply(template);
                 assertThat(template.headers()).containsKeys("X-Credential-Id", "X-Credential-Secret")

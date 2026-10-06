@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { oauthReturnTarget } from "@/views/oauth-consent/flow";
 import Motion from "./utils/motion";
 import { useRouter } from "vue-router";
 import { message } from "@/utils/message";
@@ -82,7 +83,10 @@ const onLogin = async (formEl: FormInstance | undefined) => {
           return initRouter().then(() => {
             disabled.value = true;
             router
-              .push(getTopMenu(true).path)
+              .push(
+                oauthReturnTarget(router.currentRoute.value.query.returnTo) ??
+                  getTopMenu(true).path
+              )
               .then(() => {
                 // 登录成功提示语义（T-FE-049 半成功诚实提示）：菜单/权限加载失败或
                 // 账号无菜单时不弹 success，如实 warning 告知（纯函数提取，spec 锁分支）。

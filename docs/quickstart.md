@@ -19,14 +19,14 @@
 # 1. 构建三个服务 jar（跳过测试，约 1~3 分钟）
 mvn package -DskipTests
 
-# 2. 准备密钥（复制模板并填值，四项均为必填）
+# 2. 准备密钥（复制模板并填值，数据库/Redis 密码及四个应用密钥均必填）
 cp .env.example .env
 
 # 3. 先启动管理平台（前端 + gateway + access-service + PG/Redis/Nacos）
 docker compose --profile app up -d --build frontend gateway access-service
 ```
 
-`.env` 必填项：`ACCESS_BOOTSTRAP_ADMIN_PASSWORD`（首管理员密码）、`JWT_SECRET_KEY`（≥32 字符）、`ACCESSMESH_SIGNATURE_SECRET`（gateway/access-service/example-service 三处同值）、`PERM_INTERNAL_SECRET`（仅 gateway 与 access-service 同值）——分发范围详见模板注释。
+`.env` 必填项：`DB_PASSWORD`、`REDIS_PASSWORD`（仅基建也必填）、`ACCESS_BOOTSTRAP_ADMIN_PASSWORD`（首管理员密码）、`JWT_SECRET_KEY`（≥32 字符）、`ACCESSMESH_SIGNATURE_SECRET`（gateway/access-service/example-service 三处同值）、`PERM_INTERNAL_SECRET`（仅 gateway 与 access-service 同值）——分发范围详见模板注释。
 
 首次启动时 PostgreSQL 空数据卷自动执行唯一权威 DDL 建库建表；access-service 幂等 bootstrap 创建首管理员 `admin`（密码=你填的值，重复启动不重置）。
 
@@ -65,10 +65,11 @@ docker compose --profile app up -d --build example-service
 基础设施用 compose，应用跑在本机便于调试：
 
 ```bash
-# 1. 基础设施（仅 PG/Redis/Nacos，与 dev 配置零参数对接）
+# 1. 复制 .env.example 为 .env，填写 DB_PASSWORD 与 REDIS_PASSWORD，再起基建
 docker compose up -d
 
-# 2. access-service（首启注入密钥与首管理员密码；幂等，重复启动 no-op）
+# 2. 本机 Java 不自动读取 .env；先显式 export DB_PASSWORD 和 REDIS_PASSWORD（同 .env）
+# access-service 首启再注入密钥与首管理员密码（幂等，重复启动 no-op）
 ACCESS_BOOTSTRAP_ENABLED=true ACCESS_BOOTSTRAP_ADMIN_PASSWORD=<密码> \
   JWT_SECRET_KEY=<密钥> ACCESSMESH_SIGNATURE_SECRET=<签名密钥> PERM_INTERNAL_SECRET=<内部密钥> \
   mvn spring-boot:run -pl access-service

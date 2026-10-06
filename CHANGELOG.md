@@ -6,6 +6,10 @@
 
 ### Added
 
+- **OAuth2 公开客户端与授权确认**：客户端可登记 PUBLIC，强制 S256 PKCE 且不使用 secret；新增最小同意/拒绝页，复用平台登录及服务端预览核验。CONFIDENTIAL 保持密钥校验；回调根路径不再匹配任意路径，非根路径段前缀规则保留。
+- **管理台日常入口**：新增服务凭证签发/停用/删除/有效期管理、登录日志、同步已应用状态页面；首页展示真实会话信息，授权草稿按账号/租户/角色/资源类型暂存，重新登录后提示恢复而不自动提交。同步页面明确不代表最近一次尝试成功，失败取证复用操作日志。
+- **工程验证入口**：前端 lint/typecheck/Vitest/35 组 DTO 字段对账进入 CI；增加实际耗时记录与 `tools/build.ps1` 上游 install 构建入口，错误码索引由测试对照枚举。
+
 - **权限引擎可观测性与独立管理端口（T-PERM-094）**：access-service 引入 actuator+Prometheus 端点（同 Gateway 形态）：health/info/prometheus/metrics 仅经独立管理端口提供（默认 `9101` 回环绑定，`ACCESS_MANAGEMENT_PORT`/`ACCESS_MANAGEMENT_ADDRESS` 覆盖；主端口 9100 无任何 `/actuator/**`）。新增引擎指标 `access.query.stage`（选择×阶段×终态计数——scopeAll/无角色短路率观测载体）、`access.query.execution`（执行终态 Timer 含直方图 P50/P95/P99；`BUDGET_EXCEEDED` 单列容量信号，与技术故障分开告警）、`access.query.evidence.failed`（审计证据受控提交失败）；指标口径与监控承载分配见 [engine/implementation §3.11](docs/design/engine/implementation.md)。compose `app` profile 的 access-service 补管理端口健康检查。
 
 - **权限查询容量保护与候选加速（T-PERM-093）**：大批量稀疏候选按实测门槛选择索引，可通过服务端开关回退扫描；新增可配置的结构预算和协作式执行期限，超限返回整体技术失败，不截断事实或准入快照。默认限额与调整说明见 [R2 设计 §5.5](docs/design/r2-unified-query-and-admission.md#55-sql候选算法与预算)。
@@ -15,6 +19,22 @@
 - **独立依赖 manifest 发布通道与可选 SDK（T-PERM-071）**：新增 M2M 端点 `POST /api/access/integration/permission-manifest/full-sync`（服务凭证认证，所属服务发布依赖声明清单，逐项 RESOLVED/REJECTED 诊断）；SDK 新增 `perm-registration-spring-boot-starter`（静态 JSON 启动发布/动态 Provider 固定快照/显式资源前置与两步协调，默认关闭）；资源与清单发布引入发布源递增代次（平台按 scope 原子拒旧、同代次同指纹重试放行）。
 
 ### Changed
+
+- **分页与线格式（破坏性变更）**：平台与报表示例分页上限统一 200，超限 HTTP 400，响应带 hasNext；示例改用 pageNum/pageSize（默认 1/20）与公共 PageResp，移除 page/size。user 响应内 orgType 从字符串改为 Integer，调用方同步升级；full-sync 完整快照不受分页限制。
+- **失败审计与脱敏**：操作日志记录公开信封 code，业务异常/权限拒绝不再看成成功；Gateway 权限拒绝经有界内部写入进入现有操作日志，可按 requestId 查询。三类日志在读取时掩码明确手机号/邮箱/凭据，保留普通用户名、IP 和数据库原始记录；写入失败不改变业务结果。
+- **SDK 接线与模块清理**：Servlet 身份头验签由 perm-client starter 提供，配置迁至 perm.client.signature；无服务发现环境可指定 Feign URL。删除空 perm-gateway starter、零调用旧模型与 EDIT 常量（使用 UPDATE），M2M 端点清单与授权项 DTO 单源复用。
+- **数据边界**：Flex 生成 SQL 启用 tenant_id，缺上下文拒绝，启动固定图显式豁免；手写 XML 继续显式租户过滤。外部 JSON 字段严格单根且最大 64 KiB UTF-8，审计内部快照只做严格 JSON 校验。
+- **升级要求**：OAuth2 类型列/密钥约束及新增菜单/API 固定图要求旧开发库先备份再重建；不提供自动种子补标或在线数据迁移。PERSONAL 后端与分配入口可用，角色维护页仍仅 BASIC_ROLE。
+
+- **认证入口收紧（T-ACCESS-083）**：用户不存在和密码错误统一 10005；验证码错误纳入账号失败计数；重置密码须包含字母与数字，复杂度不足为 10010。短信登录端点、DTO 与白名单通道移除，历史日志保留。
+
+- **管理员固定图种子锁定（T-PERM-106）**：BOOTSTRAP_SEED 行不可经授权 API 改删或挂子权限（20074），普通转授 MANUAL 行仍可维护；旧库不自动补标，须先备份后重建。成员移除、停用及最后管理员保护仍按既定延后边界。
+
+- **权限拒绝解释（T-PERM-107，reason 词表变更）**：`CONDITION_NOT_MET_OR_CONFLICT` 拆为 `CONDITION_NOT_MET` / `PERMISSION_CONFLICT`，实际互斥命中优先；check 的拒绝项正确返回条件参与事实，batch-check 每项新增 `conditionEvaluated`。调用方需同步更新 reason 分类，不改变 allowed 判定，不开放 TRACE。
+
+- **密码重置与 OAuth2 代际（T-ACCESS-082，安全收紧）**：管理员重置吊销目标全部平台会话；任何改密后旧授权码、刷新链和 access JWT 拒绝。首次授权以客户端 refresh TTL 固定整链期限，刷新不延长，access TTL 不超链期限；种子 refresh TTL 收至 7 天。存量缺代际字段的 OAuth2 凭据拒绝，部署须全量切换签发节点并重新授权。
+
+- **部署凭据与运维基线（T-ACCESS-086）**：Compose 两档均要求非空 `DB_PASSWORD`/`REDIS_PASSWORD`，移除 PG trust 与 Redis 公开默认值；旧 PG 数据卷须按部署手册单独收紧认证。Nacos 数据持久化、服务自动重启及依赖健康检查接通；新增备份恢复、离线忘密恢复、授权墓碑与密钥轮换规程。
 
 - **角色重指派（T-ADMIN-030）**：`user-role/assign` 与 `batch-assign` 可更新 `relationId=null` 的既有绑定有效期，修复过期绑定重新分配成功但仍失效的问题；批量分配以无限期为目标。不同关系新增，完全相同的绑定重试幂等跳过；非空相同关系改期返回 `20027`，须先撤销再分配。互斥冲突时整批回滚。外评处置补齐（claude 通道，用户 2026-10-02 拍板）：三写入口 `relationId` 加 `@Positive`（0 与 null 同 UK 槽位，0 会形成 null 侧分配/撤销全部冲突或查不到的持粘行——HTTP 层 400 拒绝）；`assign` 倒置区间（validFrom>validTo）整批 20027 拒绝（改写既有有效绑定为永不生效窗口=静默失权，原「写入侧无校验」已知边界收敛）；装载与更新间并发变更由 20027 改报新码 **20072** `USER_ROLE_CONCURRENT_CONFLICT`（并发冲突请重试语义，对齐 20058 先例）；本地投影行改期统一 `20045`（原非空关系场景误报 20027）；退役零调用旧二元键 `userRoleRelationKey`；`batchUpdateWindows` 的 `updated_at` 改整批标量入参。
 

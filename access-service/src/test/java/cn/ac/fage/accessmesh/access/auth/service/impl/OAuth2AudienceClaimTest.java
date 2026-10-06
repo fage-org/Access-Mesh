@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.auth.service.impl;
 
+import cn.ac.fage.accessmesh.access.support.OAuth2CredentialFixtures;
 import cn.ac.fage.accessmesh.access.auth.dto.TokenReq;
 import cn.ac.fage.accessmesh.access.auth.dto.TokenResp;
 import cn.ac.fage.accessmesh.access.auth.entity.SysOauth2Client;
@@ -65,6 +66,7 @@ class OAuth2AudienceClaimTest {
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         var activeUser = new cn.ac.fage.accessmesh.access.user.entity.SysUser();
         activeUser.setStatus(1);
+        activeUser.setPassword(OAuth2CredentialFixtures.PASSWORD_HASH);
         lenient().when(userDomainService.selectValidById(1L, 9L)).thenReturn(activeUser);
     }
 
@@ -85,7 +87,7 @@ class OAuth2AudienceClaimTest {
 
     private String issueTokenByCodeExchange(SysOauth2Client client) throws Exception {
         when(oauth2ClientDomainService.findActiveByClientId(CLIENT_ID)).thenReturn(client);
-        OAuth2AppServiceImpl.AuthCodeData codeData = new OAuth2AppServiceImpl.AuthCodeData();
+        OAuth2AppServiceImpl.AuthCodeData codeData = OAuth2CredentialFixtures.authCode();
         codeData.setUserId(9L);
         codeData.setTenantId(1L);
         codeData.setClientId(CLIENT_ID);
@@ -134,7 +136,7 @@ class OAuth2AudienceClaimTest {
     void refreshTokenPath_alsoWritesAudClaim() throws Exception {
         SysOauth2Client client = clientWithAudiences("example-service");
         when(oauth2ClientDomainService.findActiveByClientId(CLIENT_ID)).thenReturn(client);
-        OAuth2AppServiceImpl.RefreshTokenData stored = new OAuth2AppServiceImpl.RefreshTokenData();
+        OAuth2AppServiceImpl.RefreshTokenData stored = OAuth2CredentialFixtures.refreshToken();
         stored.setUserId(9L);
         stored.setTenantId(1L);
         stored.setClientId(CLIENT_ID);

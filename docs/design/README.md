@@ -13,6 +13,7 @@
 | access-service 目标架构与归并约束 | [access-service-architecture.md](access-service-architecture.md)（`status: adopted`；归并拓扑、事务、数据、缓存和安全冲突时优先） |
 | access-service 能力包融合目标结构 | [access-service-capability-structure.md](access-service-capability-structure.md)（`status: adopted`，2026-09-13 T-ACCESS-032 完成 §8 归属清单与边界断言定稿、十项裁决登记 [历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日行；结构迁移已由 T-ACCESS-033 于 2026-09-13 完成，代码即 17 顶层包能力包结构） |
 | access-service API 契约总册 | [access-service-api-contract.md](access-service-api-contract.md)（`status: adopted`，2026-09-13 T-ACCESS-040 两册合一——管理面家族（T-ACCESS-040 时称「管理域家族」，裸路径族）与 perm 家族同册分列、按能力分章；原两契约册转 superseded 留原位，锚点对照见总册附录 C） |
+| DTO 字段对账覆盖 | [dto-field-coverage.md](dto-field-coverage.md)（已锁/未锁家族、CI 对账入口） |
 | 引擎子系统概念模型      | [engine/overview.md](engine/overview.md)                                             |
 | 引擎子系统核心调用链路  | [engine/core-flows.md](engine/core-flows.md)                                         |
 | 引擎子系统实现设计      | [engine/implementation.md](engine/implementation.md)                                 |
@@ -121,3 +122,5 @@ Claude 按需技能位于 `.claude/skills/`。
 清单定案后续实施已于 2026-10-04 完成，当前规则已回写上述权威文档；验证与部署边界见[综合验收](../archive/2026-10-04/tasks/evidence/checklist-followup/final-audit.md)。
 
 示例共享多租户凭证接入已由 T-ACCESS-081 完成，当前规范见服务认证 §3.5；[验收证据](../archive/2026-10-04/tasks/evidence/T-ACCESS-081/verification.md)。
+
+使用者视角修复计划已于 2026-10-06 完成，24 项任务与验收证据见 [归档批次](../archive/2026-10-06/README.md)；现行规则已回写本索引指向的契约、架构及部署文档。

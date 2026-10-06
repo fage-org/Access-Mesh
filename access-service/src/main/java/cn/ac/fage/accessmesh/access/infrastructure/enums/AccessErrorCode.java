@@ -87,6 +87,8 @@ public enum AccessErrorCode {
      */
     CANNOT_DISABLE_SELF(10009, "不能停用当前登录用户"),
 
+    PASSWORD_TOO_WEAK(10010, "密码须为8-32位且同时包含字母和数字"),
+
     // ===== 组织相关错误（10101-10199） =====
 
     /**
@@ -793,7 +795,9 @@ public enum AccessErrorCode {
      * （extra.grantOriginRole 先清后种重整化）后再删。命中含级联子孙与无指针缺省所有者
      * （bootstrap-admin）两种形态，命中角色与引用类型见 message 明细。
      */
-    ROLE_GRANT_ORIGIN_CONFLICT(20073, "角色被资源类型所有者指针引用，不可删除：请先经 type-definition/update 迁移该类型所有者（extra.grantOriginRole）后再删除（命中角色与引用类型见 message 明细）");
+    ROLE_GRANT_ORIGIN_CONFLICT(20073, "角色被资源类型所有者指针引用，不可删除：请先经 type-definition/update 迁移该类型所有者（extra.grantOriginRole）后再删除（命中角色与引用类型见 message 明细）"),
+
+    BOOTSTRAP_SEED_READONLY(20074, "平台初始化种子行只读，不可修改或删除");
 
     private final int code;
     private final String message;

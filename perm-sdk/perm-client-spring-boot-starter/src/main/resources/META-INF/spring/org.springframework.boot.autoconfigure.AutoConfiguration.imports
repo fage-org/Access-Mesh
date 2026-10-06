@@ -1,1 +1,2 @@
 cn.ac.fage.accessmesh.perm.client.config.PermClientAutoConfiguration
+cn.ac.fage.accessmesh.perm.client.config.PermClientServletSecurityAutoConfiguration

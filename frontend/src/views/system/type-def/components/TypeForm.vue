@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { ENUM_PAGE_SIZE } from "@/constants/access";
+
 import { ref, reactive, computed, watch } from "vue";
 import type { FormInstance, FormRules } from "element-plus";
 import { TYPE_KEY_LABEL, type TypeDefResp, type TypeKey } from "@/api/type-def";
@@ -68,7 +70,7 @@ async function loadOwnerRoles() {
       const res = await getRoleList({
         roleTypeCodes: ["BASIC_ROLE"],
         pageNum,
-        pageSize: 200
+        pageSize: ENUM_PAGE_SIZE
       });
       roles.push(...res.items);
       if (!res.hasNext) break;

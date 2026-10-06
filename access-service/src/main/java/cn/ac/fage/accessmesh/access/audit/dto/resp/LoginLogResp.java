@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.audit.dto.resp;
 
 import cn.ac.fage.accessmesh.access.audit.entity.SysLoginLog;
+import cn.ac.fage.accessmesh.access.infrastructure.util.SensitiveDataUtils;
 
 import java.time.LocalDateTime;
 
@@ -82,14 +83,14 @@ public record LoginLogResp(
     public static LoginLogResp from(SysLoginLog entity) {
         return new LoginLogResp(
             entity.getId(),
-            entity.getUsername(),
+            SensitiveDataUtils.maskText(entity.getUsername()),
             entity.getClientId(),
             entity.getLoginType(),
             entity.getStatus(),
             entity.getIpAddress(),
-            entity.getUserAgent(),
+            SensitiveDataUtils.maskText(entity.getUserAgent()),
             entity.getLocation(),
-            entity.getFailReason(),
+            SensitiveDataUtils.maskText(entity.getFailReason()),
             entity.getLoginAt()
         );
     }

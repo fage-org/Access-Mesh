@@ -142,4 +142,16 @@ public class PermissionClient {
             .doOnError(e -> log.error("在线操作准入调用失败: userId={}, serviceCode={}, path={}",
                 userId, serviceCode, path));
     }
+
+    /** 平台内部审计写入，不复用或扩大外部服务凭证白名单。 */
+    public Mono<Void> recordDenial(Long tenantId, cn.ac.fage.accessmesh.common.model.GatewayDenialAuditReq request) {
+        return webClient.post().uri("/api/access/internal-audit/gateway-denial")
+            .header("X-Tenant-Id", tenantId.toString())
+            .header("X-Internal-Secret", internalSecret)
+            .header("X-Request-Id", request.requestId())
+            .bodyValue(request).retrieve()
+            .bodyToMono(new ParameterizedTypeReference<R<Void>>() {})
+            .flatMap(result -> result.getCode() == 200 ? Mono.<Void>empty()
+                : Mono.error(new IllegalStateException("拒绝审计写入失败，code=" + result.getCode())));
+    }
 }

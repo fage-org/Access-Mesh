@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.access.resource.service.impl;
 
 import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
+import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
 import cn.ac.fage.accessmesh.access.type.dto.req.OperationKeyReq;
 import cn.ac.fage.accessmesh.access.type.dto.req.OperationKeysReq;
@@ -172,11 +173,13 @@ class ResourceOperationKeyPgIT {
 
     @BeforeEach
     void bindContext() {
+        TenantContextHolder.setTenantId(TENANT);
         PermissionChangeContext.bindIfAbsent();
     }
 
     @AfterEach
     void clearContext() {
+        TenantContextHolder.clear();
         PermissionChangeContext.clear();
     }
 

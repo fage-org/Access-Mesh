@@ -13,7 +13,6 @@ import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryResourcesResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryScopesResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.ResourceResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.RoleResp;
-import cn.ac.fage.accessmesh.perm.common.dto.resp.RolePermissionItemsResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.UserEffectivePermissionCodesResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.UserRolesResp;
 import org.springframework.cloud.openfeign.FeignClient;

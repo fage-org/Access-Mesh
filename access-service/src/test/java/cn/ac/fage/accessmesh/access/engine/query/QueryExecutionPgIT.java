@@ -365,7 +365,7 @@ class QueryExecutionPgIT {
             decision("union", Inheritance.SELF, TypeFallback.ALLOW, clause("R2STAGE", "x"), clause("R2STAGE", "y")));
         assertThat(result(results, 0).outcome()).isEqualTo(DecisionResult.Decision.ALLOW);
         assertThat(result(results, 1).outcome()).isEqualTo(DecisionResult.Decision.ALLOW);
-        assertThat(result(results, 2).reason()).isEqualTo(DecisionResult.Reason.CONDITION_NOT_MET_OR_CONFLICT);
+        assertThat(result(results, 2).reason()).isEqualTo(DecisionResult.Reason.PERMISSION_CONFLICT);
         // 判定面门面（getDenied* 薄门面，T-PERM-089）与引擎契约同语义：独立目标各自放行
         assertThat(gate.getDeniedEntityIds(TENANT, user, "R2STAGE", Set.of(x, y), "VIEW")).isEmpty();
         assertThat(gate.getDeniedResourceCodes(TENANT, user, "R2STAGE", Set.of("x", "y"), "VIEW")).isEmpty();
@@ -403,7 +403,7 @@ class QueryExecutionPgIT {
     void should_preserveScopeFailureReason_whenInstanceCodeUnknown() {
         QueryResult results = execute(new User(USER_EMPTY), decision("unknown", Inheritance.SELF, TypeFallback.ALLOW,
             clause(TYPE_T3_CODE, "not-registered")));
-        assertThat(result(results, 0).reason()).isEqualTo(DecisionResult.Reason.CONDITION_NOT_MET_OR_CONFLICT);
+        assertThat(result(results, 0).reason()).isEqualTo(DecisionResult.Reason.CONDITION_NOT_MET);
     }
 
     @Test
@@ -462,7 +462,7 @@ class QueryExecutionPgIT {
         TargetClause[] clauses = ids.stream().map(id -> new TargetClause(new TypeOperation(TYPE_T1_CODE, "VIEW"), new ByEntityId(id)))
             .toArray(TargetClause[]::new);
         QueryResult results = execute(new Roles(Set.of(ROLE_A)), decision("chunks", Inheritance.SELF, TypeFallback.DISALLOW, clauses));
-        assertThat(result(results, 0).reason()).isEqualTo(DecisionResult.Reason.CONDITION_NOT_MET_OR_CONFLICT);
+        assertThat(result(results, 0).reason()).isEqualTo(DecisionResult.Reason.PERMISSION_CONFLICT);
         assertThat(counter.grants.get()).as("实际授权 SQL prepare 分块计数").isEqualTo(2);
     }
 

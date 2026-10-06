@@ -22,6 +22,7 @@
         <if test="targetType != null">
           AND target_type = #{targetType}
         </if>
+        <if test="requestId != null">AND request_id = #{requestId}</if>
     </sql>
 
     <select id="selectPageByCondition" resultType="cn.ac.fage.accessmesh.access.audit.entity.OperationLog">

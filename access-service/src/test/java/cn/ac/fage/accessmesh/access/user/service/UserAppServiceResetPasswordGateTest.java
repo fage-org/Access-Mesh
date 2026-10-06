@@ -78,6 +78,7 @@ class UserAppServiceResetPasswordGateTest {
 
             var resp = service.resetPassword(OPERATOR, "new-pass-123");
             assertThat(resp.newPassword()).isEqualTo("new-pass-123");
+            stp.verify(() -> StpUtil.logout(OPERATOR), never());
         }
 
         verify(permissionValidator, never()).checkInstanceLevel(any(), any(), any());
@@ -114,6 +115,7 @@ class UserAppServiceResetPasswordGateTest {
 
             var resp = service.resetPassword(TARGET, null);
             assertThat(resp.newPassword()).hasSize(12);
+            stp.verify(() -> StpUtil.logout(TARGET));
         }
 
         verify(permissionValidator).checkInstanceLevel(
@@ -135,5 +137,18 @@ class UserAppServiceResetPasswordGateTest {
             assertThatThrownBy(() -> service.resetPassword(OPERATOR, "x"))
                 .isInstanceOf(BizException.class);
         }
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"900,12345678", "77,abcdefgh", "900,abcdef!!", "77,1234!!!!"})
+    void weakPasswordsAreRejectedForSelfAndAdminReset(long userId, String password) {
+        when(userDomainService.selectValidById(Mockito.any(), eq(userId))).thenReturn(user(userId));
+        try (MockedStatic<StpUtil> stp = Mockito.mockStatic(StpUtil.class)) {
+            stp.when(StpUtil::getLoginIdAsLong).thenReturn(OPERATOR);
+            assertThatThrownBy(() -> service.resetPassword(userId, password))
+                .isInstanceOf(BizException.class).extracting("errorCode").isEqualTo(10010);
+            stp.verify(() -> StpUtil.logout(userId), never());
+        }
+        verify(userMapper, never()).update(any(SysUser.class));
     }
 }

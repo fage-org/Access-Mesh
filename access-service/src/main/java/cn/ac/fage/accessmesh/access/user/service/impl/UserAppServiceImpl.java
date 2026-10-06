@@ -311,7 +311,7 @@ public class UserAppServiceImpl implements UserAppService {
                         return new UserPageItemResp.OrgBrief(
                             uo.getOrgId(),
                             org != null ? org.getName() : null,
-                            org != null ? org.getOrgType() : null,
+                            org != null && org.getOrgType() != null ? Integer.valueOf(org.getOrgType()) : null,
                             Boolean.TRUE.equals(uo.getIsPrimary())
                         );
                     })
@@ -377,6 +377,13 @@ public class UserAppServiceImpl implements UserAppService {
             ? newPassword
             : generateRandomPassword();
 
+        if (effectivePassword.length() < 8 || effectivePassword.length() > 32
+            || !effectivePassword.matches("(?s).*[A-Za-z].*")
+            || !effectivePassword.matches("(?s).*[0-9].*")) {
+            throw new BizException(AccessErrorCode.PASSWORD_TOO_WEAK.getCode(),
+                AccessErrorCode.PASSWORD_TOO_WEAK.getMessage());
+        }
+
         user.setPassword(BCrypt.hashpw(effectivePassword));
         // DDL force_reset_pwd 语义（T-ADMIN-022）：非自身重置（密码经管理员之手）置 true——
         // 「管理员重置后须改密」，前端强制改密阻断据此闭环（T-FE-046：登录后路由守卫阻断至
@@ -387,6 +394,9 @@ public class UserAppServiceImpl implements UserAppService {
         user.setForceResetPwd(!userId.equals(currentUserId));
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.update(user);
+        if (!userId.equals(currentUserId)) {
+            StpUtil.logout(userId);
+        }
 
         return new ResetPasswordResp(effectivePassword);
     }

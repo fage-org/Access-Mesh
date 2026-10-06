@@ -1,3 +1,4 @@
+import { DEFAULT_PAGE_SIZE } from "@/constants/access";
 import { ref } from "vue";
 import type { Ref } from "vue";
 
@@ -26,7 +27,7 @@ export function useRemotePagedOptions<T>(
   fetcher: (q: RemotePagedQuery) => Promise<RemotePagedResult<T>>,
   opts?: { pageSize?: number; onError?: (e: unknown) => void }
 ) {
-  const pageSize = opts?.pageSize ?? 20;
+  const pageSize = opts?.pageSize ?? DEFAULT_PAGE_SIZE;
   const keyword = ref("");
   const pageNum = ref(1);
   const items: Ref<T[]> = ref([]);

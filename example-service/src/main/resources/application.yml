@@ -1,6 +1,19 @@
 server:
   port: 9300
 
+# 探针仅在容器内回环管理端口可达，不经过业务身份拦截器。
+management:
+  server:
+    port: 9301
+    address: 127.0.0.1
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
 spring:
   application:
     name: example-service

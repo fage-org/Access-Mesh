@@ -177,26 +177,25 @@ class OperationLogAspectTest {
         }
     }
 
-    /**
-     * 测试 3: 异常路径 — 方法抛 RuntimeException，验证 auditDomainService 不被调用
-     */
-    @Test
-    void shouldNotRecordWhenMethodThrows() throws Throwable {
-        when(joinPoint.proceed()).thenThrow(new RuntimeException("test exception"));
-
-        OperationLog opLog = mock(OperationLog.class);
-        lenient().when(opLog.module()).thenReturn("test");
-        lenient().when(opLog.action()).thenReturn("action");
-
-        try {
-            aspect.around(joinPoint, opLog);
-            fail("Expected RuntimeException");
-        } catch (RuntimeException ignored) {
-            // expected
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"security,403", "business,20074", "argument,400", "unexpected,99999", "query,90001", "admission,20071"})
+    void shouldRecordFailureCodeAndRethrowOriginal(String kind, int expectedCode) throws Throwable {
+        RuntimeException failure = switch (kind) {
+            case "security" -> new SecurityException("denied");
+            case "business" -> new cn.ac.fage.accessmesh.common.exception.BizException(20074, "readonly");
+            case "argument" -> new IllegalArgumentException("bad input");
+            case "query" -> new cn.ac.fage.accessmesh.access.engine.query.QueryValidationException("bad query");
+            case "admission" -> new cn.ac.fage.accessmesh.access.engine.query.AdmissionConfigurationException("bad config");
+            default -> new IllegalStateException("unexpected");
+        };
+        setupJoinPoint(getClass(), "paramBasedMethod", new Object[]{List.of(1L), 7L}, new String[]{"ids", "operatorId"}, null);
+        when(joinPoint.proceed()).thenThrow(failure);
+        OperationLog annotation = getClass().getMethod("paramBasedMethod", List.class, Long.class).getAnnotation(OperationLog.class);
+        try (MockedStatic<TenantContextHolder> tenant = mockStatic(TenantContextHolder.class)) {
+            tenant.when(TenantContextHolder::getTenantId).thenReturn(1L);
+            assertSame(failure, assertThrows(RuntimeException.class, () -> aspect.around(joinPoint, annotation)));
+            assertEquals(expectedCode, captureEntry().responseCode());
         }
-
-        // 异常后不应记录正常日志
-        verify(auditDomainService, never()).asyncRecordLog(any());
     }
 
     /**

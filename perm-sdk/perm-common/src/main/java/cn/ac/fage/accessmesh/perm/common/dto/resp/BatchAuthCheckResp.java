@@ -54,6 +54,8 @@ public record BatchAuthCheckResp(
         /**
          * 匹配的权限ID列表（拒绝时为空列表）
          */
-        List<Long> matchedPermissionIds
+        List<Long> matchedPermissionIds,
+        /** 本次有效候选中是否存在参与条件评估的授权。 */
+        boolean conditionEvaluated
     ) {}
 }

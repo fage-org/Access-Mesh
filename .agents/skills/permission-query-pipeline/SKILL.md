@@ -77,13 +77,13 @@ context.clientIp 提取为受信 IP）：
 // check：无编码目标（含空白串归一 TYPE_LEVEL）→ TypeLevel；有编码 → 单 clause TargetSet
 // （inheritMode PARENT/BOTH → Inheritance.SELF_AND_ANCESTORS，否则 SELF——
 //  线格式解析=适配层私有 inheritClosureOf，T-PERM-092 收编）
-QueryItem item = QueryItem.decision("check", selection(req), checkOutput()); // matchedIds+KEPT
+QueryItem item = QueryItem.decision("check", selection(req), checkOutput()); // matchedIds+RAW_AND_KEPT（适配层派生条件参与事实）
 QueryResult result = queryEngine.execute(new QueryRequest(tenantId, new User(userId),
     callerContext(req.context()), ReadOptions.defaults(), List.of(item)));
 return PermResultUtils.toAuthCheckResp((DecisionResult) result.orderedResults().get(0));
 
 // batchCheck：多个独立 DECISION item 一次 execute 批量表达（禁循环 N 次公开 execute）；
-// 拒绝原因四词表（NO_ROLE/NO_PERMISSION/CONDITION_NOT_MET_OR_CONFLICT/DEPENDENT_NOT_IN_PARENT_CONTEXT）
+// 拒绝原因词表（NO_ROLE/NO_PERMISSION/CONDITION_NOT_MET/PERMISSION_CONFLICT/DEPENDENT_NOT_IN_PARENT_CONTEXT）
 // 与 DecisionResult.Reason 枚举 1:1（.name() 输出）
 ```
 

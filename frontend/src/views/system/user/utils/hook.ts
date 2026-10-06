@@ -15,6 +15,7 @@ import { usePagedList } from "@/utils/list-load";
 export function useUserManage() {
   const selectedOrgId = ref<number | null>(null);
   const searchForm = reactive({
+    username: "",
     name: "",
     email: "",
     phone: "",
@@ -39,6 +40,7 @@ export function useUserManage() {
       getUserPage({
         pageNum: page,
         pageSize: size,
+        username: searchForm.username || undefined,
         name: searchForm.name || undefined,
         email: searchForm.email || undefined,
         phone: searchForm.phone || undefined,
@@ -48,6 +50,7 @@ export function useUserManage() {
   });
 
   function onReset() {
+    searchForm.username = "";
     searchForm.name = "";
     searchForm.email = "";
     searchForm.phone = "";

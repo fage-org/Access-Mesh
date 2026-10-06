@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.auth.service.impl;
 
 import cn.ac.fage.accessmesh.access.auth.dto.TokenReq;
+import cn.ac.fage.accessmesh.access.support.OAuth2CredentialFixtures;
 import cn.ac.fage.accessmesh.access.auth.dto.TokenResp;
 import cn.ac.fage.accessmesh.access.auth.entity.SysOauth2Client;
 import cn.ac.fage.accessmesh.access.user.entity.SysUser;
@@ -80,10 +81,13 @@ class OAuth2LoginLogTest {
 
         // 2. 授权码已存 Redis（execute LUA 脚本一次性 GET+DEL；指定 RedisScript 类型定位脚本重载，
         //    避免 varargs 双 any() 触发返回泛型 V 的 Boolean 解引用 NPE）
-        org.mockito.BDDMockito.doReturn(
-            "{\"clientId\":\"client-1\",\"userId\":100,\"tenantId\":10,"
-                + "\"redirectUri\":\"http://app/cb\",\"codeChallenge\":null,\"codeChallengeMethod\":null,"
-                + "\"scope\":\"read\"}")
+        var codeData = OAuth2CredentialFixtures.authCode();
+        codeData.setClientId("client-1");
+        codeData.setUserId(100L);
+        codeData.setTenantId(10L);
+        codeData.setRedirectUri("http://app/cb");
+        codeData.setScope("read");
+        org.mockito.BDDMockito.doReturn(new ObjectMapper().writeValueAsString(codeData))
             .when(redisTemplate).execute(
                 org.mockito.ArgumentMatchers.<RedisScript<String>>any(), anyList());
 
@@ -91,6 +95,7 @@ class OAuth2LoginLogTest {
         SysUser user = new SysUser();
         user.setId(100L);
         user.setStatus(1);
+        user.setPassword(OAuth2CredentialFixtures.PASSWORD_HASH);
         user.setUsername("oauth-user");
         when(userDomainService.selectValidById(10L, 100L)).thenReturn(user);
         // generateAccessToken / 刷新令牌存储用 opsForValue

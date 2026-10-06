@@ -165,7 +165,7 @@ public interface RoleResourcePermissionMapper extends BaseMapper<RoleResourcePer
                               @Param("updatedAt") LocalDateTime updatedAt);
 
     /**
-     * 查询指定资源类型下被有效 MANUAL/AUTO_DEP 授权行直接引用的操作位集合
+     * 查询指定资源类型下被有效 MANUAL/AUTO_DEP/BOOTSTRAP_SEED 授权行直接引用的操作位集合
      * （T-PERM-072 操作生命周期守卫：binaryBit 变更/操作删除前判定；
      * granted_bits 等值命中，AUTHORITY_ROOT 基座行不算用户引用——按 T-PERM-062 既有迁移/级联处理）。
      *

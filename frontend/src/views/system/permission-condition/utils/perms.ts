@@ -1,3 +1,4 @@
+import { PERMISSION_CODE } from "@/constants/access";
 /**
  * 「权限条件」页按钮权限码（perm 串）目录 -- 单一事实源 (SSOT)。
  *
@@ -26,13 +27,13 @@
  */
 export const CONDITION_PERMS = {
   /** 查看条件列表（资源类型 CONDITION；🔧 2026-08-08 起全租户开放，保留仅对齐后端枚举） */
-  CONDITION_VIEW: "CONDITION:VIEW",
+  CONDITION_VIEW: PERMISSION_CODE.CONDITION_VIEW,
   /** 创建条件 */
-  CONDITION_ADD: "CONDITION:CREATE",
+  CONDITION_ADD: PERMISSION_CODE.CONDITION_CREATE,
   /** 编辑条件 -- 对齐后端 CONDITION:UPDATE（非 MANAGE） */
-  CONDITION_EDIT: "CONDITION:UPDATE",
+  CONDITION_EDIT: PERMISSION_CODE.CONDITION_UPDATE,
   /** 删除条件 -- 对齐后端 CONDITION:DELETE */
-  CONDITION_DELETE: "CONDITION:DELETE"
+  CONDITION_DELETE: PERMISSION_CODE.CONDITION_DELETE
 } as const;
 
 export type ConditionPermKey = keyof typeof CONDITION_PERMS;

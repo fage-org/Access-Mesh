@@ -15,6 +15,11 @@
 
     <dependencies>
         <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
             <groupId>cn.ac.fage.accessmesh</groupId>
             <artifactId>common</artifactId>
             <version>${project.version}</version>

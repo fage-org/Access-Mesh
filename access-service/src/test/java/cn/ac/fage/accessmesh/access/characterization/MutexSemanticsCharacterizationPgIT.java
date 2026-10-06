@@ -201,7 +201,7 @@ class MutexSemanticsCharacterizationPgIT {
         assertThat(result.outcome())
             .as("D02 正确语义锚：目标集合项内两端同场 → 共同集合拒绝（T-PERM-095 修复后仍须拒绝）")
             .isEqualTo(DecisionResult.Decision.DENY);
-        assertThat(result.reason()).isEqualTo(DecisionResult.Reason.CONDITION_NOT_MET_OR_CONFLICT);
+        assertThat(result.reason()).isEqualTo(DecisionResult.Reason.PERMISSION_CONFLICT);
     }
 
     // ===== D03：同目标挂互斥两端 → 必须拒绝（正确语义锚，修复前后不变） =====
@@ -226,7 +226,7 @@ class MutexSemanticsCharacterizationPgIT {
             null, null, null, null, null, null, null, Map.of()));
         assertThat(single.allowed())
             .as("D03 正确语义锚：同目标两端同场必须拒绝").isFalse();
-        assertThat(single.reason()).isEqualTo("CONDITION_NOT_MET_OR_CONFLICT");
+        assertThat(single.reason()).isEqualTo("PERMISSION_CONFLICT");
 
         // 批量 item 同形（服务面 batchCheck）
         BatchAuthCheckResp batch = checkAppService.batchCheck(R2BaselineFixture.TENANT, new BatchAuthCheckReq(
@@ -234,7 +234,7 @@ class MutexSemanticsCharacterizationPgIT {
                 new BatchAuthCheckReq.AuthCheckItem(CODE_D03, "r2b-mx-z", "VIEW", null, null, null)),
             null, null, null, null, Map.of()));
         assertThat(batch.items().get(0).allowed()).isFalse();
-        assertThat(batch.items().get(0).reason()).isEqualTo("CONDITION_NOT_MET_OR_CONFLICT");
+        assertThat(batch.items().get(0).reason()).isEqualTo("PERMISSION_CONFLICT");
 
         // getDenied 单目标（集合语义对单目标=共同集合）：修复后仍应拒绝
         assertThat(queryGate.getDeniedEntityIds(R2BaselineFixture.TENANT, user, CODE_D03, Set.of(entityZ), "VIEW"))

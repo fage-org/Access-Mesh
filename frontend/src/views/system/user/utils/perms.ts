@@ -1,3 +1,4 @@
+import { PERMISSION_CODE } from "@/constants/access";
 /**
  * 「组织与用户」融合页按钮权限码（perm 串）目录 —— 单一事实源 (SSOT)。
  *
@@ -29,13 +30,13 @@
 export const ORG_USER_PERMS = {
   // ===== 组织树（A 区）—— ORG（orgType=1） =====
   /** 查看组织树 */
-  ORG_VIEW: "ORG:VIEW",
+  ORG_VIEW: PERMISSION_CODE.ORG_VIEW,
   /** 新增根/子组织 */
-  ORG_ADD: "ORG:CREATE",
+  ORG_ADD: PERMISSION_CODE.ORG_CREATE,
   /** 编辑/移动/启停组织节点（与「成员管理」解耦） */
-  ORG_EDIT: "ORG:UPDATE",
+  ORG_EDIT: PERMISSION_CODE.ORG_UPDATE,
   /** 删除组织 */
-  ORG_DELETE: "ORG:DELETE",
+  ORG_DELETE: PERMISSION_CODE.ORG_DELETE,
   /**
    * 普通组织成员关系（添加/移除成员、设主组织）
    *
@@ -43,21 +44,21 @@ export const ORG_USER_PERMS = {
    * **默认树语义边界**：默认组织树上「添加/移除/设主」具有身份目录含义，
    * 由后端按 `docs/design/default-org-tree-user-lifecycle.md` 二次拒绝。
    */
-  ORG_MEMBER: "ORG:MANAGE_MEMBER",
+  ORG_MEMBER: PERMISSION_CODE.ORG_MANAGE_MEMBER,
 
   // ===== 成员（B 区）—— USER =====
   /** 查看用户列表 */
-  USER_VIEW: "USER:VIEW",
+  USER_VIEW: PERMISSION_CODE.USER_VIEW,
   /** 创建用户（只能归默认组织树） */
-  USER_ADD: "USER:CREATE",
+  USER_ADD: PERMISSION_CODE.USER_CREATE,
   /** 编辑用户（改己豁免） */
-  USER_EDIT: "USER:UPDATE",
+  USER_EDIT: PERMISSION_CODE.USER_UPDATE,
   /** 删除用户 */
-  USER_DELETE: "USER:DELETE",
+  USER_DELETE: PERMISSION_CODE.USER_DELETE,
   /** 启用/禁用切换（v1.4 toggle 语义，DISABLE 已合并入 ENABLE） */
-  USER_ENABLE: "USER:ENABLE",
+  USER_ENABLE: PERMISSION_CODE.USER_ENABLE,
   /** 重置密码（改己豁免） */
-  USER_RESET_PWD: "USER:RESET_PASSWORD",
+  USER_RESET_PWD: PERMISSION_CODE.USER_RESET_PASSWORD,
 
   // ===== 功能角色分配（C 区）—— access-service 的 ROLE 资源类型 =====
   //
@@ -66,25 +67,25 @@ export const ORG_USER_PERMS = {
   // access-service 内部 UserManageAppServiceImpl.assignRole/revokeRolesBatch
   // 同样使用 ROLE:MANAGE 做二次校验，形成门禁一致性。
   /** 分配/回收功能角色（ROLE:MANAGE，权限锚点为目标 abstract_role） */
-  USER_ROLE_ASSIGN: "ROLE:MANAGE",
-  USER_ROLE_REVOKE: "ROLE:MANAGE",
+  USER_ROLE_ASSIGN: PERMISSION_CODE.ROLE_MANAGE,
+  USER_ROLE_REVOKE: PERMISSION_CODE.ROLE_MANAGE,
 
   // ===== 岗位（D 区，岗位 = 特殊组织 orgType=2）—— ORG + 精化操作码 =====
   /** 查看岗位 Tab（v1.4 VIEW 类细化到资源类型，与 ORG:VIEW 解耦） */
-  POSITION_VIEW: "ORG:VIEW_POSITION",
+  POSITION_VIEW: PERMISSION_CODE.ORG_VIEW_POSITION,
   /** 新增岗位 */
-  POSITION_ADD: "ORG:CREATE_POSITION",
+  POSITION_ADD: PERMISSION_CODE.ORG_CREATE_POSITION,
   /** 编辑岗位 */
-  POSITION_EDIT: "ORG:UPDATE_POSITION",
+  POSITION_EDIT: PERMISSION_CODE.ORG_UPDATE_POSITION,
   /** 删除岗位 */
-  POSITION_DELETE: "ORG:DELETE_POSITION",
+  POSITION_DELETE: PERMISSION_CODE.ORG_DELETE_POSITION,
   /**
    * 挂载/卸载/设主 岗位用户
    *
    * 与普通组织成员归属（ORG:MANAGE_MEMBER）解耦，便于
    * "岗位用户运营"独立配权。资源锚点仍是岗位 org 实例。
    */
-  POSITION_ASSIGN: "ORG:ASSIGN_POSITION_USER"
+  POSITION_ASSIGN: PERMISSION_CODE.ORG_ASSIGN_POSITION_USER
 } as const;
 
 export type OrgUserPermKey = keyof typeof ORG_USER_PERMS;

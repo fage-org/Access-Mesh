@@ -3,7 +3,7 @@ doc_type: design
 title: 公共服务认证模块（per-service credential）
 status: adopted
 domain: access-service
-last_reviewed: 2026-10-04
+last_reviewed: 2026-10-06
 ---
 
 # 公共服务认证模块（per-service credential）设计
@@ -21,7 +21,7 @@ last_reviewed: 2026-10-04
 **非目标**：
 
 - 用户侧认证零改动（Sa-Token 会话 / OAuth2 authorization_code+PKCE / JWT 维持现状）；
-- 不做签名制（nonce / 验签 / 时钟容忍）——2026-09-19 重评定案：内网 TLS 下重放幂等 full-sync 无害、库泄露防护 BCrypt 哈希与公钥制等价；
+- 不做签名制（nonce / 验签 / 时钟容忍）——2026-09-19 重评定案：采用受控信任域内 bearer secret + TLS；BCrypt 只保护库中哈希，明文 secret 泄露后可重构凭证权限范围内的查询/同步请求，并非仅幂等重放无害；轮换与停用见 [部署基线](../ops/deployment.md#11-密钥轮换)；
 - 不借道 OAuth2 `client_credentials`（**无发放实现**——token 端点仅 authorization_code；schema 中 `internal-service` 种子行的 `grant_types='client_credentials'` 与列注释为历史预留、未被任何发放路径消费。且 OAuth2 client 是"应用代用户"的另一套身份语义——权限注册是 control plane 的 M2M 语义）；
 - 不改 20055 类型所有权门禁（它继续作为资源通道第二道防线）。
 
@@ -165,3 +165,5 @@ example:
 | [dependency-auto-grant.md](dependency-auto-grant.md) §9 | 消费方：manifest 通道强制凭证认证（身份=凭证绑定 tenant+service，请求不收 serviceCode）；资源同步通道同时接受 |
 | 任务结构 | 独立前置任务卡（T-PERM-035 拆卡时单列，先于 T-PERM-071 交付） |
 | 现状盘点证据 | 见 §2 锚点列（拦截器/过滤器/SDK 拦截器/OAuth2 grant 盘点均为 2026-09-19 代码级核实） |
+
+SDK 凭证注入已直接消费 common 的 M2mCredentialEndpoints（HTTP 方法 + 精确路径），不再维护第二份清单。perm-client 默认随类路径启用 Feign，Servlet 场景同时装配 GatewaySignatureFilter；非 Servlet 不装配过滤器。30003 由 SDK PermClientErrorCode 定义，保留原示例编号。配置与无服务发现接线见 [接入指南 §2.3](extension-guide.md#23-sdk-接线)。

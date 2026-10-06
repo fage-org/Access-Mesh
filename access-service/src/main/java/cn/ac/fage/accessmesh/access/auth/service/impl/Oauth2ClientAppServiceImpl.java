@@ -73,6 +73,10 @@ public class Oauth2ClientAppServiceImpl implements Oauth2ClientAppService {
         // 权限检查 — 类型级 CREATE
         permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_OAUTH2_CLIENT, OperationCode.CREATE);
 
+        String clientType = req.clientType() == null ? "CONFIDENTIAL" : req.clientType();
+        if ((!"CONFIDENTIAL".equals(clientType) && !"PUBLIC".equals(clientType)) || !req.isClientSecretValid()) {
+            throw new BizException(AccessErrorCode.ADMIN_INVALID_PARAM.getCode(), "客户端类型与密钥不匹配");
+        }
         // 检查clientId是否已存在
         SysOauth2Client existing = oauth2ClientMapper.selectByClientId(TenantContextHolder.getTenantId(), req.clientId());
         if (existing != null) {
@@ -83,7 +87,8 @@ public class Oauth2ClientAppServiceImpl implements Oauth2ClientAppService {
         client.setTenantId(TenantContextHolder.getTenantId());
         client.setClientId(req.clientId());
         // clientSecret 应加密存储
-        client.setClientSecret(BCrypt.hashpw(req.clientSecret()));
+        client.setClientType(clientType);
+        client.setClientSecret("PUBLIC".equals(clientType) ? null : BCrypt.hashpw(req.clientSecret()));
         client.setClientName(req.clientName());
         client.setGrantTypes(req.grantTypes());
         client.setRedirectUris(req.redirectUris());
@@ -130,6 +135,9 @@ public class Oauth2ClientAppServiceImpl implements Oauth2ClientAppService {
 
         // 只更新非null字段
         if (req.clientSecret() != null) {
+            if ("PUBLIC".equals(existing.getClientType())) {
+                throw new BizException(AccessErrorCode.ADMIN_INVALID_PARAM.getCode(), "公开客户端不能设置密钥；客户端类型创建后不可切换");
+            }
             existing.setClientSecret(BCrypt.hashpw(req.clientSecret()));
         }
         if (req.clientName() != null) {

@@ -4,7 +4,7 @@ title: 权限依赖声明与自动授权（简化方案）
 status: adopted
 domain: access-service
 supersedes: docs/archive/2026-09-20/dependency-auto-grant-path-design.md
-last_reviewed: 2026-10-04
+last_reviewed: 2026-10-06
 ---
 
 # 权限依赖声明与自动授权（简化方案）
@@ -34,7 +34,7 @@ last_reviewed: 2026-10-04
 
 ### 1.2 保持的边界
 
-实例级、同 owner 服务、单操作触发、条件直传与多条件 OR、同步物化保持。类型级 scope_all/AUTHORITY_ROOT 不作种子；父实例继承得到的权限不展开为种子。授权页直接说明边界。
+实例级、同 owner 服务、单操作触发、条件直传与多条件 OR、同步物化保持。类型级 scope_all/AUTHORITY_ROOT/BOOTSTRAP_SEED 不作种子；父实例继承得到的权限不展开为种子。授权页直接说明边界。
 
 API 与操作关联派生仍归 T-PERM-054，不通过依赖图授 API 绕过启动门禁；菜单可见性走既有投影。跨系统 export、类型级依赖、注解扫描、异步重建、多操作 AND 触发不进入本次范围。动态 SQL 消费仍归 T-PERM-036。
 
@@ -180,7 +180,7 @@ manifest 的范围是 tenant + 服务身份，与资源范围代次独立；同�
 
 该角色有效 MANUAL 行中取 scope_all=false、实例 ID 非空、depend_on=NULL 的行，条件不限。不按用户当前有效角色或运行时条件预删种子；物化处理角色授权事实，主体、条件与互斥仍由引擎运行时判定。
 
-不展开父继承、不以 AUTHORITY_ROOT/类型级授权作种子，也不以它们覆盖目标权限为由压制已推导的 AUTO_DEP；本次未扩展种子边界。
+不展开父继承、不以 AUTHORITY_ROOT/BOOTSTRAP_SEED/类型级授权作种子，也不以它们覆盖目标权限为由压制已推导的 AUTO_DEP；本次未扩展种子边界。
 
 资源 status 不参与种子、目标或中间节点的传播过滤；资源停用时既有及新产生的合法推导仍按相同规则计算。资源软删、授权撤销与声明变化继续触发重算，不能将停用与删除混同。
 

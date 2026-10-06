@@ -1,6 +1,7 @@
+import { PERMISSION_CODE } from "@/constants/access";
 /** 依赖页面只读门禁；服务发布不使用用户权限码。 */
 export const RESOURCE_DEPENDENCY_PERMS = {
-  RESOURCE_DEPENDENCY_VIEW: "DEPENDENCY:VIEW"
+  RESOURCE_DEPENDENCY_VIEW: PERMISSION_CODE.DEPENDENCY_VIEW
 } as const;
 export const RESOURCE_DEPENDENCY_PERM_LIST = Object.values(
   RESOURCE_DEPENDENCY_PERMS

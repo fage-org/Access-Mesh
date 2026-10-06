@@ -37,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 由单测锁定，本 IT 聚焦存储与认证链。
  */
 @SpringBootTest
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Tag("testcontainers")
 @Testcontainers(disabledWithoutDocker = true)
@@ -69,6 +70,60 @@ class ServiceCredentialPgIT {
     private RequestContextInterceptor requestContextInterceptor;
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired private org.springframework.test.web.servlet.MockMvc mvc;
+    @Autowired private cn.ac.fage.accessmesh.access.audit.mapper.OperationLogMapper operationLogMapper;
+    @org.springframework.beans.factory.annotation.Value("${perm.internal-secret}") private String internalSecret;
+    @org.springframework.beans.factory.annotation.Value("${perm.signature.secret}") private String signatureSecret;
+
+    @Test
+    void deniedCredentialCreateIsAuditedAndSearchableAfterRollback() throws Exception {
+        long user = 900085L;
+        jdbc.update("INSERT INTO abstract_user(id,tenant_id,user_type,external_id,name,enabled) VALUES (?,1,3,?,'audit user',true)", user, String.valueOf(user));
+        jdbc.update("INSERT INTO sys_user(id,tenant_id,username,password,name,user_type) VALUES (?,1,'t085-user',?,'audit user',3)",
+            user, cn.dev33.satoken.secure.BCrypt.hashpw("AuditUser123!"));
+        String token = cn.dev33.satoken.stp.StpUtil.getStpLogic().createLoginSession(user);
+        cn.dev33.satoken.stp.StpUtil.getSessionByLoginId(user).set("tenantId", TENANT).set("operatorName", "audit-user");
+        String requestId = "t085-" + java.util.UUID.randomUUID();
+        long timestamp = System.currentTimeMillis() / 1000;
+        var mac = javax.crypto.Mac.getInstance("HmacSHA256");
+        mac.init(new javax.crypto.spec.SecretKeySpec(signatureSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256"));
+        String signature = java.util.HexFormat.of().formatHex(mac.doFinal((user + "|1|" + timestamp).getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        try {
+            mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/access/service-credential/create")
+                    .header("X-Internal-Secret", internalSecret).header("X-User-Id", user).header("X-Tenant-Id", "1")
+                    .header("X-User-Signature", signature).header("X-Signature-Timestamp", timestamp)
+                    .header("Authorization", "Bearer " + token).header("X-Request-Id", requestId)
+                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON).content("{\"serviceCode\":\"t070-example\"}"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isForbidden());
+            org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(5)).untilAsserted(() ->
+                assertThat(operationLogMapper.countByCondition(TENANT, null, "SERVICE_CREDENTIAL_CREATE", user,
+                    null, null, null, requestId)).isEqualTo(1));
+            var row = operationLogMapper.selectPageByCondition(TENANT, null, null, user, null, null, null, 0, 20, requestId).getFirst();
+            assertThat(row.getResponseCode()).isEqualTo(403);
+            assertThat(row.getSummary()).contains("失败");
+            assertThat(operationLogMapper.countByCondition(TENANT + 1, null, null, null, null, null, null, requestId)).isZero();
+        } finally {
+            cn.dev33.satoken.stp.StpUtil.logout(user);
+            jdbc.update("DELETE FROM operation_log WHERE request_id=?", requestId);
+            jdbc.update("DELETE FROM sys_user WHERE id=?", user);
+            jdbc.update("DELETE FROM abstract_user WHERE id=?", user);
+        }
+    }
+
+    @Test
+    void internalGatewayDenialEndpointWritesExistingOperationLog() throws Exception {
+        String requestId = "t085-gw-" + java.util.UUID.randomUUID();
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/access/internal-audit/gateway-denial")
+                .header("X-Internal-Secret", internalSecret).header("X-Tenant-Id", "1")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .content("{\"userId\":9,\"serviceCode\":\"example-service\",\"httpMethod\":\"POST\",\"path\":\"/api/example/demo/hello\",\"reason\":\"NO_CANDIDATE\",\"requestId\":\"" + requestId + "\"}"))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(5)).untilAsserted(() ->
+            assertThat(operationLogMapper.countByCondition(TENANT, null, "GATEWAY_PERMISSION_DENIED", 9L,
+                null, null, null, requestId)).isEqualTo(1));
+        jdbc.update("DELETE FROM operation_log WHERE request_id=?", requestId);
+    }
 
     @AfterEach
     void tearDown() {

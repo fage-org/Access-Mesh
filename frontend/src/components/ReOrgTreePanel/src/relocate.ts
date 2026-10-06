@@ -28,10 +28,7 @@ export function relocateSelectionAfterReload(
   return node ? { kind: "keep", node } : { kind: "clear" };
 }
 
-function findOrgById(
-  nodes: OrgTreeNode[],
-  id: number
-): OrgTreeNode | null {
+function findOrgById(nodes: OrgTreeNode[], id: number): OrgTreeNode | null {
   for (const node of nodes) {
     if (node.id === id) return node;
     if (node.children) {

@@ -3,7 +3,7 @@ doc_type: design
 title: 权限中心 — 核心功能实现设计
 status: adopted
 domain: access-service
-last_reviewed: 2026-10-04
+last_reviewed: 2026-10-06
 ---
 
 # 权限中心 — 核心功能实现设计
@@ -512,8 +512,8 @@ scopeAll 条目不参与展开；query-resources 的树扩展（原 `expandResou
 
 ### 3.6 结果模型与外部响应转换
 
-- **`DecisionResult`**（判定形态）：outcome（ALLOW/DENY）＋ reason 四词表
-  （NO_ROLE/NO_PERMISSION/CONDITION_NOT_MET_OR_CONFLICT/DEPENDENT_NOT_IN_PARENT_CONTEXT——外部
+- **`DecisionResult`**（判定形态）：outcome（ALLOW/DENY）＋ reason 词表
+  （NO_ROLE/NO_PERMISSION/CONDITION_NOT_MET/PERMISSION_CONFLICT/DEPENDENT_NOT_IN_PARENT_CONTEXT——外部
   响应 reason 字符串与枚举 name 1:1）＋ details（matchedRoleIds/matchedPermissionIds 按 OutputSpec、
   stageFacts、coverage 完成与跳过阶段、parentCheck 摘要）。
 - **`GrantSetResult`**（授权集合形态）：collectionStatus（含 PARENT_DENIED/FILTERED_EMPTY 等）＋
@@ -526,6 +526,10 @@ scopeAll 条目不参与展开；query-resources 的树扩展（原 `expandResou
   （GrantFact.permissionId ↔ EffectiveOperationEntry.sourcePermissionId）。
 - **`PermResultUtils`**：新结果→既有外部响应的**纯转换**（toAuthCheckResp；
   不经中间结果对象，设计 §9.1；toCheckInterfaceResp 已随 T-ACCESS-062 旧协议退役删除）。需要 matched id 集合的内部场景直接消费引擎结果。
+
+**check 族拒绝解释（T-PERM-107）**
+
+最终判定复用 ItemExecution 的阶段事实与 mutexHits：有有效候选且最终拒绝时，实际命中过权限互斥返回 PERMISSION_CONFLICT，否则返回 CONDITION_NOT_MET；混合阶段的条件失败与互斥命中同时出现时，互斥优先（2026-10-06 用户定案）。NO_ROLE、NO_PERMISSION、DEPENDENT_NOT_IN_PARENT_CONTEXT 的既有优先级和主体解析保持。check/batch-check 请求 RAW_AND_KEPT、不请求 TRACE；允许和拒绝的 conditionEvaluated 均从 rawAfterContext 中是否存在挂条件事实同源派生，不以最终保留集合或 reason 是否拒绝代替。外部仅返回布尔事实，不暴露原始候选或内部规则证据，批量每项与单点语义一致。
 
 ### 3.7 内部 scopeAll 与对外 scopeMode 映射
 
@@ -595,8 +599,8 @@ T-PERM-089 起，替代旧 queryBatch A+ 形态——wire 契约零变化：请�
 - **逐 item 互斥语义**：各 item 候选集合独立评估（⑤真锁）；审计证据按 item 独立成行
   （⑧锁：两 item 同规则冲突=两条 CONFLICT_DETECTED 证据行，单行单规则结构化摘要——旧 (组,ruleId)
   合并单行 hitItemCount=2 形态随旧执行体退场）。
-- **reason 双轨**：无目标 TYPE_LEVEL 二值（scopeAll 评估清空→CONDITION_NOT_MET_OR_CONFLICT /
-  NO_PERMISSION）；有目标 INSTANCE 三支（CONDITION ＞ DEPENDENT_NOT_IN_PARENT_CONTEXT ＞
+- **reason 双轨**：无目标 TYPE_LEVEL 原因（scopeAll 条件清空→CONDITION_NOT_MET，实际权限互斥命中且最终拒绝→PERMISSION_CONFLICT /
+  NO_PERMISSION）；有目标 INSTANCE 优先级（PERMISSION_CONFLICT ＞ CONDITION_NOT_MET ＞ DEPENDENT_NOT_IN_PARENT_CONTEXT ＞
   NO_PERMISSION）；scopeAll 评估通过即组内放行（幽灵 code 同放行，短路优先）；NO_ROLE/USER_NOT_FOUND
   整批前置；拒绝项 matched 字段族恒空列表。
 - **空目标集守卫**：纯 TYPE_LEVEL 批/全幽灵 code 不下推实例 SQL 与闭包 CTE（1000 项上限形态禁

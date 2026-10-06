@@ -41,6 +41,9 @@ public class SysOauth2Client {
      */
     private String clientSecret;
 
+    /** 客户端类型：CONFIDENTIAL 或 PUBLIC；创建后不可切换。 */
+    private String clientType = "CONFIDENTIAL";
+
     /**
      * 客户端名称
      */

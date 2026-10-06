@@ -3,7 +3,7 @@ doc_type: design
 title: 7.1 操作日志页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-10-04
+last_reviewed: 2026-10-06
 ---
 
 # 7.1 操作日志页 前端设计
@@ -182,3 +182,10 @@ Phase 1 登记的 🔧 项处置终态：
 - ~~module/action 下拉选项前端本地硬编码~~ action 已切动态字典（module 三值封闭集合保持本地）。
 - 详情抽屉纯展示 list 返回字段（无 detail 接口）；若后续需关联 permission_change_log 详情，7.2 变更日志页处理。
 - 联调（T-FE-022）：§8 五项已收口，无阻塞项。
+
+
+## 请求 ID 检索
+
+可输入 requestId 精确筛选，最大64字符，重置同时清空。Gateway拒绝与服务层失败共用既有列表；Gateway事件为 ACCESS/GATEWAY_PERMISSION_DENIED，摘要含拒绝原因，失败摘要含公开信封错误码。读取端仅掩码明确敏感值，保留普通用户名与IP；原始审计不在前端改写。
+
+快照脱敏在 JSON 树上处理敏感键与文本值（含内嵌 JSON），保持数字节点、字段名及 JSON 可解析性；不对序列化后的整段快照做替换。普通用户名与完整 IP 保留，手机号/邮箱等明确敏感文本掩码。数据库原始记录不变。

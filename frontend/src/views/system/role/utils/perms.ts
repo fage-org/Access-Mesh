@@ -1,3 +1,4 @@
+import { PERMISSION_CODE } from "@/constants/access";
 /**
  * 「角色管理」页按钮权限码（perm 串）目录 —— 单一事实源 (SSOT)。
  *
@@ -29,13 +30,13 @@
  */
 export const ROLE_MANAGE_PERMS = {
   /** 查看角色树/列表 */
-  ROLE_VIEW: "ROLE:VIEW",
+  ROLE_VIEW: PERMISSION_CODE.ROLE_VIEW,
   /** 创建功能角色（T-PERM-043 后仅 BASIC_ROLE） */
-  ROLE_ADD: "ROLE:CREATE",
+  ROLE_ADD: PERMISSION_CODE.ROLE_CREATE,
   /** 编辑角色（名称/状态/排序/扩展）—— 对齐后端 ROLE:MANAGE（B1） */
-  ROLE_EDIT: "ROLE:MANAGE",
+  ROLE_EDIT: PERMISSION_CODE.ROLE_MANAGE,
   /** 删除角色 —— 对齐后端 ROLE:MANAGE（B1） */
-  ROLE_DELETE: "ROLE:MANAGE"
+  ROLE_DELETE: PERMISSION_CODE.ROLE_MANAGE
 } as const;
 
 export type RoleManagePermKey = keyof typeof ROLE_MANAGE_PERMS;

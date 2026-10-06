@@ -21,6 +21,8 @@ export interface DataInfo<T> {
   permissions?: Array<string>;
   /** 当前登录用户 ID（T-FE-046：登录时从 LoginResp 写入，自助改密请求 userId 入参来源） */
   userId?: number;
+  /** 已验证登录响应中的租户 ID，供本地草稿隔离。 */
+  tenantId?: number;
   /** 强制改密阻断标记（T-FE-046：登录时从 LoginResp.forceResetPwd 写入，路由守卫按它阻断；改密成功置 false） */
   forceResetPwd?: boolean;
 }

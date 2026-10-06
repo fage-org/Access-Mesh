@@ -370,10 +370,10 @@ describe("usePagedList（T-FE-051 分页层）", () => {
 
     pagination.page = 3;
     await onSearch();
-    expect(fetcher).toHaveBeenLastCalledWith(1, 15); // initialSize 默认 15
+    expect(fetcher).toHaveBeenLastCalledWith(1, 20); // initialSize 默认 20
 
     await onPageChange(5);
-    expect(fetcher).toHaveBeenLastCalledWith(5, 15);
+    expect(fetcher).toHaveBeenLastCalledWith(5, 20);
 
     await onPageSizeChange(50);
     expect(fetcher).toHaveBeenLastCalledWith(1, 50);

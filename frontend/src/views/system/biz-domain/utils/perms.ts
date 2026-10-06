@@ -1,3 +1,4 @@
+import { PERMISSION_CODE } from "@/constants/access";
 /**
  * 「业务域」页按钮权限码（perm 串）目录 —— 单一事实源 (SSOT)。
  *
@@ -28,11 +29,11 @@
  */
 export const BIZ_DOMAIN_PERMS = {
   /** 查看业务域列表/详情（资源类型 DOMAIN，独立） */
-  DOMAIN_VIEW: "DOMAIN:VIEW",
+  DOMAIN_VIEW: PERMISSION_CODE.DOMAIN_VIEW,
   /** 查看域配置列表/详情（复用 SYSTEM_CONFIG:VIEW） */
-  CONFIG_VIEW: "SYSTEM_CONFIG:VIEW",
+  CONFIG_VIEW: PERMISSION_CODE.SYSTEM_CONFIG_VIEW,
   /** biz-domain create/update/remove + domain-config save/remove（复用 SYSTEM_CONFIG:MANAGE） */
-  CONFIG_SAVE: "SYSTEM_CONFIG:MANAGE"
+  CONFIG_SAVE: PERMISSION_CODE.SYSTEM_CONFIG_MANAGE
 } as const;
 
 export type BizDomainPermKey = keyof typeof BIZ_DOMAIN_PERMS;

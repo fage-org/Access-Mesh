@@ -112,6 +112,16 @@ const columns = [
                 />
               </el-select>
             </el-form-item>
+            <el-form-item label="请求 ID" class="mb-0!">
+              <el-input
+                v-model="searchForm.requestId"
+                placeholder="requestId"
+                :maxlength="64"
+                clearable
+                @keyup.enter="onSearch"
+                @clear="onSearch"
+              />
+            </el-form-item>
             <el-form-item label="操作者" class="mb-0!">
               <el-input-number
                 v-model="searchForm.operatorId"

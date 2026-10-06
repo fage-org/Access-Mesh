@@ -987,6 +987,9 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
         if (GrantSource.AUTHORITY_ROOT.getValue().equals(permission.getGrantSource())) {
             throw biz(AccessErrorCode.AUTHORITY_ROOT_READONLY);
         }
+        if (GrantSource.BOOTSTRAP_SEED.getValue().equals(permission.getGrantSource())) {
+            throw biz(AccessErrorCode.BOOTSTRAP_SEED_READONLY);
+        }
     }
 
     private void assertDistinct(Collection<Long> ids, String message) {

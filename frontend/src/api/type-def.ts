@@ -1,9 +1,6 @@
 /**
  * 类型定义 API
- * 经 @/utils/http 调用 Gateway 外部路径 `/api/access/type-definition/*`
- *（Gateway StripPrefix=1 后到 access-service `/api/access/type-definition`）。
- * T-FE-041 切换真实链路后，mock/type-def.ts 的旧 `/api/access/**` 路径已自然失配
- *（该 mock 已随 T-FE-018 授权页联调退役删除）。
+ * 经 @/utils/http 使用 POST + JSON 调用 /api/access/**；Gateway 外部路径与服务路径一致。
  * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；分页/列表包络复用 role-manage 定义。
  *
@@ -71,7 +68,6 @@ export type TypeDefResp = {
   /** 扩展属性 JSON（可空，如 {"max_depth":5}） */
   extra: string | null;
   createdAt?: string;
-  updatedAt?: string;
 };
 
 /** 类型定义列表查询参数（T-PERM-023 收口：服务端 typeKey/keyword 过滤 + 分页）。

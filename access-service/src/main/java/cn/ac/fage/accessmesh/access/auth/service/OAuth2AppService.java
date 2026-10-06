@@ -23,6 +23,9 @@ public interface OAuth2AppService {
      */
     AuthorizeResp authorize(AuthorizeReq req);
 
+    /** 核验授权请求并返回同意页元数据，不签发授权码。 */
+    AuthorizationPreviewResp previewAuthorization(AuthorizeReq req);
+
     /**
      * 令牌获取
      * <p>

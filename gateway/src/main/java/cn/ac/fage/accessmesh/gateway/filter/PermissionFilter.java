@@ -81,6 +81,7 @@ public class PermissionFilter implements GlobalFilter, Ordered {
     private static final String USER_ID_ATTR = "userId";
     private static final String TENANT_ID_ATTR = "tenantId";
     private static final String SUBJECT_TYPE_CODE_ATTR = "subjectTypeCode";
+    private static final Duration DENIAL_AUDIT_TIMEOUT = Duration.ofMillis(500);
 
     private final PermissionClient permissionClient;
     private final CacheService cacheService;
@@ -442,7 +443,33 @@ public class PermissionFilter implements GlobalFilter, Ordered {
     }
 
     private Mono<Void> writeForbidden(ServerWebExchange exchange, String message) {
-        return writeError(exchange, HttpStatus.FORBIDDEN, 403, message);
+        Object user = exchange.getAttribute(USER_ID_ATTR);
+        Object tenant = exchange.getAttribute(TENANT_ID_ATTR);
+        Long userId = user == null ? null : toLong(user);
+        Long tenantId = tenant == null ? null : toLong(tenant);
+        if (userId == null || tenantId == null) {
+            return writeError(exchange, HttpStatus.FORBIDDEN, 403, message);
+        }
+        Route route = exchange.getAttribute(ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR);
+        String service = route == null ? "unknown" : String.valueOf(route.getMetadata().getOrDefault("serviceCode", route.getId()));
+        String requestId = String.valueOf(exchange.getAttributes().computeIfAbsent("requestId", key -> java.util.UUID.randomUUID().toString()));
+        var audit = new cn.ac.fage.accessmesh.common.model.GatewayDenialAuditReq(userId,
+            limited(service, 128), exchange.getRequest().getMethod().name(),
+            limited(exchange.getRequest().getURI().getRawPath(), 512), limited(message, 128),
+            limited(resolveClientIp(exchange), 64), limited(requestId, 64));
+        // 有界尽力写入：失败只留兜底证据，不把权限拒绝变成放行或 503，也不创建脱离请求的订阅。
+        return Mono.defer(() -> permissionClient.recordDenial(tenantId, audit))
+            .timeout(DENIAL_AUDIT_TIMEOUT)
+            .onErrorResume(error -> {
+                log.warn("Gateway拒绝审计发送失败: requestId={}, tenantId={}, userId={}, serviceCode={}, path={}, reason={}, error={}",
+                    audit.requestId(), tenantId, userId, audit.serviceCode(), audit.path(), audit.reason(), error.getClass().getSimpleName());
+                return Mono.empty();
+            })
+            .then(Mono.defer(() -> writeError(exchange, HttpStatus.FORBIDDEN, 403, message)));
+    }
+
+    private static String limited(String value, int max) {
+        return value == null || value.length() <= max ? value : value.substring(0, max);
     }
 
     private Mono<Void> writeNotFound(ServerWebExchange exchange) {

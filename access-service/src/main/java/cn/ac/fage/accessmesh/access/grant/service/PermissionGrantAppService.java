@@ -5,7 +5,7 @@ import cn.ac.fage.accessmesh.access.grant.dto.req.PreviewGrantPlanReq;
 import cn.ac.fage.accessmesh.access.grant.dto.req.RolePermissionListReq;
 import cn.ac.fage.accessmesh.access.grant.dto.req.SubPermAllowedTypesReq;
 import cn.ac.fage.accessmesh.access.grant.dto.resp.GrantPlanPreviewResp;
-import cn.ac.fage.accessmesh.access.grant.dto.resp.RolePermissionItemResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.RolePermissionItemResp;
 import cn.ac.fage.accessmesh.access.grant.dto.resp.SubPermAllowedTypesResp;
 import java.util.List;
 

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { oauthReturnTarget } from "@/views/oauth-consent/flow";
 import { reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { storageLocal } from "@pureadmin/utils";
@@ -54,7 +55,10 @@ const onSubmit = async (formEl: FormInstance | undefined) => {
       // 同次拉取、menus 已就绪时零额外请求；会话终结时抛 SessionExpiredError 由
       // catch 识别跳过重复 toast（统一层已提示并跳登录）
       await initRouter();
-      router.push(getTopMenu(true).path);
+      router.push(
+        oauthReturnTarget(router.currentRoute.value.query.returnTo) ??
+          getTopMenu(true).path
+      );
     } catch (error) {
       if ((error as Error)?.name === "SessionExpiredError") return;
       message((error as Error)?.message || "密码修改失败", { type: "error" });
@@ -95,7 +99,7 @@ const onSubmit = async (formEl: FormInstance | undefined) => {
             v-model="ruleForm.newPassword"
             clearable
             show-password
-            placeholder="新密码（8-32 位）"
+            placeholder="新密码（8-32 位，包含字母和数字）"
             :prefix-icon="useRenderIcon(Lock)"
           />
         </el-form-item>

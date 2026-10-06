@@ -152,6 +152,8 @@ public final class BootstrapGraphDefinition {
      */
     public static List<ApiRoute> apiRoutes() {
         return List.of(
+            ApiRoute.route("POST", "/api/access/sync-status/list", "bootstrap:同步已应用状态", ResourceTypeCode.DEPENDENCY, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/login-log/page", "bootstrap:登录日志查询", ResourceTypeCode.OPERATION_LOG, OperationCode.VIEW),
             ApiRoute.route("POST", "/api/access/abstract-role/tree", "bootstrap:授权页角色树", ResourceTypeCode.ROLE, OperationCode.VIEW),
             ApiRoute.route("POST", "/api/access/type-definition/list", "bootstrap:授权页类型定义列表", ResourceTypeCode.TYPE_DEFINITION, OperationCode.VIEW),
             ApiRoute.route("POST", "/api/access/resource-entity/tree", "bootstrap:授权页资源树", ResourceTypeCode.RESOURCE, OperationCode.VIEW),
@@ -456,6 +458,9 @@ public final class BootstrapGraphDefinition {
             new MenuSeed("MENU", "权限条件", "/system", "/system/permission-condition", "ep/key", 9, null, null),
             new MenuSeed("MENU", "冲突规则", "/system", "/system/conflict-rule", "ep/warn-triangle-filled", 10, ResourceTypeCode.CONFLICT_RULE, null),
             new MenuSeed("MENU", "资源依赖", "/system", "/system/resource-dependency", "ep/share", 11, ResourceTypeCode.DEPENDENCY, null),
+            new MenuSeed("MENU", "服务凭证", "/system", "/system/service-credential", "ep/key", 13, ResourceTypeCode.SERVICE, null),
+            new MenuSeed("MENU", "登录日志", "/system", "/system/login-log", "ep/document", 14, ResourceTypeCode.OPERATION_LOG, null),
+            new MenuSeed("MENU", "同步已应用状态", "/system", "/system/sync-status", "ep/refresh", 15, ResourceTypeCode.DEPENDENCY, null),
             new MenuSeed("MENU", "权限变更日志", "/system", "/system/permission-change-log", "ep/history", 12, ResourceTypeCode.PERMISSION_CHANGE_LOG, null));
     }
 

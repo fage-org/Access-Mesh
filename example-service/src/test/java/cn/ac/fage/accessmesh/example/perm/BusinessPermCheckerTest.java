@@ -94,7 +94,7 @@ class BusinessPermCheckerTest {
     @Test
     @DisplayName("depend_on 父上下文：真实父资源与父操作透传（引擎验证父授权绑定，N26 载体）")
     void check_childTargetCarriesParentContext() {
-        when(client.checkAuth(any(AuthCheckReq.class), anyString(), anyString())).thenReturn(R.ok(AuthCheckResp.deny("DEPENDENT_NOT_IN_PARENT_CONTEXT")));
+        when(client.checkAuth(any(AuthCheckReq.class), anyString(), anyString())).thenReturn(R.ok(AuthCheckResp.deny("DEPENDENT_NOT_IN_PARENT_CONTEXT", false)));
 
         BusinessPermChecker.Decision d = checker.check("7", "42", null,
             BusinessPermChecker.Target.childOf("EXAMPLE", "report-1-detail", "SUB_VIEW",
@@ -114,8 +114,8 @@ class BusinessPermCheckerTest {
     @DisplayName("独立批量：一次 batch-check 调用，结果按 resourceCode 对齐（逐目标独立）")
     void batchCheck_alignsPerTargetResultsByCode() {
         when(client.batchCheckAuth(any(BatchAuthCheckReq.class), anyString(), anyString())).thenReturn(R.ok(new BatchAuthCheckResp(List.of(
-            new BatchAuthCheckResp.AuthCheckItemResult("EXAMPLE", "report-1", "VIEW", true, null, List.of(1L), List.of(2L)),
-            new BatchAuthCheckResp.AuthCheckItemResult("EXAMPLE", "report-2", "VIEW", false, "NO_PERMISSION", List.of(), List.of())))));
+            new BatchAuthCheckResp.AuthCheckItemResult("EXAMPLE", "report-1", "VIEW", true, null, List.of(1L), List.of(2L), false),
+            new BatchAuthCheckResp.AuthCheckItemResult("EXAMPLE", "report-2", "VIEW", false, "NO_PERMISSION", List.of(), List.of(), false)))));
 
         Map<String, BusinessPermChecker.Decision> byCode =
             checker.batchCheck("7", "42", null, "EXAMPLE", List.of("report-1", "report-2"), "VIEW");

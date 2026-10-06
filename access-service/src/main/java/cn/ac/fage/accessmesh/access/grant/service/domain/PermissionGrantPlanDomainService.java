@@ -59,7 +59,7 @@ public interface PermissionGrantPlanDomainService {
      *
      * @param tenantId 租户ID
      * @param roleId   种子接收角色ID
-     * @param grants   种子行（grant_source 由调用方携带：bootstrap=MANUAL / 类型首授=AUTHORITY_ROOT）
+     * @param grants   种子行（grant_source 由调用方携带：bootstrap=BOOTSTRAP_SEED / 类型首授=AUTHORITY_ROOT）
      */
     void seedGrants(Long tenantId, Long roleId, List<RoleResourcePermission> grants);
 

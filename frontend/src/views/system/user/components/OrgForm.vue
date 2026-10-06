@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { ORG_TYPE } from "@/constants/access";
+
 import { ref, reactive, computed, watch } from "vue";
 import type { FormInstance, FormRules } from "element-plus";
 import { getOrgTree } from "@/api/user-manage";
@@ -37,7 +39,7 @@ const emit = defineEmits<{
 const defaultFormData = (): OrgFormData => ({
   orgName: "",
   code: "",
-  orgType: 1, // 新增普通组织固定为 1
+  orgType: ORG_TYPE.ORG, // 新增普通组织固定为 1
   parentOrgId: props.parentOrgId ?? null,
   status: 1,
   sort: 0
@@ -118,7 +120,7 @@ function filterPositionNodes(nodes: OrgTreeNode[]): OrgTreeNode[] {
   const result: OrgTreeNode[] = [];
   for (const node of nodes) {
     // 只保留普通组织（orgType=1），过滤掉岗位（orgType=2）
-    if (node.orgType === 1) {
+    if (node.orgType === ORG_TYPE.ORG) {
       const filteredChildren = node.children
         ? filterPositionNodes(node.children)
         : [];
@@ -136,7 +138,7 @@ async function loadOrgTreeData() {
   try {
     // v1.4 后端 /org/tree 强制要求 orgType；新增组织表单的父组织选择器只关心普通组织（orgType=1），
     // 后端已按类型过滤，下方 filterPositionNodes 二次过滤保留为防御性代码。
-    const treeData = await getOrgTree({ orgType: 1 });
+    const treeData = await getOrgTree({ orgType: ORG_TYPE.ORG });
     // 过滤掉岗位节点（orgType=2），只保留普通组织
     orgTreeData.value = filterPositionNodes(treeData);
   } catch (error) {
@@ -173,7 +175,7 @@ function initFormData() {
     Object.assign(formData, {
       orgName: props.initialData.orgName ?? "",
       code: props.initialData.code ?? "",
-      orgType: props.initialData.orgType ?? 1,
+      orgType: props.initialData.orgType ?? ORG_TYPE.ORG,
       parentOrgId: props.initialData.parentOrgId ?? null,
       status: props.initialData.status ?? 1,
       sort: props.initialData.sort ?? 0

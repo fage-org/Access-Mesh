@@ -2,6 +2,12 @@ const Layout = () => import("@/layout/index.vue");
 
 export default [
   {
+    path: "/oauth2/authorize",
+    name: "OAuthConsent",
+    component: () => import("@/views/oauth-consent/index.vue"),
+    meta: { title: "应用授权", showLink: false }
+  },
+  {
     path: "/login",
     name: "Login",
     component: () => import("@/views/login/index.vue"),

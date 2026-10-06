@@ -29,12 +29,28 @@ import static org.assertj.core.api.Assertions.assertThat;
         "spring.cloud.nacos.config.import-check.enabled=false",
         "spring.cloud.nacos.discovery.enabled=false",
         "spring.config.import=optional:classpath:/test-nope.yml",
-        "example.signature.secret=test-signature-secret"
+        "management.server.port=0",
+        "perm.client.signature.secret=test-signature-secret"
     })
 class ExampleServiceApplicationTest {
 
     @Autowired
     private TestRestTemplate rest;
+
+    @Autowired
+    private org.springframework.context.ApplicationContext applicationContext;
+
+    @org.springframework.boot.test.web.server.LocalManagementPort
+    private int managementPort;
+
+    @Test
+    void healthProbeIsAvailableOnlyOnManagementPort() throws Exception {
+        var health = rest.getForEntity("http://127.0.0.1:" + managementPort + "/actuator/health", String.class);
+        assertThat(health.getStatusCode().value()).isEqualTo(200);
+        assertThat(json.readTree(health.getBody()).path("status").asText()).isEqualTo("UP");
+        assertThat(applicationContext.getBeansOfType(
+            org.springframework.boot.actuate.endpoint.web.servlet.WebMvcEndpointHandlerMapping.class)).isEmpty();
+    }
 
     private final ObjectMapper json = new ObjectMapper();
 

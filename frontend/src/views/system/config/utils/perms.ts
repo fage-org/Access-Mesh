@@ -1,3 +1,4 @@
+import { PERMISSION_CODE } from "@/constants/access";
 /**
  * 「系统配置」页按钮权限码（perm 串）目录 —— 单一事实源 (SSOT)。
  *
@@ -20,9 +21,9 @@
  */
 export const SYSTEM_CONFIG_PERMS = {
   /** 查看系统配置列表/详情 */
-  CONFIG_VIEW: "SYSTEM_CONFIG:VIEW",
+  CONFIG_VIEW: PERMISSION_CODE.SYSTEM_CONFIG_VIEW,
   /** 保存系统配置（新建/编辑统一 upsert）—— 对齐后端 SYSTEM_CONFIG:MANAGE */
-  CONFIG_SAVE: "SYSTEM_CONFIG:MANAGE"
+  CONFIG_SAVE: PERMISSION_CODE.SYSTEM_CONFIG_MANAGE
 } as const;
 
 export type SystemConfigPermKey = keyof typeof SYSTEM_CONFIG_PERMS;

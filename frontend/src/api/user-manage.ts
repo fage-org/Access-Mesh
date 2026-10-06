@@ -1,7 +1,7 @@
+import { type OPERATION_CODE, SUBJECT_TYPE } from "@/constants/access";
 /**
- * 用户管理 API（T-FE-015 联调收口：mock 退役，直连 access-service 真实端点）
- * 经 @/utils/http 调用外部路径（Gateway：/admin StripPrefix=1 → access-service 裸路径 /org、/user 等；
- * 角色分配走 permission 域 /api/access/user-role/*）。
+ * 用户与组织管理 API
+ * 经 @/utils/http 使用 POST + JSON 调用 /api/access/**；Gateway 外部路径与服务路径一致。
  * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`。
  */
@@ -14,7 +14,7 @@ import { type R, unwrap } from "./_envelope";
 /** 组织树查询参数（对齐后端 OrgQuery，T-ADMIN-021 全字段落地：operationCode/treeConfigId/includePositions） */
 export type OrgQuery = {
   /** 操作语义：VIEW=可视范围 / CREATE=新增用户挂载点（限默认树，禁止与 treeConfigId/includePositions 同传） */
-  operationCode?: "VIEW" | "CREATE";
+  operationCode?: typeof OPERATION_CODE.VIEW | typeof OPERATION_CODE.CREATE;
   /** 组织树配置 ID；不传=默认树子树（多树租户下其他树须显式传 id） */
   treeConfigId?: number;
   orgName?: string;
@@ -58,7 +58,7 @@ export type UserItem = {
     orgId: number;
     orgName: string;
     /** 后端为字符串线格式（type code），消费方按需转换 */
-    orgType?: string;
+    orgType?: number;
     isPrimary: boolean;
   }[];
   createdAt: string;
@@ -90,11 +90,11 @@ export type UserRoleItem = {
   validTo: string | null;
 };
 
-/** 组织简要信息（对齐后端 OrgBrief，orgType 为字符串线格式） */
+/** 组织简要信息（对齐后端 OrgBrief，orgType 为数字线格式） */
 export type OrgBrief = {
   orgId: number;
   orgName: string;
-  orgType?: string;
+  orgType?: number;
   isPrimary: boolean;
 };
 
@@ -339,7 +339,7 @@ export const assignRole = async (data: {
           {
             // 本地管理页用户为 LOCAL_USER 主体（user_type 种子：USER=外部人员 /
             // LOCAL_USER=本地访问主体，T-ORG-001 external_id=主体 ID 字符串化）
-            subjectTypeCode: "LOCAL_USER",
+            subjectTypeCode: SUBJECT_TYPE.LOCAL_USER,
             subjectExternalId: String(data.userId),
             roleTypeCode: data.roleTypeCode,
             roleExternalId: data.roleExternalId,
@@ -363,7 +363,7 @@ export const revokeRole = async (data: {
       data: {
         items: [
           {
-            subjectTypeCode: "LOCAL_USER",
+            subjectTypeCode: SUBJECT_TYPE.LOCAL_USER,
             subjectExternalId: String(data.userId),
             roleTypeCode: data.roleTypeCode,
             roleExternalId: data.roleExternalId

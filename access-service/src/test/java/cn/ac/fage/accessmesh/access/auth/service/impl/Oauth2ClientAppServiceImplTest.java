@@ -89,6 +89,37 @@ class Oauth2ClientAppServiceImplTest {
         assertThat(updates.get("redirectUris")).isNull();
     }
 
+    @Test
+    void publicClientRegistrationHasNoStoredSecret() {
+        var req = new cn.ac.fage.accessmesh.access.auth.dto.Oauth2ClientCreateReq(
+            "public-spa", null, "Public app", "authorization_code,refresh_token",
+            "https://app.example/cb", "profile", null, 3600, 604800, 1, "PUBLIC");
+        try (var validation = jakarta.validation.Validation.buildDefaultValidatorFactory()) {
+            assertThat(validation.getValidator().validate(req)).isEmpty();
+        }
+        service.createClient(req);
+        var captor = ArgumentCaptor.forClass(SysOauth2Client.class);
+        verify(oauth2ClientMapper).insert(captor.capture());
+        assertThat(captor.getValue().getClientType()).isEqualTo("PUBLIC");
+        assertThat(captor.getValue().getClientSecret()).isNull();
+    }
+
+    @Test
+    void confidentialStillRequiresSecretAndPublicCannotAcquireOne() {
+        var req = new cn.ac.fage.accessmesh.access.auth.dto.Oauth2ClientCreateReq(
+            "private-app", null, "Private app", "authorization_code", null, null, null, null, null, 1, null);
+        try (var validation = jakarta.validation.Validation.buildDefaultValidatorFactory()) {
+            assertThat(validation.getValidator().validate(req)).isNotEmpty();
+        }
+        var client = existingClient();
+        client.setClientType("PUBLIC");
+        when(oauth2ClientMapper.selectByIdSafe(TENANT, CLIENT_ROW_ID)).thenReturn(client);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.updateClient(new Oauth2ClientUpdateReq(
+            CLIENT_ROW_ID, "secret", null, null, null, null, null, null, null, null, null, null, null)))
+            .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class);
+        org.mockito.Mockito.verify(oauth2ClientMapper, org.mockito.Mockito.never()).update(org.mockito.ArgumentMatchers.any(SysOauth2Client.class));
+    }
+
     private SysOauth2Client existingClient() {
         SysOauth2Client existing = new SysOauth2Client();
         existing.setId(CLIENT_ROW_ID);

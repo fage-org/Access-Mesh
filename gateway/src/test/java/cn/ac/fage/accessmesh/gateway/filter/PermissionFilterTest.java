@@ -137,6 +137,27 @@ class PermissionFilterTest {
             "OPERATION_ADMISSION", true);
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void deniedRequestIsAuditedAndAuditFailureCannotChange403(boolean auditFails) throws InterruptedException {
+        var now = java.time.LocalDateTime.now();
+        var denied = new InterfaceAdmissionSnapshotResp(InterfaceAdmissionSnapshotResp.CURRENT_SCHEMA_VERSION,
+            TENANT_ID, new InterfaceAdmissionSnapshotResp.Subject(SUBJECT_TYPE_CODE, USER_ID.toString()),
+            SERVICE_CODE, now, now.plusSeconds(60), 0L, List.of(), List.of(), "OPERATION_ADMISSION", true);
+        cacheService.put(GatewayCacheCatalog.INTERFACE_ADMISSION_SNAPSHOT, TENANT_ID, cacheKey(), denied);
+        when(permissionClient.recordDenial(anyLong(), any())).thenReturn(auditFails
+            ? Mono.error(new IllegalStateException("audit unavailable")) : Mono.empty());
+        var exchange = buildExchange();
+        exchange.getAttributes().put("requestId", "t085-denied");
+        assertThat(awaitCapturedStatus(exchange, 5)).isEqualTo(HttpStatus.FORBIDDEN);
+        var request = org.mockito.ArgumentCaptor.forClass(cn.ac.fage.accessmesh.common.model.GatewayDenialAuditReq.class);
+        org.mockito.Mockito.verify(permissionClient).recordDenial(org.mockito.ArgumentMatchers.eq(TENANT_ID), request.capture());
+        assertThat(request.getValue().userId()).isEqualTo(USER_ID);
+        assertThat(request.getValue().path()).isEqualTo("/api/test");
+        assertThat(request.getValue().requestId()).isEqualTo("t085-denied");
+        org.mockito.Mockito.verify(chain, org.mockito.Mockito.never()).filter(any());
+    }
+
     private R<InterfaceAdmissionSnapshotResp> successResult(InterfaceAdmissionSnapshotResp snapshot) {
         return R.ok(snapshot);
     }

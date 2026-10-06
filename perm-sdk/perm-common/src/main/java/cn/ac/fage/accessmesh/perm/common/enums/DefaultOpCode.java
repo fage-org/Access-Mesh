@@ -18,7 +18,7 @@ public enum DefaultOpCode {
     /**
      * 编辑操作权限
      */
-    EDIT("EDIT"),
+    UPDATE("UPDATE"),
     /**
      * 删除操作权限
      */

@@ -125,13 +125,13 @@ class QuerySemanticsBaselinePgIT {
     }
 
     @Test
-    @DisplayName("check：挂恒不满足条件的授权行 → 拒 CONDITION_NOT_MET_OR_CONFLICT（非 NO_PERMISSION）")
+    @DisplayName("check：挂恒不满足条件的授权行 → 拒 CONDITION_NOT_MET（非 NO_PERMISSION）")
     void shouldDenyConditionNotMetWhenUnsatisfiedCondition() {
         seedBaseline();
         AuthCheckResp resp = checkOf(R2BaselineFixture.USER_INST,
             R2BaselineFixture.TYPE_T1_CODE, R2BaselineFixture.CODE_R4, "VIEW", null);
         assertThat(resp.allowed()).isFalse();
-        assertThat(resp.reason()).isEqualTo("CONDITION_NOT_MET_OR_CONFLICT");
+        assertThat(resp.reason()).isEqualTo("CONDITION_NOT_MET");
     }
 
     @Test
@@ -177,13 +177,13 @@ class QuerySemanticsBaselinePgIT {
     }
 
     @Test
-    @DisplayName("check：scopeAll 行被条件评估摘光 → 拒 CONDITION_NOT_MET_OR_CONFLICT（实例段无授权兜底）")
+    @DisplayName("check：scopeAll 行被条件评估摘光 → 拒 CONDITION_NOT_MET（实例段无授权兜底）")
     void shouldDenyConditionNotMetWhenScopeAllClearedByCondition() {
         seedBaseline();
         AuthCheckResp resp = checkOf(R2BaselineFixture.USER_EMPTY,
             R2BaselineFixture.TYPE_T3_CODE, "r2b-t3-any", "VIEW", null);
         assertThat(resp.allowed()).isFalse();
-        assertThat(resp.reason()).isEqualTo("CONDITION_NOT_MET_OR_CONFLICT");
+        assertThat(resp.reason()).isEqualTo("CONDITION_NOT_MET");
     }
 
     // ===== batch-check 族：批量判定（下标对齐 + reason 词表 golden）=====
@@ -207,7 +207,7 @@ class QuerySemanticsBaselinePgIT {
         assertItem(resp.items().get(0), items.get(0), true, null, "r1:VIEW 放行");
         assertThat(resp.items().get(0).matchedRoleIds()).containsExactly(R2BaselineFixture.ROLE_A);
         assertItem(resp.items().get(1), items.get(1), false, "NO_PERMISSION", "r3:VIEW 无授权");
-        assertItem(resp.items().get(2), items.get(2), false, "CONDITION_NOT_MET_OR_CONFLICT", "r4:VIEW 条件摘光");
+        assertItem(resp.items().get(2), items.get(2), false, "CONDITION_NOT_MET", "r4:VIEW 条件摘光");
         assertItem(resp.items().get(3), items.get(3), false, "NO_PERMISSION", "幽灵编码无投影");
         assertItem(resp.items().get(4), items.get(4), false, "NO_PERMISSION", "类型级仅实例授权");
         assertItem(resp.items().get(5), items.get(5), true, null, "r1:UPDATE 直接命中");

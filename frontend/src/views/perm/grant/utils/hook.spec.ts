@@ -7,7 +7,7 @@
  * capability 派生三态翻转锁（T-FE-055 复评 P3-2 处置，2026-09-20）：响应式桩
  * 复现 SET_PERMS → computed 失效链，静态双值锁对回退形态无判别力已重写。
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { flush } from "@/test-support/async";
 
@@ -20,6 +20,21 @@ const messageMock = vi.fn();
 const routerReplaceMock = vi.fn();
 const refreshCapabilityMock = vi.fn();
 const confirmDiscardMock = vi.fn();
+const sessionEndedMock = vi.fn(() => false);
+const applyGrantPlanMock = vi.fn();
+const leaveCallbacks: Array<() => Promise<boolean>> = [];
+const unmountCallbacks: Array<() => void> = [];
+let draftOwner: { tenantId: string; userId: string } | null = null;
+vi.mock("./draft-storage", async () => ({
+  ...(await vi.importActual<typeof import("./draft-storage")>(
+    "./draft-storage"
+  )),
+  readDraftOwner: () => draftOwner
+}));
+vi.mock("vue", async () => ({
+  ...(await vi.importActual<typeof import("vue")>("vue")),
+  onBeforeUnmount: (callback: () => void) => unmountCallbacks.push(callback)
+}));
 
 /** 可控 route（refreshAndPreset 预选分支按 query.roleExternalId 分发） */
 const routeMock: { query: Record<string, unknown> } = { query: {} };
@@ -28,7 +43,8 @@ const routeMock: { query: Record<string, unknown> } = { query: {} };
 vi.mock("vue-router", () => ({
   useRoute: () => routeMock,
   useRouter: () => ({ replace: routerReplaceMock }),
-  onBeforeRouteLeave: () => {}
+  onBeforeRouteLeave: (callback: () => Promise<boolean>) =>
+    leaveCallbacks.push(callback)
 }));
 // 会话能力刷新入口（T-FE-048 retryLoadDeps 先行依赖）：断链真实 router/utils 图，
 // 由用例控制权限串刷新时机（锁③：刷新翻真后才发依赖请求）
@@ -41,7 +57,9 @@ vi.mock("element-plus", () => ({
 }));
 vi.mock("@/utils/http", () => ({ http: { request: vi.fn() } }));
 vi.mock("@/utils/auth", () => ({
-  hasPerms: (...args: unknown[]) => hasPermsMock(...args)
+  hasPerms: (...args: unknown[]) => hasPermsMock(...args),
+  isSessionTerminated: () => sessionEndedMock(),
+  userKey: "user-info"
 }));
 vi.mock("@/utils/message", () => ({
   message: (...args: unknown[]) => messageMock(...args)
@@ -58,7 +76,8 @@ vi.mock("@/api/permission-condition", () => ({
   getConditionList: (...args: unknown[]) => getConditionList(...args)
 }));
 vi.mock("@/api/permission-grant", () => ({
-  getRolePermissionList: vi.fn()
+  getRolePermissionList: vi.fn(),
+  applyGrantPlan: (...args: unknown[]) => applyGrantPlanMock(...args)
 }));
 
 import { ref } from "vue";
@@ -392,4 +411,133 @@ describe("capability 派生（T-FE-055 外评处置：codex P2 根因修——ca
     hook.openGrantDialog();
     expect(hook.dialogVisible.value).toBe(true);
   });
+});
+
+describe("授权草稿会话恢复", () => {
+  let entries: Map<string, string>;
+  beforeEach(() => {
+    vi.clearAllMocks();
+    entries = new Map();
+    vi.stubGlobal("sessionStorage", {
+      getItem: (key: string) => entries.get(key) ?? null,
+      setItem: (key: string, value: string) => entries.set(key, value),
+      removeItem: (key: string) => entries.delete(key)
+    });
+    vi.stubGlobal("localStorage", { getItem: vi.fn(), setItem: vi.fn() });
+    vi.stubGlobal("window", {
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn()
+    });
+    setActivePinia(createPinia());
+    draftOwner = { tenantId: "1", userId: "7" };
+    sessionEndedMock.mockReturnValue(false);
+    hasPermsMock.mockReturnValue(true);
+    getResourceTree.mockResolvedValue({ items: [] });
+    getOperationList.mockResolvedValue({ items: [] });
+    confirmDiscardMock.mockResolvedValue("confirm");
+    leaveCallbacks.length = 0;
+    unmountCallbacks.length = 0;
+    routeMock.query = {};
+  });
+  afterEach(() => {
+    draftOwner = null;
+    sessionEndedMock.mockReturnValue(false);
+    vi.unstubAllGlobals();
+  });
+
+  it("401 终结会话后卸载不删除草稿；同账号重新选角色可确认恢复，且不自动提交", async () => {
+    const api = await import("@/api/permission-grant");
+    vi.mocked(api.getRolePermissionList).mockResolvedValue({ items: [] });
+    const context = {
+      domainCode: null,
+      roleTypeCode: "BASIC_ROLE",
+      roleExternalId: "role-7",
+      displayName: "角色 7"
+    };
+    const hook = usePermissionGrant();
+    hook.typeCandidates.value = [{ typeCode: "DATA", sortOrder: 0 } as any];
+    await hook.handleSelectSubject(context);
+    const recordKey = {
+      resourceTypeCode: "DATA",
+      resourceCode: "one",
+      codeType: "default",
+      operationCode: "VIEW",
+      scopeMode: "INSTANCE" as const,
+      conditionCode: null,
+      canGrant: false
+    };
+    const change = buildAddChange({
+      recordKey,
+      summary: buildSummary({ recordKey, resourceLabel: "一条数据" })
+    });
+    hook.grantStore.applyChanges([change]);
+    expect(entries.size).toBe(1);
+    sessionEndedMock.mockReturnValue(true);
+    expect(await leaveCallbacks.at(-1)!()).toBe(true);
+    unmountCallbacks.at(-1)!();
+    expect(entries.size).toBe(1);
+    expect(hook.grantStore.changes).toEqual([]);
+
+    setActivePinia(createPinia());
+    sessionEndedMock.mockReturnValue(false);
+    const reopened = usePermissionGrant();
+    reopened.typeCandidates.value = [{ typeCode: "DATA", sortOrder: 0 } as any];
+    await reopened.handleSelectSubject(context);
+    expect(confirmDiscardMock).toHaveBeenCalledWith(
+      expect.stringContaining("恢复"),
+      expect.any(String),
+      expect.any(Object)
+    );
+    expect(reopened.grantStore.changes).toEqual([change]);
+    expect(applyGrantPlanMock).not.toHaveBeenCalled();
+    reopened.grantStore.revertAll();
+    expect(entries.size).toBe(0);
+    unmountCallbacks.at(-1)!();
+  });
+  it.each(["account", "tenant", "role", "type"])(
+    "%s 不同不会恢复或清除其他上下文草稿",
+    async different => {
+      const api = await import("@/api/permission-grant");
+      vi.mocked(api.getRolePermissionList).mockResolvedValue({ items: [] });
+      const { draftKey, writeDraft } = await import("./draft-storage");
+      const context = {
+        domainCode: null,
+        roleTypeCode: "BASIC_ROLE",
+        roleExternalId: "role-7",
+        displayName: "角色 7"
+      };
+      const recordKey = {
+        resourceTypeCode: "DATA",
+        resourceCode: "one",
+        codeType: "default",
+        operationCode: "VIEW",
+        scopeMode: "INSTANCE" as const,
+        conditionCode: null,
+        canGrant: false
+      };
+      const change = buildAddChange({
+        recordKey,
+        summary: buildSummary({ recordKey, resourceLabel: "数据" })
+      });
+      const savedKey = draftKey(draftOwner!, context, "DATA");
+      writeDraft(sessionStorage, savedKey, [change], false);
+      if (different === "account") draftOwner = { tenantId: "1", userId: "8" };
+      if (different === "tenant") draftOwner = { tenantId: "2", userId: "7" };
+      const hook = usePermissionGrant();
+      hook.typeCandidates.value = [
+        {
+          typeCode: different === "type" ? "REPORT" : "DATA",
+          sortOrder: 0
+        } as any
+      ];
+      await hook.handleSelectSubject({
+        ...context,
+        roleExternalId: different === "role" ? "other" : context.roleExternalId
+      });
+      expect(hook.grantStore.changes).toEqual([]);
+      expect(confirmDiscardMock).not.toHaveBeenCalled();
+      expect(entries.has(savedKey)).toBe(true);
+      unmountCallbacks.at(-1)!();
+    }
+  );
 });

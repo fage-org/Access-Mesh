@@ -3,7 +3,7 @@ doc_type: design
 title: 微服务架构设计
 status: adopted
 domain: common
-last_reviewed: 2026-10-04
+last_reviewed: 2026-10-06
 ---
 
 # 微服务架构设计
@@ -340,14 +340,14 @@ sys_menu 的权威 DDL 见 [`schema/access-service.sql`](schema/access-service.s
 perm-sdk/
 ├── perm-common/                          # SDK 公共契约 DTO 与模型（AuthCheck*/Query* Req/Resp、PermContext、ItemsResp/PageResp 等）
 ├── perm-client-spring-boot-starter/      # 业务服务引用
-└── perm-gateway-spring-boot-starter/     # 网关引用
+└── perm-registration-spring-boot-starter/ # 可选依赖发布
 ```
 
 | Starter                          | 功能                                                                                                                       |
 | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| perm-common                      | SDK 公共模型（AuthCheck*/Query* 契约 DTO、PermContext、ItemsResp/PageResp）、SDK 事件与工具 |
-| perm-client-spring-boot-starter  | access-service 权限客户端（已实现部分）：`PermissionFeignClient` 远程查询/写方法（checkAuth、batchCheckAuth、角色/资源/授权维护等）、`@EnableFeignClients` 自动装配与 `X-Internal-Secret`/`X-Service-Code` 身份透传拦截器（`perm.client.enabled` 开关）。接口扫描/@PermResource/自动注册未实现（T-API-001 名实对齐；有真实消费者后另行评估） |
-| perm-gateway-spring-boot-starter | 网关插件：快照模式本地匹配鉴权（T-PERM-001）、条件本地评估、未覆盖场景回退 access-service 实时鉴权                        |
+| perm-common | 共享请求/响应 DTO、操作码、条件求值、失效事件与 SDK 工具；不保留旧 PermContext/PermCheckReq/PermCheckResp |
+| perm-client-spring-boot-starter | Feign 查询/同步客户端 + Servlet Gateway 身份签名验证；默认启用，M2M 方法/路径精确清单与 common 同源，管理写仍需要用户身份 |
+| perm-registration-spring-boot-starter | 可选依赖发布，默认关闭；不承担 Gateway 准入 |
 
 > 数据权限参考实现（@DataPermission 注解、JSqlParser SQL 改写、请求级数据范围缓存——原规划的 perm-data starter）：**演进方向，未提供模块**（2026-06-20 审计 S-011 登记仅空装配类；2026-08-28 移除空模块，将来实现时重新立项）。
 
@@ -360,12 +360,9 @@ perm-sdk/
 | `PermissionFeignClient`        | `@FeignClient(name="access-service")`：checkAuth/batchCheckAuth 等远程查询与角色/资源/授权维护方法（api-contract 契约） |
 | `FeignCredentialInterceptor` | 对运行时查询与同步的 M2M 精确清单注入 `X-Credential-Id/Secret`；四运行时查询另有显式凭证头重载，共享实例按可信租户选取；SDK 不再分发内部共享密钥，服务身份由凭证绑定租户/服务；当前契约见 [服务认证](service-authentication.md) §3 与契约 §24。 |
 
-#### 4.5.2 perm-gateway-spring-boot-starter
+#### 4.5.2 Gateway 与 SDK 的分工
 
-| 组件                 | 说明                                                      |
-| -------------------- | --------------------------------------------------------- |
-| `PermissionFilter`   | Gateway GlobalFilter，Order=-60，快照模式本地匹配鉴权，条件不可本地评估时回退 access-service 实时鉴权 |
-| `ConditionEvaluator` | 评估条件规则（时间范围、IP白名单等），返回匹配结果        |
+Gateway 自身维护操作准入与条件本地评估，空壳 perm-gateway starter 已删除。perm-client 的 Servlet 自动配置为下游提供 GatewaySignatureFilter，验签后仍须实际对象最终检查；字段/失败形态与配置见 [接入指南](extension-guide.md#23-sdk-接线)。注册发布能力由可选 registration starter 提供，不成为资源同步的强制依赖。
 
 ---
 

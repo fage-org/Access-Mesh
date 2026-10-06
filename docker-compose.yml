@@ -10,18 +10,18 @@
 # 建库 access_db 并写入类型种子；重复 up 不会重复执行（仅空数据目录首启触发）。
 # 库表重建（开发期 DDL 变更后）见 docs/design/access-service-rebuild-runbook.md。
 #
-# PostgreSQL 采用 trust 认证（本地开发，用户 postgres / 无密码），
-# 与 access-service 默认数据源配置（DB_USERNAME=postgres，DB_PASSWORD 空）直接兼容；
-# 生产环境请自行替换认证方式（部署基线见 docs/ops/deployment.md）。
+# 两档均须在 .env 配置 DB_PASSWORD 与 REDIS_PASSWORD；不提供公开默认密码。
 
 services:
   postgresql:
     image: postgres:16-alpine
     container_name: accessmesh-postgresql
+    restart: unless-stopped
     environment:
       POSTGRES_DB: access_db
-      POSTGRES_USER: postgres
-      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?请在 .env 设置 DB_PASSWORD}
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
@@ -30,24 +30,25 @@ services:
       # 首管理员由 access-service bootstrap 提供，见 README.md「快速开始」）
       - ./docs/design/schema/access-service.sql:/docker-entrypoint-initdb.d/01-access-schema.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d access_db"]
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d access_db"]
       interval: 5s
       timeout: 3s
       retries: 12
 
-  # 固定开发密码 accessmesh-dev（与 access-service/gateway 的 REDIS_PASSWORD 占位符默认值一致，
-  # 一键链路零参数；Redisson 对空串密码也发 AUTH，无密码 Redis 反而连不上）。
-  # 密码可经宿主机环境变量 REDIS_PASSWORD 整链覆盖（command 与 healthcheck 同源插值）。
+  # Redis 与所有消费者使用同一必填密码；命令采用参数数组，避免特殊字符被 shell 解释。
   redis:
     image: redis:7-alpine
     container_name: accessmesh-redis
-    command: redis-server --requirepass ${REDIS_PASSWORD:-accessmesh-dev}
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?请在 .env 设置 REDIS_PASSWORD}
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?请在 .env 设置 REDIS_PASSWORD}"]
     ports:
       - "127.0.0.1:6379:6379"
     volumes:
       - accessmesh-redisdata:/data
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a ${REDIS_PASSWORD:-accessmesh-dev} ping"]
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$REDIS_PASSWORD\" redis-cli ping | grep -q '^PONG$$'"]
       interval: 5s
       timeout: 3s
       retries: 12
@@ -57,8 +58,11 @@ services:
   nacos:
     image: nacos/nacos-server:v2.3.2
     container_name: accessmesh-nacos
+    restart: unless-stopped
     environment:
       MODE: standalone
+    volumes:
+      - accessmesh-nacosdata:/home/nacos/data
     ports:
       - "127.0.0.1:8848:8848"
       - "127.0.0.1:9848:9848"
@@ -76,16 +80,17 @@ services:
     build: ./access-service
     image: accessmesh/access-service:dev
     container_name: accessmesh-access-service
+    restart: unless-stopped
     profiles: ["app"]
     environment:
-      NACOS_SERVER_ADDR: nacos:8848
+      NACOS_SERVER_ADDR: ${NACOS_SERVER_ADDR:-nacos:8848}
       DB_HOST: postgresql
       DB_PORT: "5432"
       DB_USERNAME: ${DB_USERNAME:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:-}
+      DB_PASSWORD: ${DB_PASSWORD:?请在 .env 设置 DB_PASSWORD}
       REDIS_HOST: redis
       REDIS_PORT: "6379"
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-accessmesh-dev}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?请在 .env 设置 REDIS_PASSWORD}
       # bootstrap 幂等：空库首启建 admin + 固定图，存量库 no-op 不重置密码（仅单实例启用）
       ACCESS_BOOTSTRAP_ENABLED: "true"
       ACCESS_BOOTSTRAP_ADMIN_PASSWORD: ${ACCESS_BOOTSTRAP_ADMIN_PASSWORD:-}
@@ -112,12 +117,13 @@ services:
     build: ./gateway
     image: accessmesh/gateway:dev
     container_name: accessmesh-gateway
+    restart: unless-stopped
     profiles: ["app"]
     environment:
-      NACOS_SERVER_ADDR: nacos:8848
+      NACOS_SERVER_ADDR: ${NACOS_SERVER_ADDR:-nacos:8848}
       REDIS_HOST: redis
       REDIS_PORT: "6379"
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-accessmesh-dev}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?请在 .env 设置 REDIS_PASSWORD}
       # 评审处置：透传必须带 yml 同款默认值——注意用 `-`（仅未设置取默认）而非 `:-`：
       # `:-` 会把「显式置空」也吞成默认值，文档承诺的「置空字符串=禁用 CORS」将到不了容器（claude 外评 P3 实证）
       # T-GW-010：默认白名单扩为四个环回 dev 形态（与 gateway application.yml 同源同步）
@@ -139,26 +145,32 @@ services:
       nacos:
         condition: service_healthy
       access-service:
-        condition: service_started
+        condition: service_healthy
 
   example-service:
     build: ./example-service
     image: accessmesh/example-service:dev
     container_name: accessmesh-example-service
+    restart: unless-stopped
     profiles: ["app"]
     environment:
-      NACOS_SERVER_ADDR: nacos:8848
+      NACOS_SERVER_ADDR: ${NACOS_SERVER_ADDR:-nacos:8848}
       # 身份签名校验：须与 Gateway 同值（不一致时经 Gateway 的请求一律信封 30003）
       ACCESSMESH_SIGNATURE_SECRET: ${ACCESSMESH_SIGNATURE_SECRET:-}
       # 共享实例按可信租户选择凭证，JSON 经 Spring Boot 原生绑定，不注入全局默认凭证。
       SPRING_APPLICATION_JSON: ${EXAMPLE_PERMISSION_CONFIG_JSON:-}
     ports:
       - "127.0.0.1:9300:9300"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:9301/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
     depends_on:
       nacos:
         condition: service_healthy
       gateway:
-        condition: service_started
+        condition: service_healthy
 
   frontend:
     build:
@@ -168,6 +180,7 @@ services:
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
     image: accessmesh/frontend:dev
     container_name: accessmesh-frontend
+    restart: unless-stopped
     profiles: ["app"]
     ports:
       - "127.0.0.1:80:80"
@@ -183,3 +196,4 @@ services:
 volumes:
   accessmesh-pgdata:
   accessmesh-redisdata:
+  accessmesh-nacosdata:

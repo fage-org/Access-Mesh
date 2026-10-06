@@ -86,7 +86,7 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
     @Transactional(readOnly = true)
     public AuthCheckResp check(Long tenantId, AuthCheckReq req) {
         Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
-        if (userId == null) return AuthCheckResp.deny("USER_NOT_FOUND");
+        if (userId == null) return AuthCheckResp.deny("USER_NOT_FOUND", false);
 
         QueryItem item = QueryItem.decision("check", selection(req.resourceTypeCode(), req.resourceCode(),
             req.operationCode(), req.codeType(), req.domainCode(), inheritClosureOf(req.inheritMode()),
@@ -118,7 +118,7 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
             return new BatchAuthCheckResp(req.items().stream()
                 .map(item -> new AuthCheckItemResult(
                     item.resourceTypeCode(), item.resourceCode(), item.operationCode(), false, "USER_NOT_FOUND",
-                    List.of(), List.of()))
+                    List.of(), List.of(), false))
                 .toList());
         }
         CallerContext caller = callerContext(req.context());
@@ -137,12 +137,11 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
         for (int i = 0; i < req.items().size(); i++) {
             BatchAuthCheckReq.AuthCheckItem item = req.items().get(i);
             DecisionResult outcome = (DecisionResult) result.orderedResults().get(i);
+            AuthCheckResp projected = PermResultUtils.toAuthCheckResp(outcome);
             results.add(new AuthCheckItemResult(
                 item.resourceTypeCode(), item.resourceCode(), item.operationCode(),
-                outcome.outcome() == DecisionResult.Decision.ALLOW,
-                outcome.reason() != null ? outcome.reason().name() : null,
-                List.copyOf(outcome.details().matchedRoleIds()),
-                List.copyOf(outcome.details().matchedPermissionIds())));
+                projected.allowed(), projected.reason(), projected.matchedRoleIds(),
+                projected.matchedPermissionIds(), projected.conditionEvaluated()));
         }
         return new BatchAuthCheckResp(List.copyOf(results));
     }
@@ -194,10 +193,9 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
             new ByCode(parentResourceCode, parentCodeType, null), filtered);
     }
 
-    /** check 族输出：命中 ID（T-API-003 回传）＋保留事实（conditionEvaluated 从保留事实派生，零额外 I/O）——
-     *  即 OutputSpec.kept() 公共工厂形态（外评可裁剪项收口，勿再私有重造同形构造）。 */
+    /** 条件参与事实须保留评估前候选；只在适配层派生布尔值，不向外开放原始事实或 TRACE。 */
     private static OutputSpec checkOutput() {
-        return OutputSpec.kept();
+        return OutputSpec.rawAndKept();
     }
 
     /** SDK 契约 {@code context.clientIp} 键提取为受信 IP，其余键归调用方属性；

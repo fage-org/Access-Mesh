@@ -1,3 +1,4 @@
+import { DEFAULT_PAGE_SIZE, ORG_TYPE } from "@/constants/access";
 import type { OrgPageQuery } from "@/api/user-manage";
 
 /**
@@ -18,8 +19,8 @@ export function buildPositionPageQuery(args: {
 }): OrgPageQuery {
   return {
     pageNum: args.pageNum ?? 1,
-    pageSize: args.pageSize ?? 20,
-    orgType: 2,
+    pageSize: args.pageSize ?? DEFAULT_PAGE_SIZE,
+    orgType: ORG_TYPE.POSITION,
     ...(args.status !== undefined ? { status: args.status } : {}),
     ...(args.orgId != null ? { orgId: args.orgId } : {}),
     ...(args.orgName ? { orgName: args.orgName } : {})

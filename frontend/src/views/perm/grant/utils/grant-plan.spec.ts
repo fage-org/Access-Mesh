@@ -1254,30 +1254,33 @@ describe("slotKeyOf / findSlotRecord（焦点槽位模型）", () => {
     expect(slotKeyOf(SLOT)).toBe(groupKeyOf({ ...SLOT, grantedBits: "2" }));
   });
 
-  it("findSlotRecord 仅匹配 MANUAL 主记录（排除 AUTO_DEP / remove 标记）", () => {
-    const record = makeRecord({ id: 9001 });
-    const autoDep = makeRecord({
-      id: 9003,
-      resourceCode: "data:r3",
-      grantSource: "AUTO_DEP"
-    });
-    const removed = makeRecord({ id: 9004, resourceCode: "data:r4" });
-    const view = applyDraftToRecords({
-      baseline: [record, autoDep],
-      changes: [
-        buildRemoveChange({
-          records: [removed],
-          cascadeChildCount: 0,
-          reason: "detail-delete",
-          summary: summaryOf(removed)
-        })
-      ],
-      operations: OPS
-    });
-    expect(findSlotRecord(view, slotOf(record))?.id).toBe(9001);
-    expect(findSlotRecord(view, slotOf(autoDep))).toBeNull(); // AUTO_DEP 不进比对
-    expect(findSlotRecord(view, slotOf(removed))).toBeNull(); // remove 标记视同不存在
-  });
+  it.each(["AUTO_DEP", "AUTHORITY_ROOT", "BOOTSTRAP_SEED"] as const)(
+    "findSlotRecord 排除只读来源 %s 和 remove 标记",
+    source => {
+      const record = makeRecord({ id: 9001 });
+      const autoDep = makeRecord({
+        id: 9003,
+        resourceCode: "data:r3",
+        grantSource: source
+      });
+      const removed = makeRecord({ id: 9004, resourceCode: "data:r4" });
+      const view = applyDraftToRecords({
+        baseline: [record, autoDep],
+        changes: [
+          buildRemoveChange({
+            records: [removed],
+            cascadeChildCount: 0,
+            reason: "detail-delete",
+            summary: summaryOf(removed)
+          })
+        ],
+        operations: OPS
+      });
+      expect(findSlotRecord(view, slotOf(record))?.id).toBe(9001);
+      expect(findSlotRecord(view, slotOf(autoDep))).toBeNull(); // AUTO_DEP 不进比对
+      expect(findSlotRecord(view, slotOf(removed))).toBeNull(); // remove 标记视同不存在
+    }
+  );
 });
 
 describe("uncheckSlot（取消勾选 → suspended 暂存，§6.1）", () => {

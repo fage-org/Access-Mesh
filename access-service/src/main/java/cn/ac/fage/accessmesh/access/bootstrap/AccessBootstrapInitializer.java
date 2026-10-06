@@ -54,9 +54,9 @@ import java.util.stream.Collectors;
  *       第⑦步"重启后权限仍生效"无法通过；</li>
  *   <li><b>部分存在 / 固定业务键被其他数据占用</b> → 抛 IllegalStateException 报告全部冲突项，
  *       不自动修复、不补权、不扩权（启动失败 fail-fast）。授权属性漂移除外（2026-09-02 口径定案，
- *       T-FE-018 联调暴露：canGrant/condition/操作位等管理端运营修改是产品正常能力）——
+ *       T-FE-018 联调暴露：canGrant/condition/操作位等离线维护的属性漂移保留诊断边界）——
  *       身份行存在而属性不符仅 warn 放行，不构成冲突、不重种覆盖；授权缺行 + 同身份键软删墓碑
- *       亦除外（2026-09-05 三分定案 T-ACCESS-029：管理端整行撤销 → WARN 放行不补回，仅
+ *       亦除外（2026-09-05 三分定案 T-ACCESS-029：离线整行撤销 → WARN 放行不补回，仅
  *       无任何历史记录的缺行维持 fail-fast）。</li>
  * </ol>
  * 复用既有领域服务：主体+投影（{@link LocalProjectionDomainService#createLocalUserSubject}）、
@@ -132,6 +132,13 @@ public class AccessBootstrapInitializer {
     @Transactional(rollbackFor = Exception.class)
     @PermissionChange
     public void initialize(String adminPassword) {
+        // 固定图是启动期内部写入口；所有数据显式绑定种子租户，无请求上下文也可执行。
+        // 只在最外层豁免，TenantManager 的 withoutTenantCondition 不支持嵌套恢复。
+        com.mybatisflex.core.tenant.TenantManager.withoutTenantCondition(
+            () -> initializeFixedGraph(adminPassword));
+    }
+
+    private void initializeFixedGraph(String adminPassword) {
         Long tenantId = BootstrapGraphDefinition.TENANT_ID;
         // ADMIN_FILE 文件夹投影预置（T-ADMIN-025）：幂等 insert-if-absent，置于三状态检测之前——
         // no-op 路径同样执行（建于本特性前的库重启自愈补种），冲突/创建失败路径随事务整体回滚。
@@ -346,10 +353,10 @@ public class AccessBootstrapInitializer {
         // —— 授权（固定图全量，子集匹配：固定图条目齐全即可，角色上的多余授权不冲突；
         //    2026-09-02 口径定案【T-FE-018 联调暴露】：缺行 fail-fast、属性漂移放行——
         //    身份键 =（资源实体/范围 + 类型）判定「行」是否存在；grantedBits/canGrant/
-        //    conditionId/dependOn/grantSource 为可变属性，管理端运营修改（授权页加条件、
-        //    关转授、改操作位）是产品正常能力，漂移仅 warn 不阻断启动、不重种覆盖；
+        //    conditionId/dependOn 为历史漂移属性，BOOTSTRAP_SEED 来源必须匹配；离线修改（加条件、
+        //    关转授、改操作位）不属于授权页能力，漂移仅 warn 不阻断启动、不重种覆盖；
         //    2026-09-05 墓碑三分【T-ACCESS-029，§14.2 收缩通道】：缺行 + 同身份键软删墓碑
-        //    （delete_flag=id 历史行）= 管理端整行撤销 → WARN 放行不补回；缺行 + 无任何
+        //    （delete_flag=id 历史行）= 离线整行撤销 → WARN 放行不补回；缺行 + 无任何
         //    历史记录 = 初始化残缺/键被占用/硬删 → 维持 fail-fast ——
         if (rolePresent && roleId != null) {
             List<RoleResourcePermission> existingGrants = seedWriter.findValidGrants(tenantId, roleId);
@@ -367,8 +374,12 @@ public class AccessBootstrapInitializer {
                 List<GrantKey> candidates = existingByIdentity.get(GrantIdentity.of(grant));
                 if (candidates == null) {
                     missingGrants.add(grant);
+                } else if (candidates.stream().noneMatch(candidate ->
+                        GrantSource.BOOTSTRAP_SEED.getValue().equals(candidate.grantSource()))) {
+                    conflicts.add("旧库固定图授权未标记 BOOTSTRAP_SEED，不自动补标：请先备份再按 deployment.md 重建库；"
+                        + grantIdentityDesc(grant));
                 } else if (!candidates.contains(GrantKey.of(grant))) {
-                    log.warn("bootstrap 固定图授权属性漂移（管理端运营修改，放行不重种）: {} "
+                    log.warn("bootstrap 固定图授权属性漂移（离线维护产生的属性漂移，放行不重种）: {} "
                         + "固定图期望属性={} 实际={}",
                         grantIdentityDesc(grant), GrantKey.of(grant), candidates);
                 }
@@ -502,7 +513,7 @@ public class AccessBootstrapInitializer {
 
     /**
      * 缺行授权三分判定（T-ACCESS-029，2026-09-05 定案，架构 §14.2 收缩通道）：缺行 + 同身份键
-     * 软删墓碑 = 管理端整行撤销 → WARN（列明授权键）放行、不补回；缺行 + 无任何历史记录 =
+     * 软删墓碑 = 离线整行撤销 → WARN（列明授权键）放行、不补回；缺行 + 无任何历史记录 =
      * 初始化残缺/键被占用/硬删 → 维持 fail-fast。墓碑查询仅在实际存在缺行时执行一次；身份键匹配
      * 在内存按 {@link GrantIdentity} 完成（scopeAll 行 resource_entity_id 为 NULL，SQL 等值条件
      * {@code = NULL} 恒不命中，不能下推到 SQL）。已知取舍（定案接受）：误删与故意撤销不可区分；
@@ -514,6 +525,7 @@ public class AccessBootstrapInitializer {
             return;
         }
         Set<GrantIdentity> tombstones = seedWriter.findSoftDeletedGrants(tenantId, roleId).stream()
+            .filter(grant -> GrantSource.BOOTSTRAP_SEED.getValue().equals(grant.getGrantSource()))
             .map(GrantIdentity::of)
             .collect(Collectors.toSet());
         List<String> revokedKeys = new ArrayList<>();
@@ -521,13 +533,13 @@ public class AccessBootstrapInitializer {
             if (tombstones.contains(GrantIdentity.of(grant))) {
                 revokedKeys.add(grantIdentityDesc(grant));
             } else {
-                conflicts.add("管理角色授权缺失（缺行无软删墓碑=非管理端撤销，fail-fast；属性漂移放行）: "
+                conflicts.add("管理角色授权缺失（缺行无已标记种子墓碑，fail-fast；旧库先备份再重建，不自动补标）: "
                     + grantIdentityDesc(grant));
             }
         }
         if (!revokedKeys.isEmpty()) {
-            log.warn("bootstrap 固定图授权缺行且存在软删墓碑（管理端撤销过，放行不补回；"
-                + "误删与撤销不可区分，如需恢复经授权页重新授予）: {}", revokedKeys);
+            log.warn("bootstrap 固定图授权缺行且存在软删墓碑（离线撤销过，放行不补回；"
+                + "误删与撤销不可区分，恢复请按 deployment.md 的离线规程处理）: {}", revokedKeys);
         }
     }
 
@@ -720,7 +732,7 @@ public class AccessBootstrapInitializer {
             grant.setResourceType(resourceTypes.get(spec.resourceTypeCode()));
             grant.setScopeAll(true);
             grant.setCanGrant(spec.canGrant());
-            grant.setGrantSource(GrantSource.MANUAL.getValue());
+            grant.setGrantSource(GrantSource.BOOTSTRAP_SEED.getValue());
             grant.setCreatedAt(now);
             grant.setUpdatedAt(now);
             grant.setDeleteFlag(0L);
@@ -731,7 +743,7 @@ public class AccessBootstrapInitializer {
 
     /**
      * 授权身份键（2026-09-02 口径定案：缺行判定、属性漂移放行）：资源实体/范围 + 类型——
-     * 判定固定图要求的授权「行」是否存在；行在而属性不符属管理端运营修改，仅 warn 不冲突；
+     * 判定固定图要求的授权「行」是否存在；行在而属性不符属离线维护产生的属性漂移，仅 warn 不冲突；
      * 行缺（无有效行）的处置按 {@link #classifyMissingGrants} 三分（T-ACCESS-029：
      * 同身份键软删墓碑 WARN 放行 / 无任何历史 fail-fast）。
      */
@@ -744,7 +756,7 @@ public class AccessBootstrapInitializer {
 
     /**
      * 授权完整属性键（漂移检测与 warn 明细用）：grantedBits/canGrant/conditionId/dependOn/
-     * grantSource 全量参与——身份行存在但与本键不符即漂移（运营改操作位/加条件/关转授/
+     * grantSource 全量参与——身份行存在但与本键不符即漂移（离线改操作位/加条件/关转授/
      * AUTO_DEP 行并存等），放行并告警；仅身份键无匹配（缺行）进入
      * {@link #classifyMissingGrants} 三分（墓碑 WARN 放行 / 无历史 fail-fast）。
      */

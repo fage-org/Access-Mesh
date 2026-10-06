@@ -10,7 +10,7 @@
 
 | 主题/触发场景 | 当前权威位置 |
 |---|---|
-| 报文、分页、分层、对象、时间、业务键 | [工程规范](project-rules.md) §1–14；[业务键](engine/implementation.md#business-keys) |
+| 报文、分页、分层、对象、时间、业务键 | [工程规范](project-rules.md) §1–14（分页 §1.3：统一上限 200、超限 400，取代专属上限优先）；[业务键](engine/implementation.md#business-keys) |
 | 权限查询、互斥、继承、范围、执行与观测 | [引擎实现](engine/implementation.md#permission-query) §2.4/§3（R2 已收口：§3.11 观测落地与上线门槛；[查询技能](../../.agents/skills/permission-query-pipeline/SKILL.md)）；旧 R2 实施设计（superseded，历史追溯）见 [r2-unified-query-and-admission.md](r2-unified-query-and-admission.md#r2-migration) 与 [归档计划](../archive/2026-10-01/r2-query-engine-and-admission-plan.md) |
 | 类型/资源所有权、授权根、条件生命周期、业务域分类 | [类型契约](access-service-api-contract.md#type-lifecycle)、[条件契约](access-service-api-contract.md#condition-lifecycle)、[授权契约](access-service-api-contract.md#grant-contract)、[域分类契约](access-service-api-contract.md#domain-classify)、[引擎域分类](engine/implementation.md#domain-classify) |
 | 依赖发布、自动授权、预览、来源、对账 | [自动授权](dependency-auto-grant.md#architecture) §3–8/11–13 |

@@ -99,6 +99,13 @@ class PlatformSessionAbsoluteTimeoutTest {
     @MockBean
     private StringRedisTemplate stringRedisTemplate;
 
+    @MockBean
+    private cn.ac.fage.accessmesh.access.user.mapper.SysUserMapper userMapper;
+    @MockBean
+    private cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator permissionValidator;
+    @MockBean
+    private cn.ac.fage.accessmesh.access.org.service.domain.OrgTreeConfigDomainService orgTreeConfigDomainService;
+
 
     @TestConfiguration
     static class InMemorySessionDaoConfig {
@@ -123,8 +130,11 @@ class PlatformSessionAbsoluteTimeoutTest {
 
     /** 走真实 /auth/login 签发链路（验证码脚本 mock、领域服务 mock、真实会话写入）。 */
     private String login() throws Exception {
-        SysUser user = mockUser();
-        when(userDomainService.findByUsername(1L, "alice")).thenReturn(user);
+        return login(mockUser());
+    }
+
+    private String login(SysUser user) throws Exception {
+        when(userDomainService.findByUsername(1L, user.getUsername())).thenReturn(user);
         when(stringRedisTemplate.execute(any(DefaultRedisScript.class), anyList())).thenReturn("8888");
         // 登录链路 isAccountLocked/clearLoginFail 走 opsForValue.get / delete，mock 掉（get 默认 null=未锁定）
         org.springframework.data.redis.core.ValueOperations<String, String> valueOperations =
@@ -135,7 +145,7 @@ class PlatformSessionAbsoluteTimeoutTest {
         MvcResult result = mockMvc.perform(post("/api/access/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(MAPPER.writeValueAsString(java.util.Map.of(
-                    "tenantId", "1", "username", "alice", "password", PASSWORD,
+                    "tenantId", "1", "username", user.getUsername(), "password", PASSWORD,
                     "captchaId", "cap-1", "captchaCode", "8888", "clientId", "console"))))
             .andExpect(status().isOk())
             .andReturn();
@@ -152,6 +162,36 @@ class PlatformSessionAbsoluteTimeoutTest {
         return mockMvc.perform(post("/api/access/auth/userinfo")
                                 .header("Authorization", "Bearer " + token))
             .andReturn().getResponse().getStatus();
+    }
+
+    @Test
+    void adminPasswordResetRevokesAllTargetSessionsButKeepsAdminSession() throws Exception {
+        String first = login();
+        String second = login();
+        SysUser target = mockUser();
+        when(userDomainService.selectValidById(1L, 9L)).thenReturn(target);
+        SysUser admin = mockUser();
+        admin.setId(900L);
+        admin.setUsername("administrator");
+        String adminToken = login(admin);
+        when(userDomainService.selectValidById(1L, 900L)).thenReturn(admin);
+        assertThat(userinfoStatus(first)).isEqualTo(200);
+        assertThat(userinfoStatus(second)).isEqualTo(200);
+
+        mockMvc.perform(post("/api/access/user/reset-password")
+                .header("Authorization", "Bearer " + adminToken)
+                .header("X-Internal-Secret", "test-internal-secret-for-session-lifecycle")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"userId\":9,\"newPassword\":\"Replacement123!\"}"))
+            .andExpect(status().isOk())
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.code").value(200));
+
+        assertThat(StpUtil.getLoginIdByToken(first)).isNull();
+        assertThat(StpUtil.getLoginIdByToken(second)).isNull();
+        assertThat(userinfoStatus(first)).isEqualTo(401);
+        assertThat(userinfoStatus(second)).isEqualTo(401);
+        assertThat(userinfoStatus(adminToken)).isEqualTo(200);
+        org.mockito.Mockito.verify(userMapper).update(target);
     }
 
     @Test

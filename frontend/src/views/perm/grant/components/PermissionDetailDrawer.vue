@@ -4,6 +4,10 @@
  * 同一角色、资源/范围、操作及父权限下最多一条 MANUAL 直接授权；
  * MANUAL 与 AUTO_DEP 可并列展示，授权属性与子权限均在授权弹窗修改。
  */
+import {
+  GRANT_SOURCE_LABELS,
+  GRANT_SOURCE_READONLY_HINTS
+} from "@/api/permission-grant";
 import { computed, ref, watch } from "vue";
 import type { ConditionResp } from "@/api/permission-condition";
 import { summarizeRules } from "@/utils/condition-rules";
@@ -133,9 +137,7 @@ function handleClose() {
               :key="record.id"
               class="record-item"
               :class="{
-                'auto-dep':
-                  record.grantSource === 'AUTO_DEP' ||
-                  record.grantSource === 'AUTHORITY_ROOT',
+                'auto-dep': !!GRANT_SOURCE_READONLY_HINTS[record.grantSource],
                 removed: record.draftMark === 'remove'
               }"
             >
@@ -147,11 +149,8 @@ function handleClose() {
                     effect="plain"
                   >
                     {{
-                      record.grantSource === "AUTO_DEP"
-                        ? "自动补全"
-                        : record.grantSource === "AUTHORITY_ROOT"
-                          ? "授权根"
-                          : "直接授权"
+                      GRANT_SOURCE_LABELS[record.grantSource] ??
+                      record.grantSource
                     }}
                   </el-tag>
                   <span>{{ conditionName(record) }}</span>
@@ -181,17 +180,10 @@ function handleClose() {
                 </span>
               </div>
               <div
-                v-if="
-                  record.grantSource === 'AUTO_DEP' ||
-                  record.grantSource === 'AUTHORITY_ROOT'
-                "
+                v-if="!!GRANT_SOURCE_READONLY_HINTS[record.grantSource]"
                 class="readonly-hint"
               >
-                {{
-                  record.grantSource === "AUTHORITY_ROOT"
-                    ? "类型授权根种子，随类型生命周期维护，只读不可修改"
-                    : "由资源依赖自动补全，只读不可修改"
-                }}
+                {{ GRANT_SOURCE_READONLY_HINTS[record.grantSource] }}
               </div>
             </article>
           </div>

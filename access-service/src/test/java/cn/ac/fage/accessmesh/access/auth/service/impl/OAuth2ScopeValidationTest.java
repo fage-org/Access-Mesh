@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.auth.service.impl;
 
+import cn.ac.fage.accessmesh.access.support.OAuth2CredentialFixtures;
 import cn.ac.fage.accessmesh.access.auth.dto.AuthorizeReq;
 import cn.ac.fage.accessmesh.access.auth.dto.AuthorizeResp;
 import cn.ac.fage.accessmesh.access.auth.entity.SysOauth2Client;
@@ -64,6 +65,7 @@ class OAuth2ScopeValidationTest {
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         var activeUser = new cn.ac.fage.accessmesh.access.user.entity.SysUser();
         activeUser.setStatus(1);
+        activeUser.setPassword(OAuth2CredentialFixtures.PASSWORD_HASH);
         lenient().when(userDomainService.selectValidById(1L, 100L)).thenReturn(activeUser);
     }
 

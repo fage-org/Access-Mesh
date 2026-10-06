@@ -316,7 +316,7 @@ class ExampleBusinessFinalCheckE2EIT {
     @DisplayName("⑤ 列表范围与 total 同口径：仅 report-1 可见（B 精确不可见）")
     void step5_listScopeSameCaliber() throws IOException {
         JsonNode body = awaitBusinessResult("/api/example/report/list",
-            "{\"keyword\":null,\"page\":1,\"size\":10}", b -> b.path("code").asInt() == 200, "列表必须成功");
+            "{\"keyword\":null,\"pageNum\":1,\"pageSize\":10}", b -> b.path("code").asInt() == 200, "列表必须成功");
         // report-1-detail 是 SUB_VIEW 子权限资源，VIEW 范围不含它（detail 行独立资源码）
         assertThat(body.path("data").path("total").asLong()).isEqualTo(1);
         assertThat(body.path("data").path("items")).hasSize(1);
@@ -773,8 +773,7 @@ class ExampleBusinessFinalCheckE2EIT {
                 + "org.springframework.cloud.gateway.config.GatewayMetricsAutoConfiguration,"
                 + "org.springframework.cloud.gateway.config.GatewayResilience4JCircuitBreakerAutoConfiguration,"
                 + "cn.dev33.satoken.reactor.spring.SaTokenContextRegister",
-            "--perm.gateway.enabled=false",
-            "--perm.client.enabled=false");
+                        "--perm.client.enabled=false");
     }
 
     private static Map<String, String> accessServiceEnv() {

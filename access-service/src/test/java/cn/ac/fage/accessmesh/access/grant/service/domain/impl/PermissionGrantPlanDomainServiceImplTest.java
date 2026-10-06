@@ -989,35 +989,38 @@ class PermissionGrantPlanDomainServiceImplTest {
 
         // ========== T-PERM-062：AUTHORITY_ROOT 种子行只读（20061，对齐 AUTO_DEP 只读三面） ==========
 
-        @Test
-        void shouldRejectUpdateOnAuthorityRootRecord() {
+        @org.junit.jupiter.params.ParameterizedTest
+        @org.junit.jupiter.params.provider.ValueSource(strings = {"AUTHORITY_ROOT", "BOOTSTRAP_SEED"})
+        void shouldRejectUpdateOnAuthorityRootRecord(String source) {
             when(rolePermissionMapper.selectValidByRoleId(TENANT, ROLE))
-                .thenReturn(List.of(existing(5L, null, "AUTHORITY_ROOT")));
+                .thenReturn(List.of(existing(5L, null, source)));
 
             BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
                 TENANT, SUBJECT, ROLE, null,
                 new ApplyGrantPlanReq.GrantPlan(List.of(),
                     List.of(new ApplyGrantPlanReq.UpdateItem(5L, Boolean.TRUE, null, null)), List.of())));
 
-            assertEquals(20061, exception.getErrorCode());
+            assertEquals("BOOTSTRAP_SEED".equals(source) ? 20074 : 20061, exception.getErrorCode());
         }
 
-        @Test
-        void shouldRejectRemoveOnAuthorityRootRecord() {
+        @org.junit.jupiter.params.ParameterizedTest
+        @org.junit.jupiter.params.provider.ValueSource(strings = {"AUTHORITY_ROOT", "BOOTSTRAP_SEED"})
+        void shouldRejectRemoveOnAuthorityRootRecord(String source) {
             when(rolePermissionMapper.selectValidByRoleId(TENANT, ROLE))
-                .thenReturn(List.of(existing(5L, null, "AUTHORITY_ROOT")));
+                .thenReturn(List.of(existing(5L, null, source)));
 
             BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
                 TENANT, SUBJECT, ROLE, null,
                 new ApplyGrantPlanReq.GrantPlan(List.of(), List.of(), List.of(5L))));
 
-            assertEquals(20061, exception.getErrorCode());
+            assertEquals("BOOTSTRAP_SEED".equals(source) ? 20074 : 20061, exception.getErrorCode());
         }
 
-        @Test
-        void shouldRejectChildCreateUnderAuthorityRootParent() {
+        @org.junit.jupiter.params.ParameterizedTest
+        @org.junit.jupiter.params.provider.ValueSource(strings = {"AUTHORITY_ROOT", "BOOTSTRAP_SEED"})
+        void shouldRejectChildCreateUnderAuthorityRootParent(String source) {
             when(rolePermissionMapper.selectValidByRoleId(TENANT, ROLE))
-                .thenReturn(List.of(existing(5L, null, "AUTHORITY_ROOT")));
+                .thenReturn(List.of(existing(5L, null, source)));
 
             BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
                 TENANT, SUBJECT, ROLE, null,
@@ -1025,7 +1028,7 @@ class PermissionGrantPlanDomainServiceImplTest {
                     key("city:shanghai", ScopeMode.INSTANCE, null, false), 5L, List.of())),
                     List.of(), List.of())));
 
-            assertEquals(20061, exception.getErrorCode());
+            assertEquals("BOOTSTRAP_SEED".equals(source) ? 20074 : 20061, exception.getErrorCode());
         }
 
         @Test

@@ -152,4 +152,8 @@ public interface SyncMetadataDomainService {
                           String scopeKeyHash,
                           String businessKeyHash,
                           Long targetId);
+    /** 已应用 scope 汇总（不含失败尝试；资源空 FULL 由 publication state 补充）。 */
+    java.util.List<cn.ac.fage.accessmesh.access.sync.dto.SyncStatusResp> listAppliedScopes(
+        Long tenantId, String sourceService, int limit, int offset);
+    long countAppliedScopes(Long tenantId, String sourceService);
 }

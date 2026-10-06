@@ -59,16 +59,13 @@ public class GatewayProperties {
         private List<String> paths = List.of(
             "/api/access/auth/captcha",
             "/api/access/auth/login",
-            "/api/access/auth/login/sms",
             "/api/access/auth/logout",
             "/api/access/auth/userinfo",
             "/api/access/auth/user-menu",
             "/api/access/auth/oauth2/**",
             "/api/access/user/reset-password",
             "/api/access/notice/my-notices",
-            "/api/access/notice/read",
-            "/public/**",
-            "/captcha/**"
+            "/api/access/notice/read"
         );
     }
 
@@ -157,7 +154,6 @@ public class GatewayProperties {
         // T-ACCESS-059：操作准入快照（网关本地判定主路径；旧 check-interface/interface-snapshot
         // 网关消费随无迁移期切换删除，服务端旧端点已退役）
         private String interfaceAdmissionSnapshotPath = "/api/access/auth/interface-admission-snapshot";
-        private String unregisteredPolicy = "DENY";
         /**
          * 权限快照加载全链路墙钟硬截止时间（T-ACCESS-008，默认/上限 5 秒）。
          * <p>

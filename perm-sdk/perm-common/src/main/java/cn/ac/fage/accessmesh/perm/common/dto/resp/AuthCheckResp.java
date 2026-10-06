@@ -53,9 +53,10 @@ public record AuthCheckResp(
      * 创建拒绝通过的响应
      *
      * @param reason 拒绝原因
+     * @param conditionEvaluated 本次有效候选中是否有条件参与评估
      * @return 拒绝通过的权限校验响应
      */
-    public static AuthCheckResp deny(String reason) {
-        return new AuthCheckResp(false, reason, List.of(), List.of(), false);
+    public static AuthCheckResp deny(String reason, boolean conditionEvaluated) {
+        return new AuthCheckResp(false, reason, List.of(), List.of(), conditionEvaluated);
     }
 }

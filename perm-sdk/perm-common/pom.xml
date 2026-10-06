@@ -14,15 +14,28 @@
     <description>Shared models, exceptions, utilities for permission SDK</description>
 
     <dependencies>
+        <!-- 两个消费 FeignCredentialInterceptor 的 starter 已提供 common；只在此编译引用单源清单，避免向纯 DTO 消费者传递 Web/cache 实现依赖。 -->
+        <dependency>
+            <groupId>cn.ac.fage.accessmesh</groupId>
+            <artifactId>common</artifactId>
+            <version>${project.version}</version>
+            <scope>provided</scope>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
             <scope>provided</scope>
+            <exclusions>
+                <exclusion><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-logging</artifactId></exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
             <scope>provided</scope>
+            <exclusions>
+                <exclusion><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-logging</artifactId></exclusion>
+            </exclusions>
         </dependency>
         <!-- T-PERM-070 凭证头注入拦截器（FeignCredentialInterceptor）落本模块供
              client/registration（071）两 starter 共用；openfeign 由使用方 starter

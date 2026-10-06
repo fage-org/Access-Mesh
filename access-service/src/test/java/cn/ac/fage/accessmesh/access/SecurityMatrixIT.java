@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access;
 
+import cn.ac.fage.accessmesh.access.support.OAuth2CredentialFixtures;
 import static cn.ac.fage.accessmesh.access.it.GatewayTestSignatures.hmac;
 
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
@@ -191,11 +192,12 @@ class SecurityMatrixIT {
         // 模拟 OAuth2 签发链路（SaJwtUtil.createToken，loginType=oauth2、jwt-secret-key）
         long ts = System.currentTimeMillis() / 1000;
         String jwt = cn.dev33.satoken.jwt.SaJwtUtil.createToken("oauth2", 100L, "oauth2", 3600,
-            java.util.Map.of("tenant_id", "1", "jti", "jti-it-" + ts, "client_id", "admin-web"), JWT_SECRET);
+            OAuth2CredentialFixtures.claims(java.util.Map.of("tenant_id", "1", "jti", "jti-it-" + ts, "client_id", "admin-web")), JWT_SECRET);
         cn.ac.fage.accessmesh.access.user.entity.SysUser user = new cn.ac.fage.accessmesh.access.user.entity.SysUser();
         user.setId(100L);
         user.setTenantId(1L);
         user.setUsername("oauth2-user");
+        user.setPassword(OAuth2CredentialFixtures.PASSWORD_HASH);
         user.setStatus(1);
         when(userDomainService.selectValidById(1L, 100L)).thenReturn(user);
 

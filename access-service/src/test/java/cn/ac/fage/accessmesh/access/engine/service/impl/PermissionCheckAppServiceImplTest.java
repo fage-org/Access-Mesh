@@ -243,6 +243,30 @@ class PermissionCheckAppServiceImplTest {
         return captor.getValue();
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"true,CONDITION_NOT_MET", "false,PERMISSION_CONFLICT", "true,PERMISSION_CONFLICT"})
+    void checkAndBatchExposeSameConditionEvaluationOnDeniedFacts(boolean conditional, String reason) {
+        when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
+        var fact = new GrantFact(401L, 20L, 1, 200L, 2L, false, null,
+            conditional ? 77L : null, conditional, null, "MANUAL");
+        var denied = DecisionResult.deny("0", DecisionResult.Reason.valueOf(reason), coverage(),
+            new ResultDetails(Set.of(ResultDetails.DetailSection.FACTS_RAW), List.of(), List.of(),
+                List.of(new StageFacts(Stage.INSTANCE, List.of(fact), List.of(), StageFacts.Status.FILTERED_EMPTY))));
+        when(queryEngine.execute(any(QueryRequest.class))).thenReturn(result(denied));
+        var single = service.check(1L, new AuthCheckReq("USER", "u-1", "REPORT", "report:1", "VIEW",
+            null, null, null, null, null, null, null, null));
+        var batch = service.batchCheck(1L, new BatchAuthCheckReq("USER", "u-1",
+            List.of(new BatchAuthCheckReq.AuthCheckItem("REPORT", "report:1", "VIEW", null, null, null)),
+            null, null, null, null, Map.of()));
+        assertEquals(conditional, single.conditionEvaluated());
+        var itemJson = new com.fasterxml.jackson.databind.ObjectMapper().valueToTree(batch.items().getFirst());
+        assertTrue(itemJson.path("conditionEvaluated").isBoolean());
+        assertEquals(conditional, itemJson.path("conditionEvaluated").booleanValue());
+        assertEquals(single.reason(), batch.items().getFirst().reason());
+        assertEquals(cn.ac.fage.accessmesh.access.engine.query.FactDetail.RAW_AND_KEPT,
+            capturedRequest().items().getFirst().output().factDetail());
+    }
+
     private static QueryResult result(DecisionResult... decisions) {
         List<cn.ac.fage.accessmesh.access.engine.query.ItemResult> items = List.of(decisions);
         return new QueryResult("exec", LocalDateTime.now(), items);

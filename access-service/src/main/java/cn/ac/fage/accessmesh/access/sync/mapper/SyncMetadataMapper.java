@@ -146,4 +146,8 @@ public interface SyncMetadataMapper extends BaseMapper<SyncMetadata> {
                        @Param("scopeKeyHash") String scopeKeyHash,
                        @Param("businessKeyHash") String businessKeyHash,
                        @Param("targetId") Long targetId);
+    List<cn.ac.fage.accessmesh.access.sync.dto.SyncStatusResp> selectAppliedScopes(
+        @Param("tenantId") Long tenantId, @Param("sourceService") String sourceService,
+        @Param("limit") int limit, @Param("offset") int offset);
+    long countAppliedScopes(@Param("tenantId") Long tenantId, @Param("sourceService") String sourceService);
 }

@@ -48,8 +48,8 @@ import java.lang.reflect.Method;
  * <p>
  * <b>切面定序</b>：{@code @Order(Ordered.LOWEST_PRECEDENCE - 1)} 使本切面位于
  * 事务切面（默认 LOWEST_PRECEDENCE）之外层——目标方法（含其事务提交）完全返回后才
- * 记录日志：主事务提交失败时 {@code joinPoint.proceed()} 抛异常走 finally 分支不记录，
- * 避免残留 responseCode=200 的虚假操作日志；主事务提交成功后记录，日志反映真实已提交操作。
+ * 记录日志：主事务提交失败时 {@code joinPoint.proceed()} 抛异常，finally 同样记录失败，
+ * 成功在主事务提交后记录，失败在回滚后记录公开信封错误码；不把失败记为200。
  * </p>
  */
 @Aspect
@@ -81,33 +81,39 @@ public class OperationLogAspect {
      * 环绕拦截 @OperationLog 方法
      * <p>
      * 方法先执行再记录日志，因此 #result 在 SpEL 中可用。
-     * 方法抛异常时不做日志记录，异常直接向上传播。
+     * 方法失败时在主事务回滚后记录失败码，原异常继续向上传播。
      * </p>
      */
     @Around("@annotation(opLog)")
     public Object around(ProceedingJoinPoint joinPoint, OperationLog opLog) throws Throwable {
         OperationLogRuntimeContext.clear();
         long start = System.currentTimeMillis();
+        Object result = null;
+        Throwable failure = null;
         try {
-            Object result = joinPoint.proceed();
+            result = joinPoint.proceed();
+            return result;
+        } catch (Throwable error) {
+            failure = error;
+            throw error;
+        } finally {
             try {
-                recordLog(opLog, joinPoint, result, (int) (System.currentTimeMillis() - start));
+                recordLog(opLog, joinPoint, result, failure, (int) (System.currentTimeMillis() - start));
             } catch (Exception e) {
                 log.warn("Failed to record operation log for {}.{}: {}",
                     opLog.module(), opLog.action(), e.getMessage());
+            } finally {
+                OperationLogRuntimeContext.clear();
             }
-            return result;
-        } finally {
-            OperationLogRuntimeContext.clear();
         }
     }
 
     /**
      * 记录操作日志
      */
-    private void recordLog(OperationLog opLog, ProceedingJoinPoint joinPoint, Object result, int costTime) {
+    private void recordLog(OperationLog opLog, ProceedingJoinPoint joinPoint, Object result, Throwable failure, int costTime) {
         OperationLogRuntimeContext.Snapshot runtimeSnapshot = OperationLogRuntimeContext.snapshot();
-        if (runtimeSnapshot.skip()) {
+        if (runtimeSnapshot.skip() && failure == null) {
             return;
         }
 
@@ -140,6 +146,13 @@ public class OperationLogAspect {
         String summary = runtimeSnapshot.summaryOverride() != null
             ? runtimeSnapshot.summaryOverride()
             : buildSummary(opLog, ctx, result);
+        int responseCode = responseCode(result, failure);
+        if (failure != null || responseCode != 200) {
+            summary = "失败(code=" + responseCode + ") " + summary;
+        } else if (result instanceof cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp sync
+                && (!sync.accepted() || (!sync.applied() && !sync.stale()))) {
+            summary = "同步未应用(reason=" + sync.reason() + ") " + summary;
+        }
         // 对齐 operation_log 列上限截断（target_id VARCHAR(256)/summary VARCHAR(512)/operator_name VARCHAR(256)），
         // 防止超长 SpEL 结果或会话名触发插入失败丢失整条审计日志（T-ACCESS-007）
         targetId = truncate(targetId, TARGET_ID_MAX_LEN);
@@ -167,9 +180,21 @@ public class OperationLogAspect {
             ipAddress,
             requestId,
             request != null ? request.getRequestURI() : null,
-            200,
+            responseCode,
             costTime
         ));
+    }
+
+    /** 与公开信封 code 同口径；不把业务异常的 HTTP 200 误记为操作成功。 */
+    private static int responseCode(Object result, Throwable failure) {
+        if (failure instanceof cn.ac.fage.accessmesh.common.exception.BizException e) return e.getErrorCode();
+        if (failure instanceof cn.ac.fage.accessmesh.common.exception.SystemException e) return e.getErrorCode();
+        if (failure instanceof SecurityException) return 403;
+        if (failure instanceof cn.ac.fage.accessmesh.access.engine.query.QueryValidationException) return 90001;
+        if (failure instanceof cn.ac.fage.accessmesh.access.engine.query.AdmissionConfigurationException) return 20071;
+        if (failure instanceof IllegalArgumentException) return 400;
+        if (failure != null) return 99999;
+        return result instanceof cn.ac.fage.accessmesh.common.model.R<?> response ? response.getCode() : 200;
     }
 
     /**

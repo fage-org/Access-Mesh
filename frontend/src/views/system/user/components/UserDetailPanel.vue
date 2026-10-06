@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { DEFAULT_PAGE_SIZE, ORG_TYPE } from "@/constants/access";
+
 import { ref, reactive, watch, computed } from "vue";
 import {
   getUserRoles,
@@ -53,8 +55,6 @@ const roleTagTypeMap: Record<string, TagType> = {
   BASIC_ROLE: "info"
 };
 
-const ORG_TYPE_POSITION = 2;
-
 type OrgSelectorNode = OrgTreeNode & {
   disabled?: boolean;
   children: OrgSelectorNode[];
@@ -98,12 +98,12 @@ const otherRoles = computed(() =>
 
 /** 用户所属岗位（只读，由 getUserOrgs 按 orgType=2 拆出） */
 const userPositions = computed(() =>
-  userOrgs.value.filter(o => o.orgType === ORG_TYPE_POSITION)
+  userOrgs.value.filter(o => o.orgType === ORG_TYPE.POSITION)
 );
 
 /** 组织归属：仅普通组织（orgType !== 2），与岗位区分展示 */
 const userPlainOrgs = computed(() =>
-  userOrgs.value.filter(o => o.orgType !== ORG_TYPE_POSITION)
+  userOrgs.value.filter(o => o.orgType !== ORG_TYPE.POSITION)
 );
 
 // 组织管理状态
@@ -167,7 +167,7 @@ const {
     };
   },
   {
-    pageSize: 20,
+    pageSize: DEFAULT_PAGE_SIZE,
     onError: () => message("加载角色列表失败", { type: "error" })
   }
 );
@@ -199,9 +199,7 @@ function mapUserOrgs(orgs: Array<OrgBrief | UserOrgItem>): UserOrgItem[] {
   return orgs.map(org => ({
     orgId: org.orgId,
     orgName: org.orgName,
-    // OrgBrief.orgType 后端为 string；UserOrgItem 内部统一为 number，便于和岗位常量比较
-    orgType:
-      typeof org.orgType === "string" ? Number(org.orgType) : org.orgType,
+    orgType: org.orgType,
     isPrimary: org.isPrimary
   }));
 }
@@ -255,7 +253,7 @@ watch(
     } else {
       // v1.4 后端 /org/tree 强制要求 orgType；用户详情面板组织选择器仅可分配普通组织（orgType=1），
       // 岗位为只读视图不参与「分配组织」。
-      orgTreeData.value = await getOrgTree({ orgType: 1 });
+      orgTreeData.value = await getOrgTree({ orgType: ORG_TYPE.ORG });
     }
   },
   { immediate: true }

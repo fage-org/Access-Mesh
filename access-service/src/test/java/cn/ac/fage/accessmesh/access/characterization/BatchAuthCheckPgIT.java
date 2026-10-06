@@ -287,6 +287,7 @@ class BatchAuthCheckPgIT {
             assertThat(outcomes.get(i).allowed())
                 .as("item[%d] %s:%s allowed 等价", i, item.resourceTypeCode(), item.resourceCode())
                 .isEqualTo(single.allowed());
+            assertThat(outcomes.get(i).conditionEvaluated()).isEqualTo(single.conditionEvaluated());
             assertThat(outcomes.get(i).reason())
                 .as("item[%d] reason 等价", i)
                 .isEqualTo(single.reason());
@@ -303,13 +304,13 @@ class BatchAuthCheckPgIT {
         assertThat(outcomes.get(1).allowed()).as("scopeAll 短路优先：幽灵 code 也放行").isTrue();
         assertThat(outcomes.get(2).allowed()).isTrue();
         assertThat(outcomes.get(3).allowed()).isFalse();
-        assertThat(outcomes.get(3).reason()).isEqualTo("CONDITION_NOT_MET_OR_CONFLICT");
+        assertThat(outcomes.get(3).reason()).isEqualTo("CONDITION_NOT_MET");
         assertThat(outcomes.get(4).reason()).isEqualTo("NO_PERMISSION");
         assertThat(outcomes.get(5).allowed()).isFalse();
         assertThat(outcomes.get(6).allowed()).isTrue();
         assertThat(outcomes.get(7).reason()).isEqualTo("DEPENDENT_NOT_IN_PARENT_CONTEXT");
         assertThat(outcomes.get(8).reason()).isEqualTo("DEPENDENT_NOT_IN_PARENT_CONTEXT");
-        assertThat(outcomes.get(9).reason()).isEqualTo("CONDITION_NOT_MET_OR_CONFLICT");
+        assertThat(outcomes.get(9).reason()).isEqualTo("PERMISSION_CONFLICT");
         assertThat(outcomes.get(10).reason()).isEqualTo("NO_PERMISSION");
     }
 
@@ -558,7 +559,7 @@ class BatchAuthCheckPgIT {
             item(typeCodeOf(t1), "b61-ds-a", "VIEW"));
         assertThat(scopeAllTrack.allowed())
             .as("scopeAll 轨：禁用条件必须 fail-close（朴素批量当有效规则=绕过方向）").isFalse();
-        assertThat(scopeAllTrack.reason()).isEqualTo("CONDITION_NOT_MET_OR_CONFLICT");
+        assertThat(scopeAllTrack.reason()).isEqualTo("CONDITION_NOT_MET");
 
         // 实例轨
         int t2 = newType();
@@ -570,7 +571,7 @@ class BatchAuthCheckPgIT {
         BatchAuthCheckResp.AuthCheckItemResult instanceTrack = runSingleItemBatch(subjectB,
             item(typeCodeOf(t2), "b61-ds-b", "VIEW"));
         assertThat(instanceTrack.allowed()).as("实例轨：禁用条件必须 fail-close").isFalse();
-        assertThat(instanceTrack.reason()).isEqualTo("CONDITION_NOT_MET_OR_CONFLICT");
+        assertThat(instanceTrack.reason()).isEqualTo("CONDITION_NOT_MET");
     }
 
     // ===== ⑩ 条件-互斥顺序锁 =====
@@ -617,7 +618,7 @@ class BatchAuthCheckPgIT {
             item(typeCodeOf(type), "b61-snap-res", "VIEW"));
 
         assertThat(outcome.allowed()).isFalse();
-        assertThat(outcome.reason()).isEqualTo("CONDITION_NOT_MET_OR_CONFLICT");
+        assertThat(outcome.reason()).isEqualTo("CONDITION_NOT_MET");
         verify(conditionMapper, times(1)).selectValidByIds(eq(TENANT), anySet());
     }
 

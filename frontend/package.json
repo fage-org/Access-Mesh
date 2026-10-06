@@ -23,7 +23,9 @@
     "lint:stylelint": "stylelint --cache --fix \"**/*.{html,vue,css,scss}\" --cache-location node_modules/.cache/stylelint/",
     "lint": "pnpm lint:eslint && pnpm lint:prettier && pnpm lint:stylelint",
     "prepare": "husky",
-    "preinstall": "npx only-allow pnpm"
+    "preinstall": "npx only-allow pnpm",
+    "lint:check": "eslint --max-warnings 0 \"{src,mock,build}/**/*.{vue,js,ts,tsx}\" && prettier --check \"src/**/*.{js,ts,json,tsx,css,scss,vue,html,md}\" && stylelint \"src/**/*.{html,vue,css,scss}\"",
+    "contracts:check": "node ../tools/contracts/check-dto-fields.mjs"
   },
   "keywords": [
     "pure-admin-thin",
@@ -137,5 +139,6 @@
   "engines": {
     "node": "^20.19.0 || >=22.13.0",
     "pnpm": ">=9"
-  }
+  },
+  "packageManager": "pnpm@11.5.0"
 }

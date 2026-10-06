@@ -16,7 +16,14 @@ import {
 import { onBeforeRouteLeave, useRoute, useRouter } from "vue-router";
 import { ElMessageBox } from "element-plus";
 import { message } from "@/utils/message";
-import { hasPerms } from "@/utils/auth";
+import { hasPerms, isSessionTerminated } from "@/utils/auth";
+import {
+  draftKey,
+  readDraft,
+  readDraftOwner,
+  removeDraft,
+  writeDraft
+} from "./draft-storage";
 import { refreshSessionCapability } from "@/router/utils";
 import {
   getOperationList,
@@ -120,6 +127,98 @@ export function usePermissionGrant() {
    * （store 层在途由 cancelPending 作废 baselineToken；hook 层在途由本代际作废）。
    */
   let matrixToken = 0;
+
+  // 当前标签页暂存；身份快照在 401 清理登录信息后仍能保护该账号自己的草稿。
+  let draftOwner = readDraftOwner();
+  let lastStoredKey: string | null = null;
+  let suppressDraftStorage = false;
+  let storageWarningShown = false;
+  let draftStorage: Storage | null = null;
+  try {
+    draftStorage =
+      typeof sessionStorage === "undefined" ? null : sessionStorage;
+  } catch {
+    /* 浏览器禁用存储 */
+  }
+  function currentDraftKey(): string | null {
+    if (!draftOwner || !grantStore.context || !currentTypeCode.value)
+      return null;
+    const currentOwner = readDraftOwner();
+    if (
+      currentOwner &&
+      (currentOwner.userId !== draftOwner.userId ||
+        currentOwner.tenantId !== draftOwner.tenantId)
+    )
+      return null;
+    return draftKey(draftOwner, grantStore.context, currentTypeCode.value);
+  }
+  function persistDraft() {
+    if (suppressDraftStorage) return;
+    const key = currentDraftKey();
+    if (!key) return;
+    if (grantStore.changes.length) {
+      const unknown =
+        grantStore.submit.kind === "saving" ||
+        (grantStore.submit.kind === "saveFailed" &&
+          grantStore.submit.unknownOutcome);
+      if (
+        draftStorage &&
+        writeDraft(draftStorage, key, grantStore.changes, unknown)
+      )
+        lastStoredKey = key;
+      else if (!storageWarningShown) {
+        storageWarningShown = true;
+        message("浏览器无法暂存草稿，请保持本页打开并及时保存", {
+          type: "warning"
+        });
+      }
+    } else if (draftStorage && lastStoredKey === key) {
+      removeDraft(draftStorage, key);
+      lastStoredKey = null;
+    }
+  }
+  const stopDraftStorage = watch(
+    [() => grantStore.changes, () => grantStore.submit],
+    persistDraft,
+    { deep: true, flush: "sync" }
+  );
+  async function restoreDraft(generation: number) {
+    const key = currentDraftKey();
+    if (!key || !draftStorage || !canManage.value || grantStore.changes.length)
+      return;
+    const saved = readDraft(draftStorage, key);
+    if (!saved) return;
+    try {
+      await ElMessageBox.confirm(
+        `发现本账号为当前角色暂存的 ${saved.changes.length} 条变更，是否恢复？当前权限已重新加载，恢复后请逐项核对；不会自动提交。`,
+        "恢复授权草稿",
+        {
+          confirmButtonText: "恢复草稿",
+          cancelButtonText: "丢弃草稿",
+          distinguishCancelAndClose: true,
+          type: "warning"
+        }
+      );
+      if (
+        generation !== matrixToken ||
+        currentDraftKey() !== key ||
+        !canManage.value
+      )
+        return;
+      if (grantStore.applyChanges(saved.changes)) {
+        if (saved.unknownOutcome)
+          grantStore.submit = {
+            kind: "saveFailed",
+            unknownOutcome: true,
+            message: "已恢复草稿，上次保存结果未确认，请先核对当前权限"
+          };
+        message("草稿已恢复，请核对后再保存", { type: "success" });
+      }
+    } catch (action) {
+      if (action === "cancel") removeDraft(draftStorage, key);
+    }
+  }
+
   /** 主体已有权限类型（§2.2 仅用于下拉标记与排序——有权限的排前；主体切换时全量主权限查询一次） */
   const subjectPermissionTypes = ref<string[]>([]);
   const conditions = ref<ConditionResp[]>([]);
@@ -377,6 +476,7 @@ export function usePermissionGrant() {
 
   async function confirmDiscardIfDirty(): Promise<boolean> {
     if (!grantStore.isDirty) return true;
+    const savedKey = currentDraftKey();
     try {
       await ElMessageBox.confirm(
         "当前存在未保存的授权变更，切换/离开将放弃这些变更，是否继续？",
@@ -387,6 +487,7 @@ export function usePermissionGrant() {
           type: "warning"
         }
       );
+      if (savedKey && draftStorage) removeDraft(draftStorage, savedKey);
       return true;
     } catch {
       return false;
@@ -585,6 +686,7 @@ export function usePermissionGrant() {
           types.add(item.resourceTypeCode);
         }
         subjectPermissionTypes.value = [...types].sort();
+        await restoreDraft(token);
         return true;
       }
       // 类型切换：switchMatrixType（立即清空 baseline）与读请求并行（不提交 context，
@@ -612,6 +714,7 @@ export function usePermissionGrant() {
       );
       // 操作列配置清理：当前类型操作定义中已不存在的操作码（§3.2）
       pruneHiddenColumns(operationDefs.value);
+      await restoreDraft(token);
       return true;
     } catch (error) {
       if (token !== matrixToken) return false;
@@ -972,6 +1075,15 @@ export function usePermissionGrant() {
   // ========== 离开保护（§6.5：路由切换/刷新/切换主体 → 确认提示） ==========
 
   onBeforeRouteLeave(async () => {
+    if (isSessionTerminated()) {
+      persistDraft();
+      suppressDraftStorage = true;
+      ++matrixToken;
+      grantStore.resetAll();
+      activeKey.value = null;
+      suppressDraftStorage = false;
+      return true;
+    }
     // saving 优先拦截（评审问题 1）：请求已发出不可放弃，禁止离开且不提供放弃选项
     if (grantStore.isSaving) {
       message("正在保存，禁止离开", { type: "warning" });
@@ -1002,6 +1114,20 @@ export function usePermissionGrant() {
   });
 
   onActivated(() => {
+    const currentOwner = readDraftOwner();
+    if (
+      currentOwner &&
+      (currentOwner.userId !== draftOwner?.userId ||
+        currentOwner.tenantId !== draftOwner?.tenantId)
+    ) {
+      suppressDraftStorage = true;
+      ++matrixToken;
+      grantStore.resetAll();
+      activeKey.value = null;
+      draftOwner = currentOwner;
+      lastStoredKey = null;
+      suppressDraftStorage = false;
+    }
     // keep-alive 重入刷新树（覆盖新建/改名/删除/层级/关联变化，问题 6）
     refreshAndPreset();
   });
@@ -1017,6 +1143,8 @@ export function usePermissionGrant() {
   );
 
   onBeforeUnmount(() => {
+    persistDraft();
+    stopDraftStorage();
     window.removeEventListener("beforeunload", handleBeforeUnload);
     // review P1-3：卸载必须先作废 hook 代际（++matrixToken）——resetAll 只能作废已启动的
     // store 请求；先读后提交的读阶段在途请求若未被代际作废，卸载后仍会通过 token 校验

@@ -48,6 +48,35 @@ public final class OAuth2JwtSupport {
     /** 载荷键：受众（T-ACCESS-013；客户端注册 audiences 非空时签发写入，List&lt;String&gt;）。 */
     public static final String AUD_CLAIM = "aud";
 
+    public static final String PASSWORD_FINGERPRINT_CLAIM = "pwd_generation";
+    public static final String CHAIN_ISSUED_AT_CLAIM = "chain_iat";
+    public static final String CHAIN_EXPIRES_AT_CLAIM = "chain_exp";
+
+    /** BCrypt 的算法/成本/随机盐前缀；不把可用于校验密码的完整哈希暴露到 JWT。 */
+    public static String passwordFingerprint(String passwordHash) {
+        return passwordHash != null && passwordHash.length() == 60 && passwordHash.startsWith("$2")
+            ? passwordHash.substring(0, 29) : null;
+    }
+
+    /** 码、刷新记录与访问 JWT 采用同一代际与绝对期限；缺字段的旧凭据拒绝。 */
+    public static boolean isCurrentCredential(String passwordHash, String fingerprint,
+                                               long issuedAt, long expiresAt) {
+        long now = System.currentTimeMillis() / 1000;
+        return fingerprint != null && fingerprint.equals(passwordFingerprint(passwordHash))
+            && issuedAt > 0 && issuedAt <= now && expiresAt > issuedAt && expiresAt > now;
+    }
+
+    public static boolean isCurrentCredential(String passwordHash, Map<String, Object> payloads) {
+        Object fingerprint = payloads.get(PASSWORD_FINGERPRINT_CLAIM);
+        try {
+            return fingerprint instanceof String value && isCurrentCredential(passwordHash, value,
+                Long.parseLong(String.valueOf(payloads.get(CHAIN_ISSUED_AT_CLAIM))),
+                Long.parseLong(String.valueOf(payloads.get(CHAIN_EXPIRES_AT_CLAIM))));
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
     private OAuth2JwtSupport() {
     }
 

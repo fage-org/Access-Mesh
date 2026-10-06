@@ -1,6 +1,8 @@
 package cn.ac.fage.accessmesh.example.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 
@@ -39,13 +41,10 @@ public final class DemoReportDtos {
     }
 
     /** 列表/搜索：权限范围过滤 + 分页 total 同口径（§8.6 列表/搜索行）。 */
-    public record ListReq(String keyword, Integer page, Integer size) {
+    public record ListReq(String keyword, @Min(1) Integer pageNum, @Min(1) @Max(200) Integer pageSize) {
     }
 
     public record ListItem(String reportCode, String name) {
-    }
-
-    public record ListResp(List<ListItem> items, long total, int page, int size) {
     }
 
     /** 创建：最终 TYPE_LEVEL（§8.6 CREATE 行——实例准入不授予类型创建权）。 */

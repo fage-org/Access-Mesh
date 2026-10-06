@@ -7,7 +7,8 @@ import type {
   PureHttpError,
   RequestMethods,
   PureHttpResponse,
-  PureHttpRequestConfig
+  PureHttpRequestConfig,
+  PostRequestConfig
 } from "./types.d";
 import { stringify } from "qs";
 import { getToken, formatToken, isSessionTerminated } from "@/utils/auth";
@@ -172,14 +173,14 @@ class PureHttp {
   public request<T>(
     method: RequestMethods,
     url: string,
-    param?: AxiosRequestConfig,
-    axiosConfig?: PureHttpRequestConfig
+    param?: PostRequestConfig,
+    axiosConfig?: PostRequestConfig
   ): Promise<T> {
     const config = {
-      method,
       url,
       ...param,
-      ...axiosConfig
+      ...axiosConfig,
+      method
     } as PureHttpRequestConfig;
 
     // 单独处理自定义请求/响应回调
@@ -198,19 +199,10 @@ class PureHttp {
   /** 单独抽离的`post`工具函数 */
   public post<T, P>(
     url: string,
-    params?: AxiosRequestConfig<P>,
-    config?: PureHttpRequestConfig
+    params?: PostRequestConfig<P>,
+    config?: PostRequestConfig
   ): Promise<T> {
     return this.request<T>("post", url, params, config);
-  }
-
-  /** 单独抽离的`get`工具函数 */
-  public get<T, P>(
-    url: string,
-    params?: AxiosRequestConfig<P>,
-    config?: PureHttpRequestConfig
-  ): Promise<T> {
-    return this.request<T>("get", url, params, config);
   }
 }
 

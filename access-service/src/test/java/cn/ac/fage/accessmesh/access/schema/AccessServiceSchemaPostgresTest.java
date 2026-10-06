@@ -73,6 +73,18 @@ class AccessServiceSchemaPostgresTest {
         conn.setAutoCommit(true);
     }
 
+    @Test
+    void publicOauthClientAllowsOnlyNullSecretAndConfidentialStillRequiresOne() throws SQLException {
+        try (Statement statement = conn.createStatement()) {
+            statement.executeUpdate("INSERT INTO sys_oauth2_client (tenant_id,client_id,client_name,client_type,grant_types) VALUES (1,'schema-public','public','PUBLIC','authorization_code')");
+            Savepoint point = conn.setSavepoint();
+            assertThrows(SQLException.class, () -> statement.executeUpdate("INSERT INTO sys_oauth2_client (tenant_id,client_id,client_name,grant_types) VALUES (1,'schema-private','private','authorization_code')"));
+            conn.rollback(point);
+            assertThrows(SQLException.class, () -> statement.executeUpdate("INSERT INTO sys_oauth2_client (tenant_id,client_id,client_name,client_type,client_secret,grant_types) VALUES (1,'schema-public-secret','public','PUBLIC','secret','authorization_code')"));
+            conn.rollback(point);
+        }
+    }
+
     private static long countRows(String table) throws SQLException {
         try (Statement s = conn.createStatement();
              ResultSet rs = s.executeQuery("SELECT COUNT(*) FROM " + table)) {

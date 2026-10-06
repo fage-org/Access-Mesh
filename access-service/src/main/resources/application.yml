@@ -24,7 +24,7 @@ spring:
     # T-ACCESS-047：DB_HOST/DB_PORT 占位符化（默认值=原硬编码，本地 dev 行为不变）
     url: jdbc:postgresql://${DB_HOST:127.0.0.1}:${DB_PORT:5432}/access_db?useSSL=false&stringtype=unspecified
     username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
   data:
     redis:
@@ -32,7 +32,7 @@ spring:
       host: ${REDIS_HOST:127.0.0.1}
       port: ${REDIS_PORT:6379}
       # 默认与 docker-compose.yml 的开发密码一致（Redisson 对空串密码也发 AUTH，无密码 Redis 连不上）
-      password: ${REDIS_PASSWORD:accessmesh-dev}
+      password: ${REDIS_PASSWORD}
       database: 0
   # 第三轮评审 P3 修复（2026-08-14）：spring.jackson.* 配置块已删除——date-time-format 非 Boot
   # 有效键（JacksonProperties 仅暴露 date-format），且全局 ObjectMapper 由 common cacheObjectMapper
@@ -112,6 +112,8 @@ sa-token:
   jwt-secret-key: ${JWT_SECRET_KEY}
 
 mybatis-flex:
+  global-config:
+    tenant-column: tenant_id
   mapper-locations: classpath*:/mapper/**/*.xml
   type-aliases-package: cn.ac.fage.accessmesh.access.auth.entity,cn.ac.fage.accessmesh.access.user.entity,cn.ac.fage.accessmesh.access.org.entity,cn.ac.fage.accessmesh.access.menu.entity,cn.ac.fage.accessmesh.access.role.entity,cn.ac.fage.accessmesh.access.grant.entity,cn.ac.fage.accessmesh.access.resource.entity,cn.ac.fage.accessmesh.access.type.entity,cn.ac.fage.accessmesh.access.domain.entity,cn.ac.fage.accessmesh.access.rule.entity,cn.ac.fage.accessmesh.access.audit.entity,cn.ac.fage.accessmesh.access.platform.entity
   configuration:

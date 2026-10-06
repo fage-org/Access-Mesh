@@ -25,39 +25,23 @@ class FeignCredentialInterceptorTest {
     }
 
     @Test
-    @DisplayName("配置齐全（allow-insecure=true）→ M2M 六端点注入双凭证头（清单镜像 common 单源）")
+    @DisplayName("配置齐全（allow-insecure=true）→ M2M 六端点注入双凭证头（消费 common 单源清单）")
     void shouldInjectCredentialHeadersOnM2mPaths() {
         FeignCredentialInterceptor interceptor = interceptor("sc-a", "sk-b", "true");
         interceptor.validateConfiguration();
 
-        // 与服务端 M2mCredentialEndpoints 单源一致（058 漏 sync-v2、059 漏两准入端点
-        // 的镜像漂移已修正——漂移时 SDK 凭证调用被服务端 403，两侧测试锁同清单防再漂移）
-        for (String path : java.util.List.of(
-            "/api/access/resource-entity/sync",
-            "/api/access/resource-entity/full-sync",
-            "/api/access/service-config/sync-v2",
-            "/api/access/integration/permission-manifest/full-sync",
-            "/api/access/auth/interface-admission",
-            "/api/access/auth/interface-admission-snapshot",
-            "/api/access/auth/check",
-            "/api/access/auth/batch-check",
-            "/api/access/auth/query-resources",
-            "/api/access/auth/query-scopes",
-            "/api/access/abstract-user/sync",
-            "/api/access/abstract-user/full-sync",
-            "/api/access/abstract-role/sync",
-            "/api/access/abstract-role/full-sync",
-            "/api/access/user-role/sync",
-            "/api/access/user-role/full-sync")) {
+        // SDK 与 Gateway/服务端直接消费同一份方法+路径清单。
+        for (var endpoint : cn.ac.fage.accessmesh.common.security.M2mCredentialEndpoints.endpoints()) {
             RequestTemplate template = new RequestTemplate();
-            template.uri(path);
+            template.method(endpoint.method());
+            template.uri(endpoint.path());
 
             interceptor.apply(template);
 
             assertThat(template.headers().get(FeignCredentialInterceptor.HEADER_CREDENTIAL_ID))
-                .as("M2M 端点 %s 必须注入凭证标识", path).containsExactly("sc-a");
+                .as("M2M 端点 %s 必须注入凭证标识", endpoint.path()).containsExactly("sc-a");
             assertThat(template.headers().get(FeignCredentialInterceptor.HEADER_CREDENTIAL_SECRET))
-                .as("M2M 端点 %s 必须注入凭证 secret", path).containsExactly("sk-b");
+                .as("M2M 端点 %s 必须注入凭证 secret", endpoint.path()).containsExactly("sk-b");
         }
     }
 
@@ -72,6 +56,7 @@ class FeignCredentialInterceptorTest {
             "/api/access/service-credential/list",
             "/api/example/other")) {
             RequestTemplate template = new RequestTemplate();
+            template.method("POST");
             template.uri(path);
 
             interceptor.apply(template);
@@ -89,12 +74,14 @@ class FeignCredentialInterceptorTest {
         interceptor.validateConfiguration();
 
         RequestTemplate hit = new RequestTemplate();
+        hit.method("POST");
         hit.target("http://access-service:9100");
         hit.uri("/api/access/resource-entity/full-sync");
         interceptor.apply(hit);
         assertThat(hit.headers()).containsKey(FeignCredentialInterceptor.HEADER_CREDENTIAL_ID);
 
         RequestTemplate miss = new RequestTemplate();
+        miss.method("POST");
         miss.target("http://access-service:9100");
         miss.uri("/api/access/service-credential/list");
         interceptor.apply(miss);
@@ -108,6 +95,7 @@ class FeignCredentialInterceptorTest {
         interceptor.validateConfiguration();
 
         RequestTemplate template = new RequestTemplate();
+        template.method("POST");
         template.uri("/api/access/resource-entity/full-sync");
         template.header(FeignCredentialInterceptor.HEADER_CREDENTIAL_ID, "sc-explicit");
         template.header(FeignCredentialInterceptor.HEADER_CREDENTIAL_SECRET, "sk-explicit");
@@ -157,5 +145,13 @@ class FeignCredentialInterceptorTest {
         assertThatThrownBy(() -> interceptor("sc-a", "sk-b", "yes").validateConfiguration())
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("仅允许 true/false");
+    }
+    @Test
+    void doesNotInjectCredentialsForWrongHttpMethodOnKnownPath() {
+        var request = new RequestTemplate();
+        request.method("GET");
+        request.uri("/api/access/auth/check");
+        interceptor("sc-a", "sk-b", "true").apply(request);
+        assertThat(request.headers()).doesNotContainKey("X-Credential-Secret");
     }
 }

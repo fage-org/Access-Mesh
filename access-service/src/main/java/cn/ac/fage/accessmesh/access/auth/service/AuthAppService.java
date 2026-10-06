@@ -3,7 +3,6 @@ package cn.ac.fage.accessmesh.access.auth.service;
 import cn.ac.fage.accessmesh.access.auth.dto.CaptchaResp;
 import cn.ac.fage.accessmesh.access.auth.dto.LoginReq;
 import cn.ac.fage.accessmesh.access.auth.dto.LoginResp;
-import cn.ac.fage.accessmesh.access.auth.dto.SmsLoginReq;
 import cn.ac.fage.accessmesh.access.auth.dto.UserInfoResp;
 import cn.ac.fage.accessmesh.access.menu.dto.resp.UserMenuResp;
 
@@ -39,17 +38,6 @@ public interface AuthAppService {
      */
     LoginResp login(LoginReq req);
 
-    /**
-     * 短信验证码登录
-     * <p>
-     * 使用手机号和短信验证码进行用户登录。
-     * 验证成功后返回登录凭证和用户基本信息。
-     * </p>
-     *
-     * @param req 短信登录请求，包含手机号和验证码
-     * @return 登录响应，包含token和用户信息
-     */
-    LoginResp smsLogin(SmsLoginReq req);
 
     /**
      * 用户登出

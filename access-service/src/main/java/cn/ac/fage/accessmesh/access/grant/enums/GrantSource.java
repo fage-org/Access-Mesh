@@ -39,7 +39,10 @@ public enum GrantSource {
      * （T-PERM-050）。写入通道为系统侧种子直写（跳过委托校验），非管理员豁免。
      * </p>
      */
-    AUTHORITY_ROOT("AUTHORITY_ROOT");
+    AUTHORITY_ROOT("AUTHORITY_ROOT"),
+
+    /** 平台初始化固定图种子，管理授权 API 不可改删；转授结果仍为 MANUAL。 */
+    BOOTSTRAP_SEED("BOOTSTRAP_SEED");
 
     private final String value;
 

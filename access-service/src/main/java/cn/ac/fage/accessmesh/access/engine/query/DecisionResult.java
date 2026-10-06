@@ -60,8 +60,11 @@ public record DecisionResult(String key, Decision outcome, Reason reason,
         /** 未命中任何适用授权（含合法未知目标）。 */
         NO_PERMISSION,
 
-        /** 曾有可评估候选，最终被条件/权限互斥清空（优先于仅父上下文排除）。 */
-        CONDITION_NOT_MET_OR_CONFLICT,
+        /** 可评估候选被条件清空，未实际命中权限互斥。 */
+        CONDITION_NOT_MET,
+
+        /** 实际命中权限互斥并最终拒绝；优先于同项其他阶段的条件失败。 */
+        PERMISSION_CONFLICT,
 
         /** 仅有父绑定排除导致拒绝。 */
         DEPENDENT_NOT_IN_PARENT_CONTEXT

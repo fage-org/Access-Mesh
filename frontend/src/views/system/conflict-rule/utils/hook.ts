@@ -1,3 +1,4 @@
+import { ENUM_PAGE_SIZE } from "@/constants/access";
 import { ref, reactive, computed, onMounted } from "vue";
 import { message } from "@/utils/message";
 import { ElMessageBox } from "element-plus";
@@ -55,7 +56,7 @@ export async function loadAllRoles(): Promise<RoleResp[]> {
     const res = await getRoleList({
       roleTypeCodes: ["BASIC_ROLE", "GROUP_ROLE"],
       pageNum,
-      pageSize: 200
+      pageSize: ENUM_PAGE_SIZE
     });
     roles.push(...res.items);
     if (!res.hasNext) return roles;

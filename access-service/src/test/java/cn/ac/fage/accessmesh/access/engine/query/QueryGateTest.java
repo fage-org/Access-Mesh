@@ -115,7 +115,7 @@ class QueryGateTest {
         // 独立目标独立 item（一次 execute）：r1 允许、r2 拒、r3 拒；重复输入去重、原序回映射
         when(engine.execute(any(QueryRequest.class))).thenReturn(result(
             allowItem("r1"), denyItem("r2", DecisionResult.Reason.NO_PERMISSION),
-            denyItem("r3", DecisionResult.Reason.CONDITION_NOT_MET_OR_CONFLICT)));
+            denyItem("r3", DecisionResult.Reason.PERMISSION_CONFLICT)));
 
         Set<String> denied = gate().getDeniedResourceCodes(TENANT, SUBJECT, "REPORT",
             new LinkedHashSet<>(List.of("r1", "r2", "r3", "r2")), "VIEW");

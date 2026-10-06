@@ -1,4 +1,4 @@
-# 最小 CI（T-ACCESS-017）：单个 Maven workflow，两个 job。
+# CI：后端单测、后端容器收口与前端质量门禁。
 # - unit-tests：全量单测强制通过（push / PR / 手动），排除 @Tag("testcontainers") 容器测试
 #   与 e2e 模块（T-ACCESS-031：E2E 是收口资产，runner 自带 Docker 会照跑，必须显式跳过）
 # - testcontainers：容器门控（PR / 手动触发），全量 mvn test（含 Testcontainers 与 E2E）
@@ -23,7 +23,12 @@ jobs:
           java-version: '21'
           cache: maven
       - name: 全量单测（排除 Testcontainers 与 E2E）
-        run: mvn -B test -DskipTestcontainers=true -DskipE2E=true
+        run: |
+          started=$SECONDS
+          status=0
+          mvn -B test -DskipTestcontainers=true -DskipE2E=true || status=$?
+          echo "单测耗时：$((SECONDS - started)) 秒" >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
 
   testcontainers:
     name: Testcontainers（PR / 手动触发）
@@ -38,4 +43,31 @@ jobs:
           java-version: '21'
           cache: maven
       - name: 全量测试（含 Testcontainers，GitHub runner 自带 Docker）
-        run: mvn -B test
+        run: |
+          started=$SECONDS
+          status=0
+          mvn -B test -T 1C || status=$?
+          echo "收口测试耗时：$((SECONDS - started)) 秒" >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
+  frontend:
+    name: 前端（lint / typecheck / Vitest / DTO）
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint:check
+      - run: pnpm typecheck
+      - run: pnpm test:run
+      - run: pnpm contracts:check

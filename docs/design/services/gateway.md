@@ -3,7 +3,7 @@ doc_type: design
 title: Gateway 服务设计
 status: adopted
 domain: gateway
-last_reviewed: 2026-09-28
+last_reviewed: 2026-10-06
 ---
 
 # Gateway 服务设计
@@ -20,7 +20,7 @@ last_reviewed: 2026-09-28
 
 ## 核心链路
 
-1. 接收客户端请求并匹配白名单（会话入口族精确清单——T-ACCESS-042 收窄后不整族放行 `/api/access/auth/**`：`/api/access/auth/{captcha,login,login/sms,logout,userinfo,user-menu}`、`/api/access/auth/oauth2/**`、`/api/access/user/reset-password`（T-GW-009 自助改密通道）、`/api/access/notice/my-notices`、`/api/access/notice/read`（T-ADMIN-029 公告自服务两端点——普通用户自服务面，端点边界=服务层门禁：Sa-Token 登录态+受众可见性校验；管理面 7 端点不在此列，走 ADMIN_NOTICE 类型级授权；密钥豁免四载体同步，见 §匿名白名单详注）、`/public/**`、`/captcha/**`；运行时鉴权六端点不放行，无 `/actuator/**`——actuator 经独立管理端口提供，T-GW-007）。
+1. 接收客户端请求并匹配白名单（会话入口族精确清单——T-ACCESS-042 收窄后不整族放行 `/api/access/auth/**`：`/api/access/auth/{captcha,login,logout,userinfo,user-menu}`、`/api/access/auth/oauth2/**`、`/api/access/user/reset-password`（T-GW-009 自助改密通道）、`/api/access/notice/my-notices`、`/api/access/notice/read`（T-ADMIN-029 公告自服务两端点——普通用户自服务面，端点边界=服务层门禁：Sa-Token 登录态+受众可见性校验；管理面 7 端点不在此列，走 ADMIN_NOTICE 类型级授权；密钥豁免四载体同步，见 §匿名白名单详注）；运行时鉴权六端点不放行，无 `/actuator/**`——actuator 经独立管理端口提供，T-GW-007）。
 2. 解析 Sa-Token / OAuth2 Token，得到主体信息。
 3. 清洗客户端伪造的安全 Header（含 IP 转发头，见下节 T-GW-008），再注入可信 `X-Tenant-Id`、`X-Request-Id`、`traceId`、主体标识等上下文。
 4. **准入快照鉴权**（T-ACCESS-059）：按 `(tenantId, subjectTypeCode, userId, serviceCode)` 查本地准入快照缓存——命中则本地四态判定；未命中在 5 秒全链路硬截止内回源拉取 `interface-admission-snapshot` 快照后缓存再判定。
@@ -194,7 +194,7 @@ Gateway 通过 Micrometer 暴露 Prometheus 指标。依赖 `spring-boot-starter
   - `allow-credentials: true`（保持；token 走 Authorization 头，无 cookie 依赖，未来接 cookie 会话时不受影响）。
 - **启动 fail-fast**（`GatewayCorsConfigValidator`，校验最终生效值含 Nacos 覆盖后的值）：`allow-credentials=true` 且 origin 列表（`allowed-origin-patterns` 与兄弟键 `allowed-origins`）含任意 `*` 通配 → 启动失败（任意源携带凭证为安全缺陷，含 Nacos 远端旧值回退场景；exact 键通配若漏到运行期会每请求 500）。缺失/显式空均不放行任意源（fail-closed）。
 - **诊断口径**（T-GW-010）：CORS 拒绝=403 且响应体无 JSON 信封（浏览器 Console 报 CORS）；路由错误=404 亦为 JSON 信封（`code=404`、message 为 `No static resource` 类文案、无 `requestId`，行为锁见 `GlobalExceptionHandlerTest`）；业务 401/403=JSON 信封（`code=401/403` 且含 `requestId`）——三者可区分；CORS 403 表明请求**已到达 Gateway**（被 Origin 白名单拒绝），不得归因为「未走 Gateway」。用户侧诊断表见 quickstart「常见问题」。
-- 匿名白名单（`gateway.whitelist.paths`，会话入口族精确清单——T-ACCESS-042 收窄：整族 `/api/access/auth/**` 不放行、运行时鉴权六端点须走会话/权限校验）：`/api/access/auth/captcha`、`/api/access/auth/login`、`/api/access/auth/login/sms`、`/api/access/auth/logout`、`/api/access/auth/userinfo`、`/api/access/auth/user-menu`、`/api/access/auth/oauth2/**`、`/api/access/user/reset-password`（T-GW-009，2026-09-19 定案⑤：自助改密通道——Gateway 快照条目仅由 API 类型 ACCESS 位派生，forceResetPwd 阻断人群（普通用户）不经白名单放行必 403；服务层门禁不变：Sa-Token 登录校验 + 自身路径豁免 / 非自身 `USER:RESET_PASSWORD` 实例级，T-PERM-067；**access-service `SecurityWebMvcConfig` 密钥豁免清单同源同步纳入**——漏同步时 Gateway 对白名单路径仍无条件注入 X-Internal-Secret 且不注入租户/用户头，`RequestContextInterceptor` 内部凭证分支先于会话分支命中纯服务子分支 → 400「缺 X-Tenant-Id」遮蔽、到不了服务层（T-GW-009 双轨评审 P0；链路锁=SecurityMatrixIT 持密无租户头断言 401）；该端点的 API:ACCESS 位自白名单起对 Gateway 不再生效（skipAuth 先于快照鉴权，授权页对它的授予/收回不影响可达性）——bootstrap 固定图保留其 API 行作回滚面，端点边界=服务层门禁（claude 外评 P3，2026-09-19 用户拍板「保行+标注失效」））、`/api/access/notice/my-notices`、`/api/access/notice/read`（T-ADMIN-029，2026-09-23：公告自服务两端点——普通用户自服务面，同款四载体同步（Gateway yml/defaults/密钥豁免/ConfigTest 断言）；端点边界=服务层门禁：Sa-Token 登录态+`countVisibleById`/受众过滤可见性校验，my-notices/read 的 API:ACCESS 位对 Gateway 同样不再生效（skipAuth 先于快照鉴权）；管理面 notice 7 端点不在白名单，走 ADMIN_NOTICE 五档类型级授权）、`/public/**`、`/captcha/**`；`/actuator/**` 已全部移除（管理端口提供，见「监控指标」段）。
+- 匿名白名单（`gateway.whitelist.paths`，会话入口族精确清单——T-ACCESS-042 收窄：整族 `/api/access/auth/**` 不放行、运行时鉴权六端点须走会话/权限校验）：`/api/access/auth/captcha`、`/api/access/auth/login`、`/api/access/auth/logout`、`/api/access/auth/userinfo`、`/api/access/auth/user-menu`、`/api/access/auth/oauth2/**`、`/api/access/user/reset-password`（T-GW-009，2026-09-19 定案⑤：自助改密通道——Gateway 快照条目仅由 API 类型 ACCESS 位派生，forceResetPwd 阻断人群（普通用户）不经白名单放行必 403；服务层门禁不变：Sa-Token 登录校验 + 自身路径豁免 / 非自身 `USER:RESET_PASSWORD` 实例级，T-PERM-067；**access-service `SecurityWebMvcConfig` 密钥豁免清单同源同步纳入**——漏同步时 Gateway 对白名单路径仍无条件注入 X-Internal-Secret 且不注入租户/用户头，`RequestContextInterceptor` 内部凭证分支先于会话分支命中纯服务子分支 → 400「缺 X-Tenant-Id」遮蔽、到不了服务层（T-GW-009 双轨评审 P0；链路锁=SecurityMatrixIT 持密无租户头断言 401）；该端点的 API:ACCESS 位自白名单起对 Gateway 不再生效（skipAuth 先于快照鉴权，授权页对它的授予/收回不影响可达性）——bootstrap 固定图保留其 API 行作回滚面，端点边界=服务层门禁（claude 外评 P3，2026-09-19 用户拍板「保行+标注失效」））、`/api/access/notice/my-notices`、`/api/access/notice/read`（T-ADMIN-029，2026-09-23：公告自服务两端点——普通用户自服务面，同款四载体同步（Gateway yml/defaults/密钥豁免/ConfigTest 断言）；端点边界=服务层门禁：Sa-Token 登录态+`countVisibleById`/受众过滤可见性校验，my-notices/read 的 API:ACCESS 位对 Gateway 同样不再生效（skipAuth 先于快照鉴权）；管理面 notice 7 端点不在白名单，走 ADMIN_NOTICE 五档类型级授权）；`/actuator/**` 已全部移除（管理端口提供，见「监控指标」段）。
 
 ## 与权限中心的约定
 
@@ -212,3 +212,5 @@ Gateway 通过 Micrometer 暴露 Prometheus 指标。依赖 `spring-boot-starter
 - 整体架构见 `../architecture.md`。
 - 权限中心流程见 `../engine/core-flows.md`。
 - 旧版详细过滤器链和配置样例见归档文档。
+
+会话配置的共有键由 `SaTokenConfigParityTest` 对两份 YAML 经 Spring 解析、绑定后的有效值逐键对照。Gateway 单侧显式 `is-read-header=true`；access-service 使用 Sa-Token 同值默认，测试同时锁定默认，暂不重复声明。`jwt-secret-key` 仅 access-service 使用。新增单侧键须在对照测试登记用途，未知键导致失败。未注册接口固定拒绝，不提供 `unregistered-policy` 配置。

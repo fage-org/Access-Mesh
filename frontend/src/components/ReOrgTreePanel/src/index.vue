@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { OPERATION_CODE, ORG_TYPE } from "@/constants/access";
+
 import { ref, onMounted, computed } from "vue";
 import {
   getOrgTree,
@@ -30,7 +32,7 @@ const props = withDefaults(
     /** 指定树配置 ID（不传则自动取默认树；operationCode=CREATE 时后端禁止携带，组件不发送） */
     treeConfigId?: number;
     /** 查询语义：VIEW=可视范围 / CREATE=新增用户挂载点（限默认树，门禁 ORG:CREATE）；缺省 VIEW */
-    operationCode?: "VIEW" | "CREATE";
+    operationCode?: typeof OPERATION_CODE.VIEW | typeof OPERATION_CODE.CREATE;
     /** 组织类型过滤（不传不过滤） */
     orgTypeFilter?: number[];
     /**
@@ -157,12 +159,13 @@ async function loadTree() {
   //（缺省不传=默认树子树；无配置 id 时保持缺省语义）。
   try {
     rawOrgTree.value = await getOrgTree({
-      orgType: 1,
+      orgType: ORG_TYPE.ORG,
       ...(props.operationCode != null
         ? { operationCode: props.operationCode }
         : {}),
       // CREATE 限默认树：后端拒绝 CREATE×treeConfigId 同传（10008），该模式一律不携带
-      ...(props.operationCode !== "CREATE" && selectedConfigId.value != null
+      ...(props.operationCode !== OPERATION_CODE.CREATE &&
+      selectedConfigId.value != null
         ? { treeConfigId: selectedConfigId.value }
         : {})
     });

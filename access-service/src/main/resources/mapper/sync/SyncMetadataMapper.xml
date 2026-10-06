@@ -186,4 +186,39 @@
           AND target_id IS DISTINCT FROM #{targetId}
     </update>
 
+    <!-- 两边先按可信租户与有效行过滤；FULL JOIN 保留空资源 FULL 发布状态。 -->
+    <sql id="appliedScopes">
+        SELECT COALESCE(m.entity_kind, 'RESOURCE_ENTITY') AS entity_kind,
+               COALESCE(m.source_service, p.source_service) AS source_service,
+               COALESCE(m.scope_key, p.scope_key) AS scope_key,
+               COALESCE(m.tracked_items, 0) AS tracked_items,
+               p.max_generation::text AS max_generation,
+               p.last_full_generation::text AS last_full_generation,
+               p.last_full_status,
+               GREATEST(m.updated_at, p.updated_at) AS updated_at
+        FROM (
+            SELECT entity_kind, source_service, scope_key, scope_key_hash,
+                   COUNT(*) AS tracked_items, MAX(updated_at) AS updated_at
+            FROM sync_metadata
+            WHERE tenant_id = #{tenantId} AND delete_flag = 0
+            <if test="sourceService != null">AND source_service = #{sourceService}</if>
+            GROUP BY entity_kind, source_service, scope_key, scope_key_hash
+        ) m
+        FULL JOIN (
+            SELECT source_service, scope_key, scope_key_hash, max_generation,
+                   last_full_generation, last_full_status, updated_at
+            FROM resource_publication_state
+            WHERE tenant_id = #{tenantId} AND delete_flag = 0
+            <if test="sourceService != null">AND source_service = #{sourceService}</if>
+        ) p ON m.entity_kind = 'RESOURCE_ENTITY'
+            AND m.source_service = p.source_service AND m.scope_key_hash = p.scope_key_hash
+    </sql>
+    <select id="selectAppliedScopes" resultType="cn.ac.fage.accessmesh.access.sync.dto.SyncStatusResp">
+        <include refid="appliedScopes"/>
+        ORDER BY updated_at DESC NULLS LAST, source_service, entity_kind, scope_key
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+    <select id="countAppliedScopes" resultType="long">
+        SELECT COUNT(*) FROM (<include refid="appliedScopes"/>) applied
+    </select>
 </mapper>

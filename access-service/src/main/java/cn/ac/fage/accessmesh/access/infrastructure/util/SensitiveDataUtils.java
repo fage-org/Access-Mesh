@@ -9,15 +9,13 @@ import com.fasterxml.jackson.databind.node.TextNode;
 /**
  * 敏感数据脱敏工具（T-ACCESS-007）。
  * <p>
- * <b>冻结口径（T-ACCESS-025）</b>：本工具自操作日志参数序列化收敛后不再有审计链路
- * 生产调用方，保留现状冻结——不再扩展脱敏字典（{@code SENSITIVE_TERMS}/
- * {@code PRECISE_SENSITIVE_FIELDS}）与递归脱敏规则（树遍历/内嵌 JSON/跨字段
- * configKey 判定），也不新增脱敏入口。如未来恢复载荷级审计，须经任务卡立项重启，
- * 不得在冻结期内增量扩展。
+ * <b>读取面脱敏（T-ACCESS-085）</b>：审计响应复用敏感字段树遍历，文本补手机号与邮箱固定规则。
+ * 普通用户名、完整 IP 与原始审计记录保留；不恢复 operation_log.request_body 写入。
+ * 原有载荷写入/作用域字典扩展冻结边界保持，不建设可配置脱敏规则。
  * </p>
  * <p>
  * 原用于 operation_log 等审计日志写入前对请求体/摘要中的敏感字段值脱敏
- * （冻结前口径，当前无审计生产调用方），保证密码、验证码、Token、密钥等不会明文入库
+ * （历史写入用途；当前审计响应侧掩码密码、验证码、Token、密钥等，原始审计列保留）
  * （access-service-architecture §8.2）。
  * 脱敏采用 Jackson 递归树遍历：将 JSON 解析为对象树，按字段名（忽略大小写与下划线）
  * 是否包含敏感子串判定，命中敏感字段名时将其值替换为掩码 {@value #MASK}。
@@ -26,10 +24,24 @@ import com.fasterxml.jackson.databind.node.TextNode;
  * 相比纯正则方案，树遍历能覆盖所有值的形态——标量字符串/数字/布尔、嵌套对象、
  * 数组内的元素、以及值本身是内嵌 JSON 字符串的字段（如配置值存 JSON 的
  * {@code SystemConfigReq.configValue}）：只要字段名命中敏感子串，无论其值结构如何
- * 都整体替换为掩码，杜绝把敏感内容明文写入审计列。
+ * 都整体替换为掩码；文本值补充手机号/邮箱匹配，不修改数字节点与字段名。
  * </p>
  */
 public final class SensitiveDataUtils {
+
+    private static final java.util.regex.Pattern PHONE = java.util.regex.Pattern.compile("(?<![0-9])1[3-9][0-9]{9}(?![0-9])");
+    private static final java.util.regex.Pattern EMAIL = java.util.regex.Pattern.compile("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}");
+
+    /** 审计读取面固定规则：仅掩码明确的手机号/邮箱，普通用户名及 IP 保留。 */
+    public static String maskText(String text) {
+        if (text == null) return null;
+        return EMAIL.matcher(PHONE.matcher(text).replaceAll(MASK)).replaceAll(MASK);
+    }
+
+    /** 保留原始审计列；只转换返回给调用方的快照。 */
+    public static String maskAuditSnapshot(String json) {
+        return maskJson(json, null, true);
+    }
 
     /** 脱敏掩码 */
     public static final String MASK = "***";
@@ -107,6 +119,11 @@ public final class SensitiveDataUtils {
      * @return 脱敏后的 JSON；null 返回 null；非合法 JSON（纯文本、空串）原样返回
      */
     public static String maskJson(String json, java.util.Set<String> extraPreciseFields) {
+        return maskJson(json, extraPreciseFields, false);
+    }
+
+    private static String maskJson(String json, java.util.Set<String> extraPreciseFields,
+                                   boolean maskTextValues) {
         if (json == null || json.isBlank()) {
             return json;
         }
@@ -120,7 +137,7 @@ public final class SensitiveDataUtils {
         if (root == null) {
             return json;
         }
-        JsonNode masked = maskNode(root, extraPreciseFields);
+        JsonNode masked = maskNode(root, extraPreciseFields, maskTextValues);
         try {
             return OBJECT_MAPPER.writeValueAsString(masked);
         } catch (Exception e) {
@@ -140,7 +157,7 @@ public final class SensitiveDataUtils {
      * @param extraPreciseFields 调用作用域并入的额外精确字段名集合（可为 null）
      * @return 脱敏后的节点（可能为同一个实例的修改，或掩码文本节点）
      */
-    private static JsonNode maskNode(JsonNode node, java.util.Set<String> extraPreciseFields) {
+    private static JsonNode maskNode(JsonNode node, java.util.Set<String> extraPreciseFields, boolean maskTextValues) {
         if (node == null || node.isNull()) {
             return node;
         }
@@ -160,13 +177,15 @@ public final class SensitiveDataUtils {
                     // 命中敏感字段名：无论值结构（标量/对象/数组/内嵌JSON字符串）整体替换为掩码
                     obj.set(fieldName, TextNode.valueOf(MASK));
                 } else if (value != null && (value.isObject() || value.isArray())) {
-                    obj.set(fieldName, maskNode(value, extraPreciseFields));
+                    obj.set(fieldName, maskNode(value, extraPreciseFields, maskTextValues));
                 } else if (value != null && value.isTextual()) {
                     // 值为 JSON 文本字符串（如 SystemConfigReq.configValue 存嵌套 JSON）：
-                    // 尝试解析为对象/数组树并递归脱敏，再序列化回字符串，防止内层敏感键明文入库
-                    String inner = maskEmbeddedJson(value.asText(), extraPreciseFields);
+                    // 尝试解析为对象/数组树并递归脱敏，再序列化回字符串，防止内层敏感键明文返回
+                    String inner = maskEmbeddedJson(value.asText(), extraPreciseFields, maskTextValues);
                     if (inner != null) {
                         obj.set(fieldName, TextNode.valueOf(inner));
+                    } else if (maskTextValues) {
+                        obj.set(fieldName, TextNode.valueOf(maskText(value.asText())));
                     }
                 }
             });
@@ -181,15 +200,21 @@ public final class SensitiveDataUtils {
                     continue;
                 }
                 if (element.isObject() || element.isArray()) {
-                    arr.set(i, maskNode(element, extraPreciseFields));
+                    arr.set(i, maskNode(element, extraPreciseFields, maskTextValues));
                 } else if (element.isTextual()) {
-                    String inner = maskEmbeddedJson(element.asText(), extraPreciseFields);
+                    String inner = maskEmbeddedJson(element.asText(), extraPreciseFields, maskTextValues);
                     if (inner != null) {
                         arr.set(i, TextNode.valueOf(inner));
+                    } else if (maskTextValues) {
+                        arr.set(i, TextNode.valueOf(maskText(element.asText())));
                     }
                 }
             }
             return arr;
+        }
+        if (maskTextValues && node.isTextual()) {
+            String inner = maskEmbeddedJson(node.asText(), extraPreciseFields, true);
+            return TextNode.valueOf(inner != null ? inner : maskText(node.asText()));
         }
         return node;
     }
@@ -205,7 +230,7 @@ public final class SensitiveDataUtils {
      * @param extraPreciseFields 调用作用域并入的额外精确字段名集合（可为 null）
      * @return 脱敏后的 JSON 文本；非 JSON 文本返回 null
      */
-    private static String maskEmbeddedJson(String text, java.util.Set<String> extraPreciseFields) {
+    private static String maskEmbeddedJson(String text, java.util.Set<String> extraPreciseFields, boolean maskTextValues) {
         if (text == null || text.isBlank()) {
             return null;
         }
@@ -219,7 +244,7 @@ public final class SensitiveDataUtils {
             return null;
         }
         try {
-            return OBJECT_MAPPER.writeValueAsString(maskNode(inner, extraPreciseFields));
+            return OBJECT_MAPPER.writeValueAsString(maskNode(inner, extraPreciseFields, maskTextValues));
         } catch (Exception e) {
             return null;
         }

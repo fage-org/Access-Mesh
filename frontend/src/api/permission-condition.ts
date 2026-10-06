@@ -1,9 +1,6 @@
 /**
  * 权限条件 API
- * 经 @/utils/http 调用 Gateway 外部路径 `/api/access/permission-condition/*`
- *（Gateway StripPrefix=1 后到 access-service `/api/access/permission-condition`）。
- * T-FE-041 切换真实链路后，mock/permission-condition.ts 路由失配，已随 T-FE-020 退役删除
- *（_shared/permission-condition-store 亦随 T-FE-018 授权页 mock 退役一并删除，条件链路全真实）。
+ * 经 @/utils/http 使用 POST + JSON 调用 /api/access/**；Gateway 外部路径与服务路径一致。
  * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  *
  * 契约依据：docs/design/access-service-api-contract.md §15.1（T-PERM-029 收口：detail/update/remove

@@ -67,7 +67,6 @@ public class SecurityWebMvcConfig implements WebMvcConfigurer {
                 .excludePathPatterns(
                         "/api/access/auth/captcha",
                         "/api/access/auth/login",
-                        "/api/access/auth/login/sms",
                         "/api/access/auth/logout",
                         "/api/access/auth/userinfo",
                         "/api/access/auth/user-menu",

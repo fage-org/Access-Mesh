@@ -1,3 +1,4 @@
+import { PERMISSION_CODE } from "@/constants/access";
 /**
  * 「类型定义」页按钮权限码（perm 串）目录 —— 单一事实源 (SSOT)。
  *
@@ -20,13 +21,13 @@
  */
 export const TYPE_DEF_PERMS = {
   /** 查看类型定义列表/详情 */
-  TYPE_VIEW: "TYPE_DEFINITION:VIEW",
+  TYPE_VIEW: PERMISSION_CODE.TYPE_DEFINITION_VIEW,
   /** 创建类型定义 */
-  TYPE_ADD: "TYPE_DEFINITION:CREATE",
+  TYPE_ADD: PERMISSION_CODE.TYPE_DEFINITION_CREATE,
   /** 编辑类型定义 —— 对齐后端 TYPE_DEFINITION:MANAGE */
-  TYPE_EDIT: "TYPE_DEFINITION:MANAGE",
+  TYPE_EDIT: PERMISSION_CODE.TYPE_DEFINITION_MANAGE,
   /** 删除类型定义 —— 对齐后端 TYPE_DEFINITION:MANAGE */
-  TYPE_DELETE: "TYPE_DEFINITION:MANAGE"
+  TYPE_DELETE: PERMISSION_CODE.TYPE_DEFINITION_MANAGE
 } as const;
 
 export type TypeDefPermKey = keyof typeof TYPE_DEF_PERMS;

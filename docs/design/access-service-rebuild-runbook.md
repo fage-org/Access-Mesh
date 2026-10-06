@@ -15,11 +15,9 @@
 >   （[T-ACCESS-020](../archive/2026-08-27/tasks/T-ACCESS-020.md) 已交付，`access.bootstrap.enabled` 默认关闭）——
 >   重建后以 enabled=true 重启 access-service 即自动种子 `admin` 首管理员与管理用功能角色
 >   （幂等三状态：全图不存在单事务创建 / 完整匹配 no-op / 部分存在 fail-fast，见 architecture §14.2；
->   2026-09-02 起授权属性漂移（canGrant/condition 等管理端运营修改）改为 warn 告警放行、不再拒启；
->   2026-09-05（T-ACCESS-029）起授权缺行墓碑三分：缺行 + 同身份键软删墓碑（管理端整行撤销）→
->   WARN 列明授权键放行不补回，仅缺行且无任何历史（硬删/残缺）fail-fast）。
->   2026-08-31（T-FE-015）起固定图同时种子：业务门禁 +17 至 43（T-FE-015）、+4 至 47（T-FE-017 补 RESOURCE/OPERATION CREATE+MANAGE）、+2 至 49（T-FE-022 补 TYPE_DEFINITION CREATE+MANAGE）、sys_menu 菜单 15 行（含 MENU 投影）、
->   Gateway 管理 API 清单（T-FE-015 +20 至 33、T-FE-016 +4 至 37、T-FE-017 +8 至 45、T-FE-020 +9 至 54、T-FE-019 +3 至 57、T-FE-021 +9 至 66、T-FE-022 +16 至 82 端点；T-PERM-059（2026-09-10）删排查两路由后 80 路由、T-FE-044（2026-09-14）资源依赖页 +6 后现值 86 路由/85 映射、菜单 14 行——现值以 `BootstrapGraphDefinition` 与 `AccessBootstrapPgIT` 断言为准，本段为历史增长叙述）、默认组织树（根组织 `root` + 默认树配置 + admin 挂根组织）。
+>   新库种子标记 BOOTSTRAP_SEED，管理 API 不可改删或挂子权限；旧库未标记固定图须备份后重建，不自动补标。
+>   已标记种子的离线属性漂移仅 warn；缺行且有同身份已标记墓碑时放行不补回，否则 fail-fast。
+>   当前固定图含 17 个菜单、107 个 API 资源/106 个映射、54 行业务门禁授权以及默认组织树；具体以 BootstrapGraphDefinition 和 AccessBootstrapPgIT 为准）。
 > - 服务启动密钥环境变量（T-FE-016 实操确认的完整清单；Nacos 配置中心为空不托管，均须启动时注入）：
 >   `ACCESS_BOOTSTRAP_ENABLED=true` + `ACCESS_BOOTSTRAP_ADMIN_PASSWORD`（bootstrap 种子）、
 >   `JWT_SECRET_KEY`（access-service OAuth2 域，HS256 **必须 ≥32 字符**——缺失或过短 access-service 启动 fail-fast，release-preview 起 @PostConstruct 强制校验）、
@@ -27,6 +25,8 @@
 >   `PERM_INTERNAL_SECRET`（两侧同值，内部管理 API 防护）；Gateway CORS 默认白名单已含四个环回 dev 形态（localhost/127.0.0.1 × 8848/8890，T-GW-010 起）dev 联调无需另配，仅自定义端口/域名时设 `GATEWAY_CORS_ALLOWED_ORIGINS`；另 Gateway dev 启动须 `mvn spring-boot:run`——直接 java -cp 起动因依赖清单混入 spring-webmvc 触发 reactive/servlet 冲突（T-FE-017 实操确认）。
 
 ## 1. 重建步骤
+
+先按 [部署基线 §8](../ops/deployment.md#8-postgresql-备份与恢复) 完成备份及恢复演练；忘记首管理员密码按 [§9](../ops/deployment.md#9-忘记-bootstrap-密码的离线恢复)，授权墓碑按 [§10](../ops/deployment.md#10-授权墓碑恢复)。不得因固定图升级直接删掉未备份的卷。
 
 1. **清库**：删除并重建数据库 schema（DDL 为普通 `CREATE TABLE`，非幂等——必须在空 schema 上一次性执行，
    对已有 schema 重跑会报「relation already exists」）：

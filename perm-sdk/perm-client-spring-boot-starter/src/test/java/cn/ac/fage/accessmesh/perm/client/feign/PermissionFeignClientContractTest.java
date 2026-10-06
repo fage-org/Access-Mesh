@@ -174,7 +174,7 @@ class PermissionFeignClientContractTest {
                 "conditionEvaluated");
         assertThat(recordComponents(cn.ac.fage.accessmesh.perm.common.dto.resp.BatchAuthCheckResp.AuthCheckItemResult.class))
             .containsExactly("resourceTypeCode", "resourceCode", "operationCode", "allowed", "reason",
-                "matchedRoleIds", "matchedPermissionIds");
+                "matchedRoleIds", "matchedPermissionIds", "conditionEvaluated");
     }
 
     @Test

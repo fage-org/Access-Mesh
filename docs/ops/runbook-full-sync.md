@@ -14,7 +14,24 @@
 | 主体/角色/成员全量 | 对应 `/full-sync` | scope 内全量校准 | 补缺失 + 清多余 |
 | 服务接口清单 | `POST /api/access/service-config/sync-v2`（契约 §19.8） | API 清单登记（service-config 声明通道，每条接口必填业务操作要求；旧 /sync 已随 T-ACCESS-062 删除） | 全量替换 |
 
-**选择规则**：常态增量事件 → 逐条 `sync`；对账/初始化/源侧发生过批量修复 → `full-sync`（单请求 = scope 内完整事实声明，**缺失即删除**）。组织树等有树依赖的数据按足够小的 scope 拆分调用，避免单请求过大。
+**选择规则**：常态增量事件 → 逐条 `sync`；对账/初始化/源侧发生过批量修复 → `full-sync`（单请求 = scope 内完整事实声明，**缺失即删除**）。只有协议允许的独立 scope 才能分别调用，例如互不重叠的角色树根；不得把同一 scope 的完整清单切成多次 FULL（后一次会删除前一次的缺失项）。
+
+### 1.1 规模与分批纪律
+
+full-sync `items` 维持完整快照豁免，不套用查询的 1000 或分页的 200 上限；服务端没有异步作业/进度接口，也没有“分片 FULL 合并”协议。源端先完成一致快照采集，再发布一次完整清单。资源 FULL 的 publicationGeneration 与完整快照绑定，不用当前时间临时换号重试。
+
+- 例如某服务某资源类型有 10 万条事实：不能拆成十次同 scope 的 1 万条 FULL；每次都把另外 9 万条当作缺失。若只是新增/变更，可分批调单条 sync；需要校准删除时仍须发送完整 FULL。
+- 仅按既有协议维度划分真正独立、互不重叠的 scope；资源通道为服务+类型，主体为主体类型，角色/成员按契约树根范围。不要为规避请求大小临时改 sourceService 或虚构类型。
+- 首次大规模对接在隔离环境记录请求字节数、对象数、总耗时、数据库事务/连接占用和应用内存峰值；本仓 heavy 用例是特定参数边界证据，不承诺任意部署的“10 万条耗时”。据实对齐入口代理、网关、调用方与服务超时/请求体限制。
+- 超时或断连表示结果未知，不能直接判失败，也不能发布空清单。保留原请求、原版本/代次、requestId 与响应明细；核对已应用状态，按 §4 原样重试。不要仅把业务请求超时无限加大，仍须限定单 scope 容量与并发发布数。
+
+### 1.2 离职与删除后的校准
+
+外部主体 DELETE（及主体 full-sync 缺失清理）只软删 abstract_user，不级联清空 user_role；主体不可用后不会继续获得有效权限，但旧成员关系行可能还在。共享角色上的授权属于角色，不因一个用户离职而删除。推荐先对成员通道发 UNBIND，再删主体；遗漏解绑时，由该来源的 user-role/full-sync 用完整成员清单校准，只清本 source/scope 账本拥有的缺失绑定。重复跑主体 full-sync 不能代替成员校准，人工维护或其他来源的绑定也不会被该成员 FULL 代删。
+
+角色 DELETE/角色 full-sync 缺失清理已经同事务回收该角色授权（MANUAL/AUTO_DEP/授权根按生命周期）；角色关联的成员行仍需成员通道清理。不要把“停用/软删后权限无效”误认为所有关联物理数据均已清空。
+
+已软删的主体再次 UPSERT，按当前有效行查询可能创建新主体 ID；不会靠相同 externalId 自动恢复旧 ID 上的绑定。恢复时按源事实重推主体，再通过独立成员通道恢复期望绑定，核对最终权限；禁止直改删除标记来绕过同步版本与来源归属。
 
 ## 2. 触发前置检查清单
 
@@ -53,6 +70,19 @@
 
 资源发布顺序拒绝需单独识别 reason：`PUBLICATION_GENERATION_STALE` 表示范围或逐键发布已过期；`PUBLICATION_GENERATION_CONFLICT` 表示同代次内容不同；`PUBLICATION_GENERATION_REQUIRED/INVALID` 表示代次缺失或非法。`SYNC_VERSION_CONFLICT` 表示 FULL 项版本更旧，或相等版本要求改变有效事实。不要把这些情况按瞬时故障反复重试；新发布须重新取得源事实与合法代次。资源 FULL 的缺失/null/空白代次在 HTTP 校验阶段即返回 400。
 
+### 4.1 类型所有权与身份拒绝定位
+
+统一拒绝原因不对调用方泄露具体内部状态，本任务保持现有词表。按以下顺序排查；不能用反复尝试不同租户/类型枚举内部信息。
+
+| 观察值 | 检查项 | 修复位置 |
+|---|---|---|
+| HTTP 401/403，尚无 SyncResult | 凭证 ID/secret、停用/过期、端点是否在 M2M 白名单；身份由凭证派生 | 凭证管理与接入配置；不补自报租户头 |
+| SECURITY_DENIED + SOURCE_SERVICE_MISMATCH（部分主体/角色端点保留 mismatch 文本） | 请求 sourceService 与凭证所属服务是否一致 | 请求与服务凭证配对；旧错误文本中的 X-Service-Code 不表示当前仍采信该头 |
+| SECURITY_DENIED + SERVICE_TYPE_NOT_ALLOWED | 服务是否注册/启用；extra.syncTypes 的 subjectTypeCodes/roleTypeCodes/sourceTypes 是否包含本次写入类型 | 服务配置白名单；资源类型不走这三维白名单 |
+| SECURITY_DENIED + RESOURCE_TYPE_OWNERSHIP_DENIED | 目标类型是否存在；有效 extra.managedMode 是否 SYNC；syncSourceService 是否等于已验证服务；服务是否注册/启用 | 类型定义与服务配置。缺失/损坏的所有权声明按 MANAGED 对外拒绝；具体分支由平台按 requestId 查内部日志 |
+| 信封 20045 | LOCAL_USER、ORG/POSITION、SYS_USER_ORG 或内部来源/本地投影保护 | 调整同步对象为自有类型；不重试侵入平台事实 |
+| 管理写入 20055 / 声明变更 20056 | SYNC 类型管理面只读 / 已有资源或系统类型禁止变更声明 | 由所属来源维护；不要通过改声明绕过保护 |
+
 ## 5. 验收检查
 
 - [ ] `detail.appliedCount + staleCount + failedCount = items 总数`，`deactivatedCount` 与预期的「源侧已删对象数」一致。
@@ -65,7 +95,7 @@
 
 - **full-sync 不可直接回滚**（删除语义是声明式结果，无事务级逆操作）。恢复手段 = 反向补数据：从备份/源系统导出被误删对象，按逐条 `sync`（UPSERT）重新写入，**syncVersion 必须严格大于历史最高序**（相等版本为 STALE，不会重建事实）。
 - 误删影响面：full-sync 只清理 `sync_metadata` 命中 scope 的同步事实，不触碰 MANUAL 管理面数据与其他通道（`service-config/sync-v2` 是独立 ownership 通道）——恢复时同样只影响本 scope。
-- `DISABLE`/`DELETE` 单条误操作：以新的 UPSERT + 更高版本覆盖恢复（软删行复活走同幂等键 upsert）。
+- `DISABLE`/`DELETE` 单条误操作：以新的 UPSERT + 更高版本覆盖恢复（按当前通道的业务键 upsert，不承诺复用旧内部 ID；主体与成员分开恢复，见 §1.2）。
 
 资源 scope 已切换发布顺序时，以上恢复还必须携带源侧新分配的更高代次；不得回退或删除发布屏障来复用旧请求。
 

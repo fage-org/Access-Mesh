@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.domain.service.impl;
 
+import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
 import cn.ac.fage.accessmesh.access.domain.entity.BizDomain;
 import cn.ac.fage.accessmesh.access.domain.entity.DomainConfig;
@@ -11,6 +12,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -66,6 +69,17 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class BizDomainConfigPgIT {
 
     private static final Long TENANT = 1L;
+
+    @BeforeEach
+    void bindTenantContext() {
+        TenantContextHolder.setTenantId(TENANT);
+    }
+
+    @AfterEach
+    void clearTenantContext() {
+        TenantContextHolder.clear();
+    }
+
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 

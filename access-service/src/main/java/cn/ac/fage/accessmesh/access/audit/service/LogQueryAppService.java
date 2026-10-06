@@ -69,7 +69,7 @@ public interface LogQueryAppService {
      */
     List<OperationLogResp> listOperationLogs(Long tenantId, String module, String action,
                                               Long operatorId, LocalDateTime since, LocalDateTime until,
-                                              String targetType, int offset, int limit);
+                                              String targetType, int offset, int limit, String requestId);
 
     /**
      * 统计操作日志数量（多维过滤，T-PERM-025 扩展）
@@ -84,7 +84,7 @@ public interface LogQueryAppService {
      * @return 操作日志数量
      */
     long countOperationLogs(Long tenantId, String module, String action,
-                             Long operatorId, LocalDateTime since, LocalDateTime until, String targetType);
+                             Long operatorId, LocalDateTime since, LocalDateTime until, String targetType, String requestId);
 
     /**
      * 查询操作日志 action 字典（当前实际存在的去重集合，T-PERM-025）

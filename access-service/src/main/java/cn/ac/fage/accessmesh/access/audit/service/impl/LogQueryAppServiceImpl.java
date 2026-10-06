@@ -136,14 +136,14 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
     @Override
     public List<OperationLogResp> listOperationLogs(Long tenantId, String module, String action,
                                                      Long operatorId, LocalDateTime since, LocalDateTime until,
-                                                     String targetType, int offset, int limit) {
+                                                     String targetType, int offset, int limit, String requestId) {
         Long operatorCtxId = OperatorContext.getOperatorId();
         if (!queryGate.hasPermissionByCode(tenantId, operatorCtxId, ResourceTypeCode.OPERATION_LOG, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on OPERATION_LOG");
         }
 
         return operationLogMapper.selectPageByCondition(tenantId, StringUtils.normalizeFilterParam(module), StringUtils.normalizeFilterParam(action),
-                operatorId, since, until, StringUtils.normalizeFilterParam(targetType), offset, limit)
+                operatorId, since, until, StringUtils.normalizeFilterParam(targetType), offset, limit, StringUtils.normalizeFilterParam(requestId))
             .stream().map(this::toOperationLogResp).collect(Collectors.toList());
     }
 
@@ -166,14 +166,14 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
      */
     @Override
     public long countOperationLogs(Long tenantId, String module, String action,
-                                    Long operatorId, LocalDateTime since, LocalDateTime until, String targetType) {
+                                    Long operatorId, LocalDateTime since, LocalDateTime until, String targetType, String requestId) {
         Long operatorCtxId = OperatorContext.getOperatorId();
         if (!queryGate.hasPermissionByCode(tenantId, operatorCtxId, ResourceTypeCode.OPERATION_LOG, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on OPERATION_LOG");
         }
 
         return operationLogMapper.countByCondition(tenantId, StringUtils.normalizeFilterParam(module), StringUtils.normalizeFilterParam(action),
-            operatorId, since, until, StringUtils.normalizeFilterParam(targetType));
+            operatorId, since, until, StringUtils.normalizeFilterParam(targetType), StringUtils.normalizeFilterParam(requestId));
     }
 
     /**
@@ -216,9 +216,13 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
     private ChangeLogResp toChangeLogResp(PermissionChangeLog c) {
         return new ChangeLogResp(
             c.getId(), c.getTenantId(), c.getEntityType(),
-            c.getEntityId(), c.getOperation(), c.getOldSnapshot(), c.getNewSnapshot(),
-            c.getDiffSnapshot(), c.getAffectedAbstractUserIds(), c.getAffectedAbstractRoleIds(),
-            c.getChangeReason(), c.getChangeSource(), c.getCreatedBy(), c.getRequestId(), c.getCreatedAt()
+            c.getEntityId(), c.getOperation(),
+            cn.ac.fage.accessmesh.access.infrastructure.util.SensitiveDataUtils.maskAuditSnapshot(c.getOldSnapshot()),
+            cn.ac.fage.accessmesh.access.infrastructure.util.SensitiveDataUtils.maskAuditSnapshot(c.getNewSnapshot()),
+            cn.ac.fage.accessmesh.access.infrastructure.util.SensitiveDataUtils.maskAuditSnapshot(c.getDiffSnapshot()),
+            c.getAffectedAbstractUserIds(), c.getAffectedAbstractRoleIds(),
+            cn.ac.fage.accessmesh.access.infrastructure.util.SensitiveDataUtils.maskText(c.getChangeReason()),
+            c.getChangeSource(), c.getCreatedBy(), c.getRequestId(), c.getCreatedAt()
         );
     }
 
@@ -231,8 +235,10 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
     private OperationLogResp toOperationLogResp(OperationLog l) {
         return new OperationLogResp(
             l.getId(), l.getTenantId(), l.getModule(), l.getAction(),
-            l.getTargetType(), l.getTargetId(), l.getSummary(), l.getOperatorId(),
-            l.getOperatorName(), l.getIpAddress(), l.getRequestId(), l.getCreatedAt()
+            l.getTargetType(), l.getTargetId(),
+            cn.ac.fage.accessmesh.access.infrastructure.util.SensitiveDataUtils.maskText(l.getSummary()), l.getOperatorId(),
+            cn.ac.fage.accessmesh.access.infrastructure.util.SensitiveDataUtils.maskText(l.getOperatorName()),
+            l.getIpAddress(), l.getRequestId(), l.getCreatedAt()
         );
     }
 

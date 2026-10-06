@@ -6,7 +6,7 @@ domain: common
 design_refs:
   - docs/design/architecture.md
   - docs/design/access-service-api-contract.md
-last_reviewed: 2026-10-04
+last_reviewed: 2026-10-06
 ---
 
 # AccessMesh 扩展指南（接入与二次开发全景）
@@ -55,7 +55,7 @@ last_reviewed: 2026-10-04
 2. **声明接口**：`POST /api/access/service-config/sync-v2`（FULL 模式）上报接口清单，每个 ApiItem 必填 `requiredPermission`（如 REPORT:VIEW，业务类型及操作须先存在）——一步创建 **API 资源**与 **Gateway 路由映射**（`pathPattern = basePath + path`，行归属标记 `maintainSource=SERVICE_SYNC`）。API 类型由系统种子声明 SYNC+access-service（T-PERM-069），本通道与 bootstrap 固定图即唯一事实入口——**不要**走 `resource-entity/sync` 通道（外部来源不匹配，会被 `RESOURCE_TYPE_OWNERSHIP_DENIED` 拒绝；资源管理面手工 CRUD 亦 20055）。
 3. **授权**：经管理台授权页对目标角色授予路由要求对应的业务资源权限（例如 REPORT 实例的 VIEW）。API 类型仅用于接口登记，不单独授权。授权写入口仍须用户身份与 ROLE:MANAGE，不收服务身份。
 4. **请求链路**：业务前端持平台会话令牌（`Authorization: Bearer <token>`，sa-token）经 **Gateway (8080)** 访问业务接口；Gateway 做**操作准入快照本地判定**（T-ACCESS-059：路由要求→候选分支，条件不可本地评估回源 `interface-admission` 在线判定）并对可下发条件做本地重评。准入 MAY_ENTER 不等于允许——业务服务必须以实际目标做完整实例鉴权；授权生效受 Gateway 快照刷新窗口约束（上界 30s）。
-5. **服务侧防直调**：业务服务部署 Gateway 签名校验过滤器（example 的 `GatewaySignatureFilter` 模式）——拒绝未带有效网关签名的请求，防止绕过 Gateway 直调后端。
+5. **服务侧防直调**：Servlet 业务服务引入 perm-client starter 即自动装配 GatewaySignatureFilter；携带用户/租户身份头而签名缺失、错误、超窗或密钥未配置时拒绝（HTTP 200 + 30003）。无身份头的请求仍由业务入口身份检查与实际对象鉴权拒绝；验签不替代这些检查或网络隔离。
 6. **撤销与恢复**（T-ACCESS-053 补全，与授权同源）：撤销=授权页删除该条授权行（唯一删除语义 `apply-grant-plan` 的 `removes` 段；旧 `revoke` 端点已物理删除）——撤权生效受与授权相同的 30 秒陈旧窗口约束，窗口内接口回到 403；恢复=对同一业务资源重授对应操作（撤销为软删，重授即新建行），同样 30 秒内生效。回归锁：`ExampleProtectedApiE2EIT` 第⑧步（撤销→403→重授→200）。
 
 ### 2.2 服务身份：业务凭证与平台内部互信
@@ -69,8 +69,31 @@ last_reviewed: 2026-10-04
 - `perm-client-spring-boot-starter` 通过 `PermissionFeignClient` 调用远程查询/同步；`FeignCredentialInterceptor` 仅对精确 M2M 清单注入凭证。配置 `perm.credential-id`、`perm.credential-secret` 和 `perm.allow-insecure`（true=单信任域明文 hop 可接受；false=跨边界要求 TLS，须由部署保障）。无需配置全局内部密钥。
 - example-service 共享多租户部署：按可信请求租户从 `example.permission.tenant-credentials` 选择独立凭证，通过运行时查询的显式头重载传递；没有配置的租户拒绝，不回落全局固定凭证。非空映射须声明 `example.permission.allow-insecure`；异步导出也按捕获租户重新选择。配置示例见服务认证 §3.5。
 - Gateway 仍负责接口操作准入，业务服务负责实际对象最终检查。非 Java 服务可直接按契约发送凭证头，不必使用 SDK；管理面 Feign 方法仍需另行提供有效用户身份，服务凭证不能替代。
-- `perm-gateway-spring-boot-starter` 用于网关侧。可选 registration starter 只负责依赖发布。
-- SDK `DefaultOpCode.EDIT` 在服务端无预置操作，使用服务端已有的 `UPDATE`；不因本次身份切换改变操作码契约。
+- Gateway 的准入过滤器在 gateway 服务中维护；空壳 perm-gateway starter 已删除。可选 registration starter 只负责依赖发布。
+- SDK 默认操作码为 VIEW/UPDATE/DELETE，原 EDIT 已退役。旧 PermContext/PermCheckReq/PermCheckResp 无消费者，已删除；运行时请求使用当前 AuthCheckReq/BatchAuthCheckReq 等 DTO。
+
+`perm.client.enabled` 默认 true：类路径引入 starter 即启用 Feign 客户端，Servlet 应用同时获得验签过滤器；设 false 会同时关闭这两部分，不能把关闭开关当作保留验签的方式。非 Servlet 应用不注册 Servlet 过滤器。签名配置为 `perm.client.signature.secret`（缺省从 ACCESSMESH_SIGNATURE_SECRET 获取，必须与 Gateway 同源）和 `perm.client.signature.valid-seconds`（默认 300，验签时钟偏差窗口）；原 example.signature 配置名随收编退役。
+
+默认 `PermissionFeignClient` 使用服务发现名 access-service。启用发现模式时，消费方需有 loadbalancer 与可用发现客户端（本仓为 Nacos），并配置相同注册中心/命名空间；starter 不私自为接入方指定注册中心。没有服务发现的环境直接使用 Spring Cloud OpenFeign URL 配置：
+
+```yaml
+spring:
+  cloud:
+    openfeign:
+      client:
+        config:
+          access-service:
+            url: https://access.internal.example
+perm:
+  client:
+    signature:
+      secret: ${ACCESSMESH_SIGNATURE_SECRET}
+  credential-id: ${SERVICE_CREDENTIAL_ID}
+  credential-secret: ${SERVICE_CREDENTIAL_SECRET}
+  allow-insecure: false
+```
+
+URL 指向服务根地址，不附加 /api/access（方法映射已包含完整路径）。此方式不需要 Nacos/loadbalancer；Servlet SDK 自动装配测试同时验证直连 URL 可创建 Feign 客户端。凭证只自动注入 common 的 M2mCredentialEndpoints 方法+路径精确清单，服务端、Gateway 与 SDK 同源。perm-common 对 common/OpenFeign 使用 provided 编译依赖，两个 SDK starter 已提供实际运行依赖；仅引用 DTO 的程序无需因此引入服务端 Web/cache 实现。
 
 ### 2.4 接口权限与业务权限是两层（易混点）
 
@@ -82,6 +105,27 @@ last_reviewed: 2026-10-04
 | 业务层 | 业务服务自己（调 `auth/check` 查询后按结果分支） | 业务资源类型的自有操作（如 `REPORT:VIEW`，见 §3 建模） | 业务服务**收到请求后**如何处理——两层是先后关系不是替代关系 |
 
 接口准入已按方案 A 交付：路由绑定业务操作，网关从业务授权寻找准入候选，业务服务继续对实际目标做最终鉴权；不生成 API:ACCESS 授权，旧协议已随 T-ACCESS-062 退役。业务侧按 scopeMode 动态生成 SQL 数据过滤仍归 T-PERM-036（暂缓），不能由接口准入替代。
+
+### 2.5 失败形态判别
+
+调用方依次检查 **HTTP 状态 → 信封 code → 业务结果**，不能把 HTTP 200 或 `code=200` 单独当作授权/同步成功。以下是现行行为，分类状态码保持 [工程规范 §3.3](project-rules.md#33-全局-exceptionhandler-处理顺序) 的既定口径。
+
+| HTTP / 响应 | 发生层与含义 | 接入方处置 |
+|---|---|---|
+| 200，code 为业务错误码 | `BizException`；业务规则、对象或权限拒绝。例如 example `30004` 表示业务最终检查未通过，`30003` 表示身份签名无效 | 读取 code/message/requestId；按目标资源、角色与参数排查，不盲目重试或放行 |
+| 200，code 为系统错误码 | 显式 `SystemException`；不是成功，消息统一为系统异常 | 保留 requestId，按依赖故障排障；写请求按幂等契约重试 |
+| 400，code=90001 或 400 | Bean Validation/请求 JSON/结构参数校验失败 | 修正输入。字符串 extra 中的非法 JSON 等业务校验可能是上一行 200+业务码，须按具体契约判断 |
+| 403，code=403 | 服务层 `SecurityException` 或认证仲裁的身份/白名单拒绝 | 核对服务凭证范围、操作者和管理权限；不通过重试绕过 |
+| 500，code=99999 | 未捕获异常的兜底 | 按 requestId 联系平台排障，不能解释为“无权限” |
+| Gateway 401 / 403 | 401=平台会话无效；权限过滤器 403=接口准入拒绝，请求尚未进入业务服务 | 401 重新登录；403 先查服务接口映射及类型/操作候选授权。若 403 **无 JSON 信封**，先按部署基线查 CORS |
+| Gateway 502 / 503 | 上游或鉴权依赖不可用、配置故障；失败关闭 | 先恢复依赖或修正映射；不能当作明确业务拒绝，也不能回退放行 |
+| 200，code=200，data.allowed=false | 权限查询成功执行，但检查结果拒绝 | 根据 reason 排查条件、互斥、角色或父上下文；业务动作不得执行 |
+| 200，code=200，data.accepted=false | sync/full-sync 请求已完成分类，但同步事实未被接受，可能为 SECURITY_DENIED/RESOURCE_TYPE_OWNERSHIP_DENIED 等 | 继续查看 retryClass/reason；FULL 检查 itemResults，遵守 [同步重试表](../ops/runbook-full-sync.md#4-响应分类与重试决策表) |
+| 200，code=200，data.accepted=true、stale=true、applied=false | 同步旧版本被幂等接纳但未应用；不是再次写成功 | 不重放旧事件，核对源版本；区分“接纳”“应用”“清理”三个结果 |
+
+同一使用场景的三种拒绝：用户没有接口所需候选授权，停在 Gateway 真 403；已有类型/操作候选却对 `report-2` 没有实例权限，example 返回 200+30004；服务凭证有效但向不属于自己维护的资源类型发送同步，返回 200+200+accepted=false。前两者是用户操作路径，第三者是服务同步路径，不能共用“HTTP 200 就成功”的分支。
+
+监控至少分别统计传输失败、非成功信封和业务结果拒绝。记录 requestId、端点、错误码与原因；不记录 Authorization、服务凭证 secret 或完整敏感请求体。
 
 ## 3. 场景二：自有资源类型（自定义数据权限维度）
 
@@ -108,7 +152,7 @@ last_reviewed: 2026-10-04
    + extra={"managedMode":"SYNC","syncSourceService":"<服务码>"}）
    ——创建即自动预置 CRUD 四操作（CREATE/VIEW/UPDATE/DELETE，位 1/2/4/8）
 ③ 按需追加自定义操作（operation-permission/create：resourceTypeCode=自有码 + code
-   + binaryBit——操作位空间按类型隔离，binaryBit 类型内唯一，避开预置位）
+   + binaryBit——操作位空间按类型隔离，binaryBit 类型内唯一且须为正数单比特（2^0..2^62，共 63 位），避开预置位）
 ④ 同步资源（resource-entity/sync 单条 UPSERT/DISABLE/DELETE 或 full-sync 全量 diff；
    服务身份请求头见 §2.2；DISABLE 为幂等停用，非删除）
 ⑤ 授权（管理台授权页 apply-grant-plan，或 API：roleTypeCode+roleExternalId
@@ -127,11 +171,12 @@ last_reviewed: 2026-10-04
 | `20056 TYPE_OWNERSHIP_CHANGE_CONFLICT` | 声明变更/类型删除 | 类型下有有效资源行；系统预置类型（is_system）声明一律钉死 |
 | `20040 GRANT_CANNOT_DELEGATE` | apply-grant-plan | 授予者未持有覆盖目标键的可转授权限（新类型首笔授权见 §3.5） |
 | `PUBLICATION_GENERATION_STALE/CONFLICT` | 资源发布/manifest FULL | 旧代次拒绝或同代次内容冲突；按契约 §19.2.1 保留快照重试或重新采集发布 |
+| `20069 OPERATION_REFERENCED_BY_GRANTS` | 操作位变更/删除 | 操作被授权或接口准入映射引用，先清理引用；不可通过改位绕开现有授权 |
 | `20005 / 20044` | 操作码解析/清单校验 | 未知操作码 fail-closed / 畸形清单零副作用 |
 
 ### 3.4 资源树与父子关系
 
-资源父子边限同类型（T-PERM-068，2026-09-17 Q-007 定案）：sync/full-sync 的 `parentResourceTypeCode` 缺省按 item/scope 自身类型解析、显式异类型被拒（`NON_RETRYABLE`/`PARENT_TYPE_MISMATCH`）；管理面 create/batch-create/move 同口径（20053）；角色域 ORG/POSITION 容器树的结构性跨类型是另一域形态、与资源域无关。SYNC 类型资源出现在管理面资源树（读路径不受限），授权页按类型出矩阵。两个易混概念：**自动授权（依赖补全）**使用 MANIFEST 声明与编译图，物化已随 072 落地（旧 autoGrant 开关已退役，见 §6）；**`depend_on` 子权限**（授权行挂主权限的子权限机制）是在役能力——写侧经 apply-grant-plan 的 `parentPermissionId`/`children` 声明，判定面单点门禁见 api-contract §6.1/§6.7 DEPENDENT 轨道，二者不是一回事。
+资源父子边限同类型（T-PERM-068，2026-09-17 Q-007 定案）：sync/full-sync 的 `parentResourceTypeCode` 缺省按 item/scope 自身类型解析、显式异类型被拒（`NON_RETRYABLE`/`PARENT_TYPE_MISMATCH`）；管理面 create/batch-create/move 同口径（20053）；角色域 ORG/POSITION 容器树的结构性跨类型是另一域形态、与资源域无关。SYNC 类型资源出现在管理面资源树（读路径不受限），授权页按类型出矩阵。两个易混概念：**自动授权（依赖补全）**使用 MANIFEST 声明与编译图，物化已随 072 落地（旧 autoGrant 开关已退役，见 §6）；**`depend_on` 子权限**（授权行挂主权限的子权限机制）是在役能力——写侧经 apply-grant-plan 的 `parentPermissionId`/`children` 声明，判定时必须提供真实父上下文 `parentResourceTypeCode/parentResourceCode/parentCodeType/parentOperationCodes`，由引擎确认父权限实际通过且命中相同父行；未传父上下文的子行不计入。契约见 §18.1/§18.6，不能把子行的存在直接当成可用权限。
 
 ### 3.5 首笔授权引导（创建即建授权根，T-PERM-062）
 
@@ -141,8 +186,8 @@ last_reviewed: 2026-10-04
 
 - **创建即建基座**：`type-definition/create` 同事务向「类型所有者角色」写 CRUD 四操作位首授行（`grant_source=AUTHORITY_ROOT`，类型级 scopeAll + 可转授）；所有者缺省引导角色 `bootstrap-admin`，可经请求字段 `ownerRoleTypeCode/ownerRoleExternalId` 指定（roleTypeCode 仅接受 BASIC_ROLE 功能角色；类型定义页「所有者角色」选择器同入口），指针持久化于 `type_definition.extra.grantOriginRole`。
 - **追加操作自动补种**：后续经 `operation-permission/create` 追加的操作（如 `EXPORT` 位 16）同事务向同一所有者补种——不会出现「CRUD 能授、EXPORT 仍 20040」。请求的 `inheritMask` 可省略（服务端归一为 0，与显式 0 等价，T-PERM-077）。
-- **所有者可迁移**：`type-definition/update` 变更 `extra.grantOriginRole` = 同事务「先清后种」迁移（旧所有者种子清理、新所有者补齐全部操作位）；所有者角色被误删时经重指所有者即可恢复授权能力。种子行在授权页只读（20061），类型删除时级联清理。**注意 extra 为整串替换语义**：经 API 迁移时提交的 extra 必须保留现有 `managedMode`/`syncSourceService` 声明键——只提交 `grantOriginRole` 等于删掉所有权声明（类型下有资源行时 20056 拒绝、无资源行时隐式切回 MANAGED）；未携带 `grantOriginRole` 键则保留现值。管理台「所有者角色」选择器自动 merge 进现有 extra，无此风险。
-- **可发现性**：所有者的成员在授权页可见这些种子行（标注「授权根」），并可**向其他角色转授时**收窄为实例级授权（种子行本身只读 20061，不可就地改删）。20040 的 reason 分两种：非所有者成员对**已有授权根**的类型发起授权 → `NO_PERMISSION`/`NO_GRANT_RIGHT`（你的持有面不够——找所有者角色成员操作或加入该角色）；`TYPE_GRANT_ORIGIN_MISSING` 仅出现在**自定义类型且租户内零条可转授行**时（种子行被直改库清除——产品链路内种子不可销毁，正常运维不应出现；去类型定义页确认/重指所有者）。注意所有者角色被删**不会**触发该 reason（角色删除不级联种子行，残留行仍算可转授覆盖）——此时 reason 仍是 `NO_PERMISSION`/`NO_GRANT_RIGHT`，恢复动作同样是经类型定义页重指所有者（迁移语义自动清理已删角色残留行）。
+- **所有者可迁移**：`type-definition/update` 变更 `extra.grantOriginRole` = 同事务「先清后种」迁移（旧所有者种子清理、新所有者补齐全部操作位）；所有者角色受删除守卫保护：最终删除集命中显式或缺省所有者时整批拒绝 20073；需先迁移所有者，再删除旧角色。种子行在授权页只读（20061），类型删除时级联清理。**注意 extra 为整串替换语义**：经 API 迁移时提交的 extra 必须保留现有 `managedMode`/`syncSourceService` 声明键——只提交 `grantOriginRole` 等于删掉所有权声明（类型下有资源行时 20056 拒绝、无资源行时隐式切回 MANAGED）；未携带 `grantOriginRole` 键则保留现值。管理台「所有者角色」选择器自动 merge 进现有 extra，无此风险。
+- **可发现性**：所有者的成员在授权页可见这些种子行（标注「授权根」），并可**向其他角色转授时**收窄为实例级授权（种子行本身只读 20061，不可就地改删）。20040 的 reason 分两种：非所有者成员对**已有授权根**的类型发起授权 → `NO_PERMISSION`/`NO_GRANT_RIGHT`（你的持有面不够——找所有者角色成员操作或加入该角色）；`TYPE_GRANT_ORIGIN_MISSING` 仅出现在**自定义类型且租户内零条可转授行**时（种子行被直改库清除——产品链路内种子不可销毁，正常运维不应出现；去类型定义页确认/重指所有者）。产品删除入口以 20073 保护所有者；只有绕过产品的直接改库才可能破坏引用，此类恢复须先核对类型指针和授权事实，再重指所有者。
 
 回归锁：`CustomResourceTypeSlicePgIT` 全链路固化——创建即落 4 条种子、追加操作补种第 5 条、管理员直接首授成功（原「部署方种子后放行」步骤已随修复退役）、非所有者仍 20040、种子行改删 20061、所有者迁移清理+补齐、零授权根时 reason=TYPE_GRANT_ORIGIN_MISSING。
 
@@ -160,6 +205,7 @@ last_reviewed: 2026-10-04
 ### 5.1 条件（时间/IP 类环境断言）
 
 - **封闭操作符集**（填条件时的 `type` 代码名）：`DATE_RANGE`（日期区间）、`TIME_RANGE`（时段）、`IP_WHITELIST`（IP 白名单）、`IP_BLACKLIST`（IP 黑名单），共 4 类。**不可自定义条件操作符**（求值器 `ConditionEvalUtils` 为 perm-common 静态实现，Gateway 与 access-service 共享同语义；无扩展插槽；填白名单外的类型名评估 fail-closed 恒拒绝）。
+- 主权限挂条件时不可转授（`canGrant=false`，违反返回 20041）；子权限不能独立挂条件或设置可转授（20043），其生效依赖真实父上下文的判定。条件允许集只描述可求值规则，不授予角色、资源或操作权限。
 - **双轨制**（T-PERM-048）：管理页条件（source=MANAGED，独立 CRUD、可复用）vs 授权 INLINE 内联条件（随授权记录声明，仅 source=INLINE）。
 - 时钟语义：`evaluatedAt` 由引擎统一注入（跨进程一致性靠 NTP，业务粒度按天/小时）。
 

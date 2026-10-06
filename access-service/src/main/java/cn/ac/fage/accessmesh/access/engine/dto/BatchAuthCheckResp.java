@@ -34,6 +34,7 @@ public record BatchAuthCheckResp(
      * @param reason              拒绝原因，允许时为null
      * @param matchedRoleIds      匹配的角色ID列表（拒绝时为空列表）
      * @param matchedPermissionIds 匹配的权限ID列表（拒绝时为空列表）
+     * @param conditionEvaluated 本次有效候选中是否有条件参与评估
      */
     public record AuthCheckItemResult(
         String resourceTypeCode,
@@ -42,6 +43,7 @@ public record BatchAuthCheckResp(
         boolean allowed,
         String reason,
         List<Long> matchedRoleIds,
-        List<Long> matchedPermissionIds
+        List<Long> matchedPermissionIds,
+        boolean conditionEvaluated
     ) {}
 }

@@ -91,6 +91,10 @@ class AuthLoginLockTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    @org.springframework.beans.factory.annotation.Qualifier("requestMappingHandlerMapping")
+    private org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping handlerMapping;
+
     @MockBean
     private UserDomainService userDomainService;
     @MockBean
@@ -145,6 +149,34 @@ class AuthLoginLockTest {
     }
 
     @Test
+    void missingUserAndWrongPasswordExposeSameCodeAndMessage() throws Exception {
+        stubRedis();
+        when(userDomainService.findByUsername(1L, USERNAME)).thenReturn(null, enabledUser());
+        JsonNode missing = login("wrong-password");
+        JsonNode incorrect = login("wrong-password");
+        assertThat(missing.path("code").asInt()).isEqualTo(10005).isEqualTo(incorrect.path("code").asInt());
+        assertThat(missing.path("message").asText()).isEqualTo(incorrect.path("message").asText());
+    }
+
+    @Test
+    void invalidCaptchaIncrementsLoginFailureBeforeUserLookup() throws Exception {
+        stubRedis();
+        when(stringRedisTemplate.execute(any(DefaultRedisScript.class), anyList())).thenReturn(null);
+        assertThat(login(PASSWORD).path("code").asInt()).isEqualTo(10901);
+        verify(stringRedisTemplate).execute(any(DefaultRedisScript.class),
+            org.mockito.ArgumentMatchers.eq(List.of(LOCK_KEY)), any());
+        verify(userDomainService, never()).findByUsername(anyLong(), anyString());
+    }
+
+    @Test
+    void missingUserAlsoUsesSharedLockThreshold() throws Exception {
+        ValueOperations<String, String> values = stubRedis();
+        when(values.get(LOCK_KEY)).thenReturn("5");
+        when(userDomainService.findByUsername(1L, USERNAME)).thenReturn(null);
+        assertThat(login("wrong-password").path("code").asInt()).isEqualTo(10004);
+    }
+
+    @Test
     @DisplayName("计数达阈值：正确密码也拒绝（10004），status 不被修改，补记临时锁定失败日志")
     void lockedThresholdRejectsWithoutPersisting() throws Exception {
         SysUser user = enabledUser();
@@ -192,7 +224,7 @@ class AuthLoginLockTest {
 
         JsonNode body = login("whatever");
 
-        assertThat(body.get("code").asInt()).isEqualTo(10001);
+        assertThat(body.get("code").asInt()).isEqualTo(10005);
         // GET 只读不建键；失败计数经 Lua INCR+EXPIRE（3 参 execute）恰好一次
         verify(valueOperations, never()).increment(anyString(), anyLong());
         verify(stringRedisTemplate, times(1)).execute(any(DefaultRedisScript.class), anyList(), any());
@@ -245,24 +277,9 @@ class AuthLoginLockTest {
     }
 
     @Test
-    @DisplayName("smsLogin 同口径 fail-closed：status=2 脏数据按停用拒绝（10003）")
-    void smsLoginUndefinedStatusAlsoFailsClosed() throws Exception {
-        SysUser user = enabledUser();
-        user.setStatus(2);
-        when(userDomainService.findByPhone(1L, "13800000001")).thenReturn(user);
-        // 短信验证码 Lua（2 参 execute）与验证码共用 stub，返回 "123456" 即校验通过
-        when(stringRedisTemplate.execute(any(DefaultRedisScript.class), anyList())).thenReturn("123456");
-
-        MvcResult result = mockMvc.perform(post("/api/access/auth/login/sms")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(MAPPER.writeValueAsString(java.util.Map.of(
-                    "tenantId", "1", "phone", "13800000001",
-                    "smsCode", "123456", "clientId", "console"))))
-            .andExpect(status().isOk())
-            .andReturn();
-        JsonNode body = MAPPER.readTree(
-            result.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8));
-
-        assertThat(body.get("code").asInt()).isEqualTo(10003);
+    void smsLoginEndpointIsNotRegistered() {
+        assertThat(handlerMapping.getHandlerMethods().keySet().stream()
+            .flatMap(mapping -> mapping.getPatternValues().stream()))
+            .doesNotContain("/api/access/auth/login/sms");
     }
 }

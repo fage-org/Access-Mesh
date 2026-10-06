@@ -1,3 +1,4 @@
+import { PERMISSION_CODE } from "@/constants/access";
 /**
  * 「权限变更日志」页按钮权限码（perm 串）目录 -- 单一事实源 (SSOT)。
  *
@@ -17,7 +18,7 @@
  */
 export const PERMISSION_CHANGE_LOG_PERMS = {
   /** 查看权限变更日志列表 -- 独立 PERMISSION_CHANGE_LOG:VIEW（T-PERM-032 审计分离） */
-  LOG_VIEW: "PERMISSION_CHANGE_LOG:VIEW"
+  LOG_VIEW: PERMISSION_CODE.PERMISSION_CHANGE_LOG_VIEW
 } as const;
 
 export type PermissionChangeLogPermKey =

@@ -1,8 +1,6 @@
 /**
  * 权限授予 API（4.1 权限授予页 v3，T-FE-036）
- * 经 @/utils/http 调用 Gateway 外部路径 `/api/access/role-resource-permission/*`
- *（Gateway StripPrefix=1 后到 access-service `/api/access/role-resource-permission`）。
- * T-FE-041 切换真实链路后，mock/permission-grant.ts（已随 T-FE-018 删除）旧路径不再存在。
+ * 经 @/utils/http 使用 POST + JSON 调用 /api/access/**；Gateway 外部路径与服务路径一致。
  * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；列表包络复用 role-manage 定义。
  *
@@ -36,7 +34,8 @@ export const GRANT_SOURCE = {
   MANUAL: "MANUAL",
   AUTO_DEP: "AUTO_DEP",
   /** 🔧 T-PERM-062：类型授权根种子（类型生命周期维护，授权页只读） */
-  AUTHORITY_ROOT: "AUTHORITY_ROOT"
+  AUTHORITY_ROOT: "AUTHORITY_ROOT",
+  BOOTSTRAP_SEED: "BOOTSTRAP_SEED"
 } as const;
 
 export type GrantSource = (typeof GRANT_SOURCE)[keyof typeof GRANT_SOURCE];
@@ -68,14 +67,30 @@ export const GRANT_ERROR_CODE = {
   /** 🔧 T-FE-040 v3.1：子权限属性系统不变量（conditionCode 必须 null、canGrant 必须 false；子权限 update 不支持），错误优先级先于 20041/20042（api-contract §11.4 20043） */
   SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED: 20043,
   /** 🔧 T-PERM-062：授权根种子行只读（updates/removes/挂子权限拒绝；随类型生命周期维护） */
-  AUTHORITY_ROOT_READONLY: 20061
+  AUTHORITY_ROOT_READONLY: 20061,
+  BOOTSTRAP_SEED_READONLY: 20074
 } as const;
+
+export const GRANT_SOURCE_LABELS: Readonly<Record<string, string>> = {
+  MANUAL: "直接授权",
+  AUTO_DEP: "自动补全",
+  AUTHORITY_ROOT: "授权根",
+  BOOTSTRAP_SEED: "平台种子"
+};
+
+export const GRANT_SOURCE_READONLY_HINTS: Readonly<Record<string, string>> = {
+  AUTO_DEP: "由资源依赖自动补全，只读不可修改或删除",
+  AUTHORITY_ROOT: "类型授权根种子，随类型生命周期维护，只读不可修改或删除",
+  BOOTSTRAP_SEED: "平台初始化种子，只读不可修改或删除"
+};
 
 export type GrantErrorCode =
   (typeof GRANT_ERROR_CODE)[keyof typeof GRANT_ERROR_CODE];
 
 /** 错误码 → 页面提示文案（DoD-1：20033/20034/20036/20011/20040 + 任务卡 20009/20010） */
 export const GRANT_ERROR_MESSAGES: Readonly<Record<number, string>> = {
+  [GRANT_ERROR_CODE.BOOTSTRAP_SEED_READONLY]:
+    "平台初始化种子只读，不可修改或删除",
   [GRANT_ERROR_CODE.ROLE_NOT_FOUND]: "目标角色不存在，请刷新后重试",
   [GRANT_ERROR_CODE.ROLE_DISABLED]: "目标角色已停用，无法授权",
   [GRANT_ERROR_CODE.RESOURCE_NOT_FOUND]: "目标资源不存在，请刷新后重试",

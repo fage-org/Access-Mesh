@@ -85,7 +85,7 @@ public record UserPageItemResp(
         /**
          * 组织类型
          */
-        String orgType,
+        Integer orgType,
 
         /**
          * 是否主要组织

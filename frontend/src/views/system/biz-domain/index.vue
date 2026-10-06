@@ -319,6 +319,13 @@ function onDeleteDomainConfig(row: DomainConfigRow) {
 
     <!-- ========== 下区：DomainConfig 子表（选中域后展示） ========== -->
     <div ref="configSectionRef" class="config-section">
+      <el-alert
+        title="域配置如何生效"
+        description="SUB_PERM 配置会按主权限的资源类型决定授权页可添加的子权限类型；CLASSIFY 用于资源类型的域分类。授权页自动读取配置，无需另选业务域。"
+        type="info"
+        :closable="false"
+        show-icon
+      />
       <div class="config-header">
         <span class="config-title">
           {{

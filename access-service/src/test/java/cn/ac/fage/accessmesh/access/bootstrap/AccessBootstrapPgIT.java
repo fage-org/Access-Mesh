@@ -75,6 +75,8 @@ import static org.mockito.Mockito.reset;
     "logging.level.cn.ac.fage.accessmesh=WARN",
 })
 class AccessBootstrapPgIT {
+    @Autowired
+    private cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper rolePermissionMapper;
 
     private static final Long TENANT = BootstrapGraphDefinition.TENANT_ID;
     private static final String BOOTSTRAP_PASSWORD = "Bootstrap-IT-2026!";
@@ -207,14 +209,14 @@ class AccessBootstrapPgIT {
             "SELECT count(*) FROM resource_entity WHERE tenant_id = ? "
                 + "AND resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'API') "
                 + "AND code IN ('" + String.join("','", expectedApiCodes) + "') AND delete_flag = 0",
-            Long.class, TENANT)).isEqualTo(105L);
+            Long.class, TENANT)).isEqualTo(107L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM resource_api_mapping ram JOIN resource_entity re "
                 + "ON ram.resource_entity_id = re.id AND re.tenant_id = ram.tenant_id "
                 + "WHERE ram.tenant_id = ? AND ram.delete_flag = 0 "
                 + "AND re.resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'API') "
                 + "AND re.code LIKE 'POST:%'",
-            Long.class, TENANT)).isEqualTo(104L);
+            Long.class, TENANT)).isEqualTo(106L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM resource_api_mapping ram JOIN resource_entity re "
                 + "ON ram.resource_entity_id = re.id AND re.tenant_id = ram.tenant_id "
@@ -235,8 +237,11 @@ class AccessBootstrapPgIT {
         // USER:VIEW——内置类型实例委派首授构造解锁，2026-09-23 拍板）
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
-                + "AND delete_flag = 0 AND grant_source = 'MANUAL'",
+                + "AND delete_flag = 0 AND grant_source = 'BOOTSTRAP_SEED'",
             Long.class, TENANT, roleId)).isEqualTo(54L);
+        int serviceType = jdbc.queryForObject("SELECT type_value FROM type_definition WHERE tenant_id=? AND type_key='resource_type' AND type_code='SERVICE' AND delete_flag=0", Integer.class, TENANT);
+        assertThat(rolePermissionMapper.selectReferencedOperationBits(TENANT, serviceType, java.util.Set.of(16L)))
+            .containsExactly(16L);
 
         // 系统任务种子（T-PERM-073，2026-09-21 用户定案）：默认停用、预置 cron；invokeTarget
         // 必须经 @JobInvocable 白名单真实解析（防拼写漂移到首次手动触发才暴露）且 String
@@ -323,18 +328,18 @@ class AccessBootstrapPgIT {
                 + "WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'ADMIN_FILE') "
                 + "AND owner_service_code = 'access-service'", Long.class, TENANT)).isEqualTo(4L);
 
-        // 菜单种子 14 行（T-FE-015；T-PERM-059 删权限排查页后）：welcome 纯展示 +「系统管理」DIR + 12 业务 MENU；
-        // 资源挂接 11 行（权限条件页读取全租户开放挂纯展示）、类型级挂接 resource_code 全空；
-        // 12 个业务页全部挂 /system 目录下；MENU 投影全量维护（对齐 MenuWriteAppService 终态）
+        // 菜单种子 17 行（T-FE-015；T-PERM-059 删权限排查页后）：welcome 纯展示 +「系统管理」DIR + 15 业务 MENU；
+        // 资源挂接 14 行（权限条件页读取全租户开放挂纯展示）、类型级挂接 resource_code 全空；
+        // 15 个业务页全部挂 /system 目录下；MENU 投影全量维护（对齐 MenuWriteAppService 终态）
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM sys_menu WHERE tenant_id = ? AND delete_flag = 0",
-            Long.class, TENANT)).isEqualTo(14L);
+            Long.class, TENANT)).isEqualTo(17L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM sys_menu WHERE tenant_id = ? AND delete_flag = 0 AND menu_type = 'DIR'",
             Long.class, TENANT)).isEqualTo(1L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM sys_menu WHERE tenant_id = ? AND delete_flag = 0 "
-                + "AND resource_type IS NOT NULL", Long.class, TENANT)).isEqualTo(11L);
+                + "AND resource_type IS NOT NULL", Long.class, TENANT)).isEqualTo(14L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM sys_menu WHERE tenant_id = ? AND delete_flag = 0 "
                 + "AND resource_type IS NOT NULL AND resource_code IS NOT NULL",
@@ -343,12 +348,12 @@ class AccessBootstrapPgIT {
             "SELECT count(*) FROM sys_menu WHERE tenant_id = ? AND delete_flag = 0 "
                 + "AND parent_id = (SELECT id FROM sys_menu WHERE tenant_id = ? AND path = '/system' "
                 + "AND delete_flag = 0)",
-            Long.class, TENANT, TENANT)).isEqualTo(12L);
+            Long.class, TENANT, TENANT)).isEqualTo(15L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM resource_entity WHERE tenant_id = ? AND delete_flag = 0 "
                 + "AND resource_type = (SELECT type_value FROM type_definition "
                 + "WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'MENU')",
-            Long.class, TENANT)).isEqualTo(14L);
+            Long.class, TENANT)).isEqualTo(17L);
 
         // 默认组织树种子（T-FE-015）：根组织（稳定业务键 root）+ 默认树配置 + admin 直绑根组织
         // （isPrimary）+ ORG 投影 + user_role 投影——/user/page 与 member-candidates 为默认树
@@ -423,7 +428,7 @@ class AccessBootstrapPgIT {
 
     @Test
     @Order(4)
-    @DisplayName("状态②变体：授权属性漂移（管理端运营修改）→ warn 放行不重种（2026-09-02 口径定案）")
+    @DisplayName("状态②变体：授权属性漂移（离线维护产生的属性漂移）→ warn 放行不重种（2026-09-02 口径定案）")
     void grantAttributeDriftIsToleratedAndNotReseeded() {
         // 模拟授权页运营修改：OPERATION_LOG:VIEW 类型级授权 canGrant=false → true。
         // 旧实现（canGrant 参与完整匹配键）此处必抛「授权缺失或属性不匹配」fail-fast——本用例为其回归锁
@@ -473,10 +478,24 @@ class AccessBootstrapPgIT {
     }
 
     @Test
+    @Order(3)
+    void shouldRejectUnmarkedLegacySeedsWithoutAutomaticallyChangingTheirSource() {
+        jdbc.update("UPDATE role_resource_permission SET grant_source='MANUAL' WHERE tenant_id=? AND grant_source='BOOTSTRAP_SEED'", TENANT);
+        try {
+            assertThatThrownBy(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("未标记 BOOTSTRAP_SEED").hasMessageContaining("先备份");
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM role_resource_permission WHERE tenant_id=? AND grant_source='BOOTSTRAP_SEED'", Long.class, TENANT)).isZero();
+        } finally {
+            jdbc.update("UPDATE role_resource_permission SET grant_source='BOOTSTRAP_SEED' WHERE tenant_id=? AND abstract_role_id=(SELECT id FROM abstract_role WHERE tenant_id=? AND external_id=?) AND grant_source='MANUAL'",
+                TENANT, TENANT, BootstrapGraphDefinition.ADMIN_ROLE_EXTERNAL_ID);
+        }
+    }
+
+    @Test
     @Order(5)
     @DisplayName("状态③例外（T-ACCESS-029 三分）：缺行 + 同身份键软删墓碑 → WARN 列明授权键放行不补回（旧实现 fail-fast，本用例为其回归锁）")
     void missingGrantWithSoftDeletedTombstoneWarnsAndPasses() {
-        // 模拟管理端整行撤销固定图授权，软删形态与 softDeleteBatch 一致（delete_flag=id + deleted_at）：
+        // 模拟离线整行撤销固定图授权，软删形态与 softDeleteBatch 一致（delete_flag=id + deleted_at）：
         // ① OPERATION_LOG:VIEW 类型级 scopeAll——身份键 resource_entity_id=NULL（复评审补的 NULL
         //    语义回归锚：SQL = NULL 恒不命中，墓碑匹配若下推 SQL 等值条件本用例必红）；
         // ② POST:/api/access/user/create 的 API 实例 ACCESS——身份键带 resource_entity_id

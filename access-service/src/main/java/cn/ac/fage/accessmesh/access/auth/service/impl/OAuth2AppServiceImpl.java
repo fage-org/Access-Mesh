@@ -129,6 +129,50 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
     @OperationLog(module = "ADMIN", action = "OAUTH2_AUTHORIZE", targetType = "sys_oauth2_client",
         targetId = "#req.clientId()", summary = "'oauth2 authorize client ' + #req.clientId()")
     public AuthorizeResp authorize(AuthorizeReq req) {
+        PreparedAuthorization prepared = prepareAuthorization(req);
+        SysOauth2Client client = prepared.client();
+        long userId = prepared.userId();
+        String fingerprint = prepared.fingerprint();
+        String codeChallengeMethod = prepared.codeChallengeMethod();
+
+        // 8. Generate authorization code
+        String code = UUID.randomUUID().toString().replace("-", "");
+
+        // 9. Store code in Redis
+        AuthCodeData codeData = new AuthCodeData();
+        codeData.setPasswordFingerprint(fingerprint);
+        codeData.setChainIssuedAt(System.currentTimeMillis() / 1000);
+        codeData.setChainExpiresAt(codeData.getChainIssuedAt()
+            + (client.getRefreshTokenTtl() != null ? client.getRefreshTokenTtl() : 604800));
+        codeData.setClientId(req.clientId());
+        codeData.setUserId(userId);
+        codeData.setTenantId(TenantContextHolder.getTenantId());
+        codeData.setRedirectUri(req.redirectUri());
+        codeData.setCodeChallenge(req.codeChallenge());
+        codeData.setCodeChallengeMethod(codeChallengeMethod);
+        codeData.setScope(req.scope());
+        try {
+            String json = objectMapper.writeValueAsString(codeData);
+            redisTemplate.opsForValue().set(AUTH_CODE_PREFIX + code, json, AUTH_CODE_TTL_SECONDS, TimeUnit.SECONDS);
+        } catch (JsonProcessingException e) {
+            log.error("Failed to serialize auth code data", e);
+            throw new BizException(AccessErrorCode.OAUTH2_CLIENT_INVALID.getCode(), "授权码生成失败");
+        }
+
+        return new AuthorizeResp(code, req.state());
+    }
+
+    @Override
+    public AuthorizationPreviewResp previewAuthorization(AuthorizeReq req) {
+        PreparedAuthorization prepared = prepareAuthorization(req);
+        SysOauth2Client client = prepared.client();
+        List<String> scopes = req.scope() == null || req.scope().isBlank() ? List.of()
+            : java.util.Arrays.stream(req.scope().trim().split("\\s+")).distinct().toList();
+        return new AuthorizationPreviewResp(client.getClientId(), client.getClientName(),
+            req.redirectUri(), scopes, req.state());
+    }
+
+    private PreparedAuthorization prepareAuthorization(AuthorizeReq req) {
         // 1. Validate client
         SysOauth2Client client = getValidClient(req.clientId());
 
@@ -152,6 +196,12 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
             validateScope(client, req.scope());
         }
 
+        if ("PUBLIC".equals(client.getClientType())
+                && (!"S256".equals(req.codeChallengeMethod()) || req.codeChallenge() == null
+                    || !req.codeChallenge().matches("[A-Za-z0-9_-]{43}"))) {
+            throw new BizException(AccessErrorCode.OAUTH2_CODE_VERIFIER_MISMATCH.getCode(),
+                "公开客户端必须提供 S256 code_challenge");
+        }
         // 6. Validate PKCE code_challenge if provided
         String codeChallengeMethod = req.codeChallengeMethod() != null ? req.codeChallengeMethod() : "S256";
         if (req.codeChallenge() != null && !req.codeChallenge().isBlank()) {
@@ -169,30 +219,17 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
             throw new BizException(AccessErrorCode.OAUTH2_CLIENT_INVALID.getCode(),
                 AccessErrorCode.OAUTH2_CLIENT_INVALID.getMessage());
         }
-        requireActiveUser(tenantId, userId, AccessErrorCode.OAUTH2_CLIENT_INVALID, null);
-
-        // 8. Generate authorization code
-        String code = UUID.randomUUID().toString().replace("-", "");
-
-        // 9. Store code in Redis
-        AuthCodeData codeData = new AuthCodeData();
-        codeData.setClientId(req.clientId());
-        codeData.setUserId(userId);
-        codeData.setTenantId(TenantContextHolder.getTenantId());
-        codeData.setRedirectUri(req.redirectUri());
-        codeData.setCodeChallenge(req.codeChallenge());
-        codeData.setCodeChallengeMethod(codeChallengeMethod);
-        codeData.setScope(req.scope());
-        try {
-            String json = objectMapper.writeValueAsString(codeData);
-            redisTemplate.opsForValue().set(AUTH_CODE_PREFIX + code, json, AUTH_CODE_TTL_SECONDS, TimeUnit.SECONDS);
-        } catch (JsonProcessingException e) {
-            log.error("Failed to serialize auth code data", e);
-            throw new BizException(AccessErrorCode.OAUTH2_CLIENT_INVALID.getCode(), "授权码生成失败");
+        SysUser user = requireActiveUser(tenantId, userId, AccessErrorCode.OAUTH2_CLIENT_INVALID, null);
+        String fingerprint = OAuth2JwtSupport.passwordFingerprint(user.getPassword());
+        if (fingerprint == null) {
+            throw new BizException(AccessErrorCode.OAUTH2_CLIENT_INVALID.getCode(), "用户密码凭据不可用");
         }
 
-        return new AuthorizeResp(code, req.state());
+        return new PreparedAuthorization(client, userId, fingerprint, codeChallengeMethod);
     }
+
+    private record PreparedAuthorization(SysOauth2Client client, long userId,
+                                         String fingerprint, String codeChallengeMethod) {}
 
     /**
      * OAuth2令牌接口
@@ -287,18 +324,27 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
                 throw new BizException(AccessErrorCode.OAUTH2_TOKEN_INVALID.getCode(),
                     AccessErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
             }
-            requireActiveUser(refreshTokenData.getTenantId(), refreshTokenData.getUserId(),
+            SysUser user = requireActiveUser(refreshTokenData.getTenantId(), refreshTokenData.getUserId(),
+                AccessErrorCode.OAUTH2_TOKEN_INVALID, clientId);
+            int remaining = requireCurrentCredential(user, refreshTokenData.getPasswordFingerprint(),
+                refreshTokenData.getChainIssuedAt(), refreshTokenData.getChainExpiresAt(),
                 AccessErrorCode.OAUTH2_TOKEN_INVALID, clientId);
 
             // 生成新的访问令牌
-            int accessTokenTtl = client.getAccessTokenTtl() != null ? client.getAccessTokenTtl() : 86400;
+            int accessTokenTtl = Math.min(remaining,
+                client.getAccessTokenTtl() != null ? client.getAccessTokenTtl() : 86400);
             String accessToken = generateAccessToken(refreshTokenData.getUserId(), clientId,
-                refreshTokenData.getScope(), client.getAudiences(), accessTokenTtl);
-            int refreshTokenTtl = client.getRefreshTokenTtl() != null ? client.getRefreshTokenTtl() : 604800;
+                refreshTokenData.getScope(), client.getAudiences(), accessTokenTtl,
+                refreshTokenData.getPasswordFingerprint(), refreshTokenData.getChainIssuedAt(),
+                refreshTokenData.getChainExpiresAt());
+            int refreshTokenTtl = remaining;
 
             // 生成新的刷新令牌
             String newRefreshToken = UUID.randomUUID().toString().replace("-", "");
             RefreshTokenData newRefreshTokenData = new RefreshTokenData();
+            newRefreshTokenData.setPasswordFingerprint(refreshTokenData.getPasswordFingerprint());
+            newRefreshTokenData.setChainIssuedAt(refreshTokenData.getChainIssuedAt());
+            newRefreshTokenData.setChainExpiresAt(refreshTokenData.getChainExpiresAt());
             newRefreshTokenData.setUserId(refreshTokenData.getUserId());
             newRefreshTokenData.setTenantId(refreshTokenData.getTenantId());
             newRefreshTokenData.setClientId(clientId);
@@ -421,7 +467,9 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
         SysOauth2Client client = getValidClient(req.clientId());
 
         // 2. Validate client secret
-        if (req.clientSecret() == null || !BCrypt.checkpw(req.clientSecret(), client.getClientSecret())) {
+        if (!"PUBLIC".equals(client.getClientType())
+                && (req.clientSecret() == null || client.getClientSecret() == null
+                    || !BCrypt.checkpw(req.clientSecret(), client.getClientSecret()))) {
             recordOauth2Failure(req.clientId(), "client secret mismatch");
             throw new BizException(AccessErrorCode.OAUTH2_CLIENT_INVALID.getCode(),
                 AccessErrorCode.OAUTH2_CLIENT_INVALID.getMessage());
@@ -481,6 +529,14 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
                 AccessErrorCode.OAUTH2_REDIRECT_MISMATCH.getMessage());
         }
 
+        // PUBLIC 不允许通过旧/损坏的无 PKCE 码或 plain 码降级，也校验 verifier 的线格式。
+        if ("PUBLIC".equals(client.getClientType())
+                && (!"S256".equals(codeData.getCodeChallengeMethod()) || codeData.getCodeChallenge() == null
+                    || !codeData.getCodeChallenge().matches("[A-Za-z0-9_-]{43}") || req.codeVerifier() == null
+                    || !req.codeVerifier().matches("[A-Za-z0-9._~-]{43,128}"))) {
+            recordOauth2Failure(req.clientId(), "public client PKCE required");
+            throw new BizException(AccessErrorCode.OAUTH2_CODE_VERIFIER_MISMATCH.getCode(), "公开客户端必须使用 S256 PKCE");
+        }
         // 7. Validate PKCE if used
         if (codeData.getCodeChallenge() != null && !codeData.getCodeChallenge().isBlank()) {
             if (req.codeVerifier() == null || req.codeVerifier().isBlank()) {
@@ -500,20 +556,27 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
             throw new BizException(AccessErrorCode.OAUTH2_CODE_INVALID.getCode(),
                 AccessErrorCode.OAUTH2_CODE_INVALID.getMessage());
         }
-        requireActiveUser(codeData.getTenantId(), codeData.getUserId(), AccessErrorCode.OAUTH2_CODE_INVALID,
+        SysUser user = requireActiveUser(codeData.getTenantId(), codeData.getUserId(), AccessErrorCode.OAUTH2_CODE_INVALID,
+            req.clientId());
+        int remaining = requireCurrentCredential(user, codeData.getPasswordFingerprint(),
+            codeData.getChainIssuedAt(), codeData.getChainExpiresAt(), AccessErrorCode.OAUTH2_CODE_INVALID,
             req.clientId());
 
         // 8. Generate tokens
-        int accessTokenTtl = client.getAccessTokenTtl() != null ? client.getAccessTokenTtl() : 86400;
-        int refreshTokenTtl = client.getRefreshTokenTtl() != null ? client.getRefreshTokenTtl() : 604800;
+        int accessTokenTtl = Math.min(remaining, client.getAccessTokenTtl() != null ? client.getAccessTokenTtl() : 86400);
+        int refreshTokenTtl = remaining;
         String scope = codeData.getScope();
 
         String accessToken = generateAccessToken(codeData.getUserId(), req.clientId(), scope,
-            client.getAudiences(), accessTokenTtl);
+            client.getAudiences(), accessTokenTtl, codeData.getPasswordFingerprint(),
+            codeData.getChainIssuedAt(), codeData.getChainExpiresAt());
         String refreshToken = UUID.randomUUID().toString().replace("-", "");
 
         // 存储刷新令牌
         RefreshTokenData refreshData = new RefreshTokenData();
+        refreshData.setPasswordFingerprint(codeData.getPasswordFingerprint());
+        refreshData.setChainIssuedAt(codeData.getChainIssuedAt());
+        refreshData.setChainExpiresAt(codeData.getChainExpiresAt());
         refreshData.setUserId(codeData.getUserId());
         refreshData.setTenantId(codeData.getTenantId());
         refreshData.setClientId(req.clientId());
@@ -545,11 +608,17 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
      * @param scope 授权范围
      * @param audiences 客户端注册的令牌受众（逗号分隔；非空写入 aud claim，T-ACCESS-013）
      * @param accessTokenTtl 访问令牌有效期（秒，客户端配置；拦截器验签校验 EFF）
+     * @param fingerprint 首次授权时密码代际指纹
+     * @param issuedAt 链首次签发时间（Unix 秒）
+     * @param expiresAt 链固定到期时间（Unix 秒）
      * @return JWT访问令牌字符串
      */
     private String generateAccessToken(long userId, String clientId, String scope, String audiences,
-                                       int accessTokenTtl) {
+                                       int accessTokenTtl, String fingerprint, long issuedAt, long expiresAt) {
         Map<String, Object> extraData = new LinkedHashMap<>();
+        extraData.put(OAuth2JwtSupport.PASSWORD_FINGERPRINT_CLAIM, fingerprint);
+        extraData.put(OAuth2JwtSupport.CHAIN_ISSUED_AT_CLAIM, issuedAt);
+        extraData.put(OAuth2JwtSupport.CHAIN_EXPIRES_AT_CLAIM, expiresAt);
         extraData.put(OAuth2JwtSupport.CLIENT_ID_CLAIM, clientId);
         // 从 TenantContextHolder 获取实际的 tenantId
         Long tenantId = TenantContextHolder.getTenantId();
@@ -579,6 +648,9 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
         // ② 4 参 createToken 不设置有效期（EFF），拦截器验签（isCheckTimeout=true）必抛"已过期"；
         //    改 6 参（带 timeout）由 SaJwtTemplate 写入 EFF=now+ttl。
         // 项目未部署（空库），无存量 token 兼容负担；载荷不变（loginId/tenant_id/jti/scope）。
+        // 链期限以秒记录，SaJwtTemplate 的 EFF 以毫秒记录；显式截住小于 1 秒的取整余量。
+        // SaJwtTemplate 先写内置 EFF 再合并 extraData，故这里的可信上限覆盖默认 now+ttl。
+        extraData.put("eff", Math.min(System.currentTimeMillis() + accessTokenTtl * 1000L, expiresAt * 1000L));
         return SaJwtUtil.createToken(OAuth2JwtSupport.LOGIN_TYPE, userId, DEVICE,
             accessTokenTtl, extraData, jwtSecretKey);
     }
@@ -711,7 +783,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
      * 会话态，传 null（会话入口失败另有审计面）。
      * </p>
      */
-    private void requireActiveUser(Long tenantId, Long userId, AccessErrorCode error, String failureClientId) {
+    private SysUser requireActiveUser(Long tenantId, Long userId, AccessErrorCode error, String failureClientId) {
         // 同源无缓存查询限定租户与未删除；技术故障原样传播，不能伪装成用户不存在。
         SysUser user = userDomainService.selectValidById(tenantId, userId);
         if (user == null || !Integer.valueOf(1).equals(user.getStatus())) {
@@ -720,6 +792,18 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
             }
             throw new BizException(error.getCode(), error.getMessage());
         }
+        return user;
+    }
+
+    private int requireCurrentCredential(SysUser user, String fingerprint, long issuedAt, long expiresAt,
+                                         AccessErrorCode error, String clientId) {
+        long remaining = expiresAt - System.currentTimeMillis() / 1000;
+        if (!OAuth2JwtSupport.isCurrentCredential(user.getPassword(), fingerprint, issuedAt, expiresAt)
+            || remaining <= 0) {
+            recordOauth2Failure(clientId, "credential generation invalid or chain expired");
+            throw new BizException(error.getCode(), error.getMessage());
+        }
+        return (int) Math.min(remaining, Integer.MAX_VALUE);
     }
 
     /** 匿名兑换/刷新也能全局定位客户端，租户绑定由可信记录另行核对。 */
@@ -760,9 +844,11 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
             try {
                 URI registered = new URI(trimmed);
                 URI requested = new URI(redirectUri);
-                // RFC 8252: scheme + authority 必须完全一致，路径需满足段匹配规则
-                if (registered.getScheme().equals(requested.getScheme()) &&
-                    registered.getAuthority().equals(requested.getAuthority()) &&
+                // 产品兼容规则：scheme/authority 相同 + 非根路径段前缀；不是 RFC 的精确 URI 规则。
+                if (requested.getScheme() != null && !java.util.Set.of("javascript", "data", "vbscript", "file", "blob", "about")
+                        .contains(requested.getScheme().toLowerCase(java.util.Locale.ROOT)) &&
+                    java.util.Objects.equals(registered.getScheme(), requested.getScheme()) &&
+                    registered.getAuthority() != null && registered.getAuthority().equals(requested.getAuthority()) &&
                     isPathAllowed(registered.getPath(), requested.getPath())) {
                     matched = true;
                     break;
@@ -783,7 +869,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
     /**
      * 验证请求路径是否允许
      * <p>
-     * RFC 8252路径匹配规则：请求路径必须以注册路径开头，且必须是完整路径段匹配。
+     * 产品兼容边界：非根请求路径按完整路径段前缀匹配，根路径只匹配根路径。
      * 例如：注册路径/app，允许/app/callback，但拒绝/app-evil。
      * </p>
      *
@@ -796,9 +882,9 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
             return false;
         }
 
-        // 注册路径为空或根路径，允许任何请求路径
+        // 注册路径为空或根路径只允许根路径，不能扩为该域的所有回调。
         if (registeredPath == null || registeredPath.isEmpty() || "/".equals(registeredPath)) {
-            return true;
+            return "/".equals(requestedPath);
         }
 
         // 完全匹配
@@ -885,6 +971,9 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
     @Getter
     @Setter
     public static class AuthCodeData {
+        private String passwordFingerprint;
+        private long chainIssuedAt;
+        private long chainExpiresAt;
         private String clientId;
         private long userId;
         private long tenantId;
@@ -903,6 +992,9 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
     @Getter
     @Setter
     public static class RefreshTokenData {
+        private String passwordFingerprint;
+        private long chainIssuedAt;
+        private long chainExpiresAt;
         private long userId;
         private long tenantId;
         private String clientId;

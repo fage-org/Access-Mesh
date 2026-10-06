@@ -175,7 +175,7 @@ class DomainConfigAppServiceImplTest {
 
             // 非法 JSON 在权限校验后、触达数据前 fail-closed（system-config configValue 同范式，
             // T-PERM-026 补齐；否则打到 PG JSONB 解析错误裸 99999）
-            assertThrows(IllegalArgumentException.class,
+            assertThrows(BizException.class,
                 () -> service.upsertDomainConfig(1L, new DomainConfigReq("HR", "CLASSIFY", "{not-json")));
             verify(domainConfigMapper, never()).insert(any(DomainConfig.class));
         }

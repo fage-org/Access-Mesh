@@ -1,3 +1,4 @@
+import { PERMISSION_CODE } from "@/constants/access";
 import { ORG_USER_PERM_LIST } from "@/views/system/user/utils/perms";
 import { ROLE_MANAGE_PERM_LIST } from "@/views/system/role/utils/perms";
 import { TYPE_DEF_PERM_LIST } from "@/views/system/type-def/utils/perms";
@@ -35,6 +36,36 @@ export default {
     rank: 10
   },
   children: [
+    {
+      path: "/system/service-credential",
+      name: "SystemServiceCredential",
+      component: () => import("@/views/system/service-credential/index.vue"),
+      meta: {
+        title: "服务凭证",
+        icon: "ep/key",
+        auths: [PERMISSION_CODE.SERVICE_VIEW, PERMISSION_CODE.SERVICE_MANAGE]
+      }
+    },
+    {
+      path: "/system/login-log",
+      name: "SystemLoginLog",
+      component: () => import("@/views/system/login-log/index.vue"),
+      meta: {
+        title: "登录日志",
+        icon: "ep/document",
+        auths: [PERMISSION_CODE.OPERATION_LOG_VIEW]
+      }
+    },
+    {
+      path: "/system/sync-status",
+      name: "SystemSyncStatus",
+      component: () => import("@/views/system/sync-status/index.vue"),
+      meta: {
+        title: "同步已应用状态",
+        icon: "ep/refresh",
+        auths: [PERMISSION_CODE.DEPENDENCY_VIEW]
+      }
+    },
     {
       path: "/system/user",
       name: "SystemUser",

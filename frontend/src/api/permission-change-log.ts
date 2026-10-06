@@ -1,7 +1,6 @@
 /**
  * 权限变更日志 API
- * 经 @/utils/http 调用 Gateway 外部路径 `/api/access/log/change/list`
- *（Gateway StripPrefix=1 后到 access-service `/api/access/log/change/list`）。
+ * 经 @/utils/http 使用 POST + JSON 调用 /api/access/**；Gateway 外部路径与服务路径一致。
  * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；分页包络复用 role-manage 定义。
  *

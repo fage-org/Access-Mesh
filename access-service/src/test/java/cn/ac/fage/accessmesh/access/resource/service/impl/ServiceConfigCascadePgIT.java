@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.resource.service.impl;
 
 import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
+import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
@@ -24,6 +25,8 @@ import cn.ac.fage.accessmesh.access.type.entity.TypeDefinition;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.mockito.MockedStatic;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -79,6 +82,17 @@ class ServiceConfigCascadePgIT {
 
 
     private static final Long TENANT = 1L;
+
+    @BeforeEach
+    void bindTenantContext() {
+        TenantContextHolder.setTenantId(TENANT);
+    }
+
+    @AfterEach
+    void clearTenantContext() {
+        TenantContextHolder.clear();
+    }
+
 
     @DynamicPropertySource
     static void configure(DynamicPropertyRegistry registry) {

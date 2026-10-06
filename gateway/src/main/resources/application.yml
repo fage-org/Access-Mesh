@@ -76,7 +76,7 @@ spring:
       host: ${REDIS_HOST:127.0.0.1}
       port: ${REDIS_PORT:6379}
       # 默认与 docker-compose.yml 的开发密码一致（Redisson 对空串密码也发 AUTH）
-      password: ${REDIS_PASSWORD:accessmesh-dev}
+      password: ${REDIS_PASSWORD}
       database: 0
       timeout: 3000
 
@@ -113,7 +113,6 @@ gateway:
       # 与 SecurityWebMvcConfig 密钥豁免同源
       - /api/access/auth/captcha
       - /api/access/auth/login
-      - /api/access/auth/login/sms
       - /api/access/auth/logout
       - /api/access/auth/userinfo
       - /api/access/auth/user-menu
@@ -130,8 +129,6 @@ gateway:
       # 走操作准入（对应路由的业务操作要求）+ ADMIN_NOTICE 五档类型级业务门禁
       - /api/access/notice/my-notices
       - /api/access/notice/read
-      - /public/**
-      - /captcha/**
 
   # T-ACCESS-013：OAuth2 委托令牌透传路径（外部路径口径；默认为空=无业务路径默认开放）。
   # 命中路径且 Authorization 为 Bearer 三段式 JWT 时跳过会话/权限校验与身份头注入，
@@ -189,7 +186,6 @@ gateway:
     # interface-snapshot 网关消费已删，服务端旧端点已退役）
     interface-admission-path: /api/access/auth/interface-admission
     interface-admission-snapshot-path: /api/access/auth/interface-admission-snapshot
-    unregistered-policy: DENY
     # T-ACCESS-008：快照加载全链路墙钟硬截止（服务发现/LB、连接、发送、处理、
     # 响应读取解码及失效竞争重试共享同一截止）；超时不写缓存固定 fail-closed 503。
     # 上限 5s，超限启动失败（GatewayCacheBoundaryValidator）；原 gateway.permission.fail-mode

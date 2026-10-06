@@ -12,7 +12,7 @@ public final class PageUtil {
     /**
      * 默认每页条数
      */
-    private static final int DEFAULT_PAGE_SIZE = 10;
+    private static final int DEFAULT_PAGE_SIZE = 20;
 
     /**
      * 最大每页条数
@@ -52,13 +52,16 @@ public final class PageUtil {
      * </p>
      *
      * @param raw 原始每页条数
-     * @return 标准化后的每页条数，无效时返回DEFAULT_PAGE_SIZE，超过上限返回MAX_PAGE_SIZE
+     * @return 标准化后的每页条数，无效时返回DEFAULT_PAGE_SIZE，超过上限抛出参数错误
      */
     public static int pageSize(Integer raw) {
         if (raw == null || raw <= 0) {
             return DEFAULT_PAGE_SIZE;
         }
-        return Math.min(raw, MAX_PAGE_SIZE);
+        if (raw > MAX_PAGE_SIZE) {
+            throw new IllegalArgumentException("pageSize 最大为 " + MAX_PAGE_SIZE);
+        }
+        return raw;
     }
 
     /**
@@ -73,7 +76,11 @@ public final class PageUtil {
      * @return 分页偏移量
      */
     public static int offset(int pageNum, int pageSize) {
-        return (pageNum - 1) * pageSize;
+        long offset = (long) (pageNum - 1) * pageSize;
+        if (offset > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("pageNum 超出支持的分页范围");
+        }
+        return (int) offset;
     }
 
     /**
@@ -88,6 +95,6 @@ public final class PageUtil {
      * @return 有下一页返回true，否则返回false
      */
     public static boolean hasNext(int offset, int fetchedCount, long total) {
-        return offset + fetchedCount < total;
+        return (long) offset + fetchedCount < total;
     }
 }

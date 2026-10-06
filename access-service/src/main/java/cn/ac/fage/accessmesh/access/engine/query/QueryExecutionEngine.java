@@ -447,7 +447,9 @@ public final class QueryExecutionEngine {
                     : AdmissionResult.Reason.NO_CANDIDATE, coverage, details);
         }
         if (state.retained()) return DecisionResult.allow(item.key(), coverage, details);
-        DecisionResult.Reason reason = state.hadRaw() ? DecisionResult.Reason.CONDITION_NOT_MET_OR_CONFLICT
+        boolean conflict = state.mutexHits.values().stream().anyMatch(hits -> !hits.isEmpty());
+        DecisionResult.Reason reason = state.hadRaw()
+            ? conflict ? DecisionResult.Reason.PERMISSION_CONFLICT : DecisionResult.Reason.CONDITION_NOT_MET
             : state.dependentExcluded ? DecisionResult.Reason.DEPENDENT_NOT_IN_PARENT_CONTEXT : DecisionResult.Reason.NO_PERMISSION;
         return DecisionResult.deny(item.key(), reason, coverage, details);
     }

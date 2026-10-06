@@ -92,11 +92,11 @@ public class LogQueryController {
         int offset = PageUtil.offset(pageNum, pageSize);
         Long tenantId = TenantContextHolder.getTenantId();
         long total = logQueryService.countOperationLogs(tenantId, req.module(), req.action(),
-            req.operatorId(), req.since(), req.until(), req.targetType());
+            req.operatorId(), req.since(), req.until(), req.targetType(), req.requestId());
         List<OperationLogResp> items = logQueryService.listOperationLogs(
                 tenantId, req.module(), req.action(),
                 req.operatorId(), req.since(), req.until(), req.targetType(),
-                offset, pageSize);
+                offset, pageSize, req.requestId());
         return R.ok(new PageResp<>(items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
     }
 

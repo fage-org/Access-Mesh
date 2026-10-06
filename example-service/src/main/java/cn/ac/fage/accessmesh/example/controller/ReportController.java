@@ -13,7 +13,7 @@ import cn.ac.fage.accessmesh.example.dto.DemoReportDtos.ExportSubmitReq;
 import cn.ac.fage.accessmesh.example.dto.DemoReportDtos.ExportSubmitResp;
 import cn.ac.fage.accessmesh.example.dto.DemoReportDtos.ListItem;
 import cn.ac.fage.accessmesh.example.dto.DemoReportDtos.ListReq;
-import cn.ac.fage.accessmesh.example.dto.DemoReportDtos.ListResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import cn.ac.fage.accessmesh.example.dto.DemoReportDtos.SubViewReq;
 import cn.ac.fage.accessmesh.example.dto.DemoReportDtos.SubViewResp;
 import cn.ac.fage.accessmesh.example.dto.DemoReportDtos.ViewReq;
@@ -123,13 +123,13 @@ public class ReportController {
 
     /** 列表/搜索（§8.6 列表/搜索行）：权限范围过滤落实到返回数据，total 与数据同口径。 */
     @PostMapping("/list")
-    public R<ListResp> list(@Valid @RequestBody ListReq req,
+    public R<PageResp<ListItem>> list(@Valid @RequestBody ListReq req,
                             @RequestHeader(name = "X-User-Id", required = false) String userId,
                             @RequestHeader(name = "X-Tenant-Id", required = false) String tenantId,
                             @RequestHeader(name = "X-Forwarded-For", required = false) String clientIp) {
         requireIdentity(userId, tenantId);
-        int page = req.page() == null || req.page() < 1 ? 1 : req.page();
-        int size = req.size() == null || req.size() < 1 ? 10 : Math.min(req.size(), 100);
+        int page = req.pageNum() == null ? 1 : req.pageNum();
+        int size = req.pageSize() == null ? 20 : req.pageSize();
         // 同一权限范围先过滤再分页：total 与 items 恒同口径；ALL=类型级全量授权不按码过滤
         Scope scope = permChecker.accessibleScope(tenantId, userId, clientIp, TYPE_EXAMPLE, OP_VIEW);
         List<DemoReport> visible = reportStore.all(tenantId).stream()
@@ -137,12 +137,12 @@ public class ReportController {
             .filter(r -> req.keyword() == null || req.keyword().isBlank()
                 || r.name().contains(req.keyword()) || r.code().contains(req.keyword()))
             .toList();
-        int from = Math.min((page - 1) * size, visible.size());
+        int from = (int) Math.min((long) (page - 1) * size, visible.size());
         int to = Math.min(from + size, visible.size());
         List<ListItem> items = visible.subList(from, to).stream()
             .map(r -> new ListItem(r.code(), r.name()))
             .toList();
-        return R.ok(new ListResp(items, visible.size(), page, size));
+        return R.ok(new PageResp<>(items, visible.size(), page, size, to < visible.size()));
     }
 
     /** 创建报表（§8.6 CREATE 行）：最终 TYPE_LEVEL——resourceCode 传 null，实例准入不授予类型创建权。 */

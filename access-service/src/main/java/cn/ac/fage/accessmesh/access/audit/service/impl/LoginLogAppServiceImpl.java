@@ -23,14 +23,17 @@ import java.util.List;
 public class LoginLogAppServiceImpl implements LoginLogAppService {
 
     private final SysLoginLogMapper loginLogMapper;
+    private final cn.ac.fage.accessmesh.access.engine.query.QueryGate queryGate;
 
     /**
      * 构造函数注入依赖
      *
      * @param loginLogMapper 登录日志数据访问Mapper
      */
-    public LoginLogAppServiceImpl(SysLoginLogMapper loginLogMapper) {
+    public LoginLogAppServiceImpl(SysLoginLogMapper loginLogMapper,
+                                  cn.ac.fage.accessmesh.access.engine.query.QueryGate queryGate) {
         this.loginLogMapper = loginLogMapper;
+        this.queryGate = queryGate;
     }
 
     /**
@@ -46,6 +49,12 @@ public class LoginLogAppServiceImpl implements LoginLogAppService {
     @Override
     public PageResp<SysLoginLog> pageLoginLogs(PageReq pageReq) {
         Long tenantId = TenantContextHolder.getTenantId();
+        if (!queryGate.hasPermissionByCode(tenantId,
+            cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext.getOperatorId(),
+            cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode.OPERATION_LOG, null,
+            cn.ac.fage.accessmesh.access.engine.constant.OperationCode.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on OPERATION_LOG");
+        }
         int pageNum = pageReq.getPageNum();
         int pageSize = pageReq.getPageSize();
 
