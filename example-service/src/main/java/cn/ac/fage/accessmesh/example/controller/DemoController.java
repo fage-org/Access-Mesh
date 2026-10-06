@@ -25,7 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
  * </p>
  * <p>
  * 身份信任链：Gateway HeaderCleanFilter 清除客户端自带身份头后注入 X-User-Id/X-Tenant-Id，
- * {@code GatewaySignatureFilter}（本服务）复算 X-User-Signature HMAC 验证身份头确为 Gateway 注入
+ * {@code GatewaySignatureFilter}（SDK starter 自动装配，T-API-007 收编至 perm-client）复算 X-User-Signature HMAC 验证身份头确为 Gateway 注入
  * （缺失/不匹配拒绝 30003）；本接口再要求身份头存在（30002）。信任边界的根本保障是网络隔离
  * （业务服务仅 Gateway 可达），签名校验是纵深防御示例而非替代。
  * </p>

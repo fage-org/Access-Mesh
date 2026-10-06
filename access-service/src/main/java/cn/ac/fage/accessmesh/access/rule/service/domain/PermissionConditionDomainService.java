@@ -63,6 +63,22 @@ public interface PermissionConditionDomainService {
     void assertConditionRulesValid(String conditionRules, boolean gatewayEvaluable);
 
     /**
+     * 同上，但区分输入来源（2026-10-06 逐任务评审 P2 拍板：服务端豁免 DB 载入数据的
+     * 容量校验）。
+     * <p>
+     * PG jsonb 不保存原文、读回必然重排膨胀（实测 44KiB 紧凑入 66KiB 读出）——
+     * externalInput=false（规则串由 DB 载入，如仅改名/停用/切 flag 的更新轨）时仅做
+     * 语法与可下发校验，不施加 64 KiB 输入限额；externalInput=true（外部提交原文）
+     * 仍全额校验。契约「可直接再提交」的服务端边界：提交原文不超 64 KiB 即可。
+     * </p>
+     *
+     * @param conditionRules   条件规则 JSON 字符串
+     * @param gatewayEvaluable 最终生效的可下发标志（调用方先合并请求缺省值）
+     * @param externalInput    true=外部提交原文（限额校验）；false=DB 载入读回形态（仅语法）
+     */
+    void assertConditionRulesValid(String conditionRules, boolean gatewayEvaluable, boolean externalInput);
+
+    /**
      * 创建授权页内联条件（T-PERM-048 定案①，apply-grant-plan 内联轨同事务调用）。
      * <p>
      * source=INLINE、code 自动生成（{@code inline-} + UUID，租户内碰撞概率可忽略、

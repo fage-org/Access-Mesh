@@ -22,7 +22,7 @@ last_reviewed: 2026-09-24   # T-ACCESS-052 回写补齐：§7 B1 口径注读接
 | 类型 | 来源 | 权限分配归属 |
 |---|---|---|
 | `ORG` / `POSITION` | 组织投影自动生成（`access.application` 同事务维护，`default-org-tree-user-lifecycle.md:167`） | 权限授予页（v3 已重建，T-FE-036；组织入口已联调 T-FE-037，2026-09-04） |
-| `PERSONAL` | 用户同步连带创建（`abstract_user` 创建时自动生成 `PERSONAL_{external_id}`，schema access-service.sql `abstract_role` 注释） | 权限授予页（v3 已重建；个人入口首期移除，待个人角色同步链路恢复）+ 2.1 用户详情页弹窗 |
+| `PERSONAL` | 无同步连带生命周期——创建 `abstract_user` 时**不**自动创建个人角色（schema `abstract_user` 表注释的反面陈述即此意，2026-10-06 逐任务评审修正本表曾反引该注释；恢复「连带创建」须待个人角色同步链路另立） | 权限授予页（v3 已重建；个人入口首期移除，待个人角色同步链路恢复）+ 2.1 用户详情页弹窗 |
 
 **设计依据**：ORG/POSITION/PERSONAL 被抽象成角色，只是为了让它们能"像角色一样被分配权限"——它们本身不是"被管理的角色"。角色管理页的职责是**管理角色**（创建/编辑/删除功能角色），不是**分配和管理权限**。权限分配是权限授予页的职责（v3 已重建，T-FE-036）（`default-org-tree-user-lifecycle.md:72`：功能角色分配走 `ROLE:MANAGE`，不归 `ORG`/`USER` 资源类型）。
 

@@ -145,7 +145,8 @@ mvn test -pl access-service -DskipTestcontainers=true
 # 本地启动（需先启动 Nacos + Redis + PostgreSQL）
 mvn spring-boot:run -pl <module>
 
-# Docker Compose 启动基础设施（默认档：仅 PG/Redis/Nacos）
+# Docker Compose 启动基础设施（默认档：仅 PG/Redis/Nacos；前置 cp .env.example .env——
+# 密钥占位 :? 强制，缺 .env 时 compose 插值直接报错，T-ACCESS-086 密钥基线）
 docker compose -f docker-compose.yml up -d nacos redis postgresql
 
 # 全栈预览档（T-ACCESS-047：前端+三服务镜像化；前置 mvn package -DskipTests + cp .env.example .env）
@@ -163,6 +164,7 @@ docker compose -f docker-compose.yml --profile app up -d --build
 
 > **⚠️ SNAPSHOT 依赖陷阱**：本项目使用多模块 SNAPSHOT 依赖（如 `perm-common` → `perm-client-spring-boot-starter`；接口级鉴权由 Gateway 承担；example-service 自 T-ACCESS-061〔2026-09-28 拍板〕消费 perm-client SDK starter 承载 §8.6 业务最终检查调用〔服务凭证通道，共享示例按可信租户选择独立凭证〕，e2e 里 access/gateway 子进程须 `--perm.client.enabled=false` 防测试类路径传染；可选 registration starter 只发布依赖，默认关闭）。
 > `mvn compile` 不会将上游模块 install 到本地仓库，依赖方编译时可能拿到**上次 install 的旧版本**。
+> 全量构建的统一入口（含上游刷新与验证步骤）见 [工程验证基线](docs/ops/engineering-baseline.md)（`tools/build.ps1`）。
 > 当上游模块（`perm-sdk/*`、`common`）有 API 变更时，**必须**执行 `mvn install -pl <上游模块> -DskipTests` 或全量 `mvn clean install -DskipTests` 后再编译下游模块。
 
 ## 文档治理

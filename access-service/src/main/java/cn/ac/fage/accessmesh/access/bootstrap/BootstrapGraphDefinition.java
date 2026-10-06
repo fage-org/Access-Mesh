@@ -277,6 +277,16 @@ public final class BootstrapGraphDefinition {
             ApiRoute.route("POST", "/api/access/service-credential/update", "bootstrap:更新服务凭证", ResourceTypeCode.SERVICE, OperationCode.MANAGE),
             ApiRoute.route("POST", "/api/access/service-credential/remove", "bootstrap:删除服务凭证", ResourceTypeCode.SERVICE, OperationCode.MANAGE),
             ApiRoute.route("POST", "/api/access/service-credential/list", "bootstrap:服务凭证列表", ResourceTypeCode.SERVICE, OperationCode.VIEW),
+            // 2026-10-06 逐任务评审 P1-4（用户拍板「全档补齐」，ADMIN_NOTICE 先例）：OAuth2 客户端
+            // 管理面消费端点——固定图此前无路由/授权/派生映射三处，默认部署 T-ACCESS-084 交付的
+            // 公开客户端不可注册（Gateway 未映射恒 403 + QueryGate 无授权起点恒拒）。detail/page
+            // 服务层开放读，Gateway 准入按所属类型 VIEW 绑定（CONDITION:VIEW T-ACCESS-059 先例）；
+            // update/delete 实例级校验由类型级 scopeAll 授权覆盖（TYPE_DEFINITION/RESOURCE 先例口径）
+            ApiRoute.route("POST", "/api/access/oauth2/client/create", "bootstrap:创建OAuth2客户端", ResourceTypeCode.ADMIN_OAUTH2_CLIENT, OperationCode.CREATE),
+            ApiRoute.route("POST", "/api/access/oauth2/client/update", "bootstrap:更新OAuth2客户端", ResourceTypeCode.ADMIN_OAUTH2_CLIENT, OperationCode.UPDATE),
+            ApiRoute.route("POST", "/api/access/oauth2/client/delete", "bootstrap:删除OAuth2客户端", ResourceTypeCode.ADMIN_OAUTH2_CLIENT, OperationCode.DELETE),
+            ApiRoute.route("POST", "/api/access/oauth2/client/detail", "bootstrap:OAuth2客户端详情", ResourceTypeCode.ADMIN_OAUTH2_CLIENT, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/oauth2/client/page", "bootstrap:OAuth2客户端分页", ResourceTypeCode.ADMIN_OAUTH2_CLIENT, OperationCode.VIEW),
             // T-ADMIN-029：公告管理面消费端点（状态机+受众生命周期闭合）。业务门禁五档
             // （VIEW/CREATE/UPDATE/DELETE/PUBLISH——操作位 DDL 已全预置）类型级补授见
             // businessGrants；ADMIN_NOTICE 无 resource_entity 投影，服务层门禁全档类型级
@@ -426,7 +436,15 @@ public final class BootstrapGraphDefinition {
             // 不可转授（默认口径）
             new GrantSpec(ResourceTypeCode.ADMIN_JOB, OperationCode.VIEW, null, false),
             new GrantSpec(ResourceTypeCode.ADMIN_JOB, OperationCode.TRIGGER, null, false),
-            new GrantSpec(ResourceTypeCode.ADMIN_JOB, OperationCode.ENABLE, null, false));
+            new GrantSpec(ResourceTypeCode.ADMIN_JOB, OperationCode.ENABLE, null, false),
+            // 2026-10-06 逐任务评审 P1-4（用户拍板「全档补齐」，ADMIN_NOTICE 先例）：OAuth2 客户端
+            // 管理面四档类型级——固定图不持则空库上客户端注册/更新/删除无授予起点（死锁，同款
+            // 机制；VIEW 供 detail/page 网关准入）。客户端无资源投影，实例级授权不可构造，
+            // 类型级即终态形态（update/delete 实例级校验由 scopeAll 覆盖）；不可转授（默认口径）
+            new GrantSpec(ResourceTypeCode.ADMIN_OAUTH2_CLIENT, OperationCode.VIEW, null, false),
+            new GrantSpec(ResourceTypeCode.ADMIN_OAUTH2_CLIENT, OperationCode.CREATE, null, false),
+            new GrantSpec(ResourceTypeCode.ADMIN_OAUTH2_CLIENT, OperationCode.UPDATE, null, false),
+            new GrantSpec(ResourceTypeCode.ADMIN_OAUTH2_CLIENT, OperationCode.DELETE, null, false));
     }
 
     /**

@@ -31,7 +31,7 @@ spring:
       # T-ACCESS-047：REDIS_HOST/REDIS_PORT 占位符化（对齐 gateway 既有形态，默认值不变）
       host: ${REDIS_HOST:127.0.0.1}
       port: ${REDIS_PORT:6379}
-      # 默认与 docker-compose.yml 的开发密码一致（Redisson 对空串密码也发 AUTH，无密码 Redis 连不上）
+      # 密码必填无默认（compose 以 :? 强制；T-ACCESS-086 密钥基线——Redisson 对空串密码也发 AUTH）
       password: ${REDIS_PASSWORD}
       database: 0
   # 第三轮评审 P3 修复（2026-08-14）：spring.jackson.* 配置块已删除——date-time-format 非 Boot

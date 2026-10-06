@@ -359,10 +359,11 @@ perm-sdk/
 | ------------------------------ | ----------------------------------------------------------------------------------------------------- |
 | `PermissionFeignClient`        | `@FeignClient(name="access-service")`：checkAuth/batchCheckAuth 等远程查询与角色/资源/授权维护方法（api-contract 契约） |
 | `FeignCredentialInterceptor` | 对运行时查询与同步的 M2M 精确清单注入 `X-Credential-Id/Secret`；四运行时查询另有显式凭证头重载，共享实例按可信租户选取；SDK 不再分发内部共享密钥，服务身份由凭证绑定租户/服务；当前契约见 [服务认证](service-authentication.md) §3 与契约 §24。 |
+| `GatewaySignatureFilter` | Servlet 验签过滤器（自动装配注册）：复算 `X-User-Signature` HMAC 验证身份头确为 Gateway 注入，缺失/不匹配直写 `30003` 信封（不经 ResponseBodyAdvice，无 requestId——extension-guide §2.5 对应行）；未配密钥 fail-closed。T-API-007 自 example 收编（2026-10-06 逐任务评审补录组件行） |
 
 #### 4.5.2 Gateway 与 SDK 的分工
 
-Gateway 自身维护操作准入与条件本地评估，空壳 perm-gateway starter 已删除。perm-client 的 Servlet 自动配置为下游提供 GatewaySignatureFilter，验签后仍须实际对象最终检查；字段/失败形态与配置见 [接入指南](extension-guide.md#23-sdk-接线)。注册发布能力由可选 registration starter 提供，不成为资源同步的强制依赖。
+Gateway 自身维护操作准入与条件本地评估，空壳 perm-gateway starter 已删除。perm-client 的 Servlet 自动配置为下游提供 GatewaySignatureFilter，验签后仍须实际对象最终检查；配置与字段见 [接入指南 §2.3](extension-guide.md#23-sdk-接线)、失败形态判别见 [§2.5](extension-guide.md#25-失败形态判别)。注册发布能力由可选 registration starter 提供，不成为资源同步的强制依赖。
 
 ---
 

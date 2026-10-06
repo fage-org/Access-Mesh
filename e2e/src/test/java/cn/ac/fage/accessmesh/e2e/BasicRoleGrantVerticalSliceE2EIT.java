@@ -118,7 +118,7 @@ class BasicRoleGrantVerticalSliceE2EIT {
         .withUsername("perm")
         .withPassword("perm");
 
-    /** 与各服务 REDIS_PASSWORD 默认值一致（Redisson 对空串密码也发 AUTH） */
+    /** 各服务 REDIS_PASSWORD 无默认必填（T-ACCESS-086 基线）；本测试自起容器固定该口令 */
     private static final String REDIS_PASSWORD = "accessmesh-dev";
 
     @Container

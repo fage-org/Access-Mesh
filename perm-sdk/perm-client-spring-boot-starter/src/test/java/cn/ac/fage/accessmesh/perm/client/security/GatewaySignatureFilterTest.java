@@ -34,6 +34,22 @@ class GatewaySignatureFilterTest {
     private final ObjectMapper json = new ObjectMapper();
 
     @Test
+    @DisplayName("未配置密钥 fail-closed：空 secret 直接拒绝 30003，不进入验签（2026-10-06 逐任务评审补回归锁——收编携带的既有缺口）")
+    void emptySecret_failsClosedBeforeVerification() throws Exception {
+        GatewaySignatureFilter unconfigured = new GatewaySignatureFilter("", 60, new ObjectMapper());
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/example/demo/hello");
+        request.addHeader("X-User-Id", "42");
+        request.addHeader("X-Signature-Timestamp", String.valueOf(System.currentTimeMillis() / 1000));
+        request.addHeader("X-User-Signature", "anything");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        unconfigured.doFilter(request, response, chain);
+
+        verify(chain, never()).doFilter(any(), any());
+        assertThat(response.getContentAsString()).contains("30003");
+    }
+
+    @Test
     @DisplayName("窗口内签名放行（自定义 60s 窗，ts=now-30）")
     void validSignatureWithinWindow_passes() throws Exception {
         MockHttpServletRequest request = signedRequest("42", "1", -30);

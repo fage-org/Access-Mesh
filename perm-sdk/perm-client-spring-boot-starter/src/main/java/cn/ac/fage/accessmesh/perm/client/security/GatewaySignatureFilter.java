@@ -9,7 +9,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import javax.crypto.Mac;
@@ -45,8 +44,11 @@ public class GatewaySignatureFilter extends OncePerRequestFilter {
     private volatile boolean secretConfigured;
 
     public GatewaySignatureFilter(
-            @Value("${perm.client.signature.secret:${ACCESSMESH_SIGNATURE_SECRET:}}") String secret,
-            @Value("${perm.client.signature.valid-seconds:300}") long validSeconds,
+            // 生产装配唯一入口=PermClientServletSecurityAutoConfiguration @Bean 方法（@Value 注入，
+            // 默认值表达式单源在其方法签名）；本构造器无 @Component，@Value 在此为死注解已移除
+            //（2026-10-06 逐任务评审清扫——双源默认值漂移面）
+            String secret,
+            long validSeconds,
             ObjectMapper objectMapper) {
         this.secret = secret;
         this.validSeconds = validSeconds;

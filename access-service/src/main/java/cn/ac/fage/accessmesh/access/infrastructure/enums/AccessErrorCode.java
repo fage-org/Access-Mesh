@@ -757,7 +757,7 @@ public enum AccessErrorCode {
      * AUTHORITY_ROOT 基座行不算用户引用（按 T-PERM-062 既有同事务迁移/级联处理）。
      * 处置=先撤销相关授权（依赖来源须由所属服务重发 manifest 收缩）。
      */
-    OPERATION_REFERENCED_BY_GRANTS(20069, "操作被有效授权或接口映射引用，不可变更位值或删除：请先撤销授权或改绑/删除映射（类型授权根种子除外）"),
+    OPERATION_REFERENCED_BY_GRANTS(20069, "操作被有效授权或接口映射引用，不可变更位值或删除：请先撤销授权或改绑/删除映射（类型授权根种子除外；守卫覆盖 MANUAL/AUTO_DEP/BOOTSTRAP_SEED 有效行）"),
 
     // ===== 操作准入协议 OPERATION_ADMISSION（20070-20079，T-ACCESS-056，契约总册 §25） =====
 
@@ -797,7 +797,9 @@ public enum AccessErrorCode {
      */
     ROLE_GRANT_ORIGIN_CONFLICT(20073, "角色被资源类型所有者指针引用，不可删除：请先经 type-definition/update 迁移该类型所有者（extra.grantOriginRole）后再删除（命中角色与引用类型见 message 明细）"),
 
-    BOOTSTRAP_SEED_READONLY(20074, "平台初始化种子行只读，不可修改或删除");
+    BOOTSTRAP_SEED_READONLY(20074, "平台初始化种子行只读，不可修改或删除"),
+
+    BOOTSTRAP_TOMBSTONE_TWIN_READONLY(20075, "固定图种子墓碑身份的行只读：该身份曾有平台初始化种子行（已离线撤销），编辑会固化 bootstrap 重启冲突；恢复请按 deployment.md 离线规程处理");
 
     private final int code;
     private final String message;

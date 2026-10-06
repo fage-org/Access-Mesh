@@ -23,13 +23,19 @@ public final class AutoGrantFacts {
     /**
      * 种子口径（§6.1）：有效 MANUAL 实例主授权行——scope_all=false、实例 ID 非空、
      * depend_on=NULL、非 AUTO_DEP、非 AUTHORITY_ROOT（授权根随类型生命周期维护，
-     * 不作物种）；条件不限。
+     * 不作物种）、非 BOOTSTRAP_SEED（平台初始化种子只读、不参与自动推导种子，
+     * 与 dependency-auto-grant.md 来源级声明一致；当前种子恒类型级不可达，
+     * 2026-10-06 逐任务评审补防御性排除）；条件不限。
      */
     public static boolean isSeed(RoleResourcePermission row) {
         return !Boolean.TRUE.equals(row.getScopeAll())
             && row.getResourceEntityId() != null
             && row.getDependOn() == null
-            && !isAutoDep(row) && !isAuthorityRoot(row);
+            && !isAutoDep(row) && !isAuthorityRoot(row) && !isBootstrapSeed(row);
+    }
+
+    public static boolean isBootstrapSeed(RoleResourcePermission row) {
+        return GrantSource.BOOTSTRAP_SEED.getValue().equals(row.getGrantSource());
     }
 
     public static boolean isAutoDep(RoleResourcePermission row) {

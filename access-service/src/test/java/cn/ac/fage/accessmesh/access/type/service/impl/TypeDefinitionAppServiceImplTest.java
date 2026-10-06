@@ -164,6 +164,31 @@ class TypeDefinitionAppServiceImplTest {
     }
 
     @Test
+    void trailingJsonRejectedByUpdateEndpointToo() throws Exception {
+        // 2026-10-06 逐任务评审补 update 轨锁：create 轨有行为锁而 update 无——:499 validateJson
+        // 是 update 轨唯一多根拒绝点，删该调用后多根原样落库（PG jsonb 兜底 500 或指针 merge 静默
+        // 丢尾随根），旧实现下本用例若已存在则不红——此处为该调用面的直接锁
+        when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any())).thenReturn(true);
+        var existing = new cn.ac.fage.accessmesh.access.type.entity.TypeDefinition();
+        existing.setId(9L);
+        existing.setTenantId(1L);
+        existing.setTypeKey("group_type");
+        existing.setTypeCode("CUSTOM");
+        existing.setName("Custom");
+        when(typeDefinitionMapper.selectValidById(anyLong(), eq(9L))).thenReturn(existing);
+        var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(
+            new cn.ac.fage.accessmesh.access.type.controller.TypeDefinitionController(service))
+            .setControllerAdvice(new cn.ac.fage.accessmesh.common.exception.GlobalExceptionHandler()).build();
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .post("/api/access/type-definition/update")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .content("{\"typeId\":9,\"name\":\"Custom2\",\"extra\":\"{} {}\"}"))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.code").value(20044));
+        verify(typeDefinitionMapper, never()).update(any(cn.ac.fage.accessmesh.access.type.entity.TypeDefinition.class));
+    }
+
+    @Test
     void shouldMapCodeUniqueViolationTo20049() {
         // 回归锁：显式码可抢占未来生成码（如先显式建 GROUP_TYPE_5，第 5 次留空创建生成同码）——
         // 生成路径不查重，DB uk_type_definition_code 兜底须映射 20049 而非裸 99999（重试永久失败场景）

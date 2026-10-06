@@ -117,6 +117,9 @@ class GatewayApplicationConfigTest {
         // 令牌仅经 Authorization 头传递：sa-token 默认 isReadCookie=true，若 yml 未显式
         // 关闭则回退默认值即重开 Cookie 承载通道（CSRF 面，双端与 AuthTokenFilter 同步关闭）
         assertTrue(!config.getIsReadCookie(), "is-read-cookie 必须为 false（Cookie 承载通道已关闭），实际 " + config.getIsReadCookie());
+        // is-log 权威值锚定（2026-10-06 逐任务评审补）：九个共键中唯一无权威断言的键——
+        // 双端同值翻转（如误开 is-log=true）原不可检出；sa-token 默认 false，锚定 false
+        assertTrue(!config.getIsLog(), "is-log 必须为 false（生产不打印鉴权日志；误开为敏感面），实际 " + config.getIsLog());
     }
 
     @Test

@@ -76,6 +76,11 @@
         "kind": "markdown",
         "file": "docs/design/dto-field-coverage.md",
         "name": "RoleResp"
+      },
+      {
+        "kind": "java",
+        "file": "perm-sdk/perm-common/src/main/java/cn/ac/fage/accessmesh/perm/common/dto/resp/RoleResp.java",
+        "name": "RoleResp"
       }
     ]
   },
@@ -96,6 +101,11 @@
         "kind": "markdown",
         "file": "docs/design/dto-field-coverage.md",
         "name": "ResourceResp"
+      },
+      {
+        "kind": "java",
+        "file": "perm-sdk/perm-common/src/main/java/cn/ac/fage/accessmesh/perm/common/dto/resp/ResourceResp.java",
+        "name": "ResourceResp"
       }
     ]
   },
@@ -115,6 +125,11 @@
       {
         "kind": "markdown",
         "file": "docs/design/dto-field-coverage.md",
+        "name": "OperationPermissionResp"
+      },
+      {
+        "kind": "java",
+        "file": "perm-sdk/perm-common/src/main/java/cn/ac/fage/accessmesh/perm/common/dto/resp/OperationPermissionResp.java",
         "name": "OperationPermissionResp"
       }
     ]

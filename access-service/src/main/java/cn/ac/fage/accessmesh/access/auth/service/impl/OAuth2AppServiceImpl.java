@@ -30,6 +30,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -120,16 +121,23 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
      * 校验客户端、授权类型、回调地址、授权范围、PKCE参数。
      * 生成授权码并存储到Redis（5分钟有效期）。
      * </p>
+     * <p>
+     * 2026-10-06 逐任务评审 P2（行锁串行化拍板延伸，同 login）：本方法为事务方法，
+     * 签发关键段用户读取走 {@link UserDomainService#lockValidById}（FOR UPDATE 行锁持续到
+     * 提交）并在锁窗内复核会话存活——与 resetPassword 的 UPDATE 行锁互斥，关闭「在途授权
+     * 请求经已吊销会话签出携带新指纹的授权码（旧凭据链最长活 7 天）」并发窗口。
+     * </p>
      *
      * @param req 授权请求，包含客户端ID、重定向URI、授权范围、PKCE参数
      * @return 授权响应，包含授权码和状态
      * @throws BizException 客户端无效、授权类型不支持、回调地址不匹配等
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "ADMIN", action = "OAUTH2_AUTHORIZE", targetType = "sys_oauth2_client",
         targetId = "#req.clientId()", summary = "'oauth2 authorize client ' + #req.clientId()")
     public AuthorizeResp authorize(AuthorizeReq req) {
-        PreparedAuthorization prepared = prepareAuthorization(req);
+        PreparedAuthorization prepared = prepareAuthorization(req, true);
         SysOauth2Client client = prepared.client();
         long userId = prepared.userId();
         String fingerprint = prepared.fingerprint();
@@ -164,7 +172,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
 
     @Override
     public AuthorizationPreviewResp previewAuthorization(AuthorizeReq req) {
-        PreparedAuthorization prepared = prepareAuthorization(req);
+        PreparedAuthorization prepared = prepareAuthorization(req, false);
         SysOauth2Client client = prepared.client();
         List<String> scopes = req.scope() == null || req.scope().isBlank() ? List.of()
             : java.util.Arrays.stream(req.scope().trim().split("\\s+")).distinct().toList();
@@ -172,7 +180,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
             req.redirectUri(), scopes, req.state());
     }
 
-    private PreparedAuthorization prepareAuthorization(AuthorizeReq req) {
+    private PreparedAuthorization prepareAuthorization(AuthorizeReq req, boolean lockForIssuance) {
         // 1. Validate client
         SysOauth2Client client = getValidClient(req.clientId());
 
@@ -219,7 +227,21 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
             throw new BizException(AccessErrorCode.OAUTH2_CLIENT_INVALID.getCode(),
                 AccessErrorCode.OAUTH2_CLIENT_INVALID.getMessage());
         }
-        SysUser user = requireActiveUser(tenantId, userId, AccessErrorCode.OAUTH2_CLIENT_INVALID, null);
+        SysUser user;
+        if (lockForIssuance) {
+            // 行锁串行化签发关键段（2026-10-06 逐任务评审 P2，拍板延伸同 login）：锁读与
+            // resetPassword 的 UPDATE 行锁互斥；锁窗内复核会话存活——重置先提交则锁读得
+            // 新哈希且 logout 已发生，复核即拒；授权先提交则码携带旧指纹，重置后兑换/刷新
+            // 按新哈希校验失败（链终止）。交错两侧其一必见对方已提交结果
+            user = assertActiveUser(userDomainService.lockValidById(tenantId, userId),
+                AccessErrorCode.OAUTH2_CLIENT_INVALID, null);
+            long recheckedUserId = StpUtil.getLoginIdAsLong();
+            if (recheckedUserId != userId) {
+                throw new BizException(AccessErrorCode.OAUTH2_CLIENT_INVALID.getCode(), "会话主体已变更");
+            }
+        } else {
+            user = requireActiveUser(tenantId, userId, AccessErrorCode.OAUTH2_CLIENT_INVALID, null);
+        }
         String fingerprint = OAuth2JwtSupport.passwordFingerprint(user.getPassword());
         if (fingerprint == null) {
             throw new BizException(AccessErrorCode.OAUTH2_CLIENT_INVALID.getCode(), "用户密码凭据不可用");
@@ -785,7 +807,10 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
      */
     private SysUser requireActiveUser(Long tenantId, Long userId, AccessErrorCode error, String failureClientId) {
         // 同源无缓存查询限定租户与未删除；技术故障原样传播，不能伪装成用户不存在。
-        SysUser user = userDomainService.selectValidById(tenantId, userId);
+        return assertActiveUser(userDomainService.selectValidById(tenantId, userId), error, failureClientId);
+    }
+
+    private SysUser assertActiveUser(SysUser user, AccessErrorCode error, String failureClientId) {
         if (user == null || !Integer.valueOf(1).equals(user.getStatus())) {
             if (failureClientId != null) {
                 recordOauth2Failure(failureClientId, "user inactive, deleted or tenant mismatch");
@@ -820,7 +845,8 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
      * 验证回调地址
      * <p>
      * 检查请求的回调地址是否在客户端注册的回调地址列表中。
-     * 按RFC 8252规范验证：scheme + authority必须完全一致，路径需满足段匹配规则。
+     * 产品兼容规则（不能表述为 RFC 8252 精确匹配）：scheme + authority必须完全一致，
+     * 路径需满足段前缀匹配且不含点段（归一不变式）。
      * </p>
      *
      * @param client OAuth2客户端实体
@@ -887,6 +913,14 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
             return "/".equals(requestedPath);
         }
 
+        // 点段拒绝（2026-10-06 逐任务评审 P2）：/cb/%2e%2e/ 与 /cb/../ 形态在 getPath()
+        // 解码后为点段路径，纯前缀匹配会放行、前端导航归一后授权码投递出注册前缀——
+        // 请求与注册路径任一含 "."/".." 段一律拒绝（归一不变式：允许的路径在任何归一化
+        // 下不得逸出注册前缀）
+        if (hasDotSegment(requestedPath) || hasDotSegment(registeredPath)) {
+            return false;
+        }
+
         // 完全匹配
         if (registeredPath.equals(requestedPath)) {
             return true;
@@ -907,6 +941,16 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
             return nextChar == '/' || nextChar == '?' || nextChar == '#';
         }
 
+        return false;
+    }
+
+    /** 路径含 "." 或 ".." 段判定（getPath 已解码 %2e 形态，此处按段精确比较）。 */
+    private static boolean hasDotSegment(String path) {
+        for (String segment : path.split("/")) {
+            if (".".equals(segment) || "..".equals(segment)) {
+                return true;
+            }
+        }
         return false;
     }
 

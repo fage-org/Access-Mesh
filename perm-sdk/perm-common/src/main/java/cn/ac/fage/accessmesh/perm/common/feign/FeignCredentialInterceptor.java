@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * 服务凭证注入：仅向 M2M 精确端点发送凭证，管理面不注入。
- * SDK 镜像 common.security.M2mCredentialEndpoints，扩展端点须同批更新两处。
+ * 端点清单直接调 common.security.M2mCredentialEndpoints（单源，2026-10-06 逐任务评审清扫「SDK 镜像」退役措辞）。
  * 配置 credential-id/credential-secret 成对必填，allow-insecure 必须显式声明信任域。
  * 仅配置 credential-id 时装配；调用方已声明的凭证头保持原值。
  */

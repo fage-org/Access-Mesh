@@ -78,8 +78,10 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
      * @param req      配置请求，包含域编码、配置类型、扩展JSON
      * @return 配置响应
      * @throws SecurityException       无权限时抛出
-     * @throws BizException            域不存在（20017）/ 并发保存冲突（20058）时抛出
-     * @throws IllegalArgumentException extra 非法 JSON 时抛出（统一异常处理映射 code=400 参数错误）
+     * @throws BizException            域不存在（20017）/ extra 非法 JSON（20044 PERM_INVALID_PARAM，
+     *                                  HTTP 200 信封，§2.3 全局口径——2026-10-06 逐任务评审修正旧
+     *                                  IllegalArgumentException→400 残留措辞，与实现 BizException 同口径）/
+     *                                  并发保存冲突（20058）时抛出
      */
     @Override
     @Transactional(rollbackFor = Exception.class)

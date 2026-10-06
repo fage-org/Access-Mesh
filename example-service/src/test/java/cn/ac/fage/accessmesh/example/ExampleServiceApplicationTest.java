@@ -18,8 +18,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * 瘦身后应用上下文与受保护接口链路测试（T-API-001）。
  *
- * <p>验证两点：① 删除 perm-client/MyBatis-Flex/PostgreSQL/Redis 等未消费依赖后，
- * 应用仍能正常启动（common 统一响应体/全局异常处理器/UTC 装配经自动配置生效，无数据源
+ * <p>验证两点：① 历史 T-API-001 批次删除 perm-client 等未消费依赖后应用可启动
+ * （该口径已被 T-ACCESS-061 重新引入 starter 取代——现 pom 依赖 perm-client，
+ * 本测试仍验证轻量上下文可起）；（common 统一响应体/全局异常处理器/UTC 装配经自动配置生效，无数据源
  * 也能起）；② /api/example/demo/hello 经 Mock 身份头调用返回统一信封与身份回显，
  * 参数非法经全局异常处理器映射为 30001（HTTP 200 + 信封 code=30001）。
  */

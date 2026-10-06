@@ -125,7 +125,10 @@ public class AuditDomainServiceImpl implements AuditDomainService {
         opLog.setOperatorName(truncate(entry.operatorName(), OPERATOR_NAME_MAX_LEN));
         opLog.setIpAddress(entry.ipAddress());
         opLog.setRequestId(resolveRequestId(entry.requestId()));
-        opLog.setRequestUrl(entry.requestUrl());
+        // request_url 同规则截断（2026-10-06 逐任务评审 P2）：该列为本表唯一漏防护列——
+        // 网关拒绝审计链路允许 512 字符入参（GatewayDenialAuditReq @Size 512、网关侧
+        // limited(...,512)），列宽 256，超长路径的拒绝留痕整条静默丢失且可被被审计方规避
+        opLog.setRequestUrl(truncate(entry.requestUrl(), REQUEST_URL_MAX_LEN));
         // request_body 列随 T-ACCESS-025 参数序列化收敛停用（恒 NULL），不再写入
         opLog.setResponseCode(entry.responseCode());
         opLog.setCostTime(entry.costTime());
@@ -139,6 +142,8 @@ public class AuditDomainServiceImpl implements AuditDomainService {
     private static final int SUMMARY_MAX_LEN = 512;
     /** operation_log.operator_name 列上限（VARCHAR(256)） */
     private static final int OPERATOR_NAME_MAX_LEN = 256;
+    /** operation_log.request_url 列上限（VARCHAR(256)）；入参侧上限 512（网关拒绝审计） */
+    private static final int REQUEST_URL_MAX_LEN = 256;
 
     /**
      * 审计 request_id 兜底合成（T-PERM-021 F1.d 定案：两列收紧 NOT NULL）。

@@ -68,6 +68,8 @@ class OAuth2CredentialGenerationTest {
         user.setStatus(1);
         user.setPassword(BCrypt.hashpw("initial-password"));
         when(users.selectValidById(1L, 9L)).thenReturn(user);
+        // authorize 签发关键段改行锁读（2026-10-06 逐任务评审 P2）；preview 仍走 selectValidById
+        when(users.lockValidById(1L, 9L)).thenReturn(user);
         service = new OAuth2AppServiceImpl(clients, users, mock(LoginLogDomainService.class), redis, json);
         ReflectionTestUtils.setField(service, "jwtSecretKey", "credential-generation-test-secret-0123456789");
     }

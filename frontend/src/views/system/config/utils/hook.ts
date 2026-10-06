@@ -65,7 +65,10 @@ export function useSystemConfig() {
     try {
       await saveSystemConfig({
         configKey: form.configKey,
-        configValue: form.configValue.trim(),
+        // 提交前紧凑化（2026-10-06 逐任务评审 P2 拍板「服务端豁免+前端紧凑化」前端半边）：
+        // PG jsonb 不保存原文、读回必然重排膨胀（实测 44KiB 紧凑入 66KiB 读出），回填再提交
+        // 若仅 trim 会被 64KiB 输入限额拒 20044；parsed.ok 已保证合法，此处序列化必成功
+        configValue: JSON.stringify(parsed.value),
         description: form.description.trim() || null,
         descriptionClear:
           original?.description != null && !form.description.trim()

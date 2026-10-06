@@ -21,7 +21,12 @@ class AuditReadMaskingTest {
     void loginLogReadRequiresOperationLogViewBeforeDatabaseAccess(boolean allowed) {
         var mapper = mock(cn.ac.fage.accessmesh.access.audit.mapper.SysLoginLogMapper.class);
         var gate = mock(QueryGate.class);
-        var service = new LoginLogAppServiceImpl(mapper, gate);
+        // 门禁主体经投影解析（2026-10-06 逐任务评审改）：桩解析 9→9（admin 同 ID 特例形态）
+        var typeResolution = mock(cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService.class);
+        org.mockito.Mockito.when(typeResolution.resolveUserId(1L,
+                cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionOwner.SUBJECT_LOCAL_USER, "9"))
+            .thenReturn(9L);
+        var service = new LoginLogAppServiceImpl(mapper, gate, typeResolution);
         cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext.bind(
             cn.ac.fage.accessmesh.access.infrastructure.RequestContext.user(1L, 9L));
         try {

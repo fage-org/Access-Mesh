@@ -73,7 +73,7 @@ PureTableBar 表格列表范式（遵循 `frontend-layout-patterns`），与 6.1
 | module | 可空（null=全部） | 模块下拉筛选，对齐后端 Req.module? |
 | action | 可空（null=全部） | 操作类型下拉筛选，对齐后端 Req.action? |
 
-> **仅两筛选维度**：后端 `OperationLogListReq` 只支持 module/action。其余维度（operatorId/createdAt 时间范围/targetType）schema 有字段但 Req 未暴露，登记 T-PERM-025 🔧。前端本地硬编码 `MODULE_OPTIONS`/`ACTION_OPTIONS` 下拉选项（后端无枚举接口），值与 mock 数据对齐。
+> ~~**仅两筛选维度**：后端 `OperationLogListReq` 只支持 module/action。~~ **已失效（2026-10-06 逐任务评审清扫）**：现行 `OperationLogListReq` 已支持 module/action/operatorId/since/until/targetType/requestId 七字段（契约 §16.2），action 下拉经 `action-options` 端点动态拉取。
 
 ## 4. 交互流程
 

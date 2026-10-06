@@ -151,4 +151,32 @@ class UserAppServiceResetPasswordGateTest {
         }
         verify(userMapper, never()).update(any(SysUser.class));
     }
+
+    @Test
+    @DisplayName("patch 写仅凭据三列：档案列不入写集（旧实现整实体回写必红；2026-10-06 评审 P1-3 对称面）")
+    void resetPasswordWritesOnlyCredentialColumnsAsPatch() {
+        SysUser existing = user(TARGET);
+        existing.setName("档案名");
+        existing.setPhone("13800000000");
+        existing.setEmail("old@example.com");
+        when(userDomainService.selectValidById(Mockito.any(), eq(TARGET))).thenReturn(existing);
+
+        try (MockedStatic<StpUtil> stp = Mockito.mockStatic(StpUtil.class)) {
+            stp.when(StpUtil::getLoginIdAsLong).thenReturn(OPERATOR);
+            service.resetPassword(TARGET, "new-pass-123");
+        }
+
+        var captor = org.mockito.ArgumentCaptor.forClass(SysUser.class);
+        verify(userMapper).update(captor.capture());
+        SysUser written = captor.getValue();
+        // 旧实现传原始实体（非 UpdateEntity 代理）——本断言在旧实现下必红
+        assertThat(written).isInstanceOf(com.mybatisflex.core.update.UpdateWrapper.class);
+        @SuppressWarnings("unchecked")
+        java.util.Map<String, Object> updates =
+            ((com.mybatisflex.core.update.UpdateWrapper<SysUser>) written).getUpdates();
+        assertThat(updates).containsKeys("password", "forceResetPwd", "updatedAt");
+        // 档案/身份/审计列不入写集（整实体回写会把交错并发的档案更新静默回滚）
+        assertThat(updates).doesNotContainKeys("name", "phone", "email", "username", "status",
+            "tenantId", "createdBy", "createdAt", "avatar", "gender", "userType");
+    }
 }

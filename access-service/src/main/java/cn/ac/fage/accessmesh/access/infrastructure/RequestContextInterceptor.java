@@ -468,7 +468,7 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
     }
 
     /**
-     * /auth/** 公开子集：验证码、登录（密码/短信）、OAuth2 令牌/刷新/撤销、登出。
+     * /auth/** 公开子集：验证码、登录（密码）、OAuth2 令牌/刷新/撤销、登出（短信登录端点已删除）。
      * logout 匿名放行保持未登录 200 幂等语义（无租户需求，StpUtil 自保护，用户决策）。
      */
     private static boolean isPublicAuthEndpoint(String uri) {

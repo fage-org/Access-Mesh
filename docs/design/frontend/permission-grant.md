@@ -400,7 +400,7 @@ interface MatrixContext {
 
 | 字段                        | 类型    | 说明                                                                                                                                                           | 状态      |
 | --------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| grantSource                 | string  | MANUAL \| AUTO_DEP（来源标注：手动/依赖自动补全）                                                                                                              | 已随 T-PERM-034 先行落地 ✅ |
+| grantSource                 | string  | MANUAL \| AUTO_DEP \| AUTHORITY_ROOT \| BOOTSTRAP_SEED（来源标注四值域，对齐契约 §11.2——2026-10-06 逐任务评审补齐；后两值为只读种子来源）                                              | 已随 T-PERM-034 先行落地 ✅ |
 | grantedBits                 | string  | 授予位掩码，**十进制字符串**（如 `"9223372036854775807"`，前端 BigInt 解析；对齐 api-contract §6.4 线格式；记录必有值，operationCode=null 兜底与操作继承展开） | 已随 T-PERM-034 先行落地 ✅ |
 | createdAt                   | string  | 创建时间（悬浮详情展示）                                                                                                                                       | 已随 T-PERM-034 先行落地 ✅ |
 | childCount                  | number  | 子权限数量（list 时按 depend_on 分组 COUNT；悬浮详情展示）                                                                                                     | 已随 T-PERM-034 先行落地 ✅ |
@@ -491,7 +491,7 @@ interface MatrixContext {
 
 前端自算来源链（§3.5），T-PERM-034 已补齐下列能力（授权页面写链路收敛为 list + apply-grant-plan；`save/revoke/children/add-child/remove-child` **已删除（2026-08-27 端点退役，无映射 404，无存量调用方）**，授权页面无从调用；`update-child/children-save/rebuild` 不实现）：
 
-1. **`RolePermissionItemResp` 暴露 `grantSource`**（MANUAL / AUTO_DEP）：来源标注与 AUTO_DEP 只读需要（当前实体有、Resp 未暴露，`PermissionGrantAppServiceImpl.toItemRespList`）。
+1. **`RolePermissionItemResp` 暴露 `grantSource`**（MANUAL / AUTO_DEP / AUTHORITY_ROOT / BOOTSTRAP_SEED 四值域，对齐契约 §11.2——2026-10-06 逐任务评审补齐本行旧值域）：来源标注与 AUTO_DEP 只读需要（当前实体有、Resp 未暴露，`PermissionGrantAppServiceImpl.toItemRespList`）。
 2. **`RolePermissionItemResp` 暴露 `grantedBits`**：`operationCode=null`（组合位无对应操作定义）时前端按位拆解展示与操作继承展开（当前 Resp 无此字段）。
 3. **`role-resource-permission/list` 增加 `includeChildren` 参数**（默认 true 兼容）：`true` 返回主权限及挂载子权限（baseline 一次取全量，§6.1）；`false` 只返回主权限（辅助查询）；**来源链只消费 `dependOn==null` 主权限**（当前 `selectValidByRoleId` 未过滤 depend_on）。
 4. ~~新增 update-child~~（已移除，T-FE-038 当前口径）：子权限不提供条件权限或再授予编辑，界面不发起子权限 updates；新增固定 `conditionCode=null`、`canGrant=false`，撤销走 removes。

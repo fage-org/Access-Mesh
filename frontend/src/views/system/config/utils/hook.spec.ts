@@ -56,6 +56,20 @@ describe("系统配置页列表加载（T-FE-051）", () => {
     });
   });
 
+  it("提交前紧凑化：回填读回的膨胀形态经 parse→stringify 还原紧凑（2026-10-06 逐任务评审 P2，旧实现仅 trim 原样上送必红）", async () => {
+    const { handleSubmitForm } = useSystemConfig();
+    await handleSubmitForm({
+      configKey: "access.sub.test",
+      configValue: '{ "subPermTypes": [ "USER", "ORG" ], "extra": null }',
+      description: ""
+    });
+    expect(saveSystemConfig).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        configValue: '{"subPermTypes":["USER","ORG"],"extra":null}'
+      })
+    );
+  });
+
   it("并发 A(慢)→B(快)→B 回→A 回：表格终态=B（旧实现无代际守卫被 A 覆盖必失败）", async () => {
     type Page = { items: Array<{ configKey: string }>; total: number };
     const a = defer<Page>();

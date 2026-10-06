@@ -49,7 +49,7 @@ last_reviewed: 2026-10-06（T-ACCESS-062 退役清扫：engine 归位表 check-i
 
 ### 2.2 sync 通道包
 
-- 归属 sync 包：4 组 sync/full-sync Controller 及抽象基类（AbstractUserSyncController、AbstractRoleSyncController、UserRoleSyncController、ResourceEntitySyncController 及 full-sync 变体）、通道级守卫（来源/所有权/白名单的通道面）、`sync_metadata` 记账设施（SyncMetadataDomainService + mapper + 实体 + 契约测试锚点——全仓只有同步通道消费它）。
+- 归属 sync 包：6 组 sync/status Controller——四组 sync/full-sync 基类（AbstractUserSyncController、AbstractRoleSyncController、UserRoleSyncController、ResourceEntitySyncController 及 full-sync 变体）+ SyncStatusController（T-PERM-108 已应用状态查询）+ PermissionManifestController（T-PERM-071 MANIFEST 通道；2026-10-06 逐任务评审修正旧「4 组」计数）、通道级守卫（来源/所有权/白名单的通道面）、`sync_metadata` 记账设施（SyncMetadataDomainService + mapper + 实体 + 契约测试锚点——全仓只有同步通道消费它）。
 - 执行层随实体：AbstractUserSyncAppServiceImpl 等执行 AppService 留在对应能力包；内部投影（LocalProjectionDomainService）不属于 sync 包，随实体同事务写路径。
 - 依赖形态：sync→实体包（Controller 编排）与实体包→sync（执行层调记账设施）构成包级双向边，接受；类级无环即可，「能力间不互读 Mapper」断言不受影响（记账 mapper 经 DomainService 封装）。
 
@@ -172,7 +172,7 @@ Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{
 | 源 | 目标 | 说明 |
 |---|---|---|
 | admin.controller.AdminUserController | user.controller | |
-| admin.dto.req：UserBatchCreateReq、UserCreateReq、UserPageReq、UserQuery、UserUpdateReq、UserUpdateStatusReq、ResetPasswordReq、MemberCandidatesReq | user.dto.req | admin 轨保名 |
+| admin.dto.req：UserBatchCreateReq（**DTO 已删除**，2026-10-06 逐任务评审补注记——批量创建入口随合并裁决退役）、UserCreateReq、UserPageReq、UserQuery、UserUpdateReq、UserUpdateStatusReq、ResetPasswordReq、MemberCandidatesReq | user.dto.req | admin 轨保名 |
 | admin.dto.resp：UserCreateResp、UserPageItemResp、UserResp、MemberCandidateItemResp（含 UserPageItemResp$OrgBrief 嵌套）、ResetPasswordResp | user.dto.resp | |
 | admin.dto.resp.**BatchResultResp** | —（**删除**） | 零消费方（裁决 10） |
 | admin.service.UserService/Impl | user.service.UserAppService/Impl | 改名（§2.5） |

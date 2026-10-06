@@ -36,7 +36,7 @@ last_reviewed: 2026-10-06
 | # | 信任模型 | 主体 | 证据锚点 |
 |---|---|---|---|
 | ① | Sa-Token 会话（仅 Bearer 头，Cookie 通道已关） | 管理面/前端用户 | RequestContextInterceptor（USER 绑定：session tenantId+operatorId）；2026-09-08 Cookie 双向关闭定案 |
-| ② | OAuth2 authorization_code + PKCE / refresh token + JWT HS256 | 外部应用代用户 | sys_oauth2_client.client_secret（BCrypt）；OAuth2JwtSupport（HS256 强度护栏）；**client_credentials 无发放实现**（schema L111 列注释与 L125 `internal-service` 种子行为历史预留、未被消费） |
+| ② | OAuth2 authorization_code + PKCE / refresh token + JWT HS256 | 外部应用代用户 | sys_oauth2_client.client_secret（BCrypt；T-ACCESS-084 起 PUBLIC 客户端 secret=NULL、强制 S256，DDL CHECK 锁形态）；OAuth2JwtSupport（HS256 强度护栏）；**client_credentials 无发放实现**（schema L111 列注释与 L125 `internal-service` 种子行为历史预留、未被消费） |
 | ③ | X-Internal-Secret 全局共享密钥 | 内网基础设施互信 | Spring 配置 `perm.internal-secret`（环境变量，**不落库**）；Gateway `InternalSecretFilter`（GlobalFilter，配置非空时**无条件向所有下游请求注入**）+ `PermissionClient` 直连带密；业务 SDK 仅发送服务凭证，不再分发该平台密钥 |
 | ④ | SERVICE 上下文绑定（非独立认证） | ③通过后的自报身份 | 密钥验证（`InternalApiSecretInterceptor`，常量时间比对，失败 403；注册于 `SecurityWebMvcConfig.addInterceptors`，excludePathPatterns 精确豁免会话入口族）→ `X-Service-Code`/`X-Tenant-Id` **自报头**绑定（SignatureVerifier 仅数字解析、无签名）→ `AccessRequestContext.service(tenantId, serviceCode)` |
 
@@ -102,7 +102,7 @@ CREATE TABLE service_credential (
   ```
 
 - order 链输入输出（order=1 仲裁器 → order=2 HeaderSignatureInterceptor → order=3 RequestContextInterceptor）：order=1 产出 `ServicePrincipal(CREDENTIAL)` 或既有 `ATTR_INTERNAL_AUTHENTICATED`（旧密钥路径）；order=2 签名验证仅服务**用户链**（凭证请求无签名头，跳过不拒）；order=3 消费规则=**凭证路径只认 ServicePrincipal**（忽略 X-Service-Code/X-Tenant-Id 自报头），**用户链维持验签绑定**（internalAuthenticated + signatureVerified + userId）；无用户的平台内部查询不接受自报服务编码——不是"全部请求只消费 principal"（那会把管理请求错误绑定为 SERVICE，管理 API 大面积 403）。验证成功产出的 ServicePrincipal 为服务端内存对象，调用方无法伪造（负向回归锁=「凭证头 + 自报头并存时以凭证为准」）。
-- **服务端端点白名单**：`authMethod=CREDENTIAL` 的请求在仲裁器之后强制执行"认证方式 × 精确路径"白名单（清单=M2mCredentialEndpoints 单源：四运行时查询+操作准入两端点+全部 sync 族，现登记见契约 §24），白名单外一律 403——**不依赖 Gateway 拦截，SDK 直连同样受限**（防直连调清单外管理端点扩大凭证能力半径）；白名单清单**单源落 `common` 模块**（Gateway 与 access-service 唯一共同依赖；不可变 method+exact-path 策略与匹配器——勿放 perm-common，Gateway 不依赖它），Gateway M2M 放行（§3.3）与服务端强制消费同一份，防两处漂移。
+- **服务端端点白名单**：`authMethod=CREDENTIAL` 的请求在仲裁器之后强制执行"认证方式 × 精确路径"白名单（清单=M2mCredentialEndpoints 单源：四运行时查询+操作准入两端点+全部 sync 族，现登记见契约 §24），白名单外一律 403——**不依赖 Gateway 拦截，SDK 直连同样受限**（防直连调清单外管理端点扩大凭证能力半径）；白名单清单**单源落 `common` 模块**（不可变 method+exact-path 策略与匹配器；Gateway 现直接依赖 perm-common——旧「勿放 perm-common，Gateway 不依赖它」理由已随本批模块重接线失效，单源维持 common 出于最小传递面：防向纯 DTO 消费者传递 Web/cache，2026-10-06 逐任务评审订正），Gateway M2M 放行（§3.3）与服务端强制消费同一份，防两处漂移。
 - TLS（**信任域模型**；2026-09-20 实施拍板修订为**启动声明式护栏**——原「starter endpoint / Gateway 路由 / SDK 直连三处配置校验 secure scheme」假定的直配 URL 形态与实仓不符：三处均为 Nacos 服务发现形态、无静态 URL 可启动校验）：SDK 配置凭证（perm.credential-id/secret）时**必须显式声明 `perm.allow-insecure`**（三态：true=单信任域明文 hop 可接受 / false=跨边界期望 TLS，均为有效声明；**缺省拒启**）——护栏为纯声明不校验实际地址；Gateway→access-service 内网 hop 属平台信任域内部不校验（同部署单元，与现状全局密钥同一内网信任假设）。`X-Credential-Secret` 为可重放 bearer secret（无签名/nonce），信任域边界即其明文暴露边界。
 
 ### 3.3 两类接入形态
@@ -121,7 +121,7 @@ CREATE TABLE service_credential (
 
 ### 3.5 外部凭证化与退役边界
 
-外部业务服务的运行时查询与全部现役同步通道统一使用 per-service 凭证（T-ACCESS-079/080，2026-10-04）。服务端/Gateway 消费 `M2mCredentialEndpoints` 单源，SDK 维护精确镜像；清单见契约 §24。无永久兼容开关。
+外部业务服务的运行时查询与全部现役同步通道统一使用 per-service 凭证（T-ACCESS-079/080，2026-10-04）。服务端/Gateway/SDK 三方消费同一份 `M2mCredentialEndpoints`（common 单源，SDK 直调不再维护镜像清单——2026-10-06 逐任务评审清扫镜像措辞）；清单见契约 §24。无永久兼容开关。
 
 运行时 `auth/check`、`batch-check`、`query-resources`、`query-scopes` 允许查询凭证所属租户的任意主体与资源。tenantId/serviceCode 由凭证派生，自报头不改变身份；被查询用户不是操作者，不赋予管理写权限，不新增每服务查询范围配置。查询继续复用现有引擎。
 

@@ -16,7 +16,7 @@ public record PageReq(
     @Min(1) Integer pageNum,
 
     /**
-     * 每页大小（最小值1，最大值100）
+     * 每页大小（最小值1，最大值200）
      */
     @Min(1) @Max(200) Integer pageSize,
 

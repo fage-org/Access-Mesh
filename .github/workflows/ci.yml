@@ -2,6 +2,8 @@
 # - unit-tests：全量单测强制通过（push / PR / 手动），排除 @Tag("testcontainers") 容器测试
 #   与 e2e 模块（T-ACCESS-031：E2E 是收口资产，runner 自带 Docker 会照跑，必须显式跳过）
 # - testcontainers：容器门控（PR / 手动触发），全量 mvn test（含 Testcontainers 与 E2E）
+# - frontend：前端质量门禁（push / PR / 手动触发，无 if 即全触发面——pnpm 钉死版本，
+#   test/lint/typecheck/build 四步 + 35 组 DTO 对账，T-FE-066）
 # 口径：以测试退出状态判定成功，不维护测试数量计数；不建发布流水线与多分支矩阵。
 name: CI
 

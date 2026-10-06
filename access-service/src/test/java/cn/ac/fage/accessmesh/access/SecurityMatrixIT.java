@@ -146,6 +146,15 @@ class SecurityMatrixIT {
     }
 
     @Test
+    @DisplayName("authorize-preview 同为平台会话端点：无会话 401（2026-10-06 逐任务评审补入矩阵——误配资源规则时 JWT 分支不得覆盖）")
+    void authorizePreview_withoutLogin_rejected401() throws Exception {
+        mockMvc.perform(post("/api/access/auth/oauth2/authorize-preview")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     @DisplayName("T-GW-009：自助改密端点纳入密钥豁免——持密无租户头不被内部凭证分支遮蔽，无会话 401")
     void resetPassword_internalSecretDoesNotShadeSessionBranch_rejected401() throws Exception {
         // 模拟 Gateway 白名单放行形态：InternalSecretFilter 对白名单路径仍无条件注入密钥、

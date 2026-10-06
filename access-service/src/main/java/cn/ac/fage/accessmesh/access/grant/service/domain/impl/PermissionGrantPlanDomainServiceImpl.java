@@ -60,6 +60,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
     private final OperationPermissionDomainService operationPermissionDomainService;
     private final DomainConfigDomainService domainConfigDomainService;
     private final ObjectMapper objectMapper;
+    private final cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService subjectDomainService;
 
     public PermissionGrantPlanDomainServiceImpl(
             TypeResolutionService typeResolutionService,
@@ -70,7 +71,8 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             ResourceEntityDomainService resourceEntityDomainService,
             OperationPermissionDomainService operationPermissionDomainService,
             DomainConfigDomainService domainConfigDomainService,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService subjectDomainService) {
         this.typeResolutionService = typeResolutionService;
         this.domainClassifyService = domainClassifyService;
         this.permissionGrantDomainService = permissionGrantDomainService;
@@ -80,6 +82,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
         this.operationPermissionDomainService = operationPermissionDomainService;
         this.domainConfigDomainService = domainConfigDomainService;
         this.objectMapper = objectMapper;
+        this.subjectDomainService = subjectDomainService;
     }
 
     /**
@@ -132,6 +135,54 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
         if (permission.getConditionId() != null && permission.getConditionId() < 0L) {
             throw new IllegalStateException(
                 "synthetic inline condition id leaked into a save-path plan row: " + permission.getConditionId());
+        }
+    }
+
+    /** 授权身份键（对齐 bootstrap 侧 GrantIdentity 语义：(resourceType, scopeAll, resourceEntityId)，不含 bits）。 */
+    private record TombstoneIdentity(Integer resourceType, boolean scopeAll, Long resourceEntityId) {
+        static TombstoneIdentity of(RoleResourcePermission p) {
+            return new TombstoneIdentity(p.getResourceType(), Boolean.TRUE.equals(p.getScopeAll()),
+                p.getResourceEntityId());
+        }
+    }
+
+    /**
+     * 固定图墓碑身份写守卫（2026-10-06 bootstrap 校验方案 A，用户拍板）。
+     * <p>
+     * 管理角色上，占据「存在 BOOTSTRAP_SEED 软删墓碑身份」的非种子行（离线撤销种子后经授权页
+     * 重授形成的孪生行）不可再撤/改/挂子权限——放任编辑会静默固化固定图冲突形态。仅当触达行
+     * 含非种子行且目标角色为 bootstrap 管理角色时才查墓碑（每次 prepare 至多一次批量查询，
+     * 普通角色/无墓碑库零额外查询面）。
+     * </p>
+     */
+    private void assertNotTombstonedSeedIdentity(Long tenantId, Long roleId,
+                                                 Map<Long, RoleResourcePermission> existingById,
+                                                 java.util.Collection<Long> touchedIds) {
+        List<RoleResourcePermission> touched = touchedIds.stream()
+            .map(existingById::get)
+            .filter(Objects::nonNull)
+            .filter(p -> !GrantSource.BOOTSTRAP_SEED.getValue().equals(p.getGrantSource()))
+            .toList();
+        if (touched.isEmpty()) {
+            return;
+        }
+        cn.ac.fage.accessmesh.access.role.entity.AbstractRole role =
+            subjectDomainService.selectValidRoleById(tenantId, roleId);
+        if (role == null
+            || !cn.ac.fage.accessmesh.access.bootstrap.BootstrapGraphDefinition.ADMIN_ROLE_EXTERNAL_ID
+                .equals(role.getExternalId())) {
+            return;
+        }
+        Set<TombstoneIdentity> tombstones = rolePermissionMapper
+            .selectSoftDeletedByRoleIds(tenantId, java.util.Set.of(roleId)).stream()
+            .filter(p -> GrantSource.BOOTSTRAP_SEED.getValue().equals(p.getGrantSource()))
+            .map(TombstoneIdentity::of)
+            .collect(Collectors.toSet());
+        for (RoleResourcePermission row : touched) {
+            if (tombstones.contains(TombstoneIdentity.of(row))) {
+                throw biz(AccessErrorCode.BOOTSTRAP_TOMBSTONE_TWIN_READONLY,
+                    "Fixed-graph tombstoned seed identity row: " + row.getId());
+            }
         }
     }
 
@@ -191,6 +242,12 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
                 throw biz(code, "Permission id not found: " + referencedId);
             }
         }
+
+        // 2026-10-06 bootstrap 校验方案 A（拍板）：固定图墓碑身份写守卫——updates/removes/
+        // 挂子权限三触点（referencedIds 全集）不可触达「存在 BOOTSTRAP_SEED 墓碑身份」的非种子行。
+        // 防护与危险点重合（全实例全形态生效，不依赖 bootstrap 开关）；真旧库无墓碑天然不触发，
+        // 由启动检查兜底。对齐 T-ACCESS-062「条件化启动检查+无条件写路径兜底」既有模式
+        assertNotTombstonedSeedIdentity(tenantId, roleId, existingById, referencedIds);
 
         for (Long id : updateIds) {
             assertMutable(existingById.get(id));

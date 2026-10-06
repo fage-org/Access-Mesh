@@ -9,7 +9,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
-import { flush } from "@/test-support/async";
+import { defer, flush } from "@/test-support/async";
 
 const getTypeDefList = vi.fn();
 const getResourceTree = vi.fn();
@@ -83,7 +83,7 @@ vi.mock("@/api/permission-grant", () => ({
 import { ref } from "vue";
 import { PERMISSION_GRANT_PERMS } from "./perms";
 import { usePermissionGrant } from "./hook";
-import { buildAddChange, buildSummary } from "./grant-plan";
+import { buildAddChange, buildSummary, buildUpdateChange } from "./grant-plan";
 
 /** SecurityException 经 GlobalExceptionHandler 映射：HTTP 403 + R code=403 */
 function axios403() {
@@ -494,6 +494,112 @@ describe("授权草稿会话恢复", () => {
     expect(entries.size).toBe(0);
     unmountCallbacks.at(-1)!();
   });
+  it("确认放弃变更即清内存 changes：切换完成前的窗口内不再存活（2026-10-06 逐任务评审 P2，旧实现只删存储项必红）", async () => {
+    const api = await import("@/api/permission-grant");
+    vi.mocked(api.getRolePermissionList).mockResolvedValue({ items: [] });
+    const contextA = {
+      domainCode: null,
+      roleTypeCode: "BASIC_ROLE",
+      roleExternalId: "role-7",
+      displayName: "角色 7"
+    };
+    const hook = usePermissionGrant();
+    hook.typeCandidates.value = [{ typeCode: "DATA", sortOrder: 0 } as any];
+    await hook.handleSelectSubject(contextA);
+    const recordKey = {
+      resourceTypeCode: "DATA",
+      resourceCode: "one",
+      codeType: "default",
+      operationCode: "VIEW",
+      scopeMode: "INSTANCE" as const,
+      conditionCode: null,
+      canGrant: false
+    };
+    const change = buildAddChange({
+      recordKey,
+      summary: buildSummary({ recordKey, resourceLabel: "一条数据" })
+    });
+    hook.grantStore.applyChanges([change]);
+    expect(hook.grantStore.changes).toHaveLength(1);
+
+    // 切换到 B：确认「放弃变更」；用挂起的 getResourceTree 卡在 commitSubject 前的窗口内
+    const gate = defer<{ items: never[] }>();
+    getResourceTree.mockImplementation(() => gate.promise);
+    const contextB = {
+      ...contextA,
+      roleExternalId: "role-8",
+      displayName: "角色 8"
+    };
+    const switching = hook.handleSelectSubject(contextB);
+    await flush();
+    expect(hook.grantStore.changes).toHaveLength(0); // 旧实现只删存储项，内存 changes 存活到 commitSubject——此处为 1 必红
+    gate.resolve({ items: [] });
+    expect(await switching).toBe(true);
+    expect(hook.grantStore.changes).toHaveLength(0);
+  });
+
+  it("恢复草稿重定基：update 变更 before 对齐当前基线行（2026-10-06 逐任务评审 P2，旧实现保留上次会话快照必红）", async () => {
+    const api = await import("@/api/permission-grant");
+    const row = {
+      id: 301,
+      resourceTypeCode: "DATA",
+      resourceCode: "data:r301",
+      codeType: "default",
+      resourceName: "数据301",
+      operationCode: "VIEW",
+      canGrant: true,
+      conditionCode: null,
+      scopeMode: "INSTANCE" as const,
+      dependOn: null,
+      grantSource: "MANUAL" as const,
+      grantedBits: "2",
+      createdAt: "2026-08-01T10:00:00",
+      childCount: 0
+    };
+    vi.mocked(api.getRolePermissionList).mockResolvedValue({ items: [row] });
+    const context = {
+      domainCode: null,
+      roleTypeCode: "BASIC_ROLE",
+      roleExternalId: "role-9",
+      displayName: "角色 9"
+    };
+    const hook = usePermissionGrant();
+    hook.typeCandidates.value = [{ typeCode: "DATA", sortOrder: 0 } as any];
+    await hook.handleSelectSubject(context);
+    const recordKey = {
+      resourceTypeCode: "DATA",
+      resourceCode: "data:r301",
+      codeType: "default",
+      operationCode: "VIEW",
+      scopeMode: "INSTANCE" as const,
+      conditionCode: null,
+      canGrant: false
+    };
+    const change = buildUpdateChange({
+      before: row,
+      after: { canGrant: true, conditionCode: null },
+      summary: buildSummary({ recordKey, resourceLabel: "数据301" })
+    });
+    hook.grantStore.applyChanges([change]);
+    expect(entries.size).toBe(1);
+
+    // 会话 2：同主体基线已漂移（行 301 canGrant=false），恢复草稿
+    vi.mocked(api.getRolePermissionList).mockResolvedValue({
+      items: [{ ...row, canGrant: false }]
+    });
+    setActivePinia(createPinia());
+    const reopened = usePermissionGrant();
+    reopened.typeCandidates.value = [{ typeCode: "DATA", sortOrder: 0 } as any];
+    await reopened.handleSelectSubject(context);
+    const restored = reopened.grantStore.changes[0];
+    expect(restored?.kind).toBe("update");
+    if (restored?.kind !== "update") throw new Error("expected update change");
+    expect(restored.before.canGrant).toBe(false); // 旧实现=true（上次会话快照）→ 提交差异失真
+    reopened.grantStore.revertAll();
+    expect(entries.size).toBe(0);
+    unmountCallbacks.at(-1)!();
+  });
+
   it.each(["account", "tenant", "role", "type"])(
     "%s 不同不会恢复或清除其他上下文草稿",
     async different => {

@@ -25,6 +25,7 @@ public class LoginLogAppServiceImpl implements LoginLogAppService {
 
     private final SysLoginLogMapper loginLogMapper;
     private final cn.ac.fage.accessmesh.access.engine.query.QueryGate queryGate;
+    private final cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService typeResolutionService;
 
     /**
      * 构造函数注入依赖
@@ -32,9 +33,11 @@ public class LoginLogAppServiceImpl implements LoginLogAppService {
      * @param loginLogMapper 登录日志数据访问Mapper
      */
     public LoginLogAppServiceImpl(SysLoginLogMapper loginLogMapper,
-                                  cn.ac.fage.accessmesh.access.engine.query.QueryGate queryGate) {
+                                  cn.ac.fage.accessmesh.access.engine.query.QueryGate queryGate,
+                                  cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService typeResolutionService) {
         this.loginLogMapper = loginLogMapper;
         this.queryGate = queryGate;
+        this.typeResolutionService = typeResolutionService;
     }
 
     /**
@@ -50,8 +53,16 @@ public class LoginLogAppServiceImpl implements LoginLogAppService {
     @Override
     public PageResp<SysLoginLog> pageLoginLogs(PageReq pageReq) {
         Long tenantId = TenantContextHolder.getTenantId();
-        if (!queryGate.hasPermissionByCode(tenantId,
-            cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext.getOperatorId(),
+        // 判定主体=抽象投影主体（QueryGate 契约 subjectId=abstract_user.id）：先经
+        // TypeResolutionService.resolveUserId 解析投影（AdminPermissionValidatorImpl 同款），
+        // 不裸传 sys_user.id——两者仅在投影 insert 分支不回填 id 的用户上错位，该类用户
+        // 按错误主体判定（2026-10-06 逐任务评审修）
+        Long operatorId = cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext.getOperatorId();
+        Long subjectId = operatorId == null ? null
+            : typeResolutionService.resolveUserId(tenantId,
+                cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionOwner.SUBJECT_LOCAL_USER,
+                String.valueOf(operatorId));
+        if (!queryGate.hasPermissionByCode(tenantId, subjectId,
             cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode.OPERATION_LOG, null,
             cn.ac.fage.accessmesh.access.engine.constant.OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on OPERATION_LOG");

@@ -242,20 +242,28 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
             user.setStatus(req.status());
         }
         user.setUpdatedAt(LocalDateTime.now());
-        if (phoneClear || emailClear) {
-            // 清空须强制写列：update(entity) 默认忽略 null 字段，UpdateEntity 代理记录 set(null)
-            // 为显式更新列（T-API-004，方式对齐 role extraClear——T-FE-016）
-            SysUser patch = UpdateEntity.of(SysUser.class);
-            patch.setId(user.getId());
+        // 2026-10-06 逐任务评审 P1-3：本入口对 sys_user 只拥有档案四列+时间戳——统一
+        // UpdateEntity patch 写（仅请求触达的列），绝不整实体回写。selectValidById 为
+        // 非锁读，update(user) 会把凭据列（password/force_reset_pwd）等全部非空列一并
+        // 写回，与并发 resetPassword 交错时静默恢复旧密码哈希（旧 OAuth2 凭据复活）；
+        // 触达列 patch 写同时消除未触达列的陈旧值覆盖（清空须显式写 null 列同理由，
+        // T-API-004/U006 语义不变：null 跳过保留原值、清空走 xxxClear 显式标志）
+        SysUser patch = UpdateEntity.of(SysUser.class);
+        patch.setId(user.getId());
+        if (req.name() != null) {
             patch.setName(user.getName());
-            patch.setPhone(user.getPhone());
-            patch.setEmail(user.getEmail());
-            patch.setStatus(user.getStatus());
-            patch.setUpdatedAt(user.getUpdatedAt());
-            userDomainService.update(patch);
-        } else {
-            userDomainService.update(user);
         }
+        if (phoneClear || req.phone() != null) {
+            patch.setPhone(user.getPhone());
+        }
+        if (emailClear || req.email() != null) {
+            patch.setEmail(user.getEmail());
+        }
+        if (req.status() != null) {
+            patch.setStatus(user.getStatus());
+        }
+        patch.setUpdatedAt(user.getUpdatedAt());
+        userDomainService.update(patch);
 
         Long abstractUserId = localProjectionDomainService.upsertAdminUser(
             tenantId, user.getId(), user.getName(), isEnabled(user.getStatus()));

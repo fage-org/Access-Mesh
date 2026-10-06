@@ -10,7 +10,7 @@ import cn.ac.fage.accessmesh.access.menu.dto.resp.UserMenuResp;
  * 认证服务接口
  * <p>
  * 提供用户认证相关的服务方法，包括验证码生成、登录、登出、用户信息查询等。
- * 支持账号密码登录和短信验证码登录两种方式。
+ * 账号密码登录（短信登录端点已删除，历史 SMS 登录日志仍可查询）。
  * </p>
  */
 public interface AuthAppService {

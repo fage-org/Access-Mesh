@@ -26,8 +26,8 @@ public interface SysUserMapper extends BaseMapper<SysUser> {
      * @param tenantId 租户ID
      * @param username 用户名（可选，模糊匹配）
      * @param name     姓名（可选，模糊匹配）
-     * @param phone    手机号（可选，精确匹配）
-     * @param email    邮箱（可选，精确匹配）
+     * @param phone    手机号（可选，模糊匹配——2026-10-06 逐任务评审 P2 与契约同口径）
+     * @param email    邮箱（可选，模糊匹配）
      * @param status   状态（可选）
      * @return 分页用户列表
      */
@@ -143,6 +143,19 @@ public interface SysUserMapper extends BaseMapper<SysUser> {
      */
     SysUser selectByUsernameForUpdate(@Param("tenantId") Long tenantId,
                                       @Param("username") String username);
+
+    /**
+     * 按主键行锁读有效用户（租户隔离 + 未删除）
+     *
+     * <p>必须在事务内调用（锁持续到提交）；锁持有期间占用数据库连接，仅用于 OAuth2 authorize
+     * 签发关键段（2026-10-06 逐任务评审 P2，行锁串行化拍板延伸），禁作普通查询。</p>
+     *
+     * @param tenantId 租户ID
+     * @param id       用户主键
+     * @return 用户实体，不存在则返回null
+     */
+    SysUser selectByIdForUpdate(@Param("tenantId") Long tenantId,
+                                @Param("id") Long id);
 
     /**
      * 根据手机号查询有效用户（租户隔离 + 未删除）

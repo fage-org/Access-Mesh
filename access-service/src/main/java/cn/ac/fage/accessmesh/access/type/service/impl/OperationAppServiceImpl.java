@@ -317,7 +317,7 @@ public class OperationAppServiceImpl implements OperationAppService {
         OperationPermission op = selectOperationByBusinessKey(tenantId, new OperationKeyReq(req.resourceTypeCode(), req.code()));
         Long fromBit = op.getBinaryBit();
         Long fromInheritMask = op.getInheritMask();
-        // T-PERM-072 操作生命周期守卫（设计 §7）：位变更存在有效 MANUAL/AUTO_DEP 引用时拒绝（写库前零副作用）；
+        // T-PERM-072 操作生命周期守卫（设计 §7）：位变更存在有效 MANUAL/AUTO_DEP/BOOTSTRAP_SEED 引用时拒绝（写库前零副作用）；
         // AUTHORITY_ROOT 基座不算用户引用，走既有 T-PERM-062 同事务迁移
         boolean bitChanged = req.binaryBit() != null && !req.binaryBit().equals(fromBit);
         if (bitChanged) apiMappings.assertOperationsUnreferenced(tenantId, Set.of(op.getId()));
@@ -407,7 +407,7 @@ public class OperationAppServiceImpl implements OperationAppService {
             .map(OperationPermission::getId)
             .collect(Collectors.toSet());
 
-        // T-PERM-072 操作生命周期守卫（设计 §7）：删除存在有效 MANUAL/AUTO_DEP 引用的操作整批拒绝
+        // T-PERM-072 操作生命周期守卫（设计 §7）：删除存在有效 MANUAL/AUTO_DEP/BOOTSTRAP_SEED 引用的操作整批拒绝
         //（AUTHORITY_ROOT 基座不算用户引用，走既有种子级联清理）
         Map<Integer, Set<Long>> bitsByTypeValue = new java.util.LinkedHashMap<>();
         for (OperationPermission op : entities) {

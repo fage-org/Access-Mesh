@@ -287,15 +287,19 @@ public class OrgTreeConfigAppServiceImpl implements OrgTreeConfigAppService {
      */
     @Override
     public PageResp<OrgTreeConfigResp> pageOrgTreeConfigs(PageReq pageReq) {
-        int offset = PageUtil.offset(pageReq.pageNum(), pageReq.pageSize());
+        // 兜底访问器（null → 1/20）：本方法曾用 canonical accessor 裸拆箱，分页参数缺省
+        // 提交即 NPE→500（2026-10-06 逐任务评审修——全仓唯一裸拆箱点，对齐 LoginLog 等先例）
+        int pageNum = pageReq.getPageNum();
+        int pageSize = pageReq.getPageSize();
+        int offset = PageUtil.offset(pageNum, pageSize);
         // XML 分页统一 offset/limit + count 双查询（MyBatis-Flex Page 参数在 XML 映射下不生效）
         long total = orgTreeConfigMapper.countAllByTenant(TenantContextHolder.getTenantId());
         List<OrgTreeConfigResp> items = total == 0 ? List.of()
             : orgTreeConfigMapper.selectAllByTenant(TenantContextHolder.getTenantId(),
-                offset, pageReq.pageSize()).stream()
+                offset, pageSize).stream()
                 .map(OrgTreeConfigResp::from)
                 .toList();
-        return new PageResp<>(items, total, pageReq.pageNum(), pageReq.pageSize(),
+        return new PageResp<>(items, total, pageNum, pageSize,
             PageUtil.hasNext(offset, items.size(), total));
     }
 

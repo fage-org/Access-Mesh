@@ -201,7 +201,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
         // T-PERM-017 C2.5：取"最终状态"联合校验——只切 flag 不改 rules 时用 DB 老 rules、
         // 同时改用新 rules、只改 rules 且已 true 也重校验（双轨共享校验，T-PERM-048 收敛）
         conditionDomainService.assertConditionRulesValid(condition.getConditionRules(),
-            Boolean.TRUE.equals(condition.getGatewayEvaluable()));
+            Boolean.TRUE.equals(condition.getGatewayEvaluable()), req.conditionRules() != null);
         condition.setUpdatedBy(operatorId);
         condition.setUpdatedAt(LocalDateTime.now());
         if (Boolean.TRUE.equals(req.descriptionClear())) {

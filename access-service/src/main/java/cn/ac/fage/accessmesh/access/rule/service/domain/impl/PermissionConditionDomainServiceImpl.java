@@ -509,7 +509,22 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
      */
     @Override
     public void assertConditionRulesValid(String conditionRules, boolean gatewayEvaluable) {
-        JsonValidationUtils.validateJson(conditionRules);
+        assertConditionRulesValid(conditionRules, gatewayEvaluable, true);
+    }
+
+    @Override
+    public void assertConditionRulesValid(String conditionRules, boolean gatewayEvaluable, boolean externalInput) {
+        if (externalInput) {
+            JsonValidationUtils.validateJson(conditionRules);
+        } else if (conditionRules != null) {
+            // DB 载入读回形态仅语法校验（jsonb 重排膨胀不占输入限额）；
+            // null 语义与 validateJson 一致，交由后置 gatewayEvaluable 空判处理
+            try {
+                JsonValidationUtils.validateSnapshot(conditionRules);
+            } catch (IllegalArgumentException ex) {
+                throw new BizException(AccessErrorCode.PERM_INVALID_PARAM.getCode(), ex.getMessage());
+            }
+        }
         if (!gatewayEvaluable) {
             return;
         }

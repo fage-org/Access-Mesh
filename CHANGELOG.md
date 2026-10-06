@@ -55,7 +55,27 @@
 - **功能角色候选端点 `/api/access/role/list` 退役（T-FE-058，破坏性）**：该端点服务端写死 `LIMIT 0,200` 且无 keyword/分页（第 201 个功能角色静默不可选），门禁仅类型级 `ROLE:VIEW`（与角色管理页实例准入口径分叉）——功能角色候选唯一消费方（用户详情「分配角色」选择器）迁 `POST /api/access/abstract-role/list`（`roleTypeCodes=[BASIC_ROLE,GROUP_ROLE,PERSONAL]`+keyword+分页；门禁随端点对齐实例准入），旧端点全链移除（无兼容层，POST 404；bootstrap 固定图行同批移除）。存量库资源行/映射/授权惰性残留的订正语句见 `docs/design/access-service-rebuild-runbook.md` 常见问题表。
 - **资源依赖管理写入口退役（T-PERM-071，破坏性）**：`resource-dependency/create|update|remove|batch-sync` 四端点、`ResourceDependencyResp.autoGrant` 字段、`DEPENDENCY:SYNC` 操作码与 bootstrap 固定图授权档、错误码 20048 全链移除——依赖声明唯一写入来源为所属服务 MANIFEST 发布；管理台只读（list/graph/check）。旧表保全迁移已于 2026-10-03 退出支持；原交付见 `docs/archive/2026-10-03/ops/runbook-auto-grant-migration.md`，当前按权威 schema 新建库。
 
+### Security
+
+- **验证码失败不再计入账号失败锁（恢复既有语义）**：验证码缺参/错误仅留审计日志——失败计数键无 IP 维度，原「验证码失败也计数」使免验证码请求可零成本定向锁定任意已知账号（验证码一次性消费，攻击者无需获取验证码即可推动计数锁 30 分钟并可续锁）；推翻 T-ACCESS-083 收紧口径（2026-10-06 拍板）。
+- **bootstrap 固定图防护升级（方案 A，2026-10-06 拍板）**：新增写路径守卫 **20074 BOOTSTRAP_SEED_READONLY**（既有）/ **20075 BOOTSTRAP_TOMBSTONE_TWIN_READONLY**（新）——种子行与墓碑孪生行的撤/改/挂子权限全形态全实例拒绝（不依赖 bootstrap 开关）；启动检查谓词分流——真旧库（未标记且无种子墓碑）维持拒启，「墓碑+同键 MANUAL 孪生」并存态 WARN 放行不补回（修掉「撤了重授比撤了不重授更严」自相矛盾）。
+- **OAuth2 客户端管理权限起点补齐（全档，ADMIN_NOTICE 先例）**：固定图新增 oauth2/client 五路由行与 ADMIN_OAUTH2_CLIENT 四档类型级授权（VIEW/CREATE/UPDATE/DELETE）——原默认部署下 PUBLIC 客户端注册不可达（Gateway 未映射 403 + QueryGate 无授权起点恒拒），T-ACCESS-084 交付的公开客户端流程端到端打通；存量库重启 fail-fast 按既有口径备份重建。
+
 ### Fixed
+
+- **逐任务评审修复批（2026-10-06）**：
+  - `updateUser`/`resetPassword` 收敛为触达列 patch 写（UpdateEntity）——整实体回写会把非锁读快照的凭据列（password/force_reset_pwd）一并写回，交错下静默恢复旧密码哈希、旧 OAuth2 凭据复活；对称消除档案列陈旧值覆盖。
+  - OAuth2 authorize 签发关键段行锁串行化+锁窗内会话复核（同 login 拍板延伸）——关闭「在途授权经已吊销会话签出携带新指纹的授权码（旧凭据链最长活 refreshTokenTtl）」窗口。
+  - `redirect_uri` 点段逃逸拒绝（`/../`、`/%2e%2e/` 解码后点段一律拒绝，归一不变式）——原前缀匹配放行后前端导航归一即投递出注册前缀。
+  - `operation_log.request_url` 统一落点截断至列宽 256（原为该表唯一漏防护列，网关拒绝审计 512 入参超长即整条静默丢失且可被规避）。
+  - 条件更新轨对 DB 载入旧规则豁免 64KiB 输入限额（jsonb 读回必然重排膨胀，实测 44KiB 入 66KiB 出——近限条件仅改名/停用不再被拒）；前端 config/条件提交前 parse→stringify 紧凑化（拍板「服务端豁免+前端紧凑化」）。
+  - `user-role/full-sync` items 允许空清单（`@NotEmpty`→`@NotNull`，对齐资源通道先例）——最后一名成员删除后的 FULL 校准路径不再必 400。
+  - 成员搜索 phone/email 改模糊匹配（对齐契约与 keyword 同口径，原 XML 等值使部分输入静默空结果）。
+  - 授权草稿两处：确认放弃即清内存变更（关闭「旧主体×新类型」错分区重建窗口）；恢复草稿重定基到当前基线行（展示与提交载荷恢复一致，消除 20041 整批拒绝且再编辑不可修复的死局）。
+  - `UserLoginRowLockPgIT` 时序断言改确定性编排（原终态断言依赖未受控锁授予顺序，合法时序下假失败；该测试此前从未真实跑绿）。
+  - `OrgTreeConfigAppServiceImpl` 分页缺省参数改兜底访问器（原 canonical 裸拆箱，缺省提交 NPE→500，全仓唯一残留点）；login-log 门禁主体经投影解析（原裸传 sys_user.id，投影非同 ID 用户按错误主体判定）。
+  - 权限拒绝解释 `conditionEvaluated` allow 侧基准为 raw（T-PERM-107 变更点，本次补区分性回归锁——混合 allow（raw 含条件事实、retained 已过滤）报 true；此前测试 mock 同放两集合不构成锁）。
+- **P3 清扫批**：SMS 退役现在时残留 9 处、SDK 镜像/perm-client 依赖旧口径、`RFC 8252` 归因残留、契约 orgType String 残留与「Phase 2 决策」旧原文、domain-config 旧 400 口径、§20.1 分段表对齐枚举权威、§11.4 补 20074/20075、grantSource 值域四处、v1.2→v1.4 引用、Redis 弱默认注释×4、AGENTS 基建档 .env 前置与工程基线指针、ci.yml frontend job 注记、Q-065 计数对齐、复评轮次词×2、capability sync 清单计数、runbook 权威范围/过程语/回链、deployment 备份与恢复容器内临时文件唯一化+恢复验证显式指向恢复库、判别表三处（认证仲裁细分码/30003 归因/M2M 401 回落）、30003 避让指引、is-log 权威值锚定、SDK 验签 fail-closed 与 type update trailing 回归锁、authorize-preview 入启动防护清单与安全矩阵。
 
 - **操作独占位写入约束与自动填写（T-PERM-098）**：操作创建及更新显式传入的 `binaryBit` 必须为 `1…2^62` 正数单比特，非法值写前返回 20044，避免直接 API 向内置类型写入碰撞位后破坏准入快照；inheritMask 负数语义保留，存量相关坏位仍报 20071。前端新增自动填写同类型最小空闲单比特，补齐高位字符串、范围及重复占位校验，位用尽阻止新增。
 

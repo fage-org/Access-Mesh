@@ -258,4 +258,40 @@ class UserWriteAppServiceUpdateGateTest {
         verify(userDomainService).update(captor.capture());
         org.assertj.core.api.Assertions.assertThat(captor.getValue().getPhone()).isEqualTo("13900000000");
     }
+
+    // ---- 2026-10-06 逐任务评审 P1-3：非锁读整实体回写恢复旧凭据（并发丢失更新） ----
+
+    @Test
+    @DisplayName("updateUser patch 写仅触达列：凭据/身份/未触达列不入写集（旧实现整实体回写必红）")
+    void updateUserWritesOnlyTouchedColumnsAsPatch() {
+        SysUser existing = target();
+        existing.setPassword("$2a$10$stale-hash");
+        existing.setForceResetPwd(true);
+        existing.setCreatedBy(1L);
+        when(userDomainService.selectValidById(TENANT, TARGET)).thenReturn(existing);
+        when(localProjectionDomainService.upsertAdminUser(
+            anyLong(), anyLong(), anyString(), org.mockito.ArgumentMatchers.anyBoolean()))
+            .thenReturn(901L);
+
+        service.updateUser(new UserUpdateReq(TARGET, "新名", "13900000000", null, null, null, null));
+
+        var captor = org.mockito.ArgumentCaptor.forClass(SysUser.class);
+        verify(userDomainService).update(captor.capture());
+        SysUser written = captor.getValue();
+        // 旧实现传原始实体（非 UpdateEntity 代理）——本断言在旧实现下必红
+        org.assertj.core.api.Assertions.assertThat(written)
+            .isInstanceOf(com.mybatisflex.core.update.UpdateWrapper.class);
+        @SuppressWarnings("unchecked")
+        java.util.Map<String, Object> updates =
+            ((com.mybatisflex.core.update.UpdateWrapper<SysUser>) written).getUpdates();
+        org.assertj.core.api.Assertions.assertThat(updates)
+            .containsEntry("name", "新名")
+            .containsEntry("phone", "13900000000")
+            .containsKey("updatedAt");
+        // 凭据列绝不入写集（旧密码哈希/force_reset_pwd 回写=旧凭据复活）；
+        // 未触达列（email/status）与身份/审计列同样不入
+        org.assertj.core.api.Assertions.assertThat(updates)
+            .doesNotContainKeys("password", "forceResetPwd", "username", "status", "email",
+                "avatar", "gender", "userType", "tenantId", "createdBy", "createdAt");
+    }
 }

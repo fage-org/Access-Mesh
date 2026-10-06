@@ -17,7 +17,7 @@ import java.util.Set;
  * 任务约束（access-service-architecture.md §14.2）：bootstrap 不走带操作者权限校验的管理
  * AppService、不给通用授权服务增加公开的无操作者入口——本组件即为"包内可见、bootstrap 专用
  * 的写入组件（复用 DomainService 内部逻辑）"：授权写入经
- * {@link PermissionGrantPlanDomainService#apply}（纯写入，复用既有 MANUAL 落库管线与
+ * {@link PermissionGrantPlanDomainService#apply}（纯写入，复用既有授权落库管线（grantSource 随种子传 BOOTSTRAP_SEED）与
  * {@link PermissionGrantDomainService} 的不变量校验），资源/映射/绑定按同步链路同款唯一键
  * 语义直写。事务边界由调用方（initializer 单事务）声明。
  * </p>
@@ -82,7 +82,7 @@ public interface BootstrapSeedWriter {
     void insertRoleBinding(Long tenantId, Long subjectId, Long roleId);
 
     /**
-     * 批量写入固定图授权（MANUAL 单操作位；经 PermissionGrantPlanDomainService.apply 落库，
+     * 批量写入固定图授权（BOOTSTRAP_SEED 来源单操作位，T-PERM-106 打标；经 PermissionGrantPlanDomainService.apply 落库，
      * 写前复用 validateSingleManualGrants / validateGrantAttributes 不变量校验）。
      */
     void insertGrants(Long tenantId, Long roleId, List<RoleResourcePermission> grants);

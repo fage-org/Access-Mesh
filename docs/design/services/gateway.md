@@ -125,7 +125,7 @@ Gateway 启动后订阅 Redis topic `perm:invalidate`。access-service 写路径
 
 > T-ACCESS-008 已删除配置：`gateway.cache.l1.ttl-seconds` / `max-size`（统一到 catalog + `accessmesh.cache` 覆盖）、`gateway.cache.l1.stale-grace-seconds`（stale-allow 删除）、`gateway.permission.fail-mode`（固定 fail-closed，不可切换）。
 
-> T-ACCESS-047：连接类地址占位符化（默认值=原硬编码，本地 dev 零参数不变）——`NACOS_SERVER_ADDR`（discovery/config server-addr，默认 `127.0.0.1:8848`；三服务同键）、`REDIS_HOST`/`REDIS_PORT`/`REDIS_PASSWORD`（既有）、`DB_HOST`/`DB_PORT`（access-service）。容器化部署（compose `--profile app`）经环境变量覆盖为服务名；部署形态与密钥清单见 [docs/quickstart.md](../../quickstart.md) 与 [docs/ops/deployment.md](../../ops/deployment.md)。
+> T-ACCESS-047：连接类地址占位符化——`NACOS_SERVER_ADDR`（discovery/config server-addr，默认 `127.0.0.1:8848`；三服务同键）、`REDIS_HOST`/`REDIS_PORT`（有默认）、`DB_HOST`/`DB_PORT`（access-service）；`REDIS_PASSWORD` **必填无默认**（T-ACCESS-086 密钥基线，compose 以 :? 强制，本地须显式 export——2026-10-06 逐任务评审修正旧「默认值=原硬编码」伞下口径）。容器化部署（compose `--profile app`）经环境变量覆盖为服务名；部署形态与密钥清单见 [docs/quickstart.md](../../quickstart.md) 与 [docs/ops/deployment.md](../../ops/deployment.md)。
 
 ### 失联兜底模式（T-ACCESS-008 固定 fail-closed）
 

@@ -11,7 +11,7 @@ public interface LoginLogDomainService {
      *
      * @param tenantId   租户ID
      * @param userId     登录用户ID（用户不存在等失败场景为 null）
-     * @param username   登录用户名（SMS 登录成功/命中用户时回填实际用户名，避免手机号入库）
+     * @param username   登录用户名（历史 SMS 登录曾回填实际用户名避免手机号入库；现登录链路恒为请求用户名）
      * @param loginType  登录方式：PASSWORD/SMS/OAUTH2（与 sys_login_log.login_type 注释对齐）
      * @param clientId   客户端ID（OAuth2客户端标识）
      * @param ipAddress  客户端IP（从请求上下文提取，无请求时 null）

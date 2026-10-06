@@ -70,7 +70,7 @@ Nacos(8848)：服务注册/配置（三服务共同依赖）
 
 ### 固定图种子来源切换（T-PERM-106）
 
-新库固定图授权来源为 BOOTSTRAP_SEED。旧库的 MANUAL 种子与运营授权无法可靠追溯区分，不自动补标，启动明确拒绝未标记固定图。按 §8 备份并验证旧版本可恢复，再按重建手册新建库；这是既定开发期重建路径，不是保数据迁移方案。转授出的普通 MANUAL 行不因来源收紧而锁定。
+新库固定图授权来源为 BOOTSTRAP_SEED。旧库的 MANUAL 种子与运营授权无法可靠追溯区分，不自动补标。防护形态（2026-10-06 bootstrap 校验方案 A 拍板）：①**写路径全形态守卫**——种子行撤/改/挂子权限拒 **20074**、固定图墓碑身份的孪生行撤/改/挂子权限拒 **20075**（不依赖 bootstrap 开关，任意实例生效）；②**启动检查**（随 bootstrap 开关装配）——未标记且无种子墓碑的真旧库维持拒启；「种子墓碑+同键 MANUAL 孪生」并存态 WARN 放行不补回（孪生行已由 20075 置为只读）。真旧库按 §8 备份并验证旧版本可恢复，再按重建手册新建库；这是既定开发期重建路径，不是保数据迁移方案。转授出的普通 MANUAL 行不因来源收紧而锁定。
 
 ### OAuth2 凭据代际切换（T-ACCESS-082）
 
@@ -101,9 +101,13 @@ set -euo pipefail
 umask 077
 mkdir -p backups
 backup_file="backups/access-db-$(date -u +%Y%m%dT%H%M%SZ).dump"
-docker compose exec -T postgresql sh -ec 'PGPASSWORD="$POSTGRES_PASSWORD" pg_dump -h 127.0.0.1 -U "$POSTGRES_USER" -d access_db -Fc -f /tmp/access-db.dump'
-docker compose cp postgresql:/tmp/access-db.dump "$backup_file"
-docker compose exec -T postgresql rm /tmp/access-db.dump
+# 容器内临时文件名并入主机侧唯一时间戳+容器 shell PID：定时与人工备份共用固定路径交错时，
+# 后写者截断同名文件会使先写者的拷贝得到部分文件且 sha256 与其自身自洽（无法靠校验和识别）
+# ——2026-10-06 逐任务评审修正
+tmp_dump="/tmp/access-db-$(basename "$backup_file")-$$.dump"
+docker compose exec -T postgresql sh -ec "PGPASSWORD=\"\$POSTGRES_PASSWORD\" pg_dump -h 127.0.0.1 -U \"\$POSTGRES_USER\" -d access_db -Fc -f '$tmp_dump'"
+docker compose cp "postgresql:$tmp_dump" "$backup_file"
+docker compose exec -T postgresql rm "$tmp_dump"
 sha256sum "$backup_file" > "$backup_file.sha256"
 ```
 
@@ -115,14 +119,17 @@ sha256sum "$backup_file" > "$backup_file.sha256"
 
 ```bash
 sha256sum -c "$backup_file.sha256"
-docker compose cp "$backup_file" postgresql:/tmp/access-restore.dump
+# 容器内临时文件名并入备份文件名+shell PID（与备份段同款唯一化：交错恢复/备份共用固定
+# 路径会产出校验和自洽的部分文件——2026-10-06 逐任务评审修正）
+tmp_restore="/tmp/access-restore-$(basename "$backup_file")-$$.dump"
+docker compose cp "$backup_file" "postgresql:$tmp_restore"
 docker compose exec -T postgresql sh -ec 'PGPASSWORD="$POSTGRES_PASSWORD" createdb -h 127.0.0.1 -U "$POSTGRES_USER" access_restore'
-docker compose exec -T postgresql sh -ec 'PGPASSWORD="$POSTGRES_PASSWORD" pg_restore -h 127.0.0.1 -U "$POSTGRES_USER" --exit-on-error --single-transaction --no-owner -d access_restore /tmp/access-restore.dump'
+docker compose exec -T postgresql sh -ec "PGPASSWORD=\"\$POSTGRES_PASSWORD\" pg_restore -h 127.0.0.1 -U \"\$POSTGRES_USER\" --exit-on-error --single-transaction --no-owner -d access_restore '$tmp_restore'"
 docker compose exec -T postgresql sh -ec 'PGPASSWORD="$POSTGRES_PASSWORD" psql -h 127.0.0.1 -U "$POSTGRES_USER" -d access_restore -v ON_ERROR_STOP=1 -c "SELECT count(*) FROM sys_user; SELECT count(*) FROM role_resource_permission WHERE delete_flag=0;"'
-docker compose exec -T postgresql rm /tmp/access-restore.dump
+docker compose exec -T postgresql rm "$tmp_restore"
 ```
 
-核对备份时记录的用户/有效授权数量、关键租户与业务行，随后用隔离的 Redis 与旧版本应用连接恢复库，验证登录、授权允许和拒绝各一条。灾难恢复时只有环境负责人确认目标后才切换数据源；清空平台专用 Redis DB、启动一台 access-service 验证，再启动其余实例与 Gateway。独立库创建失败（同名存在）须先调查，不自动 DROP。
+核对备份时记录的用户/有效授权数量、关键租户与业务行，随后用隔离的 Redis 与旧版本应用连接**恢复库**验证登录、授权允许和拒绝各一条。注意：`application.yml` 的 JDBC URL 库名硬编码 `access_db`（仅 HOST/PORT 为占位符），起验证实例必须显式覆盖库名，否则应用会静默连回运行库、三查通过即产出「备份已验证」假结论（2026-10-06 逐任务评审修正）——验证实例以 `SPRING_DATASOURCE_URL=jdbc:postgresql://postgresql:5432/access_restore` 环境变量覆盖（compose `run`/临时服务定义注入，勿改动运行实例）。灾难恢复时只有环境负责人确认目标后才切换数据源；清空平台专用 Redis DB、启动一台 access-service 验证，再启动其余实例与 Gateway。独立库创建失败（同名存在）须先调查，不自动 DROP。
 
 ## 9. 忘记 bootstrap 密码的离线恢复
 

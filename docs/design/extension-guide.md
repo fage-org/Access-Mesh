@@ -68,6 +68,7 @@ last_reviewed: 2026-10-06
 
 - `perm-client-spring-boot-starter` 通过 `PermissionFeignClient` 调用远程查询/同步；`FeignCredentialInterceptor` 仅对精确 M2M 清单注入凭证。配置 `perm.credential-id`、`perm.credential-secret` 和 `perm.allow-insecure`（true=单信任域明文 hop 可接受；false=跨边界要求 TLS，须由部署保障）。无需配置全局内部密钥。
 - example-service 共享多租户部署：按可信请求租户从 `example.permission.tenant-credentials` 选择独立凭证，通过运行时查询的显式头重载传递；没有配置的租户拒绝，不回落全局固定凭证。非空映射须声明 `example.permission.allow-insecure`；异步导出也按捕获租户重新选择。配置示例见服务认证 §3.5。
+- **接入方业务错误码避开 SDK 占用段**：SDK starter 进程内已占用 `30003`（验签失败，`PermClientErrorCode`）——接入方自有业务错误码请从 `30004` 起顺延自段并避开 SDK/平台已用码，撞码后信封 `code` 无法区分验签失败与业务错误（2026-10-06 逐任务评审补指引）。
 - Gateway 仍负责接口操作准入，业务服务负责实际对象最终检查。非 Java 服务可直接按契约发送凭证头，不必使用 SDK；管理面 Feign 方法仍需另行提供有效用户身份，服务凭证不能替代。
 - Gateway 的准入过滤器在 gateway 服务中维护；空壳 perm-gateway starter 已删除。可选 registration starter 只负责依赖发布。
 - SDK 默认操作码为 VIEW/UPDATE/DELETE，原 EDIT 已退役。旧 PermContext/PermCheckReq/PermCheckResp 无消费者，已删除；运行时请求使用当前 AuthCheckReq/BatchAuthCheckReq 等 DTO。
@@ -112,12 +113,13 @@ URL 指向服务根地址，不附加 /api/access（方法映射已包含完整�
 
 | HTTP / 响应 | 发生层与含义 | 接入方处置 |
 |---|---|---|
-| 200，code 为业务错误码 | `BizException`；业务规则、对象或权限拒绝。例如 example `30004` 表示业务最终检查未通过，`30003` 表示身份签名无效 | 读取 code/message/requestId；按目标资源、角色与参数排查，不盲目重试或放行 |
+| 200，code 为业务错误码 | `BizException`；业务规则、对象或权限拒绝。例如 example `30004` 表示业务最终检查未通过（经 `GlobalExceptionHandler`，带 requestId）；`30003` 是 **SDK 验签过滤器直写**的信封（`GatewaySignatureFilter`，不经 handler——无 requestId，接入方不得据 requestId 缺失误判，2026-10-06 逐任务评审修正归因） | 读取 code/message/requestId；按目标资源、角色与参数排查，不盲目重试或放行 |
 | 200，code 为系统错误码 | 显式 `SystemException`；不是成功，消息统一为系统异常 | 保留 requestId，按依赖故障排障；写请求按幂等契约重试 |
 | 400，code=90001 或 400 | Bean Validation/请求 JSON/结构参数校验失败 | 修正输入。字符串 extra 中的非法 JSON 等业务校验可能是上一行 200+业务码，须按具体契约判断 |
-| 403，code=403 | 服务层 `SecurityException` 或认证仲裁的身份/白名单拒绝 | 核对服务凭证范围、操作者和管理权限；不通过重试绕过 |
+| 403，code=403 | 服务层 `SecurityException`（权限不足）或半头/白名单外的内部密钥链拒绝 | 核对操作者和管理权限；不通过重试绕过 |
+| 403，code=20065~20068 | 服务凭证认证仲裁拒绝（`ServiceAuthArbiter`：凭证无效/过期/停用/服务未注册停用，细分码直写信封） | 按 code 区分凭证状态（20066 过期须轮换、20067 停用须启用、20068 未注册须先注册）；M2M 凭证请求不适用「重新登录」 |
 | 500，code=99999 | 未捕获异常的兜底 | 按 requestId 联系平台排障，不能解释为“无权限” |
-| Gateway 401 / 403 | 401=平台会话无效；权限过滤器 403=接口准入拒绝，请求尚未进入业务服务 | 401 重新登录；403 先查服务接口映射及类型/操作候选授权。若 403 **无 JSON 信封**，先按部署基线查 CORS |
+| Gateway 401 / 403 | 401=平台会话无效（M2M 凭证请求半头/调白名单外端点同样回落 401，非会话问题——服务凭证请求本无用户会话）；权限过滤器 403=接口准入拒绝，请求尚未进入业务服务 | 用户会话 401 重新登录；**M2M 凭证请求 401 查凭证头完整性与端点是否在凭证白名单**（契约 §24.1 回落记载）；403 先查服务接口映射及类型/操作候选授权。若 403 **无 JSON 信封**，先按部署基线查 CORS |
 | Gateway 502 / 503 | 上游或鉴权依赖不可用、配置故障；失败关闭 | 先恢复依赖或修正映射；不能当作明确业务拒绝，也不能回退放行 |
 | 200，code=200，data.allowed=false | 权限查询成功执行，但检查结果拒绝 | 根据 reason 排查条件、互斥、角色或父上下文；业务动作不得执行 |
 | 200，code=200，data.accepted=false | sync/full-sync 请求已完成分类，但同步事实未被接受，可能为 SECURITY_DENIED/RESOURCE_TYPE_OWNERSHIP_DENIED 等 | 继续查看 retryClass/reason；FULL 检查 itemResults，遵守 [同步重试表](../ops/runbook-full-sync.md#4-响应分类与重试决策表) |
@@ -176,7 +178,7 @@ URL 指向服务根地址，不附加 /api/access（方法映射已包含完整�
 
 ### 3.4 资源树与父子关系
 
-资源父子边限同类型（T-PERM-068，2026-09-17 Q-007 定案）：sync/full-sync 的 `parentResourceTypeCode` 缺省按 item/scope 自身类型解析、显式异类型被拒（`NON_RETRYABLE`/`PARENT_TYPE_MISMATCH`）；管理面 create/batch-create/move 同口径（20053）；角色域 ORG/POSITION 容器树的结构性跨类型是另一域形态、与资源域无关。SYNC 类型资源出现在管理面资源树（读路径不受限），授权页按类型出矩阵。两个易混概念：**自动授权（依赖补全）**使用 MANIFEST 声明与编译图，物化已随 072 落地（旧 autoGrant 开关已退役，见 §6）；**`depend_on` 子权限**（授权行挂主权限的子权限机制）是在役能力——写侧经 apply-grant-plan 的 `parentPermissionId`/`children` 声明，判定时必须提供真实父上下文 `parentResourceTypeCode/parentResourceCode/parentCodeType/parentOperationCodes`，由引擎确认父权限实际通过且命中相同父行；未传父上下文的子行不计入。契约见 §18.1/§18.6，不能把子行的存在直接当成可用权限。
+资源父子边限同类型（T-PERM-068，2026-09-17 Q-007 定案）：sync/full-sync 的 `parentResourceTypeCode` 缺省按 item/scope 自身类型解析、显式异类型被拒（`NON_RETRYABLE`/`PARENT_TYPE_MISMATCH`）；管理面 create/batch-create/move 同口径（20053）；角色域 ORG/POSITION 容器树的结构性跨类型是另一域形态、与资源域无关。SYNC 类型资源出现在管理面资源树（读路径不受限），授权页按类型出矩阵。两个易混概念：**自动授权（依赖补全）**使用 MANIFEST 声明与编译图，物化已随 072 落地（旧 autoGrant 开关已退役，见 §6）；**`depend_on` 子权限**（授权行挂主权限的子权限机制）是在役能力——写侧经 apply-grant-plan 的 `parentPermissionId`/`children` 声明，判定时必须提供真实父上下文 `parentResourceTypeCode/parentResourceCode/parentCodeType/parentOperationCodes`，由引擎确认父权限实际通过且命中相同父行；未传父上下文的子行不计入。契约语义见 §18.2（父上下文引注段）/§18.6，端点清单见 §18.1；不能把子行的存在直接当成可用权限（2026-10-06 逐任务评审修正锚点——§18.1 仅端点表，不承载该语义）。
 
 ### 3.5 首笔授权引导（创建即建授权根，T-PERM-062）
 

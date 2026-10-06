@@ -136,10 +136,18 @@ public class UserDomainServiceImpl implements UserDomainService {
         return userMapper.selectByUsernameForUpdate(tenantId, username);
     }
 
+    @Override
+    public SysUser lockValidById(Long tenantId, Long userId) {
+        if (userId == null) {
+            return null;
+        }
+        return userMapper.selectByIdForUpdate(tenantId, userId);
+    }
+
     /**
      * 根据手机号查询用户
      * <p>
-     * 用于短信登录验证和手机号唯一性校验。
+     * 用于手机号唯一性校验（短信登录已删除）。
      * 带租户隔离和删除标记过滤。
      * </p>
      *

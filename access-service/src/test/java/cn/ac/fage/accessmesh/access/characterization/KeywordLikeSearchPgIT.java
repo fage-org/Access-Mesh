@@ -139,6 +139,18 @@ class KeywordLikeSearchPgIT {
     }
 
     @Test
+    @DisplayName("sys-user phone/email 模糊匹配：部分输入命中（2026-10-06 逐任务评审 P2，旧等值匹配必红）")
+    void shouldSearchSysUserByPartialPhoneAndEmail() {
+        jdbc.update("INSERT INTO sys_user (id, tenant_id, username, password, name, phone, email) "
+            + "VALUES (990002, 1, 'kwtest_phone_user', 'x', '模糊回归用户', '13800001234', 'fuzzy@example.com')");
+        assertThat(sysUserMapper.selectUsersByCondition(TENANT, null, null, "000012", null, null, null, 0, 10))
+            .extracting(cn.ac.fage.accessmesh.access.user.entity.SysUser::getUsername)
+            .contains("kwtest_phone_user");
+        assertThat(sysUserMapper.countUsersByCondition(TENANT, null, null, null, "@example.com", null, null))
+            .isEqualTo(1L);
+    }
+
+    @Test
     @DisplayName("sys-org keyword：org name LIKE 命中")
     void shouldSearchSysOrgByKeyword() {
         jdbc.update("INSERT INTO sys_org (tenant_id, code, name) VALUES (1, 'KWTEST_ORG', 'keyword 回归组织')");

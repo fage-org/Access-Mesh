@@ -67,6 +67,8 @@ class OAuth2ScopeValidationTest {
         activeUser.setStatus(1);
         activeUser.setPassword(OAuth2CredentialFixtures.PASSWORD_HASH);
         lenient().when(userDomainService.selectValidById(1L, 100L)).thenReturn(activeUser);
+        // authorize 签发关键段改行锁读（2026-10-06 逐任务评审 P2，行锁串行化拍板延伸）
+        lenient().when(userDomainService.lockValidById(1L, 100L)).thenReturn(activeUser);
     }
 
     private SysOauth2Client clientWithScopes(String scopes) {
@@ -98,7 +100,7 @@ class OAuth2ScopeValidationTest {
         when(oauth2ClientDomainService.findActiveByClientId(CLIENT_ID)).thenReturn(clientWithScopes("profile"));
         var user = new cn.ac.fage.accessmesh.access.user.entity.SysUser();
         user.setStatus(0);
-        when(userDomainService.selectValidById(1L, 100L)).thenReturn(user);
+        when(userDomainService.lockValidById(1L, 100L)).thenReturn(user);
         assertThatThrownBy(() -> authorize("profile"))
             .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class);
         org.mockito.Mockito.verifyNoInteractions(valueOperations);

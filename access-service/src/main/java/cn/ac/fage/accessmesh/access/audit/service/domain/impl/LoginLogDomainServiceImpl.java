@@ -43,7 +43,7 @@ public class LoginLogDomainServiceImpl implements LoginLogDomainService {
      * <p>
      * 完整回填 userId/loginType/IP/User-Agent（T-ACCESS-007）：
      * 由 AuthAppServiceImpl 从请求上下文提取 IP/UA 后随条目传入，loginType 按登录方式
-     * 写入 PASSWORD/SMS/OAUTH2（与 DDL 列注释对齐），不再硬编码小写 password。
+     * 写入 PASSWORD/OAUTH2（SMS 为历史值，DDL 列注释保留三值域；登录链路现只写 PASSWORD）。
      * </p>
      *
      * @param entry 登录日志条目

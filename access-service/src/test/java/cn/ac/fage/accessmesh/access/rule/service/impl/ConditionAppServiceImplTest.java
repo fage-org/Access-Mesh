@@ -213,6 +213,33 @@ class ConditionAppServiceImplTest {
         }
 
         @Test
+        void dbLoadedRulesExceedingInputLimit_stillUpdatableByNameOnly() {
+            // 2026-10-06 逐任务评审 P2：DB 老 rules 为 jsonb 读回形态（重排膨胀，实测 44KiB
+            // 紧凑入 66KiB 读出）——仅改名/停用不得被 64KiB 输入限额拒绝；旧实现（对最终态
+            // 无差别套 validateJson 全额校验）下本用例必红
+            StringBuilder items = new StringBuilder();
+            for (int i = 0; i < 1400; i++) {
+                if (i > 0) {
+                    items.append(',');
+                }
+                items.append("{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.2.").append(i).append(".0/24\"]}}");
+            }
+            String bigRules = "{\"logic\":\"AND\",\"items\":[" + items + "]}";
+            org.assertj.core.api.Assertions.assertThat(
+                    bigRules.getBytes(java.nio.charset.StandardCharsets.UTF_8).length)
+                .isGreaterThan(64 * 1024);
+            PermissionCondition existing = newCondition(false, bigRules);
+            when(conditionMapper.selectValidByCode(TENANT_ID, CONDITION_CODE)).thenReturn(existing);
+            when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(CONDITION_CODE), any()))
+                .thenReturn(true);
+
+            ConditionUpdateReq req = new ConditionUpdateReq(CONDITION_CODE, "仅改名", null, null, null, null, null);
+
+            assertThatCode(() -> service.updateCondition(TENANT_ID, req, OPERATOR_ID))
+                .doesNotThrowAnyException();
+        }
+
+        @Test
         void descriptionClear_writesOnlyTouchedColumns() {
             // 外部评审 P2 处置：Clear 分支最小列写入锁——请求只触达 description 清空时，
             // UpdateEntity 仅携带 description/updatedBy/updatedAt；回写快照其余列会在

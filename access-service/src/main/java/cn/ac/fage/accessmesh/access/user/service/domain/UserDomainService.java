@@ -94,9 +94,24 @@ public interface UserDomainService {
     SysUser lockValidByUsername(Long tenantId, String username);
 
     /**
+     * 按主键行锁读有效用户（FOR UPDATE）。
+     * <p>
+     * 2026-10-06 逐任务评审 P2（行锁串行化拍板延伸，同 {@link #lockValidByUsername}）：
+     * OAuth2 authorize 签发关键段使用——行锁持续到事务提交，与 resetPassword 的 UPDATE
+     * 行锁互斥，交错两侧其一必见对方已提交结果（配合锁窗内会话复核，关闭「在途授权经已
+     * 吊销会话签出新代际链」窗口）。锁持有期间占用数据库连接，仅用于签发关键段，禁作普通查询。
+     * </p>
+     *
+     * @param tenantId 租户ID，用于多租户隔离
+     * @param userId   用户主键
+     * @return 用户实体，不存在返回 null
+     */
+    SysUser lockValidById(Long tenantId, Long userId);
+
+    /**
      * 根据手机号查询用户
      * <p>
-     * 通过手机号查找用户，用于短信登录和手机号验证。
+     * 通过手机号查找用户，用于手机号唯一性校验（短信登录已删除，历史调用面不复存在）。
      * </p>
      *
      * @param tenantId 租户ID，用于多租户隔离

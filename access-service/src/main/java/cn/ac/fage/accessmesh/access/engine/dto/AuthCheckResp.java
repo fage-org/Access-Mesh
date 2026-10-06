@@ -20,7 +20,7 @@ import java.util.List;
  * @param reason             拒绝原因，允许时为null
  * @param matchedRoleIds     匹配的角色ID列表（拒绝时为空列表）
  * @param matchedPermissionIds 匹配的权限ID列表（拒绝时为空列表）
- * @param conditionEvaluated 是否评估了条件权限
+ * @param conditionEvaluated 本次判定是否消费了条件事实（raw 基准，T-PERM-107）
  */
 public record AuthCheckResp(
     boolean allowed,
@@ -37,7 +37,7 @@ public record AuthCheckResp(
      *
      * @param matchedRoleIds    匹配的角色ID列表
      * @param matchedPermissionIds 匹配的权限ID列表
-     * @param conditionEvaluated 是否评估了条件权限
+     * @param conditionEvaluated 本次判定是否消费了条件事实（raw 基准，T-PERM-107）
      * @return 允许的响应对象
      */
     public static AuthCheckResp allow(List<Long> matchedRoleIds, List<Long> matchedPermissionIds,

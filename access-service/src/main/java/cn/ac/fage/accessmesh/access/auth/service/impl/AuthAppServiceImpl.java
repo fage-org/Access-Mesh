@@ -48,7 +48,7 @@ import org.slf4j.LoggerFactory;
 /**
  * 认证服务实现类
  * <p>
- * 提供用户登录认证相关的核心功能，包括验证码生成、密码登录、短信登录、
+ * 提供用户登录认证相关的核心功能，包括验证码生成、密码登录（短信登录已删除）、
  * 用户信息获取、用户菜单获取等。
  * 实现了登录失败计数、临时锁定（计数键即锁，键过期自动恢复，不落库）、
  * 验证码一次性使用等安全机制（T-ADMIN-022）。
@@ -66,7 +66,7 @@ public class AuthAppServiceImpl implements AuthAppService {
     private static final int MAX_LOGIN_FAIL_COUNT = 5;
     private static final long LOCK_DURATION_MINUTES = 30;
 
-    /** 登录方式（对齐 sys_login_log.login_type 列注释：PASSWORD/SMS/OAUTH2） */
+    /** 登录方式（对齐 sys_login_log.login_type 列注释：PASSWORD/OAUTH2；SMS 为历史值，登录链路现只写 PASSWORD） */
     private static final String LOGIN_TYPE_PASSWORD = "PASSWORD";
 
     /**
@@ -166,8 +166,9 @@ public class AuthAppServiceImpl implements AuthAppService {
      * 执行完整的密码登录流程：验证码校验、客户端校验、用户查询、
      * 停用检查（管理员手工启停，优先于临时锁定提示）、临时锁定检查
      * （失败计数键）、密码校验、登录失败记录、Sa-Token会话创建。
-     * 登录成功后清除失败计数；失败时累加计数，达到阈值后凭键剩余 TTL
-     * 临时锁定，键过期自动恢复（T-ADMIN-022）。
+     * 登录成功后清除失败计数；密码失败累加计数，达到阈值后凭键剩余 TTL
+     * 临时锁定，键过期自动恢复（T-ADMIN-022）。验证码失败不计入失败计数，
+     * 仅留审计日志（2026-10-06 拍板：免验证码零成本锁号回退）。
      * </p>
      *
      * @param req 登录请求，包含租户ID、用户名、密码、验证码等
@@ -188,7 +189,9 @@ public class AuthAppServiceImpl implements AuthAppService {
         try {
             validateCaptcha(req.captchaId(), req.captchaCode());
         } catch (BizException e) {
-            recordLoginFail(tenantId, req.username());
+            // 验证码失败不推进失败计数（2026-10-06 拍板恢复改前语义）：计数键无 IP 维度，
+            // 免验证码请求可零成本定向锁定任意已知账号（验证码一次性消费，攻击者无需获取
+            // 验证码即可推动计数）；验证码失败仅留审计日志，只有通过验证码后的密码失败才锁号
             safeRecordLoginLog(tenantId, null, req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 0, "验证码错误");
             throw e;
         }

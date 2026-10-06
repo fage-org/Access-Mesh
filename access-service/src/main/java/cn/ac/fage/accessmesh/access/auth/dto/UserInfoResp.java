@@ -115,9 +115,10 @@ public record UserInfoResp(
         String orgName,
 
         /**
-         * 组织类型
+         * 组织类型（数字线格式，D14 拍板统一 Integer——与契约 §7.1/§8.7 同口径，
+         * 2026-10-06 逐任务评审清扫 auth 族 String 声明残留；当前构造点恒填 null）
          */
-        String orgType,
+        Integer orgType,
 
         /**
          * 是否主要组织

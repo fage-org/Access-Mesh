@@ -67,6 +67,7 @@ class PermissionGrantPlanDomainServiceImplTest {
     @Mock private ResourceEntityDomainService resourceEntityDomainService;
     @Mock private OperationPermissionDomainService operationPermissionMapper;
     @Mock private DomainConfigDomainService domainConfigMapper;
+    @Mock private cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService subjectDomainService;
 
     private PermissionGrantPlanDomainServiceImpl service;
 
@@ -75,7 +76,64 @@ class PermissionGrantPlanDomainServiceImplTest {
         service = new PermissionGrantPlanDomainServiceImpl(
             typeResolutionService, domainClassifyService, permissionGrantDomainService,
             conditionDomainService, rolePermissionMapper, resourceEntityDomainService, operationPermissionMapper,
-            domainConfigMapper, new ObjectMapper());
+            domainConfigMapper, new ObjectMapper(), subjectDomainService);
+    }
+
+    // ---- 2026-10-06 bootstrap 校验方案 A（用户拍板）：固定图墓碑身份写守卫 ----
+
+    @Test
+    @DisplayName("墓碑孪生行写守卫：管理角色上墓碑身份的 MANUAL 行不可撤/改（20075，旧实现无守卫必红）")
+    void tombstonedSeedIdentityTwinRowRejectedOnAdminRole() {
+        var twin = new RoleResourcePermission();
+        twin.setId(9001L);
+        twin.setResourceType(30);
+        twin.setScopeAll(true);
+        twin.setGrantedBits(2L);
+        twin.setGrantSource("MANUAL");
+        when(rolePermissionMapper.selectValidByRoleId(TENANT, ROLE)).thenReturn(List.of(twin));
+
+        var tombstone = new RoleResourcePermission();
+        tombstone.setId(9000L);
+        tombstone.setResourceType(30);
+        tombstone.setScopeAll(true);
+        tombstone.setGrantedBits(2L);
+        tombstone.setGrantSource("BOOTSTRAP_SEED");
+        when(rolePermissionMapper.selectSoftDeletedByRoleIds(eq(TENANT), anySet()))
+            .thenReturn(List.of(tombstone));
+
+        var role = new cn.ac.fage.accessmesh.access.role.entity.AbstractRole();
+        role.setId(ROLE);
+        role.setExternalId(cn.ac.fage.accessmesh.access.bootstrap.BootstrapGraphDefinition.ADMIN_ROLE_EXTERNAL_ID);
+        when(subjectDomainService.selectValidRoleById(TENANT, ROLE)).thenReturn(role);
+
+        var plan = new ApplyGrantPlanReq.GrantPlan(List.of(), List.of(), List.of(9001L));
+        BizException error = assertThrows(BizException.class,
+            () -> service.prevalidate(TENANT, SUBJECT, ROLE, null, plan));
+        assertEquals(cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode
+                .BOOTSTRAP_TOMBSTONE_TWIN_READONLY.getCode(), error.getErrorCode());
+        org.mockito.Mockito.verifyNoInteractions(permissionGrantDomainService);
+    }
+
+    @Test
+    @DisplayName("守卫不误伤：非管理角色同身份 MANUAL 行正常可编辑（普通角色零墓碑查询面）")
+    void tombstoneGuardSkippedForNonAdminRole() {
+        var twin = new RoleResourcePermission();
+        twin.setId(9001L);
+        twin.setResourceType(30);
+        twin.setScopeAll(true);
+        twin.setGrantedBits(2L);
+        twin.setGrantSource("MANUAL");
+        when(rolePermissionMapper.selectValidByRoleId(TENANT, ROLE)).thenReturn(List.of(twin));
+
+        var role = new cn.ac.fage.accessmesh.access.role.entity.AbstractRole();
+        role.setId(ROLE);
+        role.setExternalId("custom-role");
+        when(subjectDomainService.selectValidRoleById(TENANT, ROLE)).thenReturn(role);
+
+        var plan = new ApplyGrantPlanReq.GrantPlan(List.of(), List.of(), List.of(9001L));
+        // 普通角色不触发守卫：remove 计划进入正常删除编排（mock no-op 放行，无异常即过守卫）
+        service.prevalidate(TENANT, SUBJECT, ROLE, null, plan);
+        verify(rolePermissionMapper, never()).selectSoftDeletedByRoleIds(any(), anySet());
     }
 
     // ========== 辅助 ==========

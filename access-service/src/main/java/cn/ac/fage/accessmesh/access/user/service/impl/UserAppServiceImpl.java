@@ -393,9 +393,15 @@ public class UserAppServiceImpl implements UserAppService {
         // 经响应当即已知），与归档设计「修改个人密码成功后置 false」口径回归
         // （T-PERM-067 外评 claude P3 处置：此前一律置 true 且全仓无清除通道，自助改密后
         // 「初始密码」提示永久失真）
-        user.setForceResetPwd(!userId.equals(currentUserId));
-        user.setUpdatedAt(LocalDateTime.now());
-        userMapper.update(user);
+        // 2026-10-06 逐任务评审 P1-3（对称面）：本入口只拥有凭据三列——patch 写不整实体
+        // 回写；selectValidById 非锁读，整实体回写会把交错并发的档案更新
+        // （name/phone/email/status）静默回滚
+        SysUser patch = com.mybatisflex.core.util.UpdateEntity.of(SysUser.class);
+        patch.setId(user.getId());
+        patch.setPassword(user.getPassword());
+        patch.setForceResetPwd(!userId.equals(currentUserId));
+        patch.setUpdatedAt(LocalDateTime.now());
+        userMapper.update(patch);
         if (!userId.equals(currentUserId)) {
             StpUtil.logout(userId);
         }

@@ -191,7 +191,13 @@ class PlatformSessionAbsoluteTimeoutTest {
         assertThat(userinfoStatus(first)).isEqualTo(401);
         assertThat(userinfoStatus(second)).isEqualTo(401);
         assertThat(userinfoStatus(adminToken)).isEqualTo(200);
-        org.mockito.Mockito.verify(userMapper).update(target);
+        // 2026-10-06 逐任务评审 P1-3：resetPassword 改触达列 patch 写（UpdateEntity 代理，
+        // 凭据三列专属）——不再整实体回写，验证迁移为捕获 patch 断言密码已更新
+        var cap = org.mockito.ArgumentCaptor.forClass(
+            cn.ac.fage.accessmesh.access.user.entity.SysUser.class);
+        org.mockito.Mockito.verify(userMapper).update(cap.capture());
+        org.assertj.core.api.Assertions.assertThat(cap.getValue().getPassword()).isNotBlank();
+        org.assertj.core.api.Assertions.assertThat(cap.getValue().getId()).isEqualTo(target.getId());
     }
 
     @Test

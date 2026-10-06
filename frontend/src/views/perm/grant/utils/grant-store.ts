@@ -403,6 +403,13 @@ export const useGrantStore = defineStore("perm-grant", {
       }
     },
 
+    /** 确认放弃未保存变更（2026-10-06 逐任务评审 P2）：清内存变更——与 removeDraft 同批
+     *  完成「放弃」语义。旧实现只删存储项，内存 changes 存活到 commitSubject/类型切换完成，
+     *  窗口内失败回写 persistDraft 会按「旧主体快照×新类型」错分区重建草稿。 */
+    discardChanges() {
+      this.changes = [];
+    },
+
     /**
      * 页面卸载重置（离开页面清空上下文与草稿）。
      * 递增 baselineToken/saveToken 让在途请求失效（不归零，保持单调，问题 3+4）。

@@ -31,7 +31,7 @@ public record AuthCheckResp(
      */
     List<Long> matchedPermissionIds,
     /**
-     * 是否完成条件评估
+     * 本次判定是否消费了条件事实（raw 基准，T-PERM-107）
      */
     boolean conditionEvaluated
 ) {
@@ -41,7 +41,7 @@ public record AuthCheckResp(
      *
      * @param matchedRoleIds      匹配的角色ID列表
      * @param matchedPermissionIds 匹配的权限ID列表
-     * @param conditionEvaluated   是否完成条件评估
+     * @param conditionEvaluated   本次判定是否消费了条件事实（raw 基准）
      * @return 允许通过的权限校验响应
      */
     public static AuthCheckResp allow(List<Long> matchedRoleIds, List<Long> matchedPermissionIds,

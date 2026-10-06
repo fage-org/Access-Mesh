@@ -85,7 +85,9 @@ public class AccessBootstrapInitializer {
         // T-ACCESS-054：定时任务管理面最小运营三档（VIEW/TRIGGER/ENABLE）
         ResourceTypeCode.ADMIN_JOB,
         // T-ACCESS-059：org-tree-config/page 开放读绑定（准入要求候选来源）
-        ResourceTypeCode.ADMIN_ORG_TREE_CONFIG);
+        ResourceTypeCode.ADMIN_ORG_TREE_CONFIG,
+        // 2026-10-06 逐任务评审 P1-4：OAuth2 客户端管理面四档类型级授权（VIEW/CREATE/UPDATE/DELETE）
+        ResourceTypeCode.ADMIN_OAUTH2_CLIENT);
 
     /** sys_user.user_type：本地用户管理展示值（与 createUser 链一致；权限域类型由投影链解析） */
     private static final int SYS_USER_TYPE_PERSON = 1;
@@ -369,6 +371,12 @@ public class AccessBootstrapInitializer {
                     .collect(Collectors.groupingBy(GrantIdentity::of,
                         Collectors.mapping(GrantKey::of, Collectors.toList())));
             List<RoleResourcePermission> missingGrants = new ArrayList<>();
+            // 2026-10-06 bootstrap 校验方案 A（用户拍板）：并存态分流——有效行存在但无种子行时，
+            // 同身份存在 BOOTSTRAP_SEED 墓碑 = 离线撤销后经授权页重授（墓碑三分同款成因）
+            // → WARN 放行不补回（该孪生行由授权计划写守卫 20075 置为只读，防编辑固化漂移）；
+            // 无墓碑 = 真旧库未标记 → 维持拒启。修掉「撤了不重授=WARN、撤了重授=拒启」的自相矛盾
+            Set<GrantIdentity> seedTombstones = seedTombstoneIdentities(tenantId, roleId);
+            List<String> tombstoneTwinKeys = new ArrayList<>();
             for (RoleResourcePermission grant : buildExpectedGrants(
                     tenantId, roleId, resourceTypes, operationBits)) {
                 List<GrantKey> candidates = existingByIdentity.get(GrantIdentity.of(grant));
@@ -376,15 +384,23 @@ public class AccessBootstrapInitializer {
                     missingGrants.add(grant);
                 } else if (candidates.stream().noneMatch(candidate ->
                         GrantSource.BOOTSTRAP_SEED.getValue().equals(candidate.grantSource()))) {
-                    conflicts.add("旧库固定图授权未标记 BOOTSTRAP_SEED，不自动补标：请先备份再按 deployment.md 重建库；"
-                        + grantIdentityDesc(grant));
+                    if (seedTombstones.contains(GrantIdentity.of(grant))) {
+                        tombstoneTwinKeys.add(grantIdentityDesc(grant));
+                    } else {
+                        conflicts.add("旧库固定图授权未标记 BOOTSTRAP_SEED，不自动补标：请先备份再按 deployment.md 重建库；"
+                            + grantIdentityDesc(grant));
+                    }
                 } else if (!candidates.contains(GrantKey.of(grant))) {
                     log.warn("bootstrap 固定图授权属性漂移（离线维护产生的属性漂移，放行不重种）: {} "
                         + "固定图期望属性={} 实际={}",
                         grantIdentityDesc(grant), GrantKey.of(grant), candidates);
                 }
             }
-            classifyMissingGrants(tenantId, roleId, missingGrants, conflicts);
+            if (!tombstoneTwinKeys.isEmpty()) {
+                log.warn("bootstrap 固定图身份存在有效行+种子墓碑并存（离线撤销后重授；放行不补回，"
+                    + "孪生行由授权计划写守卫 20075 置为只读）: {}", tombstoneTwinKeys);
+            }
+            classifyMissingGrants(tenantId, roleId, missingGrants, conflicts, seedTombstones);
         }
 
         // —— 菜单种子（T-FE-015；path 为期望键子集匹配：固定图 14 行齐全即可（T-PERM-059 后），
@@ -519,15 +535,20 @@ public class AccessBootstrapInitializer {
      * {@code = NULL} 恒不命中，不能下推到 SQL）。已知取舍（定案接受）：误删与故意撤销不可区分；
      * 全瘫场景（撤销全部管理 API 授权）仍需人工恢复——人工恢复路径见 rebuild-runbook。
      */
-    private void classifyMissingGrants(Long tenantId, Long roleId,
-                                       List<RoleResourcePermission> missingGrants, List<String> conflicts) {
-        if (missingGrants.isEmpty()) {
-            return;
-        }
-        Set<GrantIdentity> tombstones = seedWriter.findSoftDeletedGrants(tenantId, roleId).stream()
+    /** BOOTSTRAP_SEED 软删墓碑身份集（并存态分流与缺行三分共用，单次装载）。 */
+    private Set<GrantIdentity> seedTombstoneIdentities(Long tenantId, Long roleId) {
+        return seedWriter.findSoftDeletedGrants(tenantId, roleId).stream()
             .filter(grant -> GrantSource.BOOTSTRAP_SEED.getValue().equals(grant.getGrantSource()))
             .map(GrantIdentity::of)
             .collect(Collectors.toSet());
+    }
+
+    private void classifyMissingGrants(Long tenantId, Long roleId,
+                                       List<RoleResourcePermission> missingGrants, List<String> conflicts,
+                                       Set<GrantIdentity> tombstones) {
+        if (missingGrants.isEmpty()) {
+            return;
+        }
         List<String> revokedKeys = new ArrayList<>();
         for (RoleResourcePermission grant : missingGrants) {
             if (tombstones.contains(GrantIdentity.of(grant))) {

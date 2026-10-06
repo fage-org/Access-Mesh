@@ -1,6 +1,6 @@
 # Flex 租户接线前调用盘点
 
-范围：access-service 主源码中的 QueryWrapper/Db，以及 Mapper 的 BaseMapper 生成方法调用。44 个候选文件；其中注释与同名自定义 insertBatch 已人工核对，不能仅以方法名断言所有调用都受 Flex 改写。下面保留调用位置便于增量复核，不构成行号长期契约。
+范围：access-service 主源码中的 QueryWrapper/Db，以及 Mapper 的 BaseMapper 生成方法调用。44 个候选文件 + 1 处清点遗漏（2026-10-06 逐任务评审补录：ApiMappingWriteDomainServiceImpl——BaseMapper 生成 insert/update 调用，三调用方受控 BootstrapSeedWriterImpl/ResourceManageAppServiceImpl/MappingSyncHandlerImpl，无运行期故障）；其中注释与同名自定义 insertBatch 已人工核对，不能仅以方法名断言所有调用都受 Flex 改写。下面保留调用位置便于增量复核，不构成行号长期契约。
 
 | 执行来源 | 上下文 / SQL 形态 | 处置 |
 |---|---|---|

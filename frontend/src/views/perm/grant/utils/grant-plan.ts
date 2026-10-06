@@ -442,6 +442,23 @@ export function buildUpdateChange(input: {
   };
 }
 
+/** 恢复草稿后把 update 变更的 before 重定基到当前基线行（2026-10-06 逐任务评审 P2）。
+ *  展示端按 after 全量覆盖、提交端按 before→after 差异选字段——恢复的 before 是上次会话快照，
+ *  与当前基线失配时要么静默丢用户意图（字段不发）要么触发 20041 整批拒绝且再编辑无法修复
+ *  （再编辑只改 after）。重定基后差异=用户意图 vs 当前行，展示与载荷恢复一致；
+ *  行已被删除（基线无此 recordId）的变更保持原快照（提交时由后端 20036 拒绝并提示）。 */
+export function rebaseUpdateChangesOnBaseline(
+  changes: DraftChange[],
+  baseline: RolePermissionItem[]
+): void {
+  const byId = new Map(baseline.map(r => [r.id, r]));
+  for (const change of changes) {
+    if (change.kind !== "update") continue;
+    const row = byId.get(change.recordId);
+    if (row) change.before = row;
+  }
+}
+
 export function buildRemoveChange(input: {
   records: RolePermissionItem[];
   cascadeChildCount: number;

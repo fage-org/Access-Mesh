@@ -52,7 +52,11 @@ public class OAuth2ResourcePathProperties implements InitializingBean {
 
     /** 平台会话端点（JWT 分支不得覆盖，启动防护保留清单）。 */
     private static final Set<String> RESERVED_SESSION_PATHS = Set.of(
-        "/api/access/auth/userinfo", "/api/access/auth/user-menu", "/api/access/auth/oauth2/authorize");
+        "/api/access/auth/userinfo", "/api/access/auth/user-menu",
+        "/api/access/auth/oauth2/authorize", "/api/access/auth/oauth2/authorize-preview");
+    // authorize-preview 与 authorize 同为平台会话端点（T-ACCESS-084 新增，2026-10-06 逐任务
+    // 评审补进启动防护保留清单——preview 不签码不写 Redis、误配后果为 500+回归锁缺失，
+    // 越权面不适用，故与 authorize 同列保留清单而非单独分级）
 
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 

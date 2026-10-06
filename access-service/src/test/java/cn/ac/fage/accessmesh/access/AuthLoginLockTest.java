@@ -159,13 +159,20 @@ class AuthLoginLockTest {
     }
 
     @Test
-    void invalidCaptchaIncrementsLoginFailureBeforeUserLookup() throws Exception {
+    @DisplayName("验证码失败不计入失败锁（免验证码零成本锁号回退）：拒绝前置+留审计、不动计数键")
+    void invalidCaptchaRejectsWithoutLockCountingBeforeUserLookup() throws Exception {
         stubRedis();
         when(stringRedisTemplate.execute(any(DefaultRedisScript.class), anyList())).thenReturn(null);
         assertThat(login(PASSWORD).path("code").asInt()).isEqualTo(10901);
-        verify(stringRedisTemplate).execute(any(DefaultRedisScript.class),
-            org.mockito.ArgumentMatchers.eq(List.of(LOCK_KEY)), any());
+        // 失败计数 Lua（3 参 execute）不得被触发——验证码失败不推进锁号（2026-10-06 拍板恢复改前语义）
+        verify(stringRedisTemplate, never()).execute(any(DefaultRedisScript.class), anyList(), any());
         verify(userDomainService, never()).lockValidByUsername(anyLong(), anyString());
+        // 留痕不变：验证码失败仍写登录失败日志
+        ArgumentCaptor<LoginLogEntry> captor = ArgumentCaptor.forClass(LoginLogEntry.class);
+        verify(loginLogDomainService).recordLoginLog(captor.capture());
+        assertThat(captor.getValue().failReason()).contains("验证码");
+        assertThat(captor.getValue().status()).isEqualTo(0);
+        assertThat(captor.getValue().userId()).isNull();
     }
 
     @Test

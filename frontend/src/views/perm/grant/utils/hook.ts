@@ -40,9 +40,10 @@ import { PERMISSION_GRANT_PERMS } from "./perms";
 import { useGrantStore } from "./grant-store";
 import {
   applyDraftToRecords,
+  draftParentKey,
   parentLocateOf,
   persistedParentKey,
-  draftParentKey,
+  rebaseUpdateChangesOnBaseline,
   type EffectiveRecord
 } from "./grant-plan";
 import {
@@ -206,6 +207,10 @@ export function usePermissionGrant() {
       )
         return;
       if (grantStore.applyChanges(saved.changes)) {
+        // 恢复后重定基：update 变更的 before 对齐当前基线行（2026-10-06 逐任务评审 P2，
+        // 旧实现保留下次会话快照——展示按 after、提交按 before→after 差异，失配即静默丢
+        // 意图或 20041 整批拒绝且再编辑无法修复）
+        rebaseUpdateChangesOnBaseline(grantStore.changes, grantStore.baseline);
         if (saved.unknownOutcome)
           grantStore.submit = {
             kind: "saveFailed",
@@ -488,6 +493,9 @@ export function usePermissionGrant() {
         }
       );
       if (savedKey && draftStorage) removeDraft(draftStorage, savedKey);
+      // 确认放弃即清内存变更（2026-10-06 逐任务评审 P2）：只删存储项时 changes 存活到
+      // commitSubject，主体/类型切换完成前的失败窗口内 persistDraft 会按旧快照错分区重建草稿
+      grantStore.discardChanges();
       return true;
     } catch {
       return false;

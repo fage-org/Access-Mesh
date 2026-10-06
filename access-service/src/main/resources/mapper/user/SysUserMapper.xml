@@ -8,8 +8,10 @@
         WHERE u.tenant_id = #{tenantId} AND u.delete_flag = 0
         <if test="username != null"> AND username LIKE CONCAT('%', CAST(#{username} AS VARCHAR), '%')</if>
         <if test="name != null"> AND name LIKE CONCAT('%', CAST(#{name} AS VARCHAR), '%')</if>
-        <if test="phone != null"> AND u.phone = #{phone}</if>
-        <if test="email != null"> AND u.email = #{email}</if>
+        <!-- 2026-10-06 逐任务评审 P2：phone/email 模糊匹配（与 username/name/keyword 同口径，
+             对齐契约与 UserPageReq「模糊」权威表述；旧等值精确匹配使部分输入静默空结果） -->
+        <if test="phone != null"> AND u.phone LIKE CONCAT('%', CAST(#{phone} AS VARCHAR), '%')</if>
+        <if test="email != null"> AND u.email LIKE CONCAT('%', CAST(#{email} AS VARCHAR), '%')</if>
         <if test="status != null"> AND u.status = #{status}</if>
         <if test="orgIds != null and orgIds.size() > 0">
             AND EXISTS (
@@ -32,8 +34,10 @@
         WHERE u.tenant_id = #{tenantId} AND u.delete_flag = 0
         <if test="username != null"> AND username LIKE CONCAT('%', CAST(#{username} AS VARCHAR), '%')</if>
         <if test="name != null"> AND name LIKE CONCAT('%', CAST(#{name} AS VARCHAR), '%')</if>
-        <if test="phone != null"> AND u.phone = #{phone}</if>
-        <if test="email != null"> AND u.email = #{email}</if>
+        <!-- 2026-10-06 逐任务评审 P2：phone/email 模糊匹配（与 username/name/keyword 同口径，
+             对齐契约与 UserPageReq「模糊」权威表述；旧等值精确匹配使部分输入静默空结果） -->
+        <if test="phone != null"> AND u.phone LIKE CONCAT('%', CAST(#{phone} AS VARCHAR), '%')</if>
+        <if test="email != null"> AND u.email LIKE CONCAT('%', CAST(#{email} AS VARCHAR), '%')</if>
         <if test="status != null"> AND u.status = #{status}</if>
         <if test="orgIds != null and orgIds.size() > 0">
             AND EXISTS (
@@ -107,6 +111,13 @@
     <select id="selectByUsernameForUpdate" resultType="cn.ac.fage.accessmesh.access.user.entity.SysUser">
         SELECT * FROM sys_user
         WHERE tenant_id = #{tenantId} AND username = #{username} AND delete_flag = 0
+        FOR UPDATE
+    </select>
+
+    <!-- 2026-10-06 逐任务评审 P2（拍板延伸，同 login 形态）：OAuth2 authorize 签发关键段行锁读 -->
+    <select id="selectByIdForUpdate" resultType="cn.ac.fage.accessmesh.access.user.entity.SysUser">
+        SELECT * FROM sys_user
+        WHERE tenant_id = #{tenantId} AND id = #{id} AND delete_flag = 0
         FOR UPDATE
     </select>
 
