@@ -79,6 +79,21 @@ public interface UserDomainService {
     SysUser findByUsername(Long tenantId, String username);
 
     /**
+     * 按用户名加行锁读取用户（FOR UPDATE，事务内调用）。
+     * <p>
+     * 登录「验密→签发」与 resetPassword「改密→吊销」的串行化边界（2026-10-06 复评轮拍板）：
+     * 行锁持续到事务提交，交错两侧其一必然看到对方已提交的结果——重置先提交则旧密码
+     * 按新哈希校验失败，登录先提交则重置的 logout 覆盖其后签发的会话。锁持有期间占用
+     * 数据库连接，仅用于登录关键段，禁作普通查询。
+     * </p>
+     *
+     * @param tenantId 租户ID，用于多租户隔离
+     * @param username 用户名
+     * @return 用户实体，不存在返回 null
+     */
+    SysUser lockValidByUsername(Long tenantId, String username);
+
+    /**
      * 根据手机号查询用户
      * <p>
      * 通过手机号查找用户，用于短信登录和手机号验证。

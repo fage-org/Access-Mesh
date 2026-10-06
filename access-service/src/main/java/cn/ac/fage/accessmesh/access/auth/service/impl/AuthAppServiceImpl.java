@@ -27,6 +27,7 @@ import cn.dev33.satoken.stp.StpUtil;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -172,8 +173,16 @@ public class AuthAppServiceImpl implements AuthAppService {
      * @param req 登录请求，包含租户ID、用户名、密码、验证码等
      * @return 登录响应，包含令牌、用户信息、是否强制重置密码等
      * @throws BizException 验证码错误、用户不存在、用户已停用、账号临时锁定、密码错误等
+     * <p>
+     * 2026-10-06 复评轮拍板（行锁串行化）：本方法为事务方法，用户读取走
+     * {@link UserDomainService#lockValidByUsername}（FOR UPDATE 行锁持续到提交），与
+     * resetPassword 的 UPDATE 行锁互斥——关闭「在途旧密码登录在重置吊销后建立新会话」
+     * 并发窗口（交错两侧其一必见对方已提交结果）。锁持有期间占用数据库连接；
+     * 失败审计日志 REQUIRES_NEW 独立短事务，不受本事务回滚影响。
+     * </p>
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public LoginResp login(LoginReq req) {
         Long tenantId = Long.parseLong(req.tenantId());
         try {
@@ -184,7 +193,7 @@ public class AuthAppServiceImpl implements AuthAppService {
             throw e;
         }
         validateClient(req.clientId());
-        SysUser user = userDomainService.findByUsername(tenantId, req.username());
+        SysUser user = userDomainService.lockValidByUsername(tenantId, req.username());
         // 停用检查用 status != 1 fail-closed：仅 0/1 收口后任何未定义值
         // 都不应进入会话（与投影 isEnabled(status)==1 对齐，防止认证放行+主体停用分裂）
         if (user != null && (user.getStatus() == null || user.getStatus() != 1)) {

@@ -128,6 +128,14 @@ public class UserDomainServiceImpl implements UserDomainService {
         return userMapper.selectByUsername(tenantId, username);
     }
 
+    @Override
+    public SysUser lockValidByUsername(Long tenantId, String username) {
+        if (username == null || username.isBlank()) {
+            return null;
+        }
+        return userMapper.selectByUsernameForUpdate(tenantId, username);
+    }
+
     /**
      * 根据手机号查询用户
      * <p>

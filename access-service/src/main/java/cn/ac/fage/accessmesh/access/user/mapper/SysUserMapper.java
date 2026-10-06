@@ -133,6 +133,18 @@ public interface SysUserMapper extends BaseMapper<SysUser> {
                              @Param("username") String username);
 
     /**
+     * 登录行锁读（租户隔离 + 未删除 + FOR UPDATE），与 resetPassword 的 UPDATE 行锁互斥，
+     * 串行化「验密→签发」与「改密→吊销」（2026-10-06 复评轮拍板）。
+     * <p>必须在事务内调用（锁持续到提交）；锁持有期间占用数据库连接，仅用于登录关键段。</p>
+     *
+     * @param tenantId 租户ID
+     * @param username 用户名
+     * @return 用户实体，不存在则返回null
+     */
+    SysUser selectByUsernameForUpdate(@Param("tenantId") Long tenantId,
+                                      @Param("username") String username);
+
+    /**
      * 根据手机号查询有效用户（租户隔离 + 未删除）
      *
      * @param tenantId 租户ID

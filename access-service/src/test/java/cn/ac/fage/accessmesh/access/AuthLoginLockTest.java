@@ -151,7 +151,7 @@ class AuthLoginLockTest {
     @Test
     void missingUserAndWrongPasswordExposeSameCodeAndMessage() throws Exception {
         stubRedis();
-        when(userDomainService.findByUsername(1L, USERNAME)).thenReturn(null, enabledUser());
+        when(userDomainService.lockValidByUsername(1L, USERNAME)).thenReturn(null, enabledUser());
         JsonNode missing = login("wrong-password");
         JsonNode incorrect = login("wrong-password");
         assertThat(missing.path("code").asInt()).isEqualTo(10005).isEqualTo(incorrect.path("code").asInt());
@@ -165,14 +165,14 @@ class AuthLoginLockTest {
         assertThat(login(PASSWORD).path("code").asInt()).isEqualTo(10901);
         verify(stringRedisTemplate).execute(any(DefaultRedisScript.class),
             org.mockito.ArgumentMatchers.eq(List.of(LOCK_KEY)), any());
-        verify(userDomainService, never()).findByUsername(anyLong(), anyString());
+        verify(userDomainService, never()).lockValidByUsername(anyLong(), anyString());
     }
 
     @Test
     void missingUserAlsoUsesSharedLockThreshold() throws Exception {
         ValueOperations<String, String> values = stubRedis();
         when(values.get(LOCK_KEY)).thenReturn("5");
-        when(userDomainService.findByUsername(1L, USERNAME)).thenReturn(null);
+        when(userDomainService.lockValidByUsername(1L, USERNAME)).thenReturn(null);
         assertThat(login("wrong-password").path("code").asInt()).isEqualTo(10004);
     }
 
@@ -180,7 +180,7 @@ class AuthLoginLockTest {
     @DisplayName("计数达阈值：正确密码也拒绝（10004），status 不被修改，补记临时锁定失败日志")
     void lockedThresholdRejectsWithoutPersisting() throws Exception {
         SysUser user = enabledUser();
-        when(userDomainService.findByUsername(1L, USERNAME)).thenReturn(user);
+        when(userDomainService.lockValidByUsername(1L, USERNAME)).thenReturn(user);
         ValueOperations<String, String> valueOperations = stubRedis();
         when(valueOperations.get(LOCK_KEY)).thenReturn("5");
 
@@ -205,7 +205,7 @@ class AuthLoginLockTest {
     @DisplayName("计数键过期（GET null）：锁定自动解除，正确密码可登录且清除计数键")
     void lockExpiryAllowsLoginAndClearsKey() throws Exception {
         SysUser user = enabledUser();
-        when(userDomainService.findByUsername(1L, USERNAME)).thenReturn(user);
+        when(userDomainService.lockValidByUsername(1L, USERNAME)).thenReturn(user);
         ValueOperations<String, String> valueOperations = stubRedis();
         when(valueOperations.get(LOCK_KEY)).thenReturn(null);
 
@@ -218,7 +218,7 @@ class AuthLoginLockTest {
     @Test
     @DisplayName("锁定检查只读：不存在用户登录不产生无 TTL 零值键（increment(key,0) 回归保护）")
     void unknownUserNeverCreatesZeroValueKey() throws Exception {
-        when(userDomainService.findByUsername(1L, USERNAME)).thenReturn(null);
+        when(userDomainService.lockValidByUsername(1L, USERNAME)).thenReturn(null);
         ValueOperations<String, String> valueOperations = stubRedis();
         when(valueOperations.get(LOCK_KEY)).thenReturn(null);
 
@@ -234,7 +234,7 @@ class AuthLoginLockTest {
     @DisplayName("阈值未达（计数<5）：不拦截，正常走密码校验")
     void belowThresholdDoesNotBlock() throws Exception {
         SysUser user = enabledUser();
-        when(userDomainService.findByUsername(1L, USERNAME)).thenReturn(user);
+        when(userDomainService.lockValidByUsername(1L, USERNAME)).thenReturn(user);
         ValueOperations<String, String> valueOperations = stubRedis();
         when(valueOperations.get(LOCK_KEY)).thenReturn("4");
 
@@ -250,7 +250,7 @@ class AuthLoginLockTest {
     void disabledTakesPrecedenceOverTemporaryLock() throws Exception {
         SysUser user = enabledUser();
         user.setStatus(0);
-        when(userDomainService.findByUsername(1L, USERNAME)).thenReturn(user);
+        when(userDomainService.lockValidByUsername(1L, USERNAME)).thenReturn(user);
         ValueOperations<String, String> valueOperations = stubRedis();
         when(valueOperations.get(LOCK_KEY)).thenReturn("5");
 
@@ -267,7 +267,7 @@ class AuthLoginLockTest {
     void undefinedStatusFailsClosed() throws Exception {
         SysUser user = enabledUser();
         user.setStatus(2);
-        when(userDomainService.findByUsername(1L, USERNAME)).thenReturn(user);
+        when(userDomainService.lockValidByUsername(1L, USERNAME)).thenReturn(user);
         ValueOperations<String, String> valueOperations = stubRedis();
         when(valueOperations.get(LOCK_KEY)).thenReturn(null);
 

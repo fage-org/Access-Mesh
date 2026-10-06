@@ -134,7 +134,7 @@ class PlatformSessionAbsoluteTimeoutTest {
     }
 
     private String login(SysUser user) throws Exception {
-        when(userDomainService.findByUsername(1L, user.getUsername())).thenReturn(user);
+        when(userDomainService.lockValidByUsername(1L, user.getUsername())).thenReturn(user);
         when(stringRedisTemplate.execute(any(DefaultRedisScript.class), anyList())).thenReturn("8888");
         // 登录链路 isAccountLocked/clearLoginFail 走 opsForValue.get / delete，mock 掉（get 默认 null=未锁定）
         org.springframework.data.redis.core.ValueOperations<String, String> valueOperations =

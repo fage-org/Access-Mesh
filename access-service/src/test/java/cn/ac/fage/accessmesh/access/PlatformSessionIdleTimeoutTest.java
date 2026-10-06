@@ -108,7 +108,7 @@ class PlatformSessionIdleTimeoutTest {
         user.setPassword(cn.dev33.satoken.secure.BCrypt.hashpw(PASSWORD));
         user.setStatus(1);
         user.setForceResetPwd(false);
-        when(userDomainService.findByUsername(1L, "alice")).thenReturn(user);
+        when(userDomainService.lockValidByUsername(1L, "alice")).thenReturn(user);
         when(userDomainService.selectValidById(anyLong(), anyLong())).thenReturn(user);
         when(stringRedisTemplate.execute(any(DefaultRedisScript.class), anyList())).thenReturn("8888");
         // 登录链路 isAccountLocked/clearLoginFail 走 opsForValue.get / delete，mock 掉（get 默认 null=未锁定）
