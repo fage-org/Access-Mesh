@@ -6,7 +6,6 @@ import type { DraftChange, GrantContext } from "./types";
 export type DraftOwner = { tenantId: string; userId: string };
 export type SavedGrantDraft = {
   version: 1;
-  savedAt: number;
   changes: DraftChange[];
   unknownOutcome: boolean;
 };
@@ -88,7 +87,6 @@ export function writeDraft(
       key,
       JSON.stringify({
         version: 1,
-        savedAt: Date.now(),
         changes,
         unknownOutcome
       })

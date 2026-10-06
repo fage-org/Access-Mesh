@@ -33,30 +33,40 @@ public final class PageUtil {
     /**
      * 标准化页码
      * <p>
-     * 将无效页码（null或小于1）标准化为默认值1。
-     * 用于处理前端传入的分页参数。
+     * null 标准化为默认值 1；显式小于等于 0 抛出参数错误
+     * （2026-10-06 拍板：分页下界与 @Min(1) 族统一，显式非法值拒绝而非静默归一）。
      * </p>
      *
      * @param raw 原始页码值
-     * @return 标准化后的页码，无效时返回1
+     * @return 标准化后的页码，null 时返回 1
      */
     public static int pageNum(Integer raw) {
-        return raw != null && raw > 0 ? raw : 1;
+        if (raw == null) {
+            return 1;
+        }
+        if (raw <= 0) {
+            throw new IllegalArgumentException("pageNum 必须为正整数（显式 <=0 拒绝）");
+        }
+        return raw;
     }
 
     /**
      * 标准化每页条数
      * <p>
-     * 将无效条数（null或小于等于0）标准化为默认值。
+     * null 标准化为默认值；显式小于等于 0 抛出参数错误（2026-10-06 拍板：
+     * 分页下界统一，显式非法值拒绝而非静默归一）。
      * 同时强制上限为MAX_PAGE_SIZE，防止DoS攻击。
      * </p>
      *
      * @param raw 原始每页条数
-     * @return 标准化后的每页条数，无效时返回DEFAULT_PAGE_SIZE，超过上限抛出参数错误
+     * @return 标准化后的每页条数，null 时返回DEFAULT_PAGE_SIZE，显式非法/超过上限抛出参数错误
      */
     public static int pageSize(Integer raw) {
-        if (raw == null || raw <= 0) {
+        if (raw == null) {
             return DEFAULT_PAGE_SIZE;
+        }
+        if (raw <= 0) {
+            throw new IllegalArgumentException("pageSize 必须为正整数（显式 <=0 拒绝）");
         }
         if (raw > MAX_PAGE_SIZE) {
             throw new IllegalArgumentException("pageSize 最大为 " + MAX_PAGE_SIZE);

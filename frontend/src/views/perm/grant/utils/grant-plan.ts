@@ -860,24 +860,52 @@ export function cellDraftMark(input: {
  *   与 GrantDialog.nodeKeyOf 同构——旧 `:` 拼接下 (TD,"a:b","c") 与 (TD,"a","b:c")
  *   碰撞可错预填，T-FE-060）
  * - ALL 记录存在 -> 默认 scopeMode=ALL（hasAll 优先）
+ * - BOOTSTRAP_SEED 种子记录参与勾选并单列锁定集（2026-10-06 拍板：显示「已勾选+禁用」，
+ *   种子 ALL 置 seedAll；执行侧据此禁用节点/全量开关，不经弹窗新建同键 MANUAL 记录）
  * - AUTO_DEP / draftMark=remove 忽略
  * - 操作限本类型（全局操作概念已退役，操作定义按类型隔离）
  */
 export function computePreset(args: {
   op: { code: string; resourceTypeCode: string } | null;
   records: EffectiveRecord[];
-}): { scopeMode: "INSTANCE" | "ALL"; checkedTripleKeys: Set<string> } {
+}): {
+  scopeMode: "INSTANCE" | "ALL";
+  checkedTripleKeys: Set<string>;
+  seedTripleKeys: Set<string>;
+  seedAll: boolean;
+} {
   const { op, records } = args;
   if (!op) {
-    return { scopeMode: "INSTANCE", checkedTripleKeys: new Set() };
+    return {
+      scopeMode: "INSTANCE",
+      checkedTripleKeys: new Set(),
+      seedTripleKeys: new Set(),
+      seedAll: false
+    };
   }
   const checkedTripleKeys = new Set<string>();
+  const seedTripleKeys = new Set<string>();
   let hasAll = false;
+  let seedAll = false;
   for (const record of records) {
-    if (record.grantSource !== "MANUAL") continue;
     if (record.draftMark === "remove") continue;
     if (record.operationCode !== op.code) continue;
     if (record.resourceTypeCode !== op.resourceTypeCode) continue;
+    if (record.grantSource === "BOOTSTRAP_SEED") {
+      if (record.scopeMode === "ALL") {
+        seedAll = true;
+      } else if (record.scopeMode === "INSTANCE" && record.resourceCode) {
+        const key = resourceNodeKey({
+          resourceTypeCode: record.resourceTypeCode,
+          code: record.resourceCode,
+          codeType: record.codeType
+        });
+        seedTripleKeys.add(key);
+        checkedTripleKeys.add(key);
+      }
+      continue;
+    }
+    if (record.grantSource !== "MANUAL") continue;
     if (record.scopeMode === "ALL") {
       hasAll = true;
     } else if (record.scopeMode === "INSTANCE" && record.resourceCode) {
@@ -891,8 +919,10 @@ export function computePreset(args: {
     }
   }
   return {
-    scopeMode: hasAll ? "ALL" : "INSTANCE",
-    checkedTripleKeys
+    scopeMode: hasAll || seedAll ? "ALL" : "INSTANCE",
+    checkedTripleKeys,
+    seedTripleKeys,
+    seedAll
   };
 }
 

@@ -163,12 +163,13 @@ public class AuthAppServiceImpl implements AuthAppService {
     /**
      * 用户密码登录
      * <p>
-     * 执行完整的密码登录流程：验证码校验、客户端校验、用户查询、
-     * 停用检查（管理员手工启停，优先于临时锁定提示）、临时锁定检查
-     * （失败计数键）、密码校验、登录失败记录、Sa-Token会话创建。
-     * 登录成功后清除失败计数；密码失败累加计数，达到阈值后凭键剩余 TTL
-     * 临时锁定，键过期自动恢复（T-ADMIN-022）。验证码失败不计入失败计数，
-     * 仅留审计日志（2026-10-06 拍板：免验证码零成本锁号回退）。
+     * 执行完整的密码登录流程：验证码校验、客户端校验、用户查询、密码校验
+     * （用户不存在与密码错误同码同计数——2026-10-06 拍板：停用/锁定状态不在
+     * 密码前披露，关存在性探测）、密码正确后的停用检查（管理员手工启停，
+     * 优先于临时锁定提示）、临时锁定检查、Sa-Token会话创建。
+     * 登录成功后清除失败计数；密码失败累加计数（锁定期内错误密码同样推进），
+     * 达到阈值后凭键剩余 TTL 临时锁定，键过期自动恢复（T-ADMIN-022）。
+     * 验证码失败不计入失败计数，仅留审计日志（2026-10-06 拍板：免验证码零成本锁号回退）。
      * </p>
      *
      * @param req 登录请求，包含租户ID、用户名、密码、验证码等
@@ -197,25 +198,28 @@ public class AuthAppServiceImpl implements AuthAppService {
         }
         validateClient(req.clientId());
         SysUser user = userDomainService.lockValidByUsername(tenantId, req.username());
-        // 停用检查用 status != 1 fail-closed：仅 0/1 收口后任何未定义值
-        // 都不应进入会话（与投影 isEnabled(status)==1 对齐，防止认证放行+主体停用分裂）
-        if (user != null && (user.getStatus() == null || user.getStatus() != 1)) {
-            safeRecordLoginLog(tenantId, user.getId(), req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 0, "用户已停用");
-            throw new BizException(AccessErrorCode.USER_DISABLED.getCode(), AccessErrorCode.USER_DISABLED.getMessage());
-        }
-        if (isAccountLocked(tenantId, req.username())) {
-            // T-ADMIN-022：计数键即锁（临时，键过期自动恢复），拒绝时补记登录日志留审计痕迹；
-            // 停用（管理员事实）优先于临时锁定提示，避免重叠时误导「30分钟后重试」
-            safeRecordLoginLog(tenantId, user == null ? null : user.getId(), req.username(),
-                LOGIN_TYPE_PASSWORD, req.clientId(), 0, "登录失败次数过多，账号临时锁定");
-            throw new BizException(AccessErrorCode.USER_LOCKED.getCode(),
-                "登录失败次数过多，账号已临时锁定，请" + LOCK_DURATION_MINUTES + "分钟后重试");
-        }
+        // 密码校验先行（2026-10-06 拍板：关停用先序存在性探测）——用户不存在与密码错误
+        // 同码同计数；停用/锁定状态只在密码正确后披露，按错误码差异枚举用户名的通道关闭
         if (user == null || user.getPassword() == null || !BCrypt.checkpw(req.password(), user.getPassword())) {
             recordLoginFail(tenantId, req.username());
             safeRecordLoginLog(tenantId, user == null ? null : user.getId(), req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 0,
                 user == null ? "用户不存在" : "密码错误");
             throw new BizException(AccessErrorCode.PASSWORD_INCORRECT.getCode(), AccessErrorCode.PASSWORD_INCORRECT.getMessage());
+        }
+        // 停用检查用 status != 1 fail-closed：仅 0/1 收口后任何未定义值
+        // 都不应进入会话（与投影 isEnabled(status)==1 对齐，防止认证放行+主体停用分裂）；
+        // 停用（管理员事实）仍优先于临时锁定提示，避免重叠时误导「30分钟后重试」
+        if (user.getStatus() == null || user.getStatus() != 1) {
+            safeRecordLoginLog(tenantId, user.getId(), req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 0, "用户已停用");
+            throw new BizException(AccessErrorCode.USER_DISABLED.getCode(), AccessErrorCode.USER_DISABLED.getMessage());
+        }
+        if (isAccountLocked(tenantId, req.username())) {
+            // T-ADMIN-022：计数键即锁（临时，键过期自动恢复），拒绝时补记登录日志留审计痕迹。
+            // 锁定检查在密码校验之后：锁定期内错误密码仍推进计数（延长锁窗），正确密码按锁定拒绝
+            safeRecordLoginLog(tenantId, user.getId(), req.username(),
+                LOGIN_TYPE_PASSWORD, req.clientId(), 0, "登录失败次数过多，账号临时锁定");
+            throw new BizException(AccessErrorCode.USER_LOCKED.getCode(),
+                "登录失败次数过多，账号已临时锁定，请" + LOCK_DURATION_MINUTES + "分钟后重试");
         }
 
         clearLoginFail(tenantId, req.username());

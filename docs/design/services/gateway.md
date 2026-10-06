@@ -20,7 +20,7 @@ last_reviewed: 2026-10-06
 
 ## 核心链路
 
-1. 接收客户端请求并匹配白名单（会话入口族精确清单——T-ACCESS-042 收窄后不整族放行 `/api/access/auth/**`：`/api/access/auth/{captcha,login,logout,userinfo,user-menu}`、`/api/access/auth/oauth2/**`、`/api/access/user/reset-password`（T-GW-009 自助改密通道）、`/api/access/notice/my-notices`、`/api/access/notice/read`（T-ADMIN-029 公告自服务两端点——普通用户自服务面，端点边界=服务层门禁：Sa-Token 登录态+受众可见性校验；管理面 7 端点不在此列，走 ADMIN_NOTICE 类型级授权；密钥豁免四载体同步，见 §匿名白名单详注）；运行时鉴权六端点不放行，无 `/actuator/**`——actuator 经独立管理端口提供，T-GW-007）。
+1. 接收客户端请求并匹配白名单（会话入口族精确清单——T-ACCESS-042 收窄后不整族放行 `/api/access/auth/**`：`/api/access/auth/{captcha,login,logout,userinfo,user-menu}`、`/api/access/auth/oauth2/**`、`/api/access/user/reset-password`（T-GW-009 自助改密通道）、`/api/access/notice/my-notices`、`/api/access/notice/read`（T-ADMIN-029 公告自服务两端点——普通用户自服务面，端点边界=服务层门禁：Sa-Token 登录态+受众可见性校验；管理面 7 端点不在此列，走 ADMIN_NOTICE 类型级授权；密钥豁免四载体同步，见 §匿名白名单详注）；运行时鉴权六端点不放行，无 `/actuator/**`——actuator 经独立管理端口提供，T-GW-007）。注意：白名单为 Spring 列表配置——Nacos 远端 `gateway.yml` 携带同键列表时**整体替换**本地清单（非合并）；自建远端配置须与本地清单同步维护，否则已从本地清理的路径会在远端旧清单下继续免鉴权放行（2026-10-06 拍板补提示，与 CORS/管理端口「远端优先+校验器」口径对齐——白名单无启动校验器，靠本提示与部署纪律兜底）。
 2. 解析 Sa-Token / OAuth2 Token，得到主体信息。
 3. 清洗客户端伪造的安全 Header（含 IP 转发头，见下节 T-GW-008），再注入可信 `X-Tenant-Id`、`X-Request-Id`、`traceId`、主体标识等上下文。
 4. **准入快照鉴权**（T-ACCESS-059）：按 `(tenantId, subjectTypeCode, userId, serviceCode)` 查本地准入快照缓存——命中则本地四态判定；未命中在 5 秒全链路硬截止内回源拉取 `interface-admission-snapshot` 快照后缓存再判定。

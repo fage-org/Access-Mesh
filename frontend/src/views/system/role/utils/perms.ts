@@ -23,7 +23,8 @@ import { PERMISSION_CODE } from "@/constants/access";
  *
  * ## 范围限定
  * 本页仅消费功能角色（T-PERM-043 后仅 BASIC_ROLE）；
- * ORG / POSITION / PERSONAL 由外部同步自动生成，本页不展示、不可手工 CRUD；
+ * ORG / POSITION 由外部同步自动生成、PERSONAL 类型保留但无同步自动生命周期，
+ * 本页不展示、不可手工 CRUD；
  * GROUP_ROLE 写入口已删除、选项隐藏。
  *
  * 详见 `docs/design/frontend/role-manage.md` §权限接线。

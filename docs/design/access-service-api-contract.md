@@ -137,7 +137,7 @@ DTO 字段同步的已锁集合与未锁边界见 [DTO 字段对账覆盖](dto-f
 
 报表示例 `/api/example/report/list` 同步使用 pageNum/pageSize 与公共 PageResp（破坏性变更：旧 page/size 参数与响应字段退役，无别名兼容）。
 
-所有分页端点最大 `pageSize=200`，超限返回 HTTP 400，禁止静默截断。完整枚举按下面的循环读取；不能以某一页少于 200 条之外的猜测代替 `hasNext`。full-sync 的完整 items 不适用分页限制，也不能拆页提交。
+所有分页端点最大 `pageSize=200`，超限返回 HTTP 400，禁止静默截断。显式 `pageSize`/`pageNum` 小于等于 0 同样返回 HTTP 400（2026-10-06 拍板：分页下界统一——省略字段（null）才走缺省 20/1，显式非法值拒绝而非静默归一，消除 PageUtil 族与 @Min(1) 族两套语义）。完整枚举按下面的循环读取；不能以某一页少于 200 条之外的猜测代替 `hasNext`。full-sync 的完整 items 不适用分页限制，也不能拆页提交。
 
 ```typescript
 const items = [];
@@ -357,7 +357,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 
 > OAuth2 端点此前仅存在于归档设计（`docs/archive/2026-04-28/admin-service-design.full.md` §1.5-1.6），本章按当前实现登记为活跃契约（T-ACCESS-013 补记）。授权链路语义（JWT 载荷、audience、开放路径门禁）以 `access-service-architecture.md` §6 为权威。
 
-**平台登录收紧（T-ACCESS-083）**：密码登录的用户不存在/密码错误统一 code=10005、message="账号或密码错误"；失败计数与锁定阈值不因用户是否存在而分叉，已停用提示保持。图形验证码失败不推进临时失败计数、仅记录失败日志（2026-10-06 拍板修正：计数键无 IP 维度，验证码失败计数使免验证码请求可零成本定向锁定任意已知账号——验证码一次性消费，攻击者无需获取验证码即可推动计数；推翻 T-ACCESS-083「验证码失败也计数」口径），技术性 Redis 故障不冒充验证码错误。短信登录端点已删除，无兼容入口；历史 SMS 登录日志仍可查询，将来恢复短信能力须同时交付签发、限流与失败锁定。
+**平台登录收紧（T-ACCESS-083）**：密码登录的用户不存在/密码错误统一 code=10005、message="账号或密码错误"；失败计数与锁定阈值不因用户是否存在而分叉。停用（10003）与临时锁定（10004）提示只在**密码正确后**披露（2026-10-06 拍板移序：停用检查先于密码校验会按错误码差异枚举用户名存在性；正确密码路径上停用提示仍优先于锁定提示；锁定期内错误密码照常推进计数）。图形验证码失败不推进临时失败计数、仅记录失败日志（2026-10-06 拍板修正：计数键无 IP 维度，验证码失败计数使免验证码请求可零成本定向锁定任意已知账号——验证码一次性消费，攻击者无需获取验证码即可推动计数；推翻 T-ACCESS-083「验证码失败也计数」口径），技术性 Redis 故障不冒充验证码错误。短信登录端点已删除，无兼容入口；历史 SMS 登录日志仍可查询，将来恢复短信能力须同时交付签发、限流与失败锁定。
 
 <a id="contract-section-6-1"></a>
 ### 6.1 授权端点（/auth/oauth2/*）
@@ -409,6 +409,10 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 刷新令牌轮换（Lua 原子取删旧 refresh token，一次性使用；签发新 access + refresh token，scope/clientId 透传）。刷新令牌绑定签发客户端：`clientId` 与刷新令牌记录不匹配拒绝 `OAUTH2_TOKEN_INVALID`（一次性消费语义同授权码）。
 
 请求（`RefreshTokenReq`）：`clientId`* / `refreshToken`*。响应同 `TokenResp`。
+
+**已知偏差（RFC 6749 §6，2026-10-06 拍板登记为长期取舍）**：刷新不要求客户端认证——CONFIDENTIAL 客户端凭 `refreshToken` 单因子即可轮换整链（PUBLIC 本无 secret、S256 PKCE 模型不受影响）。泄露的刷新令牌单独可续命访问，且轮换语义下攻击者先刷会使合法端旧令牌失效；缓解边界=链受密码代际（重置密码即整链失效）与绝对期限约束，无无限续命。不立项补 secret 认证。
+
+**链时间容忍窗**：链签发时间允许未来偏移 `access.oauth2.clock-skew-tolerance-seconds`（默认 3 秒、配 0 关闭，2026-10-06 拍板）——多实例节点间 NTP 级时钟漂移下，稍早签发的链在慢时钟节点仍可兑换；过期判定不放宽。
 
 <a id="contract-section-6-1-4"></a>
 #### 6.1.4 `POST /api/access/auth/oauth2/revoke`（匿名）
@@ -3045,6 +3049,9 @@ schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正�
 
 <a id="contract-section-20-2"></a>
 ### 20.2 perm 家族错误原因建议（reason 词表）
+
+> 权威词表与精确语义见 [§18.2](#contract-section-18-2)（拒绝解释）；本表为接入方日志分类/告警分组建议速查，新增 reason 以权威面为准（2026-10-06 拍板补表头注，防两表再脱档）。
+
 | reason                  | 说明                                     |
 | ----------------------- | ---------------------------------------- |
 | `USER_NOT_FOUND`        | 主体不存在                               |
@@ -3054,6 +3061,7 @@ schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正�
 | `SERVICE_DISABLED`      | 服务停用                                 |
 | `NO_ROLE`               | 无有效角色                               |
 | `NO_PERMISSION`         | 无授权                                   |
+| `DEPENDENT_NOT_IN_PARENT_CONTEXT` | 子权限判定缺少父资源上下文（权威语义见 §18.2；不传父上下文时子权限行一律不参与判定） |
 | `NO_CANDIDATE`          | 准入无覆盖候选（OPERATION_ADMISSION，§25.6；与 DECISION 的 NO_PERMISSION 区分——准入是候选资格判定非实例判定） |
 | `CONDITION_NOT_MET`     | 条件不满足                               |
 | `PERMISSION_CONFLICT`   | 权限互斥导致拒绝（T-PERM-107 自 `CONDITION_NOT_MET_OR_CONFLICT` 拆分，权威语义见 §18.2；2026-10-06 逐任务评审补录） |

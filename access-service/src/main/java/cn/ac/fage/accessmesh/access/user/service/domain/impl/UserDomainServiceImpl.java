@@ -264,13 +264,4 @@ public class UserDomainServiceImpl implements UserDomainService {
         }
         userMapper.update(user);
     }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void insertBatch(List<SysUser> users) {
-        if (users == null || users.isEmpty()) {
-            return;
-        }
-        userMapper.insertBatch(users);
-    }
 }

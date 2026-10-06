@@ -83,6 +83,10 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
     @Value("${sa-token.jwt-secret-key}")
     private String jwtSecretKey;
 
+    /** OAuth2 链签发时间未来偏移容忍窗（秒；2026-10-06 拍板：默认 3、配 0 关闭）。 */
+    @Value("${access.oauth2.clock-skew-tolerance-seconds:3}")
+    private long oauth2ClockSkewToleranceSeconds;
+
     /**
      * JWT 签名密钥强度 fail-fast（release-preview 双轨评审 P3-3，2026-09-16 用户拍板）：
      * sa-token-jwt 对 HS256 密钥长度零校验，短密钥静默签发弱签名；启动期拒绝
@@ -823,7 +827,8 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
     private int requireCurrentCredential(SysUser user, String fingerprint, long issuedAt, long expiresAt,
                                          AccessErrorCode error, String clientId) {
         long remaining = expiresAt - System.currentTimeMillis() / 1000;
-        if (!OAuth2JwtSupport.isCurrentCredential(user.getPassword(), fingerprint, issuedAt, expiresAt)
+        if (!OAuth2JwtSupport.isCurrentCredential(user.getPassword(), fingerprint, issuedAt, expiresAt,
+            oauth2ClockSkewToleranceSeconds)
             || remaining <= 0) {
             recordOauth2Failure(clientId, "credential generation invalid or chain expired");
             throw new BizException(error.getCode(), error.getMessage());

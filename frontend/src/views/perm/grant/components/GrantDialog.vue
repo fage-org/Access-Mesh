@@ -209,6 +209,8 @@ const allScopeSelected = computed({
   get: () => scopeMode.value === "ALL",
   set: (selected: boolean) => {
     if (!selectedOp.value) return;
+    // 种子 ALL 锁定（2026-10-06 拍板）：全量开关只读，取消/勾选均不产生草稿
+    if (seedAllLocked.value) return;
     if (selected) {
       const typeCode = effectiveAllType.value;
       if (typeCode) {
@@ -260,6 +262,47 @@ const resourceSelectionDisabled = computed(
   () => selectedOp.value == null || scopeMode.value === "ALL"
 );
 
+/**
+ * 种子授权锁定集（2026-10-06 拍板「已勾选+禁用」）：当前操作下 BOOTSTRAP_SEED
+ * 实例记录的树键——节点勾选态如实反映生效权限且禁用交互（种子行只读，
+ * 不经弹窗新建同键 MANUAL 记录，同键孪生通道在 UI 面关闭）。
+ */
+const seedLockedTripleKeys = computed(() => {
+  const op = selectedOp.value;
+  if (!op) return new Set<string>();
+  const keys = new Set<string>();
+  for (const record of localView.value.mains) {
+    if (record.grantSource !== "BOOTSTRAP_SEED") continue;
+    if (record.draftMark === "remove") continue;
+    if (record.operationCode !== op.code) continue;
+    if (record.resourceTypeCode !== op.resourceTypeCode) continue;
+    if (record.scopeMode === "INSTANCE" && record.resourceCode) {
+      keys.add(
+        resourceNodeKey({
+          resourceTypeCode: record.resourceTypeCode,
+          code: record.resourceCode,
+          codeType: record.codeType
+        })
+      );
+    }
+  }
+  return keys;
+});
+
+/** 当前操作类型的 ALL 槽位是否为种子授权（种子 ALL：全量开关显示已选且禁用） */
+const seedAllLocked = computed(() => {
+  const op = selectedOp.value;
+  if (!op) return false;
+  return localView.value.mains.some(
+    record =>
+      record.grantSource === "BOOTSTRAP_SEED" &&
+      record.draftMark !== "remove" &&
+      record.operationCode === op.code &&
+      record.resourceTypeCode === op.resourceTypeCode &&
+      record.scopeMode === "ALL"
+  );
+});
+
 const treeRenderKey = computed(
   () => `${selectedOpKey.value ?? "preview"}:${scopeMode.value}`
 );
@@ -273,7 +316,9 @@ const resourceHint = computed(() => {
 const treeProps = {
   label: "name",
   children: "children",
-  disabled: () => resourceSelectionDisabled.value
+  disabled: (data: ResourceTreeNode) =>
+    resourceSelectionDisabled.value ||
+    seedLockedTripleKeys.value.has(resourceNodeKey(data))
 };
 
 // ========== 授权设置（v3.1 记录级：只作用于聚焦记录，设计 §4） ==========
@@ -746,6 +791,7 @@ const originalAllResourceKeys = computed(() => {
 });
 
 function originalAllSelectedForCurrentType(): boolean {
+  if (seedAllLocked.value) return true;
   const key = currentAllResourceKey.value;
   return key != null && originalAllResourceKeys.value.has(key);
 }
@@ -1200,7 +1246,7 @@ function handleClose() {
               v-model="allScopeSelected"
               border
               size="small"
-              :disabled="!selectedOp"
+              :disabled="!selectedOp || seedAllLocked"
               class="all-scope-checkbox"
             >
               全量
@@ -1245,6 +1291,14 @@ function handleClose() {
                   >
                   <span
                     v-if="
+                      node.checked &&
+                      seedLockedTripleKeys.has(nodeResourceKeyOf(data))
+                    "
+                    class="node-state existing"
+                    >种子授权（只读）</span
+                  >
+                  <span
+                    v-else-if="
                       node.checked &&
                       originalInstanceResourceKeys.has(nodeResourceKeyOf(data))
                     "

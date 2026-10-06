@@ -593,7 +593,7 @@ public class UserAppServiceImpl implements UserAppService {
     private String resolveOrgRoleTypeCode(SysOrg org) {
         if (org == null) return "ORG";
         String orgType = org.getOrgType();
-        if ("2".equals(orgType) || "POSITION".equalsIgnoreCase(orgType)) return "POSITION";
+        if (OrgOperationCodeMapper.isPositionOrgType(orgType)) return "POSITION";
         return "ORG";
     }
 

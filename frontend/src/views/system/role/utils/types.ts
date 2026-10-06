@@ -41,14 +41,15 @@ export function createEmptyRoleForm(
 
 /**
  * 角色管理页是否展示该类型节点（MANAGEABLE_ROLE_TYPES，T-PERM-043 后仅 BASIC_ROLE）；
- * ORG/POSITION/PERSONAL 由外部同步生成，不归角色管理（归权限授予/用户详情）；
+ * ORG/POSITION 由外部同步生成、PERSONAL 类型保留但无同步自动生命周期，不归角色
+ * 管理（归权限授予/用户详情）；
  * GROUP_ROLE 后端写入口已删除，存量节点不展示。
  */
 export function isPageVisibleRoleType(roleTypeCode: string): boolean {
   return (MANAGEABLE_ROLE_TYPES as string[]).includes(roleTypeCode);
 }
 
-/** 节点是否为只读类型（ORG/POSITION/PERSONAL，由外部同步生成） */
+/** 节点是否为只读类型（ORG/POSITION 由外部同步生成；PERSONAL 类型保留但无同步自动生命周期） */
 export function isReadonlyRoleType(roleTypeCode: string): boolean {
   return (
     roleTypeCode === "ORG" ||

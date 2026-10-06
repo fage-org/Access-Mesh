@@ -89,6 +89,10 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
     @Value("${sa-token.jwt-secret-key:}")
     private String jwtSecretKey;
 
+    /** OAuth2 链签发时间未来偏移容忍窗（秒；2026-10-06 拍板：默认 3、配 0 关闭）。 */
+    @Value("${access.oauth2.clock-skew-tolerance-seconds:3}")
+    private long oauth2ClockSkewToleranceSeconds;
+
     public RequestContextInterceptor(SignatureVerifier signatureVerifier,
                                      StringRedisTemplate stringRedisTemplate,
                                      OAuth2ResourcePathProperties oauth2ResourcePaths,
@@ -454,7 +458,7 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
             return false;
         }
 
-        if (!OAuth2JwtSupport.isCurrentCredential(user.getPassword(), payloads)) {
+        if (!OAuth2JwtSupport.isCurrentCredential(user.getPassword(), payloads, oauth2ClockSkewToleranceSeconds)) {
             logSecurity(request, "oauth2 credential generation invalid or chain expired");
             writeJson(response, HttpServletResponse.SC_UNAUTHORIZED, "认证失败");
             return false;

@@ -183,14 +183,4 @@ public interface UserDomainService {
      * @param user 用户实体
      */
     void update(SysUser user);
-
-    /**
-     * 批量插入用户
-     * <p>
-     * 批量插入多条用户记录，用于用户批量导入场景。
-     * </p>
-     *
-     * @param users 用户列表
-     */
-    void insertBatch(List<SysUser> users);
 }

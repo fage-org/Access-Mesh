@@ -77,7 +77,7 @@ full-sync `items` 维持完整快照豁免，不套用查询的 1000 或分页�
 | 观察值 | 检查项 | 修复位置 |
 |---|---|---|
 | HTTP 401/403，尚无 SyncResult | 凭证 ID/secret、停用/过期、端点是否在 M2M 白名单；身份由凭证派生 | 凭证管理与接入配置；不补自报租户头 |
-| SECURITY_DENIED + SOURCE_SERVICE_MISMATCH（部分主体/角色端点保留 mismatch 文本） | 请求 sourceService 与凭证所属服务是否一致 | 请求与服务凭证配对；旧错误文本中的 X-Service-Code 不表示当前仍采信该头 |
+| SECURITY_DENIED + SOURCE_SERVICE_MISMATCH（四通道同措辞：sourceService mismatch with credential-derived service identity） | 请求 sourceService 与凭证所属服务是否一致 | 请求与服务凭证配对；自报 X-Service-Code/X-Tenant-Id 头不参与判定（2026-10-06 role 侧旧文本已对齐 user 侧，不再提及该头） |
 | SECURITY_DENIED + SERVICE_TYPE_NOT_ALLOWED | 服务是否注册/启用；extra.syncTypes 的 subjectTypeCodes/roleTypeCodes/sourceTypes 是否包含本次写入类型 | 服务配置白名单；资源类型不走这三维白名单 |
 | SECURITY_DENIED + RESOURCE_TYPE_OWNERSHIP_DENIED | 目标类型是否存在；有效 extra.managedMode 是否 SYNC；syncSourceService 是否等于已验证服务；服务是否注册/启用 | 类型定义与服务配置。缺失/损坏的所有权声明按 MANAGED 对外拒绝；具体分支由平台按 requestId 查内部日志 |
 | 信封 20045 | LOCAL_USER、ORG/POSITION、SYS_USER_ORG 或内部来源/本地投影保护 | 调整同步对象为自有类型；不重试侵入平台事实 |

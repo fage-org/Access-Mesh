@@ -16,6 +16,7 @@ import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.type.mapper.TypeDefinitionMapper;
 import cn.ac.fage.accessmesh.access.role.mapper.UserRoleMapper;
+import cn.ac.fage.accessmesh.access.engine.constant.OrgOperationCodeMapper;
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService;
@@ -663,7 +664,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
     }
 
     private static String resolveOrgRoleType(String orgType) {
-        if ("2".equals(orgType) || LocalProjectionOwner.ROLE_POSITION.equalsIgnoreCase(orgType)) {
+        if (OrgOperationCodeMapper.isPositionOrgType(orgType)) {
             return LocalProjectionOwner.ROLE_POSITION;
         }
         return LocalProjectionOwner.ROLE_ORG;

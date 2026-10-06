@@ -57,6 +57,11 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
     private static final Integer STATUS_ENABLED_VAL = 1;
     private static final Integer STATUS_DISABLED_VAL = 0;
 
+    /** 服务身份不匹配拒绝 reason——与 user 侧 AbstractUserSyncAppServiceImpl 同款措辞
+     * （2026-10-06 拍板对齐：旧文本提及已被忽略的 X-Service-Code 头，误导排障方向）。 */
+    private static final String REASON_SOURCE_SERVICE_MISMATCH =
+        "sourceService mismatch with credential-derived service identity";
+
     private final SyncMetadataDomainService syncMetadataDomainService;
     private final TypeResolutionService typeResolutionService;
     private final AbstractRoleMapper abstractRoleMapper;
@@ -98,7 +103,7 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
     public SyncResultResp sync(Long tenantId, AbstractRoleSyncReq req, HttpServletRequest httpRequest) {
         // 1. 服务身份校验
         if (!SyncAuthVerifier.verify(req.sourceService(), httpRequest)) {
-            return SyncResultBuilder.securityDenied("sourceService mismatch with X-Service-Code");
+            return SyncResultBuilder.securityDenied(REASON_SOURCE_SERVICE_MISMATCH);
         }
         localProjectionGuard.rejectInternalSourceService(req.sourceService());
         localProjectionGuard.rejectReservedRoleType(req.roleTypeCode());
@@ -225,10 +230,10 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
         if (!SyncAuthVerifier.verify(req.scope().sourceService(), httpRequest)) {
             SyncResultResp.ItemResult denied = new SyncResultResp.ItemResult(
                     null, false, false,
-                    SyncResultBuilder.RETRY_SECURITY_DENIED, "sourceService mismatch with X-Service-Code");
+                    SyncResultBuilder.RETRY_SECURITY_DENIED, REASON_SOURCE_SERVICE_MISMATCH);
             return SyncResultBuilder.fullSyncRejected(
                     SyncResultBuilder.RETRY_SECURITY_DENIED,
-                    "sourceService mismatch with X-Service-Code",
+                    REASON_SOURCE_SERVICE_MISMATCH,
                     req.items().size(), List.of(denied));
         }
         localProjectionGuard.rejectInternalSourceService(req.scope().sourceService());

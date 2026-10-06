@@ -460,7 +460,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
             return "ORG";
         }
         String orgType = org.getOrgType();
-        if ("2".equals(orgType) || "POSITION".equalsIgnoreCase(orgType)) {
+        if (OrgOperationCodeMapper.isPositionOrgType(orgType)) {
             return "POSITION";
         }
         return "ORG";

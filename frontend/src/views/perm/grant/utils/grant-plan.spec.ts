@@ -1283,6 +1283,73 @@ describe("slotKeyOf / findSlotRecord（焦点槽位模型）", () => {
   );
 });
 
+describe("computePreset（BOOTSTRAP_SEED 种子授权：已勾选+锁定集，2026-10-06 拍板）", () => {
+  it("种子 INSTANCE 记录进勾选集与锁定集（旧实现忽略种子必红）", () => {
+    const seed = makeRecord({ id: 9301, grantSource: "BOOTSTRAP_SEED" });
+    const manual = makeRecord({ id: 9302, resourceCode: "data:r2" });
+    const preset = computePreset({
+      op: { code: "VIEW", resourceTypeCode: "DATA" },
+      records: applyDraftToRecords({
+        baseline: [seed, manual],
+        changes: [],
+        operations: OPS
+      }).mains
+    });
+    expect(
+      preset.checkedTripleKeys.has(
+        resourceNodeKey({
+          resourceTypeCode: "DATA",
+          code: "data:r1",
+          codeType: "default"
+        })
+      )
+    ).toBe(true);
+    expect(preset.seedTripleKeys.size).toBe(1);
+    expect(preset.seedAll).toBe(false);
+  });
+
+  it("种子 ALL 记录：scopeMode=ALL 且 seedAll=true（全量开关禁用依据）", () => {
+    const seedAll = makeRecord({
+      id: 9303,
+      grantSource: "BOOTSTRAP_SEED",
+      scopeMode: "ALL",
+      resourceCode: null,
+      codeType: null
+    });
+    const preset = computePreset({
+      op: { code: "VIEW", resourceTypeCode: "DATA" },
+      records: applyDraftToRecords({
+        baseline: [seedAll],
+        changes: [],
+        operations: OPS
+      }).mains
+    });
+    expect(preset.scopeMode).toBe("ALL");
+    expect(preset.seedAll).toBe(true);
+    expect(preset.checkedTripleKeys.size).toBe(0);
+  });
+
+  it("AUTO_DEP 仍忽略、无种子时锁定集空（口径不变）", () => {
+    const autoDep = makeRecord({
+      id: 9304,
+      resourceCode: "data:r9",
+      grantSource: "AUTO_DEP"
+    });
+    const manual = makeRecord({ id: 9305, resourceCode: "data:r2" });
+    const preset = computePreset({
+      op: { code: "VIEW", resourceTypeCode: "DATA" },
+      records: applyDraftToRecords({
+        baseline: [autoDep, manual],
+        changes: [],
+        operations: OPS
+      }).mains
+    });
+    expect(preset.seedTripleKeys.size).toBe(0);
+    expect(preset.seedAll).toBe(false);
+    expect(preset.checkedTripleKeys.size).toBe(1);
+  });
+});
+
 describe("uncheckSlot（取消勾选 → suspended 暂存，§6.1）", () => {
   it("baseline 路径：持久化记录入 suspended（不生成 remove），update 草稿随记录移出", () => {
     const existing = makeRecord({ id: 9001, canGrant: false });

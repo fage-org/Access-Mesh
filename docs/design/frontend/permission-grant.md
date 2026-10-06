@@ -28,7 +28,7 @@ last_reviewed: 2026-10-06
 9. **变更预览**：矩阵就地标记（绿=有效/新增、黄=待更新、红=待撤销，三态复用同一形态，**不使用删除线**，§3.3/§6.2）+ **右栏变更清单**（定位 / 逐条撤销）+ 底部"保存全部 / 放弃全部"。
 10. **继承默认**：默认**开**（显示含继承，页头标注"模拟 CHILD 展开视图，非运行时默认"）；**直接授权与继承用颜色区分**（直接=实色/深色，继承=淡色，来源类型用图标区分）；开关用于"只看直接授权"的干净视图（与运行时默认一致）。
 11. **条件模型（v3.1 记录级聚焦编辑）**：同一角色在同一资源/范围 + 操作 + 父权限下最多一条 MANUAL 直接授权；弹窗内**单条件**（无条件或一个条件）与 canGrant 是**聚焦授权记录**的可编辑属性。资源树复选框只控制授权的新增/保留/撤销，点击资源行聚焦后，设置区只读取和修改该聚焦记录；新勾选资源使用固定默认值（无条件、不可再授予、无子权限），不继承设置区当前值；修改任一记录不产生其他记录的变更；不做隐式覆盖——批量效率由**显式复制**（源=聚焦记录，确认覆盖）承担（§4）。
-12. **主体入口**：**两入口共用一套组件**（路由/参数区分主体类型）：角色（T-PERM-043 后仅 BASIC_ROLE，GROUP_ROLE 已隐藏）/ 组织（ORG + POSITION）；**PERSONAL 预留**（首期移除：个人 `abstract_role` 生命周期待后端同步链路落地后恢复，见 §1.1/§12 注）。原因：有角色权限的主体不一定有组织/用户权限，两类授权是独立领域能力。
+12. **主体入口**：**两入口共用一套组件**（路由/参数区分主体类型）：角色（T-PERM-043 后仅 BASIC_ROLE，GROUP_ROLE 已隐藏）/ 组织（ORG + POSITION）；**PERSONAL 预留**（首期移除：个人角色功能未立项，恢复属产品范围决策，见 §1.1/§12 注）。原因：有角色权限的主体不一定有组织/用户权限，两类授权是独立领域能力。
 13. **分组角色（T-PERM-043 已隐藏）**：GROUP_ROLE 主体树节点不再展示（写入口已删除、extra-roles/list 已退役）；原「只读展开为基础角色」交互代码已随 2026-09-14 轻量清扫批次删除（role_inclusion 单事实源立项时从 git 历史恢复）。
 14. **来源链计算**：**前端自算**（资源树 + `inheritMask` + list 主权限，纯函数对齐引擎语义）；list 主权限 = baseline（`includeChildren=true` 一次取全量，§6.1 加载口径）结果中过滤 `dependOn==null` 的记录——**不再单独以 `includeChildren=false` 拉取来源链输入**；仅"已有权限类型"辅助查询（T-FE-038 注记）单独使用 `includeChildren=false`；T-PERM-034 另补小字段（§12）。
 15. **页面密度与图例**：移除独立页面标题卡片，主体选择状态由左栏承担；矩阵工具栏图例拆分为“形态”和“颜色”两组：形态覆盖直接/资源继承/操作继承/组合继承/条件/可转授，颜色说明有效/新增、待更新、待撤销；子权限使用独立蓝色数量标识。
@@ -59,7 +59,7 @@ last_reviewed: 2026-10-06
 - 4.2 权限查询页：运行时**有效权限**查询（面向使用者）。本页：**配置视图**（面向管理员，含来源与草稿）。
 - 3.1 资源+操作页：资源树/操作权限定义 CRUD。本页只读消费（资源树、inheritMask）。
 - 3.2 权限条件页：复用型条件 CRUD（管理页条件轨）。本页弹窗条件控件双轨（T-PERM-048，2026-09-11）：**引用**管理页条件（picker 过滤 source=MANAGED）或**内联定义**单条授权专用条件（ReConditionEditor 就地编辑，随 apply-grant-plan 同事务创建/回收——内联由一个 MANUAL 授权拥有，系统派生 AUTO_DEP 可引用同一条件身份（回收见自动授权设计 §6.4），不允许用户显式共享，管理页查不到也不能管理；门禁随 ROLE:MANAGE 携带不另查条件写权限）。
-- 2.1 用户详情页：个人主体入口（PERSONAL）。**首期移除**（P1-4）：后端用户同步只建 `abstract_user`、无个人 `abstract_role`（`AbstractUserSyncAppServiceImpl` L277），`PERSONAL_{external_id}` 角色无生命周期；待个人角色同步链路另立后端任务后再恢复本入口（§12 注）。
+- 2.1 用户详情页：个人主体入口（PERSONAL）。**首期移除**（P1-4）：后端用户同步只建 `abstract_user`、无个人 `abstract_role`（`AbstractUserSyncAppServiceImpl` L277），`PERSONAL_{external_id}` 角色无同步链路自动生命周期；个人角色功能未立项，是否恢复本入口属产品范围决策（另立任务时再评估，§12 注）。
 
 ## 2. 布局结构
 
@@ -458,7 +458,7 @@ interface MatrixContext {
 > **矩阵「授权」按钮降级形态（T-FE-055，2026-09-20）**：上表「授权/撤销」行的「按钮禁用 + tooltip」此前实现为 view 态直接隐藏（`v-if`），T-FE-055 对齐为禁用态渲染 + tooltip「需要 ROLE:MANAGE 权限」（edit 态 tooltip 关闭；禁用条件 = 未选主体或 view 态）。**同日外评处置补**：capability 改 canManage 响应式派生（§6.5 实现口径）后，未选主体时 capability=edit、tooltip 自动关闭（「需要 ROLE:MANAGE」仅在真实缺权时出现），权限热刷新升/降权即时生效。
 
 > 双层门禁说明（P1-3）：左栏**数据源**可见性沿用入口页既有门禁（`ORG:VIEW` / `USER:VIEW` / 岗位 `ORG:VIEW_POSITION`，对齐 frontend `user/utils/perms.ts`；T-ACCESS-018 类型收敛后权限串）；**矩阵查看/授权动作**统一用对目标抽象角色的 ROLE:VIEW / ROLE:MANAGE（后端 `role-resource-permission/*` 均校验目标抽象角色，`PermissionGrantAppServiceImpl` 各端点入口统一校验）——组织/个人被抽象成角色正是为了"像角色一样被配权"（role-manage.md §1 依据）。
-> 个人入口业务键（P1-3，**首期移除**）：左栏用户列表（admin-service）→ 选中用户 → 业务键 `PERSONAL_{external_id}`（`external_id` = 用户同步到 permission-center 时的 `sys_user.id`，即用户列表返回的 id；对齐 role-manage.md:24）——待个人 `abstract_role` 同步链路建成后恢复（§12 注）。
+> 个人入口业务键（P1-3，**首期移除**）：左栏用户列表（admin-service）→ 选中用户 → 业务键 `PERSONAL_{external_id}`（`external_id` = 用户同步到 permission-center 时的 `sys_user.id`，即用户列表返回的 id；对齐 role-manage.md:24）——个人角色功能未立项，恢复属产品范围决策（§12 注）。
 
 > **已知缺口（2026-08-07 记录；2026-09-02 T-FE-018 定案落地=理解 A，已收口）**：类型候选数据源 `type-definition/list` 在真实后端强制校验 `TYPE_DEFINITION:VIEW`（`TypeDefinitionAppServiceImpl.listTypes` L131-134），而本页权限清单未声明该依赖——只有 ROLE/RESOURCE/OPERATION 查看权（无类型管理权限）的配权用户会让 loadDeps 整体失败并误显示「暂无资源类型配置」。**定案（2026-09-02 T-FE-018 需求对齐会，理解 A）**：前端声明 `TYPE_DEFINITION:VIEW` **软依赖**（perms.ts SSOT TYPE_VIEW，不进路由 meta.auths）+ `hasPerms` 探查（登录权限串白名单已含 TYPE_DEFINITION，T-PERM-025 2026-08-28 补齐）；缺权限时 `typePermDenied` 降级——只禁类型下拉与矩阵区，`el-result` 明确提示「无法加载资源类型/缺少 TYPE_DEFINITION:VIEW」并允许重试，页面其余部分（主体树等）保持可用，不误报空态；后端免权限来源方案不采用。落地：hook.ts loadDeps 探查 + GrantMatrixPanel 降级分支 + retryLoadDeps。**重试语义（T-FE-048，2026-09-20）**：retryLoadDeps 先走会话能力刷新入口（login.md「会话权限热刷新」节）重拉权限串再 loadDeps——管理员补授后重试即读到新权限串，无需重登/刷新页面（原实现读 store 旧值、注释自认「生效于下一次登录态刷新」，重试永远降级）；刷新失败不阻断重试（旧权限串下照常走既有降级判定，行为不劣化）。**评审补（2026-09-02 登记，2026-09-03 终案）**：权限探查与后端门禁曾存在粒度差异（登录权限串全集含实例级 TYPE_DEFINITION:VIEW，而 list 门禁此前仅认类型级，出现「探查通过、请求被 403 拒」）。**终案：后端放宽**——type-definition/list 门禁改为「类型级或任一实例级 VIEW 均可查询」（`TypeDefinitionAppServiceImpl.requireTypeViewPermission`，单测锁定），两侧口径对齐（注：TYPE_DEFINITION 实例投影已由后端 T-PERM-051 落地（2026-09-07 收口）——写路径同事务维护 + bootstrap 自愈补种，实例业务键为复合键 {typeKey}:{typeCode}，类型已声明 SYNC+access-service，资源管理面只读 20055；授权页按资源选择器既有模式直接可选可配，前端零改动）；前端类型候选请求的 403 捕获保留为防御层（覆盖未来门禁变化），其余错误（含资源树/操作列 403——无前端前置为既定口径）维持通用错误提示。hook.spec 四用例锁定：缺权限串不发请求 / 403 降级不弹错 / 非 403 走通用错误 / 资源树 403 不降级。
 >
@@ -515,7 +515,7 @@ interface MatrixContext {
 - **引擎双写消除（方案三）**：后端 `GoldenFixturePgIT` 使用同一 fixtures 用例集输出权威结果；前端读同一 fixtures 逐例比对（CI 失败）；用例集现为 5 例（组合位/ALL/资源继承/操作继承/两段组合来源——`global-fallback` 用例随全局操作概念退役移除，2026-08-30）；配置读模型（后端视图聚合接口）记为**演进方向**，当前不实现。**fixtures 载体（T-FE-036 落地注记，2026-08-02）**：立项时后端 GoldenFixtureTest 尚未启动，用例集（原 6 例，现 5 例——global-fallback 随全局操作概念退役移除）由 T-FE-036 按 §3.5 语义先行定义于 **`frontend/src/views/perm/grant/utils/source-chain.fixtures.json`**（权威用例源，含语义说明与期望输出全字段），前端 `source-chain.spec.ts` 逐例全字段断言；**后端已随 T-PERM-034 落地（2026-08-30）**：`GoldenFixturePgIT`（真库容器）把用例集种入 PostgreSQL 后用运行时引擎逐（资源×操作）评估、与 expected.cells 等价比对（nodeClosure 语义映射为 {资源}∪祖先链逐点判定取或——引擎实例判定按查询实体精确加载、继承展开为展示性克隆，见 core-flows §资源继承展开）。比对过程曾抓出并修复一处引擎缺口：全局操作位此前不参与掩码计算（后随全局操作概念退役整体移除，2026-08-30 T-PERM-049）。
 - **端点契约（方案四）**：`docs/contracts/perm-grant.schema.json` 已删除，不做说明性机器校验；报文契约回归 `api-contract.md §6.4/§6.5/§6.5.1/§6.5.2` 单一来源，补结构约束（统一响应壳/跨字段 INSTANCE-ALL 约束/local-date-time/grantedBits 十进制字符串/错误码枚举（含 20041/20042/20043）/plan 结构/无 clientRequestId）；结构校验由后端 `prevalidateGrantPlan` 运行时执行；Java DTO 手工对齐 api-contract。
 
-> 注（P1-4）：个人入口（PERSONAL）首期移除；个人 `abstract_role` 生命周期（用户同步 upsert/删除 `PERSONAL_{external_id}`）另立后端任务，落地后恢复个人入口与 S1 个人分支验收。
+> 注（P1-4）：个人入口（PERSONAL）首期移除；个人 `abstract_role` 生命周期（用户同步 upsert/删除 `PERSONAL_{external_id}`）未立项——是否建设属产品范围决策，立项后再恢复个人入口与 S1 个人分支验收（2026-10-06 拍板改口径：原「待同步链路落地后恢复」暗示既定技术前提，实际无此计划）。
 
 本页只依赖 list + apply-grant-plan + 资源树/操作/条件等只读接口（T-PERM-043 后不再依赖 extra-roles/list，该接口已退役）；**已删除的 save/revoke/children/add-child/remove-child（无映射 404）不得由本页调用（亦无从调用）**。
 

@@ -159,6 +159,34 @@ class AuthLoginLockTest {
     }
 
     @Test
+    @DisplayName("停用先序探测关闭（2026-10-06 拍板移序）：停用账号+错误密码 → 10005 同码，不披露停用")
+    void disabledUserWithWrongPassword_returnsPasswordIncorrectOnly() throws Exception {
+        SysUser user = enabledUser();
+        user.setStatus(0);
+        when(userDomainService.lockValidByUsername(1L, USERNAME)).thenReturn(user);
+        stubRedis();
+        JsonNode body = login(PASSWORD + "x");
+        assertThat(body.path("code").asInt()).isEqualTo(10005);
+        // 密码失败照常推进计数（旧实现此形态返回 10003 且不计数——红跑实证差异点）
+        verify(stringRedisTemplate, times(1)).execute(any(DefaultRedisScript.class), anyList(), any());
+        // 审计 failReason 为密码错误：停用状态不再经错误码/日志双面披露
+        ArgumentCaptor<LoginLogEntry> captor = ArgumentCaptor.forClass(LoginLogEntry.class);
+        verify(loginLogDomainService).recordLoginLog(captor.capture());
+        assertThat(captor.getValue().failReason()).isEqualTo("密码错误");
+    }
+
+    @Test
+    @DisplayName("锁定期错误密码同码（移序副面）：计数已满+错误密码 → 10005 且计数继续推进（锁窗延长）")
+    void lockedAccountWithWrongPassword_returnsPasswordIncorrectAndKeepsCounting() throws Exception {
+        SysUser user = enabledUser();
+        when(userDomainService.lockValidByUsername(1L, USERNAME)).thenReturn(user);
+        ValueOperations<String, String> valueOperations = stubRedis();
+        when(valueOperations.get(LOCK_KEY)).thenReturn("5");
+        assertThat(login("wrong-password").path("code").asInt()).isEqualTo(10005);
+        verify(stringRedisTemplate, times(1)).execute(any(DefaultRedisScript.class), anyList(), any());
+    }
+
+    @Test
     @DisplayName("验证码失败不计入失败锁（免验证码零成本锁号回退）：拒绝前置+留审计、不动计数键")
     void invalidCaptchaRejectsWithoutLockCountingBeforeUserLookup() throws Exception {
         stubRedis();
@@ -176,11 +204,13 @@ class AuthLoginLockTest {
     }
 
     @Test
-    void missingUserAlsoUsesSharedLockThreshold() throws Exception {
+    @DisplayName("不存在用户不披露锁定状态（移序）：阈值计数下错误密码仍 10005 同码、计数照常推进")
+    void missingUserKeepsSharedCountingWithoutLockDisclosure() throws Exception {
         ValueOperations<String, String> values = stubRedis();
         when(values.get(LOCK_KEY)).thenReturn("5");
         when(userDomainService.lockValidByUsername(1L, USERNAME)).thenReturn(null);
-        assertThat(login("wrong-password").path("code").asInt()).isEqualTo(10004);
+        assertThat(login("wrong-password").path("code").asInt()).isEqualTo(10005);
+        verify(stringRedisTemplate, times(1)).execute(any(DefaultRedisScript.class), anyList(), any());
     }
 
     @Test

@@ -35,8 +35,9 @@ export function useRoleManage() {
 
   /**
    * 过滤树：仅保留角色管理页可管理的类型（MANAGEABLE_ROLE_TYPES，T-PERM-043 后仅
-   * BASIC_ROLE）。ORG/POSITION/PERSONAL 由外部同步生成，不在本页展示（归权限授予/
-   * 用户详情）；GROUP_ROLE 写入口已删除、选项隐藏，存量节点整棵裁掉（额外角色
+   * BASIC_ROLE）。ORG/POSITION 由外部同步生成、PERSONAL 类型保留但无同步自动生命
+   * 周期，不在本页展示（归权限授予/用户详情）；GROUP_ROLE 写入口已删除、选项隐藏，
+   * 存量节点整棵裁掉（额外角色
    * 面板与 extra-roles API 已随 2026-09-14 轻量清扫批次删除）。
    *
    * C2 后树为扁平森林（parentId=null 真实角色为根，无类型虚拟根）：

@@ -185,14 +185,22 @@ export type MemberCandidateItem = {
 
 // ========== API 函数 ==========
 
-/** 获取可用组织树配置列表（POST /api/access/org-tree-config/page，分页取前 100 条） */
+/** 获取可用组织树配置列表（POST /api/access/org-tree-config/page；按 hasNext 循环拉全——
+ * 单页上限 200，只取首页会静默截断超页配置，2026-10-06 拍板对齐 loadAllRoles 范式） */
 export const getOrgTreeConfigs = async (): Promise<OrgTreeConfig[]> => {
-  const res = await http.request<R<PageResp<OrgTreeConfig>>>(
-    "post",
-    "/api/access/org-tree-config/page",
-    { data: { pageNum: 1, pageSize: 100 } }
-  );
-  return unwrap(res).items;
+  const configs: OrgTreeConfig[] = [];
+  let pageNum = 1;
+  for (;;) {
+    const res = await http.request<R<PageResp<OrgTreeConfig>>>(
+      "post",
+      "/api/access/org-tree-config/page",
+      { data: { pageNum, pageSize: 200 } }
+    );
+    const page = unwrap(res);
+    configs.push(...page.items);
+    if (!page.hasNext) return configs;
+    pageNum++;
+  }
 };
 
 /** 获取组织树（POST /api/access/org/tree；T-ADMIN-021 起响应统一 {items:[...]} 包装，此处解包保持调用方数组契约） */

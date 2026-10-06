@@ -119,8 +119,9 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
      * 创建角色
      * <p>
      * 创建新的角色实体。T-PERM-043 后 ORG/POSITION 被 rejectReservedRoleType 拒（20045）、
-     * GROUP_ROLE 显式拒（20022）；首期功能角色仅 BASIC_ROLE（PERSONAL 由用户同步连带
-     * 生成，不归本入口管理，但入口未对其额外设限——历史行为）。
+     * GROUP_ROLE 显式拒（20022）；首期功能角色仅 BASIC_ROLE（PERSONAL 类型保留但无同步
+     * 自动生命周期——创建 abstract_user 时不自动创建个人角色，通用 API 面可用；
+     * 2026-10-06 口径修正，旧「由用户同步连带生成」叙事废止）。
      * 可指定父角色实现角色的层级关系。需要ROLE_CREATE权限。
      * </p>
      *

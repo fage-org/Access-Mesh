@@ -26,13 +26,15 @@
 - **数据边界**：Flex 生成 SQL 启用 tenant_id，缺上下文拒绝，启动固定图显式豁免；手写 XML 继续显式租户过滤。外部 JSON 字段严格单根且最大 64 KiB UTF-8，审计内部快照只做严格 JSON 校验。
 - **升级要求**：OAuth2 类型列/密钥约束及新增菜单/API 固定图要求旧开发库先备份再重建；不提供自动种子补标或在线数据迁移。PERSONAL 后端与分配入口可用，角色维护页仍仅 BASIC_ROLE。
 
-- **认证入口收紧（T-ACCESS-083）**：用户不存在和密码错误统一 10005；验证码错误纳入账号失败计数；重置密码须包含字母与数字，复杂度不足为 10010。短信登录端点、DTO 与白名单通道移除，历史日志保留。
+- **认证入口收紧（T-ACCESS-083）**：用户不存在和密码错误统一 10005；验证码错误不纳入失败计数（2026-10-06 拍板回退，仅留失败日志）；重置密码须包含字母与数字，复杂度不足为 10010。短信登录端点、DTO 与白名单通道移除，历史日志保留。
 
 - **管理员固定图种子锁定（T-PERM-106）**：BOOTSTRAP_SEED 行不可经授权 API 改删或挂子权限（20074），普通转授 MANUAL 行仍可维护；旧库不自动补标，须先备份后重建。成员移除、停用及最后管理员保护仍按既定延后边界。
 
 - **权限拒绝解释（T-PERM-107，reason 词表变更）**：`CONDITION_NOT_MET_OR_CONFLICT` 拆为 `CONDITION_NOT_MET` / `PERMISSION_CONFLICT`，实际互斥命中优先；check 的拒绝项正确返回条件参与事实，batch-check 每项新增 `conditionEvaluated`。调用方需同步更新 reason 分类，不改变 allowed 判定，不开放 TRACE。
 
 - **密码重置与 OAuth2 代际（T-ACCESS-082，安全收紧）**：管理员重置吊销目标全部平台会话；任何改密后旧授权码、刷新链和 access JWT 拒绝。首次授权以客户端 refresh TTL 固定整链期限，刷新不延长，access TTL 不超链期限；种子 refresh TTL 收至 7 天。存量缺代际字段的 OAuth2 凭据拒绝，部署须全量切换签发节点并重新授权。
+
+- **存疑批次拍板实施（2026-10-06 第二批）**：登录停用（10003）与临时锁定（10004）提示移至密码校验之后——错误密码一律 10005，关闭按错误码差异枚举用户名的通道（正确密码路径停用提示仍优先于锁定；锁定期错误密码照常推进计数）；分页显式 `pageNum`/`pageSize` ≤0 返回 400（省略才走缺省 1/20，与 @Min(1) 族两套下界语义统一）；OAuth2 链签发时间容忍窗 `access.oauth2.clock-skew-tolerance-seconds`（默认 3 秒、配 0 关闭，过期判定不放宽）；CONFIDENTIAL 刷新不要求 client_secret 登记为 RFC 6749 §6 已知偏差（长期取舍，缓解=密码代际+绝对期限）；role 侧同步拒绝 reason 与 user 侧同措辞（不再误导设置已被忽略的 X-Service-Code 头）；岗位 orgType 判定收敛 `OrgOperationCodeMapper.isPositionOrgType` 单一入口；授权弹窗固定图种子授权显示「已勾选+禁用」（不经弹窗新建同键手动行）；组织树配置选择器按 hasNext 循环拉全（不再固定首页 100 条静默截断）；删除用户域「批量创建用户」零调用死链与授权草稿 savedAt 只写不读字段。
 
 - **部署凭据与运维基线（T-ACCESS-086）**：Compose 两档均要求非空 `DB_PASSWORD`/`REDIS_PASSWORD`，移除 PG trust 与 Redis 公开默认值；旧 PG 数据卷须按部署手册单独收紧认证。Nacos 数据持久化、服务自动重启及依赖健康检查接通；新增备份恢复、离线忘密恢复、授权墓碑与密钥轮换规程。
 
@@ -54,6 +56,7 @@
 
 - **功能角色候选端点 `/api/access/role/list` 退役（T-FE-058，破坏性）**：该端点服务端写死 `LIMIT 0,200` 且无 keyword/分页（第 201 个功能角色静默不可选），门禁仅类型级 `ROLE:VIEW`（与角色管理页实例准入口径分叉）——功能角色候选唯一消费方（用户详情「分配角色」选择器）迁 `POST /api/access/abstract-role/list`（`roleTypeCodes=[BASIC_ROLE,GROUP_ROLE,PERSONAL]`+keyword+分页；门禁随端点对齐实例准入），旧端点全链移除（无兼容层，POST 404；bootstrap 固定图行同批移除）。存量库资源行/映射/授权惰性残留的订正语句见 `docs/design/access-service-rebuild-runbook.md` 常见问题表。
 - **资源依赖管理写入口退役（T-PERM-071，破坏性）**：`resource-dependency/create|update|remove|batch-sync` 四端点、`ResourceDependencyResp.autoGrant` 字段、`DEPENDENCY:SYNC` 操作码与 bootstrap 固定图授权档、错误码 20048 全链移除——依赖声明唯一写入来源为所属服务 MANIFEST 发布；管理台只读（list/graph/check）。旧表保全迁移已于 2026-10-03 退出支持；原交付见 `docs/archive/2026-10-03/ops/runbook-auto-grant-migration.md`，当前按权威 schema 新建库。
+- **网关白名单死路由清理（T-GW-011，2026-10-06 补记）**：移除指向已删除端点的两条免鉴权白名单路径与 superseded 册死配置键描述；Nacos 远端 `gateway.yml` 携带同键列表会整体替换本地白名单（Spring 列表语义），自建远端配置须与本地清单同步维护——已补运维提示，与 CORS/管理端口「远端优先」口径对齐。
 
 ### Security
 

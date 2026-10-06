@@ -58,20 +58,30 @@ public final class OAuth2JwtSupport {
             ? passwordHash.substring(0, 29) : null;
     }
 
-    /** 码、刷新记录与访问 JWT 采用同一代际与绝对期限；缺字段的旧凭据拒绝。 */
+    /**
+     * 码、刷新记录与访问 JWT 采用同一代际与绝对期限；缺字段的旧凭据拒绝。
+     * <p>
+     * clockSkewToleranceSeconds 为签发时间未来偏移容忍窗（秒，2026-10-06 拍板：
+     * 默认 3、配 0 关闭）——多实例节点间 NTP 级时钟漂移下，稍早签发的链在慢时钟
+     * 节点仍可兑换（重试即成功的秒级毛刺消除）；过期判定不放宽。
+     * </p>
+     */
     public static boolean isCurrentCredential(String passwordHash, String fingerprint,
-                                               long issuedAt, long expiresAt) {
+                                               long issuedAt, long expiresAt, long clockSkewToleranceSeconds) {
         long now = System.currentTimeMillis() / 1000;
         return fingerprint != null && fingerprint.equals(passwordFingerprint(passwordHash))
-            && issuedAt > 0 && issuedAt <= now && expiresAt > issuedAt && expiresAt > now;
+            && issuedAt > 0 && issuedAt <= now + clockSkewToleranceSeconds
+            && expiresAt > issuedAt && expiresAt > now;
     }
 
-    public static boolean isCurrentCredential(String passwordHash, Map<String, Object> payloads) {
+    public static boolean isCurrentCredential(String passwordHash, Map<String, Object> payloads,
+                                               long clockSkewToleranceSeconds) {
         Object fingerprint = payloads.get(PASSWORD_FINGERPRINT_CLAIM);
         try {
             return fingerprint instanceof String value && isCurrentCredential(passwordHash, value,
                 Long.parseLong(String.valueOf(payloads.get(CHAIN_ISSUED_AT_CLAIM))),
-                Long.parseLong(String.valueOf(payloads.get(CHAIN_EXPIRES_AT_CLAIM))));
+                Long.parseLong(String.valueOf(payloads.get(CHAIN_EXPIRES_AT_CLAIM))),
+                clockSkewToleranceSeconds);
         } catch (NumberFormatException e) {
             return false;
         }

@@ -37,6 +37,14 @@ public final class OrgOperationCodeMapper {
     /** 岗位 orgType 值（语义字符串形式） */
     private static final String ORG_TYPE_POSITION_LABEL = "POSITION";
 
+    /**
+     * orgType 是否为岗位（数字线 {@code "2"} 或标签 {@code "POSITION"}，大小写不敏感）。
+     * 全仓该判定的唯一入口（T-API-011 拍板：字面量收敛，值域将来变动单点改）。
+     */
+    public static boolean isPositionOrgType(String orgType) {
+        return ORG_TYPE_POSITION_NUM.equals(orgType) || ORG_TYPE_POSITION_LABEL.equalsIgnoreCase(orgType);
+    }
+
     // ===== CRUD 操作码映射（OrgAppServiceImpl 使用） =====
 
     private static final Map<String, String> CREATE_MAP = Map.of(

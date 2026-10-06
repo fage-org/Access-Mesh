@@ -169,6 +169,29 @@ class SecurityMatrixIT {
     }
 
     @Test
+    @DisplayName("同步端点安全拒绝完整形态：HTTP 200 + code=200 + data.accepted=false（判别表三件套锁）")
+    void syncSecurityDenied_keepsFullHttpEnvelopeShape() throws Exception {
+        // T-ACCESS-088 拍板补：三段拼接（服务层断言+静态接线+e2e）升级为 HTTP 层完整形态锁。
+        // 凭证身份 example-service vs 载荷 sourceService=svc-mismatch → sourceService 校验拒绝；
+        // 若信封包装形态被改动（如改抛 SecurityException→403），本用例变红。
+        stubCredential(1L, "example-service");
+        mockMvc.perform(post("/api/access/abstract-role/sync")
+                .header("X-Tenant-Id", "1")
+                .header("X-Internal-Secret", INTERNAL_SECRET)
+                .header("X-Service-Code", "example-service")
+                .header("X-Credential-Id", "sc-example-service")
+                .header("X-Credential-Secret", "sk-test")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"operation\":\"UPSERT\",\"roleTypeCode\":\"BASIC_ROLE\","
+                    + "\"roleExternalId\":\"ext-1\",\"treeRootExternalId\":\"root-1\","
+                    + "\"sourceService\":\"svc-mismatch\","
+                    + "\"syncVersion\":{\"occurredAt\":\"2026-01-01T00:00:00\",\"sequenceNo\":1}}"))
+            .andExpect(status().isOk())
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.code").value(200))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.accepted").value(false));
+    }
+
+    @Test
     @DisplayName("T-GW-009：豁免不反向加宽——非豁免 user 端点无密钥仍 403（user 族豁免仅 reset-password）")
     void userEndpoint_notExempt_withoutSecret_rejected403() throws Exception {
         // 反向退化锁（claude 外评处置补强）：若豁免被加宽为 /api/access/user/** 整族，
