@@ -18,6 +18,7 @@ import cn.ac.fage.accessmesh.access.org.entity.SysOrgTreeConfig;
 import cn.ac.fage.accessmesh.access.user.entity.SysUser;
 import cn.ac.fage.accessmesh.access.org.entity.SysUserOrg;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.util.PageUtil;
 import cn.ac.fage.accessmesh.access.user.mapper.SysUserMapper;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.constant.OrgOperationCodeMapper;
@@ -238,6 +239,7 @@ public class UserAppServiceImpl implements UserAppService {
 
         int pageNum = req.getPageNum();
         int pageSize = req.getPageSize();
+        int offset = PageUtil.offset(pageNum, pageSize);
         Set<Long> orgIds = null;
         if (req.orgId() != null) {
             // 契约 §7.1：orgId 必须属于默认组织树（本接口只服务身份目录视图）
@@ -276,7 +278,7 @@ public class UserAppServiceImpl implements UserAppService {
         List<SysUser> records = total == 0 ? List.of()
             : userMapper.selectUsersByCondition(tenantId,
                 req.username(), req.name(), req.phone(), req.email(), req.status(), orgIds,
-                (pageNum - 1) * pageSize, pageSize);
+                offset, pageSize);
 
         // 批量获取用户组织关联，避免 N+1
         Set<Long> userIds = records.stream()
@@ -284,7 +286,7 @@ public class UserAppServiceImpl implements UserAppService {
             .collect(Collectors.toSet());
         if (userIds.isEmpty()) {
             return new PageResp<>(List.of(), total, pageNum, pageSize,
-                (pageNum - 1) * pageSize < total);
+                PageUtil.hasNext(offset, 0, total));
         }
 
         // 批量查询用户组织关系
@@ -324,7 +326,7 @@ public class UserAppServiceImpl implements UserAppService {
             .collect(Collectors.toList());
 
         return new PageResp<>(items, total, pageNum, pageSize,
-            (pageNum - 1) * pageSize + items.size() < total);
+            PageUtil.hasNext(offset, items.size(), total));
     }
 
     /**
@@ -512,11 +514,12 @@ public class UserAppServiceImpl implements UserAppService {
         // 4. 分页查询候选用户
         int pageNum = req.getPageNum();
         int pageSize = req.getPageSize();
+        int offset = PageUtil.offset(pageNum, pageSize);
         long total = userMapper.countUsersByIdsAndKeyword(
             tenantId, List.copyOf(candidateUserIds), req.keyword());
         List<SysUser> result = total == 0 ? List.of()
             : userMapper.selectUsersByIdsAndKeyword(tenantId, List.copyOf(candidateUserIds),
-                req.keyword(), (pageNum - 1) * pageSize, pageSize);
+                req.keyword(), offset, pageSize);
 
         // 5. 批量获取用户的主组织名（默认树主归属）
         Set<Long> resultUserIds = result.stream()
@@ -553,7 +556,7 @@ public class UserAppServiceImpl implements UserAppService {
             .collect(Collectors.toList());
 
         return new PageResp<>(items, total, pageNum, pageSize,
-            (pageNum - 1) * pageSize + items.size() < total);
+            PageUtil.hasNext(offset, items.size(), total));
     }
 
     private PageResp<MemberCandidateItemResp> emptyMemberCandidates(MemberCandidatesReq req) {

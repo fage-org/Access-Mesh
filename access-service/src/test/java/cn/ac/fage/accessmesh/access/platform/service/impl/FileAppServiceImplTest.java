@@ -159,6 +159,17 @@ class FileAppServiceImplTest {
     }
 
     @Test
+    @DisplayName("pageFiles 超大 pageNum（DTO 合法、偏移溢出 int）→ 参数错误且不触发任何查询（复评轮 P2 回归锁）")
+    void pageFilesRejectsOverflowingPageNumBeforeAnyQuery() {
+        // (21474838-1)*200 = 4294967400 > Integer.MAX_VALUE：旧实现回绕为 104 返回错误页数据
+        assertThatThrownBy(() ->
+            service.pageFiles(new FilePageReq(21_474_838, 200, null, null), null))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("分页范围");
+        verifyNoInteractions(fileMapper, permissionValidator);
+    }
+
+    @Test
     @DisplayName("pageFiles scopeAll（拒绝集空）→ 可见集=全集仍走 IN 过滤（NULL bucket 行不可见，评审批次统一口径）")
     void pageFilesFiltersByUniverseWhenScopeAll() {
         when(fileMapper.selectDistinctBucketNames(TENANT, null))

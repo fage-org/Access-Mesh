@@ -15,9 +15,9 @@ package cn.ac.fage.accessmesh.access.engine.constant;
  * <p>统一常量面 = 注册表镜像（T-ACCESS-034 口径）：DDL 种子在册的操作码即使后端零代码
  * 引用也收录常量（ROLE:ASSIGN/REVOKE——授权矩阵可见可授予，历史用户角色代理门禁遗物）。
  * 该口径取代 T-PERM-019 D3 的「常量类只镜像代码引用面」（ASSIGN/REVOKE 常量曾按 D3 删除，
- * 本任务随合一恢复收录，种子行始终未动）。SDK 侧 {@code DefaultOpCode}(VIEW/EDIT/DELETE)
- * 为接入方契约独立维护，不与本类联动；EDIT 在服务端操作码注册表无预置，为已知差异
- * （extension-guide §2.3 注记）。</p>
+ * 本任务随合一恢复收录，种子行始终未动）。SDK 侧 {@code DefaultOpCode}(VIEW/UPDATE/DELETE)
+ * 为接入方契约独立维护，不与本类联动（原 EDIT 已随 SDK 对齐 UPDATE 退役，
+ * 见 extension-guide §2.3）。</p>
  *
  * <p>使用示例（T-ORG-001 统一后操作者 ID 即主体 ID，无转换层；
  * 业务对象门禁统一业务编码语义，{@code resource_entity(ROLE).code = roleId}；

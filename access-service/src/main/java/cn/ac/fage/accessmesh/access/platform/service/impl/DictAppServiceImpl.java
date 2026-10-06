@@ -21,6 +21,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
+import cn.ac.fage.accessmesh.access.infrastructure.util.PageUtil;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLog;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import org.springframework.stereotype.Service;
@@ -223,18 +224,19 @@ public class DictAppServiceImpl implements DictAppService {
         Long tenantId = TenantContextHolder.getTenantId();
         int pageNum = pageReq.getPageNum();
         int pageSize = pageReq.getPageSize();
+        int offset = PageUtil.offset(pageNum, pageSize);
 
         // XML 分页统一 offset/limit + count 双查询（MyBatis-Flex Page 参数在 XML 映射下不生效）
         long total = dictTypeMapper.countByTenantId(tenantId);
         List<SysDictType> records = total == 0 ? List.of()
-            : dictTypeMapper.selectByTenantIdPaged(tenantId, (pageNum - 1) * pageSize, pageSize);
+            : dictTypeMapper.selectByTenantIdPaged(tenantId, offset, pageSize);
 
         List<DictTypeResp> items = records.stream()
             .map(t -> new DictTypeResp(t.getId(), t.getDictName(), t.getDictType(), t.getStatus(), t.getRemark(), t.getCreatedAt(), List.of()))
             .collect(Collectors.toList());
 
         return new PageResp<>(items, total, pageNum, pageSize,
-            (pageNum - 1) * pageSize + items.size() < total);
+            PageUtil.hasNext(offset, items.size(), total));
     }
 
     /**

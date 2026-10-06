@@ -21,6 +21,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
+import cn.ac.fage.accessmesh.access.infrastructure.util.PageUtil;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -286,15 +287,16 @@ public class OrgTreeConfigAppServiceImpl implements OrgTreeConfigAppService {
      */
     @Override
     public PageResp<OrgTreeConfigResp> pageOrgTreeConfigs(PageReq pageReq) {
+        int offset = PageUtil.offset(pageReq.pageNum(), pageReq.pageSize());
         // XML 分页统一 offset/limit + count 双查询（MyBatis-Flex Page 参数在 XML 映射下不生效）
         long total = orgTreeConfigMapper.countAllByTenant(TenantContextHolder.getTenantId());
         List<OrgTreeConfigResp> items = total == 0 ? List.of()
             : orgTreeConfigMapper.selectAllByTenant(TenantContextHolder.getTenantId(),
-                (pageReq.pageNum() - 1) * pageReq.pageSize(), pageReq.pageSize()).stream()
+                offset, pageReq.pageSize()).stream()
                 .map(OrgTreeConfigResp::from)
                 .toList();
         return new PageResp<>(items, total, pageReq.pageNum(), pageReq.pageSize(),
-            (pageReq.pageNum() - 1) * pageReq.pageSize() + items.size() < total);
+            PageUtil.hasNext(offset, items.size(), total));
     }
 
     private boolean resolveSingleAssoc(String treeType, Boolean requestedValue, boolean defaultValue) {

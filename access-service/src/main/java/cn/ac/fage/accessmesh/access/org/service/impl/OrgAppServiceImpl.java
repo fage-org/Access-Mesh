@@ -13,6 +13,7 @@ import cn.ac.fage.accessmesh.access.org.entity.SysOrgTreeConfig;
 import cn.ac.fage.accessmesh.access.user.entity.SysUser;
 import cn.ac.fage.accessmesh.access.org.entity.SysUserOrg;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.util.PageUtil;
 import cn.ac.fage.accessmesh.access.org.mapper.SysOrgMapper;
 import cn.ac.fage.accessmesh.access.org.mapper.SysOrgTreeConfigMapper;
 import cn.ac.fage.accessmesh.access.org.mapper.SysUserOrgMapper;
@@ -150,6 +151,7 @@ public class OrgAppServiceImpl implements OrgAppService {
 
         int pageNum = req.getPageNum();
         int pageSize = req.getPageSize();
+        int offset = PageUtil.offset(pageNum, pageSize);
         Set<Long> orgIds = null;
         if (req.orgId() != null) {
             List<Long> subtreeIds = orgDomainService.getDescendantIdsIncludingSelf(tenantId, req.orgId());
@@ -175,14 +177,14 @@ public class OrgAppServiceImpl implements OrgAppService {
         long total = orgMapper.countOrgsByCondition(tenantId, req.orgName(), orgType, req.status(), orgIds);
         List<SysOrg> records = total == 0 ? List.of()
             : orgMapper.selectOrgsByCondition(tenantId, req.orgName(), orgType, req.status(), orgIds,
-                (pageNum - 1) * pageSize, pageSize);
+                offset, pageSize);
 
         Map<Long, String> parentNames = parentNames(tenantId, records, null);
         List<OrgResp> items = records.stream()
             .map(o -> toResp(o, List.of(), parentNames))
             .collect(Collectors.toList());
         return new PageResp<>(items, total, pageNum, pageSize,
-            (pageNum - 1) * pageSize + items.size() < total);
+            PageUtil.hasNext(offset, items.size(), total));
     }
 
     @Override

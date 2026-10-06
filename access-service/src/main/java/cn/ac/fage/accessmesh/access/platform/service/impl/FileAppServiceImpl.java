@@ -7,6 +7,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.dto.IdsReq;
 import cn.ac.fage.accessmesh.access.platform.dto.resp.FileResp;
 import cn.ac.fage.accessmesh.access.platform.entity.SysFile;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.util.PageUtil;
 import cn.ac.fage.accessmesh.access.platform.mapper.SysFileMapper;
 import cn.ac.fage.accessmesh.access.platform.service.AdminFileFolderRegistrar;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
@@ -450,6 +451,7 @@ public class FileAppServiceImpl implements FileAppService {
         Long tenantId = TenantContextHolder.getTenantId();
         int pageNum = pageReq.getPageNum();
         int pageSize = pageReq.getPageSize();
+        int offset = PageUtil.offset(pageNum, pageSize);
 
         // 1. 可见文件夹全集（有效文件覆盖的 bucket 去重；空全集=空页，跳过引擎调用）
         Set<String> universe = new LinkedHashSet<>(fileMapper.selectDistinctBucketNames(tenantId, bizType));
@@ -470,14 +472,14 @@ public class FileAppServiceImpl implements FileAppService {
         // 3. XML 分页统一 offset/limit + count 双查询（MyBatis-Flex Page 参数在 XML 映射下不生效）
         long total = fileMapper.countFilesByCondition(tenantId, bizType, visibleBuckets);
         List<SysFile> records = total == 0 ? List.of()
-            : fileMapper.selectFilesByCondition(tenantId, bizType, visibleBuckets, (pageNum - 1) * pageSize, pageSize);
+            : fileMapper.selectFilesByCondition(tenantId, bizType, visibleBuckets, offset, pageSize);
 
         List<FileResp> items = records.stream()
             .map(this::toResp)
             .collect(Collectors.toList());
 
         return new PageResp<>(items, total, pageNum, pageSize,
-            (pageNum - 1) * pageSize + items.size() < total);
+            PageUtil.hasNext(offset, items.size(), total));
     }
 
     /**

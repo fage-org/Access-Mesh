@@ -1,7 +1,7 @@
 ---
 doc_type: problems
 title: 待解决问题清单
-counter: Q-065           # 已分配最大问题号；分配后冻结，不复用不重排
+counter: Q-066           # 已分配最大问题号；分配后冻结，不复用不重排
 last_updated: 2026-10-06
 ---
 
@@ -84,6 +84,20 @@ last_updated: 2026-10-06
 **影响与边界**：单租户试运行期（README 已声明）无实际影响；多租户开启即触达迁移点。
 
 **设想方向（未定案）**：重启 2026-09-16 设计稿（grill 九问结论在案）再立项；重启需用户再拍板。
+
+<a id="q-066"></a>
+## Q-066 sys_org.org_type 标签语义与数字解析的潜在错配
+
+- **状态**：open
+- **登记**：2026-10-06
+- **来源**：使用者视角修复批次复评轮外评存量观察（claude）；T-API-011 orgType 统一 Integer 扩大数字解析面
+- **关联**：[T-API-011](archive/2026-10-06/tasks/T-API-011.md)
+
+**现象与证据**：`sys_org.org_type` 为 `VARCHAR(32)` 可空标签列（schema 注释「组织类型标签（字典管理），仅分类用」），但读取侧按数字解析——`OrgAppServiceImpl.java:455` `Integer.parseInt(org.getOrgType())` 且无 null 守卫，`UserAppServiceImpl.java:316` `Integer.valueOf(org.getOrgType())` 有 null 守卫（两侧不对称）。写入口 `OrgCreateReq.orgType` 为 Integer，API 面非数字值进不了库，当前不可触发。
+
+**影响与边界**：现在没出事是因为全部写入路径（API + bootstrap 种子）只产生 "1"/"2"；若未来放开字典标签值、或运维直改库写入非数字/NULL（岗位行 org_type 为 NULL 时 `:455` 直接 NumberFormatException/NPE→500，组织分页/树读取挂）。属 schema 标签语义与线格式 Integer 的口径错配，非本批引入的回归。
+
+**设想方向（未定案）**：短期补 `:455` null/非数字防御与 User 侧对齐；长期要么把 org_type 收敛为 SMALLINT + CHECK（1/2），要么明确标签语义并在读取侧宽容处理——涉及 schema 口径，需单独拍板。
 
 <a id="q-065"></a>
 ## Q-065 大型应用服务的职责拆分评估

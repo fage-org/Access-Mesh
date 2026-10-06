@@ -338,7 +338,7 @@ sys_menu 的权威 DDL 见 [`schema/access-service.sql`](schema/access-service.s
 
 ```
 perm-sdk/
-├── perm-common/                          # SDK 公共契约 DTO 与模型（AuthCheck*/Query* Req/Resp、PermContext、ItemsResp/PageResp 等）
+├── perm-common/                          # SDK 公共契约 DTO 与模型（AuthCheck*/Query* Req/Resp、ItemsResp/PageResp 等；旧 PermContext/PermCheckReq/PermCheckResp 已删除）
 ├── perm-client-spring-boot-starter/      # 业务服务引用
 └── perm-registration-spring-boot-starter/ # 可选依赖发布
 ```

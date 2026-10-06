@@ -23,6 +23,7 @@ import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.access.platform.entity.SysJob;
 import cn.ac.fage.accessmesh.access.platform.entity.SysJobLog;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.util.PageUtil;
 import cn.ac.fage.accessmesh.access.platform.mapper.SysJobLogMapper;
 import cn.ac.fage.accessmesh.access.platform.mapper.SysJobMapper;
 import cn.ac.fage.accessmesh.access.platform.service.JobAppService;
@@ -413,18 +414,19 @@ public class JobAppServiceImpl implements JobAppService {
         permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_JOB, OperationCode.VIEW);
         int pageNum = pageReq.getPageNum();
         int pageSize = pageReq.getPageSize();
+        int offset = PageUtil.offset(pageNum, pageSize);
 
         // XML 分页统一 offset/limit + count 双查询（MyBatis-Flex Page 参数在 XML 映射下不生效）
         long total = jobMapper.countJobsByCondition(tenantId, jobGroup);
         List<SysJob> records = total == 0 ? List.of()
-            : jobMapper.selectJobsByCondition(tenantId, jobGroup, (pageNum - 1) * pageSize, pageSize);
+            : jobMapper.selectJobsByCondition(tenantId, jobGroup, offset, pageSize);
 
         List<JobResp> items = records.stream()
             .map(this::toJobResp)
             .toList();
 
         return new PageResp<>(items, total, pageNum, pageSize,
-            (pageNum - 1) * pageSize + items.size() < total);
+            PageUtil.hasNext(offset, items.size(), total));
     }
 
     /**
@@ -445,18 +447,19 @@ public class JobAppServiceImpl implements JobAppService {
         permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_JOB, OperationCode.VIEW);
         int pageNum = pageReq.getPageNum();
         int pageSize = pageReq.getPageSize();
+        int offset = PageUtil.offset(pageNum, pageSize);
 
         // XML 分页统一 offset/limit + count 双查询（MyBatis-Flex Page 参数在 XML 映射下不生效）
         long total = jobLogMapper.countJobLogsByCondition(tenantId, jobId);
         List<SysJobLog> records = total == 0 ? List.of()
-            : jobLogMapper.selectJobLogsByCondition(tenantId, jobId, (pageNum - 1) * pageSize, pageSize);
+            : jobLogMapper.selectJobLogsByCondition(tenantId, jobId, offset, pageSize);
 
         List<JobLogResp> items = records.stream()
             .map(JobLogResp::from)
             .toList();
 
         return new PageResp<>(items, total, pageNum, pageSize,
-            (pageNum - 1) * pageSize + items.size() < total);
+            PageUtil.hasNext(offset, items.size(), total));
     }
 
     private static void validateCron(String cron) {

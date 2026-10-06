@@ -30,6 +30,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorUtil;
 import cn.ac.fage.accessmesh.access.infrastructure.util.PermissionConstants;
 import cn.ac.fage.accessmesh.access.infrastructure.util.TreeBuilder;
+import cn.ac.fage.accessmesh.access.infrastructure.util.PageUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -590,12 +591,12 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
                 .contains(ResourceTypeCode.ROLE);
         }
         long total = abstractRoleMapper.selectRoleListCount(tenantId, roleTypeFilter.roleTypes(), keyword, matchNone, visibleRoleIds);
-        int offset = (pageNum - 1) * pageSize;
+        int offset = PageUtil.offset(pageNum, pageSize);
         List<RoleResp> items = total == 0 ? List.of()
             : abstractRoleMapper.selectRoleListPaged(tenantId, roleTypeFilter.roleTypes(), keyword, matchNone, visibleRoleIds, offset, pageSize)
                 .stream().map(this::toRoleResp).collect(Collectors.toList());
         return new cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp<>(
-            items, total, pageNum, pageSize, offset + items.size() < total);
+            items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total));
     }
 
     /**

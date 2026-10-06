@@ -14,6 +14,7 @@ import cn.ac.fage.accessmesh.access.platform.entity.SysNotice;
 import cn.ac.fage.accessmesh.access.user.entity.SysUser;
 import cn.ac.fage.accessmesh.access.platform.entity.SysUserNotice;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.util.PageUtil;
 import cn.ac.fage.accessmesh.access.platform.mapper.SysNoticeMapper;
 import cn.ac.fage.accessmesh.access.platform.mapper.SysUserNoticeMapper;
 import cn.ac.fage.accessmesh.access.platform.service.NoticeAppService;
@@ -195,16 +196,17 @@ public class NoticeAppServiceImpl implements NoticeAppService {
         Long tenantId = TenantContextHolder.getTenantId();
         int pageNum = pageReq.getPageNum();
         int pageSize = pageReq.getPageSize();
+        int offset = PageUtil.offset(pageNum, pageSize);
 
         // XML 分页统一 offset/limit + count 双查询（MyBatis-Flex Page 参数在 XML 映射下不生效）
         long total = noticeMapper.countByTenant(tenantId);
         List<SysNotice> records = total == 0 ? List.of()
-            : noticeMapper.selectByTenantPaged(tenantId, (pageNum - 1) * pageSize, pageSize);
+            : noticeMapper.selectByTenantPaged(tenantId, offset, pageSize);
 
         List<NoticeResp> items = records.stream().map(this::toResp).toList();
 
         return new PageResp<>(items, total, pageNum, pageSize,
-            (pageNum - 1) * pageSize + items.size() < total);
+            PageUtil.hasNext(offset, items.size(), total));
     }
 
     /**

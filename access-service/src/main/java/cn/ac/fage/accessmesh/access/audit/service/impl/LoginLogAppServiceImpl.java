@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.audit.service.impl;
 
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
+import cn.ac.fage.accessmesh.access.infrastructure.util.PageUtil;
 import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.access.audit.entity.SysLoginLog;
 import cn.ac.fage.accessmesh.access.audit.mapper.SysLoginLogMapper;
@@ -57,13 +58,14 @@ public class LoginLogAppServiceImpl implements LoginLogAppService {
         }
         int pageNum = pageReq.getPageNum();
         int pageSize = pageReq.getPageSize();
+        int offset = PageUtil.offset(pageNum, pageSize);
 
         // XML 分页统一 offset/limit + count 双查询（MyBatis-Flex Page 参数在 XML 映射下不生效）
         long total = loginLogMapper.countByTenantId(tenantId);
         List<SysLoginLog> items = total == 0 ? List.of()
-            : loginLogMapper.selectByTenantIdPaged(tenantId, (pageNum - 1) * pageSize, pageSize);
+            : loginLogMapper.selectByTenantIdPaged(tenantId, offset, pageSize);
 
         return new PageResp<>(items, total, pageNum, pageSize,
-            (pageNum - 1) * pageSize + items.size() < total);
+            PageUtil.hasNext(offset, items.size(), total));
     }
 }
