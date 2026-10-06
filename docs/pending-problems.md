@@ -95,7 +95,7 @@ last_updated: 2026-10-06
 
 **现象与证据**：三项延后能力在任务卡「非目标/遗留」节声明但无登记载体：①**强制下线**——管理员主动终结指定用户平台会话的能力（现仅重置密码链路顺带 logout，无独立入口）；②**验证码替代通道**——图形验证码的无障碍/行为式/音频替代（当前唯一形态 4 位纯数字，见 Q-067 关联的验证码强度议题）；③**跨标签会话承载**（T-FE-064 C10）——令牌改 HttpOnly Cookie 承载（security-standards §3 定案：启用 cookie 通道须先补 CSRF 防护，属前置约束）。
 
-**影响与边界**：三项均为能力缺口非缺陷；现在没出事=预览期无对应需求压力。另：T-ACCESS-082 卡内「并发窗口已由 4cb935242 行锁实施闭合」的后续补丁指针缺失（卡为归档时点快照不回改，本条为指针补录载体）。
+**影响与边界**：三项均为能力缺口非缺陷；现在没出事=预览期无对应需求压力。另：T-ACCESS-082 卡内「并发窗口已由 085e1d5fa 行锁实施闭合」的后续补丁指针缺失（卡为归档时点快照不回改，本条为指针补录载体）。
 
 **设想方向（未定案）**：按需求优先级逐项立项；②启动时与 Q-067 修法评估联动（验证码形态影响计数锁与限流设计）；③启动时按 security-standards §3 前置补 CSRF 面。
 
@@ -105,9 +105,9 @@ last_updated: 2026-10-06
 - **状态**：open（用户拍板暂缓，2026-10-06）
 - **登记**：2026-10-06
 - **来源**：逐任务三通道评审 P1（本地双轨+claude+codex sol 六张任务卡独立发现，核实成立；修法分叉已列，用户拍板「记录问题，暂不解决」）
-- **关联**：[评审总报告](archive/2026-10-06/tasks/evidence/usage-review-20261006/task-reviews/MASTER-REPORT.md)（T-ACCESS-082/083/084/085/090、T-FE-064 各自 verification.md）
+- **关联**：逐任务三通道评审（T-ACCESS-082/083/084/085/090、T-FE-064 六卡独立发现；评审过程报告 2026-10-06 按用户指令移出仓库，不再留链接）
 
-**现象与证据**：`AuthAppServiceImpl.login` 整方法 @Transactional（4cb935242 行锁串行化拍板形态），事务内 5 个分支（:192/:200/:206/:213/:228）同步调 `LoginLogDomainServiceImpl.recordLoginLog`（REQUIRES_NEW，:52）。REQUIRES_NEW 挂起外层事务不还连接、内层再借第二条（Spring DataSourceTransactionManager 语义+官方池大小警告，及 mybatis-flex FlexTransactionManager 1.11.7 sources jar 双实证）；HikariCP 默认池 10、借连接等待超时 30s（application.yml 无覆盖）。10 个并发匿名登录（Gateway 白名单免鉴权可达）即占满全池，各审计等第二条连接 30s 超时，期间全服务所有 DB 操作停摆且可重发循环。
+**现象与证据**：`AuthAppServiceImpl.login` 整方法 @Transactional（085e1d5fa 行锁串行化拍板形态），事务内 5 个分支（:192/:200/:206/:213/:228）同步调 `LoginLogDomainServiceImpl.recordLoginLog`（REQUIRES_NEW，:52）。REQUIRES_NEW 挂起外层事务不还连接、内层再借第二条（Spring DataSourceTransactionManager 语义+官方池大小警告，及 mybatis-flex FlexTransactionManager 1.11.7 sources jar 双实证）；HikariCP 默认池 10、借连接等待超时 30s（application.yml 无覆盖）。10 个并发匿名登录（Gateway 白名单免鉴权可达）即占满全池，各审计等第二条连接 30s 超时，期间全服务所有 DB 操作停摆且可重发循环。
 
 **影响与边界**：现在没出事=预览期无部署、无并发登录。审计独立于主事务回滚的语义（REQUIRES_NEW 的目的：失败分支抛异常回滚时日志必须留痕）必须保留；有问题的只是「事务内同步借第二条连接」的实现形态。
 

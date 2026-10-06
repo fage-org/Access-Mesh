@@ -1,6 +1,6 @@
 # 使用者视角修复计划验收证据
 
-日期：2026-10-06。分支 feat-permission-center；起点 34572229e6aca17e5d5f65f19e7f4d94edd2f091。24 项任务在同一工作树实施，未使用子代理，未推送或部署。
+日期：2026-10-06。分支 feat-permission-center；起点 3da35ce271fcdc816735b9f3e633ee162d3d1f8c。24 项任务在同一工作树实施，未使用子代理，未推送或部署。
 
 ## 整体验证
 
@@ -24,7 +24,7 @@
 | T-ACCESS-083 | AuthLoginLockTest：未知账号与错误密码同码，验证码计入锁定；重置强度前后端用例；SMS 注册及路径快照清除 |
 | T-ACCESS-084 | OAuth2 公开客户端/S256/一次性码/机密客户端回归、Schema PG 约束、flow.spec.ts 同意/拒绝与本地登录续接；根路径只匹配根，非根段前缀按用户决定保留 |
 | T-ACCESS-085 | OperationLogAspectTest、AuditReadMaskingTest、ServiceCredentialPgIT、PermissionFilterTest：失败码/回滚后留痕、只掩码明确敏感值、内部审计身份与 requestId 查询、发送失败仍拒绝 |
-| T-ACCESS-086 | 隔离 PG 备份恢复/密码重置/墓碑恢复及密码认证演练见 wave1-verification.md；Compose 参数与健康依赖、JSON stdout |
+| T-ACCESS-086 | 隔离 PG 备份恢复/密码重置/墓碑恢复及密码认证演练；Compose 参数与健康依赖、JSON stdout |
 | T-ACCESS-087 | 成员用户名/手机号过滤 hook 17 项，PERSONAL 口径与创建指引，死 DTO/import 删除，业务域页用途提示 |
 | T-ACCESS-088 | Gateway 403 / example 200+30004 / sync accepted=false 对照现有 E2E/PG 行为；契约与接入指南失败表 |
 | T-ACCESS-089 | tools/build.ps1 example-service 实跑 install -am 成功（24.492 秒）；CI 耗时及退出码、分层守护与大类评估见 engineering-baseline.md |
@@ -53,7 +53,7 @@
 
 ## 复审与接受边界
 
-[本地双轨结论](local-review.md)先代码、后文档独立只读核对；事实性缺陷已直接修正。无新增待决设计项，无新增无调用场景抽象。用户选择均回写现役契约：客户端 TTL 作为整链期限、实际互斥优先、旧种子备份重建、分页超限400与示例字段统一、PERSONAL不扩页、最小授权确认、普通用户名/IP保留、外部JSON64KiB、信封code审计、Gateway拒绝复用操作日志、根路径收紧而非根前缀保留。
+本地双轨结论：先代码、后文档独立只读核对；事实性缺陷已直接修正。无新增待决设计项，无新增无调用场景抽象。用户选择均回写现役契约：客户端 TTL 作为整链期限、实际互斥优先、旧种子备份重建、分页超限400与示例字段统一、PERSONAL不扩页、最小授权确认、普通用户名/IP保留、外部JSON64KiB、信封code审计、Gateway拒绝复用操作日志、根路径收紧而非根前缀保留。
 
 历史工作树/根日志/根缓存删除因自动审批两次返回 blocked by policy，随后用户明确移出本次验收；没有执行删除，既有备份保留。其他维护内容已完成。Q-059~Q-063 既定延期范围继续保留；Q-064/065 分别记录既存缺失路径错误分类和大类拆分，未以本计划名义扩大实现。
 
