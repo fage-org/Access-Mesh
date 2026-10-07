@@ -313,7 +313,7 @@ public class UserAppServiceImpl implements UserAppService {
                         return new UserPageItemResp.OrgBrief(
                             uo.getOrgId(),
                             org != null ? org.getName() : null,
-                            org != null && org.getOrgType() != null ? Integer.valueOf(org.getOrgType()) : null,
+                            org != null ? OrgOperationCodeMapper.parseWireOrgType(org.getOrgType()) : null,
                             Boolean.TRUE.equals(uo.getIsPrimary())
                         );
                     })

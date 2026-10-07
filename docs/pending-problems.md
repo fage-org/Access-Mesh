@@ -2,7 +2,7 @@
 doc_type: problems
 title: 待解决问题清单
 counter: Q-068           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-10-06
+last_updated: 2026-10-07
 ---
 
 # 待解决问题清单（pending problems）
@@ -113,20 +113,6 @@ last_updated: 2026-10-06
 
 **设想方向（未定案，2026-10-06 已向用户列过）**：① 审计 @Async+REQUIRES_NEW（AuditDomainServiceImpl.asyncRecordLog 先例，当时推荐项）；② login 事务收窄重构（行锁读+校验+签发进窄事务，审计移事务外，改动面最大）；③ 仅调大连接池（缓解非修复，可叠加）。用户拍板暂缓；重启时从①评估。
 
-<a id="q-066"></a>
-## Q-066 sys_org.org_type 标签语义与数字解析的潜在错配
-
-- **状态**：open
-- **登记**：2026-10-06
-- **来源**：使用者视角修复批次评审存量观察（2026-10-06，claude）；T-API-011 orgType 统一 Integer 扩大数字解析面
-- **关联**：[T-API-011](archive/2026-10-06/tasks/T-API-011.md)
-
-**现象与证据**：`sys_org.org_type` 为 `VARCHAR(32)` 可空标签列（schema 注释「组织类型标签（字典管理），仅分类用」），但读取侧按数字解析——`OrgAppServiceImpl.java:455` `Integer.parseInt(org.getOrgType())` 且无 null 守卫，`UserAppServiceImpl.java:316` `Integer.valueOf(org.getOrgType())` 有 null 守卫（两侧不对称）。写入口 `OrgCreateReq.orgType` 为 Integer，API 面非数字值进不了库，当前不可触发。
-
-**影响与边界**：现在没出事是因为全部写入路径（API + bootstrap 种子）只产生 "1"/"2"；若未来放开字典标签值、或运维直改库写入非数字/NULL（岗位行 org_type 为 NULL 时 `:455` 直接 NumberFormatException/NPE→500，组织分页/树读取挂）。属 schema 标签语义与线格式 Integer 的口径错配，非本批引入的回归。
-
-**设想方向（未定案）**：短期补 `:455` null/非数字防御与 User 侧对齐；长期要么把 org_type 收敛为 SMALLINT + CHECK（1/2），要么明确标签语义并在读取侧宽容处理——涉及 schema 口径，需单独拍板。
-
 <a id="q-065"></a>
 ## Q-065 大型应用服务的职责拆分评估
 
@@ -141,20 +127,6 @@ last_updated: 2026-10-06
 
 **设想方向（未定案）**：后续真实功能改动时识别独立职责与复用单元，再决定是否抽取 DomainService；本计划不做大型重构。
 
-<a id="q-058"></a>
-## Q-058 MenuDomainService 两个零调用树写方法（deleteWithChildren/insertBatch）
-
-- **状态**：open
-- **登记**：2026-10-03
-- **来源**：T-ADMIN-031 收口后外评（claude 存量观察，逐条核实成立）
-- **关联**：[T-ADMIN-031](archive/2026-10-04/tasks/T-ADMIN-031.md)（发现载体）；P3（死代码，无运行时缺陷）
-
-**现象与证据**：`MenuDomainService.deleteWithChildren`（接口 :148 / impl :267）与 `insertBatch(List<SysMenu>)`（:241 / :414）全仓零调用（含测试）。前者是无锁的树批量软删 API——按 §17.1「Controller 写入口统一持锁」纪律，DomainService 层不持锁，未来误用将绕过菜单树写互斥产生孤儿窗口（Q-048 同型）。
-
-**影响与边界**：当前死代码，无运行时影响；风险为未来误用面。menu 三个合法写入口（createMenu/updateMenu/deleteMenu）全部持 SYS_MENU 锁。
-
-**设想方向（未定案）**：删除两个死方法（对齐 Q-010 死方法顺带清理先例），或保留并加「仅限持锁编排内调用」注记；随清单批次评估。
-
 <a id="q-056"></a>
 ## Q-056 apiRouteResourceKey 拼接存在 Q-044 同型理论碰撞面
 
@@ -167,24 +139,15 @@ last_updated: 2026-10-06
 
 **影响与边界**：碰撞需同时满足「某行 path 含 `|`」且「同方法下另一行字段恰可拼出同串」（如 `POST|/api/x|y` 与 path=`/api/x`、resourceCode=`y` 的行），当前实际注册路径未出现该形态；后果为同步过期清理误判（漏删/误删映射行），不涉及权限判定面。修法方向可循 Q-044 元组化先例（record 键或 percent-encode 中段）；属 Q-044 设想「内部消费者全量迁移分开评估」范围，随问题清单批次排期。
 
-<a id="q-064"></a>
-## Q-064 不存在的 MVC 资源被兜底映射为 HTTP 500
-
-- **状态**：open
-- **登记**：2026-10-06
-- **来源**：T-ACCESS-086 示例健康端口验证
-- **关联**：—
-
-**现象与证据**：示例服务业务端口没有注册 `/actuator/health`，请求该路径触发 `NoResourceFoundException`，被 `common/.../GlobalExceptionHandler.java:161` 的 `Exception` 兜底映射为 500。2026-10-06 `ExampleServiceApplicationTest.healthProbeIsAvailableOnlyOnManagementPort` 初始 HTTP 404 断言实跑得到 500；管理端口健康检查返回 200，业务端口的 actuator 注册表为空。现有处理器没有针对资源/路由不存在异常的映射。
-
-**影响**：拼错路径或扫描不存在资源会被监控算作服务故障；不影响管理端口健康检查的隔离。缺失路由的公开错误契约及两种 MVC 异常适用范围尚待核对，未在运维配置任务中变更公共异常语义。
-
 ## 已收敛（含合并索引；详情在关联问题/任务或历史来源）
 
 > closed（合并）只关闭旧登记编号，实际问题由关联 open 条目继续承载；修复、重复与合并分别注明，不回收编号。合并依据为 2026-09-30 本次“重复或类似问题精练合并”要求，原证据见 [合并前快照](archive/2026-09-30/pending-problems-before-consolidation.md)。
 
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
+| <a id="q-064"></a>Q-064 | 不存在的 MVC 资源被兜底映射为 HTTP 500 | 已修复（2026-10-07 轻量清扫批）：common `GlobalExceptionHandler` 补 `NoResourceFoundException` 映射——HTTP 404 + 信封 code=404（与 SecurityException→403 映射形态一致），不再落 `Exception` 兜底 500；`ExampleServiceApplicationTest` 恢复业务端口未知路径断言（404+code=404 实跑绿；旧实现 500 已有 2026-10-06 实跑记录实证）。边界核对随批闭合：`NoHandlerFoundException` 需 `throwExceptionIfNoHandlerFound` 显式开启（默认关）本栈不可达不处理；`HttpRequestMethodNotSupportedException`（405 族）仍走兜底 500，非本条登记面不扩。架构册 `/actuator/**` 行同批订正 | —（2026-10-07 轻量清扫批，无任务卡载体） | 2026-10-07 |
+| <a id="q-058"></a>Q-058 | MenuDomainService 两个零调用树写方法（deleteWithChildren/insertBatch） | 已删除（2026-10-07 轻量清扫批）：接口+实现整体删除，全仓零调用复核（含测试）；消除无锁树批量软删 API 未来误用绕过菜单树写互斥的通道（Q-048 同型；Q-010 死方法清理先例）；menu 定向测试 28 项绿 | [T-ADMIN-031](archive/2026-10-04/tasks/T-ADMIN-031.md)（发现载体） | 2026-10-07 |
+| <a id="q-066"></a>Q-066 | sys_org.org_type 标签语义与数字解析的潜在错配 | 已修复（2026-10-07 轻量清扫批短期防御）：三处读面组装（OrgAppServiceImpl.toResp / UserAppServiceImpl 用户页 OrgBrief / UserOrgDomainServiceImpl.getUserOrgBriefs）收敛至 `OrgOperationCodeMapper.parseWireOrgType` 单源——null/空白/不可识别标签→null 降级不中断读取、历史标签 ORG/POSITION 归一 1/2、数值原样解析；红跑实证旧实现两炸法（null 与 POSITION 均 NumberFormatException，2 红）。**登记口径修正**：旧实现失败形态是信封 400「参数错误」（NumberFormatException 经 IllegalArgumentException 处理器），非登记的 500。独立边界保持：org_type schema 口径（SMALLINT+CHECK 或标签语义）未拍板未实施，脏数据现降级为 null 展示 | [T-API-011](archive/2026-10-06/tasks/T-API-011.md) | 2026-10-07 |
 | <a id="q-032"></a>Q-032 | 创建挂载成员动作码与岗位裁剪边界 | closed（关联任务已验收，已确认的独立边界保持） | [T-ORG-005](archive/2026-10-04/tasks/T-ORG-005.md) | 2026-10-04 |
 | <a id="q-038"></a>Q-038 | 树过滤展示根、资源状态与父组织名称 | closed（关联任务已验收，已确认的独立边界保持） | [T-ACCESS-065](archive/2026-10-04/tasks/T-ACCESS-065.md) | 2026-10-04 |
 | <a id="q-015"></a>Q-015 | 设计、契约与代码注释漂移 | closed（文档/注释主题核对与原样 schema 验证完成；无本卡运行时行为变更） | [T-ACCESS-066](archive/2026-10-04/tasks/T-ACCESS-066.md) | 2026-10-04 |

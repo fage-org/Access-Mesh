@@ -140,6 +140,34 @@ public final class OrgOperationCodeMapper {
     }
 
     /**
+     * orgType 响应组装读面的线格式解析（{@code sys_org.org_type} VARCHAR → Integer）。
+     * <p>
+     * 列为标签语义（历史双形态：数值 "1"/"2" 与标签 "ORG"/"POSITION"），线契约为 Integer
+     * （T-API-011）。null / 空白 / 无法识别的非数值标签返回 null——读面降级为无类型展示，
+     * 不因脏数据中断组织分页/树/用户页读取；历史标签按 {@link #normalize} 同源语义归一为 1/2；
+     * 其余数值字符串原样解析（字典扩展值不丢信息）。
+     * <p>
+     * Q-066 短期防御：schema 口径（SMALLINT+CHECK 收敛或标签语义宽容）另行拍板；
+     * 三处读面组装（OrgAppServiceImpl/UserAppServiceImpl/UserOrgDomainServiceImpl）以本方法为唯一入口。
+     */
+    public static Integer parseWireOrgType(String orgType) {
+        if (orgType == null || orgType.isBlank()) {
+            return null;
+        }
+        if (ORG_TYPE_REGULAR_LABEL.equalsIgnoreCase(orgType)) {
+            return Integer.valueOf(ORG_TYPE_REGULAR_NUM);
+        }
+        if (ORG_TYPE_POSITION_LABEL.equalsIgnoreCase(orgType)) {
+            return Integer.valueOf(ORG_TYPE_POSITION_NUM);
+        }
+        try {
+            return Integer.valueOf(orgType);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    /**
      * 规范化 orgType：null / 空串 / "1" / "ORG" 均视为普通组织，返回 "1" 用于 Map lookup。
      * <p>
      * 此方法保证返回值永远不为 null，从而避免 {@code Map.of().get(null)} 抛出 NPE

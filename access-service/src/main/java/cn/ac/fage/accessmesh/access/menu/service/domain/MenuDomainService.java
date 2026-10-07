@@ -136,18 +136,6 @@ public interface MenuDomainService {
     void softDeleteBatch(Long tenantId, List<Long> menuIds);
 
     /**
-     * 删除菜单及其所有子孙菜单
-     * <p>
-     * 先查询子孙菜单ID，然后批量软删除所有子孙和自身。
-     * 用于菜单树的整体删除场景。
-     * </p>
-     *
-     * @param tenantId 租户ID，用于多租户隔离
-     * @param menuId   菜单ID，删除该菜单及其所有子孙
-     */
-    void deleteWithChildren(Long tenantId, Long menuId);
-
-    /**
      * 检查菜单是否有子菜单
      * <p>
      * 查询是否存在以该菜单为父节点的子菜单。
@@ -229,16 +217,6 @@ public interface MenuDomainService {
      * @param menu 菜单实体
      */
     void update(SysMenu menu);
-
-    /**
-     * 批量插入菜单
-     * <p>
-     * 批量插入多条菜单记录，用于菜单批量导入场景。
-     * </p>
-     *
-     * @param menus 菜单列表
-     */
-    void insertBatch(List<SysMenu> menus);
 
     /**
      * 查询租户下所有有效菜单

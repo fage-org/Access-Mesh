@@ -187,4 +187,50 @@ class OrgOperationCodeMapperTest {
             assertThat(OrgOperationCodeMapper.isPositionOrg("POSITION")).isTrue();
         }
     }
+
+    // ===== parseWireOrgType: 响应组装读面线格式解析（Q-066 短期防御） =====
+
+    @Nested
+    @DisplayName("parseWireOrgType — orgType VARCHAR → Integer 线格式")
+    class ParseWireOrgType {
+
+        @Test
+        @DisplayName("null → null（读面降级，不抛异常——旧读面 Integer.parseInt(null) 直接 NumberFormatException）")
+        void parseWireOrgType_null() {
+            assertThat(OrgOperationCodeMapper.parseWireOrgType(null)).isNull();
+        }
+
+        @Test
+        @DisplayName("空白串 → null")
+        void parseWireOrgType_blank() {
+            assertThat(OrgOperationCodeMapper.parseWireOrgType(" ")).isNull();
+        }
+
+        @Test
+        @DisplayName("\"1\" → 1、\"2\" → 2（现行写入形态原样）")
+        void parseWireOrgType_numericForms() {
+            assertThat(OrgOperationCodeMapper.parseWireOrgType("1")).isEqualTo(1);
+            assertThat(OrgOperationCodeMapper.parseWireOrgType("2")).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("历史标签 \"ORG\"→1、\"POSITION\"→2（与 normalize 同源归一，大小写不敏感）")
+        void parseWireOrgType_labelForms() {
+            assertThat(OrgOperationCodeMapper.parseWireOrgType("ORG")).isEqualTo(1);
+            assertThat(OrgOperationCodeMapper.parseWireOrgType("POSITION")).isEqualTo(2);
+            assertThat(OrgOperationCodeMapper.parseWireOrgType("position")).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("字典扩展数值 \"3\" → 3（不丢信息）")
+        void parseWireOrgType_extendedNumeric() {
+            assertThat(OrgOperationCodeMapper.parseWireOrgType("3")).isEqualTo(3);
+        }
+
+        @Test
+        @DisplayName("无法识别的非数值标签 → null（脏数据降级，不中断读取）")
+        void parseWireOrgType_garbageLabel() {
+            assertThat(OrgOperationCodeMapper.parseWireOrgType("dept-01")).isNull();
+        }
+    }
 }

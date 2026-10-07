@@ -452,7 +452,7 @@ public class OrgAppServiceImpl implements OrgAppService {
 
     private OrgResp toResp(SysOrg org, List<OrgResp> children, Map<Long, String> parentNames) {
         return new OrgResp(
-            org.getId(), Integer.parseInt(org.getOrgType()), org.getName(),
+            org.getId(), OrgOperationCodeMapper.parseWireOrgType(org.getOrgType()), org.getName(),
             org.getParentId(), org.getParentId() == null ? null : parentNames.get(org.getParentId()), org.getCode(),
             org.getStatus(), org.getSortOrder(), org.getCreatedAt(), org.getUpdatedAt(), children
         );

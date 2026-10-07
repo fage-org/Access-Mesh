@@ -254,25 +254,6 @@ public class MenuDomainServiceImpl implements MenuDomainService {
     }
 
     /**
-     * 删除菜单及其所有子孙菜单
-     * <p>
-     * 先查询所有子孙ID（包括自身），然后批量软删除
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param menuId   菜单ID
-     */
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void deleteWithChildren(Long tenantId, Long menuId) {
-        SysMenu menu = selectValidById(tenantId, menuId);
-        if (menu == null) return;
-
-        List<Long> allIds = menuMapper.selectDescendantIdsIncludingSelf(tenantId, menuId);
-        menuMapper.softDeleteBatch(tenantId, allIds, LocalDateTime.now());
-    }
-
-    /**
      * 检查菜单是否有子菜单
      *
      * @param tenantId 租户ID
@@ -407,15 +388,6 @@ public class MenuDomainServiceImpl implements MenuDomainService {
             return;
         }
         menuMapper.update(menu);
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void insertBatch(List<SysMenu> menus) {
-        if (menus == null || menus.isEmpty()) {
-            return;
-        }
-        menuMapper.insertBatch(menus);
     }
 
     /**

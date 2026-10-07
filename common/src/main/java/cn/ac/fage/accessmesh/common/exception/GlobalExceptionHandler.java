@@ -7,6 +7,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 
 import cn.ac.fage.accessmesh.common.model.R;
@@ -145,6 +146,25 @@ public class GlobalExceptionHandler {
     public R<Void> handleHttpMessageNotReadable(HttpMessageNotReadableException e) {
         log.warn("HttpMessageNotReadable: {}", e.getMessage());
         return R.fail(GlobalErrorCode.VALIDATION_FAILED.code(), "请求体格式错误");
+    }
+
+    /**
+     * 路由/静态资源不存在异常处理
+     * <p>
+     * 处理NoResourceFoundException异常，请求路径无匹配 handler 且无静态资源时
+     * 由 Spring MVC 抛出（如拼错路径、扫描不存在资源）。
+     * 若落入 Exception 兜底会被映射为 500，导致监控把客户端路径错误误报为服务故障。
+     * 映射为 HTTP 404 与信封 code=404，与 SecurityException→403 的映射形态一致。
+     * </p>
+     *
+     * @param e 路由不存在异常对象
+     * @return 包含404错误码的标准响应
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public R<Void> handleNoResourceFound(NoResourceFoundException e) {
+        log.warn("NoResourceFound: {}", e.getResourcePath());
+        return R.fail(404, "请求路径不存在");
     }
 
     /**

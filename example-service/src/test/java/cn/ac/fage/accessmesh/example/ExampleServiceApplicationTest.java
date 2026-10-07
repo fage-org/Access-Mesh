@@ -53,6 +53,17 @@ class ExampleServiceApplicationTest {
             org.springframework.boot.actuate.endpoint.web.servlet.WebMvcEndpointHandlerMapping.class)).isEmpty();
     }
 
+    /**
+     * Q-064：业务端口不存在的 MVC 路径映射 HTTP 404 + 信封 code=404，不再落 Exception
+     * 兜底成 500（旧实现实跑 500——拼错路径被监控误报为服务故障）。管理端口健康检查隔离不受影响。
+     */
+    @Test
+    void unknownRouteOnBusinessPortMapsTo404Not500() throws Exception {
+        var resp = rest.getForEntity("/definitely/not-a-route", String.class);
+        assertThat(resp.getStatusCode().value()).isEqualTo(404);
+        assertThat(json.readTree(resp.getBody()).path("code").asInt()).isEqualTo(404);
+    }
+
     private final ObjectMapper json = new ObjectMapper();
 
     /** 按 Gateway SignatureEnrichFilter 同款算法构造签名请求头（HMAC-SHA256，hex） */
