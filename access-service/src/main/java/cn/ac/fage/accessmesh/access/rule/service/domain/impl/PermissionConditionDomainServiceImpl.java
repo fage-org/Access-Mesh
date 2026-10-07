@@ -517,8 +517,9 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
         if (externalInput) {
             JsonValidationUtils.validateJson(conditionRules);
         } else if (conditionRules != null) {
-            // DB 载入读回形态仅语法校验（jsonb 重排膨胀不占输入限额）；
-            // null 语义与 validateJson 一致，交由后置 gatewayEvaluable 空判处理
+            // DB 载入读回形态仅语法校验（jsonb 重排膨胀不占输入限额）；null 直接跳过
+            // 语法段——不比照 validateJson(null) 的 20044 抛错（DB 条件规则列 NOT NULL，
+            // null 实际不可达；gatewayEvaluable=true 的空值兜底由后置空判处理）
             try {
                 JsonValidationUtils.validateSnapshot(conditionRules);
             } catch (IllegalArgumentException ex) {

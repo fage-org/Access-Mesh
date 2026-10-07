@@ -263,45 +263,23 @@ const resourceSelectionDisabled = computed(
 );
 
 /**
- * 种子授权锁定集（2026-10-06 拍板「已勾选+禁用」）：当前操作下 BOOTSTRAP_SEED
- * 实例记录的树键——节点勾选态如实反映生效权限且禁用交互（种子行只读，
- * 不经弹窗新建同键 MANUAL 记录，同键孪生通道在 UI 面关闭）。
+ * 种子授权锁定集（2026-10-06 拍板「已勾选+禁用」）：BOOTSTRAP_SEED 记录的树键与
+ * ALL 槽位标记——节点勾选态如实反映生效权限且禁用交互（种子行只读，不经弹窗
+ * 新建同键 MANUAL 记录，同键孪生通道在 UI 面关闭）。种子过滤口径单源于
+ * computePreset（seedTripleKeys/seedAll），不在此维护第二份判定副本。
  */
-const seedLockedTripleKeys = computed(() => {
-  const op = selectedOp.value;
-  if (!op) return new Set<string>();
-  const keys = new Set<string>();
-  for (const record of localView.value.mains) {
-    if (record.grantSource !== "BOOTSTRAP_SEED") continue;
-    if (record.draftMark === "remove") continue;
-    if (record.operationCode !== op.code) continue;
-    if (record.resourceTypeCode !== op.resourceTypeCode) continue;
-    if (record.scopeMode === "INSTANCE" && record.resourceCode) {
-      keys.add(
-        resourceNodeKey({
-          resourceTypeCode: record.resourceTypeCode,
-          code: record.resourceCode,
-          codeType: record.codeType
-        })
-      );
-    }
-  }
-  return keys;
-});
+const seedPreset = computed(() =>
+  computePreset({
+    op: selectedOp.value,
+    records: localView.value.mains
+  })
+);
+
+/** 当前操作下种子 INSTANCE 记录的树键（树节点禁用依据） */
+const seedLockedTripleKeys = computed(() => seedPreset.value.seedTripleKeys);
 
 /** 当前操作类型的 ALL 槽位是否为种子授权（种子 ALL：全量开关显示已选且禁用） */
-const seedAllLocked = computed(() => {
-  const op = selectedOp.value;
-  if (!op) return false;
-  return localView.value.mains.some(
-    record =>
-      record.grantSource === "BOOTSTRAP_SEED" &&
-      record.draftMark !== "remove" &&
-      record.operationCode === op.code &&
-      record.resourceTypeCode === op.resourceTypeCode &&
-      record.scopeMode === "ALL"
-  );
-});
+const seedAllLocked = computed(() => seedPreset.value.seedAll);
 
 const treeRenderKey = computed(
   () => `${selectedOpKey.value ?? "preview"}:${scopeMode.value}`
