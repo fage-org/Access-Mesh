@@ -17,6 +17,7 @@
 | 主体投影、树锁、默认组织、岗位、目录准入 | [服务架构](access-service-architecture.md#tree-write-lock) §4/12/17；[组织生命周期](default-org-tree-user-lifecycle.md#default-tree)；[目录准入](access-service-api-contract.md#resource-directory) |
 | 服务身份、接口准入、网关、部署 | [服务认证](service-authentication.md) §2–3；[准入协议契约](access-service-api-contract.md#operation-admission-protocol) §25（T-ACCESS-056 落账：错误码 20070/20071、reason 词表、迁移门槛）；[Gateway](services/gateway.md)对应信任头/白名单/CORS章节 |
 | 前端会话、菜单、路由、加载上下文 | [会话设计](frontend/login.md#session-permissions)、[路由门禁](frontend/login.md#route-gate)、[列表约束](../../.claude/rules/frontend-coding-standards.md#list-context)；页面设计见[前端索引](frontend/README.md) |
+| 租户开通、独立平台身份与运营边界 | [平台与租户边界](services/gateway.md#platform-tenant-boundary)；[租户生命周期](tenant-lifecycle.md)；[运营契约](access-service-api-contract.md#contract-section-26)；[部署与恢复](../ops/tenant-operations.md) |
 | 缓存、失效、TTL、滚动别名 | [缓存技能](../../.agents/skills/dual-layer-cache-framework/SKILL.md)；[架构读取边界](access-service-architecture.md#cache-boundaries) |
 | 测试轨道、容器隔离、时序 | [测试规范](../../.claude/rules/testing-standards.md#test-tracks) §10；[运行命令](../../AGENTS.md#常用命令开发阶段预估) |
 | 任务/计划/问题、收口、本地及外评 | [生命周期技能](../../.agents/skills/design-plan-task-lifecycle/SKILL.md)、[本地评审](../../.agents/skills/dual-track-local-review/SKILL.md)、[外评](../../.agents/skills/external-review/SKILL.md)；治理正文见上方使用说明 |

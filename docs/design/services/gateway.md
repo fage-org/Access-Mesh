@@ -3,7 +3,7 @@ doc_type: design
 title: Gateway 服务设计
 status: adopted
 domain: gateway
-last_reviewed: 2026-10-06
+last_reviewed: 2026-10-08
 ---
 
 # Gateway 服务设计
@@ -21,10 +21,11 @@ last_reviewed: 2026-10-06
 ## 核心链路
 
 1. 接收客户端请求并匹配白名单（会话入口族精确清单——T-ACCESS-042 收窄后不整族放行 `/api/access/auth/**`：`/api/access/auth/{captcha,login,logout,userinfo,user-menu}`、`/api/access/auth/oauth2/**`、`/api/access/user/reset-password`（T-GW-009 自助改密通道）、`/api/access/notice/my-notices`、`/api/access/notice/read`（T-ADMIN-029 公告自服务两端点——普通用户自服务面，端点边界=服务层门禁：Sa-Token 登录态+受众可见性校验；管理面 7 端点不在此列，走 ADMIN_NOTICE 类型级授权；密钥豁免四载体同步，见 §匿名白名单详注）；运行时鉴权六端点不放行，无 `/actuator/**`——actuator 经独立管理端口提供，T-GW-007）。注意：白名单为 Spring 列表配置——Nacos 远端 `gateway.yml` 携带同键列表时**整体替换**本地清单（非合并）；自建远端配置须与本地清单同步维护，否则已从本地清理的路径会在远端旧清单下继续免鉴权放行（2026-10-06 拍板补提示，与 CORS/管理端口「远端优先+校验器」口径对齐——白名单无启动校验器，靠本提示与部署纪律兜底）。
-2. 解析 Sa-Token / OAuth2 Token，得到主体信息。
+2. `AuthTokenFilter`（-70）验证租户原生 Sa-Token，读取单令牌会话代次、强制改密标记和 Redis 进程标识。独立平台端点按 `PlatformEndpoints` 精确 POST 清单透传，由后端独立平台认证域校验；OAuth2/M2M 继续走各自透传终验链。
 3. 清洗客户端伪造的安全 Header（含 IP 转发头，见下节 T-GW-008），再注入可信 `X-Tenant-Id`、`X-Request-Id`、`traceId`、主体标识等上下文。
-4. **准入快照鉴权**（T-ACCESS-059）：按 `(tenantId, subjectTypeCode, userId, serviceCode)` 查本地准入快照缓存——命中则本地四态判定；未命中在 5 秒全链路硬截止内回源拉取 `interface-admission-snapshot` 快照后缓存再判定。
-5. 允许时转发到目标服务，拒绝时返回统一 403 错误响应。
+4. **租户即时门禁**：`TenantGateFilter`（-65）在查询权限快照前经响应式 Redis Lua 读取共享门禁，无正向 L1。租户停用拒绝 403/11112、旧会话代次或 Redis 进程不匹配拒绝 401、Redis 故障或未知状态拒绝 503/11113；强制改密用户不能进入业务链。已透传的会话自助、OAuth2、M2M 入口由后端执行同一门禁。
+5. **准入快照鉴权**（T-ACCESS-059）：按 `(tenantId, subjectTypeCode, userId, serviceCode)` 查本地准入快照缓存——命中则本地四态判定；未命中在 5 秒全链路硬截止内回源拉取 `interface-admission-snapshot` 快照后缓存再判定。
+6. 允许时转发到目标服务；权限拒绝为统一 403，认证和门禁故障分别保留其状态码。
 
 ## 请求头清洗与客户端 IP 重建（T-GW-008，2026-09-10）
 
@@ -47,16 +48,17 @@ last_reviewed: 2026-10-06
 
 ## OAuth2 委托令牌透传（T-ACCESS-013，2026-08-22）
 
-`AuthTokenFilter` 只认平台用户 Sa-Token uuid 会话，业务路径上的 OAuth2 JWT 会被 401。为支持 access-service 资源服务器显式开放业务 API：
+`AuthTokenFilter` 只认租户用户 Sa-Token uuid 会话，业务路径上的 OAuth2 JWT 会被 401。为支持 access-service 资源服务器显式开放业务 API：
 
 - 新增 `OAuth2PassthroughFilter`（order -79，白名单 -80 之后、会话校验 -70 之前）：命中 `gateway.oauth2.passthrough-paths`（Ant 通配，**外部路径口径**，默认空 = 无业务路径默认开放）**且 Authorization 为 Bearer 三段式 JWT**（形态识别与下游 JWT 分支同口径，不验签——伪造 JWT 透传后下游验签 401）时设 `skipAuth=true`，跳过会话校验/权限校验/身份头注入/身份头签名，`Authorization` 头原样透传下游（HeaderClean 清单不含 Authorization），由 access-service 开放路径门禁（验签 + 黑名单 + 客户端启用 + scope/audience/clientIds）判定。
-- **平台 uuid 会话令牌与无 Authorization 头的请求不启用透传**（评审 P1 修复）：走正常 AuthTokenFilter 会话校验 + PermissionFilter 接口鉴权，平台会话认证路径不变——否则透传路径上 uuid 会话会被下游共享 Redis 会话分支接受，绕过 Gateway 接口权限。
+- **租户 uuid 会话令牌与无 Authorization 头的请求不启用透传**（评审 P1 修复）：走正常 AuthTokenFilter 会话校验 + PermissionFilter 接口鉴权，租户原生会话认证路径不变——否则透传路径上 uuid 会话会被下游共享 Redis 会话分支接受，绕过 Gateway 接口权限。
 - `/api/access/auth/**`（运行时鉴权六端点除外）已由白名单精确清单覆盖（userinfo 等端点透传，无需重复配置）。
 - **部署约束（T-ACCESS-042 更新）**：无 StripPrefix，Gateway 与 access-service 匹配同一路径（开放路径配置于 `access.oauth2.resource-paths`，双侧天然同形）；`InternalSecretFilter` 注入的 X-Internal-Secret 对开放路径同样携带（合法流量恒经 Gateway）——原「启动防护禁止开放路径位于内部凭证前缀」守卫已随单命名空间退役（双凭证并存不构成机制冲突，见 OAuth2ResourcePathProperties；注意不在 `/api/access/auth/oauth2/**` 下的开放路径会被内部凭证分支遮蔽——运行期 400 缺 X-Tenant-Id，access 侧启动告警提示）。
 - 门禁语义权威说明见 `../access-service-architecture.md` §6。
 
 
-> **平台超管跨租户（2026-06-20 审计 S-017）**：v3.5 **不支持**平台超级管理员跨租户操作。超管必须分别登录每个租户实例，`X-Tenant-Id` 始终对应当前登录租户。不支持双 Header（`X-Tenant-Id` + `X-Target-Tenant-Id`）跨租户切换；如未来需支持，作为 v3.5.1+ platform-admin 增量设计。`TenantManager.ignore()`（见 project-rules.md）仅用于内部测试/迁移场景，**非超管跨租户能力**，禁止用于生产跨租户访问。
+<a id="platform-tenant-boundary"></a>
+> **平台运营与租户边界**：平台运营者不代客户管理，平台身份不能进入租户维护用户、组织、角色或业务授权；[首管理员密码重置](../tenant-lifecycle.md#tenant-admin-handoff)为用户明确允许的凭据恢复例外，限定首管理员且必须审计，不扩展为任意用户管理。采用独立于租户的平台身份体系；所有租户均从运营入口开通，租户 1 不因 ID 获得特权或固定编码。规则见[租户生命周期](../tenant-lifecycle.md)与[运营契约](../access-service-api-contract.md#contract-section-26)。租户请求的 `X-Tenant-Id` 始终对应已认证的租户身份；不支持双 Header（`X-Tenant-Id` + `X-Target-Tenant-Id`）切换租户。`TenantManager.ignore()`（见 project-rules.md）仅用于内部测试/迁移场景，非平台运营授权，禁止用于生产跨租户业务访问。原“未来 platform-admin 增量支持代操作”的方向不适用于 Q-063。
 
 ## 操作准入快照鉴权（T-ACCESS-059；旧 API:ACCESS 快照链随无迁移期切换删除）
 
