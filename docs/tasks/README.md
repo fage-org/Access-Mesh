@@ -10,13 +10,13 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| access-service 归并（跨服务） | `T-ACCESS` | 091 |
+| access-service 归并（跨服务） | `T-ACCESS` | 098 |
 | permission-center | `T-PERM` | 109 |
 | admin-service | `T-ADMIN` | 036 |
-| gateway | `T-GW` | 013 |
+| gateway | `T-GW` | 014 |
 | 组织/用户（跨 admin+perm） | `T-ORG` | 006 |
 | 跨服务 API 契约 | `T-API` | 014 |
-| 前端 | `T-FE` | 067 |
+| 前端 | `T-FE` | 068 |
 
 > 新建任务时从对应领域取下一编号，计数器 +1。
 
@@ -25,6 +25,27 @@
 > 状态简写：⚙️=proposed / 🔨=in-progress / 👀=review / ✅=done / ❌=cancelled。回写：⏳=pending / ✓=done。
 
 > **后端门禁已解除（2026-08-22，T-ACCESS-012 完成）**：`T-PERM-*` / `T-ADMIN-*` 后端任务已全部重基线到 access-service 单模块与 `schema/access-service.sql`，可按各自 `depends_on` 推进；前端真接口联调等待对应 Phase 2 后端任务完成。归并主计划已归档（[archive/2026-08-22/access-service-merge-plan.md](../archive/2026-08-22/access-service-merge-plan.md)），后续强化计划亦已归档（[access-post-merge-plan](../archive/2026-08-27/access-post-merge-plan.md)，T-ACCESS-013~015 全 done，CI 准入前置由 T-ACCESS-017 最小 CI 关闭；68 项为 2026-08-22 外部主机历史验证基线，CI 以退出状态判定成功）。
+
+### OAuth2 客户端租户内唯一（待启动，Q-069 承接）
+
+| ID | 标题 | 状态 | 直接依赖 | 回写 |
+|---|---|---|---|---|
+| [T-ACCESS-097](T-ACCESS-097.md) | OAuth2 客户端租户内唯一改造 | ⚙️ | — | ⏳ |
+
+### 租户开通与独立平台运营（2026-10-08 完成归档）
+
+[执行计划](../archive/2026-10-08/tenant-lifecycle-plan.md)
+
+| ID | 标题 | 状态 | 直接依赖 | 回写 |
+|---|---|---|---|---|
+| [T-ACCESS-091](../archive/2026-10-08/tasks/T-ACCESS-091.md) | Q-063 租户开通与独立平台运营设计定稿 | ✅ | — | ✓ |
+| [T-ACCESS-092](../archive/2026-10-08/tasks/T-ACCESS-092.md) | 租户 Redis 即时门禁共享协议 | ✅ | — | ✓ |
+| [T-ACCESS-093](../archive/2026-10-08/tasks/T-ACCESS-093.md) | 独立平台身份、账号与审计 | ✅ | — | ✓ |
+| [T-ACCESS-094](../archive/2026-10-08/tasks/T-ACCESS-094.md) | 租户注册与统一模板开通 | ✅ | T-ACCESS-093 | ✓ |
+| [T-ACCESS-095](../archive/2026-10-08/tasks/T-ACCESS-095.md) | 租户生命周期与认证任务入口接线 | ✅ | T-ACCESS-092, T-ACCESS-094 | ✓ |
+| [T-GW-013](../archive/2026-10-08/tasks/T-GW-013.md) | 平台入口与租户即时门禁网关接线 | ✅ | T-ACCESS-092, T-ACCESS-093, T-ACCESS-095 | ✓ |
+| [T-FE-067](../archive/2026-10-08/tasks/T-FE-067.md) | 独立平台运营界面与租户编码登录 | ✅ | T-ACCESS-093, T-ACCESS-094, T-ACCESS-095, T-GW-013 | ✓ |
+| [T-ACCESS-096](../archive/2026-10-08/tasks/T-ACCESS-096.md) | 租户运营产品验收与文档收口 | ✅ | T-ACCESS-091, T-ACCESS-092, T-ACCESS-093, T-ACCESS-094, T-ACCESS-095, T-GW-013, T-FE-067 | ✓ |
 
 ### 使用者视角评审问题修复（2026-10-06 完成归档）
 
