@@ -56,13 +56,20 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
     "spring.cloud.nacos.config.enabled=false",
     "spring.cloud.nacos.config.import-check.enabled=false",
     "spring.cloud.nacos.discovery.enabled=false",
-    "accessmesh.sync.scheduler.enabled=false",
+    "accessmesh.sync.scheduler.enabled=false", "access.tenant.gate-repair.enabled=false",
     "mybatis-flex.configuration.map-underscore-to-camel-case=true",
     "logging.level.cn.ac.fage.accessmesh=WARN",
     "PERM_INTERNAL_SECRET=test-internal-secret-for-oauth2-reach",
     "ACCESSMESH_SIGNATURE_SECRET=test-signature-secret-for-oauth2-reach",
 })
 class Oauth2ClientBootstrapReachabilityPgIT {
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.data.redis.core.StringRedisTemplate tenantFixtureRedis;
+    @org.junit.jupiter.api.BeforeEach
+    void enableTenantFixture() {
+        cn.ac.fage.accessmesh.access.it.TenantTestSupport.enableFixture(jdbc,tenantFixtureRedis,1L);
+    }
+
 
     private static final Long TENANT = 1L;
     private static final String ADMIN_PASSWORD = "Ext@2026";
@@ -86,7 +93,7 @@ class Oauth2ClientBootstrapReachabilityPgIT {
     @Test
     @DisplayName("默认图 admin 可注册/更新/删除 OAuth2 客户端（旧图无授权起点=403 必红）；未授权用户 403")
     void adminCanManageOauth2ClientsOnDefaultBootstrapGraph() throws Exception {
-        initializer.initialize(ADMIN_PASSWORD);
+        initializer.initialize(1L, ADMIN_PASSWORD);
         long adminUserId = jdbc.queryForObject(
             "SELECT id FROM sys_user WHERE tenant_id = ? AND username = ? AND delete_flag = 0",
             Long.class, TENANT, BootstrapGraphDefinition.ADMIN_USERNAME);

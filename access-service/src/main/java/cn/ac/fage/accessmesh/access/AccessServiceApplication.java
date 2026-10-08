@@ -10,7 +10,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  * access-service 统一启动入口
  * <p>
  * 归并 admin-service 与 permission-center（两个旧部署单元已退役）后的唯一 Spring Boot 主启动类。
- * 扫描 17 顶层能力包全部子包（12 能力包 + sync + engine + projection + bootstrap + infrastructure）。
+ * 扫描能力包及 sync、engine、projection、bootstrap、infrastructure 子包。
  * </p>
  */
 @SpringBootApplication
@@ -18,6 +18,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableScheduling
 @MapperScan({
     "cn.ac.fage.accessmesh.access.auth.mapper",
+    "cn.ac.fage.accessmesh.access.tenant.mapper",
+    "cn.ac.fage.accessmesh.access.bootstrap.mapper",
     "cn.ac.fage.accessmesh.access.user.mapper",
     "cn.ac.fage.accessmesh.access.org.mapper",
     "cn.ac.fage.accessmesh.access.menu.mapper",

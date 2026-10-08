@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.bootstrap;
 
+import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
+import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtil;
 import cn.ac.fage.accessmesh.access.menu.entity.SysMenu;
 import cn.ac.fage.accessmesh.access.org.entity.SysOrg;
@@ -133,15 +135,20 @@ public class AccessBootstrapInitializer {
      */
     @Transactional(rollbackFor = Exception.class)
     @PermissionChange
-    public void initialize(String adminPassword) {
-        // 固定图是启动期内部写入口；所有数据显式绑定种子租户，无请求上下文也可执行。
-        // 只在最外层豁免，TenantManager 的 withoutTenantCondition 不支持嵌套恢复。
-        com.mybatisflex.core.tenant.TenantManager.withoutTenantCondition(
-            () -> initializeFixedGraph(adminPassword));
+    public void initialize(Long tenantId, String adminPassword) {
+        if (tenantId == null || tenantId <= 0) throw new IllegalArgumentException("tenantId must be positive");
+        var previous = AccessRequestContext.snapshot();
+        try {
+            var scope = RequestContext.task(tenantId);
+            if (previous != null) scope = scope.withRequestId(previous.requestId());
+            AccessRequestContext.bind(scope);
+            initializeFixedGraph(tenantId, adminPassword);
+        } finally {
+            AccessRequestContext.restore(previous);
+        }
     }
 
-    private void initializeFixedGraph(String adminPassword) {
-        Long tenantId = BootstrapGraphDefinition.TENANT_ID;
+    private void initializeFixedGraph(Long tenantId, String adminPassword) {
         // ADMIN_FILE 文件夹投影预置（T-ADMIN-025）：幂等 insert-if-absent，置于三状态检测之前——
         // no-op 路径同样执行（建于本特性前的库重启自愈补种），冲突/创建失败路径随事务整体回滚。
         // 不参与固定图检测：文件夹无管理面写入口（类型 SYNC+access-service，资源 CRUD 20055），
@@ -589,8 +596,8 @@ public class AccessBootstrapInitializer {
         admin.setStatus(1);
         admin.setGender(0);
         admin.setUserType(SYS_USER_TYPE_PERSON);
-        // 密码经环境变量由管理员自设（非随机分发），不强制改密（2026-08-24 用户决策）
-        admin.setForceResetPwd(false);
+        // 首管理员密码经平台随机分发，客户首次使用必须修改。
+        admin.setForceResetPwd(true);
         admin.setCreatedAt(LocalDateTime.now());
         admin.setUpdatedAt(LocalDateTime.now());
         admin.setDeleteFlag(0L);

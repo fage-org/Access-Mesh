@@ -45,14 +45,14 @@ import static org.assertj.core.api.Assertions.assertThat;
     "spring.cloud.nacos.config.enabled=false",
     "spring.cloud.nacos.config.import-check.enabled=false",
     "spring.cloud.nacos.discovery.enabled=false",
-    "accessmesh.sync.scheduler.enabled=false",
-    "access.bootstrap.enabled=false",
+    "accessmesh.sync.scheduler.enabled=false", "access.tenant.gate-repair.enabled=false",
+    "access.platform.bootstrap.enabled=false",
     "mybatis-flex.configuration.map-underscore-to-camel-case=true",
     "logging.level.cn.ac.fage.accessmesh=WARN",
 })
 class FirstAdminUserTrackPgIT {
 
-    private static final Long TENANT = BootstrapGraphDefinition.TENANT_ID;
+    private static final Long TENANT = 1L;
     private static final String BOOTSTRAP_PASSWORD = "FirstAdmin-IT-2026!";
 
     @DynamicPropertySource
@@ -79,7 +79,7 @@ class FirstAdminUserTrackPgIT {
     @DisplayName("空库首管理员经 abstract-user update/remove 由恒拒转放行（旧实现 MANAGE 门禁下本用例必红）")
     void firstAdminShouldPassUserTrackUpdateAndRemove() {
         // 空库 bootstrap 固定图（本测试类独享数据库，状态①）
-        initializer.initialize(BOOTSTRAP_PASSWORD);
+        initializer.initialize(1L, BOOTSTRAP_PASSWORD);
 
         Long adminSubjectId = jdbc.queryForObject(
             "SELECT id FROM sys_user WHERE tenant_id = ? AND username = ?",

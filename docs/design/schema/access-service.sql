@@ -5,11 +5,12 @@
 -- 取代：admin-service.sql、permission-center.sql、seed-admin-operations.sql、seed-perm-operations.sql
 --       （四份旧文件已随 T-ACCESS-012 归档至 docs/archive/2026-08-22/schema/，不再作为实现依据）
 --
--- 范围：37 张表
+-- 范围：40 张表
 --   管理事实表（sys_*）14 张（管理面，原 17 张：sys_config/sys_audit_log 并入合并表；sys_sync_task 已随 T-ACCESS-005 退役）
 --   权限事实表 19 张（权限面，原 18 张：system_config/operation_log 由合并表承接；T-PERM-071 增 3 张：
 --     permission_dependency_declaration、service_manifest_sync、resource_publication_state——依赖声明/发布状态/资源发布代次）
 --   合并表 2 张（system_config、operation_log）
+--   独立平台主数据与审计 3 张（platform_account、sys_tenant、platform_audit_log，无所属 tenant_id）
 --   基础设施 2 张（sys_task_execution，T-ACCESS-009 任务租约预建；service_credential，T-PERM-070 服务凭证）
 --
 -- 合并说明（access-service-architecture §5.2）：
@@ -22,8 +23,8 @@
 -- 软删约定（与旧库一致）：
 --   delete_flag BIGINT：0 = 未删除，删除时填本行 id（确保唯一约束不冲突）
 --   deleted_at TIMESTAMPTZ：纯审计字段，记录删除时间，不参与索引条件
---   所有唯一索引和业务查询统一使用 WHERE delete_flag = 0
---   例外：sys_login_log、operation_log、sys_job_log、permission_change_log 不做软删除
+--   租户业务唯一索引和业务查询使用 WHERE delete_flag = 0；sys_tenant.code 全局唯一且不复用
+--   例外：sys_login_log、operation_log、sys_job_log、permission_change_log、platform_audit_log 不做软删除
 --
 -- 本地投影所有权（access-service-architecture §4.2）：
 --   abstract_user / abstract_role / user_role 增加可空列 owner_service_code：
@@ -32,7 +33,9 @@
 --   resource_entity 复用既有 owner_service_code/maintain_source 字段，不复制到其他表
 --
 -- 种子数据（各组计数以 AccessServiceSchemaPostgresTest 断言为准，注释不复制数字——project-rules §文档治理去计数化）：
---   sys_oauth2_client / system_config：原样保留（键名保持现状）
+--   system_config / type_definition / operation_permission：由本文件末尾
+--     initialize_tenant_baseline(p_tenant_id) 在租户开通事务中显式初始化；执行 DDL 不种租户。
+--   sys_oauth2_client：不预置客户端，各租户经管理入口自行注册。
 --   type_definition：user_type/role_type/resource_type 三组；type_value 为权威数值，按
 --     T-ACCESS-016 §13 定稿重编（T-ACCESS-018 落地）；代码不硬编码数值，运行时经
 --     TypeResolutionService 动态解析；退役值 16/17/18/19/22/28 不复用
@@ -126,11 +129,7 @@ COMMENT ON COLUMN sys_oauth2_client.status IS '状态：0=停用，1=启用';
 COMMENT ON COLUMN sys_oauth2_client.delete_flag IS '逻辑删除：0=未删除，删除时填本行id';
 
 -- 预置客户端数据
-INSERT INTO sys_oauth2_client (tenant_id, client_id, client_secret, client_name, grant_types, redirect_uris, scopes, audiences, access_token_ttl, refresh_token_ttl, status, created_by, created_at, updated_at)
-VALUES
-    (1, 'admin-web',        '$2a$10$PLACEHOLDER_HASH_1', '管理端前端',  'authorization_code,password,refresh_token', 'http://localhost:3000/callback', 'all', 'access-service', 7200, 604800, 1, 0, now(), now()),
-    (1, 'example-web',      '$2a$10$PLACEHOLDER_HASH_2', '演示端前端',  'authorization_code,password,refresh_token', 'http://localhost:3001/callback', 'all', 'access-service', 7200, 604800, 1, 0, now(), now()),
-    (1, 'internal-service', '$2a$10$PLACEHOLDER_HASH_3', '服务间调用',  'client_credentials',                        NULL,                            'all', 'access-service', 7200, 0,       1, 0, now(), now());
+-- OAuth2 客户端由各租户自行注册，不随建表或开通预置。
 
 -- -----------------------------------------------------------------------------
 -- 2. sys_login_log - 登录日志（不做软删除，永久保留）
@@ -555,17 +554,7 @@ COMMENT ON COLUMN system_config.is_system IS '是否系统内置（不可删除�
 COMMENT ON COLUMN system_config.delete_flag IS '逻辑删除：0=未删除，删除时填本行id';
 
 -- 预置配置项（原 sys_config 种子，T-ACCESS-007 迁移至 admin.* 命名空间）
-INSERT INTO system_config (tenant_id, config_key, config_value, config_name, is_system, created_by, created_at, updated_at)
-VALUES
-    (1, 'admin.LOGIN_CAPTCHA_ENABLED',   'true',      '是否开启图形验证码',       true, 0, now(), now()),
-    (1, 'admin.LOGIN_SMS_ENABLED',       'false',     '是否开启短信验证码',       true, 0, now(), now()),
-    (1, 'admin.LOGIN_FAIL_LOCK_COUNT',   '5',         '密码错误锁定次数',         true, 0, now(), now()),
-    (1, 'admin.LOGIN_FAIL_LOCK_MINUTES', '30',        '锁定时长（分钟）',         true, 0, now(), now()),
-    (1, 'admin.LOGIN_SINGLE_DEVICE',     'false',     '单设备登录',               true, 0, now(), now()),
-    (1, 'admin.LOGIN_REMOTE_ALERT',      'false',     '异地登录提醒',             true, 0, now(), now()),
-    (1, 'admin.MENU_MAX_DEPTH',          '7',         '菜单树最大深度',           true, 0, now(), now()),
-    (1, 'admin.FILE_UPLOAD_MAX_SIZE',    '10485760',  '文件上传大小限制（字节）', true, 0, now(), now()),
-    (1, 'admin.FILE_ALLOWED_TYPES',      '["image/jpeg","image/png","image/gif","application/pdf","application/zip","text/plain"]', '允许的文件类型列表', true, 0, now(), now());
+-- 基础种子统一见文件末尾 initialize_tenant_baseline(p_tenant_id)。
 
 -- -----------------------------------------------------------------------------
 -- 16. operation_log - 操作日志（合并 sys_audit_log + 原 operation_log，字段取超集；
@@ -654,47 +643,7 @@ COMMENT ON COLUMN type_definition.delete_flag IS '逻辑删除：0=未删除，�
 -- 预置类型种子（tenant 1；type_value 为权威数值，与文件头 type_value 终值分配表一致——
 -- T-ACCESS-016 定稿收敛映射，T-ACCESS-018 重编：五组 ADMIN_* 管理类型并入既有公共类型、
 -- ADMIN_SYNC_TASK 删除、user_type ADMIN_USER 更名 LOCAL_USER、ORG 取新值 29）
-INSERT INTO type_definition (tenant_id, type_key, type_code, type_value, name, is_system, sort_order, created_by, created_at, updated_at) VALUES
-    -- user_type（USER=外部人员 / SERVICE=外部服务 / LOCAL_USER=本地访问主体，
-    --   access.application 本地投影以 LOCAL_USER 作为 subjectTypeCode 维护 abstract_user，必须可解析）
-    (1, 'user_type', 'USER',        1, '人员', true, 1, 0, now(), now()),
-    (1, 'user_type', 'SERVICE',     2, '服务', true, 2, 0, now(), now()),
-    (1, 'user_type', 'LOCAL_USER',  3, '本地用户', true, 3, 0, now(), now()),
-    -- role_type（RoleType 枚举权威值：4 留空不可用）
-    (1, 'role_type', 'ORG',        1, '组织',     true, 1, 0, now(), now()),
-    (1, 'role_type', 'POSITION',   2, '职位',     true, 2, 0, now(), now()),
-    (1, 'role_type', 'PERSONAL',   3, '个人',     true, 3, 0, now(), now()),
-    (1, 'role_type', 'GROUP_ROLE', 5, '分组角色', true, 5, 0, now(), now()),
-    (1, 'role_type', 'BASIC_ROLE', 6, '基本角色', true, 6, 0, now(), now()),
-    -- resource_type（T-ACCESS-016 §13.1 终态：五组管理类型已并入 USER/ROLE/MENU/
-    --   SYSTEM_CONFIG/ORG，ADMIN_SYNC_TASK 删除；T-PERM-025 增 OPERATION_LOG=30、
---   T-PERM-032 增 PERMISSION_CHANGE_LOG=31；
-    --   退役值 16/17/18/19/22/28 不复用；全表见文件头部终值分配表）
-    (1, 'resource_type', 'MENU',                1,  '菜单',         true,  1, 0, now(), now()),
-    (1, 'resource_type', 'BUTTON',              2,  '按钮',         true,  2, 0, now(), now()),
-    (1, 'resource_type', 'API',                 3,  'API接口',      true,  3, 0, now(), now()),
-    (1, 'resource_type', 'DATA',                4,  '数据',         true,  4, 0, now(), now()),
-    (1, 'resource_type', 'ROLE',                5,  '角色',         true,  5, 0, now(), now()),
-    (1, 'resource_type', 'USER',                6,  '用户',         true,  6, 0, now(), now()),
-    (1, 'resource_type', 'RESOURCE',            7,  '资源实体',     true,  7, 0, now(), now()),
-    (1, 'resource_type', 'SERVICE',             8,  '服务配置',     true,  8, 0, now(), now()),
-    (1, 'resource_type', 'DOMAIN',              9,  '业务域',       true,  9, 0, now(), now()),
-    (1, 'resource_type', 'TYPE_DEFINITION',    10,  '类型定义',     true, 10, 0, now(), now()),
-    (1, 'resource_type', 'SYSTEM_CONFIG',      11,  '系统配置',     true, 11, 0, now(), now()),
-    (1, 'resource_type', 'OPERATION',          12,  '操作权限',     true, 12, 0, now(), now()),
-    (1, 'resource_type', 'CONDITION',          13,  '权限条件',     true, 13, 0, now(), now()),
-    (1, 'resource_type', 'CONFLICT_RULE',      14,  '冲突规则',     true, 14, 0, now(), now()),
-    (1, 'resource_type', 'DEPENDENCY',         15,  '资源依赖',     true, 15, 0, now(), now()),
-    (1, 'resource_type', 'ADMIN_DICT',         20,  '字典类型',     true, 20, 0, now(), now()),
-    (1, 'resource_type', 'ADMIN_DICT_DATA',    21,  '字典数据',     true, 21, 0, now(), now()),
-    (1, 'resource_type', 'ADMIN_OAUTH2_CLIENT', 23, 'OAuth2客户端', true, 23, 0, now(), now()),
-    (1, 'resource_type', 'ADMIN_NOTICE',       24,  '通知公告',     true, 24, 0, now(), now()),
-    (1, 'resource_type', 'ADMIN_FILE',         25,  '文件管理',     true, 25, 0, now(), now()),
-    (1, 'resource_type', 'ADMIN_JOB',          26,  '定时任务',     true, 26, 0, now(), now()),
-    (1, 'resource_type', 'ADMIN_ORG_TREE_CONFIG', 27, '组织树配置', true, 27, 0, now(), now()),
-    (1, 'resource_type', 'ORG',                29, '组织管理',     true, 29, 0, now(), now()),
-    (1, 'resource_type', 'OPERATION_LOG',      30, '操作日志',     true, 30, 0, now(), now()),
-    (1, 'resource_type', 'PERMISSION_CHANGE_LOG', 31, '权限变更日志', true, 31, 0, now(), now());
+-- 基础种子统一见文件末尾 initialize_tenant_baseline(p_tenant_id)。
 
 -- T-PERM-052 内部来源声明（2026-09-05 定案）：事实链路类型——资源行由用户/组织/菜单/角色管理
 -- 经 LocalProjectionDomainService 同事务自动维护（SYNC + 来源=access-service），外部同步一律拒绝
@@ -713,10 +662,7 @@ INSERT INTO type_definition (tenant_id, type_key, type_code, type_value, name, i
 -- 口径外通道（FULL diff 清理与服务删除级联只覆盖 SERVICE_SYNC，MANUAL 行成永久孤儿）。
 -- SERVICE 维持 MANAGED：新 SERVICE 行唯一通道=管理面手工建行（按服务实例级授权目标行），
 -- 收紧即零 writer 死局（配套事实链另议，见 docs/archive/2026-09-26/decision-registry-before.md（历史决定） 同日行）。
-UPDATE type_definition
-SET extra = '{"managedMode":"SYNC","syncSourceService":"access-service"}'
-WHERE tenant_id = 1 AND type_key = 'resource_type'
-  AND type_code IN ('USER', 'ORG', 'MENU', 'ROLE', 'ADMIN_FILE', 'TYPE_DEFINITION', 'CONDITION', 'API');
+-- 基础种子统一见文件末尾 initialize_tenant_baseline(p_tenant_id)。
 
 -- -----------------------------------------------------------------------------
 -- 18. biz_domain - 业务域表（扁平列表，无启停，引用检查拒删）
@@ -870,17 +816,7 @@ COMMENT ON COLUMN operation_permission.inherit_mask IS '继承的位掩码，实
 -- DDL 直接种入的 resource_type 不会触发运行时自动生成（运行时联动预置仅覆盖经
 -- type-definition/create 新建的类型，见 TypeDefinitionAppServiceImpl——T-PERM-028），
 -- 初始化阶段种入的类型必须在此预置；binary_bit 1/2/4/8 与下方扩展码（16 起）不冲突。
-INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask, created_by, updated_by, delete_flag)
-SELECT 1, td.type_value, ops.code, ops.name, ops.binary_bit, ops.inherit_mask, 0, 0, 0
-FROM type_definition td
-CROSS JOIN (VALUES
-    ('CREATE', '创建', 1, 0),
-    ('VIEW',   '查看', 2, 0),
-    ('UPDATE', '更新', 4, 2),
-    ('DELETE', '删除', 8, 2)
-) AS ops(code, name, binary_bit, inherit_mask)
-WHERE td.tenant_id = 1 AND td.type_key = 'resource_type' AND td.delete_flag = 0
-ON CONFLICT (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND delete_flag = 0 DO NOTHING;
+-- 基础种子统一见文件末尾 initialize_tenant_baseline(p_tenant_id)。
 
 -- 非预置操作码种子（按 T-ACCESS-016 §13.3 bit 终值表随类型收敛重新归属；
 -- ADMIN_ORG 六码同名同 bit 迁移 ORG(29)、ADMIN_USER 两码迁 USER(6)（ENABLE bit 16→32 重分配，
@@ -888,51 +824,12 @@ ON CONFLICT (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND
 -- ADMIN_ROLE:GRANT/REVOKE 零消费者删除不迁移；
 -- binary_bit 从 16 起分配，inherit_mask 读类=0、写类继承 VIEW=2）
 -- ORG(29)：岗位 CRUD 精化 + 成员关系（普通组织 VIEW 由 CRUD 预置覆盖）
-INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask, created_by, updated_by, delete_flag) VALUES
-    (1, 29, 'CREATE_POSITION',     '创建岗位',       16,  2, 0, 0, 0),
-    (1, 29, 'UPDATE_POSITION',     '编辑/移动/启停岗位', 32, 2, 0, 0, 0),
-    (1, 29, 'DELETE_POSITION',     '删除岗位',       64,  2, 0, 0, 0),
-    (1, 29, 'ASSIGN_POSITION_USER','岗位用户挂载/卸载/设主', 128, 2, 0, 0, 0),
-    (1, 29, 'MANAGE_MEMBER',       '管理组织成员',   256, 2, 0, 0, 0),
-    (1, 29, 'VIEW_POSITION',       '查看岗位',       512, 0, 0, 0, 0),
-    -- USER(6)：启停 + 重置密码（bit 重分配：ENABLE 取 32——16 曾被 MANAGE 占用，
-    -- T-ACCESS-034 退役后空闲不复用；用户列表查看由 CRUD 预置 VIEW 覆盖）
-    (1, 6,  'ENABLE',              '启用/禁用用户',  32,  2, 0, 0, 0),
-    (1, 6,  'RESET_PASSWORD',      '重置密码',       64,  2, 0, 0, 0),
-    -- ADMIN_NOTICE(24)：发布公告
-    (1, 24, 'PUBLISH',             '发布公告',       16,  2, 0, 0, 0),
-    -- ADMIN_JOB(26)：启停任务 + 触发执行
-    (1, 26, 'ENABLE',              '启用/禁用任务',  16,  2, 0, 0, 0),
-    (1, 26, 'TRIGGER',             '触发执行',       64,  2, 0, 0, 0),
-    -- ADMIN_ORG_TREE_CONFIG(27)：切换默认树/单关联
-    (1, 27, 'TOGGLE',              '切换默认树/单关联', 16, 2, 0, 0, 0),
-    -- ROLE(5)：双层门禁关键操作码（权限中心内部角色管理）
-    (1, 5,  'MANAGE',              '管理',           16,  2, 0, 0, 0)
-ON CONFLICT (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND delete_flag = 0 DO NOTHING;
+-- 基础种子统一见文件末尾 initialize_tenant_baseline(p_tenant_id)。
 
 -- 权限中心运行时必需操作码：代码实际校验但 CRUD/Admin 扩展码未覆盖；
 -- 缺失时 TypeResolutionServiceImpl 解析返回 null → 判定面 fail-closed 全量拒绝。
 -- bit 16 起按类型避让，写类 mask=2（继承 VIEW），API:ACCESS 为接口鉴权专用（mask=0）。
-INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask, created_by, updated_by, delete_flag) VALUES
-    -- ROLE(5)：分组角色分配/撤销（MANAGE 已占 16）
-    (1, 5,  'ASSIGN',             '分配角色',         32, 2, 0, 0, 0),
-    (1, 5,  'REVOKE',             '撤销角色',         64, 2, 0, 0, 0),
-    -- RESOURCE(7)：更新/删除资源实体门禁
-    (1, 7,  'MANAGE',             '管理资源实体',     16, 2, 0, 0, 0),
-    -- SERVICE(8)：服务配置/API 映射/接口同步
-    (1, 8,  'MANAGE',             '管理服务配置',     16, 2, 0, 0, 0),
-    (1, 8,  'MANAGE_API_MAPPING', '管理API映射',      32, 2, 0, 0, 0),
-    (1, 8,  'SYNC_INTERFACE',     '同步服务接口',     64, 2, 0, 0, 0),
-    -- TYPE_DEFINITION(10)：更新/删除类型定义门禁
-    (1, 10, 'MANAGE',             '管理类型定义',     16, 2, 0, 0, 0),
-    -- SYSTEM_CONFIG(11)：系统配置/业务域/域配置管理门禁
-    (1, 11, 'MANAGE',             '管理系统配置',     16, 2, 0, 0, 0),
-    -- OPERATION(12)：更新/删除操作权限门禁
-    (1, 12, 'MANAGE',             '管理操作权限',     16, 2, 0, 0, 0),
-    -- API(3)：历史 API 操作编码——API 独立授权已随 T-ACCESS-062 退役，本行仅用于识别并拒绝
-    -- API:ACCESS 形态的准入要求（ApiMappingWriteDomainServiceImpl 守卫），不再参与任何授权判定
-    (1, 3,  'ACCESS',             '访问接口',         16, 0, 0, 0, 0)
-ON CONFLICT (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND delete_flag = 0 DO NOTHING;
+-- 基础种子统一见文件末尾 initialize_tenant_baseline(p_tenant_id)。
 
 -- -----------------------------------------------------------------------------
 -- 22. resource_entity - 权限资源实体表（树形，支持多编码类型 code_type）
@@ -1539,3 +1436,194 @@ COMMENT ON COLUMN service_credential.secret_hash IS 'BCrypt 哈希（sa-token BC
 COMMENT ON COLUMN service_credential.status IS '状态：0=停用 1=启用。停用立即失效（认证链判定）；轮换收尾动作=停旧凭证';
 COMMENT ON COLUMN service_credential.rotated_at IS '轮换标记：旧凭证因轮换停用时记录时间，供运维追溯轮换时间线';
 COMMENT ON COLUMN service_credential.expires_at IS '过期时间（NULL=永不过期）；到期立即失效，管理面可 update 改期（T-PERM-070 拍板：update 支持 status + expiresAt）';
+
+
+-- 平台身份独立于租户；以下平台主数据不含 tenant_id，不创建虚构租户。
+CREATE TABLE platform_account (
+    id BIGSERIAL PRIMARY KEY,
+    username VARCHAR(64) NOT NULL,
+    name VARCHAR(128) NOT NULL,
+    password VARCHAR(100) NOT NULL,
+    status SMALLINT NOT NULL DEFAULT 1 CHECK (status IN (0, 1)),
+    force_reset_pwd BOOLEAN NOT NULL DEFAULT false,
+    credential_version BIGINT NOT NULL DEFAULT 1 CHECK (credential_version > 0),
+    created_by BIGINT,
+    updated_by BIGINT,
+    deleted_by BIGINT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at TIMESTAMPTZ,
+    delete_flag BIGINT NOT NULL DEFAULT 0,
+    CONSTRAINT uk_platform_account_username UNIQUE (username)
+);
+COMMENT ON TABLE platform_account IS '独立平台运营账号，同权管理租户和平台账号；不映射为租户用户；首期不提供删除';
+COMMENT ON COLUMN platform_account.password IS 'BCrypt 哈希；随机初始或重置密码仅生成响应展示一次';
+COMMENT ON COLUMN platform_account.credential_version IS '平台凭据代次；密码重置或停用时递增，令牌会话必须匹配当前值';
+
+CREATE TABLE sys_tenant (
+    id BIGSERIAL PRIMARY KEY,
+    code VARCHAR(64) NOT NULL CHECK (code ~ '^[a-z][a-z0-9-]{0,63}$'),
+    name VARCHAR(128) NOT NULL,
+    status SMALLINT NOT NULL DEFAULT 1 CHECK (status IN (0, 1)),
+    session_epoch BIGINT NOT NULL DEFAULT 1 CHECK (session_epoch > 0),
+    admin_user_id BIGINT,
+    created_by BIGINT,
+    updated_by BIGINT,
+    deleted_by BIGINT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at TIMESTAMPTZ,
+    delete_flag BIGINT NOT NULL DEFAULT 0,
+    CONSTRAINT uk_sys_tenant_code UNIQUE (code)
+);
+COMMENT ON TABLE sys_tenant IS '平台运营的租户注册表；首次部署为空，全部租户通过运营入口开通；编码不可修改或复用，首期不提供删除';
+COMMENT ON COLUMN sys_tenant.admin_user_id IS '开通时创建的首管理员 sys_user.id；开通事务提交前必须完成绑定，平台重置仅能作用于此账号';
+COMMENT ON COLUMN sys_tenant.session_epoch IS '租户会话代次；停用递增，恢复不回退，用户会话与 OAuth2 链必须匹配';
+COMMENT ON COLUMN sys_tenant.created_by IS '创建租户的平台账号 ID，不是租户用户 ID';
+COMMENT ON COLUMN sys_tenant.updated_by IS '更新租户的平台账号 ID，不是租户用户 ID';
+
+CREATE TABLE platform_audit_log (
+    id BIGSERIAL PRIMARY KEY,
+    operator_id BIGINT,
+    operator_name VARCHAR(64),
+    target_tenant_id BIGINT,
+    target_type VARCHAR(64) NOT NULL,
+    target_id VARCHAR(128),
+    action VARCHAR(64) NOT NULL,
+    outcome VARCHAR(16) NOT NULL CHECK (outcome IN ('SUCCESS', 'FAILURE', 'PENDING')),
+    summary VARCHAR(512),
+    request_id VARCHAR(64) NOT NULL,
+    ip_address VARCHAR(64),
+    request_url VARCHAR(256),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_platform_audit_time ON platform_audit_log (created_at DESC, id DESC);
+CREATE INDEX idx_platform_audit_tenant ON platform_audit_log (target_tenant_id, created_at DESC);
+CREATE INDEX idx_platform_audit_operator ON platform_audit_log (operator_id, created_at DESC);
+COMMENT ON TABLE platform_audit_log IS '平台独立审计，永久保留、不软删除；关键数据库变更与成功审计同事务；不记录密码、哈希、密钥或请求体';
+COMMENT ON COLUMN platform_audit_log.operator_id IS '真实平台账号 ID；匿名登录失败或首次安装可为空，不冒充租户用户';
+COMMENT ON COLUMN platform_audit_log.target_tenant_id IS '被操作租户；平台账号自身管理或平台登录事件可为空';
+COMMENT ON COLUMN platform_audit_log.action IS '大写事件码；数据库启用登记与 Redis 门禁就绪分别表达，不能把未就绪记为访问恢复';
+
+-- 租户基础种子唯一来源；仅由开通事务显式调用，不在执行 DDL 时创建租户数据。
+CREATE FUNCTION initialize_tenant_baseline(p_tenant_id BIGINT) RETURNS VOID
+LANGUAGE plpgsql AS $tenant_baseline$
+BEGIN
+    IF p_tenant_id IS NULL OR p_tenant_id <= 0 THEN
+        RAISE EXCEPTION 'tenant id must be positive' USING ERRCODE = '22023';
+    END IF;
+INSERT INTO system_config (tenant_id, config_key, config_value, config_name, is_system, created_by, created_at, updated_at)
+VALUES
+    (p_tenant_id, 'admin.LOGIN_CAPTCHA_ENABLED',   'true',      '是否开启图形验证码',       true, 0, now(), now()),
+    (p_tenant_id, 'admin.LOGIN_SMS_ENABLED',       'false',     '是否开启短信验证码',       true, 0, now(), now()),
+    (p_tenant_id, 'admin.LOGIN_FAIL_LOCK_COUNT',   '5',         '密码错误锁定次数',         true, 0, now(), now()),
+    (p_tenant_id, 'admin.LOGIN_FAIL_LOCK_MINUTES', '30',        '锁定时长（分钟）',         true, 0, now(), now()),
+    (p_tenant_id, 'admin.LOGIN_SINGLE_DEVICE',     'false',     '单设备登录',               true, 0, now(), now()),
+    (p_tenant_id, 'admin.LOGIN_REMOTE_ALERT',      'false',     '异地登录提醒',             true, 0, now(), now()),
+    (p_tenant_id, 'admin.MENU_MAX_DEPTH',          '7',         '菜单树最大深度',           true, 0, now(), now()),
+    (p_tenant_id, 'admin.FILE_UPLOAD_MAX_SIZE',    '10485760',  '文件上传大小限制（字节）', true, 0, now(), now()),
+    (p_tenant_id, 'admin.FILE_ALLOWED_TYPES',      '["image/jpeg","image/png","image/gif","application/pdf","application/zip","text/plain"]', '允许的文件类型列表', true, 0, now(), now());
+
+INSERT INTO type_definition (tenant_id, type_key, type_code, type_value, name, is_system, sort_order, created_by, created_at, updated_at) VALUES
+    -- user_type（USER=外部人员 / SERVICE=外部服务 / LOCAL_USER=本地访问主体，
+    --   access.application 本地投影以 LOCAL_USER 作为 subjectTypeCode 维护 abstract_user，必须可解析）
+    (p_tenant_id, 'user_type', 'USER',        1, '人员', true, 1, 0, now(), now()),
+    (p_tenant_id, 'user_type', 'SERVICE',     2, '服务', true, 2, 0, now(), now()),
+    (p_tenant_id, 'user_type', 'LOCAL_USER',  3, '本地用户', true, 3, 0, now(), now()),
+    -- role_type（RoleType 枚举权威值：4 留空不可用）
+    (p_tenant_id, 'role_type', 'ORG',        1, '组织',     true, 1, 0, now(), now()),
+    (p_tenant_id, 'role_type', 'POSITION',   2, '职位',     true, 2, 0, now(), now()),
+    (p_tenant_id, 'role_type', 'PERSONAL',   3, '个人',     true, 3, 0, now(), now()),
+    (p_tenant_id, 'role_type', 'GROUP_ROLE', 5, '分组角色', true, 5, 0, now(), now()),
+    (p_tenant_id, 'role_type', 'BASIC_ROLE', 6, '基本角色', true, 6, 0, now(), now()),
+    -- resource_type（T-ACCESS-016 §13.1 终态：五组管理类型已并入 USER/ROLE/MENU/
+    --   SYSTEM_CONFIG/ORG，ADMIN_SYNC_TASK 删除；T-PERM-025 增 OPERATION_LOG=30、
+--   T-PERM-032 增 PERMISSION_CHANGE_LOG=31；
+    --   退役值 16/17/18/19/22/28 不复用；全表见文件头部终值分配表）
+    (p_tenant_id, 'resource_type', 'MENU',                1,  '菜单',         true,  1, 0, now(), now()),
+    (p_tenant_id, 'resource_type', 'BUTTON',              2,  '按钮',         true,  2, 0, now(), now()),
+    (p_tenant_id, 'resource_type', 'API',                 3,  'API接口',      true,  3, 0, now(), now()),
+    (p_tenant_id, 'resource_type', 'DATA',                4,  '数据',         true,  4, 0, now(), now()),
+    (p_tenant_id, 'resource_type', 'ROLE',                5,  '角色',         true,  5, 0, now(), now()),
+    (p_tenant_id, 'resource_type', 'USER',                6,  '用户',         true,  6, 0, now(), now()),
+    (p_tenant_id, 'resource_type', 'RESOURCE',            7,  '资源实体',     true,  7, 0, now(), now()),
+    (p_tenant_id, 'resource_type', 'SERVICE',             8,  '服务配置',     true,  8, 0, now(), now()),
+    (p_tenant_id, 'resource_type', 'DOMAIN',              9,  '业务域',       true,  9, 0, now(), now()),
+    (p_tenant_id, 'resource_type', 'TYPE_DEFINITION',    10,  '类型定义',     true, 10, 0, now(), now()),
+    (p_tenant_id, 'resource_type', 'SYSTEM_CONFIG',      11,  '系统配置',     true, 11, 0, now(), now()),
+    (p_tenant_id, 'resource_type', 'OPERATION',          12,  '操作权限',     true, 12, 0, now(), now()),
+    (p_tenant_id, 'resource_type', 'CONDITION',          13,  '权限条件',     true, 13, 0, now(), now()),
+    (p_tenant_id, 'resource_type', 'CONFLICT_RULE',      14,  '冲突规则',     true, 14, 0, now(), now()),
+    (p_tenant_id, 'resource_type', 'DEPENDENCY',         15,  '资源依赖',     true, 15, 0, now(), now()),
+    (p_tenant_id, 'resource_type', 'ADMIN_DICT',         20,  '字典类型',     true, 20, 0, now(), now()),
+    (p_tenant_id, 'resource_type', 'ADMIN_DICT_DATA',    21,  '字典数据',     true, 21, 0, now(), now()),
+    (p_tenant_id, 'resource_type', 'ADMIN_OAUTH2_CLIENT', 23, 'OAuth2客户端', true, 23, 0, now(), now()),
+    (p_tenant_id, 'resource_type', 'ADMIN_NOTICE',       24,  '通知公告',     true, 24, 0, now(), now()),
+    (p_tenant_id, 'resource_type', 'ADMIN_FILE',         25,  '文件管理',     true, 25, 0, now(), now()),
+    (p_tenant_id, 'resource_type', 'ADMIN_JOB',          26,  '定时任务',     true, 26, 0, now(), now()),
+    (p_tenant_id, 'resource_type', 'ADMIN_ORG_TREE_CONFIG', 27, '组织树配置', true, 27, 0, now(), now()),
+    (p_tenant_id, 'resource_type', 'ORG',                29, '组织管理',     true, 29, 0, now(), now()),
+    (p_tenant_id, 'resource_type', 'OPERATION_LOG',      30, '操作日志',     true, 30, 0, now(), now()),
+    (p_tenant_id, 'resource_type', 'PERMISSION_CHANGE_LOG', 31, '权限变更日志', true, 31, 0, now(), now());
+
+UPDATE type_definition
+SET extra = '{"managedMode":"SYNC","syncSourceService":"access-service"}'
+WHERE tenant_id = p_tenant_id AND type_key = 'resource_type'
+  AND type_code IN ('USER', 'ORG', 'MENU', 'ROLE', 'ADMIN_FILE', 'TYPE_DEFINITION', 'CONDITION', 'API');
+
+INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask, created_by, updated_by, delete_flag)
+SELECT p_tenant_id, td.type_value, ops.code, ops.name, ops.binary_bit, ops.inherit_mask, 0, 0, 0
+FROM type_definition td
+CROSS JOIN (VALUES
+    ('CREATE', '创建', 1, 0),
+    ('VIEW',   '查看', 2, 0),
+    ('UPDATE', '更新', 4, 2),
+    ('DELETE', '删除', 8, 2)
+) AS ops(code, name, binary_bit, inherit_mask)
+WHERE td.tenant_id = p_tenant_id AND td.type_key = 'resource_type' AND td.delete_flag = 0
+ON CONFLICT (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND delete_flag = 0 DO NOTHING;
+
+INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask, created_by, updated_by, delete_flag) VALUES
+    (p_tenant_id, 29, 'CREATE_POSITION',     '创建岗位',       16,  2, 0, 0, 0),
+    (p_tenant_id, 29, 'UPDATE_POSITION',     '编辑/移动/启停岗位', 32, 2, 0, 0, 0),
+    (p_tenant_id, 29, 'DELETE_POSITION',     '删除岗位',       64,  2, 0, 0, 0),
+    (p_tenant_id, 29, 'ASSIGN_POSITION_USER','岗位用户挂载/卸载/设主', 128, 2, 0, 0, 0),
+    (p_tenant_id, 29, 'MANAGE_MEMBER',       '管理组织成员',   256, 2, 0, 0, 0),
+    (p_tenant_id, 29, 'VIEW_POSITION',       '查看岗位',       512, 0, 0, 0, 0),
+    -- USER(6)：启停 + 重置密码（bit 重分配：ENABLE 取 32——16 曾被 MANAGE 占用，
+    -- T-ACCESS-034 退役后空闲不复用；用户列表查看由 CRUD 预置 VIEW 覆盖）
+    (p_tenant_id, 6,  'ENABLE',              '启用/禁用用户',  32,  2, 0, 0, 0),
+    (p_tenant_id, 6,  'RESET_PASSWORD',      '重置密码',       64,  2, 0, 0, 0),
+    -- ADMIN_NOTICE(24)：发布公告
+    (p_tenant_id, 24, 'PUBLISH',             '发布公告',       16,  2, 0, 0, 0),
+    -- ADMIN_JOB(26)：启停任务 + 触发执行
+    (p_tenant_id, 26, 'ENABLE',              '启用/禁用任务',  16,  2, 0, 0, 0),
+    (p_tenant_id, 26, 'TRIGGER',             '触发执行',       64,  2, 0, 0, 0),
+    -- ADMIN_ORG_TREE_CONFIG(27)：切换默认树/单关联
+    (p_tenant_id, 27, 'TOGGLE',              '切换默认树/单关联', 16, 2, 0, 0, 0),
+    -- ROLE(5)：双层门禁关键操作码（权限中心内部角色管理）
+    (p_tenant_id, 5,  'MANAGE',              '管理',           16,  2, 0, 0, 0)
+ON CONFLICT (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND delete_flag = 0 DO NOTHING;
+
+INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask, created_by, updated_by, delete_flag) VALUES
+    -- ROLE(5)：分组角色分配/撤销（MANAGE 已占 16）
+    (p_tenant_id, 5,  'ASSIGN',             '分配角色',         32, 2, 0, 0, 0),
+    (p_tenant_id, 5,  'REVOKE',             '撤销角色',         64, 2, 0, 0, 0),
+    -- RESOURCE(7)：更新/删除资源实体门禁
+    (p_tenant_id, 7,  'MANAGE',             '管理资源实体',     16, 2, 0, 0, 0),
+    -- SERVICE(8)：服务配置/API 映射/接口同步
+    (p_tenant_id, 8,  'MANAGE',             '管理服务配置',     16, 2, 0, 0, 0),
+    (p_tenant_id, 8,  'MANAGE_API_MAPPING', '管理API映射',      32, 2, 0, 0, 0),
+    (p_tenant_id, 8,  'SYNC_INTERFACE',     '同步服务接口',     64, 2, 0, 0, 0),
+    -- TYPE_DEFINITION(10)：更新/删除类型定义门禁
+    (p_tenant_id, 10, 'MANAGE',             '管理类型定义',     16, 2, 0, 0, 0),
+    -- SYSTEM_CONFIG(11)：系统配置/业务域/域配置管理门禁
+    (p_tenant_id, 11, 'MANAGE',             '管理系统配置',     16, 2, 0, 0, 0),
+    -- OPERATION(12)：更新/删除操作权限门禁
+    (p_tenant_id, 12, 'MANAGE',             '管理操作权限',     16, 2, 0, 0, 0),
+    -- API(3)：历史 API 操作编码——API 独立授权已随 T-ACCESS-062 退役，本行仅用于识别并拒绝
+    -- API:ACCESS 形态的准入要求（ApiMappingWriteDomainServiceImpl 守卫），不再参与任何授权判定
+    (p_tenant_id, 3,  'ACCESS',             '访问接口',         16, 0, 0, 0, 0)
+ON CONFLICT (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND delete_flag = 0 DO NOTHING;
+END;
+$tenant_baseline$;

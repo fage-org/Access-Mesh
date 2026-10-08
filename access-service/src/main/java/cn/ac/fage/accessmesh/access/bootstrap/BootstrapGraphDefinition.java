@@ -9,7 +9,7 @@ import java.util.List;
 /**
  * 空库 bootstrap 固定图定义（T-ACCESS-020，定稿见 access-service-architecture.md §14.2/§14.3/§14.4）。
  * <p>
- * 纯常量：固定租户 1、首管理员与管理用功能角色的稳定业务键、bootstrap 管理 API 清单
+ * 纯常量：各租户首管理员与管理用功能角色的稳定业务键、bootstrap 管理 API 清单
  * （含目标接口）、业务门禁最小集、菜单种子（T-FE-015）。幂等三状态检测与单事务创建均以本
  * 定义为唯一事实源，禁止在检测/创建两侧各自维护清单。
  * </p>
@@ -24,9 +24,6 @@ import java.util.List;
 public final class BootstrapGraphDefinition {
 
     private BootstrapGraphDefinition() {}
-
-    /** 首期固定租户（类型种子即租户 1，不做租户开通） */
-    public static final Long TENANT_ID = 1L;
 
     /** 首管理员稳定业务键 */
     public static final String ADMIN_USERNAME = "admin";

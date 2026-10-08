@@ -55,7 +55,7 @@ import static org.mockito.Mockito.reset;
  * API·SERVICE 资源停用 / 固定业务键被其他角色类型占用）→ 授权缺行墓碑三分（T-ACCESS-029，
  * 2026-09-05 定案：缺行 + 同身份键软删墓碑 → WARN 列明授权键放行不补回 / 缺行 + 无任何历史
  * （硬删/残缺）→ 仍拒启）→ 类型种子缺失显式报错。Runner 装配与密码 fail-fast 由
- * {@code AccessBootstrapRunnerTest} 单测覆盖；本 IT 以 enabled=false 上下文手动调
+ * {@code PlatformBootstrapTest} 单测覆盖；本 IT 以 enabled=false 上下文手动调
  * initializer（同一 Spring 代理，事务与 @PermissionChange 语义一致）。
  * </p>
  */
@@ -69,16 +69,21 @@ import static org.mockito.Mockito.reset;
     "spring.cloud.nacos.config.enabled=false",
     "spring.cloud.nacos.config.import-check.enabled=false",
     "spring.cloud.nacos.discovery.enabled=false",
-    "accessmesh.sync.scheduler.enabled=false",
-    "access.bootstrap.enabled=false",
+    "accessmesh.sync.scheduler.enabled=false", "access.tenant.gate-repair.enabled=false",
+    "access.platform.bootstrap.enabled=false",
     "mybatis-flex.configuration.map-underscore-to-camel-case=true",
     "logging.level.cn.ac.fage.accessmesh=WARN",
 })
 class AccessBootstrapPgIT {
+    @org.junit.jupiter.api.BeforeEach
+    void activeTenantFixture() {
+        cn.ac.fage.accessmesh.access.it.TenantTestSupport.enableFixture(jdbc,stringRedisTemplate,1L);
+    }
+
     @Autowired
     private cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper rolePermissionMapper;
 
-    private static final Long TENANT = BootstrapGraphDefinition.TENANT_ID;
+    private static final Long TENANT = 1L;
     private static final String BOOTSTRAP_PASSWORD = "Bootstrap-IT-2026!";
 
     @DynamicPropertySource
@@ -111,7 +116,7 @@ class AccessBootstrapPgIT {
         doThrow(new IllegalStateException("injected: insertGrants failure"))
             .when(seedWriter).insertGrants(anyLong(), anyLong(), any());
         try {
-            assertThatThrownBy(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
+            assertThatThrownBy(() -> initializer.initialize(1L, BOOTSTRAP_PASSWORD))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("injected: insertGrants failure");
 
@@ -131,7 +136,7 @@ class AccessBootstrapPgIT {
         doThrow(new IllegalStateException("injected: bindUserOrg failure"))
             .when(localProjectionDomainService).bindUserOrg(anyLong(), anyLong(), anyLong(), anyString(), any());
         try {
-            assertThatThrownBy(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
+            assertThatThrownBy(() -> initializer.initialize(1L, BOOTSTRAP_PASSWORD))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("injected: bindUserOrg failure");
 
@@ -146,7 +151,7 @@ class AccessBootstrapPgIT {
     @Order(1)
     @DisplayName("状态①：空库单事务创建完整固定图（主体链/角色/绑定/SERVICE+API 资源/映射/授权/菜单/默认组织树，总量以本测试计数断言为准）")
     void createsFullGraphOnEmptyDatabase() {
-        initializer.initialize(BOOTSTRAP_PASSWORD);
+        initializer.initialize(1L, BOOTSTRAP_PASSWORD);
 
         assertThat(jdbc.queryForObject("SELECT count(*) FROM role_resource_permission p JOIN type_definition t "
             + "ON t.tenant_id=p.tenant_id AND t.type_key='resource_type' AND t.type_code='API' "
@@ -172,12 +177,12 @@ class AccessBootstrapPgIT {
                 + "AND code = ? AND delete_flag = 0",
             Long.class, TENANT, String.valueOf(subjectId))).isEqualTo(1L);
 
-        // 密码 BCrypt 哈希可校验；不强制改密（管理员自设密码）
+        // 密码 BCrypt 哈希可校验；租户首管理员首次使用必须改密。
         String passwordHash = jdbc.queryForObject(
             "SELECT password FROM sys_user WHERE id = ?", String.class, subjectId);
         assertThat(BCrypt.checkpw(BOOTSTRAP_PASSWORD, passwordHash)).isTrue();
         assertThat(jdbc.queryForObject(
-            "SELECT force_reset_pwd FROM sys_user WHERE id = ?", Boolean.class, subjectId)).isFalse();
+            "SELECT force_reset_pwd FROM sys_user WHERE id = ?", Boolean.class, subjectId)).isTrue();
 
         // 管理角色（BASIC_ROLE、启用）+ 绑定
         Long roleId = jdbc.queryForObject(
@@ -409,17 +414,17 @@ class AccessBootstrapPgIT {
 
     @Test
     @Order(2)
-    @DisplayName("登录验证：bootstrap 首管理员经真实验证码 + clientId=admin-web 登录成功")
+    @DisplayName("登录验证：开通租户的首管理员经真实验证码登录成功（clientId 仅审计标签）")
     void bootstrapAdminCanLoginWithRealCaptcha() {
         var captcha = authService.generateCaptcha();
         String captchaCode = stringRedisTemplate.opsForValue().get("captcha:" + captcha.captchaId());
         assertThat(captchaCode).isNotBlank();
 
         LoginResp resp = authService.login(new LoginReq(
-            String.valueOf(TENANT), BootstrapGraphDefinition.ADMIN_USERNAME, BOOTSTRAP_PASSWORD,
+            cn.ac.fage.accessmesh.access.it.TenantTestSupport.CODE, BootstrapGraphDefinition.ADMIN_USERNAME, BOOTSTRAP_PASSWORD,
             captcha.captchaId(), captchaCode, "admin-web"));
         assertThat(resp.accessToken()).isNotBlank();
-        assertThat(resp.forceResetPwd()).isFalse();
+        assertThat(resp.forceResetPwd()).isTrue();
     }
 
     @Test
@@ -430,7 +435,7 @@ class AccessBootstrapPgIT {
         jdbc.update("UPDATE sys_user SET password = 'tampered-hash' WHERE username = 'admin'");
         Map<String, Long> before = snapshotRowCounts();
 
-        initializer.initialize(BOOTSTRAP_PASSWORD);
+        initializer.initialize(1L, BOOTSTRAP_PASSWORD);
 
         assertThat(jdbc.queryForObject(
             "SELECT password FROM sys_user WHERE username = 'admin'", String.class))
@@ -457,7 +462,7 @@ class AccessBootstrapPgIT {
                 + "AND type_key = 'resource_type' AND type_code = 'OPERATION_LOG')",
             TENANT, TENANT, BootstrapGraphDefinition.ADMIN_ROLE_EXTERNAL_ID, TENANT);
 
-        initializer.initialize(BOOTSTRAP_PASSWORD);
+        initializer.initialize(1L, BOOTSTRAP_PASSWORD);
 
         // 放行且不重种：该身份行唯一、保持运营修改值（未被固定图覆盖回 false，也未补种新行）
         Integer totalCount = jdbc.queryForObject(
@@ -488,7 +493,7 @@ class AccessBootstrapPgIT {
             + "WHERE r.tenant_id=? AND r.external_id=? AND r.delete_flag=0 RETURNING role_resource_permission.id",
             Long.class, TENANT, TENANT, BootstrapGraphDefinition.ADMIN_ROLE_EXTERNAL_ID);
         try {
-            assertThatThrownBy(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
+            assertThatThrownBy(() -> initializer.initialize(1L, BOOTSTRAP_PASSWORD))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("已退役的 API 授权");
         } finally {
             jdbc.update("DELETE FROM role_resource_permission WHERE id=?", id);
@@ -500,7 +505,7 @@ class AccessBootstrapPgIT {
     void shouldRejectUnmarkedLegacySeedsWithoutAutomaticallyChangingTheirSource() {
         jdbc.update("UPDATE role_resource_permission SET grant_source='MANUAL' WHERE tenant_id=? AND grant_source='BOOTSTRAP_SEED'", TENANT);
         try {
-            assertThatThrownBy(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
+            assertThatThrownBy(() -> initializer.initialize(1L, BOOTSTRAP_PASSWORD))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("未标记 BOOTSTRAP_SEED").hasMessageContaining("先备份");
             assertThat(jdbc.queryForObject("SELECT count(*) FROM role_resource_permission WHERE tenant_id=? AND grant_source='BOOTSTRAP_SEED'", Long.class, TENANT)).isZero();
         } finally {
@@ -529,7 +534,7 @@ class AccessBootstrapPgIT {
                 + "RETURNING role_resource_permission.id",
             Long.class, TENANT, TENANT, BootstrapGraphDefinition.ADMIN_ROLE_EXTERNAL_ID);
         try {
-            org.assertj.core.api.Assertions.assertThatCode(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
+            org.assertj.core.api.Assertions.assertThatCode(() -> initializer.initialize(1L, BOOTSTRAP_PASSWORD))
                 .as("并存态（墓碑+孪生）应 WARN 放行，不再拒启").doesNotThrowAnyException();
             // 放行不补回：该身份不得出现新的 BOOTSTRAP_SEED 行，孪生行保持 MANUAL
             assertThat(jdbc.queryForObject("SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? "
@@ -590,7 +595,7 @@ class AccessBootstrapPgIT {
         bootstrapLogger.addAppender(appender);
         try {
             // 旧实现（缺行一律 fail-fast）在 doesNotThrowAnyException 处失败——回归锁方向
-            assertThatCode(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
+            assertThatCode(() -> initializer.initialize(1L, BOOTSTRAP_PASSWORD))
                 .doesNotThrowAnyException();
 
             // WARN 内容列明具体授权键（scopeAll NULL 身份键）
@@ -629,7 +634,7 @@ class AccessBootstrapPgIT {
                 + "AND target_id = (SELECT id FROM abstract_role WHERE tenant_id = ? AND external_id = ?)",
             TENANT, TENANT, BootstrapGraphDefinition.ADMIN_ROLE_EXTERNAL_ID);
 
-        assertThatThrownBy(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
+        assertThatThrownBy(() -> initializer.initialize(1L, BOOTSTRAP_PASSWORD))
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("user_role 直绑缺失");
     }
@@ -644,7 +649,7 @@ class AccessBootstrapPgIT {
                 + "AND delete_flag = 0 AND scope_all = true",
             TENANT, TENANT, BootstrapGraphDefinition.ADMIN_ROLE_EXTERNAL_ID);
 
-        assertThatThrownBy(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
+        assertThatThrownBy(() -> initializer.initialize(1L, BOOTSTRAP_PASSWORD))
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("授权缺失");
     }
@@ -656,7 +661,7 @@ class AccessBootstrapPgIT {
         jdbc.update("UPDATE resource_api_mapping SET service_code = 'example-service' WHERE tenant_id = ? "
             + "AND service_code = 'access-service'", TENANT);
 
-        assertThatThrownBy(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
+        assertThatThrownBy(() -> initializer.initialize(1L, BOOTSTRAP_PASSWORD))
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("API 映射缺失或未启用");
     }
@@ -670,7 +675,7 @@ class AccessBootstrapPgIT {
                 + "AND code = (SELECT id::text FROM abstract_role WHERE tenant_id = ? AND external_id = ?)",
             TENANT, TENANT, BootstrapGraphDefinition.ADMIN_ROLE_EXTERNAL_ID);
 
-        assertThatThrownBy(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
+        assertThatThrownBy(() -> initializer.initialize(1L, BOOTSTRAP_PASSWORD))
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("resource_entity(ROLE) 投影缺失");
     }
@@ -683,7 +688,7 @@ class AccessBootstrapPgIT {
                 + "AND id = (SELECT id FROM sys_user WHERE tenant_id = ? AND username = ?)",
             TENANT, TENANT, BootstrapGraphDefinition.ADMIN_USERNAME);
 
-        assertThatThrownBy(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
+        assertThatThrownBy(() -> initializer.initialize(1L, BOOTSTRAP_PASSWORD))
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("已禁用");
     }
@@ -695,7 +700,7 @@ class AccessBootstrapPgIT {
         jdbc.update("UPDATE abstract_user SET user_type = user_type + 1 WHERE tenant_id = ? "
                 + "AND id = (SELECT id FROM sys_user WHERE tenant_id = ? AND username = ?)",
             TENANT, TENANT, BootstrapGraphDefinition.ADMIN_USERNAME);
-        assertThatThrownBy(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
+        assertThatThrownBy(() -> initializer.initialize(1L, BOOTSTRAP_PASSWORD))
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("abstract_user.user_type");
 
@@ -703,7 +708,7 @@ class AccessBootstrapPgIT {
         jdbc.update("UPDATE abstract_user SET user_type = user_type - 1, external_id = 'drifted' "
                 + "WHERE tenant_id = ? AND id = (SELECT id FROM sys_user WHERE tenant_id = ? AND username = ?)",
             TENANT, TENANT, BootstrapGraphDefinition.ADMIN_USERNAME);
-        assertThatThrownBy(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
+        assertThatThrownBy(() -> initializer.initialize(1L, BOOTSTRAP_PASSWORD))
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("abstract_user.external_id");
     }
@@ -716,7 +721,7 @@ class AccessBootstrapPgIT {
                 + "AND resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'API') "
                 + "AND code = 'POST:/api/access/user/create'",
             TENANT);
-        assertThatThrownBy(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
+        assertThatThrownBy(() -> initializer.initialize(1L, BOOTSTRAP_PASSWORD))
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("API 登记资源已停用");
 
@@ -724,7 +729,7 @@ class AccessBootstrapPgIT {
                 + "AND resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'SERVICE') "
                 + "AND code = 'access-service'",
             TENANT);
-        assertThatThrownBy(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
+        assertThatThrownBy(() -> initializer.initialize(1L, BOOTSTRAP_PASSWORD))
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("SERVICE 资源 'access-service' 已停用");
     }
@@ -736,7 +741,7 @@ class AccessBootstrapPgIT {
         jdbc.update("UPDATE abstract_role SET role_type = 1 WHERE tenant_id = ? AND external_id = ?",
             TENANT, BootstrapGraphDefinition.ADMIN_ROLE_EXTERNAL_ID);
 
-        assertThatThrownBy(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
+        assertThatThrownBy(() -> initializer.initialize(1L, BOOTSTRAP_PASSWORD))
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("被其他角色类型占用");
     }
@@ -768,7 +773,7 @@ class AccessBootstrapPgIT {
         jdbc.update("UPDATE sys_user SET delete_flag = id, deleted_at = now() WHERE tenant_id = ? AND username = ?",
             TENANT, BootstrapGraphDefinition.ADMIN_USERNAME);
 
-        assertThatThrownBy(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
+        assertThatThrownBy(() -> initializer.initialize(1L, BOOTSTRAP_PASSWORD))
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("固定图部分存在")
             .hasMessageContaining("SERVICE资源=true");
@@ -781,7 +786,7 @@ class AccessBootstrapPgIT {
         jdbc.update("DELETE FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' "
             + "AND type_code = 'API'");
 
-        assertThatThrownBy(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
+        assertThatThrownBy(() -> initializer.initialize(1L, BOOTSTRAP_PASSWORD))
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("type_definition 种子缺失")
             .hasMessageContaining("access-service.sql");

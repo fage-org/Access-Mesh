@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.ac.fage.accessmesh.access.tenant.mapper.TenantMapper">
+
+    <select id="findById" resultType="cn.ac.fage.accessmesh.access.tenant.entity.SysTenant">
+        SELECT * FROM sys_tenant WHERE id=#{id} AND delete_flag=0
+    </select>
+
+    <select id="findByCode" resultType="cn.ac.fage.accessmesh.access.tenant.entity.SysTenant">
+        SELECT * FROM sys_tenant WHERE code=#{code} AND delete_flag=0
+    </select>
+
+    <!-- 不带 delete_flag：编码不可复用，软删行同样占用 code -->
+    <select id="countCode" resultType="long">
+        SELECT count(*) FROM sys_tenant WHERE code=#{code}
+    </select>
+
+    <!-- 锁查询显式清会话缓存（flushCache）：锁前读到的启用状态不得当作锁后事实 -->
+    <select id="lock" resultType="java.lang.Long" useCache="false" flushCache="true">
+        SELECT id FROM sys_tenant WHERE id=#{id} AND delete_flag=0 FOR UPDATE
+    </select>
+
+    <select id="lockBatch" resultType="java.lang.Long" useCache="false" flushCache="true">
+        SELECT id FROM sys_tenant WHERE delete_flag=0 AND id IN
+        <foreach collection="ids" item="id" open="(" close=")" separator=",">#{id}</foreach>
+        ORDER BY id FOR UPDATE SKIP LOCKED
+    </select>
+
+    <select id="findBatch" resultType="cn.ac.fage.accessmesh.access.tenant.entity.SysTenant">
+        SELECT * FROM sys_tenant WHERE delete_flag=0 AND id IN
+        <foreach collection="ids" item="id" open="(" close=")" separator=",">#{id}</foreach>
+        ORDER BY id
+    </select>
+
+    <select id="scan" resultType="cn.ac.fage.accessmesh.access.tenant.entity.SysTenant">
+        SELECT * FROM sys_tenant WHERE delete_flag=0 AND id &gt; #{afterId} ORDER BY id LIMIT #{limit}
+    </select>
+
+    <!-- keyword 参数必须 CAST AS VARCHAR：JDBC URL 带 stringtype=unspecified，未定型参数无法可靠推断类型
+         （同族约定见 TypeDefinitionMapper listCondition，T-FE-022） -->
+    <sql id="pageCondition">
+        WHERE delete_flag=0
+        <if test="keyword != null and keyword != ''">
+            AND (code ILIKE CONCAT('%', CAST(#{keyword} AS VARCHAR), '%')
+                OR name ILIKE CONCAT('%', CAST(#{keyword} AS VARCHAR), '%'))
+        </if>
+    </sql>
+
+    <select id="page" resultType="cn.ac.fage.accessmesh.access.tenant.entity.SysTenant">
+        SELECT * FROM sys_tenant
+        <include refid="pageCondition"/>
+        ORDER BY id LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="count" resultType="long">
+        SELECT count(*) FROM sys_tenant
+        <include refid="pageCondition"/>
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO sys_tenant(code,name,created_by,updated_by) VALUES(#{code},#{name},#{createdBy},#{updatedBy})
+    </insert>
+
+    <update id="attachAdmin">
+        UPDATE sys_tenant SET admin_user_id=#{adminId} WHERE id=#{id} AND delete_flag=0
+    </update>
+
+    <update id="updateName">
+        UPDATE sys_tenant SET name=#{name},updated_by=#{actorId},updated_at=now()
+        WHERE id=#{id} AND delete_flag=0
+    </update>
+
+    <!-- 停用（1→0）时会话代次 +1；恢复不回退，旧用户/OAuth2 令牌按代次失配拒绝 -->
+    <update id="updateStatus">
+        UPDATE sys_tenant SET session_epoch=session_epoch + CASE WHEN status=1 AND #{status}=0 THEN 1 ELSE 0 END,
+          status=#{status},updated_by=#{actorId},updated_at=now()
+        WHERE id=#{id} AND delete_flag=0
+    </update>
+</mapper>
