@@ -86,10 +86,10 @@ class OAuth2ScopeValidationTest {
     }
 
     @Test
-    void shouldRejectAuthorize_whenClientBelongsToAnotherTenant() throws Exception {
-        var client = clientWithScopes("profile");
-        client.setTenantId(2L);
-        when(oauth2ClientDomainService.findActiveByClientId(CLIENT_ID)).thenReturn(client);
+    void shouldRejectAuthorize_whenClientNotFoundInSessionTenant() throws Exception {
+        // T-ACCESS-097：client_id 租户内唯一，解析由带租户查询限定（mock 模拟
+        // 会话租户 1 下无此客户端——含「他租户存在同名行」形态，跨租户行不可见）
+        when(oauth2ClientDomainService.findActiveByClientId(1L, CLIENT_ID)).thenReturn(null);
         assertThatThrownBy(() -> authorize("profile"))
             .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class);
         org.mockito.Mockito.verifyNoInteractions(valueOperations);
@@ -97,7 +97,7 @@ class OAuth2ScopeValidationTest {
 
     @Test
     void shouldRejectAuthorize_whenUserIsDisabled() throws Exception {
-        when(oauth2ClientDomainService.findActiveByClientId(CLIENT_ID)).thenReturn(clientWithScopes("profile"));
+        when(oauth2ClientDomainService.findActiveByClientId(1L, CLIENT_ID)).thenReturn(clientWithScopes("profile"));
         var user = new cn.ac.fage.accessmesh.access.user.entity.SysUser();
         user.setStatus(0);
         when(userDomainService.lockValidById(1L, 100L)).thenReturn(user);
@@ -124,7 +124,7 @@ class OAuth2ScopeValidationTest {
     @Test
     @DisplayName("评审 P1：客户端注册 scopes 为 null + 请求非空 scope → 拒绝（不再解释为无限制）")
     void nullRegisteredScopes_nonEmptyRequestScope_rejected() {
-        when(oauth2ClientDomainService.findActiveByClientId(CLIENT_ID)).thenReturn(clientWithScopes(null));
+        when(oauth2ClientDomainService.findActiveByClientId(1L, CLIENT_ID)).thenReturn(clientWithScopes(null));
 
         assertThatThrownBy(() -> authorize("example:admin"))
             .isInstanceOf(BizException.class)
@@ -135,7 +135,7 @@ class OAuth2ScopeValidationTest {
     @Test
     @DisplayName("评审 P1：客户端注册 scopes 为空白串 + 请求非空 scope → 拒绝")
     void blankRegisteredScopes_nonEmptyRequestScope_rejected() {
-        when(oauth2ClientDomainService.findActiveByClientId(CLIENT_ID)).thenReturn(clientWithScopes("  "));
+        when(oauth2ClientDomainService.findActiveByClientId(1L, CLIENT_ID)).thenReturn(clientWithScopes("  "));
 
         assertThatThrownBy(() -> authorize("profile"))
             .isInstanceOf(BizException.class)
@@ -146,7 +146,7 @@ class OAuth2ScopeValidationTest {
     @Test
     @DisplayName("客户端注册 scopes 为空 + 请求 scope 也为空 → 放行（无 scope 令牌仅可访问 userinfo 豁免端点）")
     void nullRegisteredScopes_emptyRequestScope_allowed() throws Exception {
-        when(oauth2ClientDomainService.findActiveByClientId(CLIENT_ID)).thenReturn(clientWithScopes(null));
+        when(oauth2ClientDomainService.findActiveByClientId(1L, CLIENT_ID)).thenReturn(clientWithScopes(null));
 
         AuthorizeResp resp = authorize(null);
 
@@ -157,7 +157,7 @@ class OAuth2ScopeValidationTest {
     @Test
     @DisplayName("已注册 scopes：请求 scope 为其子集 → 放行（既有行为回归）")
     void registeredScopes_subsetRequest_allowed() throws Exception {
-        when(oauth2ClientDomainService.findActiveByClientId(CLIENT_ID))
+        when(oauth2ClientDomainService.findActiveByClientId(1L, CLIENT_ID))
             .thenReturn(clientWithScopes("profile,email"));
 
         AuthorizeResp resp = authorize("profile email");

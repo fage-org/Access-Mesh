@@ -27,12 +27,15 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -112,10 +115,15 @@ class OAuth2AuthCodeClientBindingTest {
     /** 认证方 = {@code authenticatedClient}（凭据合法），兑换 Redis 中的 {@code codeData}。 */
     private void stubCode(SysOauth2Client authenticatedClient,
                           OAuth2AppServiceImpl.AuthCodeData codeData) throws Exception {
-        when(oauth2ClientDomainService.findActiveByClientId(authenticatedClient.getClientId()))
-            .thenReturn(authenticatedClient);
-        when(redisTemplate.execute(any(DefaultRedisScript.class), anyList()))
-            .thenReturn(objectMapper.writeValueAsString(codeData));
+        // T-ACCESS-097：token 链按 clientId 取跨租户候选列表（mock 单行=认证方注册行），
+        // 租户行由码记录选出；预读（GET）与消费（GET+DEL）两段返回同一码数据。
+        // 消费段 lenient：选行失败变体在消费前拒绝，不触发消费
+        when(oauth2ClientDomainService.findActiveListByClientId(authenticatedClient.getClientId()))
+            .thenReturn(java.util.List.of(authenticatedClient));
+        String codeJson = objectMapper.writeValueAsString(codeData);
+        when(valueOperations.get(anyString())).thenReturn(codeJson);
+        lenient().when(redisTemplate.execute(any(DefaultRedisScript.class), anyList()))
+            .thenReturn(codeJson);
     }
 
     private TokenResp exchange(String clientId, String secret, String redirectUri) {
@@ -159,7 +167,9 @@ class OAuth2AuthCodeClientBindingTest {
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
             .isEqualTo(AccessErrorCode.OAUTH2_CODE_INVALID.getCode());
-        org.mockito.Mockito.verifyNoInteractions(valueOperations);
+        // T-ACCESS-097：预读（get）必然发生；断言收窄为「不签发刷新令牌」
+        verify(valueOperations, never()).set(anyString(), anyString(), org.mockito.ArgumentMatchers.anyLong(),
+            any(TimeUnit.class));
         // 服务架构 §8.2：租户可解析的失败尝试写 status=0——旧实现此处零审计即红
         ArgumentCaptor<LoginLogDomainService.LoginLogEntry> audit =
             ArgumentCaptor.forClass(LoginLogDomainService.LoginLogEntry.class);
@@ -171,12 +181,15 @@ class OAuth2AuthCodeClientBindingTest {
 
     @Test
     void shouldRejectCode_whenClientAndCodeTenantsDiffer() throws Exception {
+        // T-ACCESS-097：客户端行租户（2）≠ 码记录租户（1）→ 选行失败拒绝
+        // （凭据未被消费，2026-10-08 拍板方案 A）
         stubCode(client(CLIENT_A, SECRET_A, 2L, "aud-a"), codeFor(CLIENT_A, 1L, REDIRECT_A));
         assertThatThrownBy(() -> exchange(CLIENT_A, SECRET_A, REDIRECT_A))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
             .isEqualTo(AccessErrorCode.OAUTH2_CODE_INVALID.getCode());
-        org.mockito.Mockito.verifyNoInteractions(valueOperations);
+        verify(valueOperations, never()).set(anyString(), anyString(), org.mockito.ArgumentMatchers.anyLong(),
+            any(TimeUnit.class));
     }
 
     @Test
@@ -185,27 +198,34 @@ class OAuth2AuthCodeClientBindingTest {
         var failure = new org.springframework.dao.DataAccessResourceFailureException("database unavailable");
         lenient().when(userDomainService.selectValidById(1L, 9L)).thenThrow(failure);
         assertThatThrownBy(() -> exchange(CLIENT_A, SECRET_A, REDIRECT_A)).isSameAs(failure);
-        org.mockito.Mockito.verifyNoInteractions(valueOperations);
+        verify(valueOperations, never()).set(anyString(), anyString(), org.mockito.ArgumentMatchers.anyLong(),
+            any(TimeUnit.class));
     }
 
-    @ParameterizedTest(name = "刷新记录租户={0}；拒绝记失败审计（刷新记录已消费路径）")
+    @ParameterizedTest(name = "刷新记录租户={0}；拒绝记失败审计")
     @ValueSource(longs = {1L, 2L})
     void shouldRejectRefresh_whenUserMissingOrTenantMismatched(long recordTenant) throws Exception {
-        when(oauth2ClientDomainService.findActiveByClientId(CLIENT_A))
-            .thenReturn(client(CLIENT_A, SECRET_A, 1L, "aud-a"));
+        when(oauth2ClientDomainService.findActiveListByClientId(CLIENT_A))
+            .thenReturn(java.util.List.of(client(CLIENT_A, SECRET_A, 1L, "aud-a")));
         var stored = OAuth2CredentialFixtures.refreshToken();
         stored.setClientId(CLIENT_A);
         stored.setTenantId(recordTenant);
         stored.setUserId(9L);
         lenient().when(userDomainService.selectValidById(recordTenant, 9L)).thenReturn(null);
-        when(redisTemplate.execute(any(DefaultRedisScript.class), anyList()))
-            .thenReturn(objectMapper.writeValueAsString(stored));
+        // T-ACCESS-097：预读（GET）与消费（GET+DEL）两段；recordTenant=2 变体在选行
+        // 即拒（不消费），消费 stub 用 lenient 防未走消费分支报 unnecessary
+        String refreshJson = objectMapper.writeValueAsString(stored);
+        when(valueOperations.get(anyString())).thenReturn(refreshJson);
+        lenient().when(redisTemplate.execute(any(DefaultRedisScript.class), anyList()))
+            .thenReturn(refreshJson);
         assertThatThrownBy(() -> service.refreshToken("refresh-test", CLIENT_A))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
             .isEqualTo(AccessErrorCode.OAUTH2_TOKEN_INVALID.getCode());
-        org.mockito.Mockito.verifyNoInteractions(valueOperations);
-        // 旧实现用户校验拒绝零审计即红；租户=刷新记录租户（refresh 绑定可信记录租户后落审计）
+        verify(valueOperations, never()).set(anyString(), anyString(), org.mockito.ArgumentMatchers.anyLong(),
+            any(TimeUnit.class));
+        // 旧实现用户校验拒绝零审计即红；租户=刷新记录租户（refresh 绑定可信记录租户后落审计；
+        // T-ACCESS-097：预读后 holder 即记录租户，选行失败与用户校验两形态同归记录租户）
         ArgumentCaptor<LoginLogDomainService.LoginLogEntry> audit =
             ArgumentCaptor.forClass(LoginLogDomainService.LoginLogEntry.class);
         verify(loginLogDomainService).recordLoginLog(audit.capture());
@@ -234,11 +254,12 @@ class OAuth2AuthCodeClientBindingTest {
     }
 
     @Test
-    @DisplayName("跨客户端拒绝：失败审计 status=0、租户=授权码租户（非兑换方注册租户兜底）、failReason 含 client mismatch")
+    @DisplayName("跨客户端拒绝：失败审计 status=0、租户=授权码租户、failReason 含 client mismatch")
     void crossClientRejection_recordsFailureAudit() throws Exception {
-        // B 注册租户与授权码租户相异：tenantId 断言才有判别力——
-        // 授权码租户（holder 路径）解析成功 vs recordOauth2Failure 按 clientId 兜底取 B 租户，两形态结果不同
-        stubCode(client(CLIENT_B, SECRET_B, 2L, null), codeFor(CLIENT_A, 1L, REDIRECT_A));
+        // T-ACCESS-097：同租户内跨客户端（B 与码同租户 1 注册）——选行成功、binding 校验
+        // 拒绝，锁「码签发方与兑换方不同名」的审计形态；holder 在预读后即为码租户（1），
+        // 兑换方 fallback 与 holder 同租户（同名跨租户多行时 fallback 本就跳过审计）
+        stubCode(client(CLIENT_B, SECRET_B, 1L, null), codeFor(CLIENT_A, 1L, REDIRECT_A));
 
         assertThatThrownBy(() -> exchange(CLIENT_B, SECRET_B, REDIRECT_A))
             .isInstanceOf(BizException.class);

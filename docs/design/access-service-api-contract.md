@@ -366,7 +366,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 
 所有端点 POST + JSON Body；统一响应壳 `R<T>`。
 
-**委托边界（T-ADMIN-034 定案；[T-ADMIN-035](../archive/2026-10-04/tasks/T-ADMIN-035.md) 实施）**：客户端只获取本租户用户的委托。authorize 比对租户原生会话与客户端租户；匿名 token/refresh 仍全局解析 clientId，再比对授权码/刷新记录与客户端租户。authorize、token、refresh 以及每次 JWT 资源请求都确认用户属于同一租户、未删除且 status=1；JWT 同时校验客户端与载荷租户一致，不采用正向用户状态缓存，禁用/删除后下一请求拒绝。既有客户端有效性、黑名单、scope/audience、码与刷新令牌一次性消费保持，不增加令牌扫描或撤销广播。
+**委托边界（T-ADMIN-034 定案；[T-ADMIN-035](../archive/2026-10-04/tasks/T-ADMIN-035.md) 实施；T-ACCESS-097 租户内唯一改造）**：客户端只获取本租户用户的委托。`client_id` **租户内唯一**（`(tenant_id, client_id)` 复合唯一索引，跨租户可同名）：authorize 按会话租户带租户解析；匿名 token/refresh 先按 clientId 取跨租户启用候选列表做存在性判定，**预读（只读不删）授权码/刷新令牌记录取租户**后从候选列表选行——选不出（码/令牌租户下无该 clientId 启用行）拒绝且凭据不消费；token 端点 secret 与 grant 校验在凭据消费之前（secret 错误不烧码），消费后仍执行 client binding/redirect/PKCE 等校验（失败同既有一次性口径消费凭据）。JWT 资源请求按验签载荷 `tenant_id` claim 带租户解析客户端行。authorize、token、refresh 以及每次 JWT 资源请求都确认用户属于同一租户、未删除且 status=1；JWT 校验客户端与载荷租户一致（选行保证），不采用正向用户状态缓存，禁用/删除后下一请求拒绝。既有客户端有效性、黑名单、scope/audience、码与刷新令牌一次性消费保持，不增加令牌扫描或撤销广播。
 
 当前差异：无——上述检查已由 T-ADMIN-035 全量实施（authorize/token/refresh 及每次 JWT 资源请求）。开放路径扩展前须确认新路径同样纳入上述检查，不能沿用「仅 userinfo」推断新路径的安全边界。
 
@@ -455,7 +455,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 | 端点 | 请求 | 响应 | 备注 |
 |------|------|------|------|
-| `POST /api/access/oauth2/client/create` | `Oauth2ClientCreateReq` | `R<Long>`（新客户端 id） | clientId 唯一（重复 `CLIENT_ID_EXISTS`）；secret BCrypt 存储 |
+| `POST /api/access/oauth2/client/create` | `Oauth2ClientCreateReq` | `R<Long>`（新客户端 id） | clientId 租户内唯一（T-ACCESS-097：同租户重复 `CLIENT_ID_EXISTS`，跨租户可同名互不冲突、不泄露占用）；secret BCrypt 存储 |
 | `POST /api/access/oauth2/client/update` | `Oauth2ClientUpdateReq` | `R<Void>` | null 不更新；可空三字段沿 §2.7 Clear；secret 更新重新 BCrypt |
 | `POST /api/access/oauth2/client/delete` | `IdsReq` | `R<Void>` | 批量软删除 |
 | `POST /api/access/oauth2/client/detail` | `IdReq` | `R<Oauth2ClientResp>` | 不返回 clientSecret |

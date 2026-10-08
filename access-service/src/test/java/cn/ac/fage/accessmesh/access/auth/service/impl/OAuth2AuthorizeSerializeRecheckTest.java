@@ -101,7 +101,7 @@ class OAuth2AuthorizeSerializeRecheckTest {
     @Test
     @DisplayName("锁读后复核会话：主体已变（重置吊销后重建）→ authorize 拒绝且不签发码（旧实现无复核必红）")
     void authorizeRejectedWhenSessionSubjectChangedAfterLockRead() {
-        when(oauth2ClientDomainService.findActiveByClientId(CLIENT_ID)).thenReturn(confidentialClient());
+        when(oauth2ClientDomainService.findActiveByClientId(1L, CLIENT_ID)).thenReturn(confidentialClient());
         when(userDomainService.lockValidById(1L, 100L)).thenReturn(activeUser());
 
         try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
@@ -122,7 +122,7 @@ class OAuth2AuthorizeSerializeRecheckTest {
     @Test
     @DisplayName("会话稳定路径不受影响：复核通过 → 正常签发授权码")
     void authorizeSucceedsWhenSessionStable() {
-        when(oauth2ClientDomainService.findActiveByClientId(CLIENT_ID)).thenReturn(confidentialClient());
+        when(oauth2ClientDomainService.findActiveByClientId(1L, CLIENT_ID)).thenReturn(confidentialClient());
         when(userDomainService.lockValidById(1L, 100L)).thenReturn(activeUser());
 
         AuthorizeResp resp;

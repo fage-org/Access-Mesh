@@ -28,7 +28,6 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -68,7 +67,7 @@ class OAuth2LoginLogTest {
     @Test
     @DisplayName("评审 P2#6：授权码换取令牌成功后写 OAUTH2 登录日志")
     void shouldRecordOauth2LoginLog_whenTokenIssued() throws Exception {
-        // 1. mock 客户端（findActiveByClientId 生效，BCrypt.checkpw 校验通过）
+        // 1. mock 客户端（T-ACCESS-097：token 链按跨租户列表定位，选行按码记录租户）
         String clientSecret = "plain-client-secret";
         SysOauth2Client client = new SysOauth2Client();
         client.setTenantId(10L);
@@ -77,17 +76,21 @@ class OAuth2LoginLogTest {
         client.setAccessTokenTtl(3600);
         client.setRefreshTokenTtl(604800);
         client.setRedirectUris("http://app/cb");
-        when(oauth2ClientDomainService.findActiveByClientId("client-1")).thenReturn(client);
+        when(oauth2ClientDomainService.findActiveListByClientId("client-1")).thenReturn(List.of(client));
 
-        // 2. 授权码已存 Redis（execute LUA 脚本一次性 GET+DEL；指定 RedisScript 类型定位脚本重载，
-        //    避免 varargs 双 any() 触发返回泛型 V 的 Boolean 解引用 NPE）
+        // 2. 授权码已存 Redis（预读 GET + execute LUA 脚本一次性 GET+DEL 两段；指定
+        //    RedisScript 类型定位脚本重载，避免 varargs 双 any() 触发返回泛型 V 的
+        //    Boolean 解引用 NPE）
         var codeData = OAuth2CredentialFixtures.authCode();
         codeData.setClientId("client-1");
         codeData.setUserId(100L);
         codeData.setTenantId(10L);
         codeData.setRedirectUri("http://app/cb");
         codeData.setScope("read");
-        org.mockito.BDDMockito.doReturn(new ObjectMapper().writeValueAsString(codeData))
+        String codeJson = new ObjectMapper().writeValueAsString(codeData);
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get(org.mockito.ArgumentMatchers.anyString())).thenReturn(codeJson);
+        org.mockito.BDDMockito.doReturn(codeJson)
             .when(redisTemplate).execute(
                 org.mockito.ArgumentMatchers.<RedisScript<String>>any(), anyList());
 
@@ -124,12 +127,11 @@ class OAuth2LoginLogTest {
         SysOauth2Client client = new SysOauth2Client();
         client.setTenantId(10L);
         client.setGrantTypes("authorization_code");
-        when(oauth2ClientDomainService.findActiveByClientId("client-1")).thenReturn(client);
+        when(oauth2ClientDomainService.findActiveListByClientId("client-1")).thenReturn(List.of(client));
 
-        // 刷新令牌存在但 Redis 中无对应数据（LUA 一次性 GET+DEL 返回 null）
-        org.mockito.BDDMockito.doReturn(null)
-            .when(redisTemplate).execute(
-                org.mockito.ArgumentMatchers.<RedisScript<String>>any(), anyList());
+        // 刷新令牌在 Redis 中无对应数据（T-ACCESS-097：预读 GET 即 null，先于消费）
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        // valueOperations.get 未 stub 默认 null（预读失败路径）
 
         assertThrows(BizException.class, () -> service.refreshToken("refresh-token-x", "client-1"));
 
@@ -148,21 +150,24 @@ class OAuth2LoginLogTest {
         String correctSecret = "right-secret";
         SysOauth2Client client = new SysOauth2Client();
         client.setTenantId(10L);
-        client.setTenantId(10L);
         client.setClientSecret(BCrypt.hashpw(correctSecret, BCrypt.gensalt()));
         client.setGrantTypes("authorization_code");
-        when(oauth2ClientDomainService.findActiveByClientId("client-1")).thenReturn(client);
+        when(oauth2ClientDomainService.findActiveListByClientId("client-1")).thenReturn(List.of(client));
 
-        // 授权码已存（密钥校验在授权码读取之前被拒绝，无需走到 Redis）
-        TokenResp resp = null;
+        // 授权码已存（T-ACCESS-097：租户定位经预读授权码，选行后才做密钥校验——
+        // 密钥校验失败仍不消费授权码，无需 stub 消费脚本）
+        var codeData = OAuth2CredentialFixtures.authCode();
+        codeData.setClientId("client-1");
+        codeData.setTenantId(10L);
+        codeData.setRedirectUri("http://app/cb");
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         try {
-            resp = service.token(new TokenReq(
+            service.token(new TokenReq(
                 "authorization_code", "client-1", "wrong-secret", "code-abc",
                 "http://app/cb", null, null));
         } catch (BizException ignored) {
             // 预期抛出
         }
-        assertNull(resp);
 
         ArgumentCaptor<LoginLogEntry> captor = ArgumentCaptor.forClass(LoginLogEntry.class);
         verify(loginLogDomainService).recordLoginLog(captor.capture());

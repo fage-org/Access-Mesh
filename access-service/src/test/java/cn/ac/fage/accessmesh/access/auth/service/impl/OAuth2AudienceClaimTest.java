@@ -86,7 +86,7 @@ class OAuth2AudienceClaimTest {
     }
 
     private String issueTokenByCodeExchange(SysOauth2Client client) throws Exception {
-        when(oauth2ClientDomainService.findActiveByClientId(CLIENT_ID)).thenReturn(client);
+        when(oauth2ClientDomainService.findActiveListByClientId(CLIENT_ID)).thenReturn(List.of(client));
         OAuth2AppServiceImpl.AuthCodeData codeData = OAuth2CredentialFixtures.authCode();
         codeData.setUserId(9L);
         codeData.setTenantId(1L);
@@ -94,6 +94,9 @@ class OAuth2AudienceClaimTest {
         codeData.setRedirectUri("https://web.example.com/cb");
         codeData.setScope("profile");
         codeData.setCodeChallenge(null);
+        // T-ACCESS-097：预读（GET）与消费（GET+DEL）两段返回同一码数据
+        when(valueOperations.get(org.mockito.ArgumentMatchers.anyString()))
+            .thenReturn(objectMapper.writeValueAsString(codeData));
         when(redisTemplate.execute(any(DefaultRedisScript.class), anyList()))
             .thenReturn(objectMapper.writeValueAsString(codeData));
 
@@ -135,12 +138,15 @@ class OAuth2AudienceClaimTest {
     @DisplayName("刷新链路同样写入 aud claim（客户端 audiences 非空）")
     void refreshTokenPath_alsoWritesAudClaim() throws Exception {
         SysOauth2Client client = clientWithAudiences("example-service");
-        when(oauth2ClientDomainService.findActiveByClientId(CLIENT_ID)).thenReturn(client);
+        when(oauth2ClientDomainService.findActiveListByClientId(CLIENT_ID)).thenReturn(List.of(client));
         OAuth2AppServiceImpl.RefreshTokenData stored = OAuth2CredentialFixtures.refreshToken();
         stored.setUserId(9L);
         stored.setTenantId(1L);
         stored.setClientId(CLIENT_ID);
         stored.setScope("profile");
+        // T-ACCESS-097：预读（GET）与消费（GET+DEL）两段返回同一刷新令牌数据
+        when(valueOperations.get(org.mockito.ArgumentMatchers.anyString()))
+            .thenReturn(objectMapper.writeValueAsString(stored));
         when(redisTemplate.execute(any(DefaultRedisScript.class), anyList()))
             .thenReturn(objectMapper.writeValueAsString(stored));
 

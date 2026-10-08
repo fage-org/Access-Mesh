@@ -190,8 +190,16 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
     }
 
     private PreparedAuthorization prepareAuthorization(AuthorizeReq req, boolean lockForIssuance) {
-        // 1. Validate client
-        SysOauth2Client client = getValidClient(req.clientId());
+        // 0. 会话租户先取（T-ACCESS-097：client_id 租户内唯一，解析必须带租户；
+        // 查询已限定 tenant_id，客户端行租户与会话一致由查询保证）
+        Long tenantId = TenantContextHolder.getTenantId();
+        if (tenantId == null) {
+            throw new BizException(AccessErrorCode.OAUTH2_CLIENT_INVALID.getCode(),
+                AccessErrorCode.OAUTH2_CLIENT_INVALID.getMessage());
+        }
+
+        // 1. Validate client（租户内唯一键定位）
+        SysOauth2Client client = getValidClient(tenantId, req.clientId());
 
         // 2. Validate grant type
         if (!containsGrantType(client.getGrantTypes(), "authorization_code")) {
@@ -231,11 +239,6 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
         // 7. Get current user
         long userId = StpUtil.getLoginIdAsLong();
 
-        Long tenantId = TenantContextHolder.getTenantId();
-        if (tenantId == null || !tenantId.equals(client.getTenantId())) {
-            throw new BizException(AccessErrorCode.OAUTH2_CLIENT_INVALID.getCode(),
-                AccessErrorCode.OAUTH2_CLIENT_INVALID.getMessage());
-        }
         SysUser user;
         if (lockForIssuance) {
             // 行锁串行化签发关键段（2026-10-06 逐任务评审 P2，拍板延伸同 login）：锁读与
@@ -297,6 +300,9 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
      * 使用刷新令牌获取新的访问令牌。
      * 刷新令牌使用后立即删除（一次性），生成新的刷新令牌。
      * PKCE公开客户端只需客户端ID和刷新令牌，无需客户端密钥。
+     * client_id 租户内唯一（T-ACCESS-097）：先按 clientId 取跨租户启用候选列表，
+     * 预读（只读不删）刷新令牌记录取租户后选行，选行失败拒绝且令牌不消费，
+     * 消费后执行 clientId binding 与既有链校验（方案 A，2026-10-08 拍板）。
      * </p>
      *
      * @param refreshToken 刷新令牌
@@ -315,13 +321,52 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
                     AccessErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
             }
 
-            // 验证客户端存在且有效
-            SysOauth2Client client = getValidClient(clientId);
+            // 验证客户端存在（T-ACCESS-097：client_id 租户内唯一，先按 clientId 取
+            // 跨租户启用列表做存在性判定，租户行由刷新令牌记录选出）
+            List<SysOauth2Client> candidates = oauth2ClientDomainService.findActiveListByClientId(clientId);
+            if (candidates.isEmpty()) {
+                throw new BizException(AccessErrorCode.OAUTH2_CLIENT_INVALID.getCode(),
+                    AccessErrorCode.OAUTH2_CLIENT_INVALID.getMessage());
+            }
+
+            // 预读刷新令牌（只读不删）：租户归属在令牌记录内，租户定位前不消费
+            // （2026-10-08 用户拍板方案 A，同 token 端点口径）
+            String refreshTokenKey = REFRESH_TOKEN_PREFIX + refreshToken;
+            String previewJson = redisTemplate.opsForValue().get(refreshTokenKey);
+            if (previewJson == null) {
+                recordOauth2Failure(clientId, "refresh token invalid or expired");
+                throw new BizException(AccessErrorCode.OAUTH2_TOKEN_INVALID.getCode(),
+                    AccessErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
+            }
+            RefreshTokenData preview;
+            try {
+                preview = objectMapper.readValue(previewJson, RefreshTokenData.class);
+            } catch (JsonProcessingException e) {
+                recordOauth2Failure(clientId, "refresh token malformed");
+                throw new BizException(AccessErrorCode.OAUTH2_TOKEN_INVALID.getCode(),
+                    AccessErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
+            }
+
+            // 从 refresh token 设置租户上下文（预读成功即已知租户，提前至消费前：
+            // 后续失败审计与操作日志切面按令牌租户归属）
+            TenantContextHolder.setTenantId(preview.getTenantId());
+            // 审计租户登记：匿名端点 finally 会 clear holder，运行时 override 供 @OperationLog 切面解析
+            OperationLogRuntimeContext.setTenantId(preview.getTenantId());
+
+            // 按令牌记录租户从候选列表选行（选不出=该租户下无此 clientId 启用客户端；
+            // 令牌未被消费）
+            SysOauth2Client client = findCandidateByTenant(candidates, preview.getTenantId());
+            if (client == null) {
+                recordOauth2Failure(clientId, "refresh token tenant mismatch");
+                throw new BizException(AccessErrorCode.OAUTH2_TOKEN_INVALID.getCode(),
+                    AccessErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
+            }
 
             // 使用 Lua 脚本原子性地获取并删除 refresh token，防止重复使用
+            // （预读与消费之间令牌被并发轮换 → 此处 null，一次性语义）
             String refreshTokenDataJson = redisTemplate.execute(
                 new DefaultRedisScript<>(LUA_GET_AND_DELETE, String.class),
-                Collections.singletonList(REFRESH_TOKEN_PREFIX + refreshToken)
+                Collections.singletonList(refreshTokenKey)
             );
 
             if (refreshTokenDataJson == null) {
@@ -339,23 +384,16 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
                     AccessErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
             }
 
-            // 从 refresh token 设置租户上下文
-            TenantContextHolder.setTenantId(refreshTokenData.getTenantId());
-            // 审计租户登记：匿名端点 finally 会 clear holder，运行时 override 供 @OperationLog 切面解析
-            OperationLogRuntimeContext.setTenantId(refreshTokenData.getTenantId());
-
-            // 验证 client_id 匹配（refreshToken 绑定特定客户端）
+            // 验证 client_id 匹配（refreshToken 绑定特定客户端；消费后校验，
+            // 与既有一次性口径一致）
             if (!refreshTokenData.getClientId().equals(clientId)) {
                 recordOauth2Failure(clientId, "refresh token client mismatch");
                 throw new BizException(AccessErrorCode.OAUTH2_TOKEN_INVALID.getCode(),
                     AccessErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
             }
 
-            if (!Objects.equals(client.getTenantId(), refreshTokenData.getTenantId())) {
-                recordOauth2Failure(clientId, "refresh token tenant mismatch");
-                throw new BizException(AccessErrorCode.OAUTH2_TOKEN_INVALID.getCode(),
-                    AccessErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
-            }
+            // 令牌租户与客户端行租户的一致性由上方选行保证（T-ACCESS-097），
+            // 消费后不再重复比对；epoch/用户/凭据代际校验保持
             tenantAccess.requireEpoch(refreshTokenData.getTenantId(), refreshTokenData.getTenantEpoch());
             SysUser user = requireActiveUser(refreshTokenData.getTenantId(), refreshTokenData.getUserId(),
                 AccessErrorCode.OAUTH2_TOKEN_INVALID, clientId);
@@ -482,9 +520,11 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
     /**
      * 通过授权码换取令牌
      * <p>
-     * 校验客户端密钥，使用Lua脚本原子性地获取并删除授权码。
-     * 校验回调地址和PKCE验证器。
-     * 生成JWT访问令牌和刷新令牌。
+     * client_id 租户内唯一（T-ACCESS-097，方案 A 2026-10-08 拍板）：先按 clientId 取
+     * 跨租户启用候选列表，预读（只读不删）授权码取租户后从候选列表选行；选行失败
+     * 拒绝且码不消费，客户端密钥与授权类型校验在码消费之前（密钥错误不烧码，
+     * 诚实客户端可原码重试），原子消费后执行 client binding/回调地址/PKCE 与链校验。
+     * 消费读重新解析为权威数据（码数据不可变，预读仅用于定租户）。
      * </p>
      *
      * @param req 令牌请求
@@ -492,32 +532,71 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
      * @throws BizException 授权码无效、授权码客户端不匹配、客户端密钥错误、回调地址不匹配、PKCE验证失败等
      */
     private TokenResp tokenByAuthorizationCode(TokenReq req) {
-        // 1. Validate client
+        // 1. Validate client（T-ACCESS-097：client_id 租户内唯一，匿名端点先按 clientId
+        // 取跨租户启用列表做存在性判定，租户行由授权码记录选出）
         if (req.clientId() == null || req.clientId().isBlank()) {
             recordOauth2Failure(req.clientId(), "missing client id");
             throw new BizException(AccessErrorCode.OAUTH2_MISSING_CLIENT.getCode(),
                 AccessErrorCode.OAUTH2_MISSING_CLIENT.getMessage());
         }
-        SysOauth2Client client = getValidClient(req.clientId());
+        List<SysOauth2Client> candidates = oauth2ClientDomainService.findActiveListByClientId(req.clientId());
+        if (candidates.isEmpty()) {
+            throw new BizException(AccessErrorCode.OAUTH2_CLIENT_INVALID.getCode(),
+                AccessErrorCode.OAUTH2_CLIENT_INVALID.getMessage());
+        }
 
-        // 2. Validate client secret
+        // 2. 预读授权码（只读不删）：租户归属在码记录内，租户定位前不消费——
+        // secret/grant 校验失败时授权码保持存活（2026-10-08 用户拍板方案 A：外部
+        // 行为与全局唯一期零漂移，诚实客户端密钥配错可原码重试）
+        String codeKey = AUTH_CODE_PREFIX + req.code();
+        String previewJson = redisTemplate.opsForValue().get(codeKey);
+        if (previewJson == null) {
+            recordOauth2Failure(req.clientId(), "authorization code invalid or expired");
+            throw new BizException(AccessErrorCode.OAUTH2_CODE_INVALID.getCode(),
+                AccessErrorCode.OAUTH2_CODE_INVALID.getMessage());
+        }
+        AuthCodeData preview;
+        try {
+            preview = objectMapper.readValue(previewJson, AuthCodeData.class);
+        } catch (JsonProcessingException e) {
+            recordOauth2Failure(req.clientId(), "authorization code malformed");
+            throw new BizException(AccessErrorCode.OAUTH2_CODE_INVALID.getCode(),
+                AccessErrorCode.OAUTH2_CODE_INVALID.getMessage());
+        }
+
+        // 从授权码设置租户上下文（预读成功即已知租户，提前至消费前：后续失败
+        // 审计与操作日志切面按码租户归属）
+        TenantContextHolder.setTenantId(preview.getTenantId());
+        // 审计租户登记：token 匿名端点 finally 会 clear holder，运行时 override 供 @OperationLog 切面解析
+        OperationLogRuntimeContext.setTenantId(preview.getTenantId());
+
+        // 3. 按码记录租户从候选列表选行（选不出=码租户下无该 clientId 启用客户端，
+        // 含跨租户同名客户端误兑；凭据未被消费）
+        SysOauth2Client client = findCandidateByTenant(candidates, preview.getTenantId());
+        if (client == null) {
+            recordOauth2Failure(req.clientId(), "authorization code tenant mismatch");
+            throw new BizException(AccessErrorCode.OAUTH2_CODE_INVALID.getCode(),
+                AccessErrorCode.OAUTH2_CODE_INVALID.getMessage());
+        }
+
+        // 4. Validate client secret（消费前：secret 错误不烧码）
         if (!"PUBLIC".equals(client.getClientType())
                 && (req.clientSecret() == null || client.getClientSecret() == null
-                    || !BCrypt.checkpw(req.clientSecret(), client.getClientSecret()))) {
+                || !BCrypt.checkpw(req.clientSecret(), client.getClientSecret()))) {
             recordOauth2Failure(req.clientId(), "client secret mismatch");
             throw new BizException(AccessErrorCode.OAUTH2_CLIENT_INVALID.getCode(),
                 AccessErrorCode.OAUTH2_CLIENT_INVALID.getMessage());
         }
 
-        // 3. Validate grant type
+        // 5. Validate grant type（消费前）
         if (!containsGrantType(client.getGrantTypes(), "authorization_code")) {
             recordOauth2Failure(req.clientId(), "grant type not supported");
             throw new BizException(AccessErrorCode.OAUTH2_GRANT_TYPE_NOT_SUPPORTED.getCode(),
                 AccessErrorCode.OAUTH2_GRANT_TYPE_NOT_SUPPORTED.getMessage());
         }
 
-        // 4. 使用 Lua 脚本原子性地获取并删除 authorization code，确保一次性使用
-        String codeKey = AUTH_CODE_PREFIX + req.code();
+        // 6. 使用 Lua 脚本原子性地获取并删除 authorization code，确保一次性使用
+        // （预读与消费之间码被并发兑换 → 此处 null，一次性语义与预读前失败不同：消费后失败）
         String codeDataJson = redisTemplate.execute(
             new DefaultRedisScript<>(LUA_GET_AND_DELETE, String.class),
             Collections.singletonList(codeKey)
@@ -538,13 +617,8 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
                 AccessErrorCode.OAUTH2_CODE_INVALID.getMessage());
         }
 
-        // 从授权码设置租户上下文
-        TenantContextHolder.setTenantId(codeData.getTenantId());
-        // 审计租户登记：token 匿名端点 finally 会 clear holder，运行时 override 供 @OperationLog 切面解析
-        OperationLogRuntimeContext.setTenantId(codeData.getTenantId());
-
-        // 5. Validate client binding（F002/T-ADMIN-028）：授权码只能由签发时的客户端兑换。
-        // 已认证客户端 = req.clientId() + secret（步骤 1/2）；redirect/PKCE/scope/audience 校验
+        // 7. Validate client binding（F002/T-ADMIN-028）：授权码只能由签发时的客户端兑换。
+        // 已认证客户端 = req.clientId() + secret（步骤 4）；redirect/PKCE/scope/audience 校验
         // 不能替代该关联——他客户端凭自身合法凭据可原样回传原 redirectUri，无 PKCE 授权码无需 verifier。
         // 失败时授权码已被 Lua GET+DEL 消费，与 redirect/PKCE 校验失败的既有一次性口径一致。
         if (!req.clientId().equals(codeData.getClientId())) {
@@ -585,11 +659,8 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
             }
         }
 
-        if (!Objects.equals(client.getTenantId(), codeData.getTenantId())) {
-            recordOauth2Failure(req.clientId(), "authorization code tenant mismatch");
-            throw new BizException(AccessErrorCode.OAUTH2_CODE_INVALID.getCode(),
-                AccessErrorCode.OAUTH2_CODE_INVALID.getMessage());
-        }
+        // 码租户与客户端行租户的一致性由步骤 3 选行保证（T-ACCESS-097），
+        // 消费后不再重复比对；epoch/用户/凭据代际校验保持
         tenantAccess.requireEpoch(codeData.getTenantId(), codeData.getTenantEpoch());
         SysUser user = requireActiveUser(codeData.getTenantId(), codeData.getUserId(), AccessErrorCode.OAUTH2_CODE_INVALID,
             req.clientId());
@@ -748,8 +819,9 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
      * 失败原因（非法客户端/凭据错误/授权码无效/回调或 PKCE 不匹配/刷新令牌无效等）均为
      * 可被对端操控的尝试，需持久化以支撑安全审计；与成功路径统一落 sys_login_log。
      * 租户解析优先已登记的运行时 override / 可信上下文（授权码或刷新令牌加载后即已知），
-     * 否则回退按 clientId 查启用客户端取其租户；解析不出租户（如完全未知的 clientId、
-     * 或早期缺参）时跳过并告警——不写 tenant_id=null（NOT NULL）。
+     * 否则回退按 clientId 查启用客户端：T-ACCESS-097 租户内唯一后同名跨租户多行时
+     * 归属不唯一，恰一行取该行租户、多行跳过并告警；解析不出租户（如完全未知的
+     * clientId、或早期缺参）时跳过并告警——不写 tenant_id=null（NOT NULL）。
      * </p>
      *
      * @param clientId   OAuth2客户端ID（可 null）
@@ -759,9 +831,9 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
         Long resolvedTenant = TenantContextHolder.getTenantId();
         if (resolvedTenant == null && clientId != null && !clientId.isBlank()) {
             try {
-                SysOauth2Client client = oauth2ClientDomainService.findActiveByClientId(clientId);
-                if (client != null) {
-                    resolvedTenant = client.getTenantId();
+                List<SysOauth2Client> clients = oauth2ClientDomainService.findActiveListByClientId(clientId);
+                if (clients.size() == 1) {
+                    resolvedTenant = clients.get(0).getTenantId();
                 }
             } catch (Exception e) {
                 log.debug("OAuth2 失败租户解析异常（按未知客户端跳过审计）: clientId={}", clientId);
@@ -847,14 +919,32 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
         return (int) Math.min(remaining, Integer.MAX_VALUE);
     }
 
-    /** 匿名兑换/刷新也能全局定位客户端，租户绑定由可信记录另行核对。 */
-    private SysOauth2Client getValidClient(String clientId) {
-        SysOauth2Client client = oauth2ClientDomainService.findActiveByClientId(clientId);
+    /**
+     * 按租户内唯一键定位启用客户端（T-ACCESS-097：client_id 租户内唯一）。
+     * authorize（会话租户）调用方在解析前已知租户；匿名端点的跨租户定位见
+     * {@link #findCandidateByTenant}。
+     */
+    private SysOauth2Client getValidClient(Long tenantId, String clientId) {
+        SysOauth2Client client = oauth2ClientDomainService.findActiveByClientId(tenantId, clientId);
         if (client == null) {
             throw new BizException(AccessErrorCode.OAUTH2_CLIENT_INVALID.getCode(),
                 AccessErrorCode.OAUTH2_CLIENT_INVALID.getMessage());
         }
         return client;
+    }
+
+    /**
+     * 从跨租户启用候选列表中按租户选出客户端行（匿名 token/refresh 定位形态）。
+     *
+     * @return 匹配行；候选列表无该租户行返回 null
+     */
+    private static SysOauth2Client findCandidateByTenant(List<SysOauth2Client> candidates, long tenantId) {
+        for (SysOauth2Client candidate : candidates) {
+            if (candidate.getTenantId() != null && candidate.getTenantId() == tenantId) {
+                return candidate;
+            }
+        }
+        return null;
     }
 
     /**

@@ -92,7 +92,7 @@ class OAuth2ClientTtlTest {
     @DisplayName("授权码兑换：expiresIn 与 JWT eff 均为客户端自定义 TTL（3600），非默认 86400/平台 7200")
     void authorizationCodeGrant_usesClientCustomTtl() throws Exception {
         SysOauth2Client client = clientWithCustomTtl();
-        when(oauth2ClientDomainService.findActiveByClientId(CLIENT_ID)).thenReturn(client);
+        when(oauth2ClientDomainService.findActiveListByClientId(CLIENT_ID)).thenReturn(List.of(client));
 
         OAuth2AppServiceImpl.AuthCodeData codeData = OAuth2CredentialFixtures.authCode();
         codeData.setUserId(9L);
@@ -102,6 +102,8 @@ class OAuth2ClientTtlTest {
         codeData.setScope("profile");
         codeData.setCodeChallenge(null);
         String code = "code-123";
+        // T-ACCESS-097：预读（GET）与消费（GET+DEL）两段返回同一授权码数据
+        when(valueOperations.get(anyString())).thenReturn(objectMapper.writeValueAsString(codeData));
         when(redisTemplate.execute(any(DefaultRedisScript.class), anyList()))
             .thenReturn(objectMapper.writeValueAsString(codeData));
 
@@ -119,13 +121,15 @@ class OAuth2ClientTtlTest {
     void refreshTokenGrant_usesConfiguredOrDefaultClientTtl(Integer configuredTtl, long expectedTtl) throws Exception {
         SysOauth2Client client = clientWithCustomTtl();
         client.setAccessTokenTtl(configuredTtl);
-        when(oauth2ClientDomainService.findActiveByClientId(CLIENT_ID)).thenReturn(client);
+        when(oauth2ClientDomainService.findActiveListByClientId(CLIENT_ID)).thenReturn(List.of(client));
 
         OAuth2AppServiceImpl.RefreshTokenData stored = OAuth2CredentialFixtures.refreshToken();
         stored.setUserId(9L);
         stored.setTenantId(1L);
         stored.setClientId(CLIENT_ID);
         stored.setScope("profile");
+        // T-ACCESS-097：预读（GET）与消费（GET+DEL）两段返回同一刷新令牌数据
+        when(valueOperations.get(anyString())).thenReturn(objectMapper.writeValueAsString(stored));
         when(redisTemplate.execute(any(DefaultRedisScript.class), anyList()))
             .thenReturn(objectMapper.writeValueAsString(stored));
 

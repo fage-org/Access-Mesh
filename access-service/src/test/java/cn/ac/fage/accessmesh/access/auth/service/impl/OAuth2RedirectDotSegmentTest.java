@@ -72,7 +72,7 @@ class OAuth2RedirectDotSegmentTest {
         client.setRedirectUris(REGISTERED);
         client.setStatus(1);
         client.setClientSecret(cn.dev33.satoken.secure.BCrypt.hashpw("secret"));
-        when(oauth2ClientDomainService.findActiveByClientId(CLIENT_ID)).thenReturn(client);
+        when(oauth2ClientDomainService.findActiveByClientId(1L, CLIENT_ID)).thenReturn(client);
 
         var user = new cn.ac.fage.accessmesh.access.user.entity.SysUser();
         user.setId(100L);

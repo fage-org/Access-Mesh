@@ -50,7 +50,14 @@
 
     <select id="selectActiveByClientId" resultType="cn.ac.fage.accessmesh.access.auth.entity.SysOauth2Client">
         SELECT * FROM sys_oauth2_client
+        WHERE tenant_id = #{tenantId} AND client_id = #{clientId} AND status = 1 AND delete_flag = 0
+    </select>
+
+    <!-- T-ACCESS-097：跨租户同名定位列表，供匿名端点存在性判定；租户行由凭据记录选出 -->
+    <select id="selectActiveListByClientId" resultType="cn.ac.fage.accessmesh.access.auth.entity.SysOauth2Client">
+        SELECT * FROM sys_oauth2_client
         WHERE client_id = #{clientId} AND status = 1 AND delete_flag = 0
+        ORDER BY tenant_id
     </select>
 
 </mapper>

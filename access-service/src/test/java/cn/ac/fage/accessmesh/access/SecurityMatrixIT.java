@@ -222,7 +222,7 @@ class SecurityMatrixIT {
         client.setClientId("admin-web");
         client.setStatus(1);
         client.setTenantId(1L);
-        when(oauth2ClientDomainService.findActiveByClientId("admin-web")).thenReturn(client);
+        when(oauth2ClientDomainService.findActiveByClientId(1L, "admin-web")).thenReturn(client);
 
         // 模拟 OAuth2 签发链路（SaJwtUtil.createToken，loginType=oauth2、jwt-secret-key）
         long ts = System.currentTimeMillis() / 1000;
@@ -248,7 +248,7 @@ class SecurityMatrixIT {
     @Test
     @DisplayName("T-ACCESS-013：客户端禁用 → userinfo 401（动态启用校验，禁用立即失效）")
     void oauth2Userinfo_withDisabledClient_rejected401() throws Exception {
-        when(oauth2ClientDomainService.findActiveByClientId("admin-web")).thenReturn(null);
+        when(oauth2ClientDomainService.findActiveByClientId(1L, "admin-web")).thenReturn(null);
         when(stringRedisTemplate.hasKey(org.mockito.ArgumentMatchers.anyString())).thenReturn(false);
         long ts = System.currentTimeMillis() / 1000;
         String jwt = cn.dev33.satoken.jwt.SaJwtUtil.createToken("oauth2", 100L, "oauth2", 3600,

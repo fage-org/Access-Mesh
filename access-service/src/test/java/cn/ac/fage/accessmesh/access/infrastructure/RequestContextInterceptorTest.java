@@ -79,7 +79,7 @@ class RequestContextInterceptorTest {
         activeUser.setStatus(1);
         activeUser.setPassword(OAuth2CredentialFixtures.PASSWORD_HASH);
         when(userDomainService.selectValidById(1L, 100L)).thenReturn(activeUser);
-        when(oauth2ClientDomainService.findActiveByClientId(CLIENT_ID)).thenReturn(activeClient);
+        when(oauth2ClientDomainService.findActiveByClientId(1L, CLIENT_ID)).thenReturn(activeClient);
         when(stringRedisTemplate.hasKey(anyString())).thenReturn(false);
     }
 
@@ -322,7 +322,7 @@ class RequestContextInterceptorTest {
     @Test
     @DisplayName("T-ACCESS-013：客户端被禁用 → 401（动态启用校验，禁用立即失效）")
     void shouldReject_whenClientDisabled() throws Exception {
-        when(oauth2ClientDomainService.findActiveByClientId(CLIENT_ID)).thenReturn(null);
+        when(oauth2ClientDomainService.findActiveByClientId(1L, CLIENT_ID)).thenReturn(null);
         String jwt = jwt(oauth2Claims(null, null));
 
         MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/auth/oauth2/userinfo");

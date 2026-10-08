@@ -113,10 +113,10 @@ CREATE TABLE sys_oauth2_client (
     )
 );
 
-CREATE UNIQUE INDEX uk_oauth2_client_id ON sys_oauth2_client (client_id) WHERE delete_flag = 0;
+CREATE UNIQUE INDEX uk_oauth2_client_id ON sys_oauth2_client (tenant_id, client_id) WHERE delete_flag = 0;
 
 COMMENT ON TABLE sys_oauth2_client IS 'OAuth2 客户端配置';
-COMMENT ON COLUMN sys_oauth2_client.client_id IS '客户端标识，全局唯一';
+COMMENT ON COLUMN sys_oauth2_client.client_id IS '客户端标识，租户内唯一（T-ACCESS-097：跨租户可同名，认证链按凭据记录租户解析）';
 COMMENT ON COLUMN sys_oauth2_client.client_secret IS '机密客户端 BCrypt 密钥；公开客户端为 NULL';
 COMMENT ON COLUMN sys_oauth2_client.client_type IS 'CONFIDENTIAL（缺省）/PUBLIC；类型创建后不可切换，PUBLIC 必须使用 S256 PKCE';
 COMMENT ON COLUMN sys_oauth2_client.grant_types IS '允许的授权模式（逗号分隔）：authorization_code,password,client_credentials,refresh_token';

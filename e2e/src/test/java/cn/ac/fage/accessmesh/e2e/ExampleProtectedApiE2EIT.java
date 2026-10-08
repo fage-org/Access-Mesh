@@ -612,6 +612,56 @@ class ExampleProtectedApiE2EIT {
         assertThat(postEnvelope(gateway()+TARGET_API_PATH,targetToken,"{\"name\":\"old-again\"}").status()).isEqualTo(401);
     }
 
+    @Test
+    @Order(10)
+    @DisplayName("T-ACCESS-097：两租户同名 OAuth2 客户端并存，兑换链按凭据租户隔离不误绑")
+    void sameClientIdAcrossTenants_isolatedAndExchangeBindsByTenant() throws IOException {
+        // Order(9) 停用又恢复租户 1：停用前签发的 adminToken 已被即时门禁吊销，重新登录
+        adminToken = realLogin("admin", BOOTSTRAP_ADMIN_PASSWORD);
+        // 平台运营开第二租户（产品链路：tenant/create → 首登改密 → 重登），与租户 1 共用同名客户端标识
+        String operator=E2eTenantSupport.platformLogin(gateway(),BOOTSTRAP_ADMIN_PASSWORD,ExampleProtectedApiE2EIT::readCaptchaFromRedis);
+        String secondCode="e2e-oauth2-dup";
+        JsonNode opened=postForData(gateway()+"/api/access/tenant/create",operator,JSON.createObjectNode()
+            .put("code",secondCode).put("name","OAuth2 同名隔离"));
+        JsonNode first=E2eTenantSupport.login(gateway(),secondCode,"admin",
+            opened.path("initialPassword").asText(),ExampleProtectedApiE2EIT::readCaptchaFromRedis);
+        postForData(gateway()+"/api/access/user/reset-password",first.path("accessToken").asText(),
+            JSON.createObjectNode().put("userId",first.path("userId").asLong()).put("newPassword","E2e-Dup-Admin-2026!"));
+        String secondAdmin=E2eTenantSupport.login(gateway(),secondCode,"admin","E2e-Dup-Admin-2026!",
+            ExampleProtectedApiE2EIT::readCaptchaFromRedis).path("accessToken").asText();
+
+        String shared="e2e-shared-client";
+        // 租户 2 先占用同名标识（统一模板 admin 持 ADMIN_OAUTH2_CLIENT:CREATE）
+        postForData(gateway()+"/api/access/oauth2/client/create",secondAdmin,JSON.createObjectNode()
+            .put("clientId",shared).put("clientName","租户二同名客户端").put("clientSecret","E2e-Dup-Secret-2026!")
+            .put("grantTypes","authorization_code,refresh_token").put("redirectUris","http://localhost/callback"));
+        // 租户 1 注册同名 → 必须成功（旧全局唯一 DDL 下 insert 冲突 500，本步即红）
+        postForData(gateway()+"/api/access/oauth2/client/create",adminToken,JSON.createObjectNode()
+            .put("clientId",shared).put("clientName","租户一同名客户端").put("clientSecret","E2e-Own-Secret-2026!")
+            .put("grantTypes","authorization_code,refresh_token").put("redirectUris","http://localhost/callback"));
+
+        // 租户 1 用户签发授权码（Order(9) 后旧会话已失效，重新登录）
+        String target=realLogin(TARGET_USERNAME,"E2e-Customer-Changed123!");
+        JsonNode code=postForData(gateway()+"/api/access/auth/oauth2/authorize",target,JSON.createObjectNode()
+            .put("clientId",shared).put("responseType","code").put("redirectUri","http://localhost/callback"));
+
+        // 租户 2 的 secret 兑租户 1 的码 → 拒绝：按授权码租户选中租户 1 行，secret 不匹配
+        // （信封非 200；跨租户同名互不可见、不误绑）
+        EnvelopeResult cross=postEnvelope(gateway()+"/api/access/auth/oauth2/token",null,JSON.createObjectNode()
+            .put("grantType","authorization_code").put("clientId",shared).put("clientSecret","E2e-Dup-Secret-2026!")
+            .put("code",code.path("code").asText()).put("redirectUri","http://localhost/callback").toString());
+        assertThat(parseEnvelope(cross).path("code").asInt())
+            .as("他租户同名 secret 兑换必须拒绝，响应：%s",cross.rawBody()).isNotEqualTo(200);
+
+        // 租户 1 自身 secret 兑同一码 → 成功（预读定位租户后再校验 secret，
+        // secret 错误不消费授权码——原码可继续兑换）
+        JsonNode tokens=postForData(gateway()+"/api/access/auth/oauth2/token",null,JSON.createObjectNode()
+            .put("grantType","authorization_code").put("clientId",shared).put("clientSecret","E2e-Own-Secret-2026!")
+            .put("code",code.path("code").asText()).put("redirectUri","http://localhost/callback"));
+        assertThat(postEnvelope(gateway()+"/api/access/auth/oauth2/userinfo",
+            tokens.path("accessToken").asText(),"{}").status()).isEqualTo(200);
+    }
+
     /**
      * 30 秒陈旧窗口内轮询目标接口直至出现期望状态并返回该次响应信封；窗口内的其余状态
      * 须落在容忍集（撤销向容忍 200=陈旧放行/503=回源瞬时失败，恢复向容忍 403/503），

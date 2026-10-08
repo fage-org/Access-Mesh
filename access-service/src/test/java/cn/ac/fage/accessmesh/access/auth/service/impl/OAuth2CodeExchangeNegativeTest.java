@@ -24,6 +24,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Base64;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -100,9 +101,13 @@ class OAuth2CodeExchangeNegativeTest {
     }
 
     private void stubClientAndCode(OAuth2AppServiceImpl.AuthCodeData codeData) throws Exception {
-        when(oauth2ClientDomainService.findActiveByClientId(CLIENT_ID)).thenReturn(client());
+        // T-ACCESS-097：token 链改为跨租户列表定位（选行按码记录租户）+ 预读（GET）+
+        // 消费（GET+DEL）两段——预读经 valueOperations.get，消费仍经 execute 脚本
+        when(oauth2ClientDomainService.findActiveListByClientId(CLIENT_ID)).thenReturn(List.of(client()));
+        String codeJson = objectMapper.writeValueAsString(codeData);
+        when(valueOperations.get(org.mockito.ArgumentMatchers.anyString())).thenReturn(codeJson);
         when(redisTemplate.execute(any(DefaultRedisScript.class), anyList()))
-            .thenReturn(objectMapper.writeValueAsString(codeData));
+            .thenReturn(codeJson);
     }
 
     private TokenResp exchange(String verifier, String redirectUri) {
@@ -140,11 +145,15 @@ class OAuth2CodeExchangeNegativeTest {
     @Test
     @DisplayName("PKCE 错误 verifier 被拒后，同码换正确 verifier 重试 → 授权码已消费拒绝（失败校验烧码语义）")
     void pkceFailedAttempt_burnsCode() throws Exception {
-        when(oauth2ClientDomainService.findActiveByClientId(CLIENT_ID)).thenReturn(client());
-        // 第一次 GET+DEL 返回授权码（PKCE 失败消费），第二次 GET 已无值
-        when(redisTemplate.execute(any(DefaultRedisScript.class), anyList()))
-            .thenReturn(objectMapper.writeValueAsString(codeData(s256("correct-verifier"), "S256")))
+        when(oauth2ClientDomainService.findActiveListByClientId(CLIENT_ID)).thenReturn(List.of(client()));
+        String codeJson = objectMapper.writeValueAsString(codeData(s256("correct-verifier"), "S256"));
+        // 预读序列：第一次有码（进入消费与 PKCE 校验），第二次重试时已消费（烧码后重放）
+        when(valueOperations.get(org.mockito.ArgumentMatchers.anyString()))
+            .thenReturn(codeJson)
             .thenReturn(null);
+        // 第一次 GET+DEL 返回授权码（PKCE 失败消费）
+        when(redisTemplate.execute(any(DefaultRedisScript.class), anyList()))
+            .thenReturn(codeJson);
 
         assertThatThrownBy(() -> exchange("wrong-verifier", REDIRECT_URI))
             .isInstanceOf(BizException.class)
@@ -171,8 +180,8 @@ class OAuth2CodeExchangeNegativeTest {
     @Test
     @DisplayName("Redis 无授权码（未知/过期/已消费）→ 拒绝 OAUTH2_CODE_INVALID")
     void unknownOrExpiredCode_rejected() {
-        when(oauth2ClientDomainService.findActiveByClientId(CLIENT_ID)).thenReturn(client());
-        when(redisTemplate.execute(any(DefaultRedisScript.class), anyList())).thenReturn(null);
+        when(oauth2ClientDomainService.findActiveListByClientId(CLIENT_ID)).thenReturn(List.of(client()));
+        when(valueOperations.get(org.mockito.ArgumentMatchers.anyString())).thenReturn(null);
 
         assertThatThrownBy(() -> exchange(null, REDIRECT_URI))
             .isInstanceOf(BizException.class)
@@ -183,10 +192,14 @@ class OAuth2CodeExchangeNegativeTest {
     @Test
     @DisplayName("成功兑换后同码重放 → 拒绝 OAUTH2_CODE_INVALID（一次性语义）")
     void replayAfterSuccess_rejected() throws Exception {
-        when(oauth2ClientDomainService.findActiveByClientId(CLIENT_ID)).thenReturn(client());
-        when(redisTemplate.execute(any(DefaultRedisScript.class), anyList()))
-            .thenReturn(objectMapper.writeValueAsString(codeData(null, null)))
+        when(oauth2ClientDomainService.findActiveListByClientId(CLIENT_ID)).thenReturn(List.of(client()));
+        String codeJson = objectMapper.writeValueAsString(codeData(null, null));
+        // 预读序列：首次有码，重放时已消费
+        when(valueOperations.get(org.mockito.ArgumentMatchers.anyString()))
+            .thenReturn(codeJson)
             .thenReturn(null);
+        when(redisTemplate.execute(any(DefaultRedisScript.class), anyList()))
+            .thenReturn(codeJson);
 
         assertThat(exchange(null, REDIRECT_URI).tokenType()).isEqualTo("Bearer");
 

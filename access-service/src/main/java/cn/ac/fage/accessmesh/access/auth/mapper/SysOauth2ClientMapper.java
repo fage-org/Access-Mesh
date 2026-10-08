@@ -85,10 +85,26 @@ public interface SysOauth2ClientMapper extends BaseMapper<SysOauth2Client> {
                                  @Param("status") Integer status);
 
     /**
-     * 根据客户端ID查询启用状态的客户端（未删除 + 已启用）
+     * 根据客户端ID查询启用状态的客户端（未删除 + 已启用，租户内唯一键定位单行）
+     * <p>
+     * T-ACCESS-097：client_id 租户内唯一，认证链解析必须带租户——authorize（会话租户）
+     * 与 OAuth2 JWT 校验（载荷 tenant_id claim）租户在解析前已知。
      *
+     * @param tenantId 租户ID
      * @param clientId OAuth2客户端ID（非主键）
      * @return 客户端实体，不存在则返回null
      */
-    SysOauth2Client selectActiveByClientId(@Param("clientId") String clientId);
+    SysOauth2Client selectActiveByClientId(@Param("tenantId") Long tenantId,
+                                           @Param("clientId") String clientId);
+
+    /**
+     * 按客户端ID查询全部租户的启用客户端（未删除 + 已启用，跨租户同名定位列表）
+     * <p>
+     * T-ACCESS-097：匿名 token/refresh 端点在读取授权码/刷新令牌记录前无法确定租户，
+     * 先按 clientId 取跨租户启用列表做存在性判定，租户归属由凭据记录选出。
+     *
+     * @param clientId OAuth2客户端ID（非主键）
+     * @return 启用客户端列表（跨租户同名行），可为空列表
+     */
+    List<SysOauth2Client> selectActiveListByClientId(@Param("clientId") String clientId);
 }

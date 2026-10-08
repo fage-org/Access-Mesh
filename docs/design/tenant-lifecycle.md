@@ -144,12 +144,12 @@ last_reviewed: 2026-10-08
 | 主题 | 当前事实 | 代码或规范入口 |
 |---|---|---|
 | 租户登记 | 业务表带 tenant_id，没有租户注册表 | [权威 schema](schema/access-service.sql)、[双租户隔离验证](../../access-service/src/test/java/cn/ac/fage/accessmesh/access/characterization/DualTenantSameCodeIsolationPgIT.java) |
-| 初始化 | Java bootstrap 固定租户 1；类型、操作、配置与 OAuth2 客户端另有 SQL 种子 | [初始化设计](access-service-architecture.md#142-载体终态)、[固定图定义](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/bootstrap/BootstrapGraphDefinition.java) |
+| 初始化 | Java bootstrap 固定租户 1；类型、操作与配置有种子，OAuth2 客户端不预置（各租户经管理入口自行注册） | [初始化设计](access-service-architecture.md#142-载体终态)、[固定图定义](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/bootstrap/BootstrapGraphDefinition.java) |
 | 登录 | tenantId 字符串解析为数字；租户内用户创建 Sa-Token 会话 | [登录实现](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/auth/service/impl/AuthAppServiceImpl.java) |
 | 首管理员密码 | bootstrap 从环境变量接收密码，BCrypt 落库，当前固定图设置 forceResetPwd=false | [初始化实现](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/bootstrap/AccessBootstrapInitializer.java) |
 | 会话身份 | 请求租户来自会话、签名或服务凭证；不得通过自报请求头跨租户 | [请求上下文](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/RequestContextInterceptor.java)、[服务认证](service-authentication.md) |
 | 前端草稿 | 按租户与用户分区，缺 tenantId 时仍回落固定租户 1 | [草稿存储](../../frontend/src/views/perm/grant/utils/draft-storage.ts) |
-| OAuth2 客户端 | client_id 全局唯一，当前 SQL 将 admin-web 等客户端种入租户 1；不能逐租户原样复制 | [权威 schema](schema/access-service.sql) |
+| OAuth2 客户端 | client_id 租户内唯一（`(tenant_id, client_id)` 复合唯一，T-ACCESS-097）：跨租户可同名，认证链按凭据记录租户（授权码/刷新记录、JWT 载荷 claim）解析，互不可见、不误绑；同租户重复注册提示已存在，不泄露他租户占用 | [权威 schema](schema/access-service.sql) |
 
 ## 实施与验收
 

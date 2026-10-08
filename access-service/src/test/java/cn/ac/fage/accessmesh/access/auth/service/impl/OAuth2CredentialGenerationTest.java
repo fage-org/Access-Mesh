@@ -49,6 +49,8 @@ class OAuth2CredentialGenerationTest {
         var redis = mock(StringRedisTemplate.class);
         ValueOperations<String, String> values = mock(ValueOperations.class);
         when(redis.opsForValue()).thenReturn(values);
+        // T-ACCESS-097 预读段（只读不删）：与 GET+DEL 消费段共享同一 in-memory 记录
+        when(values.get(anyString())).thenAnswer(call -> records.get(call.getArgument(0)));
         doAnswer(call -> {
             records.put(call.getArgument(0), call.getArgument(1));
             ttls.put(call.getArgument(0), call.getArgument(2));
@@ -64,7 +66,9 @@ class OAuth2CredentialGenerationTest {
         client.setClientSecret(BCrypt.hashpw("secret"));
         client.setAccessTokenTtl(3600);
         client.setRefreshTokenTtl(604800);
-        when(clients.findActiveByClientId(CLIENT)).thenReturn(client);
+        // T-ACCESS-097：authorize 会话链带租户单查；匿名 token/refresh 链跨租户列表定位
+        when(clients.findActiveByClientId(1L, CLIENT)).thenReturn(client);
+        when(clients.findActiveListByClientId(CLIENT)).thenReturn(List.of(client));
         user.setStatus(1);
         user.setPassword(BCrypt.hashpw("initial-password"));
         when(users.selectValidById(1L, 9L)).thenReturn(user);

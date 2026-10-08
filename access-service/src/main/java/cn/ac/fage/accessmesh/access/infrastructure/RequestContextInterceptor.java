@@ -414,7 +414,8 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
  * T-ACCESS-042 退役，见 OAuth2ResourcePathProperties）。
      * 委托令牌在其他路径默认拒绝；授权链（2026-08-22 用户决策，T-ACCESS-013）：
      * 验签 → 必填 claim（loginId/jti/client_id）→ 撤销黑名单 → 客户端启用动态校验
-     * （sys_oauth2_client 唯一索引点查，不经缓存，禁用立即失效）→ 路径门禁
+     * （sys_oauth2_client 租户内唯一键点查，按载荷 tenant_id claim 定位，不经缓存，
+     * 禁用立即失效；T-ACCESS-097）→ 路径门禁
      * （clientIds 限定 / requiredScopes 子集校验 / audience 匹配，独立映射模型，
      * 不接入权限判定面）→ 绑定委托用户上下文（USER + delegatedClientId）。
      * 认证失败（验签/黑名单/客户端禁用）→ 401；授权不足（scope/audience/clientIds）→ 403。
@@ -462,10 +463,18 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
             return false;
         }
 
-        // 客户端启用动态校验（唯一索引点查，不经缓存保证禁用立即生效）：
+        // 客户端启用动态校验（租户内唯一键点查，不经缓存保证禁用立即生效）：
         // 客户端被禁用/删除后已签发令牌立即失效（2026-08-22 用户决策）。
+        // T-ACCESS-097：client_id 租户内唯一（跨租户可同名），按验签载荷 tenant_id
+        // claim 定位租户行；claim 缺失/无效（含 "0"）无租户可解析 → 401。
         String clientId = clientIdObj.toString();
-        SysOauth2Client client = oauth2ClientDomainService.findActiveByClientId(clientId);
+        Long tenantId = OAuth2JwtSupport.tenantIdOf(payloads);
+        if (tenantId == null) {
+            logSecurity(request, "oauth2 jwt tenant claim missing or invalid");
+            writeJson(response, HttpServletResponse.SC_UNAUTHORIZED, "认证失败");
+            return false;
+        }
+        SysOauth2Client client = oauth2ClientDomainService.findActiveByClientId(tenantId, clientId);
         if (client == null) {
             logSecurity(request, "oauth2 jwt client disabled or not found: " + clientId);
             writeJson(response, HttpServletResponse.SC_UNAUTHORIZED, "认证失败");
@@ -506,12 +515,8 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
             writeJson(response, HttpServletResponse.SC_UNAUTHORIZED, "认证失败");
             return false;
         }
-        Long tenantId = OAuth2JwtSupport.tenantIdOf(payloads);
-        if (tenantId == null || !tenantId.equals(client.getTenantId())) {
-            logSecurity(request, "oauth2 jwt tenant mismatch");
-            writeJson(response, HttpServletResponse.SC_UNAUTHORIZED, "认证失败");
-            return false;
-        }
+        // 令牌租户与客户端行租户的一致性由上方带租户点查保证（T-ACCESS-097），
+        // 不再重复比对
         SysUser user = userDomainService.selectValidById(tenantId, operatorId);
         if (user == null || !Integer.valueOf(1).equals(user.getStatus()) || Boolean.TRUE.equals(user.getForceResetPwd())) {
             logSecurity(request, "oauth2 jwt user inactive");

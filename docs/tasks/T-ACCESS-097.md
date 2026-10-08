@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-097
 title: OAuth2 客户端租户内唯一改造
-status: proposed
+status: done
 plan: —
 domain: access-service
 design_refs:
@@ -17,7 +17,7 @@ acceptance:
   - 契约总册 OAuth2 章、e2e 与相关 PgIT 适配，全量回归通过
 design_writeback:
   required: true
-  status: pending
+  status: done
 last_updated: 2026-10-08
 ---
 
@@ -33,11 +33,31 @@ last_updated: 2026-10-08
 
 2026-10-08 用户拍板：client_id 改**租户内唯一**（两租户可同名），不采用"全局唯一"口径。沿用空库重建政策，不提供存量库在线迁移工具。
 
+同日用户拍板（方案分叉）：匿名 token/refresh 端点解析顺序取**方案 A 预读两段式**——先按 clientId 取跨租户启用候选列表做存在性判定，预读（只读不删）授权码/刷新令牌记录取租户后选行，secret/grant 校验在凭据消费之前（secret 错误不烧码，外部行为与全局唯一期零漂移），消费后执行 binding/redirect/PKCE 等既有校验；选不出行（码/令牌租户下无该 clientId 启用行）拒绝且凭据不消费。
+
+## 实施记录
+
+- DDL：`uk_oauth2_client_id` 改 `(tenant_id, client_id)`（WHERE delete_flag=0 部分索引形态不变）；列注释改「租户内唯一」。
+- 解析链：
+  - `OAuth2ClientDomainService.findActiveByClientId(Long tenantId, String clientId)`（authorize 会话租户 / JWT 载荷 claim 租户）+ 新增 `findActiveListByClientId(String clientId)`（匿名端点候选列表）；Mapper `selectActiveByClientId` 加租户条件、新增 `selectActiveListByClientId`（ORDER BY tenant_id 定序）。
+  - `OAuth2AppServiceImpl.prepareAuthorization`：会话租户先取（null 拒绝），带租户单查；原「行租户与会话比对」由查询限定取代。
+  - `tokenByAuthorizationCode` / `refreshToken`：方案 A 顺序重构（候选列表 → 预读凭据定租户并提前 set TenantContextHolder/OperationLogRuntimeContext → 选行 → secret/grant → GET+DEL 消费 → binding/redirect/PKCE/epoch/user/代际）。消费读重新解析为权威数据（码/令牌数据不可变，预读仅定租户）。
+  - `RequestContextInterceptor.authenticateOAuth2Jwt`：tenant_id claim 解析提前至客户端查询前（缺失/无效含 "0" → 401），带租户点查；原「claim 与行租户比对」由查询限定取代。
+- 错误语义：注册查重 `selectByClientId(tenantId, clientId)` 既有代码已带租户，复合索引后「他租户占用」不再触发 DB 冲突（注册成功即无泄露面）；10801「客户端标识已存在」仅租户内重复出现，措辞无需变。
+- 审计兜底：`recordOauth2Failure` 的 clientId 反查租户改列表语义——恰 1 行取其租户、跨租户同名多行归属不唯一跳过并 warn（tenant_id NOT NULL 不写虚构归属；预读成功后失败审计已按码/令牌租户归属，fallback 仅覆盖预读前失败）。
+- 顺带订正：`tenant-lifecycle.md` 初始化表「当前 SQL 将 admin-web 等客户端种入租户 1」过时表述（schema/代码均零种子）；`access-service-architecture.md` §6 授权链「唯一索引点查」表述与「种子客户端 audiences=access-service」残留。
+
+## 测试
+
+- 既有单测适配 14 类（authorize 链单查带租户、token/refresh 链列表+预读双段、审计断言面收窄 never().set）；`shouldRejectAuthorize_whenClientBelongsToAnotherTenant` 改锁「会话租户下查无此客户端」（mock 模拟带租户查询过滤语义）。
+- 新增 `Oauth2ClientTenantUniquenessPgIT`（3 用例：两租户同名注册+租户内重复 10801 / token 兑换按码租户选行〔他租户 secret 拒绝+自身 secret 原码兑换成功+重放拒绝〕 / userinfo JWT 按载荷租户解析）。红跑实证：旧全局唯一 DDL 下 3 用例全红（insert 唯一冲突），新 DDL 下全绿。
+- e2e：`ExampleProtectedApiE2EIT` 新增 Order(10)「两租户同名 OAuth2 客户端并存，兑换链按凭据租户隔离不误绑」（平台运营开第二租户→两租户同名注册→他租户 secret 兑码拒绝→自身 secret 原码兑换成功→userinfo 200；Order(9) 停用租户 1 后 adminToken 已失效，用例内重登）。
+
 ## 验收对照
 
-- [ ] 复合唯一索引与解析链改造。
-- [ ] 错误语义不泄露他租户存在性。
-- [ ] 契约、e2e、PgIT 回写与适配。
+- [x] 复合唯一索引与解析链改造。
+- [x] 错误语义不泄露他租户存在性。
+- [x] 契约、e2e、PgIT 回写与适配（全量回归收口形态 -T 1C 含 E2E/heavy BUILD SUCCESS，reactor 全模块 0 失败）。
 
 ## 非目标 / 遗留
 
