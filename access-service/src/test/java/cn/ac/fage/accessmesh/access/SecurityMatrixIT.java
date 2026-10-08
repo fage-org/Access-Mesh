@@ -55,7 +55,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "spring.cloud.nacos.config.enabled=false",
     "spring.cloud.nacos.config.import-check.enabled=false",
     "spring.cloud.nacos.discovery.enabled=false",
-    "accessmesh.sync.scheduler.enabled=false",
+    "accessmesh.sync.scheduler.enabled=false", "access.tenant.gate-repair.enabled=false",
     "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration,org.redisson.spring.starter.RedissonAutoConfigurationV2,com.alibaba.cloud.nacos.NacosConfigAutoConfiguration,com.alibaba.cloud.nacos.NacosDiscoveryAutoConfiguration,com.alibaba.cloud.nacos.discovery.NacosDiscoveryClientConfiguration",
     "mybatis-flex.configuration.map-underscore-to-camel-case=true",
     "logging.level.cn.ac.fage.accessmesh=WARN",
@@ -64,6 +64,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "PERM_INTERNAL_SECRET=test-internal-secret-for-security-matrix"
 })
 class SecurityMatrixIT {
+    @org.springframework.boot.test.mock.mockito.MockBean
+    private cn.ac.fage.accessmesh.access.tenant.service.TenantAccessGuard tenantAccess;
+
 
     private static final String SIGN_SECRET = "test-signature-secret-for-security-matrix";
     private static final String INTERNAL_SECRET = "test-internal-secret-for-security-matrix";

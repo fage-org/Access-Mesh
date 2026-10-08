@@ -46,11 +46,18 @@ import static org.assertj.core.api.Assertions.assertThat;
     "spring.cloud.nacos.config.enabled=false",
     "spring.cloud.nacos.config.import-check.enabled=false",
     "spring.cloud.nacos.discovery.enabled=false",
-    "accessmesh.sync.scheduler.enabled=false",
+    "accessmesh.sync.scheduler.enabled=false", "access.tenant.gate-repair.enabled=false",
     "mybatis-flex.configuration.map-underscore-to-camel-case=true",
     "logging.level.cn.ac.fage.accessmesh=WARN",
 })
 class ServiceCredentialPgIT {
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.data.redis.core.StringRedisTemplate tenantFixtureRedis;
+    @org.junit.jupiter.api.BeforeEach
+    void enableTenantFixture() {
+        cn.ac.fage.accessmesh.access.it.TenantTestSupport.enableFixture(jdbc,tenantFixtureRedis,1L);
+    }
+
 
     private static final Long TENANT = 1L;
     private static final String SERVICE_CODE = "t070-example";
@@ -83,6 +90,7 @@ class ServiceCredentialPgIT {
         jdbc.update("INSERT INTO sys_user(id,tenant_id,username,password,name,user_type) VALUES (?,1,'t085-user',?,'audit user',3)",
             user, cn.dev33.satoken.secure.BCrypt.hashpw("AuditUser123!"));
         String token = cn.dev33.satoken.stp.StpUtil.getStpLogic().createLoginSession(user);
+        cn.ac.fage.accessmesh.access.it.TenantTestSupport.stampSession(token,tenantFixtureRedis,1L);
         cn.dev33.satoken.stp.StpUtil.getSessionByLoginId(user).set("tenantId", TENANT).set("operatorName", "audit-user");
         String requestId = "t085-" + java.util.UUID.randomUUID();
         long timestamp = System.currentTimeMillis() / 1000;

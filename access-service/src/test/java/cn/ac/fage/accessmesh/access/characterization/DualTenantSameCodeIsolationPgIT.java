@@ -74,13 +74,21 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
     "spring.cloud.nacos.config.enabled=false",
     "spring.cloud.nacos.config.import-check.enabled=false",
     "spring.cloud.nacos.discovery.enabled=false",
-    "accessmesh.sync.scheduler.enabled=false",
+    "accessmesh.sync.scheduler.enabled=false", "access.tenant.gate-repair.enabled=false",
     "mybatis-flex.configuration.map-underscore-to-camel-case=true",
     "logging.level.cn.ac.fage.accessmesh=WARN",
     "PERM_INTERNAL_SECRET=test-internal-secret-for-dual-tenant",
     "ACCESSMESH_SIGNATURE_SECRET=test-signature-secret-for-dual-tenant",
 })
 class DualTenantSameCodeIsolationPgIT {
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.data.redis.core.StringRedisTemplate tenantFixtureRedis;
+    @org.junit.jupiter.api.BeforeEach
+    void enableTenantFixture() {
+        cn.ac.fage.accessmesh.access.it.TenantTestSupport.enableFixture(jdbc,tenantFixtureRedis,1L);
+        cn.ac.fage.accessmesh.access.it.TenantTestSupport.enableFixture(jdbc,tenantFixtureRedis,2L);
+    }
+
 
     private static final Long TENANT_A = 1L;
     private static final Long TENANT_B = 2L;
@@ -173,7 +181,7 @@ class DualTenantSameCodeIsolationPgIT {
     @DisplayName("双租户同码夹具：跨读 USER_NOT_FOUND/跨写同码不串/授权隔离双向（含 B→A 反向夹具）")
     void dualTenantSameCodeShouldStayIsolatedAcrossReadWriteAndGrant() throws Exception {
         // —— 阶段 0：空库 bootstrap（tenant 1 固定图） ——
-        initializer.initialize(ADMIN_PASSWORD);
+        initializer.initialize(1L, ADMIN_PASSWORD);
         long adminUserId = jdbc.queryForObject(
             "SELECT id FROM sys_user WHERE tenant_id = ? AND username = ? AND delete_flag = 0",
             Long.class, TENANT_A, BootstrapGraphDefinition.ADMIN_USERNAME);

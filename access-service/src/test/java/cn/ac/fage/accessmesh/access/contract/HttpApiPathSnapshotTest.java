@@ -53,6 +53,23 @@ class HttpApiPathSnapshotTest {
 
     /** 归并后全量路径快照（POST + JSON Body；T-ACCESS-042 起 URL 单命名空间，外部路径=服务路径 /api/access/**、/api/example/**）。 */
     private static final Set<String> EXPECTED_PATHS = Set.of("""
+/api/access/platform-account/create
+/api/access/platform-account/page
+/api/access/platform-account/reset-password
+/api/access/platform-account/update
+/api/access/platform-account/update-status
+/api/access/platform-audit/page
+/api/access/platform-auth/captcha
+/api/access/platform-auth/change-password
+/api/access/platform-auth/login
+/api/access/platform-auth/logout
+/api/access/platform-auth/me
+/api/access/tenant/create
+/api/access/tenant/detail
+/api/access/tenant/page
+/api/access/tenant/reset-admin-password
+/api/access/tenant/update
+/api/access/tenant/update-status
 /api/access/abstract-role/create
 /api/access/abstract-role/detail
 /api/access/abstract-role/full-sync
@@ -238,6 +255,23 @@ class HttpApiPathSnapshotTest {
 
     /** 路径 → 请求体类型 | 响应类型 签名快照（类型级 DTO 契约；条数与 Controller 扫描强制一致）。 */
     private static final Set<String> EXPECTED_SIGNATURES = Set.of("""
+/api/access/platform-account/create|access.auth.dto.PlatformAccountCreateReq|common.model.R<access.auth.dto.PlatformAccountCreatedResp>
+/api/access/platform-account/page|common.model.PageReq|common.model.R<perm.common.dto.resp.PageResp<access.auth.dto.PlatformAccountResp>>
+/api/access/platform-account/reset-password|common.model.IdReq|common.model.R<access.auth.dto.IssuedPasswordResp>
+/api/access/platform-account/update-status|access.auth.dto.PlatformStatusReq|common.model.R<Void>
+/api/access/platform-account/update|access.auth.dto.PlatformAccountNameReq|common.model.R<Void>
+/api/access/platform-audit/page|access.audit.dto.req.PlatformAuditPageReq|common.model.R<perm.common.dto.resp.PageResp<access.audit.dto.resp.PlatformAuditResp>>
+/api/access/platform-auth/captcha|-|common.model.R<access.auth.dto.CaptchaResp>
+/api/access/platform-auth/change-password|access.auth.dto.PlatformPasswordReq|common.model.R<Void>
+/api/access/platform-auth/login|access.auth.dto.PlatformLoginReq|common.model.R<access.auth.dto.PlatformLoginResp>
+/api/access/platform-auth/logout|-|common.model.R<Void>
+/api/access/platform-auth/me|-|common.model.R<access.auth.dto.PlatformAccountResp>
+/api/access/tenant/create|access.tenant.dto.TenantCreateReq|common.model.R<access.tenant.dto.TenantCreatedResp>
+/api/access/tenant/detail|common.model.IdReq|common.model.R<access.tenant.dto.TenantResp>
+/api/access/tenant/page|access.tenant.dto.TenantPageReq|common.model.R<perm.common.dto.resp.PageResp<access.tenant.dto.TenantResp>>
+/api/access/tenant/reset-admin-password|common.model.IdReq|common.model.R<access.tenant.dto.TenantAdminPasswordResp>
+/api/access/tenant/update-status|access.tenant.dto.TenantStatusReq|common.model.R<access.tenant.dto.TenantResp>
+/api/access/tenant/update|access.tenant.dto.TenantNameReq|common.model.R<Void>
 /api/access/abstract-role/create|perm.common.dto.req.RoleCreateReq|common.model.R<access.role.dto.resp.RoleResp>
 /api/access/abstract-role/detail|perm.common.dto.req.RoleDetailReq|common.model.R<access.role.dto.resp.RoleResp>
 /api/access/abstract-role/full-sync|access.sync.dto.AbstractRoleFullSyncReq|common.model.R<perm.common.dto.resp.SyncResultResp>

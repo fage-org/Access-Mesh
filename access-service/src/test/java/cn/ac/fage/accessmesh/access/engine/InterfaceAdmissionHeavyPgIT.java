@@ -48,8 +48,8 @@ import static org.mockito.Mockito.when;
 @TestPropertySource(properties = {
     "spring.config.import=optional:classpath:/test-nacos-dummy.yml",
     "spring.cloud.nacos.config.enabled=false", "spring.cloud.nacos.config.import-check.enabled=false",
-    "spring.cloud.nacos.discovery.enabled=false", "accessmesh.sync.scheduler.enabled=false",
-    "access.bootstrap.enabled=false", "mybatis-flex.configuration.map-underscore-to-camel-case=true",
+    "spring.cloud.nacos.discovery.enabled=false", "accessmesh.sync.scheduler.enabled=false", "access.tenant.gate-repair.enabled=false",
+    "access.platform.bootstrap.enabled=false", "mybatis-flex.configuration.map-underscore-to-camel-case=true",
     "logging.level.cn.ac.fage.accessmesh=WARN"
 })
 class InterfaceAdmissionHeavyPgIT {

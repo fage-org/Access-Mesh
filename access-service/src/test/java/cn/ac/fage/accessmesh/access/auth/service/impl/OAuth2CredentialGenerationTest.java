@@ -70,7 +70,7 @@ class OAuth2CredentialGenerationTest {
         when(users.selectValidById(1L, 9L)).thenReturn(user);
         // authorize 签发关键段改行锁读（2026-10-06 逐任务评审 P2）；preview 仍走 selectValidById
         when(users.lockValidById(1L, 9L)).thenReturn(user);
-        service = new OAuth2AppServiceImpl(clients, users, mock(LoginLogDomainService.class), redis, json);
+        service = new OAuth2AppServiceImpl(clients, users, mock(LoginLogDomainService.class), redis, json, cn.ac.fage.accessmesh.access.it.TenantTestSupport.activeGuard());
         ReflectionTestUtils.setField(service, "jwtSecretKey", "credential-generation-test-secret-0123456789");
     }
 

@@ -54,11 +54,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "spring.cloud.nacos.config.enabled=false",
     "spring.cloud.nacos.config.import-check.enabled=false",
     "spring.cloud.nacos.discovery.enabled=false",
-    "accessmesh.sync.scheduler.enabled=false",
+    "accessmesh.sync.scheduler.enabled=false", "access.tenant.gate-repair.enabled=false",
     "mybatis-flex.configuration.map-underscore-to-camel-case=true",
     "logging.level.cn.ac.fage.accessmesh=WARN",
 })
 class LoginSessionPgIT {
+    @org.junit.jupiter.api.BeforeEach
+    void activeTenantFixture() {
+        cn.ac.fage.accessmesh.access.it.TenantTestSupport.enableFixture(jdbc,stringRedisTemplate,1L);
+    }
+
 
     private static final Long TENANT = 1L;
     private static final String PASSWORD = "Pass@123";
@@ -98,7 +103,7 @@ class LoginSessionPgIT {
         MvcResult loginResult = mockMvc.perform(post("/api/access/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of(
-                    "tenantId", "1", "username", USERNAME, "password", PASSWORD,
+                    "tenantCode", cn.ac.fage.accessmesh.access.it.TenantTestSupport.CODE, "username", USERNAME, "password", PASSWORD,
                     "captchaId", captchaId, "captchaCode", captchaCode, "clientId", "console"))))
             .andExpect(status().isOk())
             .andReturn();
@@ -114,7 +119,7 @@ class LoginSessionPgIT {
         MvcResult replay = mockMvc.perform(post("/api/access/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of(
-                    "tenantId", "1", "username", USERNAME, "password", PASSWORD,
+                    "tenantCode", cn.ac.fage.accessmesh.access.it.TenantTestSupport.CODE, "username", USERNAME, "password", PASSWORD,
                     "captchaId", captchaId, "captchaCode", captchaCode, "clientId", "console"))))
             .andReturn();
         JsonNode replayBody = mapper.readTree(

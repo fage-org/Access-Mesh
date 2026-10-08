@@ -68,13 +68,20 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
     "spring.cloud.nacos.config.enabled=false",
     "spring.cloud.nacos.config.import-check.enabled=false",
     "spring.cloud.nacos.discovery.enabled=false",
-    "accessmesh.sync.scheduler.enabled=false",
+    "accessmesh.sync.scheduler.enabled=false", "access.tenant.gate-repair.enabled=false",
     "mybatis-flex.configuration.map-underscore-to-camel-case=true",
     "logging.level.cn.ac.fage.accessmesh=WARN",
     "PERM_INTERNAL_SECRET=test-internal-secret-for-custom-type-slice",
     "ACCESSMESH_SIGNATURE_SECRET=test-signature-secret-for-custom-type-slice",
 })
 class CustomResourceTypeSlicePgIT {
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.data.redis.core.StringRedisTemplate tenantFixtureRedis;
+    @org.junit.jupiter.api.BeforeEach
+    void enableTenantFixture() {
+        cn.ac.fage.accessmesh.access.it.TenantTestSupport.enableFixture(jdbc,tenantFixtureRedis,1L);
+    }
+
 
     private static final Long TENANT = 1L;
     private static final String ADMIN_PASSWORD = "Ext@2026";
@@ -111,7 +118,7 @@ class CustomResourceTypeSlicePgIT {
     @DisplayName("自有资源类型扩展链路：注册服务→声明 SYNC 类型（创建即建授权根）→定义操作→服务身份同步→授权→引擎判定 allowed；T-PERM-062 回归锁组")
     void customResourceTypeExtensionSlice_fullChain() throws Exception {
         // —— 阶段 0：空库 bootstrap 首管理员（管理面请求按 Gateway 转发形态：内部凭证 + 验签 X-User-Id） ——
-        initializer.initialize(ADMIN_PASSWORD);
+        initializer.initialize(1L, ADMIN_PASSWORD);
         long adminUserId = jdbc.queryForObject(
             "SELECT id FROM sys_user WHERE tenant_id = ? AND username = ? AND delete_flag = 0",
             Long.class, TENANT, BootstrapGraphDefinition.ADMIN_USERNAME);

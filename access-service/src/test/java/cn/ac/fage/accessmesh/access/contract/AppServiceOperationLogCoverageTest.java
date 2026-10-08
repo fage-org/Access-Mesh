@@ -38,6 +38,7 @@ class AppServiceOperationLogCoverageTest {
     /** 12 能力包 service.impl 包集合（capability-structure §8.1/§8.4；engine 非能力包不在内） */
     private static final List<String> CAPABILITY_IMPL_PACKAGES = List.of(
         "cn.ac.fage.accessmesh.access.auth.service.impl",
+        "cn.ac.fage.accessmesh.access.tenant.service.impl",
         "cn.ac.fage.accessmesh.access.user.service.impl",
         "cn.ac.fage.accessmesh.access.org.service.impl",
         "cn.ac.fage.accessmesh.access.menu.service.impl",
@@ -75,7 +76,7 @@ class AppServiceOperationLogCoverageTest {
      * 或 {@link #TARGET_TYPE_EXCEPTIONS}，防止遗留非表名值（BATCH/SINGLE/oauth2_client 等）回潮。
      */
     private static final Set<String> KNOWN_TABLE_NAMES = Set.of(
-        "sys_oauth2_client", "sys_login_log", "sys_user", "sys_org", "sys_org_tree_config",
+        "sys_tenant", "platform_account", "platform_audit_log", "sys_oauth2_client", "sys_login_log", "sys_user", "sys_org", "sys_org_tree_config",
         "sys_user_org", "sys_menu", "sys_dict_type", "sys_dict_data", "sys_notice",
         "sys_user_notice", "sys_file", "sys_job", "sys_job_log", "system_config",
         "operation_log", "type_definition", "biz_domain", "abstract_user", "abstract_role",

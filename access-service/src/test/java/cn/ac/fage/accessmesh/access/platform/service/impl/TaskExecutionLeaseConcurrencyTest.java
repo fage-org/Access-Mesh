@@ -65,11 +65,15 @@ import cn.ac.fage.accessmesh.access.platform.service.impl.JobAppServiceImpl;
  * </p>
  */
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
-@SpringBootTest
+@SpringBootTest(properties="access.tenant.gate-repair.enabled=false")
 @ActiveProfiles("test")
 @Tag("testcontainers")
 @Testcontainers(disabledWithoutDocker = true)
 class TaskExecutionLeaseConcurrencyTest {
+    // 此类只建任务租约局部表，租户生命周期由独立真实链路验证。
+    @org.springframework.boot.test.mock.mockito.MockBean
+    private cn.ac.fage.accessmesh.access.tenant.service.TenantAccessGuard tenantAccess;
+
 
     @DynamicPropertySource
     static void configure(DynamicPropertyRegistry registry) {

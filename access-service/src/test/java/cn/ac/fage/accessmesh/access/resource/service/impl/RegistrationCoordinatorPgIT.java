@@ -57,6 +57,7 @@ class RegistrationCoordinatorPgIT {
     @DynamicPropertySource static void configure(DynamicPropertyRegistry registry) { ItInfra.register(registry,RegistrationCoordinatorPgIT.class); }
     @LocalServerPort private int port;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private org.springframework.data.redis.core.StringRedisTemplate tenantFixtureRedis;
     @Autowired private ObjectMapper json;
     @Autowired private Validator validator;
     @Autowired private ServiceCredentialDomainService credentials;
@@ -139,6 +140,7 @@ class RegistrationCoordinatorPgIT {
     private Dependency dependency(Fixture f) { return new Dependency("a-needs-b",new ResourceKey(f.code(),"a",null),List.of("VIEW"),List.of(new Requirement(new ResourceKey(f.code(),"b",null),List.of("VIEW"))),null); }
     private int edgeCount(Fixture f) { return jdbc.queryForObject("SELECT count(*) FROM resource_dependency WHERE tenant_id=? AND owner_service_code=? AND delete_flag=0",Integer.class,f.target().tenantId(),f.target().serviceCode()); }
     private Fixture fixture(Long tenant) {
+        cn.ac.fage.accessmesh.access.it.TenantTestSupport.enableFixture(jdbc,tenantFixtureRedis,tenant);
         int type=nextType++; String code="SDK_"+type; String source="sdk-"+UUID.randomUUID();
         jdbc.update("INSERT INTO service_config(tenant_id,service_code,name) VALUES(?,?,'sdk')",tenant,source);
         jdbc.update("INSERT INTO type_definition(tenant_id,type_key,type_code,type_value,name,extra) VALUES(?,'resource_type',?,?,'sdk',CAST(? AS jsonb))",tenant,code,type,"{\"managedMode\":\"SYNC\",\"syncSourceService\":\""+source+"\"}");

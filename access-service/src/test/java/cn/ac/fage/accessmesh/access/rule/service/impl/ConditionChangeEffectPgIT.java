@@ -62,13 +62,20 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
     "spring.cloud.nacos.config.enabled=false",
     "spring.cloud.nacos.config.import-check.enabled=false",
     "spring.cloud.nacos.discovery.enabled=false",
-    "accessmesh.sync.scheduler.enabled=false",
+    "accessmesh.sync.scheduler.enabled=false", "access.tenant.gate-repair.enabled=false",
     "mybatis-flex.configuration.map-underscore-to-camel-case=true",
     "logging.level.cn.ac.fage.accessmesh=WARN",
     "PERM_INTERNAL_SECRET=test-internal-secret-for-cond-change",
     "ACCESSMESH_SIGNATURE_SECRET=test-signature-secret-for-cond-change",
 })
 class ConditionChangeEffectPgIT {
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.data.redis.core.StringRedisTemplate tenantFixtureRedis;
+    @org.junit.jupiter.api.BeforeEach
+    void enableTenantFixture() {
+        cn.ac.fage.accessmesh.access.it.TenantTestSupport.enableFixture(jdbc,tenantFixtureRedis,1L);
+    }
+
 
     private static final Long TENANT = 1L;
     private static final String ADMIN_PASSWORD = "Ext@2026";
@@ -98,7 +105,7 @@ class ConditionChangeEffectPgIT {
     @DisplayName("条件变更组合：配置→授权挂条件→命中/不命中→改规则→判定双向翻转（缓存串联收敛）")
     void conditionChangeShouldFlipEngineDecision() throws Exception {
         // —— 阶段 0：空库 bootstrap ——
-        initializer.initialize(ADMIN_PASSWORD);
+        initializer.initialize(1L, ADMIN_PASSWORD);
         long adminUserId = jdbc.queryForObject(
             "SELECT id FROM sys_user WHERE tenant_id = ? AND username = ? AND delete_flag = 0",
             Long.class, TENANT, BootstrapGraphDefinition.ADMIN_USERNAME);

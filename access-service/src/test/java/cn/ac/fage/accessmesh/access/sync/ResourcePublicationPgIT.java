@@ -58,6 +58,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
         "spring.cloud.nacos.discovery.enabled=false"
 })
 class ResourcePublicationPgIT {
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.data.redis.core.StringRedisTemplate tenantFixtureRedis;
+    @org.junit.jupiter.api.BeforeEach
+    void enableTenantFixture() {
+        cn.ac.fage.accessmesh.access.it.TenantTestSupport.enableFixture(jdbc,tenantFixtureRedis,1L);
+    }
+
     private static final LocalDateTime AT = LocalDateTime.of(2026, 9, 21, 0, 0);
     private static int nextType = 1200;
     @DynamicPropertySource static void configure(DynamicPropertyRegistry registry) { ItInfra.register(registry, ResourcePublicationPgIT.class); }

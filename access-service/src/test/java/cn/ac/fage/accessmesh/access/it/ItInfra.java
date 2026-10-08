@@ -277,6 +277,8 @@ public final class ItInfra {
         try (Connection conn = DriverManager.getConnection(jdbcUrl(database, true), PG_USERNAME, PG_PASSWORD);
              Statement st = conn.createStatement()) {
             st.execute(sql);
+            // 既有业务测试的显式租户基础夹具；生产 DDL 不再自动创建租户数据。
+            st.execute("SELECT initialize_tenant_baseline(1)");
         } catch (SQLException e) {
             throw new IllegalStateException("DDL 执行失败: " + database, e);
         }

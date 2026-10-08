@@ -3,6 +3,8 @@ package cn.ac.fage.accessmesh.access.characterization;
 import cn.ac.fage.accessmesh.access.org.mapper.SysOrgMapper;
 import cn.ac.fage.accessmesh.access.user.mapper.SysUserMapper;
 import cn.ac.fage.accessmesh.access.platform.mapper.SystemConfigMapper;
+import cn.ac.fage.accessmesh.access.tenant.mapper.TenantMapper;
+import cn.ac.fage.accessmesh.access.audit.mapper.PlatformAuditLogMapper;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
 import cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.user.mapper.AbstractUserMapper;
@@ -46,7 +48,7 @@ import static org.assertj.core.api.Assertions.assertThat;
     "spring.cloud.nacos.config.enabled=false",
     "spring.cloud.nacos.config.import-check.enabled=false",
     "spring.cloud.nacos.discovery.enabled=false",
-    "accessmesh.sync.scheduler.enabled=false",
+    "accessmesh.sync.scheduler.enabled=false", "access.tenant.gate-repair.enabled=false",
     "mybatis-flex.configuration.map-underscore-to-camel-case=true",
     "logging.level.cn.ac.fage.accessmesh=WARN",
 })
@@ -76,6 +78,10 @@ class KeywordLikeSearchPgIT {
     private SysUserMapper sysUserMapper;
     @Autowired
     private SysOrgMapper sysOrgMapper;
+    @Autowired
+    private TenantMapper tenantMapper;
+    @Autowired
+    private PlatformAuditLogMapper platformAuditLogMapper;
 
     @Test
     @DisplayName("type-definition keyword：DDL 种子内 LIKE type_code 命中（无夹具）")
@@ -157,5 +163,37 @@ class KeywordLikeSearchPgIT {
         assertThat(sysOrgMapper.selectOrgsByCondition(TENANT, "keyword 回归组织", null, null, null, 0, 10))
             .extracting(cn.ac.fage.accessmesh.access.org.entity.SysOrg::getName)
             .contains("keyword 回归组织");
+    }
+
+    @Test
+    @DisplayName("tenant page keyword：code ILIKE 大小写不敏感命中，null keyword 全量（2026-10-08 评审补锁）")
+    void shouldSearchTenantByKeyword() {
+        jdbc.update("INSERT INTO sys_tenant (code, name) VALUES ('kwtest-tenant', 'Keyword 回归租户')");
+        assertThat(tenantMapper.page("KWTEST", 0, 10))
+            .extracting(cn.ac.fage.accessmesh.access.tenant.entity.SysTenant::getCode)
+            .contains("kwtest-tenant");
+        assertThat(tenantMapper.page("回归租户", 0, 10))
+            .extracting(cn.ac.fage.accessmesh.access.tenant.entity.SysTenant::getCode)
+            .contains("kwtest-tenant");
+        assertThat(tenantMapper.page(null, 0, 10)).isNotEmpty();
+        assertThat(tenantMapper.count(null)).isEqualTo(tenantMapper.count("kwtest"));
+    }
+
+    @Test
+    @DisplayName("platform-audit page：null tenantId 全量、指定 tenantId 过滤且 count 一致（2026-10-08 评审补锁）")
+    void shouldFilterPlatformAuditByOptionalTenant() {
+        jdbc.update("INSERT INTO platform_audit_log (target_tenant_id, target_type, action, outcome, request_id) "
+            + "VALUES (880001, 'sys_tenant', 'KWTEST_TENANT', 'SUCCESS', 'kw-audit-1')");
+        jdbc.update("INSERT INTO platform_audit_log (target_tenant_id, target_type, action, outcome, request_id) "
+            + "VALUES (880002, 'sys_tenant', 'KWTEST_TENANT', 'SUCCESS', 'kw-audit-2')");
+        assertThat(platformAuditLogMapper.page(null, 0, 10))
+            .extracting(cn.ac.fage.accessmesh.access.audit.entity.PlatformAuditLog::getTargetTenantId)
+            .contains(880001L, 880002L);
+        assertThat(platformAuditLogMapper.page(880001L, 0, 10))
+            .extracting(cn.ac.fage.accessmesh.access.audit.entity.PlatformAuditLog::getTargetTenantId)
+            .containsExactly(880001L);
+        assertThat(platformAuditLogMapper.count(880001L)).isEqualTo(1L);
+        assertThat(platformAuditLogMapper.count(null))
+            .isEqualTo(platformAuditLogMapper.count(880001L) + platformAuditLogMapper.count(880002L));
     }
 }

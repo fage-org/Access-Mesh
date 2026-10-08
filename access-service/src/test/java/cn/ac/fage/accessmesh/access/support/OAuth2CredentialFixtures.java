@@ -13,6 +13,7 @@ public final class OAuth2CredentialFixtures {
 
     public static AuthCodeData authCode() {
         var data = new AuthCodeData();
+        data.setTenantEpoch(1L);
         data.setPasswordFingerprint(PASSWORD_HASH.substring(0, 29));
         data.setChainIssuedAt(System.currentTimeMillis() / 1000);
         data.setChainExpiresAt(data.getChainIssuedAt() + 604800);
@@ -21,6 +22,7 @@ public final class OAuth2CredentialFixtures {
 
     public static RefreshTokenData refreshToken() {
         var data = new RefreshTokenData();
+        data.setTenantEpoch(1L);
         data.setPasswordFingerprint(PASSWORD_HASH.substring(0, 29));
         data.setChainIssuedAt(System.currentTimeMillis() / 1000);
         data.setChainExpiresAt(data.getChainIssuedAt() + 604800);
@@ -30,6 +32,7 @@ public final class OAuth2CredentialFixtures {
     public static Map<String, Object> claims(Map<String, Object> claims) {
         Map<String, Object> result = new HashMap<>(claims);
         long now = System.currentTimeMillis() / 1000;
+        result.put("tenant_epoch", "1");
         result.put("pwd_generation", PASSWORD_HASH.substring(0, 29));
         result.put("chain_iat", now);
         result.put("chain_exp", now + 604800);

@@ -65,7 +65,7 @@ class OAuth2CodeExchangeNegativeTest {
     @BeforeEach
     void setUp() {
         service = new OAuth2AppServiceImpl(oauth2ClientDomainService, userDomainService,
-            loginLogDomainService, redisTemplate, objectMapper);
+            loginLogDomainService, redisTemplate, objectMapper, cn.ac.fage.accessmesh.access.it.TenantTestSupport.activeGuard());
         ReflectionTestUtils.setField(service, "jwtSecretKey",
             "test-jwt-secret-for-code-negative-0123456789abcd");
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);

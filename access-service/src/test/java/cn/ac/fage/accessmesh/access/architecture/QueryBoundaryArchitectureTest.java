@@ -19,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * 能力包数据边界架构测试（T-ACCESS-033 按 capability-structure §8.4 重建，能力口径）。
  * <p>
- * 断言面 = mapper 包：能力包类不得依赖<b>其他能力包</b>的 mapper 包（12 能力包全组合，
+ * 断言面 = mapper 包：能力包类不得依赖<b>其他能力包</b>的 mapper 包（能力包全组合，
  * <b>零容忍无白名单</b>——Q-009 收敛完成后终态，T-ACCESS-043~046 四批将 2026-09-13 冻结的
  * 19 类 30 边全量收敛为零；冻结期历史基线见 capability-structure §8.4 豁免 6 表）。
  * 跨能力实体/Service/DTO import 为既有普遍形态、不在断言面（§8.4 规则 1 口径）。
@@ -28,22 +28,22 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * <p>
  * 另承载：① {@code *QueryMapper} 按类名匹配的只读前缀规则（§8.4 规则 3，
  * 整包规则随 application.query 解散而退役）；② 落位兜底断言——主源码全部类必须落在
- * 17 顶层包、根包唯一例外为启动类（§8.4 规则 4，外评补充）。
+ * 登记的顶层包、根包唯一例外为启动类（§8.4 规则 4，外评补充）。
  * </p>
  */
 class QueryBoundaryArchitectureTest {
 
     private static final String BASE = "cn.ac.fage.accessmesh.access";
 
-    /** 12 能力包（§8.1；sync/engine/projection/bootstrap/infrastructure 非能力包不在此列） */
+    /** 能力包（§8.1；sync/engine/projection/bootstrap/infrastructure 非能力包不在此列） */
     static final List<String> CAPABILITY_PACKAGES = List.of(
         "auth", "user", "org", "menu", "role", "grant",
-        "resource", "type", "domain", "rule", "audit", "platform");
+        "resource", "type", "domain", "rule", "audit", "platform", "tenant");
 
-    /** 17 顶层包（落位兜底断言的允许集合；§8.1） */
+    /** 登记的顶层包（落位兜底断言的允许集合；§8.1） */
     static final List<String> TOP_LEVEL_PACKAGES = List.of(
         "auth", "user", "org", "menu", "role", "grant",
-        "resource", "type", "domain", "rule", "audit", "platform",
+        "resource", "type", "domain", "rule", "audit", "platform", "tenant",
         "sync", "engine", "projection", "bootstrap", "infrastructure");
 
     private static JavaClasses classes;
@@ -57,7 +57,7 @@ class QueryBoundaryArchitectureTest {
     }
 
     /**
-     * 能力包 Mapper 数据边界（§8.4 规则 1，12 能力包全组合，零容忍无白名单）。
+     * 能力包 Mapper 数据边界（§8.4 规则 1，能力包全组合，零容忍无白名单）。
      * <p>
      * 实现=字节码级依赖遍历（{@code getDirectDependenciesFromSelf} 覆盖 import 行与内联 FQCN
      * 全形态）：消费方能力包 → 他能力包 {@code {cap}.mapper} 的任何依赖即违规
@@ -85,7 +85,7 @@ class QueryBoundaryArchitectureTest {
         assertThat(violations).as("能力包互读他包 mapper（Q-009 收敛完成，零容忍无白名单）").isEmpty();
     }
 
-    /** FQCN 包 → 所属能力包（12 能力包之一，否则 null） */
+    /** FQCN 包 → 所属能力包（能力包之一，否则 null） */
     private static String capabilityOf(String pkg) {
         String first = firstSegment(pkg);
         return first != null && CAPABILITY_PACKAGES.contains(first) ? first : null;
@@ -143,7 +143,7 @@ class QueryBoundaryArchitectureTest {
     }
 
     @Test
-    @DisplayName("落位兜底：主源码全部类落在 17 顶层包（§8.4 规则 4，防漏行类静默残留旧包）")
+    @DisplayName("落位兜底：主源码全部类落在 登记的顶层包（§8.4 规则 4，防漏行类静默残留旧包）")
     void allClassesMustResideInTopLevelPackages() {
         String[] allowed = TOP_LEVEL_PACKAGES.stream()
             .map(p -> "..access." + p + "..").toArray(String[]::new);
@@ -151,7 +151,7 @@ class QueryBoundaryArchitectureTest {
             .that().resideInAPackage("..access..")
             .and().doNotHaveFullyQualifiedName(BASE + ".AccessServiceApplication")
             .should().resideInAnyPackage(allowed)
-            .because("T-ACCESS-033 搬包后主源码只允许 17 顶层包（§8.1），"
+            .because("T-ACCESS-033 搬包后主源码只允许 登记的顶层包（§8.1），"
                 + "残留旧包（admin/permission/application）即漏迁")
             .check(classes);
     }

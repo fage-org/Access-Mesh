@@ -31,7 +31,7 @@ import static org.assertj.core.api.Assertions.tuple;
 @TestPropertySource(properties = {
     "spring.config.import=optional:classpath:/test-nacos-dummy.yml",
     "spring.cloud.nacos.config.import-check.enabled=false",
-    "accessmesh.sync.scheduler.enabled=false"
+    "accessmesh.sync.scheduler.enabled=false", "access.tenant.gate-repair.enabled=false"
 })
 class QueryMapperPgIT {
     @DynamicPropertySource

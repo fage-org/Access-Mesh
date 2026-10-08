@@ -33,10 +33,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @TestPropertySource(properties = {
     "spring.config.import=optional:classpath:/test-nacos-dummy.yml",
     "spring.cloud.nacos.config.enabled=false", "spring.cloud.nacos.config.import-check.enabled=false",
-    "spring.cloud.nacos.discovery.enabled=false", "access.bootstrap.enabled=false",
-    "accessmesh.sync.scheduler.enabled=false", "logging.level.cn.ac.fage.accessmesh=WARN"
+    "spring.cloud.nacos.discovery.enabled=false", "access.platform.bootstrap.enabled=false",
+    "accessmesh.sync.scheduler.enabled=false", "access.tenant.gate-repair.enabled=false", "logging.level.cn.ac.fage.accessmesh=WARN"
 })
 class SyncStatusPgIT {
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.data.redis.core.StringRedisTemplate tenantFixtureRedis;
+    @org.junit.jupiter.api.BeforeEach
+    void enableTenantFixture() {
+        cn.ac.fage.accessmesh.access.it.TenantTestSupport.enableFixture(jdbc,tenantFixtureRedis,1L);
+    }
+
     @DynamicPropertySource
     static void configure(DynamicPropertyRegistry registry) { ItInfra.register(registry, SyncStatusPgIT.class); }
     @Autowired MockMvc mvc;
@@ -47,13 +54,14 @@ class SyncStatusPgIT {
 
     @Test
     void emptyAppliedResourceFullIsVisibleAndOtherTenantIsExcluded() throws Exception {
-        bootstrap.initialize("SyncStatus123!");
+        bootstrap.initialize(1L, "SyncStatus123!");
         long admin = jdbc.queryForObject("SELECT id FROM sys_user WHERE tenant_id=1 AND username='admin' AND delete_flag=0", Long.class);
         String scope = SyncKeyCodecUtil.resourceEntityScopeKey("REPORT");
         String hash = SyncKeyCodecUtil.sha256Hex(scope);
         jdbc.update("INSERT INTO resource_publication_state(tenant_id,source_service,scope_key,scope_key_hash,max_generation,last_full_generation,last_full_payload_hash,last_full_status) VALUES (1,'t65',?,?,7,7,?,'SUCCESS'),(2,'t65',?,?,8,8,?,'PARTIAL')",
             scope, hash, "a".repeat(64), scope, hash, "b".repeat(64));
         String token = StpUtil.getStpLogic().createLoginSession(admin);
+        cn.ac.fage.accessmesh.access.it.TenantTestSupport.stampSession(token,tenantFixtureRedis,1L);
         StpUtil.getSessionByLoginId(admin).set("tenantId", 1L);
         long now = System.currentTimeMillis() / 1000;
         try {
@@ -75,7 +83,7 @@ class SyncStatusPgIT {
 
     @Test
     void metadataAggregatesScopesAndUnprivilegedUserIsDenied() throws Exception {
-        bootstrap.initialize("SyncStatus123!");
+        bootstrap.initialize(1L, "SyncStatus123!");
         long admin = jdbc.queryForObject("SELECT id FROM sys_user WHERE tenant_id=1 AND username='admin' AND delete_flag=0", Long.class);
         String source = "t65-users";
         String scope = SyncKeyCodecUtil.abstractUserScopeKey("EMPLOYEE");
@@ -97,6 +105,7 @@ class SyncStatusPgIT {
 
     private com.fasterxml.jackson.databind.JsonNode query(long user, String source, int expectedStatus) throws Exception {
         String token = StpUtil.getStpLogic().createLoginSession(user);
+        cn.ac.fage.accessmesh.access.it.TenantTestSupport.stampSession(token,tenantFixtureRedis,1L);
         StpUtil.getSessionByLoginId(user).set("tenantId", 1L);
         long now = System.currentTimeMillis() / 1000;
         try {

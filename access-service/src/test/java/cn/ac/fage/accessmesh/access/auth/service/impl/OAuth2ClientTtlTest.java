@@ -66,7 +66,7 @@ class OAuth2ClientTtlTest {
     @BeforeEach
     void setUp() {
         service = new OAuth2AppServiceImpl(oauth2ClientDomainService, userDomainService,
-            loginLogDomainService, redisTemplate, objectMapper);
+            loginLogDomainService, redisTemplate, objectMapper, cn.ac.fage.accessmesh.access.it.TenantTestSupport.activeGuard());
         ReflectionTestUtils.setField(service, "jwtSecretKey", JWT_SECRET);
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         var activeUser = new cn.ac.fage.accessmesh.access.user.entity.SysUser();

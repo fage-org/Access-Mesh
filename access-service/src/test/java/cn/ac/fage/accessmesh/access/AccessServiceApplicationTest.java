@@ -138,6 +138,8 @@ class AccessServiceApplicationTest {
         assertNotNull(scan, "@MapperScan 注解应存在");
         java.util.Set<String> expected = new java.util.LinkedHashSet<>(java.util.List.of(
             "cn.ac.fage.accessmesh.access.auth.mapper",
+            "cn.ac.fage.accessmesh.access.tenant.mapper",
+            "cn.ac.fage.accessmesh.access.bootstrap.mapper",
             "cn.ac.fage.accessmesh.access.user.mapper",
             "cn.ac.fage.accessmesh.access.org.mapper",
             "cn.ac.fage.accessmesh.access.menu.mapper",

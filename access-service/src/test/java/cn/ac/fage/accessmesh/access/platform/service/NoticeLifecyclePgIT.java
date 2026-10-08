@@ -62,13 +62,18 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
     "spring.cloud.nacos.config.enabled=false",
     "spring.cloud.nacos.config.import-check.enabled=false",
     "spring.cloud.nacos.discovery.enabled=false",
-    "accessmesh.sync.scheduler.enabled=false",
+    "accessmesh.sync.scheduler.enabled=false", "access.tenant.gate-repair.enabled=false",
     "mybatis-flex.configuration.map-underscore-to-camel-case=true",
     "logging.level.cn.ac.fage.accessmesh=WARN",
     "PERM_INTERNAL_SECRET=test-internal-secret-for-notice-it",
     "ACCESSMESH_SIGNATURE_SECRET=test-signature-secret-for-notice-it",
 })
 class NoticeLifecyclePgIT {
+    @org.junit.jupiter.api.BeforeEach
+    void activeTenantFixture() {
+        cn.ac.fage.accessmesh.access.it.TenantTestSupport.enableFixture(jdbc,stringRedisTemplate,1L);
+    }
+
 
     private static final Long TENANT = 1L;
     private static final String ADMIN_PASSWORD = "Ext@2026";
@@ -279,7 +284,7 @@ class NoticeLifecyclePgIT {
 
     /** 空库 bootstrap + 默认树 + 目标/受众外两个普通用户（真实登录用）。 */
     private Fixture bootstrapWithUsers(String prefix) throws Exception {
-        initializer.initialize(ADMIN_PASSWORD);
+        initializer.initialize(1L, ADMIN_PASSWORD);
         String marker = prefix + "-" + UUID.randomUUID().toString().substring(0, 8);
         long adminUserId = jdbc.queryForObject(
             "SELECT id FROM sys_user WHERE tenant_id = ? AND username = ? AND delete_flag = 0",
@@ -401,12 +406,14 @@ class NoticeLifecyclePgIT {
 
     /** 真实登录（MemberCandidatesGatePgIT 模式：真实 Redis 验证码 + BCrypt 密码 + Sa-Token 会话）。 */
     private String loginAs(String username, String password) throws Exception {
+        // 本类验证权限/公告行为，明确使用已完成首次改密的用户夹具；强制改密链由 TenantOpeningPgIT/E2E 验证。
+        jdbc.update("UPDATE sys_user SET force_reset_pwd=false WHERE tenant_id=1 AND username=? AND delete_flag=0",username);
         String captchaId = UUID.randomUUID().toString();
         stringRedisTemplate.opsForValue().set("captcha:" + captchaId, "3141", 5, TimeUnit.MINUTES);
         MvcResult result = mockMvc.perform(post("/api/access/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of(
-                    "tenantId", "1", "username", username, "password", password,
+                    "tenantCode", cn.ac.fage.accessmesh.access.it.TenantTestSupport.CODE, "username", username, "password", password,
                     "captchaId", captchaId, "captchaCode", "3141", "clientId", "console"))))
             .andReturn();
         JsonNode body = mapper.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));

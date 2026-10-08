@@ -33,12 +33,19 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @TestPropertySource(properties = {
     "spring.config.import=optional:classpath:/test-nacos-dummy.yml",
     "spring.cloud.nacos.config.enabled=false", "spring.cloud.nacos.config.import-check.enabled=false",
-    "spring.cloud.nacos.discovery.enabled=false", "accessmesh.sync.scheduler.enabled=false",
-    "access.bootstrap.enabled=false", "mybatis-flex.configuration.map-underscore-to-camel-case=true",
+    "spring.cloud.nacos.discovery.enabled=false", "accessmesh.sync.scheduler.enabled=false", "access.tenant.gate-repair.enabled=false",
+    "access.platform.bootstrap.enabled=false", "mybatis-flex.configuration.map-underscore-to-camel-case=true",
     "logging.level.cn.ac.fage.accessmesh=WARN", "PERM_INTERNAL_SECRET=budget-it-internal",
     "accessmesh.query.limits.max-items=1"
 })
 class QueryBudgetPgIT {
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.data.redis.core.StringRedisTemplate tenantFixtureRedis;
+    @org.junit.jupiter.api.BeforeEach
+    void enableTenantFixture() {
+        cn.ac.fage.accessmesh.access.it.TenantTestSupport.enableFixture(jdbc,tenantFixtureRedis,1L);
+    }
+
     @DynamicPropertySource
     static void configure(DynamicPropertyRegistry registry) { ItInfra.register(registry, QueryBudgetPgIT.class); }
     @Autowired JdbcTemplate jdbc;

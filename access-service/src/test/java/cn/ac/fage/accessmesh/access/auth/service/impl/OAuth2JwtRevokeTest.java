@@ -53,7 +53,7 @@ class OAuth2JwtRevokeTest {
     @BeforeEach
     void setUp() {
         service = new OAuth2AppServiceImpl(oauth2ClientDomainService, userDomainService,
-            loginLogDomainService, redisTemplate, new ObjectMapper());
+            loginLogDomainService, redisTemplate, new ObjectMapper(), cn.ac.fage.accessmesh.access.it.TenantTestSupport.activeGuard());
         ReflectionTestUtils.setField(service, "jwtSecretKey", JWT_SECRET);
         // lenient：仅"写黑名单"用例用到（不写用例无 opsForValue 调用，严格模式会报多余 stub）
         org.mockito.Mockito.lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);

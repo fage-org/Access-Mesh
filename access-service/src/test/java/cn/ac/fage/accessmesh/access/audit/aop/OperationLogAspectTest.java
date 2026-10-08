@@ -55,7 +55,7 @@ class OperationLogAspectTest {
 
     @BeforeEach
     void setUp() {
-        aspect = new OperationLogAspect(auditDomainService);
+        aspect = new OperationLogAspect(auditDomainService, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.audit.service.domain.PlatformAuditDomainService.class));
     }
 
     // ===== 辅助方法 =====

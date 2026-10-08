@@ -104,10 +104,13 @@ class JobAppServiceImplTest {
     @Mock
     private TaskExecutor taskExecutor;
 
+    @Mock
+    private cn.ac.fage.accessmesh.access.tenant.service.TenantAccessGuard tenantAccess;
+
     private JobAppServiceImpl newService() {
         return new JobAppServiceImpl(jobMapper, jobLogMapper, taskScheduler, leaseRenewalScheduler,
             permissionValidator, taskExecutionDomainService,
-            jobInvokeDomainService, jobLogDomainService, taskExecutor);
+            jobInvokeDomainService, jobLogDomainService, taskExecutor, tenantAccess);
     }
 
     private SysJob enabledJob(Long id, Long tenantId, String cron) {
@@ -231,6 +234,28 @@ class JobAppServiceImplTest {
         verify(taskExecutionDomainService).complete(eq(TENANT_ID), eq(EXECUTION_KEY),
             anyString(), eq(1), eq(false), contains("rejected"));
         verify(jobInvokeDomainService, never()).invoke(anyString(), any());
+    }
+
+    @Test
+    void queuedTaskCannotStartAfterTenantDisabled() {
+        SysJob job = enabledJob(1L, TENANT_ID, "0 0 0 * * *");
+        when(jobMapper.selectValidById(TENANT_ID, 1L)).thenReturn(job);
+        when(taskExecutionDomainService.buildScheduledKey(1L, SCHEDULED_TIME)).thenReturn(EXECUTION_KEY);
+        when(taskExecutionDomainService.tryClaim(eq(TENANT_ID), eq(EXECUTION_KEY), anyString())).thenReturn(1);
+        when(taskExecutionDomainService.renewLease(eq(TENANT_ID), eq(EXECUTION_KEY), anyString(), eq(1))).thenReturn(true);
+        ScheduledFuture<?> renewal = mock(ScheduledFuture.class);
+        org.mockito.Mockito.doReturn(renewal).when(leaseRenewalScheduler)
+            .scheduleAtFixedRate(any(Runnable.class), any(Instant.class), any(Duration.class));
+        when(tenantAccess.requireEnabled(TENANT_ID))
+            .thenThrow(cn.ac.fage.accessmesh.access.tenant.service.TenantAccessDeniedException.disabled());
+        org.mockito.Mockito.doAnswer(call -> { ((Runnable) call.getArgument(0)).run(); return null; })
+            .when(taskExecutor).execute(any(Runnable.class));
+
+        newService().executeJob(job, SCHEDULED_TIME);
+
+        verifyNoInteractions(jobInvokeDomainService);
+        verify(renewal).cancel(false);
+        verify(taskExecutionDomainService).complete(eq(TENANT_ID), eq(EXECUTION_KEY), anyString(), eq(1), eq(false), anyString());
     }
 
     @Test

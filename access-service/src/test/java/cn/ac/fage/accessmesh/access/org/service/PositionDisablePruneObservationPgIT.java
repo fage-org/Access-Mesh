@@ -62,13 +62,20 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
     "spring.cloud.nacos.config.enabled=false",
     "spring.cloud.nacos.config.import-check.enabled=false",
     "spring.cloud.nacos.discovery.enabled=false",
-    "accessmesh.sync.scheduler.enabled=false",
+    "accessmesh.sync.scheduler.enabled=false", "access.tenant.gate-repair.enabled=false",
     "mybatis-flex.configuration.map-underscore-to-camel-case=true",
     "logging.level.cn.ac.fage.accessmesh=WARN",
     "PERM_INTERNAL_SECRET=test-internal-secret-for-pos-prune",
     "ACCESSMESH_SIGNATURE_SECRET=test-signature-secret-for-pos-prune",
 })
 class PositionDisablePruneObservationPgIT {
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.data.redis.core.StringRedisTemplate tenantFixtureRedis;
+    @org.junit.jupiter.api.BeforeEach
+    void enableTenantFixture() {
+        cn.ac.fage.accessmesh.access.it.TenantTestSupport.enableFixture(jdbc,tenantFixtureRedis,1L);
+    }
+
 
     private static final Long TENANT = 1L;
     private static final String ADMIN_PASSWORD = "Ext@2026";
@@ -93,7 +100,7 @@ class PositionDisablePruneObservationPgIT {
     @DisplayName("岗位停用→成员权限剪枝→恢复→自动生效（全程无重新授权动作）")
     void positionDisableShouldPruneMemberPermissionAndRestoreShouldRegrantAutomatically() throws Exception {
         // —— 阶段 0：空库 bootstrap ——
-        initializer.initialize(ADMIN_PASSWORD);
+        initializer.initialize(1L, ADMIN_PASSWORD);
         long adminUserId = jdbc.queryForObject(
             "SELECT id FROM sys_user WHERE tenant_id = ? AND username = ? AND delete_flag = 0",
             Long.class, TENANT, BootstrapGraphDefinition.ADMIN_USERNAME);

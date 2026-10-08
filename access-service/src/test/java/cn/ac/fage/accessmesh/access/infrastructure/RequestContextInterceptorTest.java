@@ -65,7 +65,9 @@ class RequestContextInterceptorTest {
         oauth2ResourcePaths = new OAuth2ResourcePathProperties();
         userDomainService = mock(cn.ac.fage.accessmesh.access.user.service.domain.UserDomainService.class);
         interceptor = new RequestContextInterceptor(verifier, stringRedisTemplate,
-            oauth2ResourcePaths, oauth2ClientDomainService, userDomainService);
+            oauth2ResourcePaths, oauth2ClientDomainService, userDomainService,
+            mock(org.springframework.beans.factory.ObjectProvider.class),
+            mock(cn.ac.fage.accessmesh.access.tenant.service.TenantAccessGuard.class));
         ReflectionTestUtils.setField(interceptor, "jwtSecretKey", JWT_SECRET);
 
         // 默认 mock：客户端启用（禁用用例单独覆盖）

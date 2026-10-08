@@ -61,7 +61,7 @@ class OAuth2LoginLogTest {
     @BeforeEach
     void setUp() {
         service = new OAuth2AppServiceImpl(oauth2ClientDomainService, userDomainService,
-            loginLogDomainService, redisTemplate, new ObjectMapper());
+            loginLogDomainService, redisTemplate, new ObjectMapper(), cn.ac.fage.accessmesh.access.it.TenantTestSupport.activeGuard());
         ReflectionTestUtils.setField(service, "jwtSecretKey", JWT_SECRET);
     }
 

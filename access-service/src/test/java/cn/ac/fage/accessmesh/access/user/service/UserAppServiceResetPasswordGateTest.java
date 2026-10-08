@@ -71,7 +71,7 @@ class UserAppServiceResetPasswordGateTest {
     @Test
     @DisplayName("自助改密通道：自身重置免 RESET_PASSWORD 门禁（豁免定位保留，T-PERM-067）")
     void selfResetPasswordSkipsGate() {
-        when(userDomainService.selectValidById(Mockito.any(), eq(OPERATOR))).thenReturn(user(OPERATOR));
+        when(userDomainService.lockValidById(Mockito.any(), eq(OPERATOR))).thenReturn(user(OPERATOR));
 
         try (MockedStatic<StpUtil> stp = Mockito.mockStatic(StpUtil.class)) {
             stp.when(StpUtil::getLoginIdAsLong).thenReturn(OPERATOR);
@@ -86,6 +86,20 @@ class UserAppServiceResetPasswordGateTest {
         var captor = org.mockito.ArgumentCaptor.forClass(SysUser.class);
         verify(userMapper).update(captor.capture());
         assertThat(captor.getValue().getForceResetPwd()).isFalse();
+    }
+
+    @Test
+    void forcedSelfResetMustNotAcceptTheCurrentPassword() {
+        SysUser target = user(OPERATOR);
+        target.setPassword(cn.dev33.satoken.secure.BCrypt.hashpw("initial-pass-123"));
+        target.setForceResetPwd(true);
+        when(userDomainService.lockValidById(Mockito.any(), eq(OPERATOR))).thenReturn(target);
+        try (MockedStatic<StpUtil> stp = Mockito.mockStatic(StpUtil.class)) {
+            stp.when(StpUtil::getLoginIdAsLong).thenReturn(OPERATOR);
+            assertThatThrownBy(() -> service.resetPassword(OPERATOR, "initial-pass-123"))
+                .isInstanceOf(BizException.class).hasMessageContaining("当前密码");
+        }
+        verify(userMapper, never()).update(any(SysUser.class));
     }
 
     @Test
@@ -108,7 +122,7 @@ class UserAppServiceResetPasswordGateTest {
     @Test
     @DisplayName("非自身重置持码放行：未指定新密码时自动生成随机密码并强制改密")
     void nonSelfResetPasswordWithCodeGeneratesPassword() {
-        when(userDomainService.selectValidById(Mockito.any(), eq(TARGET))).thenReturn(user(TARGET));
+        when(userDomainService.lockValidById(Mockito.any(), eq(TARGET))).thenReturn(user(TARGET));
 
         try (MockedStatic<StpUtil> stp = Mockito.mockStatic(StpUtil.class)) {
             stp.when(StpUtil::getLoginIdAsLong).thenReturn(OPERATOR);
@@ -129,7 +143,7 @@ class UserAppServiceResetPasswordGateTest {
     @Test
     @DisplayName("目标用户不存在拒绝（业务异常非安全异常）")
     void resetPasswordRejectsMissingUser() {
-        when(userDomainService.selectValidById(Mockito.any(), eq(OPERATOR))).thenReturn(null);
+        when(userDomainService.lockValidById(Mockito.any(), eq(OPERATOR))).thenReturn(null);
 
         try (MockedStatic<StpUtil> stp = Mockito.mockStatic(StpUtil.class)) {
             stp.when(StpUtil::getLoginIdAsLong).thenReturn(OPERATOR);
@@ -142,7 +156,7 @@ class UserAppServiceResetPasswordGateTest {
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.CsvSource({"900,12345678", "77,abcdefgh", "900,abcdef!!", "77,1234!!!!"})
     void weakPasswordsAreRejectedForSelfAndAdminReset(long userId, String password) {
-        when(userDomainService.selectValidById(Mockito.any(), eq(userId))).thenReturn(user(userId));
+        when(userDomainService.lockValidById(Mockito.any(), eq(userId))).thenReturn(user(userId));
         try (MockedStatic<StpUtil> stp = Mockito.mockStatic(StpUtil.class)) {
             stp.when(StpUtil::getLoginIdAsLong).thenReturn(OPERATOR);
             assertThatThrownBy(() -> service.resetPassword(userId, password))
@@ -159,7 +173,7 @@ class UserAppServiceResetPasswordGateTest {
         existing.setName("档案名");
         existing.setPhone("13800000000");
         existing.setEmail("old@example.com");
-        when(userDomainService.selectValidById(Mockito.any(), eq(TARGET))).thenReturn(existing);
+        when(userDomainService.lockValidById(Mockito.any(), eq(TARGET))).thenReturn(existing);
 
         try (MockedStatic<StpUtil> stp = Mockito.mockStatic(StpUtil.class)) {
             stp.when(StpUtil::getLoginIdAsLong).thenReturn(OPERATOR);

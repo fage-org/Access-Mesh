@@ -71,7 +71,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "spring.cloud.nacos.config.enabled=false",
     "spring.cloud.nacos.config.import-check.enabled=false",
     "spring.cloud.nacos.discovery.enabled=false",
-    "accessmesh.sync.scheduler.enabled=false",
+    "accessmesh.sync.scheduler.enabled=false", "access.tenant.gate-repair.enabled=false",
     "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration,org.redisson.spring.starter.RedissonAutoConfigurationV2,com.alibaba.cloud.nacos.NacosConfigAutoConfiguration,com.alibaba.cloud.nacos.NacosDiscoveryAutoConfiguration,com.alibaba.cloud.nacos.discovery.NacosDiscoveryClientConfiguration",
     "mybatis-flex.configuration.map-underscore-to-camel-case=true",
     "logging.level.cn.ac.fage.accessmesh=WARN",
@@ -108,6 +108,18 @@ class AuthLoginLockTest {
     @MockBean
     private StringRedisTemplate stringRedisTemplate;
 
+    @MockBean
+    private cn.ac.fage.accessmesh.access.tenant.service.domain.TenantDomainService tenants;
+    @MockBean
+    private cn.ac.fage.accessmesh.access.tenant.service.TenantAccessGuard tenantAccess;
+    @org.junit.jupiter.api.BeforeEach
+    void activeTenantFixture() {
+        org.mockito.Mockito.when(tenantAccess.captureLoginProcess(org.mockito.ArgumentMatchers.anyLong(),org.mockito.ArgumentMatchers.anyLong()))
+            .thenReturn("a".repeat(40));
+        org.mockito.Mockito.when(tenants.findByCode(cn.ac.fage.accessmesh.access.it.TenantTestSupport.CODE))
+            .thenReturn(cn.ac.fage.accessmesh.access.it.TenantTestSupport.activeTenant());
+    }
+
     @TestConfiguration
     static class InMemorySessionDaoConfig {
         @Bean
@@ -141,7 +153,7 @@ class AuthLoginLockTest {
         MvcResult result = mockMvc.perform(post("/api/access/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(MAPPER.writeValueAsString(java.util.Map.of(
-                    "tenantId", "1", "username", USERNAME, "password", password,
+                    "tenantCode", cn.ac.fage.accessmesh.access.it.TenantTestSupport.CODE, "username", USERNAME, "password", password,
                     "captchaId", "cap-1", "captchaCode", "8888", "clientId", "console"))))
             .andExpect(status().isOk())
             .andReturn();

@@ -64,7 +64,7 @@ class OAuth2AuthorizeSerializeRecheckTest {
     @BeforeEach
     void setUp() {
         service = new OAuth2AppServiceImpl(oauth2ClientDomainService, userDomainService,
-            loginLogDomainService, redisTemplate, objectMapper);
+            loginLogDomainService, redisTemplate, objectMapper, cn.ac.fage.accessmesh.access.it.TenantTestSupport.activeGuard());
         ReflectionTestUtils.setField(service, "jwtSecretKey", "authorize-recheck-test-secret-0123456789");
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
     }

@@ -42,6 +42,7 @@ class AccessServiceSchemaPostgresTest {
     private static final Path DDL_PATH = Path.of("..", "docs", "design", "schema", "access-service.sql");
 
     private static Connection conn;
+    private static final java.util.Map<String, Long> freshDdlRows = new java.util.LinkedHashMap<>();
 
     @BeforeAll
     static void setup() throws Exception {
@@ -55,6 +56,13 @@ class AccessServiceSchemaPostgresTest {
         String sql = Files.readString(DDL_PATH, StandardCharsets.UTF_8);
         try (Statement s = conn.createStatement()) {
             s.execute(sql);
+        }
+        for (String table : java.util.List.of("type_definition", "operation_permission", "system_config", "sys_oauth2_client")) {
+            freshDdlRows.put(table, countRows(table));
+        }
+        // 下方既有约束验证使用租户 1 的显式夹具；不是 DDL 自动种租户。
+        try (Statement s = conn.createStatement()) {
+            s.execute("SELECT initialize_tenant_baseline(1)");
         }
     }
 
@@ -118,7 +126,58 @@ class AccessServiceSchemaPostgresTest {
              ResultSet rs = s.executeQuery(
                  "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'")) {
             rs.next();
-            assertEquals(37, rs.getLong(1));
+            assertEquals(40, rs.getLong(1));
+        }
+    }
+
+    @Test
+    void shouldNotCreateTenantDataWhenExecutingDdl() {
+        freshDdlRows.forEach((table, count) -> assertEquals(0L, count.longValue(), table));
+    }
+
+    @Test
+    void shouldInitializeBaselineForTheRequestedTenantOnly() throws SQLException {
+        try (Statement statement = conn.createStatement();
+             ResultSet function = statement.executeQuery("SELECT to_regprocedure('initialize_tenant_baseline(bigint)') IS NOT NULL")) {
+            function.next();
+            assertTrue(function.getBoolean(1), "参数化初始化函数必须在权威 DDL 中定义");
+        }
+        try (Statement statement = conn.createStatement()) {
+            statement.execute("SELECT initialize_tenant_baseline(27)");
+            try (ResultSet rows = statement.executeQuery("SELECT COUNT(*) FROM type_definition WHERE tenant_id=27")) {
+                rows.next();
+                assertEquals(33, rows.getLong(1));
+            }
+            try (ResultSet rows = statement.executeQuery("SELECT COUNT(*) FROM operation_permission WHERE tenant_id=27")) {
+                rows.next();
+                assertEquals(123, rows.getLong(1));
+            }
+            try (ResultSet rows = statement.executeQuery("SELECT COUNT(*) FROM type_definition WHERE tenant_id=1")) {
+                rows.next();
+                assertEquals(33, rows.getLong(1), "其他租户的种子不能受新租户初始化影响");
+            }
+            assertEquals(0, countRows("sys_oauth2_client"));
+            Savepoint beforeDuplicate = conn.setSavepoint();
+            assertThrows(SQLException.class, () -> statement.execute("SELECT initialize_tenant_baseline(27)"));
+            conn.rollback(beforeDuplicate);
+            assertThrows(SQLException.class, () -> statement.execute("SELECT initialize_tenant_baseline(0)"));
+            conn.rollback(beforeDuplicate);
+        }
+    }
+
+    @Test
+    void shouldKeepPlatformIdentityIndependentAndTenantCodesUnique() throws SQLException {
+        assertTrue(tableExists("platform_account"));
+        assertTrue(tableExists("sys_tenant"));
+        assertTrue(tableExists("platform_audit_log"));
+        try (Statement statement = conn.createStatement()) {
+            statement.executeUpdate("INSERT INTO platform_account(username,name,password) VALUES ('operator-a','Operator A','hash')");
+            statement.executeUpdate("INSERT INTO sys_tenant(code,name) VALUES ('demo-team','示例租户')");
+            Savepoint point = conn.setSavepoint();
+            assertThrows(SQLException.class, () -> statement.executeUpdate("INSERT INTO sys_tenant(code,name) VALUES ('demo-team','重复租户')"));
+            conn.rollback(point);
+            assertThrows(SQLException.class, () -> statement.executeUpdate("INSERT INTO sys_tenant(code,name) VALUES ('Demo','非法编码')"));
+            conn.rollback(point);
         }
     }
 
@@ -134,7 +193,7 @@ class AccessServiceSchemaPostgresTest {
         assertEquals(33, countRows("type_definition"));
         assertEquals(123, countRows("operation_permission")); // DEPENDENCY:SYNC 随 T-PERM-071 退役删除
         assertEquals(9, countRows("system_config"));
-        assertEquals(3, countRows("sys_oauth2_client"));
+        assertEquals(0, countRows("sys_oauth2_client"));
     }
 
     @Test
