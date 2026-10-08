@@ -80,13 +80,13 @@ access:
     # 链签发时间未来偏移容忍窗（秒；2026-10-06 拍板：默认 3、配 0 关闭）——
     # 多实例节点间 NTP 级时钟漂移下，稍早签发的链在慢时钟节点仍可兑换；过期判定不放宽。
     clock-skew-tolerance-seconds: 3
-  # T-ACCESS-020：空库 bootstrap（幂等首管理员种子）。默认关闭；仅单实例启用
-  # （无分布式锁，多实例同时启用存在并发建号风险，唯一约束仅兜底）。
-  # enabled=true 时 ACCESS_BOOTSTRAP_ADMIN_PASSWORD 缺失/空白启动失败（fail-fast，密码不写日志）。
-  # 幂等三状态：固定图不存在→单事务创建 / 完整匹配→no-op 绝不重置密码 / 部分存在或业务键被占→启动失败报冲突。
-  bootstrap:
-    enabled: ${ACCESS_BOOTSTRAP_ENABLED:false}
-    admin-password: ${ACCESS_BOOTSTRAP_ADMIN_PASSWORD:}
+  # 首次部署只建立独立平台账号；全部租户随后从运营台开通。
+  # 已存在平台账号时不覆盖凭据；首次创建需显式提供强密码。
+  platform:
+    bootstrap:
+      enabled: ${ACCESS_PLATFORM_BOOTSTRAP_ENABLED:false}
+      username: ${ACCESS_PLATFORM_ADMIN_USERNAME:admin}
+      password: ${ACCESS_PLATFORM_ADMIN_PASSWORD:}
 
 sa-token:
   # T-ACCESS-003：平台用户会话与 Gateway 统一（token-name/token-prefix/token-style/timeout/active-timeout/会话键）

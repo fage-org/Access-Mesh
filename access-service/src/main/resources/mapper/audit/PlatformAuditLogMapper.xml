@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.ac.fage.accessmesh.access.audit.mapper.PlatformAuditLogMapper">
+
+    <insert id="insert" parameterType="cn.ac.fage.accessmesh.access.audit.entity.PlatformAuditLog">
+        INSERT INTO platform_audit_log(operator_id,operator_name,target_tenant_id,target_type,target_id,
+          action,outcome,summary,request_id,ip_address,request_url)
+        VALUES(#{operatorId},#{operatorName},#{targetTenantId},#{targetType},#{targetId},
+          #{action},#{outcome},#{summary},#{requestId},#{ipAddress},#{requestUrl})
+    </insert>
+
+    <sql id="pageCondition">
+        <if test="tenantId != null">
+            WHERE target_tenant_id=#{tenantId}
+        </if>
+    </sql>
+
+    <select id="page" resultType="cn.ac.fage.accessmesh.access.audit.entity.PlatformAuditLog">
+        SELECT * FROM platform_audit_log
+        <include refid="pageCondition"/>
+        ORDER BY created_at DESC,id DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="count" resultType="long">
+        SELECT count(*) FROM platform_audit_log
+        <include refid="pageCondition"/>
+    </select>
+</mapper>

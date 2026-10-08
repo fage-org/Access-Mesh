@@ -91,9 +91,12 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD:?请在 .env 设置 REDIS_PASSWORD}
-      # bootstrap 幂等：空库首启建 admin + 固定图，存量库 no-op 不重置密码（仅单实例启用）
-      ACCESS_BOOTSTRAP_ENABLED: "true"
-      ACCESS_BOOTSTRAP_ADMIN_PASSWORD: ${ACCESS_BOOTSTRAP_ADMIN_PASSWORD:-}
+      # 平台账号初始化（幂等）：仅账号表为空时创建平台管理员，存量库 no-op 不重置密码。
+      # 密码留空默认（同下方 JWT 形态）：首次部署由 access-service 初始化器 fail-fast 报缺失，
+      # 「仅基建」档不要求平台密码
+      ACCESS_PLATFORM_BOOTSTRAP_ENABLED: "true"
+      ACCESS_PLATFORM_ADMIN_USERNAME: ${ACCESS_PLATFORM_ADMIN_USERNAME:-admin}
+      ACCESS_PLATFORM_ADMIN_PASSWORD: ${ACCESS_PLATFORM_ADMIN_PASSWORD:-}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-}
       ACCESSMESH_SIGNATURE_SECRET: ${ACCESSMESH_SIGNATURE_SECRET:-}
       PERM_INTERNAL_SECRET: ${PERM_INTERNAL_SECRET:-}

@@ -59,7 +59,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "spring.cloud.nacos.config.enabled=false",
     "spring.cloud.nacos.config.import-check.enabled=false",
     "spring.cloud.nacos.discovery.enabled=false",
-    "accessmesh.sync.scheduler.enabled=false",
+    "accessmesh.sync.scheduler.enabled=false", "access.tenant.gate-repair.enabled=false",
     "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration,org.redisson.spring.starter.RedissonAutoConfigurationV2,com.alibaba.cloud.nacos.NacosConfigAutoConfiguration,com.alibaba.cloud.nacos.NacosDiscoveryAutoConfiguration,com.alibaba.cloud.nacos.discovery.NacosDiscoveryClientConfiguration",
     "mybatis-flex.configuration.map-underscore-to-camel-case=true",
     "logging.level.cn.ac.fage.accessmesh=WARN",
@@ -91,6 +91,18 @@ class PlatformSessionIdleTimeoutTest {
     @MockBean
     private StringRedisTemplate stringRedisTemplate;
 
+    @MockBean
+    private cn.ac.fage.accessmesh.access.tenant.service.domain.TenantDomainService tenants;
+    @MockBean
+    private cn.ac.fage.accessmesh.access.tenant.service.TenantAccessGuard tenantAccess;
+    @org.junit.jupiter.api.BeforeEach
+    void activeTenantFixture() {
+        org.mockito.Mockito.when(tenantAccess.captureLoginProcess(org.mockito.ArgumentMatchers.anyLong(),org.mockito.ArgumentMatchers.anyLong()))
+            .thenReturn("a".repeat(40));
+        org.mockito.Mockito.when(tenants.findByCode(cn.ac.fage.accessmesh.access.it.TenantTestSupport.CODE))
+            .thenReturn(cn.ac.fage.accessmesh.access.it.TenantTestSupport.activeTenant());
+    }
+
     @TestConfiguration
     static class InMemorySessionDaoConfig {
         @Bean
@@ -111,7 +123,7 @@ class PlatformSessionIdleTimeoutTest {
         when(userDomainService.lockValidByUsername(1L, "alice")).thenReturn(user);
         when(userDomainService.selectValidById(anyLong(), anyLong())).thenReturn(user);
         when(stringRedisTemplate.execute(any(DefaultRedisScript.class), anyList())).thenReturn("8888");
-        // 登录链路 isAccountLocked/clearLoginFail 走 opsForValue.get / delete，mock 掉（get 默认 null=未锁定）
+        // 登录链路锁定判定/清除走 LoginFailureStore（opsForValue.get / delete），mock 掉（get 默认 null=未锁定）
         org.springframework.data.redis.core.ValueOperations<String, String> valueOperations =
             org.mockito.Mockito.mock(org.springframework.data.redis.core.ValueOperations.class);
         org.mockito.Mockito.lenient().when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
@@ -120,7 +132,7 @@ class PlatformSessionIdleTimeoutTest {
         MvcResult result = mockMvc.perform(post("/api/access/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(MAPPER.writeValueAsString(java.util.Map.of(
-                    "tenantId", "1", "username", "alice", "password", PASSWORD,
+                    "tenantCode", cn.ac.fage.accessmesh.access.it.TenantTestSupport.CODE, "username", "alice", "password", PASSWORD,
                     "captchaId", "cap-1", "captchaCode", "8888", "clientId", "console"))))
             .andExpect(status().isOk())
             .andReturn();

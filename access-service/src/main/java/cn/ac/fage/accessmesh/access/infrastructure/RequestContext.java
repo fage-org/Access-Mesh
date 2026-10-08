@@ -10,7 +10,7 @@ package cn.ac.fage.accessmesh.access.infrastructure;
  * <ul>
  *   <li>{@code tenantId}：已验证的租户 ID（会话租户 / 签名绑定头 / 凭证绑定头 / 任务显式租户）</li>
  *   <li>{@code operatorId}：已验证的操作者 ID（USER 为登录用户或签名代理主体；SERVICE/TASK/ANONYMOUS 为 null）</li>
- *   <li>{@code callerType}：调用方类型（USER / SERVICE / TASK / ANONYMOUS）</li>
+ *   <li>{@code callerType}：调用方类型（PLATFORM / USER / SERVICE / TASK / ANONYMOUS）</li>
  *   <li>{@code serviceCode}：已验证的服务编码（仅 SERVICE；由服务凭证行派生；平台内部查询无服务编码）</li>
  *   <li>{@code delegatedClientId}：OAuth2 委托客户端标识（仅 OAuth2 JWT 认证分支非 null，T-ACCESS-013；
  *       callerType 仍为 USER——委托用户身份；审计/日志据此区分第三方委托调用与用户直调）</li>
@@ -48,7 +48,13 @@ public record RequestContext(Long tenantId, Long operatorId, CallerType callerTy
         return new RequestContext(null, null, CallerType.ANONYMOUS, null, null, null);
     }
 
-    /** 平台用户上下文（Sa-Token 会话权威或签名代理主体；非委托调用）。 */
+    /** 独立平台运营上下文，仅由平台认证成功的安全入口绑定。 */
+    public static RequestContext platform(Long accountId) {
+        java.util.Objects.requireNonNull(accountId, "accountId");
+        return new RequestContext(null, accountId, CallerType.PLATFORM, null, null, null);
+    }
+
+    /** 租户用户上下文（Sa-Token 会话权威或签名代理主体；非委托调用）。 */
     public static RequestContext user(Long tenantId, Long operatorId) {
         return new RequestContext(tenantId, operatorId, CallerType.USER, null, null, null);
     }

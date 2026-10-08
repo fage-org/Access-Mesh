@@ -40,6 +40,16 @@ import lombok.Getter;
 @Getter
 public enum AccessErrorCode {
 
+    // 平台运营与租户生命周期（管理语义，不属于租户权限计算）。
+    PLATFORM_ACCOUNT_NOT_FOUND(11101, "平台账号不存在"),
+    PLATFORM_ACCOUNT_EXISTS(11102, "平台账号已存在"),
+    PLATFORM_LAST_ADMIN(11103, "不能停用最后一个启用平台管理员"),
+    PLATFORM_PASSWORD_RESET_REQUIRED(11104, "请先修改平台账号初始密码"),
+    TENANT_NOT_FOUND(11110, "租户不存在"),
+    TENANT_CODE_EXISTS(11111, "租户编码已存在且不可复用"),
+    TENANT_DISABLED(11112, "租户已停用"),
+    TENANT_GATE_NOT_READY(11113, "租户状态尚未就绪，请稍后重试"),
+
     // ===== 管理段 1xxxx（原 AdminErrorCode 平移；三组碰撞常量带 ADMIN_ 前缀） =====
 
     /**
@@ -88,6 +98,8 @@ public enum AccessErrorCode {
     CANNOT_DISABLE_SELF(10009, "不能停用当前登录用户"),
 
     PASSWORD_TOO_WEAK(10010, "密码须为8-32位且同时包含字母和数字"),
+    PASSWORD_UNCHANGED(10011, "强制改密时新密码不能与当前密码相同"),
+    PASSWORD_RESET_REQUIRED(10012, "请先修改自己的初始密码"),
 
     // ===== 组织相关错误（10101-10199） =====
 

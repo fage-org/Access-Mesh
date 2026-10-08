@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.ac.fage.accessmesh.access.auth.mapper.PlatformAccountMapper">
+
+    <select id="findByUsername" resultType="cn.ac.fage.accessmesh.access.auth.entity.PlatformAccount">
+        SELECT * FROM platform_account WHERE username=#{username} AND delete_flag=0
+    </select>
+
+    <select id="findById" resultType="cn.ac.fage.accessmesh.access.auth.entity.PlatformAccount">
+        SELECT * FROM platform_account WHERE id=#{id} AND delete_flag=0
+    </select>
+
+    <select id="page" resultType="cn.ac.fage.accessmesh.access.auth.entity.PlatformAccount">
+        SELECT * FROM platform_account WHERE delete_flag=0 ORDER BY id LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="count" resultType="long">
+        SELECT count(*) FROM platform_account WHERE delete_flag=0
+    </select>
+
+    <select id="countEnabled" resultType="long">
+        SELECT count(*) FROM platform_account WHERE delete_flag=0 AND status=1
+    </select>
+
+    <!-- 事务级咨询锁（任意固定 bigint，仅平台账号管理使用；表空亦生效，首装双实例安全）。
+         锁查询显式清会话缓存（flushCache）：锁后重验操作者不得吃到锁前缓存 -->
+    <select id="lockManagement" resultType="java.lang.String" useCache="false" flushCache="true">
+        SELECT pg_advisory_xact_lock(11103001)::text
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO platform_account(username,name,password,status,force_reset_pwd,created_by,updated_by)
+        VALUES(#{username},#{name},#{password},1,#{forceResetPwd},#{createdBy},#{updatedBy})
+    </insert>
+
+    <!-- 停用（→0）时凭据代次 +1 使旧令牌失效；恢复不回退 -->
+    <update id="updateStatus">
+        UPDATE platform_account SET status=#{status},
+          credential_version=credential_version + CASE WHEN #{status}=0 THEN 1 ELSE 0 END,
+          updated_by=#{operatorId},updated_at=now()
+        WHERE id=#{id} AND delete_flag=0
+    </update>
+
+    <!-- 改密后凭据代次总 +1：全部旧令牌（含改密所用令牌）失效，需重新登录 -->
+    <update id="updatePassword">
+        UPDATE platform_account SET password=#{hash},force_reset_pwd=#{forceReset},
+          credential_version=credential_version+1,updated_by=#{operatorId},updated_at=now()
+        WHERE id=#{id} AND delete_flag=0
+    </update>
+
+    <update id="updateName">
+        UPDATE platform_account SET name=#{name},updated_by=#{operatorId},updated_at=now()
+        WHERE id=#{id} AND delete_flag=0
+    </update>
+</mapper>
