@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.gateway.filter;
 
 import cn.ac.fage.accessmesh.gateway.config.GatewayProperties;
+import cn.ac.fage.accessmesh.common.security.PlatformEndpoints;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
@@ -44,6 +45,11 @@ public class WhitelistFilter implements GlobalFilter, Ordered {
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         String path = exchange.getRequest().getURI().getPath();
+        if (PlatformEndpoints.matches(exchange.getRequest().getMethod().name(), path)) {
+            // 精确平台入口交给下游独立认证域验证。
+            exchange.getAttributes().put(SKIP_AUTH_ATTR, true);
+            return chain.filter(exchange);
+        }
         for (String pattern : whitelistPaths) {
             if (pathMatcher.match(pattern, path)) {
                 exchange.getAttributes().put(SKIP_AUTH_ATTR, true);

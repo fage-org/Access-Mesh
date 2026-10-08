@@ -70,6 +70,8 @@ class GatewayApplicationConfigTest {
 
     @Autowired
     private ApplicationContext applicationContext;
+    @MockBean
+    private org.springframework.data.redis.core.ReactiveStringRedisTemplate tenantGateRedis;
 
     /**
      * Mock 权限失效订阅器：SmartLifecycle start() 在上下文刷新时执行 Redis pub/sub 订阅，

@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.gateway.filter;
 
 import cn.ac.fage.accessmesh.gateway.model.GatewayResponse;
+import cn.ac.fage.accessmesh.common.security.TenantSessionStamp;
 import cn.dev33.satoken.dao.SaTokenDao;
 import cn.dev33.satoken.exception.NotLoginException;
 import cn.dev33.satoken.session.SaSession;
@@ -138,6 +139,11 @@ public class AuthTokenFilter implements GlobalFilter, Ordered {
                 log.warn("租户ID为空，loginId={}", loginIdStr);
                 return "租户信息缺失";
             }
+            SaSession tokenSession = StpUtil.getStpLogic().getTokenSessionByToken(token, false);
+            TenantSessionStamp stamp = tokenSession == null ? null : TenantSessionStamp.from(
+                tokenSession.get(TenantSessionStamp.EPOCH), tokenSession.get(TenantSessionStamp.FORCE_RESET), tokenSession.get(TenantSessionStamp.PROCESS));
+            if (stamp == null) return "登录已过期，请重新登录";
+            exchange.getAttributes().put("tenantSessionStamp", stamp);
             exchange.getAttributes().put(TENANT_ID_ATTR, tenantId);
 
             Object subjectTypeCode = session != null ? session.get("subjectTypeCode") : null;

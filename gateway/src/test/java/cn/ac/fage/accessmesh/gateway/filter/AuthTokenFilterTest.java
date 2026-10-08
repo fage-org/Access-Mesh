@@ -111,9 +111,23 @@ class AuthTokenFilterTest {
         if (withOperatorName) {
             session.set("operatorName", "alice");
         }
+        StpUtil.getTokenSession().set("tenantEpoch", 1L);
+        StpUtil.getTokenSession().set("forceResetPwd", false);
+        StpUtil.getTokenSession().set("redisProcessId", "a".repeat(40));
         String token = StpUtil.getTokenValue();
         SaTokenContextForThreadLocalStorage.clearBox();
         return token;
+    }
+
+    @Test
+    void legacyTokenWithoutEpochIsRejected() {
+        String token = loginAsAccessService(true, true, true);
+        StpUtil.getStpLogic().getTokenSessionByToken(token, false).delete("tenantEpoch");
+        AtomicBoolean chained = new AtomicBoolean(false);
+        MockServerWebExchange exchange = exchangeWithBearer(token);
+        filter.filter(exchange, chainOf(chained)).block();
+        assertThat(chained.get()).isFalse();
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
     private MockServerWebExchange exchangeWithBearer(String token) {
