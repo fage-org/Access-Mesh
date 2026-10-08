@@ -41,6 +41,7 @@ dataThemeChange(overallStyle.value);
 const { title } = useNav();
 
 const ruleForm = reactive({
+  tenantCode: "",
   username: "",
   password: "",
   captchaCode: ""
@@ -73,6 +74,7 @@ const onLogin = async (formEl: FormInstance | undefined) => {
       loading.value = true;
       useUserStoreHook()
         .loginByUsername({
+          tenantCode: ruleForm.tenantCode,
           username: ruleForm.username,
           password: ruleForm.password,
           captchaId: captchaId.value,
@@ -161,6 +163,14 @@ useEventListener(document, "keydown", ({ code }) => {
             :rules="loginRules"
             size="large"
           >
+            <el-form-item prop="tenantCode">
+              <el-input
+                v-model="ruleForm.tenantCode"
+                placeholder="租户编码"
+                maxlength="64"
+                autocomplete="organization"
+              />
+            </el-form-item>
             <Motion :delay="100">
               <el-form-item
                 :rules="[
@@ -245,6 +255,9 @@ useEventListener(document, "keydown", ({ code }) => {
                 登录
               </el-button>
             </Motion>
+            <el-button link @click="router.push('/platform/login')"
+              >平台运营登录</el-button
+            >
           </el-form>
         </div>
       </div>

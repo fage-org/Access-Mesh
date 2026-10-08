@@ -5,6 +5,7 @@ import { getConfig } from "@/config";
 import NProgress from "@/utils/progress";
 import { buildHierarchyTree } from "@/utils/tree";
 import remainingRouter from "./modules/remaining";
+import platformRouter from "./modules/platform";
 import { useMultiTagsStoreHook } from "@/store/modules/multiTags";
 import { usePermissionStoreHook } from "@/store/modules/permission";
 import {
@@ -36,7 +37,9 @@ import {
   type DataInfo,
   userKey,
   removeToken,
-  multipleTabsKey
+  multipleTabsKey,
+  getPlatformSession,
+  removePlatformSession
 } from "@/utils/auth";
 
 /** 自动导入全部静态路由，无需再手动引入！匹配 src/router/modules 目录（任何嵌套级别）中具有 .ts 扩展名的所有文件，除了 remaining.ts 文件
@@ -44,7 +47,11 @@ import {
  * 如何排除文件请看：https://cn.vitejs.dev/guide/features.html#negative-patterns
  */
 const modules: Record<string, any> = import.meta.glob(
-  ["./modules/**/*.ts", "!./modules/**/remaining.ts"],
+  [
+    "./modules/**/*.ts",
+    "!./modules/**/remaining.ts",
+    "!./modules/**/platform.ts"
+  ],
   {
     eager: true
   }
@@ -78,7 +85,10 @@ export const remainingPaths = Object.keys(remainingRouter).map(v => {
 /** 创建路由实例 */
 export const router: Router = createRouter({
   history: getHistoryMode(import.meta.env.VITE_ROUTER_HISTORY),
-  routes: constantRoutes.concat(...(remainingRouter as any)),
+  routes: constantRoutes.concat(
+    ...(remainingRouter as any),
+    ...(platformRouter as any)
+  ),
   strict: true,
   scrollBehavior(to, from, savedPosition) {
     return new Promise(resolve => {
@@ -106,7 +116,10 @@ export function resetLoadedPaths() {
 /** 重置路由 */
 export function resetRouter() {
   router.clearRoutes();
-  for (const route of initConstantRoutes.concat(...(remainingRouter as any))) {
+  for (const route of initConstantRoutes.concat(
+    ...(remainingRouter as any),
+    ...(platformRouter as any)
+  )) {
     router.addRoute(route);
   }
   router.options.routes = formatTwoStageRoutes(
@@ -160,6 +173,27 @@ router.beforeEach((to: ToRouteType, _from, next) => {
     NProgress.start();
   }
 
+  if (to.meta.platform) {
+    const session = getPlatformSession();
+    if (to.path === "/platform/login") {
+      next();
+      return;
+    }
+    if (!session || session.expires <= Date.now()) {
+      removePlatformSession();
+      next("/platform/login");
+      return;
+    }
+    if (
+      session.account.forceResetPwd &&
+      to.path !== "/platform/change-password"
+    ) {
+      next("/platform/change-password");
+      return;
+    }
+    next();
+    return;
+  }
   if (to.meta?.keepAlive) {
     handleAliveRoute(to, "add");
     // 页面整体刷新和点击标签页刷新

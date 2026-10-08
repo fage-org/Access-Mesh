@@ -13,7 +13,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 const { mockRequest } = vi.hoisted(() => ({ mockRequest: vi.fn() }));
 vi.mock("@/utils/http", () => ({ http: { request: mockRequest } }));
 
-import { getCaptcha, getUserMenu, logout } from "./auth";
+import { getCaptcha, getUserMenu, logout, login } from "./auth";
 import { RequestError } from "./_envelope";
 
 const PREFIX = "/api/access/auth";
@@ -84,5 +84,22 @@ describe("logout 注销契约（T-FE-045：显式携 token，不经拦截器过�
       "utf-8"
     );
     expect(src).toContain('"/api/access/auth/logout"');
+  });
+});
+
+it("tenant login sends the selected immutable code without a fixed tenant or OAuth client", async () => {
+  await login({
+    tenantCode: "customer-b",
+    username: "admin",
+    password: "pass",
+    captchaId: "id",
+    captchaCode: "1234"
+  });
+  expect(mockRequest.mock.calls[0][2].data).toEqual({
+    tenantCode: "customer-b",
+    username: "admin",
+    password: "pass",
+    captchaId: "id",
+    captchaCode: "1234"
   });
 });

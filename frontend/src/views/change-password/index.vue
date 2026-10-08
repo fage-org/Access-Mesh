@@ -1,13 +1,12 @@
 <script setup lang="ts">
-import { oauthReturnTarget } from "@/views/oauth-consent/flow";
 import { reactive, ref } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute } from "vue-router";
 import { storageLocal } from "@pureadmin/utils";
 import type { FormInstance } from "element-plus";
 import { message } from "@/utils/message";
 import { resetUserPassword } from "@/api/user-manage";
-import { getTopMenu, initRouter } from "@/router/utils";
-import { type DataInfo, clearForceResetPwdFlag, userKey } from "@/utils/auth";
+import { type DataInfo, userKey } from "@/utils/auth";
+import { useUserStoreHook } from "@/store/modules/user";
 import { buildChangePasswordRules } from "./utils/rules";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 
@@ -17,14 +16,8 @@ defineOptions({
   name: "ChangePassword"
 });
 
-/**
- * 强制改密页（T-FE-046）：forceResetPwd=true 登录后路由守卫阻断至此。
- * 改密走 POST /api/access/user/reset-password 自身路径（契约 §7.7 免门禁，
- * Gateway 白名单已纳入 T-GW-009）；成功后后端置 force_reset_pwd=false
- * （T-PERM-066），前端 clearForceResetPwdFlag 同步清阻断标记（共享
- * localStorage，其余标签下次导航自然解除）、会话保留不强制重登。
- */
-const router = useRouter();
+/** 首次改密成功后旧会话由后端撤销，回到登录页。 */
+const route = useRoute();
 const loading = ref(false);
 const ruleFormRef = ref<FormInstance>();
 
@@ -46,19 +39,8 @@ const onSubmit = async (formEl: FormInstance | undefined) => {
     loading.value = true;
     try {
       await resetUserPassword({ userId, newPassword: ruleForm.newPassword });
-      clearForceResetPwdFlag();
-      message("密码修改成功", { type: "success" });
-      // 跳转前确保菜单就绪（复评 P3-2，与登录路径同形——await initRouter 后才取
-      // getTopMenu）：守卫后台发起的 initRouter 是不阻塞放行的，慢响应窗口内提交
-      // 时 wholeMenus 仍空，getTopMenu 空树解引用抛 TypeError（密码已改成功却弹
-      // 英文错误滞留本页）。initRouter 内 single-flight：守卫在途请求存在时共享
-      // 同次拉取、menus 已就绪时零额外请求；会话终结时抛 SessionExpiredError 由
-      // catch 识别跳过重复 toast（统一层已提示并跳登录）
-      await initRouter();
-      router.push(
-        oauthReturnTarget(router.currentRoute.value.query.returnTo) ??
-          getTopMenu(true).path
-      );
+      message("密码修改成功，请重新登录", { type: "success" });
+      await useUserStoreHook().logOut(route.query.returnTo);
     } catch (error) {
       if ((error as Error)?.name === "SessionExpiredError") return;
       message((error as Error)?.message || "密码修改失败", { type: "error" });

@@ -373,7 +373,7 @@ describe("路由守卫 forceResetPwd 阻断（T-FE-046）", () => {
     expect(nextBare).toHaveBeenCalledWith({ path: "/change-password" });
   });
 
-  it("改密成功后放行：标记置 false（clearForceResetPwdFlag 的存储效果）后业务路由 next() 无参放行（loaded 前置=改密成功导航时初始化已完成）", () => {
+  it("重新登录后放行：新会话标记为 false 时业务路由 next() 无参放行（loaded 前置=改密成功导航时初始化已完成）", () => {
     loginAsForceReset();
     // 改密成功 = 共享存储中标记翻转为 false（另一标签同 storage 重读即解除阻断）
     loginAs(["BASIC_ROLE"], { forceResetPwd: false, userId: 1 });

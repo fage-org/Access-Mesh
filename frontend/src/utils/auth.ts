@@ -27,15 +27,15 @@ export interface DataInfo<T> {
   forceResetPwd?: boolean;
 }
 
-export const userKey = "user-info";
-export const TokenKey = "authorized-token";
+export const userKey = "tenant-user-info-v2";
+export const TokenKey = "tenant-authorized-token-v2";
 /**
  * 通过`multiple-tabs`是否在`cookie`中，判断用户是否已经登录系统，
  * 从而支持多标签页打开已经登录的系统后无需再登录。
  * 浏览器完全关闭后`multiple-tabs`将自动从`cookie`中销毁，
  * 再次打开浏览器需要重新登录系统
  * */
-export const multipleTabsKey = "multiple-tabs";
+export const multipleTabsKey = "tenant-tabs-v2";
 
 /** 获取`token` */
 export function getToken(): DataInfo<number> {
@@ -140,18 +140,6 @@ export function removeToken() {
   storageLocal().removeItem(userKey);
 }
 
-/**
- * 清除强制改密阻断标记（T-FE-046）：改密成功后调用——后端已置
- * `sys_user.force_reset_pwd=false`（T-PERM-066），前端将 userKey 内标记同步置
- * false 供路由守卫放行（标记与登录主体绑定存共享 localStorage，跨标签自然生效，
- * 其余标签下次导航重读即解除阻断）。其余字段原样保留（会话保留不强制重登）。
- */
-export function clearForceResetPwdFlag() {
-  const stored = storageLocal().getItem<DataInfo<number>>(userKey);
-  if (!stored) return;
-  storageLocal().setItem(userKey, { ...stored, forceResetPwd: false });
-}
-
 /** 格式化token（jwt格式） */
 export const formatToken = (token: string): string => {
   return "Bearer " + token;
@@ -169,3 +157,26 @@ export const hasPerms = (value: string | Array<string>): boolean => {
     : isIncludeAllChildren(value, permissions);
   return isAuths ? true : false;
 };
+
+/** 平台会话与租户会话使用独立键，登出互不影响。 */
+export type PlatformSession = {
+  accessToken: string;
+  expires: number;
+  account: {
+    id: number;
+    username: string;
+    name: string;
+    status: number;
+    forceResetPwd: boolean;
+  };
+};
+export const platformSessionKey = "platform-operator-session";
+export function getPlatformSession(): PlatformSession | null {
+  return storageLocal().getItem<PlatformSession>(platformSessionKey) ?? null;
+}
+export function setPlatformSession(session: PlatformSession) {
+  storageLocal().setItem(platformSessionKey, session);
+}
+export function removePlatformSession() {
+  storageLocal().removeItem(platformSessionKey);
+}

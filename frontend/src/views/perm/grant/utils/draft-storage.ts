@@ -1,6 +1,5 @@
 import { storageLocal } from "@pureadmin/utils";
 import { userKey, type DataInfo } from "@/utils/auth";
-import { FIXED_TENANT_ID } from "@/api/auth";
 import type { DraftChange, GrantContext } from "./types";
 
 export type DraftOwner = { tenantId: string; userId: string };
@@ -13,10 +12,10 @@ export type SavedGrantDraft = {
 export function readDraftOwner(): DraftOwner | null {
   try {
     const user = storageLocal().getItem<DataInfo<number>>(userKey);
-    if (user?.userId == null) return null;
+    if (user?.userId == null || user.tenantId == null) return null;
     return {
       userId: String(user.userId),
-      tenantId: String(user.tenantId ?? FIXED_TENANT_ID)
+      tenantId: String(user.tenantId)
     };
   } catch {
     return null;

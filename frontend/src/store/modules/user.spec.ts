@@ -35,9 +35,7 @@ const { mockLogin, mockGetUserMenu, mockLogout } = vi.hoisted(() => ({
 vi.mock("@/api/auth", () => ({
   login: mockLogin,
   getUserMenu: mockGetUserMenu,
-  logout: mockLogout,
-  FIXED_TENANT_ID: "1",
-  FIXED_CLIENT_ID: "admin-web"
+  logout: mockLogout
 }));
 
 // mock setToken/getToken/removeToken（真实实现依赖 Cookie/localStorage/Pinia 链，node 环境不可用）
@@ -122,6 +120,7 @@ describe("loginByUsername 真实链路（T-FE-041）", () => {
     const before = Date.now();
 
     const result = await useUserStore().loginByUsername({
+      tenantCode: "customer-a",
       username: "admin",
       password: "Admin@2026",
       captchaId: "id",
@@ -164,6 +163,7 @@ describe("loginByUsername 真实链路（T-FE-041）", () => {
 
     await expect(
       useUserStore().loginByUsername({
+        tenantCode: "customer-a",
         username: "admin",
         password: "x",
         captchaId: "id",
@@ -186,6 +186,7 @@ describe("loginByUsername 真实链路（T-FE-041）", () => {
 
     await expect(
       useUserStore().loginByUsername({
+        tenantCode: "customer-a",
         username: "admin",
         password: "x",
         captchaId: "id",
@@ -201,6 +202,7 @@ describe("loginByUsername 真实链路（T-FE-041）", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const result = await useUserStore().loginByUsername({
+      tenantCode: "customer-a",
       username: "admin",
       password: "x",
       captchaId: "id",
@@ -223,6 +225,7 @@ describe("强制改密标记写入（T-FE-046：LoginResp userId/forceResetPwd �
     mockGetUserMenu.mockResolvedValue(MENU_RESP);
 
     await useUserStore().loginByUsername({
+      tenantCode: "customer-a",
       username: "admin",
       password: "Admin@2026",
       captchaId: "id",
@@ -259,6 +262,7 @@ describe("强制改密标记写入（T-FE-046：LoginResp userId/forceResetPwd �
     mockGetUserMenu.mockResolvedValue(MENU_RESP);
 
     await user.loginByUsername({
+      tenantCode: "customer-a",
       username: "other",
       password: "Admin@2026",
       captchaId: "id",
@@ -631,4 +635,24 @@ describe("门禁状态机迁移（T-FE-056：refreshUserMenu 唯一迁移入口�
     await user.logOut();
     expect(user.menuGateStatus).toBe("uninitialized");
   });
+});
+
+describe("forced password change login continuation", () => {
+  it.each([
+    [
+      "/oauth2/authorize?client_id=demo",
+      {
+        path: "/login",
+        query: { returnTo: "/oauth2/authorize?client_id=demo" }
+      }
+    ],
+    ["https://untrusted.example/", "/login"]
+  ])(
+    "preserves only a local consent target: %s",
+    async (returnTo, destination) => {
+      mockGetToken.mockReturnValue(null);
+      await useUserStore().logOut(returnTo);
+      expect(mockRouterPush).toHaveBeenCalledWith(destination);
+    }
+  );
 });

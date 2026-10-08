@@ -11,7 +11,13 @@ import type {
   PostRequestConfig
 } from "./types.d";
 import { stringify } from "qs";
-import { getToken, formatToken, isSessionTerminated } from "@/utils/auth";
+import {
+  getToken,
+  formatToken,
+  isSessionTerminated,
+  getPlatformSession,
+  removePlatformSession
+} from "@/utils/auth";
 import { useUserStoreHook } from "@/store/modules/user";
 import { refreshSessionCapability } from "@/router/utils";
 import {
@@ -84,6 +90,24 @@ class PureHttp {
   private httpInterceptorsRequest(): void {
     PureHttp.axiosInstance.interceptors.request.use(
       async (config: PureHttpRequestConfig): Promise<any> => {
+        if (config.authRealm === "platform") {
+          const publicPaths = [
+            "/api/access/platform-auth/captcha",
+            "/api/access/platform-auth/login",
+            "/api/access/platform-auth/logout"
+          ];
+          if (publicPaths.includes(config.url)) return config;
+          const session = getPlatformSession();
+          if (!session || session.expires <= Date.now()) {
+            removePlatformSession();
+            void import("@/router").then(({ router }) =>
+              router.push("/platform/login")
+            );
+            throw new Error("平台会话已过期，请重新登录");
+          }
+          config.headers.Authorization = formatToken(session.accessToken);
+          return config;
+        }
         // 优先判断post/get等方法是否传入回调，否则执行初始化设置等回调
         if (typeof config.beforeRequestCallback === "function") {
           config.beforeRequestCallback(config);
@@ -148,6 +172,23 @@ class PureHttp {
       (error: PureHttpError) => {
         const $error = error;
         $error.isCancelRequest = Axios.isCancel($error);
+        if (
+          ($error.config as PureHttpRequestConfig)?.authRealm === "platform"
+        ) {
+          const session = getPlatformSession();
+          if (
+            $error.response?.status === 401 &&
+            session &&
+            $error.config?.headers?.Authorization ===
+              formatToken(session.accessToken)
+          ) {
+            removePlatformSession();
+            void import("@/router").then(({ router }) =>
+              router.push("/platform/login")
+            );
+          }
+          return Promise.reject($error);
+        }
         // HTTP 401 统一窄处理（T-FE-041）：收到 401 即清除本地会话并跳转登录页；
         // 不增加 refresh-token、自动续期或重试体系。后端业务失败为 HTTP 200 + code≠200，
         // 不经过此分支。会话已过期提示（T-FE-054 双分支统一，2026-09-20 拍板）：

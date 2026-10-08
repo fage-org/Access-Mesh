@@ -8,6 +8,14 @@ import type { FormRules } from "element-plus";
  * 模板遗留的 8-18 位两类字符正则会拒绝后端合法密码，已删除。
  */
 const loginRules = reactive<FormRules>({
+  tenantCode: [
+    {
+      required: true,
+      pattern: /^[a-z][a-z0-9-]{0,63}$/,
+      message: "请输入租户编码（小写字母开头，可含数字和连字符）",
+      trigger: "blur"
+    }
+  ],
   password: [
     {
       required: true,

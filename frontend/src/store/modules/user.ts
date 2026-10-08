@@ -1,3 +1,4 @@
+import { oauthReturnTarget } from "@/views/oauth-consent/flow";
 import { defineStore } from "pinia";
 import {
   type userType,
@@ -110,7 +111,7 @@ export const useUserStore = defineStore("pure-user", {
       // 强制改密闭环（T-FE-046）：LoginResp 的 userId（自助改密请求入参）与
       // forceResetPwd（路由守卫阻断标记）随登录写入 userKey——与登录主体绑定、
       // 跨标签共享（sessionStorage 每标签独立不合格）；改密成功由页面调
-      // clearForceResetPwdFlag 置 false，登出 removeToken 整体清除
+      // 首次改密成功后重新登录，登出 removeToken 整体清除
       const stored = storageLocal().getItem<DataInfo<number>>(userKey) ?? {
         refreshToken: "",
         expires: 0
@@ -217,7 +218,7 @@ export const useUserStore = defineStore("pure-user", {
      *    同步栈内执行完毕即复位，恒不命中）——保留是防御未来重新引入 await 点时的重入；
      *    重复触发（连点/拦截器程序化调用）的实际防护由 getToken() 无令牌幂等分支承担。
      */
-    async logOut() {
+    async logOut(returnTo?: unknown) {
       if (logoutInFlight) return;
       logoutInFlight = true;
       try {
@@ -236,7 +237,12 @@ export const useUserStore = defineStore("pure-user", {
         removeToken();
         useMultiTagsStoreHook().handleTags("equal", [...routerArrays]);
         resetRouter();
-        router.push("/login");
+        const consentTarget = oauthReturnTarget(returnTo);
+        router.push(
+          consentTarget
+            ? { path: "/login", query: { returnTo: consentTarget } }
+            : "/login"
+        );
       } finally {
         logoutInFlight = false;
       }

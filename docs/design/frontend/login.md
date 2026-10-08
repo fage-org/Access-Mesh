@@ -3,7 +3,7 @@ doc_type: design
 title: 登录页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-10-06
+last_reviewed: 2026-10-08
 ---
 
 # 登录页 前端设计（T-FE-041 真实登录链路）
@@ -24,12 +24,12 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 表单模型 `ruleForm`：`username`（必填）、`password`（仅必填——登录不是设置密码的场景，长度/复杂度约束属改密流程，后端 `LoginReq.password` 仅 `@NotBlank`、`ResetPasswordReq` 才有 8-32 位约束）、`captchaCode`（必填）。
 `captchaId` 不进表单，由页面 ref 持有（用户不可见）。
 
-提交体（`LoginFormData` + api 层固定注入）：
+提交体（`LoginFormData`）：
 
 | 字段 | 来源 | 说明 |
 |---|---|---|
-| `tenantId` | api 层常量 `FIXED_TENANT_ID = "1"` | bootstrap 固定租户；多租户选择器 Phase 3 |
-| `clientId` | api 层常量 `FIXED_CLIENT_ID = "admin-web"` | oauth2_client 种子客户端（grant_types 含 password） |
+| `tenantCode` | 用户输入 | 不可变租户编码，严格小写字母开头，允许数字与连字符，最长 64 |
+| `clientId` | 前端不发送 | 后端可选审计来源字段，普通登录不依赖 OAuth2 客户端 |
 | `username` / `password` | 表单 | — |
 | `captchaId` / `captchaCode` | 页面 ref + 表单 | 后端一次性消费 |
 
@@ -43,7 +43,7 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 
 ## API 依赖（链接后端契约章节）
 
-- `POST /api/access/auth/captcha` → `R<CaptchaResp{captchaId, image}>`（契约来源：后端 `AdminAuthController`/`CaptchaResp`——平台登录端点族未成册，契约总册 §6.4 已登记，以代码为准）
+- `POST /api/access/auth/captcha` → `R<CaptchaResp{captchaId, image}>`（契约来源：后端 `AdminAuthController`/`CaptchaResp`——租户登录端点族已在契约总册 §6.4 登记）
 - `POST /api/access/auth/login` → `R<LoginResp{accessToken, refreshToken(null), expiresIn(秒), tokenType, userId, username, tenantId, forceResetPwd}>`（契约来源同上：`LoginReq`/`LoginResp`）；业务失败 HTTP 200 + code≠200
 - `POST /api/access/auth/user-menu` → `R<UserMenuData{menus, roles, permissions}>`（拉取时机（T-FE-048 起）：登录（loginByUsername 直调）、会话恢复（initRouter 拉取分支，F5/启动）、403 自动刷新、顶栏手动入口、授予页重试（retryLoadDeps）、menu-retry 重试（reloadSessionMenus，T-FE-056 起）——登录外各路均收敛到「会话权限热刷新」节的能力刷新入口，登录路径复用 loginByUsername 已拉取结果不重复请求；HTTP 401 会话失效不降级 rethrow，其余异常仅 console.warn 不阻断登录）
 - 路径经 Gateway 统一路由（`/api/access/**` 单命名空间，无 StripPrefix——T-ACCESS-042）；开发环境由 vite proxy 单条 `/api` 同路径转发（`VITE_PROXY_TARGET`）
@@ -54,7 +54,7 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 - `views/login/utils/rule.ts`：表单规则（含 captchaCode required）
 - `views/login/utils/messages.ts`：`resolveLoginMessages` 登录成功提示语义唯一出口（T-FE-049 两态；forceResetPwd 提示分支已随 T-FE-046 阻断流程删除）
 - `views/change-password/index.vue` + `utils/rules.ts`：强制改密页（T-FE-046，见「强制改密闭环」节）
-- `api/auth.ts`：`getCaptcha`/`login`/`logout`（后两者 `unwrap` 解包）/`getUserMenu` + 固定常量
+- `api/auth.ts`：`getCaptcha`/`login`/`logout`（后两者 `unwrap` 解包）/`getUserMenu`
 - `store/modules/user.ts`：`loginByUsername`（unwrap → expiresIn 转绝对时间 → setToken → LoginResp 的 userId/forceResetPwd 随登录写入 userKey（T-FE-046，阻断标记与改密请求主体）→ refreshUserMenu）、`refreshUserMenu`（成败维护 `menuLoadFailed`——空侧栏两态区分的事实来源，成功但空 menus=合法形态非失败；回写前按 accessToken 指纹做会话代际守卫——旧会话响应不污染新会话，Q-016）、`logOut`（服务端注销 fire-and-forget，见「登出流程」）；**无刷新令牌链路**（后端普通 Sa-Token 会话 refreshToken 为 null）
 - `utils/session-expired.ts`：会话已过期统一提示（`notifySessionExpiredOnce` 10s 去重窗口）与 `SessionExpiredError` 信号（initRouter 会话终结分支抛出，T-FE-054；独立小模块：去重状态放 http 会与既有边成环、放 router/utils 属职责错位）
 - `router/gate.ts`：路由级 UX 门禁判定纯函数（`isPublicRoute` 公共白名单 / `collectMenuPaths` menus 树 path 集 / `isRouteAllowed` 三源判定，T-FE-056——见「路由级 UX 门禁」节；独立小模块同 session-expired 先例：守卫消费、可单测）
@@ -96,7 +96,7 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 
 **口径演进**：T-PERM-037（2026-08-31）当时维持「菜单可见、路由可达、后端 403 兜底」的理由是「meta.auths 为前端静态声明可绕过，与后端派生方案重复」——T-FE-015 后菜单已是后端按权限派生（menus 树），以 menus 派生路由门禁不再有静态可绕过问题，本机制落地后「路由可达、后端 403 兜底」口径退役为「menus 门禁拦 403 + 后端 403 双层兜底」。
 
-模板 `meta.roles` 白名单不启用，菜单权限由后端 menus 派生；`filterNoPermissionTree` 尚有结构处理副作用，不能仅因没有 roles 声明就删除整条调用链。强制改密成功后须等待 `initRouter` 完成再取首菜单落点，不固定跳 welcome。[来源](../../archive/2026-09-26/decision-registry-history.md)（原第 32、34、35 行）。
+模板 `meta.roles` 白名单不启用，菜单权限由后端 menus 派生；`filterNoPermissionTree` 尚有结构处理副作用，不能仅因没有 roles 声明就删除整条调用链。强制改密完成后撤销旧会话并返回租户登录页；重新登录后由菜单决定落点。[来源](../../archive/2026-09-26/decision-registry-history.md)（原第 32、34、35 行）。
 
 **门禁集合**（`src/router/gate.ts`，三源之并）：
 
@@ -128,23 +128,21 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 
 > T-FE-045 原「服务端注销优先=等注销完成再清理」口径就此演进（2026-09-20，T-FE-054）：「优先」语义从「等注销完成」改为「注销请求先发出即清理」。T-FE-041「前端登出仅清本地、不调接口」口径已于 2026-09-19 退役（T-FE-045）。logoutAll 踢全部端点与多设备会话管理为非目标（另立评估）。
 
-## 强制改密闭环（T-FE-046，2026-09-19 拍板）
+## 强制改密闭环
 
-**流程**：登录成功（`forceResetPwd=true`）→ 标记随登录写入 userKey → 登录页跳 `getTopMenu()` 被路由守卫阻断改投 `/change-password` → 用户设置新密码（8-32 位，无旧密码字段）→ `POST /api/access/user/reset-password`（`userId=当前登录用户自身`、`newPassword` 必传；自身路径免门禁，契约 §7.7）→ 后端置 `force_reset_pwd=false`（T-PERM-066）+ 前端 `clearForceResetPwdFlag` 同步清标记 → 会话保留直接进入系统（后端改密不注销会话——代码级核实：`resetPassword` 全方法无 StpUtil 踢出/登出调用）。
+租户登录返回 `forceResetPwd=true` 时，前端导航到全屏 `/change-password`；后端同时限制该会话只可访问必要的 userinfo/user-menu/logout 和自身 reset-password 入口，不允许直接调用业务 API 或签发 OAuth2 委托。用户设置 8–32 位、含字母和数字且与当前密码不同的新密码后，后端清除标记并撤销旧会话，前端立即清本地租户会话并返回登录页；若从 OAuth2 授权流程进入，沿用仅本地 `/oauth2/authorize` 的白名单校验保留 returnTo，重新登录后回到授权确认页。普通自助改密行为保持原契约。
 
-**阻断口径**：
+强制标记存于登录主体对应的 localStorage 元数据；每次登录重写，登出清除，不再通过只清标记来继续使用旧令牌。缺少 userId 时改密页提示重新登录，不猜测主体。租户自助改密接口仍不收旧密码字段；独立平台改密接口则校验 oldPassword。
 
-- 阻断是**导航层 UX 门禁，不是安全边界**——后端仍是最终授权边界（改密页自身经会话认证可达，业务接口由后端 403 兜底，T-PERM-037 口径）；后端无全局 force-reset 请求拦截，前端阻断是唯一闸门。
-- 守卫放行清单（`router/index.ts forceResetAllowPaths`）：`/change-password`、`/login` 与公共错误页（`/access-denied`、`/server-error`、`/menu-retry`、`/error/403|404|500`），其余路由 redirect `/change-password`。不含 `/redirect`：真实标签刷新导航是 `/redirect`+fullPath 参数化路径（精确匹配恒不中），裸 `/redirect` 命中 Layout 父记录会把侧栏壳放给阻断人群（双轨评审 P2 处置，2026-09-20）。
-- 页面 `/change-password` 注册于 remaining.ts（全屏独立页，无 Layout——阻断人群不应看到侧栏），登录即达无需权限码。
+`/api/access/user/reset-password` 保持 Gateway 会话入口族豁免，其最终安全边界由后端会话认证、租户即时门禁、强制改密自助限制及非自身实例级权限校验共同承担。
 
-**标记生命周期**（与登录主体绑定、跨标签共享）：标记 = userKey（localStorage）内 `forceResetPwd` 字段——**登录覆盖**（每次登录从 LoginResp 重写，普通登录写 false 清残留）、**登出清除**（removeToken 整体清 userKey）、**改密成功置 false**（`clearForceResetPwdFlag`，其余字段保留）。sessionStorage 每标签独立（新开标签漏失阻断）不合格，故选 localStorage；跨标签经共享存储自然生效（守卫每次导航重读，无需 storage 事件广播——广播仅缩短延迟，不做）。`userId` 同随登录写入 userKey（改密请求主体；改密前旧会话缺 userId 时页面提示重新登录，不做静默兜底）。
+## 独立平台运营入口
 
-**UI 口径**：首期不设旧密码字段（后端旧密码校验未实现，T-PERM-066 明确另立任务，前端收集不校验的字段是假安全）；文案用「设置新密码」；长度 8-32 对齐契约 §7.7 `ResetPasswordReq`。
+平台 `/platform/login`、`/platform/change-password` 与 `/platform/*` 运营布局在同一前端工程中独立注册，不进入租户布局的路由压平流程。平台账号、租户和平台审计页面只调用独立平台 API，平台没有客户用户、组织和授权管理入口。
 
-**Gateway 前置（T-GW-009，2026-09-19 收口）**：`/api/access/user/reset-password` 已纳入 Gateway 会话入口族白名单 + access-service 密钥豁免清单——否则快照判定对无 API:ACCESS 的普通用户 403，阻断落地即把目标人群锁死在改密页。
+平台令牌使用 `platform-operator-session` 独立存储及 `authRealm=platform` 请求分支；平台 401 或登出只清平台身份，不触发租户菜单刷新或租户登出。租户会话使用 v2 键（`tenant-user-info-v2`、`tenant-authorized-token-v2`、`tenant-tabs-v2`），旧键不再消费，升级后重新登录。两个身份可在同一浏览器同时存在。Redis 重启会使租户原生会话失效，收到 401 后重新登录；平台会话继续按独立数据库凭据代次校验。
 
-> T-ADMIN-022「非阻断 warning 引导联系管理员」口径退役（2026-09-19，T-FE-046）——「系统无用户自助改密通道」的立项依据已被 T-PERM-067/066 证伪（自助通道=reset-password 自身路径 + 改密成功置 false），登录页 warning 分支已删。
+开通或凭据重置的明文只在当前弹窗内一次展示，不持久化到浏览器；关闭弹窗即清除。响应中断时提示先查已创建对象，再用受审计重置入口恢复交付。租户列表分别展示登记状态和访问状态；门禁未就绪不表述为已恢复。
 
 ## mock 与动态路由口径（T-FE-041 决策）
 
@@ -155,4 +153,4 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 
 OAuth2 授权续接 query 为 returnTo，仅允许本地 /oauth2/authorize 路径。平台强制改密门禁仍优先，改密成功后再返回确认页；菜单加载失败不把未确认的授权请求自动签码。
 
-登录响应中的 userId/tenantId 随本地会话元数据保存，供授权草稿隔离。当前登录 tenantId 固定字符串 "1"，仍是单租户试运行过渡形态；升级前缺 tenantId 的本地会话仅按固定租户补全草稿键。未来启用租户选择/tenantCode 登录时必须移除这一固定值与补全，并重审登录契约及草稿分区。
+登录响应中的 userId/tenantId 随本地会话元数据保存，供授权草稿隔离。登录采用 tenantCode，草稿仍以服务端解析出的内部 tenantId 与 userId 分区；缺 tenantId 的旧会话不能构造草稿归属，不回落租户 1。

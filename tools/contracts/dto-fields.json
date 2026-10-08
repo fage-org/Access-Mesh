@@ -713,5 +713,165 @@
         "name": "SyncStatusListReq"
       }
     ]
+  },
+  {
+    "name": "PlatformAccountResp",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/auth/dto/PlatformAccountResp.java",
+        "name": "PlatformAccountResp"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/platform.ts",
+        "name": "PlatformAccount"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "PlatformAccountResp"
+      }
+    ]
+  },
+  {
+    "name": "PlatformLoginResp",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/auth/dto/PlatformLoginResp.java",
+        "name": "PlatformLoginResp"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/platform.ts",
+        "name": "PlatformLoginResp"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "PlatformLoginResp"
+      }
+    ]
+  },
+  {
+    "name": "TenantResp",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/tenant/dto/TenantResp.java",
+        "name": "TenantResp"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/platform.ts",
+        "name": "Tenant"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "TenantResp"
+      }
+    ]
+  },
+  {
+    "name": "PlatformAuditResp",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/audit/dto/resp/PlatformAuditResp.java",
+        "name": "PlatformAuditResp"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/platform.ts",
+        "name": "PlatformAudit"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "PlatformAuditResp"
+      }
+    ]
+  },
+  {
+    "name": "TenantAdminPasswordResp",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/tenant/dto/TenantAdminPasswordResp.java",
+        "name": "TenantAdminPasswordResp"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/platform.ts",
+        "name": "TenantAdminPasswordResp"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "TenantAdminPasswordResp"
+      }
+    ]
+  },
+  {
+    "name": "IssuedPasswordResp",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/auth/dto/IssuedPasswordResp.java",
+        "name": "IssuedPasswordResp"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/platform.ts",
+        "name": "IssuedPasswordResp"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "IssuedPasswordResp"
+      }
+    ]
+  },
+  {
+    "name": "TenantCreatedResp",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/tenant/dto/TenantCreatedResp.java",
+        "name": "TenantCreatedResp"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/platform.ts",
+        "name": "TenantCreatedResp"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "TenantCreatedResp"
+      }
+    ]
+  },
+  {
+    "name": "PlatformAccountCreatedResp",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/auth/dto/PlatformAccountCreatedResp.java",
+        "name": "PlatformAccountCreatedResp"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/platform.ts",
+        "name": "PlatformAccountCreatedResp"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "PlatformAccountCreatedResp"
+      }
+    ]
   }
 ]

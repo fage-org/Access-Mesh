@@ -15,6 +15,7 @@ export interface PureHttpResponse extends AxiosResponse {
 }
 
 export interface PureHttpRequestConfig<D = any> extends AxiosRequestConfig<D> {
+  authRealm?: "tenant" | "platform";
   beforeRequestCallback?: (request: PureHttpRequestConfig) => void;
   beforeResponseCallback?: (response: PureHttpResponse) => void;
 }

@@ -3,17 +3,6 @@ import { unwrap, type R } from "./_envelope";
 
 // ========== 真实登录链路契约（T-FE-041，对齐 AdminAuthController） ==========
 
-/**
- * 首期固定租户：bootstrap（T-ACCESS-020）预置的固定租户 "1"。
- * 多租户选择器为 Phase 3 范围，届时再引入选择 UI。
- */
-export const FIXED_TENANT_ID = "1";
-
-/**
- * 首期固定客户端：oauth2_client 种子已有 admin-web（grant_types 含 password）。
- */
-export const FIXED_CLIENT_ID = "admin-web";
-
 /** `/api/access/auth/captcha` 响应：验证码图片（base64，含 data:image/png;base64, 前缀）+ 一次性 ID */
 export type CaptchaResp = {
   captchaId: string;
@@ -22,15 +11,15 @@ export type CaptchaResp = {
 
 /**
  * `/api/access/auth/login` 请求体（对齐后端 LoginReq）。
- * tenantId/clientId 由 api 层固定注入，页面只收集账号/密码/验证码。
+ * tenantCode 由用户填写；普通登录不依赖 OAuth2 客户端。
  */
 export type LoginReq = {
-  tenantId: string;
+  tenantCode: string;
   username: string;
   password: string;
   captchaId: string;
   captchaCode: string;
-  clientId: string;
+  clientId?: string;
 };
 
 /**
@@ -49,10 +38,10 @@ export type LoginResp = {
   forceResetPwd: boolean;
 };
 
-/** 登录页收集的表单字段（api 层补齐 tenantId/clientId 后即为 LoginReq） */
+/** 租户登录表单。 */
 export type LoginFormData = Pick<
   LoginReq,
-  "username" | "password" | "captchaId" | "captchaCode"
+  "tenantCode" | "username" | "password" | "captchaId" | "captchaCode"
 >;
 
 /**
@@ -77,11 +66,12 @@ export const getCaptcha = async (): Promise<CaptchaResp> => {
  */
 export const login = (data: LoginFormData): Promise<R<LoginResp>> => {
   return http.request<R<LoginResp>>("post", "/api/access/auth/login", {
-    // 固定 tenantId/clientId 放在展开之后获得最终覆盖权（结构化类型下多余字段无法篡改）
     data: {
-      ...data,
-      tenantId: FIXED_TENANT_ID,
-      clientId: FIXED_CLIENT_ID
+      tenantCode: data.tenantCode,
+      username: data.username,
+      password: data.password,
+      captchaId: data.captchaId,
+      captchaCode: data.captchaCode
     } satisfies LoginReq
   });
 };

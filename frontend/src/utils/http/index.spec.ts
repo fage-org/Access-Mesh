@@ -47,6 +47,12 @@ const {
   };
 });
 
+const { mockPlatformSession, mockRemovePlatformSession, mockPlatformPush } =
+  vi.hoisted(() => ({
+    mockPlatformSession: vi.fn(),
+    mockRemovePlatformSession: vi.fn(),
+    mockPlatformPush: vi.fn()
+  }));
 vi.mock("@/store/modules/user", () => ({
   useUserStoreHook: () => mockUser
 }));
@@ -58,8 +64,10 @@ vi.mock("@/store/modules/permission", () => ({
 vi.mock("@/store/modules/multiTags", () => ({
   useMultiTagsStoreHook: () => ({})
 }));
-vi.mock("@/router", () => ({ router: {} }));
+vi.mock("@/router", () => ({ router: { push: mockPlatformPush } }));
 vi.mock("@/utils/auth", () => ({
+  getPlatformSession: mockPlatformSession,
+  removePlatformSession: mockRemovePlatformSession,
   getToken: (...args: unknown[]) => mockGetToken(...args),
   // isSessionTerminated 真实语义镜像（T-FE-054 外评 P2 单源判据的 mock 面）
   isSessionTerminated: (data?: unknown) => {
@@ -354,5 +362,50 @@ describe("token 过期短路与双分支统一提示（T-FE-054）", () => {
     expect(adapterCalls).toHaveLength(1);
     expect(mockLogOut).not.toHaveBeenCalled();
     expect(mockMessage).not.toHaveBeenCalled();
+  });
+});
+
+describe("platform request realm isolation", () => {
+  it("uses platform bearer and a platform 401 never clears the tenant login", async () => {
+    mockPlatformSession.mockReturnValue({
+      accessToken: "operator-token",
+      expires: Date.now() + 60000
+    });
+    installAdapter(() => 401);
+    const error = await http
+      .post("/api/access/tenant/page", { authRealm: "platform", data: {} })
+      .catch(e => e);
+    await drainMicrotasks();
+    expect(
+      (error as { config: InternalAxiosRequestConfig }).config.headers
+        .Authorization
+    ).toBe("Bearer operator-token");
+    expect(mockRemovePlatformSession).toHaveBeenCalledTimes(1);
+    expect(mockLogOut).not.toHaveBeenCalled();
+    expect(mockRefreshUserMenu).not.toHaveBeenCalled();
+    expect(mockPlatformPush).toHaveBeenCalledWith("/platform/login");
+  });
+  it("platform login remains anonymous even while tenant is signed in", async () => {
+    installAdapter(() => 400);
+    const error = await http
+      .post("/api/access/platform-auth/login", {
+        authRealm: "platform",
+        data: {}
+      })
+      .catch(e => e);
+    expect(
+      (error as { config: InternalAxiosRequestConfig }).config.headers
+        .Authorization
+    ).toBeUndefined();
+    expect(mockLogOut).not.toHaveBeenCalled();
+  });
+  it("expired platform identity short circuits without consuming tenant identity", async () => {
+    mockPlatformSession.mockReturnValue(null);
+    installAdapter(() => 200);
+    await expect(
+      http.post("/api/access/tenant/page", { authRealm: "platform" })
+    ).rejects.toThrow("平台会话已过期");
+    expect(adapterCalls).toEqual([]);
+    expect(mockLogOut).not.toHaveBeenCalled();
   });
 });

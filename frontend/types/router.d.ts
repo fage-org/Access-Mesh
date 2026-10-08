@@ -12,6 +12,8 @@ declare global {
    * @description 完整子路由的`meta`配置表
    */
   interface CustomizeRouteMeta {
+    /** 独立平台身份入口，不进入租户菜单与会话守卫。 */
+    platform?: boolean;
     /** 菜单名称（兼容国际化、非国际化，如何用国际化的写法就必须在根目录的`locales`文件夹下对应添加） `必填` */
     title: string;
     /** 菜单图标 `可选` */
