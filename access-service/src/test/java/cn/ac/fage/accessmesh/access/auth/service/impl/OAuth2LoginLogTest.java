@@ -146,7 +146,7 @@ class OAuth2LoginLogTest {
 
     @Test
     @DisplayName("客户端密钥错误 → 写 OAUTH2 登录日志失败（status=0）")
-    void shouldRecordOauth2LoginFailure_whenClientSecretMismatch() {
+    void shouldRecordOauth2LoginFailure_whenClientSecretMismatch() throws Exception {
         String correctSecret = "right-secret";
         SysOauth2Client client = new SysOauth2Client();
         client.setTenantId(10L);
@@ -155,12 +155,15 @@ class OAuth2LoginLogTest {
         when(oauth2ClientDomainService.findActiveListByClientId("client-1")).thenReturn(List.of(client));
 
         // 授权码已存（T-ACCESS-097：租户定位经预读授权码，选行后才做密钥校验——
-        // 密钥校验失败仍不消费授权码，无需 stub 消费脚本）
+        // 密钥校验失败仍不消费授权码，无需 stub 消费脚本；码数据必须接入预读 GET，
+        // 否则用例走「码无效」分支而非本用例锁定的 secret 校验分支）
         var codeData = OAuth2CredentialFixtures.authCode();
         codeData.setClientId("client-1");
         codeData.setTenantId(10L);
         codeData.setRedirectUri("http://app/cb");
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get(org.mockito.ArgumentMatchers.anyString()))
+            .thenReturn(new ObjectMapper().writeValueAsString(codeData));
         try {
             service.token(new TokenReq(
                 "authorization_code", "client-1", "wrong-secret", "code-abc",
@@ -172,9 +175,12 @@ class OAuth2LoginLogTest {
         ArgumentCaptor<LoginLogEntry> captor = ArgumentCaptor.forClass(LoginLogEntry.class);
         verify(loginLogDomainService).recordLoginLog(captor.capture());
         LoginLogEntry entry = captor.getValue();
+        // 预读后 holder 即码租户：secret 失败审计归属码租户（T-ACCESS-097 行为锁）
+        assertEquals(10L, entry.tenantId());
         assertEquals("client-1", entry.clientId());
         assertEquals("OAUTH2", entry.loginType());
         assertEquals(0, entry.status());
+        assertEquals("client secret mismatch", entry.failReason());
     }
 
     @Test

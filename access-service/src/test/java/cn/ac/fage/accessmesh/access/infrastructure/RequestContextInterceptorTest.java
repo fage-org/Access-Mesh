@@ -421,8 +421,55 @@ class RequestContextInterceptorTest {
     @Test
     @DisplayName("T-ACCESS-013：clientIds 限定不满足 → 403")
     void shouldReject_whenClientNotInAllowedList() throws Exception {
-        configureBusinessPath("/api/example/open", "example:read", "access-service", "other-client");
+        configureBusinessPath("/api/example/open", "example:read", "access-service", "9:other-client");
         String jwt = jwt(oauth2Claims("example:read", "access-service"));
+
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/example/open");
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        req.addHeader("Authorization", "Bearer " + jwt);
+
+        boolean result = interceptor.preHandle(req, resp, new Object());
+
+        assertThat(result).isFalse();
+        assertThat(resp.getStatus()).isEqualTo(403);
+    }
+
+    @Test
+    @DisplayName("T-ACCESS-097 外评 P2：clientIds 结构化身份命中（1:clientId）→ 放行")
+    void shouldAllow_whenStructuredClientIdMatchesResolvedRow() throws Exception {
+        // 旧实现（裸 clientId 名字比较）对条目 "1:example-web" 恒不匹配 → 403，本用例即红
+        configureBusinessPath("/api/example/open", "example:read", "access-service", "1:" + CLIENT_ID);
+        String jwt = jwt(oauth2Claims("example:read", "access-service"));
+
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/example/open");
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        req.addHeader("Authorization", "Bearer " + jwt);
+
+        boolean result = interceptor.preHandle(req, resp, new Object());
+
+        assertThat(result).isTrue();
+        assertThat(AccessRequestContext.getDelegatedClientId()).isEqualTo(CLIENT_ID);
+    }
+
+    @Test
+    @DisplayName("T-ACCESS-097 外评 P2：他租户同名客户端不借白名单名通过（身份粒度，非名字粒度）→ 403")
+    void shouldReject_whenSameNameClientOfAnotherTenantNotInAllowlist() throws Exception {
+        // 白名单只批准租户 1 的客户端；令牌为租户 2 的同名客户端（行/claim/用户均在租户 2，
+        // 验签与启用校验全过）——身份比较 "2:example-web" ∉ {"1:example-web"} → 403
+        configureBusinessPath("/api/example/open", "example:read", "access-service", "1:" + CLIENT_ID);
+        SysOauth2Client tenant2Client = new SysOauth2Client();
+        tenant2Client.setClientId(CLIENT_ID);
+        tenant2Client.setStatus(1);
+        tenant2Client.setTenantId(2L);
+        when(oauth2ClientDomainService.findActiveByClientId(2L, CLIENT_ID)).thenReturn(tenant2Client);
+        var tenant2User = new cn.ac.fage.accessmesh.access.user.entity.SysUser();
+        tenant2User.setStatus(1);
+        tenant2User.setPassword(OAuth2CredentialFixtures.PASSWORD_HASH);
+        when(userDomainService.selectValidById(2L, 100L)).thenReturn(tenant2User);
+
+        var claims = oauth2Claims("example:read", "access-service");
+        claims.put("tenant_id", "2");
+        String jwt = jwt(claims);
 
         MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/example/open");
         MockHttpServletResponse resp = new MockHttpServletResponse();

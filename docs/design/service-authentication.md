@@ -22,7 +22,7 @@ last_reviewed: 2026-10-06
 
 - 用户侧认证零改动（Sa-Token 会话 / OAuth2 authorization_code+PKCE / JWT 维持现状）；
 - 不做签名制（nonce / 验签 / 时钟容忍）——2026-09-19 重评定案：采用受控信任域内 bearer secret + TLS；BCrypt 只保护库中哈希，明文 secret 泄露后可重构凭证权限范围内的查询/同步请求，并非仅幂等重放无害；轮换与停用见 [部署基线](../ops/deployment.md#11-密钥轮换)；
-- 不借道 OAuth2 `client_credentials`（**无发放实现**——token 端点仅 authorization_code；schema 中 `internal-service` 种子行的 `grant_types='client_credentials'` 与列注释为历史预留、未被任何发放路径消费。且 OAuth2 client 是"应用代用户"的另一套身份语义——权限注册是 control plane 的 M2M 语义）；
+- 不借道 OAuth2 `client_credentials`（**无发放实现**——token 端点仅 authorization_code；grant_types 列含该可选值但零发放路径消费，历史预置的 `internal-service` 种子行已随「客户端不预置」定案删除。且 OAuth2 client 是"应用代用户"的另一套身份语义——权限注册是 control plane 的 M2M 语义）；
 - 不改 20055 类型所有权门禁（它继续作为资源通道第二道防线）。
 
 ---
@@ -36,7 +36,7 @@ last_reviewed: 2026-10-06
 | # | 信任模型 | 主体 | 证据锚点 |
 |---|---|---|---|
 | ① | Sa-Token 会话（仅 Bearer 头，Cookie 通道已关） | 管理面/前端用户 | RequestContextInterceptor（USER 绑定：session tenantId+operatorId）；2026-09-08 Cookie 双向关闭定案 |
-| ② | OAuth2 authorization_code + PKCE / refresh token + JWT HS256 | 外部应用代用户 | sys_oauth2_client.client_secret（BCrypt；T-ACCESS-084 起 PUBLIC 客户端 secret=NULL、强制 S256，DDL CHECK 锁形态）；OAuth2JwtSupport（HS256 强度护栏）；**client_credentials 无发放实现**（schema L111 列注释与 L125 `internal-service` 种子行为历史预留、未被消费） |
+| ② | OAuth2 authorization_code + PKCE / refresh token + JWT HS256 | 外部应用代用户 | sys_oauth2_client.client_secret（BCrypt；T-ACCESS-084 起 PUBLIC 客户端 secret=NULL、强制 S256，DDL CHECK 锁形态）；OAuth2JwtSupport（HS256 强度护栏）；**client_credentials 无发放实现**（grant_types 可选值零消费；历史 `internal-service` 种子行已随「客户端不预置」定案删除） |
 | ③ | X-Internal-Secret 全局共享密钥 | 内网基础设施互信 | Spring 配置 `perm.internal-secret`（环境变量，**不落库**）；Gateway `InternalSecretFilter`（GlobalFilter，配置非空时**无条件向所有下游请求注入**）+ `PermissionClient` 直连带密；业务 SDK 仅发送服务凭证，不再分发该平台密钥 |
 | ④ | SERVICE 上下文绑定（非独立认证） | ③通过后的自报身份 | 密钥验证（`InternalApiSecretInterceptor`，常量时间比对，失败 403；注册于 `SecurityWebMvcConfig.addInterceptors`，excludePathPatterns 精确豁免会话入口族）→ `X-Service-Code`/`X-Tenant-Id` **自报头**绑定（SignatureVerifier 仅数字解析、无签名）→ `AccessRequestContext.service(tenantId, serviceCode)` |
 

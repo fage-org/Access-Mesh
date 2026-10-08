@@ -20,7 +20,10 @@ import java.util.Set;
  *   <li>{@code requiredScopes}：令牌 scope（空格分隔委托范围）必须全部包含，独立映射模型
  *       （不接入权限判定面，2026-08-22 用户决策）</li>
  *   <li>{@code audience}：令牌 aud claim 必须包含该受众（业务开放路径强制；userinfo 默认豁免）</li>
- *   <li>{@code clientIds}：可选客户端限定；无论是否配置，验签时均按 client_id 动态校验客户端启用状态</li>
+ *   <li>{@code clientIds}：可选客户端限定，条目为结构化身份 {@code tenantId:clientId}
+ *       （如 {@code 1:trusted-app}，T-ACCESS-097 外评 P2 拍板：client_id 租户内唯一后
+ *       裸名字比较会放行他租户同名客户端，限定对象是身份不是名字；条目格式启动
+ *       fail-fast 校验）；无论是否配置，验签时均按 client_id 动态校验客户端启用状态</li>
  * </ul>
  * <p>
  * 路径支持 Ant 通配（如 {@code /api/example/**}，与 Gateway 白名单同机制），但启动时
@@ -137,6 +140,18 @@ public class OAuth2ResourcePathProperties implements InitializingBean {
                         pattern));
                 }
             }
+            // clientIds 条目结构化身份校验（T-ACCESS-097 外评 P2，fail-fast）：条目必须是
+            // "tenantId:clientId" 形态（数字租户 + 冒号 + 非空余段）——裸 clientId 在
+            // 租户内唯一语义下比较时会永不匹配（静默全拒），配置错误必须在启动期暴露
+            if (rule.getClientIds() != null) {
+                for (String entry : rule.getClientIds()) {
+                    if (entry == null || !entry.matches("\\d+:.+")) {
+                        throw new IllegalStateException(String.format(
+                            "access.oauth2.resource-paths 路径 '%s' 的 clientIds 条目 '%s' 非法：须为结构化身份 tenantId:clientId（如 1:trusted-app），启动失败",
+                            pattern, entry));
+                    }
+                }
+            }
         }
     }
 
@@ -154,7 +169,7 @@ public class OAuth2ResourcePathProperties implements InitializingBean {
         /** 令牌 aud 必须包含的受众（空=该路径不校验受众，如默认 userinfo 豁免）。 */
         private String audience;
 
-        /** 允许的客户端限定（空=不限定，仅动态校验启用状态）。 */
+        /** 允许的客户端限定（结构化身份 tenantId:clientId；空=不限定，仅动态校验启用状态）。 */
         private Set<String> clientIds = new LinkedHashSet<>();
 
         public static ResourcePathRule exactPath(String path) {

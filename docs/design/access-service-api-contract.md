@@ -397,6 +397,8 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 
 **客户端关联校验（T-ADMIN-028/F002）**：授权码只能由签发时（authorize 写入 Redis 记录）的客户端兑换——客户端身份（CONFIDENTIAL=`clientId`+`clientSecret`，PUBLIC=`clientId`+S256 PKCE 证明）与授权码记录的 `clientId` 不匹配即拒绝 `OAUTH2_CODE_INVALID`（redirect/PKCE 校验与 authorize 侧 redirect/scope 校验、资源端 audience 门禁均不能替代该关联，同租户与跨租户客户端交叉兑换同拒）；关联校验失败同其余校验失败一样消费授权码（Lua GET+DEL 一次性语义不变），失败尝试经 `sys_login_log` 写 status=0 审计（租户取授权码登记租户，failReason 携带签发方 clientId——失败行自证码归属，user_id 为 null）。
 
+**校验顺序与错误码优先级（T-ACCESS-097 方案 A 固有口径）**：授权码预读/租户选行先于 client_secret 与 grant_type 校验——「码无效 + secret 也错误」的交叉情形返回 `OAUTH2_CODE_INVALID`（码无效优先披露，租户内唯一前为 `OAUTH2_CLIENT_INVALID`，两序错误码在该交叉情形互换属既定取舍非缺陷；码本身为 122 bit 随机值，无从枚举探测）。
+
 请求（`TokenReq`）：`grantType`* / `clientId`* / `clientSecret`（CONFIDENTIAL 必填，PUBLIC 不需要）/ `code`* / `redirectUri`* / `codeVerifier`（PUBLIC 必填，43–128 位 RFC 7636 unreserved 字符）/ `refreshToken`（本端点不消费，刷新使用 §6.1.3）。PUBLIC 不接受缺少 challenge 或 plain 的码降级；验证器错误仍一次性消费授权码。S256 定义参见 [RFC 7636 §4](https://www.rfc-editor.org/rfc/rfc7636.html#section-4)。
 
 响应（`TokenResp`）：`accessToken`（JWT）/ `tokenType`（`Bearer`）/ `expiresIn`（客户端 `accessTokenTtl` 与链剩余时间的较小值）/ `refreshToken` / `scope`。
@@ -434,7 +436,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重门禁控制（**默认拒绝**）：
 
 - 配置：`access.oauth2.resource-paths`（application.yml；默认仅 `/api/access/auth/oauth2/userinfo`；Ant 通配允许；显式配置为全量替换；启动防护禁止覆盖 `/api/access/auth/**` 会话端点与 `/api/access/**` 内部凭证空间（静态前缀保守判定，`/api/**/sync` 等绕过形态均拦截），且**业务开放路径必须声明 requiredScopes 与 audience**——缺失启动失败，防配置遗漏静默放行）。
-- 每条规则：`path` + `requiredScopes`（令牌 scope 子集校验，独立映射模型——不接入权限判定面）+ `audience`（业务路径强制；userinfo 豁免）+ `clientIds`（可选客户端限定）。
+- 每条规则：`path` + `requiredScopes`（令牌 scope 子集校验，独立映射模型——不接入权限判定面）+ `audience`（业务路径强制；userinfo 豁免）+ `clientIds`（可选客户端限定，条目为结构化身份 `tenantId:clientId` 如 `1:trusted-app`——T-ACCESS-097 外评 P2 拍板：client_id 租户内唯一后限定对象是身份不是名字，按已解析客户端行精确比较，他租户同名客户端不通过；条目格式启动 fail-fast 校验）。
 - 恒定校验（无需配置）：验签 + 必填 claim（loginId/jti/client_id）+ 撤销黑名单 + 客户端启用动态校验（禁用立即失效 → 401）。门禁不满足 → 403。
 - 委托调用绑定 `USER + delegatedClientId` 上下文（审计可区分第三方委托）。
 - Gateway 侧配套 `gateway.oauth2.passthrough-paths`（外部路径口径，默认空；**仅对 Bearer 三段式 JWT 启用透传**，平台 uuid 会话仍走 Gateway 正常鉴权）透传 Authorization；双侧路径口径差异与部署约束见架构文档 §6。

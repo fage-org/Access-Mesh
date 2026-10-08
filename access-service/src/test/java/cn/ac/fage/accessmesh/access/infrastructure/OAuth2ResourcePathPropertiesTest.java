@@ -276,4 +276,35 @@ class OAuth2ResourcePathPropertiesTest {
 
         assertThat(props.match("/api/access/auth/oauth2/userinfo")).isEmpty();
     }
+
+    @Test
+    @DisplayName("T-ACCESS-097 外评 P2：clientIds 裸 clientId 条目（缺租户段）→ 启动失败")
+    void guardRejects_bareClientIdEntry() {
+        OAuth2ResourcePathProperties props = new OAuth2ResourcePathProperties();
+        OAuth2ResourcePathProperties.ResourcePathRule business =
+            OAuth2ResourcePathProperties.ResourcePathRule.exactPath("/api/example/open");
+        business.getRequiredScopes().add("example:read");
+        business.setAudience("example-service");
+        business.setClientIds(new java.util.LinkedHashSet<>(List.of("trusted-app")));
+        props.setResourcePaths(List.of(business));
+
+        assertThatThrownBy(props::afterPropertiesSet)
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("tenantId:clientId");
+    }
+
+    @Test
+    @DisplayName("T-ACCESS-097 外评 P2：clientIds 结构化身份条目（1:trusted-app）→ 通过启动防护")
+    void guardAccepts_structuredClientIdEntry() {
+        OAuth2ResourcePathProperties props = new OAuth2ResourcePathProperties();
+        OAuth2ResourcePathProperties.ResourcePathRule business =
+            OAuth2ResourcePathProperties.ResourcePathRule.exactPath("/api/example/open");
+        business.getRequiredScopes().add("example:read");
+        business.setAudience("example-service");
+        business.setClientIds(new java.util.LinkedHashSet<>(List.of("1:trusted-app")));
+        props.setResourcePaths(List.of(business));
+        props.afterPropertiesSet();
+
+        assertThat(props.match("/api/example/open")).isPresent();
+    }
 }

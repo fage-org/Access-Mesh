@@ -33,7 +33,7 @@ last_updated: 2026-10-08
 
 2026-10-08 用户拍板：client_id 改**租户内唯一**（两租户可同名），不采用"全局唯一"口径。沿用空库重建政策，不提供存量库在线迁移工具。
 
-同日用户拍板（方案分叉）：匿名 token/refresh 端点解析顺序取**方案 A 预读两段式**——先按 clientId 取跨租户启用候选列表做存在性判定，预读（只读不删）授权码/刷新令牌记录取租户后选行，secret/grant 校验在凭据消费之前（secret 错误不烧码，外部行为与全局唯一期零漂移），消费后执行 binding/redirect/PKCE 等既有校验；选不出行（码/令牌租户下无该 clientId 启用行）拒绝且凭据不消费。
+同日用户拍板（方案分叉）：匿名 token/refresh 端点解析顺序取**方案 A 预读两段式**——先按 clientId 取跨租户启用候选列表做存在性判定，预读（只读不删）授权码/刷新令牌记录取租户后选行，secret/grant 校验在凭据消费之前（secret 错误不烧码，凭据消费/存活语义与全局唯一期零漂移；已知例外：「码无效 + secret 也错」交叉情形错误码由 CLIENT_INVALID 变 CODE_INVALID——预读必须先于 secret 才能定租户，属方案 A 固有取舍，契约 §6.1.2 已固化口径），消费后执行 binding/redirect/PKCE 等既有校验；选不出行（码/令牌租户下无该 clientId 启用行）拒绝且凭据不消费。
 
 ## 实施记录
 
@@ -52,6 +52,17 @@ last_updated: 2026-10-08
 - 既有单测适配 14 类（authorize 链单查带租户、token/refresh 链列表+预读双段、审计断言面收窄 never().set）；`shouldRejectAuthorize_whenClientBelongsToAnotherTenant` 改锁「会话租户下查无此客户端」（mock 模拟带租户查询过滤语义）。
 - 新增 `Oauth2ClientTenantUniquenessPgIT`（3 用例：两租户同名注册+租户内重复 10801 / token 兑换按码租户选行〔他租户 secret 拒绝+自身 secret 原码兑换成功+重放拒绝〕 / userinfo JWT 按载荷租户解析）。红跑实证：旧全局唯一 DDL 下 3 用例全红（insert 唯一冲突），新 DDL 下全绿。
 - e2e：`ExampleProtectedApiE2EIT` 新增 Order(10)「两租户同名 OAuth2 客户端并存，兑换链按凭据租户隔离不误绑」（平台运营开第二租户→两租户同名注册→他租户 secret 兑码拒绝→自身 secret 原码兑换成功→userinfo 200；Order(9) 停用租户 1 后 adminToken 已失效，用例内重登）。
+
+## 外部评审处置（2026-10-08，claude + codex sol 双通道）
+
+两通道并行评审 `13a4eff14..758f27a0d`（评审过程件不入仓库）。claude：0 P0-P2 + 2 P3；codex sol：1 P2 + 0 P3；逐条核实全部属实，处置如下：
+
+- **codex P2（属实，用户拍板方案 a 结构化身份）**：开放路径 `clientIds` 白名单仍按裸 clientId 字符串比较，租户内唯一后他租户同名客户端可借白名单名通过第三道门禁（数据面无越权、默认配置未配白名单不受影响，被稀释的是「平台运营方批准特定客户端」的准入精度）。处置：条目改 `tenantId:clientId` 结构化身份，按已解析客户端行精确比较（`RequestContextInterceptor`）；条目格式启动 fail-fast 校验（裸格式=静默全拒，配置错误启动期暴露，`OAuth2ResourcePathProperties`）；契约 §6.2 同步；`RequestContextInterceptorTest` 加结构化命中（红跑实证：裸名字比较下该用例红）与他租户同名拒绝两用例、`OAuth2ResourcePathPropertiesTest` 加条目格式正负两用例。
+- **claude P3-1（属实，事实性文档修正）**：方案 A 使「码无效+secret 也错」交叉情形错误码由 CLIENT_INVALID 变 CODE_INVALID（预读必须先于 secret 才能定租户，提案时已向用户披露的固有取舍）；任务卡「零漂移」表述就交叉情形不精确。处置：契约 §6.1.2 新增「校验顺序与错误码优先级」段固化口径，任务卡「当前口径」精确化。
+- **claude P3-2 / codex 专项缺口（属实，两通道独立发现同一缺口，事实性修复）**：`OAuth2LoginLogTest` 密钥错误用例适配时漏接预读 GET stub，实际走「码无效」分支、secret 校验从未执行，secret-mismatch 失败审计失去单元锁。处置：补 `valueOperations.get` stub 返回码数据 + `failReason="client secret mismatch"` 与租户归属断言；红跑实证（无 stub 形态下新断言红）。
+- **claude 存量观察（属实，并入同批种子残留清扫）**：`service-authentication.md` 两处引用 schema 中已删除的 `internal-service` 种子行——本批清扫此前已订正 tenant-lifecycle/architecture 同类残留，本文件漏网。处置：两处改为「grant_types 可选值零消费；历史种子行已随客户端不预置定案删除」现状口径。
+- **通道间一致项**：token/refresh 匿名端点按错误码可探测「clientId 是否在任意租户注册」的存在性信号——两通道均定性为全局唯一期同形态存量、非本次变更引入或放大（Q-069 验收范围为注册面），不处置不立项。
+- 过度设计可裁剪项：两通道均报「无」。
 
 ## 验收对照
 

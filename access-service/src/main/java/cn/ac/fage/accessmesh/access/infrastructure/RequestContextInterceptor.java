@@ -481,8 +481,11 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
             return false;
         }
 
-        // 路径门禁 1：clientIds 限定（可选；不满足 → 403 授权不足）
-        if (!rule.getClientIds().isEmpty() && !rule.getClientIds().contains(clientId)) {
+        // 路径门禁 1：clientIds 限定（可选；不满足 → 403 授权不足）。T-ACCESS-097 外评 P2：
+        // 条目为结构化身份 tenantId:clientId，按已解析客户端行精确比较——client_id 租户内唯一
+        // 后裸名字比较会放行他租户同名客户端，限定的对象是身份不是名字（配置条目启动 fail-fast 校验）
+        if (!rule.getClientIds().isEmpty()
+                && !rule.getClientIds().contains(client.getTenantId() + ":" + client.getClientId())) {
             logSecurity(request, "oauth2 jwt client not allowed for path " + rule.getPath());
             writeJson(response, HttpServletResponse.SC_FORBIDDEN, "拒绝访问");
             return false;
