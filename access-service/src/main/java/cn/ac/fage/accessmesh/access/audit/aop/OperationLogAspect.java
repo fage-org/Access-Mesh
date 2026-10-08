@@ -4,9 +4,16 @@ import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLogRuntimeContext;
-import cn.ac.fage.accessmesh.access.infrastructure.util.HttpRequestUtils;
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
+import cn.ac.fage.accessmesh.access.audit.service.domain.PlatformAuditDomainService;
+import cn.ac.fage.accessmesh.access.auth.security.PlatformActor;
+import cn.ac.fage.accessmesh.access.infrastructure.CallerType;
+import cn.ac.fage.accessmesh.access.infrastructure.util.HttpRequestUtils;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
+import cn.ac.fage.accessmesh.access.tenant.service.TenantAccessDeniedException;
+import cn.ac.fage.accessmesh.access.tenant.service.TenantGateUnavailableException;
+import cn.ac.fage.accessmesh.common.exception.BizException;
+import cn.ac.fage.accessmesh.common.exception.SystemException;
 import cn.dev33.satoken.session.SaSession;
 import cn.dev33.satoken.stp.StpUtil;
 import jakarta.servlet.http.HttpServletRequest;
@@ -70,10 +77,12 @@ public class OperationLogAspect {
     private static final int OPERATOR_NAME_MAX_LEN = 256;
 
     private final AuditDomainService auditDomainService;
+    private final PlatformAuditDomainService platformAudit;
     private final ExpressionParser parser = new SpelExpressionParser();
     private final ParameterNameDiscoverer parameterNameDiscoverer = new DefaultParameterNameDiscoverer();
 
-    public OperationLogAspect(AuditDomainService auditDomainService) {
+    public OperationLogAspect(AuditDomainService auditDomainService, PlatformAuditDomainService platformAudit) {
+        this.platformAudit = platformAudit;
         this.auditDomainService = auditDomainService;
     }
 
@@ -112,6 +121,27 @@ public class OperationLogAspect {
      * 记录操作日志
      */
     private void recordLog(OperationLog opLog, ProceedingJoinPoint joinPoint, Object result, Throwable failure, int costTime) {
+        var identity = AccessRequestContext.get();
+        if (identity != null && identity.callerType() == CallerType.PLATFORM) {
+            // 平台成功审计由业务事务强制写入；切面只补回滚后的失败/结果未确认尝试。
+            if (failure == null) return;
+            EvaluationContext context = buildEvaluationContext(joinPoint, result);
+            String targetType = resolveTargetType(opLog.targetType(), context);
+            String targetId = truncate(parseSpelOrDefault(opLog.targetId(), context, ""), TARGET_ID_MAX_LEN);
+            Long targetTenant = null;
+            if ("sys_tenant".equals(targetType) && targetId.matches("[1-9][0-9]*")) {
+                targetTenant = Long.valueOf(targetId);
+            }
+            var request = HttpRequestUtils.currentRequest();
+            Object actor = request == null ? null : request.getAttribute(PlatformActor.class.getName());
+            var platformActor = actor instanceof PlatformActor verified ? verified
+                : new PlatformActor(identity.operatorId(), null);
+            boolean unknown = failure instanceof TenantGateUnavailableException;
+            platformAudit.recordAttempt(platformActor, targetTenant, targetType, targetId, opLog.action(),
+                unknown ? "PENDING" : "FAILURE",
+                "操作" + (unknown ? "结果未确认" : "失败") + "(code=" + responseCode(result, failure) + ")");
+            return;
+        }
         OperationLogRuntimeContext.Snapshot runtimeSnapshot = OperationLogRuntimeContext.snapshot();
         if (runtimeSnapshot.skip() && failure == null) {
             return;
@@ -187,8 +217,10 @@ public class OperationLogAspect {
 
     /** 与公开信封 code 同口径；不把业务异常的 HTTP 200 误记为操作成功。 */
     private static int responseCode(Object result, Throwable failure) {
-        if (failure instanceof cn.ac.fage.accessmesh.common.exception.BizException e) return e.getErrorCode();
-        if (failure instanceof cn.ac.fage.accessmesh.common.exception.SystemException e) return e.getErrorCode();
+        if (failure instanceof BizException e) return e.getErrorCode();
+        if (failure instanceof SystemException e) return e.getErrorCode();
+        if (failure instanceof TenantGateUnavailableException) return 11113;
+        if (failure instanceof TenantAccessDeniedException e) return e.code();
         if (failure instanceof SecurityException) return 403;
         if (failure instanceof cn.ac.fage.accessmesh.access.engine.query.QueryValidationException) return 90001;
         if (failure instanceof cn.ac.fage.accessmesh.access.engine.query.AdmissionConfigurationException) return 20071;

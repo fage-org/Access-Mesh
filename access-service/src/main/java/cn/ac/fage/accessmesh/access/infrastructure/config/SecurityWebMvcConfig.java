@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.infrastructure.config;
 
 import cn.ac.fage.accessmesh.access.infrastructure.RequestContextInterceptor;
+import cn.ac.fage.accessmesh.common.security.PlatformEndpoints;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
@@ -78,6 +79,7 @@ public class SecurityWebMvcConfig implements WebMvcConfigurer {
                         // 与 Controller StpUtil 同源），reset-password 同款链路
                         "/api/access/notice/my-notices",
                         "/api/access/notice/read")
+                .excludePathPatterns(PlatformEndpoints.paths())
                 .order(1);
 
         // order=2：签名拦截器，覆盖所有受控路径。
@@ -87,6 +89,7 @@ public class SecurityWebMvcConfig implements WebMvcConfigurer {
         // /actuator/**，经独立管理端口提供，本排除语义自然满足）。
         registry.addInterceptor(headerSignatureInterceptor)
                 .addPathPatterns("/api/access/**", "/internal/**")
+                .excludePathPatterns(PlatformEndpoints.paths())
                 .order(2);
 
         // order=3：统一请求上下文拦截器，覆盖全部路径（公开路径内部放行）。

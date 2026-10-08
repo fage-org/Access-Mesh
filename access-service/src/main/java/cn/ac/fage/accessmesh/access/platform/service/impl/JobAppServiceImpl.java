@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.platform.service.impl;
 
 import cn.ac.fage.accessmesh.access.infrastructure.task.JobInvokeDomainService;
+import cn.ac.fage.accessmesh.access.tenant.service.TenantAccessGuard;
 import cn.ac.fage.accessmesh.access.platform.service.domain.JobLogDomainService;
 import cn.ac.fage.accessmesh.access.infrastructure.task.TaskExecutionDomainService;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
@@ -85,6 +86,7 @@ public class JobAppServiceImpl implements JobAppService {
     private final JobInvokeDomainService jobInvokeDomainService;
     private final JobLogDomainService jobLogDomainService;
     private final TaskExecutor taskExecutor;
+    private final TenantAccessGuard tenantAccess;
     private final String leaseOwner;
     private final String scheduleInstanceId = java.util.UUID.randomUUID().toString();
     private final Map<Long, ScheduledFuture<?>> scheduledTasks = new ConcurrentHashMap<>();
@@ -124,7 +126,7 @@ public class JobAppServiceImpl implements JobAppService {
                           TaskExecutionDomainService taskExecutionDomainService,
                           JobInvokeDomainService jobInvokeDomainService,
                           JobLogDomainService jobLogDomainService,
-                          @Qualifier("accessTaskExecutor") TaskExecutor taskExecutor) {
+                          @Qualifier("accessTaskExecutor") TaskExecutor taskExecutor, TenantAccessGuard tenantAccess) {
         this.jobMapper = jobMapper;
         this.jobLogMapper = jobLogMapper;
         this.taskScheduler = taskScheduler;
@@ -134,6 +136,7 @@ public class JobAppServiceImpl implements JobAppService {
         this.jobInvokeDomainService = jobInvokeDomainService;
         this.jobLogDomainService = jobLogDomainService;
         this.taskExecutor = taskExecutor;
+        this.tenantAccess = tenantAccess;
         this.leaseOwner = resolveLeaseOwner();
     }
 
@@ -723,6 +726,8 @@ public class JobAppServiceImpl implements JobAppService {
                 return;
             }
 
+            // 排队不是开始执行：出队后以共享门禁决定是否可以进入任务体。
+            tenantAccess.requireEnabled(context.tenantId());
             Object invokeResult = jobInvokeDomainService.invoke(job.getInvokeTarget(), context);
             if (!taskExecutionDomainService.complete(context.tenantId(), context.executionKey(),
                 leaseOwner, context.attemptCount(), true, null)) {

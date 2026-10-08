@@ -10,6 +10,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.audit.service.domain.LoginLogDomainService;
 import cn.ac.fage.accessmesh.access.auth.service.domain.OAuth2ClientDomainService;
+import cn.ac.fage.accessmesh.access.tenant.service.TenantAccessGuard;
 import cn.ac.fage.accessmesh.access.user.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.access.infrastructure.util.HttpRequestUtils;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLogRuntimeContext;
@@ -79,6 +80,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
     private final LoginLogDomainService loginLogDomainService;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
+    private final TenantAccessGuard tenantAccess;
 
     @Value("${sa-token.jwt-secret-key}")
     private String jwtSecretKey;
@@ -110,12 +112,14 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
                              UserDomainService userDomainService,
                              LoginLogDomainService loginLogDomainService,
                              StringRedisTemplate redisTemplate,
-                             ObjectMapper objectMapper) {
+                             ObjectMapper objectMapper,
+                             TenantAccessGuard tenantAccess) {
         this.oauth2ClientDomainService = oauth2ClientDomainService;
         this.userDomainService = userDomainService;
         this.loginLogDomainService = loginLogDomainService;
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
+        this.tenantAccess = tenantAccess;
     }
 
     /**
@@ -159,6 +163,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
         codeData.setClientId(req.clientId());
         codeData.setUserId(userId);
         codeData.setTenantId(TenantContextHolder.getTenantId());
+        codeData.setTenantEpoch(prepared.tenantEpoch());
         codeData.setRedirectUri(req.redirectUri());
         codeData.setCodeChallenge(req.codeChallenge());
         codeData.setCodeChallengeMethod(codeChallengeMethod);
@@ -251,11 +256,12 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
             throw new BizException(AccessErrorCode.OAUTH2_CLIENT_INVALID.getCode(), "用户密码凭据不可用");
         }
 
-        return new PreparedAuthorization(client, userId, fingerprint, codeChallengeMethod);
+        long tenantEpoch = tenantAccess.captureSessionEpoch(tenantId);
+        return new PreparedAuthorization(client, userId, fingerprint, codeChallengeMethod, tenantEpoch);
     }
 
     private record PreparedAuthorization(SysOauth2Client client, long userId,
-                                         String fingerprint, String codeChallengeMethod) {}
+                                         String fingerprint, String codeChallengeMethod,long tenantEpoch) {}
 
     /**
      * OAuth2令牌接口
@@ -350,6 +356,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
                 throw new BizException(AccessErrorCode.OAUTH2_TOKEN_INVALID.getCode(),
                     AccessErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
             }
+            tenantAccess.requireEpoch(refreshTokenData.getTenantId(), refreshTokenData.getTenantEpoch());
             SysUser user = requireActiveUser(refreshTokenData.getTenantId(), refreshTokenData.getUserId(),
                 AccessErrorCode.OAUTH2_TOKEN_INVALID, clientId);
             int remaining = requireCurrentCredential(user, refreshTokenData.getPasswordFingerprint(),
@@ -362,7 +369,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
             String accessToken = generateAccessToken(refreshTokenData.getUserId(), clientId,
                 refreshTokenData.getScope(), client.getAudiences(), accessTokenTtl,
                 refreshTokenData.getPasswordFingerprint(), refreshTokenData.getChainIssuedAt(),
-                refreshTokenData.getChainExpiresAt());
+                refreshTokenData.getChainExpiresAt(), refreshTokenData.getTenantEpoch());
             int refreshTokenTtl = remaining;
 
             // 生成新的刷新令牌
@@ -373,6 +380,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
             newRefreshTokenData.setChainExpiresAt(refreshTokenData.getChainExpiresAt());
             newRefreshTokenData.setUserId(refreshTokenData.getUserId());
             newRefreshTokenData.setTenantId(refreshTokenData.getTenantId());
+            newRefreshTokenData.setTenantEpoch(refreshTokenData.getTenantEpoch());
             newRefreshTokenData.setClientId(clientId);
             newRefreshTokenData.setScope(refreshTokenData.getScope());
             try {
@@ -582,6 +590,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
             throw new BizException(AccessErrorCode.OAUTH2_CODE_INVALID.getCode(),
                 AccessErrorCode.OAUTH2_CODE_INVALID.getMessage());
         }
+        tenantAccess.requireEpoch(codeData.getTenantId(), codeData.getTenantEpoch());
         SysUser user = requireActiveUser(codeData.getTenantId(), codeData.getUserId(), AccessErrorCode.OAUTH2_CODE_INVALID,
             req.clientId());
         int remaining = requireCurrentCredential(user, codeData.getPasswordFingerprint(),
@@ -595,7 +604,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
 
         String accessToken = generateAccessToken(codeData.getUserId(), req.clientId(), scope,
             client.getAudiences(), accessTokenTtl, codeData.getPasswordFingerprint(),
-            codeData.getChainIssuedAt(), codeData.getChainExpiresAt());
+            codeData.getChainIssuedAt(), codeData.getChainExpiresAt(), codeData.getTenantEpoch());
         String refreshToken = UUID.randomUUID().toString().replace("-", "");
 
         // 存储刷新令牌
@@ -605,6 +614,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
         refreshData.setChainExpiresAt(codeData.getChainExpiresAt());
         refreshData.setUserId(codeData.getUserId());
         refreshData.setTenantId(codeData.getTenantId());
+        refreshData.setTenantEpoch(codeData.getTenantEpoch());
         refreshData.setClientId(req.clientId());
         refreshData.setScope(scope);
         try {
@@ -640,7 +650,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
      * @return JWT访问令牌字符串
      */
     private String generateAccessToken(long userId, String clientId, String scope, String audiences,
-                                       int accessTokenTtl, String fingerprint, long issuedAt, long expiresAt) {
+                                       int accessTokenTtl, String fingerprint, long issuedAt, long expiresAt,long tenantEpoch) {
         Map<String, Object> extraData = new LinkedHashMap<>();
         extraData.put(OAuth2JwtSupport.PASSWORD_FINGERPRINT_CLAIM, fingerprint);
         extraData.put(OAuth2JwtSupport.CHAIN_ISSUED_AT_CLAIM, issuedAt);
@@ -649,6 +659,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
         // 从 TenantContextHolder 获取实际的 tenantId
         Long tenantId = TenantContextHolder.getTenantId();
         extraData.put(OAuth2JwtSupport.TENANT_CLAIM, tenantId != null ? String.valueOf(tenantId) : "0");
+        extraData.put(OAuth2JwtSupport.TENANT_EPOCH_CLAIM, String.valueOf(tenantEpoch));
         if (scope != null && !scope.isBlank()) {
             extraData.put(OAuth2JwtSupport.SCOPE_CLAIM, scope);
         }
@@ -815,7 +826,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
     }
 
     private SysUser assertActiveUser(SysUser user, AccessErrorCode error, String failureClientId) {
-        if (user == null || !Integer.valueOf(1).equals(user.getStatus())) {
+        if (user == null || !Integer.valueOf(1).equals(user.getStatus()) || Boolean.TRUE.equals(user.getForceResetPwd())) {
             if (failureClientId != null) {
                 recordOauth2Failure(failureClientId, "user inactive, deleted or tenant mismatch");
             }
@@ -1020,6 +1031,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
     @Getter
     @Setter
     public static class AuthCodeData {
+        private long tenantEpoch;
         private String passwordFingerprint;
         private long chainIssuedAt;
         private long chainExpiresAt;
@@ -1041,6 +1053,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
     @Getter
     @Setter
     public static class RefreshTokenData {
+        private long tenantEpoch;
         private String passwordFingerprint;
         private long chainIssuedAt;
         private long chainExpiresAt;

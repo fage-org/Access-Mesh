@@ -6,7 +6,6 @@ import cn.ac.fage.accessmesh.access.auth.dto.LoginResp;
 import cn.ac.fage.accessmesh.access.auth.dto.UserInfoResp;
 import cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionOwner;
 import cn.ac.fage.accessmesh.access.menu.dto.resp.UserMenuResp;
-import cn.ac.fage.accessmesh.access.auth.entity.SysOauth2Client;
 import cn.ac.fage.accessmesh.access.user.entity.SysUser;
 import cn.ac.fage.accessmesh.access.org.entity.SysUserOrg;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
@@ -15,7 +14,13 @@ import cn.ac.fage.accessmesh.access.infrastructure.util.HttpRequestUtils;
 import cn.ac.fage.accessmesh.access.auth.service.AuthAppService;
 import cn.ac.fage.accessmesh.access.audit.service.domain.LoginLogDomainService;
 import cn.ac.fage.accessmesh.access.audit.service.domain.LoginLogDomainService.LoginLogEntry;
-import cn.ac.fage.accessmesh.access.auth.service.domain.OAuth2ClientDomainService;
+import cn.ac.fage.accessmesh.access.tenant.service.domain.TenantDomainService;
+import cn.ac.fage.accessmesh.access.tenant.service.TenantAccessGuard;
+import cn.ac.fage.accessmesh.access.tenant.service.TenantAccessDeniedException;
+import cn.ac.fage.accessmesh.access.tenant.service.TenantGateUnavailableException;
+import cn.ac.fage.accessmesh.access.auth.security.LoginChallengeSupport;
+import cn.ac.fage.accessmesh.access.auth.security.LoginFailureStore;
+import cn.ac.fage.accessmesh.common.security.TenantSessionStamp;
 import cn.ac.fage.accessmesh.access.user.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.access.org.service.domain.UserOrgDomainService;
 import cn.ac.fage.accessmesh.access.menu.service.UserMenuQueryAppService;
@@ -25,7 +30,6 @@ import cn.dev33.satoken.secure.BCrypt;
 import cn.dev33.satoken.session.SaSession;
 import cn.dev33.satoken.stp.StpUtil;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,7 +38,6 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.security.SecureRandom;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -61,43 +64,16 @@ public class AuthAppServiceImpl implements AuthAppService {
 
     private static final Logger log = LoggerFactory.getLogger(AuthAppServiceImpl.class);
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
-    private static final String CAPTCHA_KEY_PREFIX = "captcha:";
-    private static final String LOGIN_FAIL_PREFIX = "login:fail:";
-    private static final int MAX_LOGIN_FAIL_COUNT = 5;
-    private static final long LOCK_DURATION_MINUTES = 30;
+    private static final String CAPTCHA_KEY_PREFIX = LoginChallengeSupport.CAPTCHA_PREFIX;
 
     /** 登录方式（对齐 sys_login_log.login_type 列注释：PASSWORD/OAUTH2；SMS 为历史值，登录链路现只写 PASSWORD） */
     private static final String LOGIN_TYPE_PASSWORD = "PASSWORD";
 
-    /**
-     * Lua脚本：INCR + EXPIRE 合并为原子操作
-     * <p>
-     * 避免INCR和EXPIRE之间的竞态条件，确保计数器正确设置过期时间。
-     * </p>
-     */
-    private static final String LUA_INCREMENT_WITH_EXPIRE =
-        "local count = redis.call('INCR', KEYS[1]) " +
-        "if count == 1 then " +
-        "    redis.call('EXPIRE', KEYS[1], ARGV[1]) " +
-        "end " +
-        "return count";
-
-    /**
-     * Lua脚本：GET + DEL 合并为原子操作
-     * <p>
-     * 确保验证码一次性使用，获取后立即删除，防止重复验证。
-     * </p>
-     */
-    private static final String LUA_GET_AND_DELETE =
-        "local value = redis.call('GET', KEYS[1]) " +
-        "if value then " +
-        "    redis.call('DEL', KEYS[1]) " +
-        "end " +
-        "return value";
-
     private final UserDomainService userDomainService;
     private final UserOrgDomainService userOrgDomainService;
-    private final OAuth2ClientDomainService oauth2ClientDomainService;
+    private final TenantDomainService tenantDomainService;
+    private final TenantAccessGuard tenantAccess;
+    private final LoginFailureStore loginFailures;
     private final LoginLogDomainService loginLogDomainService;
     private final StringRedisTemplate redisTemplate;
     private final UserMenuQueryAppService userMenuQueryService;
@@ -123,20 +99,25 @@ public class AuthAppServiceImpl implements AuthAppService {
      *
      * @param userDomainService 用户领域服务，处理用户数据访问
      * @param userOrgDomainService 用户组织关联领域服务
-     * @param oauth2ClientDomainService OAuth2客户端领域服务
+     * @param tenantDomainService 租户编码解析
+     * @param tenantAccess 租户即时门禁
      * @param loginLogDomainService 登录日志领域服务，记录登录成功/失败
      * @param redisTemplate Redis操作模板，用于验证码和登录失败计数
      * @param userMenuQueryService 跨域用户菜单聚合查询服务（/auth/user-menu）
      */
     public AuthAppServiceImpl(UserDomainService userDomainService,
                            UserOrgDomainService userOrgDomainService,
-                           OAuth2ClientDomainService oauth2ClientDomainService,
+                           TenantDomainService tenantDomainService,
+                           TenantAccessGuard tenantAccess,
+                           LoginFailureStore loginFailures,
                            LoginLogDomainService loginLogDomainService,
                            StringRedisTemplate redisTemplate,
                            UserMenuQueryAppService userMenuQueryService) {
         this.userDomainService = userDomainService;
         this.userOrgDomainService = userOrgDomainService;
-        this.oauth2ClientDomainService = oauth2ClientDomainService;
+        this.tenantDomainService = tenantDomainService;
+        this.tenantAccess = tenantAccess;
+        this.loginFailures = loginFailures;
         this.loginLogDomainService = loginLogDomainService;
         this.redisTemplate = redisTemplate;
         this.userMenuQueryService = userMenuQueryService;
@@ -163,7 +144,7 @@ public class AuthAppServiceImpl implements AuthAppService {
     /**
      * 用户密码登录
      * <p>
-     * 执行完整的密码登录流程：验证码校验、客户端校验、用户查询、密码校验
+     * 执行完整的密码登录流程：租户编码解析、验证码校验、用户查询、密码校验
      * （用户不存在与密码错误同码同计数——2026-10-06 拍板：停用/锁定状态不在
      * 密码前披露，关存在性探测）、密码正确后的停用检查（管理员手工启停，
      * 优先于临时锁定提示）、临时锁定检查、Sa-Token会话创建。
@@ -186,7 +167,8 @@ public class AuthAppServiceImpl implements AuthAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public LoginResp login(LoginReq req) {
-        Long tenantId = Long.parseLong(req.tenantId());
+        var tenant = tenantDomainService.findByCode(req.tenantCode());
+        Long tenantId = tenant == null ? null : tenant.getId();
         try {
             validateCaptcha(req.captchaId(), req.captchaCode());
         } catch (BizException e) {
@@ -196,15 +178,22 @@ public class AuthAppServiceImpl implements AuthAppService {
             safeRecordLoginLog(tenantId, null, req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 0, "验证码错误");
             throw e;
         }
-        validateClient(req.clientId());
-        SysUser user = userDomainService.lockValidByUsername(tenantId, req.username());
+        SysUser user = tenantId == null ? null : userDomainService.lockValidByUsername(tenantId, req.username());
         // 密码校验先行（2026-10-06 拍板：关停用先序存在性探测）——用户不存在与密码错误
         // 同码同计数；停用/锁定状态只在密码正确后披露，按错误码差异枚举用户名的通道关闭
         if (user == null || user.getPassword() == null || !BCrypt.checkpw(req.password(), user.getPassword())) {
-            recordLoginFail(tenantId, req.username());
+            if (tenantId != null) loginFailures.recordTenantFailure(tenantId, req.username());
             safeRecordLoginLog(tenantId, user == null ? null : user.getId(), req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 0,
                 user == null ? "用户不存在" : "密码错误");
             throw new BizException(AccessErrorCode.PASSWORD_INCORRECT.getCode(), AccessErrorCode.PASSWORD_INCORRECT.getMessage());
+        }
+        String redisProcessId;
+        try {
+            redisProcessId = tenantAccess.captureLoginProcess(tenantId, tenant.getSessionEpoch());
+        } catch (TenantAccessDeniedException | TenantGateUnavailableException exception) {
+            safeRecordLoginLog(tenantId, user.getId(), req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 0,
+                "租户不可用或状态已变化");
+            throw exception;
         }
         // 停用检查用 status != 1 fail-closed：仅 0/1 收口后任何未定义值
         // 都不应进入会话（与投影 isEnabled(status)==1 对齐，防止认证放行+主体停用分裂）；
@@ -213,16 +202,16 @@ public class AuthAppServiceImpl implements AuthAppService {
             safeRecordLoginLog(tenantId, user.getId(), req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 0, "用户已停用");
             throw new BizException(AccessErrorCode.USER_DISABLED.getCode(), AccessErrorCode.USER_DISABLED.getMessage());
         }
-        if (isAccountLocked(tenantId, req.username())) {
+        if (loginFailures.isTenantLocked(tenantId, req.username())) {
             // T-ADMIN-022：计数键即锁（临时，键过期自动恢复），拒绝时补记登录日志留审计痕迹。
-            // 锁定检查在密码校验之后：锁定期内错误密码仍推进计数（延长锁窗），正确密码按锁定拒绝
+            // 锁定检查在密码校验之后：错误密码仍推进计数，窗口由首次失败时设置的 TTL 决定。
             safeRecordLoginLog(tenantId, user.getId(), req.username(),
                 LOGIN_TYPE_PASSWORD, req.clientId(), 0, "登录失败次数过多，账号临时锁定");
             throw new BizException(AccessErrorCode.USER_LOCKED.getCode(),
-                "登录失败次数过多，账号已临时锁定，请" + LOCK_DURATION_MINUTES + "分钟后重试");
+                "登录失败次数过多，账号已临时锁定，请" + LoginFailureStore.LOCK_WINDOW_MINUTES + "分钟后重试");
         }
 
-        clearLoginFail(tenantId, req.username());
+        loginFailures.clearTenant(tenantId, req.username());
         StpUtil.login(user.getId());
         // FIX #1: Store tenantId in session for security validation
         SaSession session = StpUtil.getSession();
@@ -231,6 +220,10 @@ public class AuthAppServiceImpl implements AuthAppService {
         // 操作者名称供 @OperationLog AOP 会话回填（未登录/无会话调用为 null）
         session.set("operatorName", user.getUsername());
         String token = StpUtil.getTokenValue();
+        SaSession tokenSession = StpUtil.getTokenSession();
+        tokenSession.set(TenantSessionStamp.EPOCH, tenant.getSessionEpoch());
+        tokenSession.set(TenantSessionStamp.PROCESS, redisProcessId);
+        tokenSession.set(TenantSessionStamp.FORCE_RESET, Boolean.TRUE.equals(user.getForceResetPwd()));
 
         safeRecordLoginLog(tenantId, user.getId(), req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 1, null);
 
@@ -257,6 +250,10 @@ public class AuthAppServiceImpl implements AuthAppService {
      */
     private void safeRecordLoginLog(Long tenantId, Long userId, String username, String loginType,
                                     String clientId, Integer status, String failReason) {
+        if (tenantId == null) {
+            log.warn("Login rejected without a resolvable tenant; no synthetic tenant id is recorded");
+            return;
+        }
         HttpServletRequest request = HttpRequestUtils.currentRequest();
         try {
             loginLogDomainService.recordLoginLog(new LoginLogEntry(
@@ -334,124 +331,7 @@ public class AuthAppServiceImpl implements AuthAppService {
      * @throws BizException 验证码参数缺失、验证码错误或已过期
      */
     private void validateCaptcha(String captchaId, String captchaCode) {
-        if (captchaId == null || captchaCode == null) {
-            throw new BizException(AccessErrorCode.CAPTCHA_INCORRECT.getCode(), "验证码参数缺失");
-        }
-
-        String key = CAPTCHA_KEY_PREFIX + captchaId;
-        // 使用 Lua 脚本原子性地获取并删除验证码，确保一次性使用
-        String stored = redisTemplate.execute(
-            new DefaultRedisScript<>(LUA_GET_AND_DELETE, String.class),
-            Collections.singletonList(key)
-        );
-
-        if (stored == null || !stored.equalsIgnoreCase(captchaCode)) {
-            throw new BizException(AccessErrorCode.CAPTCHA_INCORRECT.getCode(), AccessErrorCode.CAPTCHA_INCORRECT.getMessage());
-        }
-    }
-
-    /**
-     * 验证OAuth2客户端
-     * <p>
-     * 检查客户端是否存在且支持密码授权类型。
-     * 如果客户端ID为空则跳过验证。
-     * </p>
-     *
-     * @param clientId 客户端ID
-     * @return 客户端实体，如果不存在或不支持密码授权则返回null
-     * @throws BizException 客户端不支持密码授权类型
-     */
-    private SysOauth2Client validateClient(String clientId) {
-        if (clientId == null) return null;
-        SysOauth2Client client = oauth2ClientDomainService.findActiveByClientId(clientId);
-        if (client == null) return null;
-        if (!containsGrantType(client.getGrantTypes(), "password")) {
-            throw new BizException(AccessErrorCode.OAUTH2_GRANT_TYPE_NOT_SUPPORTED.getCode(),
-                AccessErrorCode.OAUTH2_GRANT_TYPE_NOT_SUPPORTED.getMessage());
-        }
-        return client;
-    }
-
-    /**
-     * 检查授权类型列表是否包含目标类型
-     * <p>
-     * 解析逗号分隔的授权类型字符串，检查是否包含指定类型。
-     * </p>
-     *
-     * @param grantTypes 授权类型字符串（逗号分隔）
-     * @param targetType 目标授权类型
-     * @return 是否包含目标类型
-     */
-    private boolean containsGrantType(String grantTypes, String targetType) {
-        if (grantTypes == null || grantTypes.isBlank()) return false;
-        for (String gt : grantTypes.split(",")) {
-            if (gt.trim().equals(targetType)) return true;
-        }
-        return false;
-    }
-
-    /**
-     * 检查账号是否处于临时锁定
-     * <p>
-     * 读取现有失败计数键（GET 只读，不创建键——旧实现 increment(key, 0) 会为
-     * 不存在用户创建无 TTL 的零值键）。计数达到上限即锁定，键的剩余 TTL 即
-     * 剩余锁定时长，键过期自动恢复可登录（T-ADMIN-022：计数键即锁，不落库、
-     * 不新增第二个锁键）。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param username 用户名
-     * @return true 表示锁定中，应拒绝登录
-     */
-    private boolean isAccountLocked(Long tenantId, String username) {
-        String key = LOGIN_FAIL_PREFIX + tenantId + ":" + username;
-        String failCount = redisTemplate.opsForValue().get(key);
-        if (failCount == null) {
-            return false;
-        }
-        // 计数键由本服务 Lua INCR 写入，正常必为数字；脏值按未锁定处理并告警
-        try {
-            return Long.parseLong(failCount) >= MAX_LOGIN_FAIL_COUNT;
-        } catch (NumberFormatException e) {
-            log.warn("登录失败计数键存在非数字值，按未锁定处理: key={}, value={}", key, failCount);
-            return false;
-        }
-    }
-
-    /**
-     * 记录登录失败
-     * <p>
-     * 使用Lua脚本原子性地累加失败计数并设置过期时间。
-     * 计数键即锁：达到上限后的拒绝由 {@link #isAccountLocked} 依据计数判定，
-     * 键过期自动恢复，不再持久化锁定状态到 sys_user.status
-     * （T-ADMIN-022 删除 sys_user.status=2 写入与投影禁用编排）。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param username 用户名
-     */
-    private void recordLoginFail(Long tenantId, String username) {
-        String key = LOGIN_FAIL_PREFIX + tenantId + ":" + username;
-        // 使用 Lua 脚本原子性地执行 INCR + EXPIRE，避免竞态条件
-        redisTemplate.execute(
-            new DefaultRedisScript<>(LUA_INCREMENT_WITH_EXPIRE, Long.class),
-            Collections.singletonList(key),
-            String.valueOf(LOCK_DURATION_MINUTES * 60)  // TTL in seconds
-        );
-    }
-
-    /**
-     * 清除登录失败计数
-     * <p>
-     * 登录成功后清除Redis中的失败计数记录。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param username 用户名
-     */
-    private void clearLoginFail(Long tenantId, String username) {
-        String key = LOGIN_FAIL_PREFIX + tenantId + ":" + username;
-        redisTemplate.delete(key);
+        LoginChallengeSupport.validate(redisTemplate, captchaId, captchaCode);
     }
 
     /**

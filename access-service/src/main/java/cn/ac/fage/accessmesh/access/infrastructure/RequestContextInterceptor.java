@@ -1,6 +1,13 @@
 package cn.ac.fage.accessmesh.access.infrastructure;
 
+import cn.ac.fage.accessmesh.access.auth.entity.PlatformAccount;
+import cn.ac.fage.accessmesh.access.auth.security.PlatformActor;
+import cn.ac.fage.accessmesh.access.auth.security.PlatformSessionService;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
+import cn.ac.fage.accessmesh.access.tenant.service.TenantAccessGuard;
 import cn.ac.fage.accessmesh.common.security.M2mCredentialEndpoints;
+import cn.ac.fage.accessmesh.common.security.PlatformEndpoints;
+import org.springframework.beans.factory.ObjectProvider;
 
 import cn.ac.fage.accessmesh.access.auth.entity.SysOauth2Client;
 import cn.ac.fage.accessmesh.access.auth.service.domain.OAuth2ClientDomainService;
@@ -84,6 +91,8 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
     private final OAuth2ResourcePathProperties oauth2ResourcePaths;
     private final OAuth2ClientDomainService oauth2ClientDomainService;
     private final UserDomainService userDomainService;
+    private final ObjectProvider<PlatformSessionService> platformSessions;
+    private final TenantAccessGuard tenantAccess;
 
     /** OAuth2 JWT 签发/验签密钥（sa-token.jwt-secret-key，T-ACCESS-003 权威配置）。 */
     @Value("${sa-token.jwt-secret-key:}")
@@ -97,12 +106,16 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
                                      StringRedisTemplate stringRedisTemplate,
                                      OAuth2ResourcePathProperties oauth2ResourcePaths,
                                      OAuth2ClientDomainService oauth2ClientDomainService,
-                                     UserDomainService userDomainService) {
+                                     UserDomainService userDomainService,
+                                     ObjectProvider<PlatformSessionService> platformSessions,
+                                     TenantAccessGuard tenantAccess) {
         this.signatureVerifier = signatureVerifier;
         this.stringRedisTemplate = stringRedisTemplate;
         this.oauth2ResourcePaths = oauth2ResourcePaths;
         this.oauth2ClientDomainService = oauth2ClientDomainService;
         this.userDomainService = userDomainService;
+        this.platformSessions = platformSessions;
+        this.tenantAccess = tenantAccess;
     }
 
     /**
@@ -124,6 +137,11 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
         // T-PERM-021 F1.d：请求 ID 单点解析（头值或兜底 UUID），上下文第六要素与 MDC traceId 同源。
         String requestId = resolveRequestId(request);
 
+        // 平台端点只采信独立平台令牌；内部密钥、服务凭证和租户身份头不能替代。
+        if (PlatformEndpoints.matches(request.getMethod(), uri)) {
+            return authenticatePlatform(request, response, uri, requestId);
+        }
+
         // 1. 公开路径：匿名上下文（/auth/** 公开子集 + /actuator/**，评审 P1-1 精确化）
         if (isPublicPath(uri)) {
             AccessRequestContext.bind(RequestContext.anonymous().withRequestId(requestId));
@@ -136,6 +154,7 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
         // 一律忽略（不采信、不因格式拒绝）——消除自报头信任面
         Object principalAttr = request.getAttribute(SecurityAttributes.ATTR_SERVICE_PRINCIPAL);
         if (principalAttr instanceof ServicePrincipal principal) {
+            tenantAccess.requireEnabled(principal.tenantId());
             AccessRequestContext.bind(
                 RequestContext.service(principal.tenantId(), principal.serviceCode()).withRequestId(requestId));
             setMdc(requestId, null, String.valueOf(principal.tenantId()), principal.serviceCode());
@@ -165,6 +184,7 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
                     writeJson(response, HttpServletResponse.SC_BAD_REQUEST, "无效的请求头格式");
                     return false;
                 }
+                tenantAccess.requireSignedUser(tenantId,operatorId,extractBearerToken(request.getHeader(HEADER_AUTHORIZATION)),uri);
                 AccessRequestContext.bind(RequestContext.user(tenantId, operatorId).withRequestId(requestId));
                 setMdc(requestId, String.valueOf(operatorId), String.valueOf(tenantId), null);
                 return true;
@@ -184,6 +204,7 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
                 writeJson(response, HttpServletResponse.SC_BAD_REQUEST, "缺少必要请求头: X-Tenant-Id");
                 return false;
             }
+            tenantAccess.requireEnabled(tenantId);
             AccessRequestContext.bind(RequestContext.service(tenantId, serviceCode).withRequestId(requestId));
             setMdc(requestId, null, String.valueOf(tenantId), serviceCode);
             return true;
@@ -256,6 +277,7 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
                 }
             }
 
+            tenantAccess.requireNativeSession(sessionTenantId,loginId,bearerToken,uri);
             AccessRequestContext.bind(RequestContext.user(sessionTenantId, loginId).withRequestId(requestId));
             setMdc(requestId, String.valueOf(loginId),
                 sessionTenantId == null ? null : String.valueOf(sessionTenantId), null);
@@ -272,6 +294,7 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
                 writeJson(response, HttpServletResponse.SC_BAD_REQUEST, "无效的请求头格式");
                 return false;
             }
+            tenantAccess.requireSignedUser(tenantId,operatorId,bearerToken,uri);
             AccessRequestContext.bind(RequestContext.user(tenantId, operatorId).withRequestId(requestId));
             setMdc(requestId, String.valueOf(operatorId), String.valueOf(tenantId), null);
             return true;
@@ -309,6 +332,44 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
         MDC.remove(MDC_USER_ID);
         MDC.remove(MDC_TENANT_ID);
         MDC.remove(MDC_SERVICE_CODE);
+        MDC.remove("platformAccountId");
+    }
+
+    private boolean authenticatePlatform(HttpServletRequest request, HttpServletResponse response,
+                                         String uri, String requestId) throws IOException {
+        if (PlatformEndpoints.isPublic(uri)) {
+            AccessRequestContext.bind(RequestContext.anonymous().withRequestId(requestId));
+            setMdc(requestId, null, null, null);
+            return true;
+        }
+        PlatformAccount account;
+        try {
+            PlatformSessionService sessions = platformSessions.getIfAvailable();
+            if (sessions == null) {
+                writeJson(response, 503, "平台认证暂不可用");
+                return false;
+            }
+            account = sessions.authenticate(extractBearerToken(request.getHeader(HEADER_AUTHORIZATION)));
+        } catch (RuntimeException exception) {
+            log.error("Platform authentication unavailable", exception);
+            writeJson(response, 503, "平台认证暂不可用");
+            return false;
+        }
+        if (account == null) {
+            writeJson(response, 401, "平台会话无效或已过期");
+            return false;
+        }
+        if (Boolean.TRUE.equals(account.getForceResetPwd()) && !PlatformEndpoints.allowsForcedReset(uri)) {
+            writeJson(response, 403, AccessErrorCode.PLATFORM_PASSWORD_RESET_REQUIRED.getCode(),
+                AccessErrorCode.PLATFORM_PASSWORD_RESET_REQUIRED.getMessage());
+            return false;
+        }
+        request.setAttribute(PlatformActor.class.getName(),
+            new PlatformActor(account.getId(), account.getUsername()));
+        AccessRequestContext.bind(RequestContext.platform(account.getId()).withRequestId(requestId));
+        setMdc(requestId, null, null, null);
+        MDC.put("platformAccountId", String.valueOf(account.getId()));
+        return true;
     }
 
     /**
@@ -452,7 +513,7 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
             return false;
         }
         SysUser user = userDomainService.selectValidById(tenantId, operatorId);
-        if (user == null || !Integer.valueOf(1).equals(user.getStatus())) {
+        if (user == null || !Integer.valueOf(1).equals(user.getStatus()) || Boolean.TRUE.equals(user.getForceResetPwd())) {
             logSecurity(request, "oauth2 jwt user inactive");
             writeJson(response, HttpServletResponse.SC_UNAUTHORIZED, "认证失败");
             return false;
@@ -464,6 +525,7 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
             return false;
         }
 
+        tenantAccess.requireEpoch(tenantId,OAuth2JwtSupport.tenantEpochOf(payloads));
         AccessRequestContext.bind(
             RequestContext.delegatedUser(tenantId, operatorId, clientId).withRequestId(requestId));
         setMdc(requestId, String.valueOf(operatorId),
@@ -542,10 +604,15 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
      */
     private static void writeJson(HttpServletResponse response, int status, String message)
         throws IOException {
+        writeJson(response, status, status, message);
+    }
+
+    private static void writeJson(HttpServletResponse response, int status, int code, String message)
+        throws IOException {
         response.setStatus(status);
         response.setContentType("application/json;charset=UTF-8");
         String json = String.format("{\"code\":%d,\"message\":\"%s\",\"data\":null,\"requestId\":null,\"traceId\":null}",
-            status, message);
+            code, message);
         response.getWriter().write(json);
     }
 }

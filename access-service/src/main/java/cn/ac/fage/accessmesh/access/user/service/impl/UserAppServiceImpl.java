@@ -19,6 +19,7 @@ import cn.ac.fage.accessmesh.access.user.entity.SysUser;
 import cn.ac.fage.accessmesh.access.org.entity.SysUserOrg;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.infrastructure.util.PageUtil;
+import cn.ac.fage.accessmesh.access.infrastructure.util.CredentialPasswords;
 import cn.ac.fage.accessmesh.access.user.mapper.SysUserMapper;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.constant.OrgOperationCodeMapper;
@@ -40,7 +41,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -69,7 +69,6 @@ import java.util.stream.Collectors;
 public class UserAppServiceImpl implements UserAppService {
 
     private static final Logger log = LoggerFactory.getLogger(UserAppServiceImpl.class);
-    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final SysUserMapper userMapper;
     private final UserDomainService userDomainService;
@@ -364,12 +363,18 @@ public class UserAppServiceImpl implements UserAppService {
             // 默认树边界二次校验（非自我修改时）
             Long tenantId = TenantContextHolder.getTenantId();
             validateUsersInDefaultTreeScope(tenantId, Set.of(userId));
+
+            SysUser actor = userDomainService.selectValidById(tenantId, currentUserId);
+            if (actor != null && Boolean.TRUE.equals(actor.getForceResetPwd())) {
+                throw new BizException(AccessErrorCode.PASSWORD_RESET_REQUIRED.getCode(),
+                    AccessErrorCode.PASSWORD_RESET_REQUIRED.getMessage());
+            }
         }
 
         Long tenantId = TenantContextHolder.getTenantId();
 
         // 使用 DomainService 获取用户
-        SysUser user = userDomainService.selectValidById(tenantId, userId);
+        SysUser user = userDomainService.lockValidById(tenantId, userId);
         if (user == null) {
             throw new BizException(AccessErrorCode.ADMIN_USER_NOT_FOUND.getCode(), AccessErrorCode.ADMIN_USER_NOT_FOUND.getMessage());
         }
@@ -379,11 +384,15 @@ public class UserAppServiceImpl implements UserAppService {
             ? newPassword
             : generateRandomPassword();
 
-        if (effectivePassword.length() < 8 || effectivePassword.length() > 32
-            || !effectivePassword.matches("(?s).*[A-Za-z].*")
-            || !effectivePassword.matches("(?s).*[0-9].*")) {
+        if (!CredentialPasswords.isValid(effectivePassword)) {
             throw new BizException(AccessErrorCode.PASSWORD_TOO_WEAK.getCode(),
                 AccessErrorCode.PASSWORD_TOO_WEAK.getMessage());
+        }
+
+        if (userId.equals(currentUserId) && Boolean.TRUE.equals(user.getForceResetPwd())
+            && user.getPassword() != null && BCrypt.checkpw(effectivePassword, user.getPassword())) {
+            throw new BizException(AccessErrorCode.PASSWORD_UNCHANGED.getCode(),
+                AccessErrorCode.PASSWORD_UNCHANGED.getMessage());
         }
 
         user.setPassword(BCrypt.hashpw(effectivePassword));
@@ -402,7 +411,7 @@ public class UserAppServiceImpl implements UserAppService {
         patch.setForceResetPwd(!userId.equals(currentUserId));
         patch.setUpdatedAt(LocalDateTime.now());
         userMapper.update(patch);
-        if (!userId.equals(currentUserId)) {
+        if (!userId.equals(currentUserId) || Boolean.TRUE.equals(user.getForceResetPwd())) {
             StpUtil.logout(userId);
         }
 
@@ -435,23 +444,7 @@ public class UserAppServiceImpl implements UserAppService {
      * @return 随机密码字符串
      */
     private String generateRandomPassword() {
-        String upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        String lower = "abcdefghijklmnopqrstuvwxyz";
-        String digits = "0123456789";
-        String special = "!@#$%^&*";
-        String allChars = upper + lower + digits + special;
-
-        StringBuilder password = new StringBuilder();
-        password.append(upper.charAt(SECURE_RANDOM.nextInt(upper.length())));
-        password.append(lower.charAt(SECURE_RANDOM.nextInt(lower.length())));
-        password.append(digits.charAt(SECURE_RANDOM.nextInt(digits.length())));
-        password.append(special.charAt(SECURE_RANDOM.nextInt(special.length())));
-
-        for (int i = 4; i < 12; i++) {
-            password.append(allChars.charAt(SECURE_RANDOM.nextInt(allChars.length())));
-        }
-
-        return password.toString();
+        return CredentialPasswords.generate();
     }
 
     // ==================== 候选用户查询（§7.2） ====================

@@ -35,6 +35,7 @@ public final class OAuth2JwtSupport {
 
     /** 载荷键：租户 ID（签发时 String.valueOf(tenantId)，无租户为 "0"）。 */
     public static final String TENANT_CLAIM = "tenant_id";
+    public static final String TENANT_EPOCH_CLAIM = "tenant_epoch";
 
     /** 载荷键：令牌唯一 ID（revoke 黑名单键值）。 */
     public static final String JTI_CLAIM = "jti";
@@ -103,6 +104,13 @@ public final class OAuth2JwtSupport {
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    public static Long tenantEpochOf(Map<String,Object> payloads) {
+        Object value=payloads.get(TENANT_EPOCH_CLAIM);
+        if(value==null) return null;
+        try { long epoch=Long.parseLong(value.toString()); return epoch>0?epoch:null; }
+        catch(NumberFormatException exception) { return null; }
     }
 
     /**

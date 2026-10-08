@@ -6,7 +6,7 @@ domain: cross-service
 supersedes:
   - docs/design/permission-center/api-contract.md
   - docs/design/services/admin-service-api-contract.md
-last_reviewed: 2026-10-06
+last_reviewed: 2026-10-08
 ---
 
 # access-service API 契约总册
@@ -357,7 +357,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 
 > OAuth2 端点此前仅存在于归档设计（`docs/archive/2026-04-28/admin-service-design.full.md` §1.5-1.6），本章按当前实现登记为活跃契约（T-ACCESS-013 补记）。授权链路语义（JWT 载荷、audience、开放路径门禁）以 `access-service-architecture.md` §6 为权威。
 
-**平台登录收紧（T-ACCESS-083）**：密码登录的用户不存在/密码错误统一 code=10005、message="账号或密码错误"；失败计数与锁定阈值不因用户是否存在而分叉。停用（10003）与临时锁定（10004）提示只在**密码正确后**披露（2026-10-06 拍板移序：停用检查先于密码校验会按错误码差异枚举用户名存在性；正确密码路径上停用提示仍优先于锁定提示；锁定期内错误密码照常推进计数）。图形验证码失败不推进临时失败计数、仅记录失败日志（2026-10-06 拍板修正：计数键无 IP 维度，验证码失败计数使免验证码请求可零成本定向锁定任意已知账号——验证码一次性消费，攻击者无需获取验证码即可推动计数；推翻 T-ACCESS-083「验证码失败也计数」口径），技术性 Redis 故障不冒充验证码错误。短信登录端点已删除，无兼容入口；历史 SMS 登录日志仍可查询，将来恢复短信能力须同时交付签发、限流与失败锁定。
+**租户登录收紧（T-ACCESS-083）**：密码登录的用户不存在/密码错误统一 code=10005、message="账号或密码错误"；失败计数与锁定阈值不因用户是否存在而分叉。停用（10003）与临时锁定（10004）提示只在**密码正确后**披露（2026-10-06 拍板移序：停用检查先于密码校验会按错误码差异枚举用户名存在性；正确密码路径上停用提示仍优先于锁定提示；锁定期内错误密码照常推进计数）。图形验证码失败不推进临时失败计数、仅记录失败日志（2026-10-06 拍板修正：计数键无 IP 维度，验证码失败计数使免验证码请求可零成本定向锁定任意已知账号——验证码一次性消费，攻击者无需获取验证码即可推动计数；推翻 T-ACCESS-083「验证码失败也计数」口径），技术性 Redis 故障不冒充验证码错误。短信登录端点已删除，无兼容入口；历史 SMS 登录日志仍可查询，将来恢复短信能力须同时交付签发、限流与失败锁定。
 
 <a id="contract-section-6-1"></a>
 ### 6.1 授权端点（/auth/oauth2/*）
@@ -366,25 +366,25 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 
 所有端点 POST + JSON Body；统一响应壳 `R<T>`。
 
-**委托边界（T-ADMIN-034 定案；[T-ADMIN-035](../archive/2026-10-04/tasks/T-ADMIN-035.md) 实施）**：客户端只获取本租户用户的委托。authorize 比对平台会话与客户端租户；匿名 token/refresh 仍全局解析 clientId，再比对授权码/刷新记录与客户端租户。authorize、token、refresh 以及每次 JWT 资源请求都确认用户属于同一租户、未删除且 status=1；JWT 同时校验客户端与载荷租户一致，不采用正向用户状态缓存，禁用/删除后下一请求拒绝。既有客户端有效性、黑名单、scope/audience、码与刷新令牌一次性消费保持，不增加令牌扫描或撤销广播。
+**委托边界（T-ADMIN-034 定案；[T-ADMIN-035](../archive/2026-10-04/tasks/T-ADMIN-035.md) 实施）**：客户端只获取本租户用户的委托。authorize 比对租户原生会话与客户端租户；匿名 token/refresh 仍全局解析 clientId，再比对授权码/刷新记录与客户端租户。authorize、token、refresh 以及每次 JWT 资源请求都确认用户属于同一租户、未删除且 status=1；JWT 同时校验客户端与载荷租户一致，不采用正向用户状态缓存，禁用/删除后下一请求拒绝。既有客户端有效性、黑名单、scope/audience、码与刷新令牌一次性消费保持，不增加令牌扫描或撤销广播。
 
 当前差异：无——上述检查已由 T-ADMIN-035 全量实施（authorize/token/refresh 及每次 JWT 资源请求）。开放路径扩展前须确认新路径同样纳入上述检查，不能沿用「仅 userinfo」推断新路径的安全边界。
 
 <a id="contract-section-6-1-0"></a>
 #### 6.1.0 用户授权确认页与预览
 
-应用打开管理台 `/oauth2/authorize`，query 使用 OAuth 标准名称：`client_id`、`response_type=code`、`redirect_uri`、`scope`、`state`、`code_challenge`、`code_challenge_method`。未登录先复用平台登录，首次改密完成后回到本地授权页；续接参数只接受该本地路径，不作为任意跳转器。
+应用打开管理台 `/oauth2/authorize`，query 使用 OAuth 标准名称：`client_id`、`response_type=code`、`redirect_uri`、`scope`、`state`、`code_challenge`、`code_challenge_method`。未登录先复用租户登录；首次改密后重新登录，再续接本地授权页；续接参数只接受该本地路径，不作为任意跳转器。
 
 页面先调用 `POST /api/access/auth/oauth2/authorize-preview`，请求体与 AuthorizeReq 相同。服务端复用 authorize 的客户端、租户、用户状态、回调、scope 和 PKCE 校验，返回 `{clientId, clientName, redirectUri, scopes: string[], state}`；预览不签码、不启动刷新链期限。只有用户点击同意才调用 authorize，然后将 code/state 送到核验后的回调；拒绝不调用签码入口，回调携带 `error=access_denied` 与原 state。没有记住同意、历史授权管理或逐 scope 勾选。
 
 <a id="contract-section-6-1-1"></a>
-#### 6.1.1 `POST /api/access/auth/oauth2/authorize`（需平台会话）
+#### 6.1.1 `POST /api/access/auth/oauth2/authorize`（需租户原生会话）
 
 > **签发串行化（2026-10-06 拍板：行锁串行化延伸，同 /auth/login 形态）**：authorize 为事务方法，签发关键段用户读取走行锁（`lockValidById`，FOR UPDATE 持续到提交）并在锁窗内复核会话存活——与 resetPassword 的 UPDATE 行锁互斥，关闭「在途 authorize 经已吊销会话签出携带新指纹的授权码（旧凭据链最长活 refreshTokenTtl）」并发窗口；交错两侧其一必见对方已提交结果。preview 不签码，沿用普通读取。
 
 **OAuth2 回调匹配边界（2026-10-06 用户选择 A，T-ACCESS-084）**：注册根路径不再授权该域任意子路径；非根路径保留既有完整路径段前缀规则（如 /oauth 可匹配 /oauth/callback，不匹配 /oauth-evil），scheme/authority 仍须相同，查询参数维持既有处理。此为本产品当前兼容边界，不能表述为 RFC 8252 的精确 URI 匹配规则；本次不扩为所有 URI 的精确匹配。
 
-平台用户为客户端发起授权，生成一次性授权码（Redis `oauth2:code:<uuid>`，TTL 300s，Lua GET+DEL 原子消费；码记录绑定 clientId/用户/租户/redirectUri/PKCE/scope——兑换时比对 clientId/redirectUri/PKCE（见 §6.1.2），用户/租户/scope 取自码记录签发，scope 已在 authorize 侧按客户端注册范围校验）。
+租户用户为客户端发起授权，生成一次性授权码（Redis `oauth2:code:<uuid>`，TTL 300s，Lua GET+DEL 原子消费；码记录绑定 clientId/用户/租户/redirectUri/PKCE/scope——兑换时比对 clientId/redirectUri/PKCE（见 §6.1.2），用户/租户/scope 取自码记录签发，scope 已在 authorize 侧按客户端注册范围校验）。
 
 请求（`AuthorizeReq`）：`clientId`* / `responseType`*（固定 `code`）/ `redirectUri`* / `state` / `scope`（空格分隔，⊆ 客户端注册 scopes，否则 `OAUTH2_SCOPE_INVALID`；**客户端注册 scopes 为空时拒绝非空 scope 请求**——空注册不解释为无限制；空 scope 请求放行，签发的无 scope 令牌因业务路径 requiredScopes 强制非空而仅可访问 userinfo 豁免端点）/ `codeChallenge` / `codeChallengeMethod`（PUBLIC 必须显式 S256，challenge 为 43 位 base64url；CONFIDENTIAL 保持可选 S256/plain）。
 
@@ -465,15 +465,26 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 `Oauth2ClientResp`：上表字段 + `id` / `tenantId` / `createdAt` / `updatedAt`（不含 clientSecret）。
 
-种子数据（access-service.sql）：admin-web / example-web / internal-service，`scopes='all'`、`audiences='access-service'`。
+新租户不预建 OAuth2 客户端；由租户管理员独立注册。普通管理台登录不依赖客户端记录。
 
 <a id="contract-section-6-4"></a>
-### 6.4 登录端点族（未成册登记）
+### 6.4 租户登录端点族
 
-管理台登录当前固定提交 tenantId="1"（数字租户主键的字符串形式），为单租户试运行过渡形态；不是租户选择/开通能力。将来 tenantCode 或租户选择上线需要明确迁移登录入参和本地会话/草稿分区，安排见 Q-063。
+| POST 路径 | 请求 | 响应 data |
+|---|---|---|
+| `/api/access/auth/captcha` | `{}` | `{captchaId,image}` |
+| `/api/access/auth/login` | `{tenantCode,username,password,captchaId,captchaCode,clientId?}` | `{accessToken,refreshToken:null,expiresIn,tokenType,userId,username,tenantId,forceResetPwd}` |
+| `/api/access/auth/logout` | `{}` + Bearer | null |
+| `/api/access/auth/userinfo` | `{}` + Bearer | 既有用户信息响应 |
+| `/api/access/auth/user-menu` | `{}` + Bearer | `{menus,roles,permissions}` |
 
+`tenantCode` 必填，严格匹配 `[a-z][a-z0-9-]{0,63}`，通过注册表解析内部租户 ID；停止接受旧 `tenantId` 登录协议。`clientId` 可选，仅用于登录审计来源标签，不校验 OAuth2 注册、不赋予访问权。登录成功要求用户密码正确、用户启用、未临时锁定、租户共享门禁启用且代次匹配。不存在的租户不构造虚拟 tenant_id 写租户日志。
 
-> `/api/access/auth/captcha`、`/api/access/auth/login`、`/api/access/auth/logout`、`/api/access/auth/userinfo`、`/api/access/auth/user-menu` 五个登录会话端点未在原两册成册（原 admin 册范围限定「组织与用户域」）；契约以代码与 `HttpApiPathSnapshotTest` 快照为准，前端侧行为见 `frontend/login.md`。成册补写待后续批次（T-ACCESS-040 登记，不在本任务新增契约内容）。会话入口白名单族（Gateway 匿名白名单）2026-09-19 起另含 `/api/access/user/reset-password`（T-GW-009 定案⑤，注记见 §7.7「Gateway 放行」）。
+租户原生 token 的单令牌会话同时保存租户代次、强制改密标记和签发时 Redis 进程标识。任何 Redis 重启后旧原生 token 均须重新登录；门禁重建不能复活改密前被撤销但从快照恢复的 token。正常原生请求仍只通过 Redis 获取这些门禁事实，不增加逐请求数据库校验。
+
+首次改密由后端强制：带强制标记的原生会话只可访问 userinfo、user-menu、logout 与自身 reset-password；非自身重置仍拒绝。强制改密新密码不得等于当前密码，完成后撤销全部旧原生会话，必须重新登录。尚未改密用户不能签发或使用 OAuth2 委托凭据。普通自助改密保留原生会话行为。
+
+OAuth2 授权码、刷新记录携带签发时租户代次；JWT 使用字符串 `tenant_epoch` claim。兑换、刷新及资源请求同时验证启用状态和代次，缺字段或停用前的旧代次拒绝，恢复后不复活；服务凭证只检查租户启用状态及自身有效性。
 
 <a id="contract-section-7"></a>
 ## 7. user 能力（用户管理）
@@ -740,7 +751,7 @@ name、phone、email 长度上限分别为 128、32、128；null 保留原值，
 
 **重置密码复杂度（T-ACCESS-083）**：管理员重置与自助改密共用同一服务入口，密码须 8–32 位且至少包含一个英文字母及一个数字；复杂度不足返回 HTTP 200 + `10010 PASSWORD_TOO_WEAK`。原 DTO 长度校验保留（不合法长度 HTTP 400），管理员省略 newPassword 时的随机密码生成通道保留；本条不修改旧密码登录验证或强制所有历史密码立即重设。
 
-**会话吊销（T-ACCESS-082）**：非自身重置在写事务内调用 `StpUtil.logout(userId)` 吊销目标的全部平台会话；调用失败则数据库事务回滚，不返回重置成功。自身改密保留平台会话，OAuth2 旧链仍因密码代际变化而失效。Redis 吊销与数据库并非分布式事务：若后续数据库提交失败，已吊销会话不恢复，用户重新登录即可。
+**会话吊销（T-ACCESS-082）**：非自身重置在写事务内调用 `StpUtil.logout(userId)` 吊销目标的全部租户原生会话；调用失败则数据库事务回滚，不返回重置成功。普通自身改密保留租户原生会话；强制首次改密必须使用不同密码并撤销旧原生会话。OAuth2 旧链仍因密码代际变化而失效。Redis 吊销与数据库并非分布式事务：若后续数据库提交失败，已吊销会话不恢复，用户重新登录即可。
 
 **登录串行化（2026-10-06 拍板：行锁串行化）**：`/auth/login` 为事务方法，用户读取走行锁（`selectByUsernameForUpdate`，FOR UPDATE 持续到提交），与本端点的 UPDATE 行锁互斥——重置与在途登录交错时其一必然看到对方已提交结果：重置先提交则旧密码按新哈希校验失败，登录先提交则本端点的 logout 覆盖其后签发的会话。关闭批次评审发现（2026-10-06，codex）的「在途旧密码登录在重置吊销后建立新会话」窗口；互斥语义由 `UserLoginRowLockPgIT` 在真实 PG 锁定。锁持有期间占用数据库连接，该读法仅用于登录关键段。
 
@@ -758,7 +769,7 @@ name、phone、email 长度上限分别为 128、32、128；null 保留原值，
 <a id="contract-section-7-8"></a>
 ### 7.8 perm 家族主体端点（/api/access/abstract-user/*）
 
-本地可登录账号应经 `/api/access/user/create` 创建（包含凭据、初始密码和本地主体投影）；下列 abstract-user/create 面向权限主体登记，不产生平台登录账号，不应作为管理台新增用户入口（指引句归属 §7.8——2026-10-06 逐任务评审排版修正，段落随标题归位）。
+本地可登录账号应经 `/api/access/user/create` 创建（包含凭据、初始密码和本地主体投影）；下列 abstract-user/create 面向权限主体登记，不产生租户可登录账号，不应作为管理台新增用户入口（指引句归属 §7.8——2026-10-06 逐任务评审排版修正，段落随标题归位）。
 
 | 接口                                              | 说明                     |
 | ------------------------------------------------- | ------------------------ |
@@ -3220,6 +3231,16 @@ schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正�
 | `30005` | PERM_CHECK_UNAVAILABLE | [§25.7](#contract-section-25-7) | [源码](../../example-service/src/main/java/cn/ac/fage/accessmesh/example/enums/ExampleErrorCode.java) |
 | `90001` | VALIDATION_FAILED | [§2.5](#contract-section-2-5)、[§2.6](#contract-section-2-6)、[§2.7](#contract-section-2-7)、[§7.3](#contract-section-7-3)、[§7.4](#contract-section-7-4)、[§7.8](#contract-section-7-8)、[§8.4](#contract-section-8-4)、[§8.5](#contract-section-8-5)、[§9.2](#contract-section-9-2)、[§9.6](#contract-section-9-6)、[§12.1](#contract-section-12-1)、[§12.2](#contract-section-12-2)、[§17.3](#contract-section-17-3)、[§21.2](#contract-section-21-2)、[§24.2](#contract-section-24-2) | [源码](../../common/src/main/java/cn/ac/fage/accessmesh/common/enums/GlobalErrorCode.java) |
 | `99999` | SYSTEM_ERROR | [§2.6](#contract-section-2-6)、[§4](#contract-section-4)、[§8.1](#contract-section-8-1)、[§18.1](#contract-section-18-1)、[§21.2](#contract-section-21-2)、[§25.6](#contract-section-25-6) | [源码](../../common/src/main/java/cn/ac/fage/accessmesh/common/enums/GlobalErrorCode.java) |
+| `11101` | `PLATFORM_ACCOUNT_NOT_FOUND` | 平台账号不存在 | [平台与租户生命周期](#contract-section-26) |
+| `11102` | `PLATFORM_ACCOUNT_EXISTS` | 平台账号已存在 | [平台与租户生命周期](#contract-section-26) |
+| `11103` | `PLATFORM_LAST_ADMIN` | 不能停用最后一个启用平台管理员 | [平台与租户生命周期](#contract-section-26) |
+| `11104` | `PLATFORM_PASSWORD_RESET_REQUIRED` | 请先修改平台账号初始密码 | [平台与租户生命周期](#contract-section-26) |
+| `11110` | `TENANT_NOT_FOUND` | 租户不存在 | [平台与租户生命周期](#contract-section-26) |
+| `11111` | `TENANT_CODE_EXISTS` | 租户编码已存在且不可复用 | [平台与租户生命周期](#contract-section-26) |
+| `11112` | `TENANT_DISABLED` | 租户已停用 | [平台与租户生命周期](#contract-section-26) |
+| `11113` | `TENANT_GATE_NOT_READY` | 租户状态尚未就绪，请稍后重试 | [平台与租户生命周期](#contract-section-26) |
+| `10011` | `PASSWORD_UNCHANGED` | 强制改密时新密码不能与当前密码相同 | [平台与租户生命周期](#contract-section-26) |
+| `10012` | `PASSWORD_RESET_REQUIRED` | 请先修改自己的初始密码 | [平台与租户生命周期](#contract-section-26) |
 <!-- error-code-index:end -->
 
 退役码 10111 不复用；历史说明保留于 §20.1。SDK 验签的 30003 已由 PermClientErrorCode 单源定义，保持原 HTTP 200 + 业务码行为。
@@ -3602,6 +3623,60 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
 | T-ACCESS-060 | N19/N21/N23 |
 | T-ACCESS-061 | N01/N04/N05/N24/N25/N26/N27（业务半边实测） |
 | T-ACCESS-062 | N29/N30 |
+
+<a id="contract-section-26"></a>
+## 26. 平台运营与租户生命周期
+
+设计权威：[租户生命周期](tenant-lifecycle.md)。以下全为 POST + JSON，响应统一 `R<T>`，所有 ID 为内部正整数。平台认证域独立于租户原生、OAuth2、服务凭证与内部互信；除平台验证码、登录、登出外，必须携带平台 Bearer 令牌。平台运营不代客户维护业务数据；唯一凭据恢复例外是可审计地重置最初租户首管理员密码。
+
+### 26.1 平台认证与账号
+
+| 路径（均以 `/api/access/` 开头） | 请求 | 响应 data |
+|---|---|---|
+| `platform-auth/captcha` | `{}` | `{captchaId,image}` |
+| `platform-auth/login` | `{username,password,captchaId,captchaCode}` | `{accessToken,expiresIn,account:PlatformAccountResp}` |
+| `platform-auth/me` | `{}` | `PlatformAccountResp` |
+| `platform-auth/logout` | `{}` | null |
+| `platform-auth/change-password` | `{oldPassword,newPassword}` | null；旧会话失效 |
+| `platform-account/page` | `{pageNum?,pageSize?}` | `PageResp<PlatformAccountResp>` |
+| `platform-account/create` | `{username,name}` | `{account,initialPassword}` |
+| `platform-account/update` | `{id,name}` | null |
+| `platform-account/update-status` | `{id,status:0或1}` | null |
+| `platform-account/reset-password` | `{id}` | `{password}` |
+
+`PlatformAccountResp={id,username,name,status,forceResetPwd,createdAt,updatedAt}`。账号名最多 64 字符，名称最多 128 字符。新账号及重置密码使用随机初始密码，仅本次响应返回，强制改密；强制标记账号仅可访问自身认证／改密端点。新密码 8–32 位且含字母、数字，强制改密还要求与当前密码不同。停用、重置和自助改密使旧平台令牌代次失效；最后一个启用的平台管理员不能被停用；保护只按数据库启用状态计数，临时登录失败锁定不计入。重置在数据库与审计提交后解除该账号临时登录失败锁定。
+
+### 26.2 租户运营
+
+| 路径（均以 `/api/access/` 开头） | 请求 | 响应 data |
+|---|---|---|
+| `tenant/page` | `{pageNum?,pageSize?,keyword?}` | `PageResp<TenantResp>` |
+| `tenant/detail` | `{id}` | `TenantResp` |
+| `tenant/create` | `{code,name}` | `{tenant:TenantResp,adminUsername,initialPassword}` |
+| `tenant/update` | `{id,name}` | null |
+| `tenant/update-status` | `{id,status:0或1}` | `TenantResp` |
+| `tenant/reset-admin-password` | `{id}`（租户 ID） | `{username,password,userStatus}`（原始管理员当前账号状态） |
+
+`TenantResp={id,code,name,status,adminUserId,accessState,createdAt,updatedAt}`；`accessState` 为 `ENABLED / DISABLED / UNAVAILABLE`，与数据库状态或代次不一致也显示未就绪。编码不可修改、不可复用，无租户删除端点。首租户与其他租户一样自由指定编码。开通使用统一模板，在同一事务内创建注册表、标准种子、管理员与权限图、审计；成功后返回一次密码。开通响应丢失时先查询编码，再重置凭据恢复交付，不能盲目认为数据库未提交。
+
+首管理员重置只改密码并强制改密、撤销其会话、解除临时登录失败锁定；不恢复状态或角色，原账号已删除则拒绝。停用成功后阻断新请求／任务，恢复要求用户重新登录。Redis 发布失败返回 503，此时数据库可能已提交；刷新详情核对登记状态与访问状态，自动修复完成前拒绝访问。
+
+### 26.3 平台审计与错误
+
+`platform-audit/page` 请求 `{pageNum?,pageSize?,targetTenantId?}`，返回 `PageResp<PlatformAuditResp>`；响应字段为 `{id,operatorId,operatorName,targetTenantId,targetType,targetId,action,outcome,summary,requestId,ipAddress,createdAt}`。平台审计独立存储，成功关键数据库写入与审计同事务。进入管理编排的失败尝试在主事务结束后经既有操作日志切面独立记录；门禁结果未确认记 PENDING，明确失败记 FAILURE，审计不可用不覆盖原拒绝原因。密码、哈希、密钥与完整请求体不入日志。
+
+分页默认 20，最大 200，沿用 `{items,total,pageNum,pageSize,hasNext}`。业务错误仍使用统一信封；认证失败 HTTP 401，强制改密和租户停用 HTTP 403，门禁未知或故障 HTTP 503。
+
+| code | 含义 |
+|---|---|
+| 10011 | 强制改密的新密码与当前密码相同 |
+| 10012 | 租户用户必须先完成首次改密 |
+| 11101 / 11102 | 平台账号不存在 / 用户名已存在 |
+| 11103 | 不得停用最后一个启用平台管理员 |
+| 11104 | 平台账号必须先完成首次改密 |
+| 11110 / 11111 | 租户不存在 / 编码已存在且不可复用 |
+| 11112 | 租户已停用 |
+| 11113 | 租户门禁未就绪或不可用 |
 
 ## 附录 A. 接口与前端 API 一一对照表（管理面家族）
 | 后端接口 | 前端 `user-manage.ts` 函数 | 状态 |
