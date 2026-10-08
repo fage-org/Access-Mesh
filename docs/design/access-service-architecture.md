@@ -4,7 +4,7 @@ title: access-service 目标架构与归并约束
 status: adopted
 domain: cross-service
 supersedes: docs/archive/2026-08-15/admin-permission-sync.md
-last_reviewed: 2026-10-06
+last_reviewed: 2026-10-08
 ---
 
 # access-service 目标架构与归并约束
@@ -19,7 +19,7 @@ last_reviewed: 2026-10-06
 ### 1.1 目标
 
 - 将 `admin-service` 与 `permission-center` 物理归并为一个 Maven 模块、一个 Spring Boot 进程和一个部署单元 `access-service`。
-- 当前采用能力包模块化单体（T-ACCESS-033 终态：17 顶层包，管理面/权限面两轨语义由双轨表承载；原「保留管理域与权限域代码边界」已随 T-ACCESS-032~041 能力包融合消亡）。
+- 当前采用能力包模块化单体（T-ACCESS-033 终态：18 顶层包，管理面/权限面两轨语义由双轨表承载；原「保留管理域与权限域代码边界」已随 T-ACCESS-032~041 能力包融合消亡）。
 - 使用单一 PostgreSQL 数据库 `access_db` 和单一 `public` schema。
 - 将原 admin 到 permission 的异步同步改为单库本地强事务。
 - 保持既有 HTTP 路径、请求/响应结构和错误码兼容。
@@ -54,12 +54,12 @@ last_reviewed: 2026-10-06
 
 > **能力包口径（T-ACCESS-032 重写，2026-09-13；T-ACCESS-033 迁移完成注记）**：目标结构契约唯一权威为 [access-service-capability-structure.md](access-service-capability-structure.md) §2（包结构）与 §8（归属清单与边界断言）；本节为其摘要。T-ACCESS-033 已于 2026-09-13 完成机械迁移（500 类搬迁 + 17 对改名 + 旧包清零），代码包结构即本节所述能力包结构，本节与代码同步生效。
 
-目标包结构（17 顶层包 = 12 能力包 + sync 通道包 + engine 引擎子系统 + projection 投影门面 + bootstrap 空库自举 + infrastructure 底座）：
+目标包结构（18 顶层包 = 13 能力包 + sync 通道包 + engine 引擎子系统 + projection 投影门面 + bootstrap 空库自举 + infrastructure 底座）：
 
 ```text
 cn.ac.fage.accessmesh.access
 ├── AccessServiceApplication
-├── auth user org menu role grant resource type domain rule audit platform   # 12 能力包
+├── auth user org menu role grant resource type domain rule audit platform tenant   # 13 能力包
 ├── sync          # sync 通道包（4 组 sync/full-sync Controller + 守卫 + 记账 + 策略）
 ├── engine        # 权限引擎子系统（QueryExecutionEngine + 管线 + 对外查询编排 + QueryGate 门禁门面/操作码册）
 ├── projection    # 内部事实投影统一门面（LocalProjectionDomainService）
@@ -177,7 +177,7 @@ cn.ac.fage.accessmesh.access
 
 `global-config.tenant-column=tenant_id` 使实体租户列进入 Flex 生成 SQL；TenantFactory 在无可信租户时抛错。自定义 XML 保留显式 tenant 参数及 WHERE，不宣称自动改写全部 SQL。BaseMapper INSERT 已设置的 tenantId 保持不变，空值才从上下文填充；日志/任务内部条目的 tenant 必须显式传递。
 
-固定图 initialize 是启动期唯一显式豁免，最外层 `withoutTenantCondition` 包裹全部下游调用，种子始终使用固定租户；不在 BootstrapSeedWriter 内再次嵌套豁免。定时扫描使用既有全局任务 SQL，执行体绑定 TASK 上下文。接线前逐文件清点见 [Flex 调用清单](../archive/2026-10-06/tasks/evidence/usage-review-20261006/flex-tenant-inventory.md)，真实生成 SQL 的查/改隔离、缺上下文拒绝及插入填充由 DualTenantSameCodeIsolationPgIT 验证。
+租户开通固定图 `initialize(tenantId,password)` 绑定目标租户 TASK 上下文，生成 SQL 仍带租户条件；不再用 `withoutTenantCondition` 绕过租户条件。独立平台三表使用明确全局 SQL，边界见租户生命周期设计。定时扫描使用既有全局任务 SQL，执行体绑定 TASK 上下文。接线前逐文件清点见 [Flex 调用清单](../archive/2026-10-06/tasks/evidence/usage-review-20261006/flex-tenant-inventory.md)，真实生成 SQL 的查/改隔离、缺上下文拒绝及插入填充由 DualTenantSameCodeIsolationPgIT 验证。
 
 ## 6. 可信请求上下文与安全策略
 
@@ -187,7 +187,7 @@ cn.ac.fage.accessmesh.access
 
 - `tenantId`（已验证租户 ID）
 - `operatorId`（已验证操作者 ID）
-- `callerType`（四态：`USER` 平台用户 / `SERVICE` 注册业务服务 / `TASK` 定时任务 / `ANONYMOUS` 公开路径）
+- `callerType`（五态：`PLATFORM` 独立平台运营账号 / `USER` 租户用户 / `SERVICE` 注册业务服务 / `TASK` 定时任务 / `ANONYMOUS` 公开路径）
 - `verifiedServiceCode`（已验证服务编码，仅 SERVICE 调用非 null）
 - `delegatedClientId`（OAuth2 委托客户端标识，仅 OAuth2 JWT 分支非 null，T-ACCESS-013 第五要素）
 - `requestId`（请求 ID：X-Request-Id 头值或拦截器兜底生成 UUID，仅 HTTP 入口绑定——T-PERM-021 F1.d 第六要素 2026-09-12；与 MDC traceId 单源同值，审计两表 `request_id` 的关联取值入口，无上下文写入由审计落库点合成）
@@ -208,7 +208,7 @@ cn.ac.fage.accessmesh.access
 
 操作者绑定规则（T-ACCESS-004 落地；T-ACCESS-013 扩展 OAuth2 JWT 资源服务器）：`operatorId` 只在 Sa-Token 会话、签名验证通过或 OAuth2 JWT 验签通过后绑定（JWT 来源：`SaJwtUtil` HS256 + loginType + 超时校验 + `oauth2:blacklist:<jti>` 撤销检查）；内部凭证单独不授予操作者身份（SERVICE 调用 operatorId=null，管理接口权限判定 fail-closed）。服务身份绑定规则：内部凭证验证通过后 `X-Service-Code` 视为凭证持有者声明的服务身份（防无凭证外部伪造）；凭证持有者互冒充为已知限制，T-ACCESS-005/010 服务白名单收敛。**主体 ID 语义（§12 定稿）**：统一后 `operatorId` 承载的即主体 ID（`abstract_user.id` = `sys_user.id`），会话 `loginId` 与审计操作者同源，无需转换。
 
-OAuth2 密码代际与生命周期（T-ACCESS-082）：授权码、刷新记录和 JWT 同携密码盐前缀指纹、链首次签发时间及固定到期时间；兑换/刷新/JWT 入口复用 `OAuth2JwtSupport` 检查当前密码指纹和绝对期限，不新增用户表列、不使用 updated_at。首次授权以客户端 refresh TTL 固定链期限，轮换不续长、访问 JWT 不超出剩余期限。旧凭据缺字段即拒绝；管理员非自身重置在原写事务内调用 Sa-Token logout 吊销目标平台会话，自身平台会话保留。完整线格式与发布影响见 [契约 §6.1/§7.7](access-service-api-contract.md#61-授权端点authoauth2)。
+OAuth2 密码代际与生命周期（T-ACCESS-082）：授权码、刷新记录和 JWT 同携密码盐前缀指纹、链首次签发时间及固定到期时间；兑换/刷新/JWT 入口复用 `OAuth2JwtSupport` 检查当前密码指纹和绝对期限，不新增用户表列、不使用 updated_at。首次授权以客户端 refresh TTL 固定链期限，轮换不续长、访问 JWT 不超出剩余期限。旧凭据缺字段即拒绝；管理员非自身重置在原写事务内调用 Sa-Token logout 吊销目标租户原生会话，普通自身改密保留原生会话；强制改密则撤销旧原生会话并重新登录。完整线格式与发布影响见 [契约 §6.1/§7.7](access-service-api-contract.md#61-授权端点authoauth2)。
 
 OAuth2 资源服务器与开放路径清单（T-ACCESS-013 落地，2026-08-22 设计定案）：
 
@@ -217,13 +217,15 @@ OAuth2 资源服务器与开放路径清单（T-ACCESS-013 落地，2026-08-22 �
 - **scope → 权限映射采用独立映射模型**（设计定案，不接入权限判定面）：scope 保持 OAuth2 标准委托范围语义（签发时空格分隔、授权时校验 ⊆ 客户端注册 scopes），授权判定即"开放路径声明所需 scope、令牌 scope 必须全部包含"；委托主体是客户端而非用户，与平台权限正交互不冲突。
 - **audience**（设计定案：客户端注册配置加列）：`sys_oauth2_client.audiences`（逗号分隔资源服务器标识）非空时签发写入 JWT `aud` claim（List 形态）；`/api/access/auth/oauth2/userinfo` 默认豁免 audience 校验（旧令牌无 aud 兼容）；其他开放路径**强制** audience 匹配（令牌 aud 缺失或不含路径声明的受众 → 403）。种子客户端 audiences=`access-service`。
 - **委托上下文第五要素**：`RequestContext` 增加 `delegatedClientId`（仅 OAuth2 JWT 分支非 null，callerType 维持 USER——operatorId=JWT loginId 委托用户身份）；审计/日志经 `AccessRequestContext.getDelegatedClientId()` 区分第三方委托调用与用户直调。
-- **Gateway 透传**（设计定案：同步支持；评审 P1 修复：仅委托 JWT 启用）：`gateway.oauth2.passthrough-paths`（外部路径口径，默认为空 = 无业务路径默认开放）命中**且 Authorization 为 Bearer 三段式 JWT**（形态识别与下游 JWT 分支同口径，不验签——伪造 JWT 透传后下游验签 401）时 `OAuth2PassthroughFilter`（order -79）设 skipAuth=true——跳过会话校验（否则 OAuth2 JWT 被 uuid 会话校验 401）、权限校验与身份头注入/签名，Authorization 头原样透传下游验签。**平台用户 uuid 会话令牌与无 Authorization 头的请求不启用透传**（skipAuth 不设置）：走正常 AuthTokenFilter 会话校验 + PermissionFilter 接口鉴权，平台会话认证路径不变——否则透传路径上 uuid 会话会被下游共享 Redis 会话分支接受，绕过 Gateway 接口权限（评审 P1）。公开/自服务入口与 `/api/access/auth/oauth2/**` 按 Gateway 精确白名单覆盖（oauth2/userinfo 无需重复配置），运行时查询不在此豁免范围。**双侧路径口径（T-ACCESS-042 起同形）**：无 StripPrefix，Gateway 与下游匹配同一路径，开放业务路径双侧配置天然同形；`InternalSecretFilter` 在未带服务凭证头时向透传请求注入 X-Internal-Secret——原「启动防护禁止开放路径位于 `/api/access/**`」已随单命名空间退役（双凭证并存不构成机制冲突），仅 SecurityWebMvcConfig 的精确 excludePathPatterns 入口（含 oauth2/**）豁免服务密钥；其他开放业务路径直连仍须通过服务认证，JWT 校验独立执行。
+- **Gateway 透传**（设计定案：同步支持；评审 P1 修复：仅委托 JWT 启用）：`gateway.oauth2.passthrough-paths`（外部路径口径，默认为空 = 无业务路径默认开放）命中**且 Authorization 为 Bearer 三段式 JWT**（形态识别与下游 JWT 分支同口径，不验签——伪造 JWT 透传后下游验签 401）时 `OAuth2PassthroughFilter`（order -79）设 skipAuth=true——跳过会话校验（否则 OAuth2 JWT 被 uuid 会话校验 401）、权限校验与身份头注入/签名，Authorization 头原样透传下游验签。**租户用户 uuid 会话令牌与无 Authorization 头的请求不启用透传**（skipAuth 不设置）：走正常 AuthTokenFilter 会话校验 + PermissionFilter 接口鉴权，租户原生会话认证路径不变——否则透传路径上 uuid 会话会被下游共享 Redis 会话分支接受，绕过 Gateway 接口权限（评审 P1）。公开/自服务入口与 `/api/access/auth/oauth2/**` 按 Gateway 精确白名单覆盖（oauth2/userinfo 无需重复配置），运行时查询不在此豁免范围。**双侧路径口径（T-ACCESS-042 起同形）**：无 StripPrefix，Gateway 与下游匹配同一路径，开放业务路径双侧配置天然同形；`InternalSecretFilter` 在未带服务凭证头时向透传请求注入 X-Internal-Secret——原「启动防护禁止开放路径位于 `/api/access/**`」已随单命名空间退役（双凭证并存不构成机制冲突），仅 SecurityWebMvcConfig 的精确 excludePathPatterns 入口（含 oauth2/**）豁免服务密钥；其他开放业务路径直连仍须通过服务认证，JWT 校验独立执行。
 
-平台用户会话只保留一套：`/api/access/auth` 下的登录与自服务端点承担会话入口（同前缀还包括运行时查询，并非整族会话端点），Gateway 负责校验并向 `access-service` 注入可信身份。Gateway 与 `access-service` 在 Redis logical DB 0 上使用兼容且唯一的 Sa-Token 权威配置（T-ACCESS-003 落实）：`token-name=Authorization`、`token-style=uuid`（uuid 模式无会话密钥概念，会话有效性以共享 Redis 条目为唯一事实，Redis 清空后两端一致失效 fail-closed）、`timeout=7200`（2 小时绝对有效期）、`active-timeout=1800`（30 分钟无操作滑动续期）、`is-concurrent=true`、`is-share=false`、token-prefix 均为 `Bearer`（Gateway 配置，access 签发返回 tokenType=Bearer）；登录类型两侧均为 `StpUtil.login()` 默认 `login`（Sa-Token 无 login-type 配置键，文档口径而非配置项）。`jwt-secret-key` 仅用于 OAuth2 访问令牌签发（HS256，`SaJwtUtil`），不属于平台用户会话密钥。平台用户会话固定为 2 小时绝对有效期和 30 分钟无操作有效期，登录、校验、续期、注销和失效必须端到端一致。Sa-Token 键命名空间只与业务缓存隔离，不得在 Gateway 与 `access-service` 之间相互隔离。两端配置一致性由部署配置约束保障，代码不实现跨进程启动校验（T-ACCESS-003 设计定案：运维部署部分不影响代码逻辑）；`jwt-secret-key` 配置无默认值（`${JWT_SECRET_KEY}`），缺失时 Spring 占位符解析失败导致启动失败。
+租户用户会话只保留一套：`/api/access/auth` 下的登录与自服务端点承担会话入口（同前缀还包括运行时查询，并非整族会话端点），Gateway 负责校验并向 `access-service` 注入可信身份。Gateway 与 `access-service` 在 Redis logical DB 0 上使用兼容且唯一的 Sa-Token 权威配置（T-ACCESS-003 落实）：`token-name=Authorization`、`token-style=uuid`（uuid 模式无会话密钥概念，会话身份来自共享 Redis 条目，并同时检查租户门禁代次和 Redis 进程标识；Redis 清空或进程改变后旧原生会话失效）、`timeout=7200`（2 小时绝对有效期）、`active-timeout=1800`（30 分钟无操作滑动续期）、`is-concurrent=true`、`is-share=false`、token-prefix 均为 `Bearer`（Gateway 配置，access 签发返回 tokenType=Bearer）；登录类型两侧均为 `StpUtil.login()` 默认 `login`（Sa-Token 无 login-type 配置键，文档口径而非配置项）。`jwt-secret-key` 仅用于 OAuth2 访问令牌签发（HS256，`SaJwtUtil`），不属于租户用户会话密钥。租户用户会话固定为 2 小时绝对有效期和 30 分钟无操作有效期，登录、校验、续期、注销和失效必须端到端一致。Sa-Token 键命名空间只与业务缓存隔离，不得在 Gateway 与 `access-service` 之间相互隔离。两端配置一致性由部署配置约束保障，代码不实现跨进程启动校验（T-ACCESS-003 设计定案：运维部署部分不影响代码逻辑）；`jwt-secret-key` 配置无默认值（`${JWT_SECRET_KEY}`），缺失时 Spring 占位符解析失败导致启动失败。
 
 登录响应 `LoginResp.expiresIn` 的单一权威来源为 `sa-token.timeout`（`SaManager.getConfig().getTimeout()`，即真实会话 TTL），无独立展示键——避免 Nacos 只覆盖一项配置时展示与真实会话漂移（T-ACCESS-003 评审 P2，2026-08-14）。Gateway 配置经 T-ACCESS-003 评审 P1 从 `bootstrap.yml` 迁移至 `application.yml`（Boot 3 标准 ConfigData + `spring.config.import: optional:nacos:gateway.yml`，与 access-service 同模式）；原 bootstrap.yml 在 Boot 3 默认不加载（无 starter-bootstrap），Gateway 的 sa-token/Redis/路由/Nacos 配置实际从未生效，且存在 7 个启动缺陷（WebMvc 组件冲突、Bean 名冲突、spring-webmvc 在 classpath 触发 SCG 异常、路由前缀错误等）已随迁移修复；Gateway 上下文配置测试（`GatewayApplicationConfigTest`）固化为回归保障。
 
-OAuth2 客户端令牌继续使用各客户端注册配置的有效期，不套用平台用户会话的 2 小时/30 分钟口径。`perm-sdk`、外部 `sync/full-sync` 和注册业务服务调用属于服务身份认证，不复用平台用户 Sa-Token 会话，继续按权限 API 契约使用签名或内部服务凭证建立 `callerType=SERVICE` 的可信上下文。
+独立平台账号另使用 `platform-operator` Sa-Token 认证域，令牌会话保存数据库凭据代次，不消费租户 `login` 域会话；平台不投影成租户用户。平台与租户两套前端状态独立，平台关键写入与平台审计同事务。完整边界见[租户生命周期](tenant-lifecycle.md)。
+
+OAuth2 客户端令牌继续使用各客户端注册配置的有效期，不套用租户用户会话的 2 小时/30 分钟口径。`perm-sdk`、外部 `sync/full-sync` 和注册业务服务调用属于服务身份认证，不复用租户用户 Sa-Token 会话，继续按权限 API 契约使用签名或内部服务凭证建立 `callerType=SERVICE` 的可信上下文。
 
 会话参数与 Gateway 的共有配置由 `SaTokenConfigParityTest` 对解析后有效值检查；access-service 的 `is-read-header` 保持 Sa-Token 默认 true，Gateway 显式 true，另有专用断言。JWT 密钥仅在 access-service 声明，签名验签窗口与 example-service 的窗口各自独立。
 
@@ -465,22 +467,22 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 
 ### 14.2 载体终态
 
-- 固定租户 1（类型种子即租户 1，不做租户开通）；载体为 access-service 内**默认关闭**（`access.bootstrap.enabled`，默认 false）的幂等 `ApplicationRunner`，仅负责触发一个事务化 initializer。
+- 启动只由 PlatformBootstrapRunner 初始化独立平台账号（`access.platform.bootstrap.enabled`，默认 false）。所有租户经运营 API 开通：同事务登记租户、调用权威 DDL 的 `initialize_tenant_baseline(tenantId)`、调用 `AccessBootstrapInitializer.initialize(tenantId,password)` 创建固定图并写独立平台审计；不预置租户或 OAuth2 客户端。
 - 复用现有领域服务（用户/主体/投影/角色创建与授权绑定链）与 BCrypt；不走带操作者权限校验的管理 AppService、不向通用授权链加入 `bootstrapBypass`——需要无操作者写入的授权环节使用**种子类写入通道**（T-PERM-062 起下沉为 `PermissionGrantPlanDomainService.seedGrants`，跳过委托校验、保留领域校验、幂等 insert-if-absent），调用方限定为 bootstrap 固定图与类型授权根生命周期写路径（createType/createOperation/所有者变更迁移，§14.1「闭环只能靠最小种子」在类型生命周期的推广），不给通用授权服务增加公开的无操作者入口。
-- 首管理员密码经环境变量注入（`ACCESS_BOOTSTRAP_ADMIN_PASSWORD`，Java 侧 BCrypt 哈希落库，无明文）；`enabled=true` 时密码缺失或空白 fail-fast，密码不写日志。
+- 平台初始账号密码由 `ACCESS_PLATFORM_ADMIN_PASSWORD` 注入，仅空账号表生效。租户首管理员密码随机生成、BCrypt 落库，仅开通成功响应展示一次并强制首次改密。密码不写日志。
 - **固定图稳定业务键（三状态幂等的判定依据）**：
-  - 首管理员：`username=admin`（租户 1 内唯一）；`abstract_user(user_type=LOCAL_USER, external_id=主体 ID)`（§12.2）；`sys_user.id=主体 ID`；`resource_entity(USER).code=主体 ID`（§12.3）。
+  - 首管理员：`username=admin`（目标租户内唯一）；`abstract_user(user_type=LOCAL_USER, external_id=主体 ID)`（§12.2）；`sys_user.id=主体 ID`；`resource_entity(USER).code=主体 ID`（§12.3）。
   - 管理用功能角色：`roleTypeCode=BASIC_ROLE`、`domainCode=null`（全局域）、`externalId=bootstrap-admin`；首管理员经 `user_role` 绑定该角色。
   - `resource_entity(SERVICE, code=access-service)`（固定图对象 1）。
   - `service_config(service_code=access-service)`：空库初始化为启用，配置身份纳入固定图检查；T-ACCESS-062 删除模式字段，统一操作准入。名称与状态由可信管理面维护，不在重启时覆盖。旧库按退役手册先备份迁移。
   - 管理 API 与目标接口的 API 资源：`resource_entity(API).code = {METHOD}:{外部路径}`（如 `POST:/api/access/role/my-info`、`POST:/api/access/abstract-role/tree`；T-ACCESS-042 起外部路径=服务路径），`code_type=default`；`resource_api_mapping.serviceCode=access-service`、`httpMethod/pathPattern` 与外部路径的方法和路径一致。
   - 幂等三状态的「完整匹配」按上述键定位对象后比对身份、角色、关联与授权；「业务键被占用」= 任一键被非本图数据持有（fail-fast 报告具体冲突）。
-- **幂等三状态**：① 固定图完全不存在——单事务创建完整固定图；② 完整存在且身份、角色、关联与授权行齐全——整体 no-op，绝不重置密码；③ 部分存在（含授权行缺失；授权缺行处置例外见下方「收缩通道」条）、关联缺失或固定业务键被其他数据占用——启动失败并报告具体冲突，不自动修复、不补权、不扩权。**固定图种子来源（T-PERM-106）**：新库授权行标 BOOTSTRAP_SEED，管理 API 不可改删或挂子权限（20074），仅转授出去的 MANUAL 行可正常维护。旧库未标记固定图拒启，先备份后重建，不自动将 MANUAL 行认作种子。已标记种子的离线属性漂移仍仅 warn、不重种覆盖；墓碑收缩只接受已标记 BOOTSTRAP_SEED 的历史行，离线恢复走部署手册。原管理端可修改固定图属性的范围由本任务取代；成员移除与停用等最后管理员风险仍未被本保护覆盖（Q-059）。不新增 ownership 字段、种子版本表或通用 bootstrap 框架；唯一约束仅并发兜底（仅单实例启用）。
-  - **收缩通道**：缺行 + 同身份键已标记 BOOTSTRAP_SEED 墓碑 → WARN 放行、不补回；无已标记墓碑 → fail-fast。种子不可经授权页撤销，离线维护造成的属性漂移与墓碑按本条判断；误删与故意撤销无法从墓碑区分，恢复按部署手册人工核对。墓碑仅供 bootstrap 诊断，不开放通用查询。新增固定图行无墓碑时仍拒启，旧开发库先备份再重建；资源重建换 ID 后不复用旧身份墓碑。
-  - **演进方向登记（2026-09-05，待启动时另行设计）——固定图→租户初始化引擎**：固定图内容全部租户隔离（资源/映射/授权/类型种子均带 tenant_id），机制参数化（`initialize(tenantId, …)`）后可作租户开通的初始化引擎，墓碑三分/属性漂移语义可继承用于租户修复场景；前置依赖=租户开通流程本身（现状不做租户开通），入口形态/管理员密码来源/图是否租户可配届时定案。
-- 不维护 SQL bootstrap 种子链路，不建 bootstrap 框架/独立模块/分布式锁；docker-compose 默认档仅基建（PostgreSQL/Redis/Nacos），全栈预览经 `--profile app`（T-ACCESS-047）——启动顺序与外部使用者路径见 docs/quickstart.md、部署基线见 docs/ops/deployment.md。
+- **幂等三状态**：① 固定图完全不存在——单事务创建完整固定图；② 完整存在且身份、角色、关联与授权行齐全——整体 no-op，绝不重置密码；③ 部分存在（含授权行缺失；授权缺行处置例外见下方「收缩通道」条）、关联缺失或固定业务键被其他数据占用——初始化失败并报告具体冲突，不自动修复、不补权、不扩权。**固定图种子来源（T-PERM-106）**：新库授权行标 BOOTSTRAP_SEED，管理 API 不可改删或挂子权限（20074），仅转授出去的 MANUAL 行可正常维护。旧库未标记固定图拒绝初始化，先备份后重建，不自动将 MANUAL 行认作种子。已标记种子的离线属性漂移仍仅 warn、不重种覆盖；墓碑收缩只接受已标记 BOOTSTRAP_SEED 的历史行，离线恢复走部署手册。原管理端可修改固定图属性的范围由本任务取代；成员移除与停用等最后管理员风险仍未被本保护覆盖（Q-059）。不新增 ownership 字段、种子版本表或通用 bootstrap 框架；唯一约束仅并发兜底（同编码开通由全局唯一索引拒绝重复）。
+  - **收缩通道**：缺行 + 同身份键已标记 BOOTSTRAP_SEED 墓碑 → WARN 放行、不补回；无已标记墓碑 → fail-fast。种子不可经授权页撤销，离线维护造成的属性漂移与墓碑按本条判断；误删与故意撤销无法从墓碑区分，恢复按部署手册人工核对。墓碑仅供 bootstrap 诊断，不开放通用查询。新增固定图行无墓碑时仍拒绝初始化，旧开发库先备份再重建；资源重建换 ID 后不复用旧身份墓碑。
 
-**API 授权退役升级边界（T-ACCESS-062）**：固定图不再生成 API 授权；已初始化库若管理角色仍有有效 API 授权，启动 fail-fast，旧库迁移支持已于 2026-10-03 退出（T-ACCESS-073），须按[当前 schema 重建开发库](access-service-rebuild-runbook.md)；不自动清理授权，不借普通授权页修改受保护行。
+- 标准类型、操作与配置种子唯一来源为权威 DDL 内参数化函数；Java 负责其余固定图，无租户自定义模板，不复制其他租户实时数据。docker-compose 默认档仅基建（PostgreSQL/Redis/Nacos），全栈预览经 `--profile app`（T-ACCESS-047）——启动顺序与外部使用者路径见 docs/quickstart.md、部署基线见 docs/ops/deployment.md。
+
+**API 授权退役升级边界（T-ACCESS-062）**：固定图不再生成 API 授权；已初始化库若管理角色仍有有效 API 授权，初始化校验 fail-fast，旧库迁移支持已于 2026-10-03 退出（T-ACCESS-073），须按[当前 schema 重建开发库](access-service-rebuild-runbook.md)；不自动清理授权，不借普通授权页修改受保护行。
 
 ### 14.3 固定图组成与 bootstrap 管理 API 清单
 
@@ -568,11 +570,11 @@ bootstrap 的 §14.4 最小集（`RESOURCE:VIEW`/`OPERATION:VIEW` scopeAll + `RO
 
 ### 14.7 实施终态
 
-- 组件位于 `access.bootstrap`，无操作者领域写入由 `grant.service.domain.BootstrapSeedWriter` 承载；ArchUnit 限定调用来源。initializer 保持 `@Transactional` + `@PermissionChange` 单事务，外层显式豁免生成 SQL 租户条件，所有行使用固定租户。
+- 组件位于 `access.bootstrap`，无操作者领域写入由 `grant.service.domain.BootstrapSeedWriter` 承载；ArchUnit 限定调用来源。initializer 保持 `@Transactional` + `@PermissionChange` 并加入开通事务，显式绑定目标租户上下文，所有行使用开通租户。
 - Compose 首启以必填 PostgreSQL 密码执行权威 DDL；Redis 同样要求非空密码。只初始化 access_db，example-service 无数据库。
-- 固定图采用子集匹配：额外授权不冲突，种子身份及 BOOTSTRAP_SEED 来源必须匹配；不重置密码，不覆盖离线漂移，不重建缺行。首管理员密码来自环境变量，force_reset_pwd=false。
+- 固定图采用子集匹配：额外授权不冲突，种子身份及 BOOTSTRAP_SEED 来源必须匹配；不重置密码，不覆盖离线漂移，不重建缺行。租户首管理员初始密码随机生成，force_reset_pwd=true。
 - 当前图为 107 个 API 登记资源、106 个映射、17 个菜单及 54 行业务门禁授权（以 BootstrapGraphDefinition/AccessBootstrapPgIT 为准）；无 API 类型授权，映射路径统一 `/api/access/**`。三新增管理菜单为服务凭证、登录日志、同步已应用状态。
-- 验证使用 AccessBootstrapRunnerTest、AccessBootstrapPgIT：真实 PG/Redis 下验证创建、重启、只读来源、旧库拒启、事务回滚与冲突。具体执行结果在任务附属验证记录。
+- 验证使用 PlatformBootstrapTest、PlatformAccountsPgIT、TenantOpeningPgIT、AccessBootstrapPgIT：分别验证平台首次初始化、受审计账号管理、真实租户开通及固定图事务和冲突。具体执行结果在任务附属验证记录。
 
 ### 14.8 E2E 验收终态（T-ACCESS-021，2026-08-24）
 

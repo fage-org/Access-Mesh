@@ -6,9 +6,11 @@
 
 ### Added
 
+- **独立平台运营与租户生命周期**：平台账号独立认证、同权账号管理与审计；通过统一事务模板开通租户，随机初始密码一次交付，支持名称维护、停用／恢复及受审计的首管理员凭据恢复。平台不代客户管理内部业务。
+
 - **OAuth2 公开客户端与授权确认**：客户端可登记 PUBLIC，强制 S256 PKCE 且不使用 secret；新增最小同意/拒绝页，复用平台登录及服务端预览核验。CONFIDENTIAL 保持密钥校验；回调根路径不再匹配任意路径，非根路径段前缀规则保留。
 - **管理台日常入口**：新增服务凭证签发/停用/删除/有效期管理、登录日志、同步已应用状态页面；首页展示真实会话信息，授权草稿按账号/租户/角色/资源类型暂存，重新登录后提示恢复而不自动提交。同步页面明确不代表最近一次尝试成功，失败取证复用操作日志。
-- **工程验证入口**：前端 lint/typecheck/Vitest/35 组 DTO 字段对账进入 CI；增加实际耗时记录与 `tools/build.ps1` 上游 install 构建入口，错误码索引由测试对照枚举。
+- **工程验证入口**：前端 lint/typecheck/Vitest/已登记 DTO 字段对账进入 CI；增加实际耗时记录与 `tools/build.ps1` 上游 install 构建入口，错误码索引由测试对照枚举。
 
 - **权限引擎可观测性与独立管理端口（T-PERM-094）**：access-service 引入 actuator+Prometheus 端点（同 Gateway 形态）：health/info/prometheus/metrics 仅经独立管理端口提供（默认 `9101` 回环绑定，`ACCESS_MANAGEMENT_PORT`/`ACCESS_MANAGEMENT_ADDRESS` 覆盖；主端口 9100 无任何 `/actuator/**`）。新增引擎指标 `access.query.stage`（选择×阶段×终态计数——scopeAll/无角色短路率观测载体）、`access.query.execution`（执行终态 Timer 含直方图 P50/P95/P99；`BUDGET_EXCEEDED` 单列容量信号，与技术故障分开告警）、`access.query.evidence.failed`（审计证据受控提交失败）；指标口径与监控承载分配见 [engine/implementation §3.11](docs/design/engine/implementation.md)。compose `app` profile 的 access-service 补管理端口健康检查。
 
@@ -19,6 +21,8 @@
 - **独立依赖 manifest 发布通道与可选 SDK（T-PERM-071）**：新增 M2M 端点 `POST /api/access/integration/permission-manifest/full-sync`（服务凭证认证，所属服务发布依赖声明清单，逐项 RESOLVED/REJECTED 诊断）；SDK 新增 `perm-registration-spring-boot-starter`（静态 JSON 启动发布/动态 Provider 固定快照/显式资源前置与两步协调，默认关闭）；资源与清单发布引入发布源递增代次（平台按 scope 原子拒旧、同代次同指纹重试放行）。
 
 ### Changed
+
+- **租户登录与初始化切换**：普通登录使用不可变 `tenantCode`，不依赖 OAuth2 客户端；首次部署仅初始化平台账号，所有租户从运营界面开通。旧会话需重新登录，首次改密后同样重新登录。租户停用以共享 Redis 门禁立即阻断新请求／任务，恢复后旧用户令牌不复活；Redis 重启后所有租户原生会话须重新登录，防止被撤销会话从旧快照恢复；部署配置改用 `ACCESS_PLATFORM_BOOTSTRAP_ENABLED` / `ACCESS_PLATFORM_ADMIN_PASSWORD`，不提供旧登录参数兼容或在线库迁移。
 
 - **分页与线格式（破坏性变更）**：平台与报表示例分页上限统一 200，超限 HTTP 400，响应带 hasNext；示例改用 pageNum/pageSize（默认 1/20）与公共 PageResp，移除 page/size。user 响应内 orgType 从字符串改为 Integer，调用方同步升级；full-sync 完整快照不受分页限制。
 - **失败审计与脱敏**：操作日志记录公开信封 code，业务异常/权限拒绝不再看成成功；Gateway 权限拒绝经有界内部写入进入现有操作日志，可按 requestId 查询。三类日志在读取时掩码明确手机号/邮箱/凭据，保留普通用户名、IP 和数据库原始记录；写入失败不改变业务结果。

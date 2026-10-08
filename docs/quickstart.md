@@ -26,9 +26,9 @@ cp .env.example .env
 docker compose --profile app up -d --build frontend gateway access-service
 ```
 
-`.env` 必填项：`DB_PASSWORD`、`REDIS_PASSWORD`（仅基建也必填）、`ACCESS_BOOTSTRAP_ADMIN_PASSWORD`（首管理员密码）、`JWT_SECRET_KEY`（≥32 字符）、`ACCESSMESH_SIGNATURE_SECRET`（gateway/access-service/example-service 三处同值）、`PERM_INTERNAL_SECRET`（仅 gateway 与 access-service 同值）——分发范围详见模板注释。
+`.env` 必填项：`DB_PASSWORD`、`REDIS_PASSWORD`（仅基建也必填）、`ACCESS_PLATFORM_ADMIN_PASSWORD`（平台初始管理员密码）、`JWT_SECRET_KEY`（≥32 字符）、`ACCESSMESH_SIGNATURE_SECRET`（gateway/access-service/example-service 三处同值）、`PERM_INTERNAL_SECRET`（仅 gateway 与 access-service 同值）——分发范围详见模板注释。
 
-首次启动时 PostgreSQL 空数据卷自动执行唯一权威 DDL 建库建表；access-service 幂等 bootstrap 创建首管理员 `admin`（密码=你填的值，重复启动不重置）。
+首次启动时 PostgreSQL 空数据卷自动执行唯一权威 DDL 建库建表；access-service 仅初始化平台账号 `admin`（密码=你填的值，已有账号时重启不重置），不会自动创建租户。
 
 就绪后访问：
 
@@ -41,9 +41,9 @@ docker compose --profile app up -d --build frontend gateway access-service
 > 默认 `docker compose up -d` 只起基础设施（PG/Redis/Nacos）不启应用——日常开发用这个；`--profile app` 才是全栈。所有端口只绑定 127.0.0.1（本地预览边界，见 [部署基线](ops/deployment.md)）。
 > 前端镜像构建约 3~8 分钟（容器内 pnpm install + vite build），JVM 服务镜像秒级（拷 jar）。
 
-**登录**：浏览器打开 http://127.0.0.1/，用户名 `admin` + 你在 `.env` 填的密码（验证码看图输入）。
+**登录与开通**：打开 http://127.0.0.1/#/platform/login，用平台账号 `admin` 和 `.env` 中的平台密码登录。开通租户并妥善交付一次展示的随机密码；客户从租户登录页填写租户编码、`admin` 和初始密码，完成首次改密后重新登录。后续 example-service 配置与业务授权由该租户管理员完成。详见[租户运营](ops/tenant-operations.md)。
 
-登录后在各接入租户的「服务与接口」登记 `example-service`，持该租户管理员会话调用 `POST /api/access/service-credential/create`，请求 `{"serviceCode":"example-service"}`。把各自返回的凭证填入 `.env` 的 `EXAMPLE_PERMISSION_CONFIG_JSON`，结构见模板（`example.permission.tenant-credentials`，键为租户 ID；空库默认租户为 1）。本地 `example.permission.allow-insecure=true` 明示单信任域；也可通过 Nacos 配置同一映射。然后运行：
+登录后在各接入租户的「服务与接口」登记 `example-service`，持该租户管理员会话调用 `POST /api/access/service-credential/create`，请求 `{"serviceCode":"example-service"}`。把各自返回的凭证填入 `.env` 的 `EXAMPLE_PERMISSION_CONFIG_JSON`，结构见模板（`example.permission.tenant-credentials`，键为租户 ID，以各租户开通后的实际 ID 为准）。本地 `example.permission.allow-insecure=true` 明示单信任域；也可通过 Nacos 配置同一映射。然后运行：
 
 ```bash
 docker compose --profile app up -d --build example-service
@@ -69,8 +69,8 @@ docker compose --profile app up -d --build example-service
 docker compose up -d
 
 # 2. 本机 Java 不自动读取 .env；先显式 export DB_PASSWORD 和 REDIS_PASSWORD（同 .env）
-# access-service 首启再注入密钥与首管理员密码（幂等，重复启动 no-op）
-ACCESS_BOOTSTRAP_ENABLED=true ACCESS_BOOTSTRAP_ADMIN_PASSWORD=<密码> \
+# access-service 首启再注入密钥与平台初始管理员密码（幂等，重复启动 no-op）
+ACCESS_PLATFORM_BOOTSTRAP_ENABLED=true ACCESS_PLATFORM_ADMIN_PASSWORD=<密码> \
   JWT_SECRET_KEY=<密钥> ACCESSMESH_SIGNATURE_SECRET=<签名密钥> PERM_INTERNAL_SECRET=<内部密钥> \
   mvn spring-boot:run -pl access-service
 

@@ -57,8 +57,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * access-service（免 Nacos，路由 predicates/filters/serviceCode 元数据不变），真实 Nacos
  * 由 compose 手动 runbook 段覆盖。
  *
- * <p><b>令牌契约</b>：所有令牌经真实 /auth/captcha + /auth/login（tenantId=1、clientId=admin-web、
- * 目标用户使用 UserCreateResp.initialPassword）取得；验证码为真实签发与校验，仅答案由测试
+ * <p><b>令牌契约</b>：所有令牌经真实 /auth/captcha + /auth/login（租户编码由开通链建立、
+ * clientId 仅作审计来源标签、目标用户使用 UserCreateResp.initialPassword）取得；验证码为真实签发与校验，仅答案由测试
  * 从 Redis 按 captchaId 只读取出（2026-08-24 用户决策，T-ACCESS-020 验收同款）。测试不直接
  * 签发或注入令牌，不旁路平台超管。
  *
@@ -518,8 +518,8 @@ class BasicRoleGrantVerticalSliceE2EIT {
 
     private static Map<String, String> accessServiceEnv() {
         return Map.of(
-            "ACCESS_BOOTSTRAP_ENABLED", "true",
-            "ACCESS_BOOTSTRAP_ADMIN_PASSWORD", BOOTSTRAP_ADMIN_PASSWORD,
+            "ACCESS_PLATFORM_BOOTSTRAP_ENABLED", "true",
+            "ACCESS_PLATFORM_ADMIN_PASSWORD", BOOTSTRAP_ADMIN_PASSWORD,
             "JWT_SECRET_KEY", JWT_SECRET,
             "ACCESSMESH_SIGNATURE_SECRET", SIGNATURE_SECRET,
             "PERM_INTERNAL_SECRET", INTERNAL_SECRET);
@@ -628,8 +628,11 @@ class BasicRoleGrantVerticalSliceE2EIT {
                 postgres.getJdbcUrl() + "?stringtype=unspecified", postgres.getUsername(), postgres.getPassword());
                  var st = conn.createStatement();
                  var rs = st.executeQuery(
-                     "SELECT count(*) FROM sys_user WHERE username = 'admin' AND delete_flag = 0")) {
+                     "SELECT count(*) FROM platform_account WHERE username = 'admin' AND delete_flag = 0")) {
                 if (rs.next() && rs.getInt(1) == 1) {
+                    long tenant = E2eTenantSupport.openTenant("http://localhost:" + accessService.port(),
+                        BOOTSTRAP_ADMIN_PASSWORD,E2eTenantSupport.TENANT_CODE,BOOTSTRAP_ADMIN_PASSWORD,BasicRoleGrantVerticalSliceE2EIT::readCaptchaFromRedis);
+                    assertThat(tenant).isEqualTo(1L);
                     return;
                 }
             } catch (java.sql.SQLException e) {
@@ -637,7 +640,7 @@ class BasicRoleGrantVerticalSliceE2EIT {
             }
             Thread.sleep(1000);
         }
-        throw new IllegalStateException("bootstrap 首管理员 2 分钟内未落库");
+        throw new IllegalStateException("平台初始管理员 2 分钟内未落库");
     }
 
     /** 从 --server.port=N 参数解析端口 */
@@ -764,13 +767,13 @@ class BasicRoleGrantVerticalSliceE2EIT {
 
         JsonNode login = postForData(gateway() + "/api/access/auth/login", null,
             JSON.createObjectNode()
-                .put("tenantId", TENANT_ID)
+                .put("tenantCode", E2eTenantSupport.TENANT_CODE)
                 .put("username", username)
                 .put("password", password)
                 .put("captchaId", captchaId)
                 .put("captchaCode", code)
                 .put("clientId", CLIENT_ID));
-        return login.path("accessToken").asText();
+        return E2eTenantSupport.finishForcedLogin(gateway(),login,username,BasicRoleGrantVerticalSliceE2EIT::readCaptchaFromRedis);
     }
 
     /**

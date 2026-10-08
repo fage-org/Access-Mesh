@@ -959,6 +959,8 @@ deleted_at  TIMESTAMPTZ
 
 > 例外（以权威 DDL `docs/design/schema/access-service.sql` 为准）：`sys_login_log`、`operation_log`、`sys_job_log`、`permission_change_log` 四类日志表不做软删除；`sys_user_notice` 等纯关联状态表无审计字段、唯一索引不加 `WHERE delete_flag = 0`（行生命周期即业务状态，物理删除/唯一键即可表达）。
 
+> 独立平台身份的范围性例外（Q-063）：`platform_account`、`sys_tenant` 是平台主数据，不含所属 `tenant_id`；`platform_audit_log` 不软删除，`target_tenant_id` 表示被操作租户而非平台账号所属租户。平台关键数据库变更与该独立审计同事务，不向租户 `operation_log` 写入虚构租户或用户。范围与接入约束见 [平台身份与数据边界](tenant-lifecycle.md#platform-data-boundary)，不放宽其他租户业务表的隔离要求。
+
 ### 13.3 设计原则
 
 - **无物理外键**：所有表关联为逻辑 ID，由应用层保证数据一致性。

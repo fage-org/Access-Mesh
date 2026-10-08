@@ -30,7 +30,7 @@
 ```text
 Gateway (8080)
   ├── access-service (9100)    能力包单体：管理面（用户/组织/菜单/认证/字典等）+ 权限面（权限事实 + 鉴权引擎）
-  │                             （17 顶层包 = 12 能力包 + sync/engine/projection/bootstrap/infrastructure）
+  │                             （18 顶层包 = 13 能力包 + sync/engine/projection/bootstrap/infrastructure）
   └── example-service (9300)    对接演示（单受保护接口 /api/example/demo/hello 已随 T-API-001 交付，经 Gateway 鉴权）
 ```
 
@@ -65,7 +65,7 @@ cp .env.example .env        # 填写数据库/Redis 密码及四个应用密钥�
 docker compose --profile app up -d --build frontend gateway access-service
 ```
 
-平台就绪后先注册 example-service、签发服务凭证并填入 `.env`，再启动 example-service（步骤见 quickstart）。管理前端 http://127.0.0.1/ （首管理员 `admin` + 你设置的密码）；开发模式手工启动、example 接口 403→授权→200 演练、常见问题见 [docs/quickstart.md](docs/quickstart.md)。默认 `docker compose up -d` 仅启动基础设施（PG/Redis/Nacos）。
+平台就绪后先注册 example-service、签发服务凭证并填入 `.env`，再启动 example-service（步骤见 quickstart）。运营入口 http://127.0.0.1/#/platform/login （平台账号 `admin` + 部署密码）；从运营界面开通租户后，客户在租户登录页填写编码并使用一次交付的随机密码；开发模式手工启动、example 接口 403→授权→200 演练、常见问题见 [docs/quickstart.md](docs/quickstart.md)。默认 `docker compose up -d` 仅启动基础设施（PG/Redis/Nacos）。
 
 ## License
 
@@ -75,4 +75,4 @@ PERSONAL（个人角色）的后端创建、授权 API 与用户详情分配入�
 
 局部构建推荐 `pwsh -File tools/build.ps1 access-service`，它固定执行上游一起 install 的 reactor 构建；Linux/macOS 可用 `mvn install -pl access-service -am -DskipTests`。时长、分层守护与工作区规约见 [工程验证基线](docs/ops/engineering-baseline.md)。
 
-管理台当前固定以 tenantId="1" 登录，为单租户试运行过渡形态；租户开通、选择及 tenantCode 登录未交付，未来调整将涉及登录入参与草稿分区迁移。授权页草稿在当前标签页暂存，401 后重新登录并打开同一角色/资源类型时可确认恢复。
+管理台按不可变 tenantCode 登录；首次部署只创建独立平台账号，租户通过运营界面开通。平台只管理租户生命周期及受审计的首管理员凭据恢复，不代客户管理业务。旧会话须重新登录，缺租户身份的旧草稿不自动归入任何租户。授权页草稿在当前标签页暂存，401 后重新登录并打开同一角色/资源类型时可确认恢复。

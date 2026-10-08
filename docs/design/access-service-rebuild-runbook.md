@@ -11,22 +11,16 @@
 >   PostgreSQL 容器**首次启动（空数据卷）自动执行权威 DDL**（见 README「快速开始」）；本 runbook
 >   针对已有数据卷的重新初始化（Nacos 仅服务启动需要，重建流程不依赖）。
 > - 权威 DDL：`docs/design/schema/access-service.sql`（唯一权威，含 type_definition / operation_permission 全量种子）。
-> - DDL 只含类型种子、**不含任何管理员账号**：首管理员由 access-service 幂等 bootstrap 提供
->   （[T-ACCESS-020](../archive/2026-08-27/tasks/T-ACCESS-020.md) 已交付，`access.bootstrap.enabled` 默认关闭）——
->   重建后以 enabled=true 重启 access-service 即自动种子 `admin` 首管理员与管理用功能角色
->   （幂等三状态：全图不存在单事务创建 / 完整匹配 no-op / 部分存在 fail-fast，见 architecture §14.2；
->   新库种子标记 BOOTSTRAP_SEED，管理 API 不可改删或挂子权限；旧库未标记固定图须备份后重建，不自动补标。
->   已标记种子的离线属性漂移仅 warn；缺行且有同身份已标记墓碑时放行不补回，否则 fail-fast。
->   当前固定图含 17 个菜单、107 个 API 资源/106 个映射、54 行业务门禁授权以及默认组织树；具体以 BootstrapGraphDefinition 和 AccessBootstrapPgIT 为准）。
+> - DDL 只建立表结构及参数化标准模板函数，不创建租户、管理员或 OAuth2 客户端。平台初始账号由 PlatformBootstrapRunner 创建，所有租户经运营界面同事务初始化标准种子、首管理员与固定图。具体见[租户运营手册](../ops/tenant-operations.md)。
 > - 服务启动密钥环境变量（T-FE-016 实操确认的完整清单；Nacos 配置中心为空不托管，均须启动时注入）：
->   `ACCESS_BOOTSTRAP_ENABLED=true` + `ACCESS_BOOTSTRAP_ADMIN_PASSWORD`（bootstrap 种子）、
+>   `ACCESS_PLATFORM_BOOTSTRAP_ENABLED=true` + `ACCESS_PLATFORM_ADMIN_PASSWORD`（平台初始账号）、
 >   `JWT_SECRET_KEY`（access-service OAuth2 域，HS256 **必须 ≥32 字符**——缺失或过短 access-service 启动 fail-fast，release-preview 起 @PostConstruct 强制校验）、
 >   `ACCESSMESH_SIGNATURE_SECRET`（Gateway 与 access-service **必须同值**——内部请求头验签）、
 >   `PERM_INTERNAL_SECRET`（两侧同值，内部管理 API 防护）；Gateway CORS 默认白名单已含四个环回 dev 形态（localhost/127.0.0.1 × 8848/8890，T-GW-010 起）dev 联调无需另配，仅自定义端口/域名时设 `GATEWAY_CORS_ALLOWED_ORIGINS`；另 Gateway dev 启动须 `mvn spring-boot:run`——直接 java -cp 起动因依赖清单混入 spring-webmvc 触发 reactive/servlet 冲突（T-FE-017 实操确认）。
 
 ## 1. 重建步骤
 
-先按 [部署基线 §8](../ops/deployment.md#8-postgresql-备份与恢复) 完成备份及恢复演练；忘记首管理员密码按 [§9](../ops/deployment.md#9-忘记-bootstrap-密码的离线恢复)，授权墓碑按 [§10](../ops/deployment.md#10-授权墓碑恢复)。不得因固定图升级直接删掉未备份的卷。
+先按 [部署基线 §8](../ops/deployment.md#8-postgresql-备份与恢复) 完成备份及恢复演练；忘记首管理员密码按 [§9](../ops/deployment.md#9-平台与租户管理员恢复)，授权墓碑按 [§10](../ops/deployment.md#10-授权墓碑恢复)。不得因固定图升级直接删掉未备份的卷。
 
 1. **清库**：删除并重建数据库 schema（DDL 为普通 `CREATE TABLE`，非幂等——必须在空 schema 上一次性执行，
    对已有 schema 重跑会报「relation already exists」）：
@@ -37,8 +31,7 @@
    ```bash
    psql -h <host> -U <用户> -d <库> -f docs/design/schema/access-service.sql
    ```
-   种子包含租户 1 的 type_definition（user_type/role_type/resource_type）与 operation_permission
-   预置操作码（含 ROLE:MANAGE 等运行时必需码；USER 轨已细码化，USER:MANAGE 随 T-ACCESS-034 退役删除）。
+   这一步不种租户；`initialize_tenant_baseline(p_tenant_id)` 由后续开通事务调用。
 3. **清理 Redis（必做）**：统一主体 ID 后缓存键数值与重建前可能重叠（主体键缓存以
    `abstract_user.id` 为标识符；重建后序列从头取号，旧键会命中错误数据）。
    缓存键格式为**租户优先**：`{tenantId}:{catalogCode}:{identifier}`（如 `1:perm:effective-roles:456`）。
@@ -46,24 +39,22 @@
    ```bash
    docker exec -it <redis容器> redis-cli -a <密码> FLUSHDB
    ```
-   多用途实例只清本服务键时，按**租户前缀**整段清理（扫描与删除两侧都必须带认证，否则 `--scan`
-   返回 NOAUTH、实际零键被删）：
+   多用途实例只清本服务键时，按**租户前缀逐租户**整段清理（重建后租户 ID 重新分配，须列出
+   本次部署实际使用的全部租户 ID；扫描与删除两侧都必须带认证，否则 `--scan` 返回 NOAUTH、
+   实际零键被删）：
    ```bash
-   redis-cli -a <密码> --scan --pattern '1:*' | xargs -r redis-cli -a <密码> UNLINK
+   for tid in <全部租户ID，空格分隔>; do
+     redis-cli -a <密码> --scan --pattern "${tid}:*" | xargs -r redis-cli -a <密码> UNLINK
+   done
    ```
-4. **重启 access-service**（空库无缓存回填，启动即回源）。启用 bootstrap
-   （`ACCESS_BOOTSTRAP_ENABLED=true` + `ACCESS_BOOTSTRAP_ADMIN_PASSWORD`，仅单实例）时启动即自动
-   种子首管理员（幂等，重复重启 no-op、不重置密码）；未启用则空库无管理员，管理链 HTTP 验证前
-   须先启用 bootstrap 重新种子。bootstrap 启动同时为存量有效类型定义行自愈补种
-   TYPE_DEFINITION 实例投影（T-PERM-051，幂等 insert-if-absent）；未启用 bootstrap 的环境用 §3
-   订正语句手工补齐，否则授权页 TYPE_DEFINITION 类型下无实例可选、实例级门禁对种子类型不可达。
+   租户 ID 可经 `SELECT id FROM sys_tenant` 取得；漏清任何租户都会让旧键命中错误数据。
+4. **重启 access-service**。以 `ACCESS_PLATFORM_BOOTSTRAP_ENABLED=true` 和 `ACCESS_PLATFORM_ADMIN_PASSWORD` 初始化平台账号，进入 `/platform/login` 开通租户。把随机初始密码交给客户，完成首次改密并重新登录后再验证管理链路。所有租户均由同一标准模板开通，编码自由指定且不可修改，重复重启不创建额外账号或覆盖密码。
 
 ## 2. 主体链验证（用户/角色/组织/菜单样例）
 
 以下路径均为**直连 access-service**（默认 9100，控制器真实映射——管理面裸路径族无 `/admin` 前缀）；
 T-ACCESS-042 起 URL 单命名空间：全部端点统一 `/api/access/<资源>/<动作>`，外部路径=服务路径（如 `/api/access/user/create`），Gateway 无 StripPrefix。直连 access-service 调 `/api/access/**`（auth 家族除外）须携带有效 `X-Internal-Secret` 头（经 Gateway 则由其无条件注入）。
-以 bootstrap 首管理员（`username=admin`，`tenantId=1`，clientId=`admin-web`，密码为 bootstrap
-环境变量密码；其主体 ID 记为 **N**）登录后按序执行并断言：
+以刚开通租户的编码、首管理员 `admin` 及其完成首次改密后的密码登录；其主体 ID 记为 **N**。下方历史固定数字仅作示例，实际核验使用开通响应的租户 ID：
 
 1. **创建本地用户**（直连 `POST /api/access/user/create`）：响应返回新用户 id = **M**（M 为序列新值，
    必然大于 N——不要复用 N 回查，否则命中的是 admin 已有数据）：

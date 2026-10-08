@@ -29,7 +29,7 @@
 
 ```text
 Gateway (8080) -> access-service (9100)    能力包单体：管理面（用户/组织/菜单/认证/字典等）+ 权限面（权限事实 + 鉴权引擎）
-                                            （17 顶层包 = 12 能力包 + sync + engine + projection + bootstrap + infrastructure，
+                                            （能力包 + sync + engine + projection + bootstrap + infrastructure，
                                             结构契约见 docs/design/access-service-capability-structure.md）
                -> example-service (9300)   对接演示
 ```

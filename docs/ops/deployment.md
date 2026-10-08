@@ -32,7 +32,7 @@ Nacos(8848)：服务注册/配置（三服务共同依赖）
 | `JWT_SECRET_KEY` | Sa-Token JWT 签名 | ≥32 字符；缺失 access-service 启动失败 |
 | `ACCESSMESH_SIGNATURE_SECRET` | 用户身份头 HMAC 签名 | gateway 与下游服务**同值**；不一致时经 Gateway 的请求一律拒绝（信封 30003） |
 | `PERM_INTERNAL_SECRET` | Gateway→access-service 内部密钥 | 与 access-service 同值 |
-| `ACCESS_BOOTSTRAP_ADMIN_PASSWORD` | 首管理员密码 | 仅空库首启生效（幂等 no-op 不重置）；bootstrap **仅单实例启用** |
+| `ACCESS_PLATFORM_ADMIN_PASSWORD` | 平台初始管理员密码 | 仅空账号表创建；重启不覆盖。租户从运营界面开通 |
 
 - 全部经环境变量或 Nacos 加密配置注入，**禁止**写入代码/仓库/明文 compose 文件（模板 `.env.example` 只是占位，`.env` 已被 git 忽略）。
 - `DB_PASSWORD`/`REDIS_PASSWORD` 在仅基建与全栈两档均必填且非空，Compose 插值校验缺失即拒绝启动；本机直接启动 Java 服务同样须注入。PG 初始化显式使用 `--auth-host=scram-sha-256`（含容器内 TCP 回环连接），Redis 不再提供公开默认值。旧 PG 数据卷不会因新增 `POSTGRES_PASSWORD` 自动修改账号密码或 `pg_hba.conf`：先备份，在维护窗口设置数据库密码并将 host 规则改为 `scram-sha-256`、重载验证；可重建环境按 §8 新建。不得用改 `.env` 冒充存量认证已收紧。
@@ -131,32 +131,17 @@ docker compose exec -T postgresql rm "$tmp_restore"
 
 核对备份时记录的用户/有效授权数量、关键租户与业务行，随后用隔离的 Redis 与旧版本应用连接**恢复库**验证登录、授权允许和拒绝各一条。注意：`application.yml` 的 JDBC URL 库名硬编码 `access_db`（仅 HOST/PORT 为占位符），起验证实例必须显式覆盖库名，否则应用会静默连回运行库、三查通过即产出「备份已验证」假结论（2026-10-06 逐任务评审修正）——验证实例以 `SPRING_DATASOURCE_URL=jdbc:postgresql://postgresql:5432/access_restore` 环境变量覆盖（compose `run`/临时服务定义注入，勿改动运行实例）。灾难恢复时只有环境负责人确认目标后才切换数据源；清空平台专用 Redis DB、启动一台 access-service 验证，再启动其余实例与 Gateway。独立库创建失败（同名存在）须先调查，不自动 DROP。
 
-## 9. 忘记 bootstrap 密码的离线恢复
+## 9. 平台与租户管理员恢复
 
-`ACCESS_BOOTSTRAP_ADMIN_PASSWORD` 只在空库首启创建账号，改它并重启不会重置存量密码。恢复前执行 §8 备份并停止 Gateway 与全部 access-service 实例，防止并发写和旧会话使用。
+平台账号初始化、恢复、租户开通、门禁故障和备份恢复规则见[租户运营手册](tenant-operations.md)。环境变量只在平台账号表为空时创建初始账号，不能通过修改环境变量重启接管已存在账号。
 
-1. 用 Java 21 和项目已有 Sa-Token 库在可信交互终端生成 BCrypt 哈希（明文交互输入、不放命令参数；Windows 将 `$HOME` 路径换为本机 Maven 仓库）：
+租户首管理员凭据可由平台运营界面受审计重置，但不恢复状态和角色，已删除则拒绝。客户内部管理员仍按租户内流程管理用户；所有管理员失联或授权墓碑异常需部署方维护窗口核对，不能假定存在固定租户 1。
 
-   ```bash
-   java --class-path "$HOME/.m2/repository/cn/dev33/sa-token-core/1.38.0/sa-token-core-1.38.0.jar" tools/ops/PasswordHash.java
-   ```
+生成 BCrypt 哈希可使用已有交互工具（明文不放命令参数）：
 
-2. 在 `psql` 交互会话中先核对 `SELECT id, tenant_id, username, status FROM sys_user WHERE tenant_id=1 AND username='admin' AND delete_flag=0;`。记录唯一目标 ID，禁止同时改其他租户或借重置自动启用停用账号。设置 psql 变量后更新（下面的值按刚查到的 ID 和生成哈希填入）：
-
-   ```sql
-   \prompt '目标用户 ID: ' recovery_user_id
-   \prompt 'BCrypt 哈希: ' recovery_hash
-   BEGIN;
-   UPDATE sys_user
-      SET password = :'recovery_hash', force_reset_pwd = true, updated_at = now()
-    WHERE tenant_id = 1 AND id = :'recovery_user_id'::bigint
-      AND username = 'admin' AND delete_flag = 0;
-   -- 必须且只能 UPDATE 1；否则 ROLLBACK 并调查。
-   COMMIT;
-   ```
-
-3. 清空**本平台独占**的 Redis 逻辑库（本仓默认 DB 0）：`docker compose exec -T redis sh -ec 'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli -n 0 FLUSHDB'`。共享逻辑库不得执行此命令，须先隔离或精确清理平台会话/令牌/缓存键；本仓部署前提是独占 DB。
-4. 启动一台 access-service 与 Gateway，用新密码登录并完成强制改密，确认旧平台会话和旧 OAuth2 凭据被拒，再恢复其他实例。记录操作者、目标 ID、时间与验证结果，不记录明文密码或哈希。
+```bash
+java --class-path "$HOME/.m2/repository/cn/dev33/sa-token-core/1.38.0/sa-token-core-1.38.0.jar" tools/ops/PasswordHash.java
+```
 
 ## 10. 授权墓碑恢复
 

@@ -15,7 +15,7 @@ CI 为后端单测与收口测试记录实际耗时到 job summary，失败仍�
 
 ## 分层守护与文件规模评估
 
-现有 `QueryBoundaryArchitectureTest` 已检查 12 能力包之间 Mapper 零容忍边界、只读 QueryMapper 方法命名、17 顶层包归属及引擎退役入口；`AccessServiceArchitectureTest` 复用同一 Mapper 规则并保护 BootstrapSeedWriter 的调用来源，另有 XML 与 PostgreSQL 行为检查。它们已在正常 Maven 单测轨执行，无需再建立第二套架构检查工具。规则不等于所有 Controller/AppService/DomainService 的任意跳层都已被机械覆盖；新增边界应在既有 ArchUnit 资产中按真实风险增加，不为“启用 ArchUnit”再造一套平行机制。
+现有 `QueryBoundaryArchitectureTest` 已检查 13 能力包之间 Mapper 零容忍边界、只读 QueryMapper 方法命名、18 顶层包归属及引擎退役入口；`AccessServiceArchitectureTest` 复用同一 Mapper 规则并保护 BootstrapSeedWriter 的调用来源，另有 XML 与 PostgreSQL 行为检查。它们已在正常 Maven 单测轨执行，无需再建立第二套架构检查工具。规则不等于所有 Controller/AppService/DomainService 的任意跳层都已被机械覆盖；新增边界应在既有 ArchUnit 资产中按真实风险增加，不为“启用 ArchUnit”再造一套平行机制。
 
 截至本次盘点，ResourceManageAppServiceImpl 约 1231 行、PermissionGrantPlanDomainServiceImpl 约 1074 行、UserManageAppServiceImpl 约 1044 行、OAuth2AppServiceImpl 约 1003 行。行数本身不是拆分理由；今后按独立业务职责、事务边界和已出现的修改耦合选择拆分点。实际拆分登记 [Q-065](../pending-problems.md#q-065)，本计划不进行通用重构。
 

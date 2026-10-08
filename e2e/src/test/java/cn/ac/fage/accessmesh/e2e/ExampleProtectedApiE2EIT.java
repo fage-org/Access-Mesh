@@ -575,6 +575,43 @@ class ExampleProtectedApiE2EIT {
             .as("恢复授权必须重新产生恰好一条授权记录").isTrue();
     }
 
+    @Test
+    @Order(9)
+    @DisplayName("租户停用立即压过热快照；恢复只接受新用户会话，有效服务凭证恢复，旧 OAuth2 链不复活")
+    void tenantLifecycleBlocksAllCredentialChannels() throws IOException {
+        String operator=E2eTenantSupport.platformLogin(gateway(),BOOTSTRAP_ADMIN_PASSWORD,ExampleProtectedApiE2EIT::readCaptchaFromRedis);
+        assertThat(postEnvelope(gateway()+"/api/access/tenant/page",adminToken,"{}").status()).isEqualTo(401);
+        assertThat(postEnvelope(gateway()+"/api/access/auth/userinfo",operator,"{}").status()).isEqualTo(401);
+        assertThat(postEnvelope(gateway()+TARGET_API_PATH,targetToken,"{\"name\":\"warm\"}").status()).isEqualTo(200);
+        JsonNode issued=postForData(gateway()+"/api/access/service-credential/create",adminToken,JSON.createObjectNode().put("serviceCode","example-service"));
+        Map<String,String> headers=Map.of("X-Credential-Id",issued.path("credentialId").asText(),"X-Credential-Secret",issued.path("secret").asText());
+        String check=JSON.createObjectNode().put("subjectTypeCode","LOCAL_USER").put("subjectExternalId",String.valueOf(targetUserId))
+            .put("resourceTypeCode","EXAMPLE").put("resourceCode",TARGET_REPORT_CODE).put("operationCode","VIEW").toString();
+        assertThat(parseEnvelope(postEnvelope(gateway()+"/api/access/auth/check",null,check,headers)).path("code").asInt()).isEqualTo(200);
+        postForData(gateway()+"/api/access/oauth2/client/create",adminToken,JSON.createObjectNode()
+            .put("clientId","e2e-lifecycle-client").put("clientName","Lifecycle").put("clientSecret","E2e-Client-secret123!")
+            .put("grantTypes","authorization_code,refresh_token").put("redirectUris","http://localhost/callback"));
+        JsonNode code=postForData(gateway()+"/api/access/auth/oauth2/authorize",targetToken,JSON.createObjectNode()
+            .put("clientId","e2e-lifecycle-client").put("responseType","code").put("redirectUri","http://localhost/callback"));
+        JsonNode tokens=postForData(gateway()+"/api/access/auth/oauth2/token",null,JSON.createObjectNode()
+            .put("grantType","authorization_code").put("clientId","e2e-lifecycle-client").put("clientSecret","E2e-Client-secret123!")
+            .put("code",code.path("code").asText()).put("redirectUri","http://localhost/callback"));
+        assertThat(postEnvelope(gateway()+"/api/access/auth/oauth2/userinfo",tokens.path("accessToken").asText(),"{}").status()).isEqualTo(200);
+        postForData(gateway()+"/api/access/tenant/update-status",operator,JSON.createObjectNode().put("id",1).put("status",0));
+        // 不等待权限缓存过期；紧随停用成功响应的新请求必须被拒绝。
+        assertThat(postEnvelope(gateway()+TARGET_API_PATH,targetToken,"{\"name\":\"blocked\"}").status()).isEqualTo(403);
+        assertThat(postEnvelope(gateway()+"/api/access/auth/check",null,check,headers).status()).isEqualTo(403);
+        postForData(gateway()+"/api/access/tenant/update-status",operator,JSON.createObjectNode().put("id",1).put("status",1));
+        assertThat(postEnvelope(gateway()+TARGET_API_PATH,targetToken,"{\"name\":\"old\"}").status()).isEqualTo(401);
+        assertThat(postEnvelope(gateway()+"/api/access/auth/oauth2/userinfo",tokens.path("accessToken").asText(),"{}").status()).isEqualTo(401);
+        assertThat(postEnvelope(gateway()+"/api/access/auth/oauth2/refresh",null,JSON.createObjectNode()
+            .put("clientId","e2e-lifecycle-client").put("refreshToken",tokens.path("refreshToken").asText()).toString()).status()).isEqualTo(401);
+        assertThat(parseEnvelope(postEnvelope(gateway()+"/api/access/auth/check",null,check,headers)).path("code").asInt()).isEqualTo(200);
+        String fresh=realLogin(TARGET_USERNAME,"E2e-Customer-Changed123!");
+        assertThat(postEnvelope(gateway()+TARGET_API_PATH,fresh,"{\"name\":\"fresh\"}").status()).isEqualTo(200);
+        assertThat(postEnvelope(gateway()+TARGET_API_PATH,targetToken,"{\"name\":\"old-again\"}").status()).isEqualTo(401);
+    }
+
     /**
      * 30 秒陈旧窗口内轮询目标接口直至出现期望状态并返回该次响应信封；窗口内的其余状态
      * 须落在容忍集（撤销向容忍 200=陈旧放行/503=回源瞬时失败，恢复向容忍 403/503），
@@ -644,8 +681,8 @@ class ExampleProtectedApiE2EIT {
 
     private static Map<String, String> accessServiceEnv() {
         return Map.of(
-            "ACCESS_BOOTSTRAP_ENABLED", "true",
-            "ACCESS_BOOTSTRAP_ADMIN_PASSWORD", BOOTSTRAP_ADMIN_PASSWORD,
+            "ACCESS_PLATFORM_BOOTSTRAP_ENABLED", "true",
+            "ACCESS_PLATFORM_ADMIN_PASSWORD", BOOTSTRAP_ADMIN_PASSWORD,
             "JWT_SECRET_KEY", JWT_SECRET,
             "ACCESSMESH_SIGNATURE_SECRET", SIGNATURE_SECRET,
             "PERM_INTERNAL_SECRET", INTERNAL_SECRET);
@@ -782,8 +819,11 @@ class ExampleProtectedApiE2EIT {
                 postgres.getJdbcUrl() + "?stringtype=unspecified", postgres.getUsername(), postgres.getPassword());
                  var st = conn.createStatement();
                  var rs = st.executeQuery(
-                "SELECT count(*) FROM sys_user WHERE username = 'admin' AND delete_flag = 0")) {
+                "SELECT count(*) FROM platform_account WHERE username = 'admin' AND delete_flag = 0")) {
                 if (rs.next() && rs.getInt(1) == 1) {
+                    long tenant = E2eTenantSupport.openTenant("http://localhost:" + accessService.port(),
+                        BOOTSTRAP_ADMIN_PASSWORD,E2eTenantSupport.TENANT_CODE,BOOTSTRAP_ADMIN_PASSWORD,ExampleProtectedApiE2EIT::readCaptchaFromRedis);
+                    assertThat(tenant).isEqualTo(1L);
                     return;
                 }
             } catch (java.sql.SQLException e) {
@@ -791,7 +831,7 @@ class ExampleProtectedApiE2EIT {
             }
             Thread.sleep(1000);
         }
-        throw new IllegalStateException("bootstrap 首管理员 2 分钟内未落库");
+        throw new IllegalStateException("平台初始管理员 2 分钟内未落库");
     }
 
     // ------------------------------------------------------------------
@@ -894,13 +934,13 @@ class ExampleProtectedApiE2EIT {
 
         JsonNode login = postForData(gateway() + "/api/access/auth/login", null,
             JSON.createObjectNode()
-                .put("tenantId", TENANT_ID)
+                .put("tenantCode", E2eTenantSupport.TENANT_CODE)
                 .put("username", username)
                 .put("password", password)
                 .put("captchaId", captchaId)
                 .put("captchaCode", code)
                 .put("clientId", CLIENT_ID));
-        return login.path("accessToken").asText();
+        return E2eTenantSupport.finishForcedLogin(gateway(),login,username,ExampleProtectedApiE2EIT::readCaptchaFromRedis);
     }
 
     private static String readCaptchaFromRedis(String captchaId) {

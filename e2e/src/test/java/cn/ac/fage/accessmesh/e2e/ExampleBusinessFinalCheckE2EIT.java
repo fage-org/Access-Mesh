@@ -606,13 +606,15 @@ class ExampleBusinessFinalCheckE2EIT {
     @DisplayName("共享 example：第二租户真实凭证查询成功，错主体/未接入租户拒绝，吊销不回落默认凭证")
     void sharedInstance_selectsTenantCredentialForActualFinalCheck() throws Exception {
         long secondUser = 9_820_001L;
+        assertThat(E2eTenantSupport.openTenant(gateway(),BOOTSTRAP_ADMIN_PASSWORD,"e2e-second",
+            BOOTSTRAP_ADMIN_PASSWORD,ExampleBusinessFinalCheckE2EIT::readCaptchaFromRedis)).isEqualTo(2L);
         try (var conn = java.sql.DriverManager.getConnection(
             postgres.getJdbcUrl() + "?stringtype=unspecified", postgres.getUsername(), postgres.getPassword());
              var st = conn.createStatement()) {
             st.executeUpdate("INSERT INTO type_definition (tenant_id,type_key,type_code,type_value,name,is_system,sort_order,extra) "
-                + "SELECT 2,type_key,type_code,type_value,name,is_system,sort_order,extra FROM type_definition WHERE tenant_id=1 AND delete_flag=0");
+                + "SELECT 2,type_key,type_code,type_value,name,is_system,sort_order,extra FROM type_definition WHERE tenant_id=1 AND delete_flag=0 AND type_code='EXAMPLE'");
             st.executeUpdate("INSERT INTO operation_permission (tenant_id,resource_type,code,name,binary_bit,inherit_mask) "
-                + "SELECT 2,resource_type,code,name,binary_bit,inherit_mask FROM operation_permission WHERE tenant_id=1 AND delete_flag=0");
+                + "SELECT 2,resource_type,code,name,binary_bit,inherit_mask FROM operation_permission WHERE tenant_id=1 AND delete_flag=0 AND resource_type=(SELECT type_value FROM type_definition WHERE tenant_id=1 AND type_code='EXAMPLE' AND type_key='resource_type' AND delete_flag=0)");
             st.executeUpdate("INSERT INTO abstract_user(id,tenant_id,user_type,external_id,name,enabled) "
                 + "VALUES (9820001,2,3,'9820001','shared tenant user',true)");
             long role = scalar(st, "INSERT INTO abstract_role(tenant_id,role_type,external_id,name,status) "
@@ -778,8 +780,8 @@ class ExampleBusinessFinalCheckE2EIT {
 
     private static Map<String, String> accessServiceEnv() {
         return Map.of(
-            "ACCESS_BOOTSTRAP_ENABLED", "true",
-            "ACCESS_BOOTSTRAP_ADMIN_PASSWORD", BOOTSTRAP_ADMIN_PASSWORD,
+            "ACCESS_PLATFORM_BOOTSTRAP_ENABLED", "true",
+            "ACCESS_PLATFORM_ADMIN_PASSWORD", BOOTSTRAP_ADMIN_PASSWORD,
             "JWT_SECRET_KEY", JWT_SECRET,
             "ACCESSMESH_SIGNATURE_SECRET", SIGNATURE_SECRET,
             "PERM_INTERNAL_SECRET", INTERNAL_SECRET);
@@ -907,8 +909,11 @@ class ExampleBusinessFinalCheckE2EIT {
                 postgres.getJdbcUrl() + "?stringtype=unspecified", postgres.getUsername(), postgres.getPassword());
                  var st = conn.createStatement();
                  var rs = st.executeQuery(
-                "SELECT count(*) FROM sys_user WHERE username = 'admin' AND delete_flag = 0")) {
+                "SELECT count(*) FROM platform_account WHERE username = 'admin' AND delete_flag = 0")) {
                 if (rs.next() && rs.getInt(1) == 1) {
+                    long tenant = E2eTenantSupport.openTenant("http://localhost:" + accessService.port(),
+                        BOOTSTRAP_ADMIN_PASSWORD,E2eTenantSupport.TENANT_CODE,BOOTSTRAP_ADMIN_PASSWORD,ExampleBusinessFinalCheckE2EIT::readCaptchaFromRedis);
+                    assertThat(tenant).isEqualTo(1L);
                     return;
                 }
             } catch (java.sql.SQLException e) {
@@ -916,7 +921,7 @@ class ExampleBusinessFinalCheckE2EIT {
             }
             Thread.sleep(1000);
         }
-        throw new IllegalStateException("bootstrap 首管理员 2 分钟内未落库");
+        throw new IllegalStateException("平台初始管理员 2 分钟内未落库");
     }
 
     // ------------------------------------------------------------------
@@ -1004,13 +1009,13 @@ class ExampleBusinessFinalCheckE2EIT {
 
         JsonNode login = postForData(gateway() + "/api/access/auth/login", null,
             JSON.createObjectNode()
-                .put("tenantId", TENANT_ID)
+                .put("tenantCode", E2eTenantSupport.TENANT_CODE)
                 .put("username", username)
                 .put("password", password)
                 .put("captchaId", captchaId)
                 .put("captchaCode", code)
                 .put("clientId", CLIENT_ID));
-        return login.path("accessToken").asText();
+        return E2eTenantSupport.finishForcedLogin(gateway(),login,username,ExampleBusinessFinalCheckE2EIT::readCaptchaFromRedis);
     }
 
     private static String readCaptchaFromRedis(String captchaId) {

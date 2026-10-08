@@ -51,3 +51,11 @@ RolePermissionItemResp 与其列表信封已由 perm-common 单源供服务端�
 | `LoginLogResp` | clientId, failReason, id, ipAddress, location, loginAt, loginType, status, userAgent, username |
 | `SyncStatusResp` | entityKind, lastFullGeneration, lastFullStatus, maxGeneration, scopeKey, sourceService, trackedItems, updatedAt |
 | `SyncStatusListReq` | pageNum, pageSize, sourceService |
+| `PlatformAccountResp` | createdAt, forceResetPwd, id, name, status, updatedAt, username |
+| `PlatformLoginResp` | accessToken, account, expiresIn |
+| `TenantResp` | accessState, adminUserId, code, createdAt, id, name, status, updatedAt |
+| `PlatformAuditResp` | action, createdAt, id, ipAddress, operatorId, operatorName, outcome, requestId, summary, targetId, targetTenantId, targetType |
+| `TenantAdminPasswordResp` | password, userStatus, username |
+| `IssuedPasswordResp` | password |
+| `TenantCreatedResp` | adminUsername, initialPassword, tenant |
+| `PlatformAccountCreatedResp` | account, initialPassword |

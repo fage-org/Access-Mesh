@@ -28,13 +28,13 @@ last_reviewed: 2026-10-06（T-ACCESS-062 退役清扫：engine 归位表 check-i
 
 ## 2. 包结构终态
 
-### 2.1 能力包（12 个）
+### 2.1 能力包
 
 每个能力包内含 Controller → AppService → DomainService → Mapper 全链。下表为指示性归属，终态以 §8 归属清单为准：
 
 | 包 | 领域范围 |
 |---|---|
-| auth | 登录会话（SaToken）、OAuth2 授权与客户端管理 |
+| auth | 租户登录会话、独立平台账号与认证、OAuth2 授权及客户端管理 |
 | user | sys_user 管理、abstract_user 主体管理、USER 投影与资源投影、user 同步执行层 |
 | org | sys_org / org-tree-config / user-org 管理、ORG/POSITION 容器投影、组织可见性查询 |
 | menu | sys_menu 管理、MENU 资源投影、用户菜单派生查询 |
@@ -44,8 +44,9 @@ last_reviewed: 2026-10-06（T-ACCESS-062 退役清扫：engine 归位表 check-i
 | type | type_definition、类型投影与所有权声明门禁 |
 | domain | biz_domain、domain_config、业务域分类查询 |
 | rule | permission_condition、permission_conflict_rule |
-| audit | operation_log、permission_change_log、sys_login_log 三日志与查询面 |
+| audit | 租户操作／权限变更／登录审计，以及独立平台审计与查询面 |
 | platform | 字典、公告、文件（sys_file 与 ADMIN_FILE 登记）、任务（job）、system_config 等无权限语义的纯管理杂项 |
+| tenant | 租户注册、运营开通、启停、首管理员凭据恢复与租户门禁协调（Q-063） |
 
 ### 2.2 sync 通道包
 
@@ -57,7 +58,7 @@ last_reviewed: 2026-10-06（T-ACCESS-062 退役清扫：engine 归位表 check-i
 
 权限引擎（QueryExecutionEngine/QueryGate + 事实/投影管线 + 引擎专属缓存）为独立子系统包（`engine`），不塞入任何能力包；infrastructure 底座（请求上下文、拦截器、TypeHandler、跨能力通用实体等）照旧。
 
-**032 裁决扩充（终态顶层包 +2，见 §8.0 裁决 6/8 与 §8.2）**：另设 `bootstrap`（空库自举编排 + BootstrapSeedWriter）与 `projection`（内部事实投影统一门面 LocalProjectionDomainService + PermConstants）两个顶层包——终态顶层包合计 17 个（12 能力包 + sync + engine + projection + bootstrap + infrastructure）。
+`bootstrap` 承载平台首次初始化与租户标准模板，`projection` 承载内部事实投影门面。Q-063 增加 tenant 能力后，当前顶层包由 §2.1 能力包以及 sync、engine、projection、bootstrap、infrastructure 构成；精确集合由 §8.4 的架构断言维护。
 
 ### 2.4 application 包解散
 
@@ -144,9 +145,9 @@ last_reviewed: 2026-10-06（T-ACCESS-062 退役清扫：engine 归位表 check-i
 
 ### 8.1 终态顶层包总览
 
-17 个顶层包 = 12 能力包（§2.1）+ sync 通道包（§2.2）+ engine 引擎子系统 + infrastructure 底座 + **032 裁决新增 bootstrap / projection 两顶层包**（裁决 6/8，对 §2.3「引擎子系统与 infrastructure」结构的扩充）。
+顶层包由 §2.1 的能力包与 sync、engine、infrastructure、bootstrap、projection 构成。tenant 承载新增租户生命周期，平台账号与平台审计分别归 auth、audit；平台主数据例外见[平台身份与数据边界](tenant-lifecycle.md#platform-data-boundary)。
 
-启动类 `AccessServiceApplication` **保留根包**（architecture §2 启动类锚点；e2e 以 FQCN 字符串引用，不迁 17 包）。
+启动类 `AccessServiceApplication` **保留根包**（architecture §2 启动类锚点；e2e 以 FQCN 字符串引用，不迁能力包）。
 
 能力包统一子结构（sync / engine / projection / bootstrap / infrastructure 形态见 8.2 各节）：
 
@@ -161,7 +162,7 @@ last_reviewed: 2026-10-06（T-ACCESS-062 退役清扫：engine 归位表 check-i
 └── enums/ util/           # 按需
 ```
 
-Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{org,menu,role}/`；其余 mapper XML（`resources/mapper/` 根下存量）随所属能力包同规则迁移，namespace/resultType FQCN 同批更新（033 任务卡断言面覆盖）。**Mapper 接口一律落 `*.mapper` 子包**（能力包 `{cap}.mapper`、`sync.mapper`、`infrastructure.mapper`——@MapperScan 按包清单扫描不漏注册；记账/租约的 DomainService 与实体可留在语义子包，mapper 接口不随行）。表基线：权威 DDL 全部 37 张表在 §8.2 各节「表：」行登记（T-PERM-070 增 service_credential，落 infrastructure；T-PERM-071 增 permission_dependency_declaration、service_manifest_sync，落 resource，与 resource_publication_state，落 sync）。
+Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{org,menu,role}/`；其余 mapper XML（`resources/mapper/` 根下存量）随所属能力包同规则迁移，namespace/resultType FQCN 同批更新（033 任务卡断言面覆盖）。**Mapper 接口一律落 `*.mapper` 子包**（能力包 `{cap}.mapper`、`sync.mapper`、`infrastructure.mapper`——@MapperScan 按包清单扫描不漏注册；记账/租约的 DomainService 与实体可留在语义子包，mapper 接口不随行）。表基线：权威 DDL 全部 40 张表在 §8.2 各节「表：」行登记（T-PERM-070 增 service_credential，落 infrastructure；T-PERM-071 增 permission_dependency_declaration、service_manifest_sync，落 resource，与 resource_publication_state，落 sync）。
 
 ### 8.2 逐包归属清单（源 → 目标）
 
@@ -321,7 +322,7 @@ Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{
 | admin.controller.LoginLogController；admin.service.LoginLogService/Impl→**LoginLogAppService**/Impl；admin.service.domain.LoginLogDomainService/Impl；admin.entity.SysLoginLog + Mapper；admin.dto.resp.LoginLogResp | audit | 改名（§2.5） |
 | permission.util.JsonValidationUtils | audit.util | 消费面=审计/条件/域配置/系统配置 JSON 校验，随主消费方 audit，跨包 import |
 
-表：`operation_log`、`permission_change_log`、`sys_login_log`。
+表：`operation_log`、`permission_change_log`、`sys_login_log`、`platform_audit_log`（独立平台审计）。
 
 #### platform
 
@@ -353,7 +354,13 @@ Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{
 | admin.entity.SysOauth2Client + Mapper | auth | |
 | infrastructure.OAuth2JwtSupport、OAuth2ResourcePathProperties | **infrastructure（留置）** | 被 RequestContextInterceptor 横切消费，非 auth 专属 |
 
-表：`sys_oauth2_client`。
+表：`sys_oauth2_client`、`platform_account`（独立平台账号，不归属于任何租户）。
+
+#### tenant
+
+租户注册与运营编排落 `tenant.controller/dto/service`，持久化落 `tenant.service.domain` 与 `tenant.mapper`；门禁协调与修复同属该能力。标准种子函数调用留在 `bootstrap.mapper`，与 Java 固定图一起由开通事务编排。平台专属 API 不进入租户固定图映射。
+
+表：`sys_tenant`（租户注册主数据，无所属 tenant_id）。
 
 #### sync（§2.2）
 
@@ -396,7 +403,7 @@ Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{
 
 | 源 | 目标 | 说明 |
 |---|---|---|
-| application.bootstrap：AccessBootstrapInitializer、AccessBootstrapProperties、AccessBootstrapRunner、BootstrapGraphDefinition | bootstrap | |
+| application.bootstrap：AccessBootstrapInitializer、TenantBaselineInitializer、PlatformBootstrapProperties、PlatformBootstrapRunner、PlatformBootstrapInitializer、BootstrapGraphDefinition | bootstrap | |
 | permission.service.domain.BootstrapSeedWriter + impl.BootstrapSeedWriterImpl | bootstrap | 直读 6 mapper 的固定图种子写入器随包迁入；`bootstrapSeedWriterIsBootstrapOnly` 断言排除集收敛为本包（§8.4） |
 
 #### infrastructure（§2.3 + 裁决 4）
@@ -432,7 +439,7 @@ Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{
 
 ### 8.4 架构断言重建设计（五测试，能力口径）
 
-**QueryBoundaryArchitectureTest（验收 4 载体）**：断言对象从「admin/permission 两域」改为 12 能力包枚举集合。
+**QueryBoundaryArchitectureTest（验收 4 载体）**：断言对象从「admin/permission 两域」改为 13 能力包枚举集合。
 
 1. 能力包类不依赖**其他能力包**的 mapper 包（`..{capA}..` → `..{capB}.mapper..` 全组合禁断、**零容忍**——Q-009 收敛后冻结白名单已退役，见豁免 6 终态注记）。**断言面=mapper 包**：跨能力实体 import（如 grant 侧 import AbstractRole）为既有普遍形态、不禁止——「互不直读 Mapper/实体」的「实体」半句不落断言（architecture §3 / project-rules §8.2 同口径）。负向样例=测试源集夹具 `menu.fixture.BoundaryViolationFixture`（import `role.mapper.UserRoleMapper`，专用 ClassFileImporter 导入自证拒绝能力；DO_NOT_INCLUDE_TESTS 使其不进主扫描面）。
 2. 豁免声明（显式白名单，逐条注释依据）：
@@ -469,7 +476,7 @@ Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{
 
      **采集口径（写死）**：字节码级依赖形态全采集（import 行 + 内联 FQCN 字段声明，同 ArchUnit 字节码分析口径）——禁用单 import 行扫描（内联 FQCN 形态实证存在于 ConflictRuleAppServiceImpl 等）；引擎（engine）/projection/bootstrap/sync 记账（含 ResourceEntitySyncAppServiceImpl→sync.mapper 直读一处，豁免 3 登记）不在此表（非能力包源集或另有豁免）。
 3. 原「query 包」五条规则（admin/permission mapper 互禁、application 非 query 禁 mapper、query mapper 只读前缀、query 包不依赖域实体/Mapper）中：前三条随包结构消失（application 解散），只读前缀规则改为「QueryMapper（**按类名 `*QueryMapper` 匹配**，非整包——避免误杀同包写 Mapper）接口方法 select/count/list 前缀」继续生效。
-4. **落位兜底断言（外评补充，033 落地）**：全部主源码类必须落在 17 顶层包（`..access..` 下类 `resideInAnyPackage(..access.auth.., ..access.user.., …, ..access.infrastructure..)` 全枚举；根包唯一例外=启动类 `AccessServiceApplication`——断言精确豁免该类，并反向锁根包仅允许它存在）——防漏行类静默残留旧包；负向样例：类残留 `..access.admin..` → 拒绝。
+4. **落位兜底断言（外评补充，033 落地）**：全部主源码类必须落在 18 顶层包（`..access..` 下类 `resideInAnyPackage(..access.auth.., ..access.user.., …, ..access.infrastructure..)` 全枚举；根包唯一例外=启动类 `AccessServiceApplication`——断言精确豁免该类，并反向锁根包仅允许它存在）——防漏行类静默残留旧包；负向样例：类残留 `..access.admin..` → 拒绝。
 
 **AccessServiceArchitectureTest**：现行 admin↔permission 互不依赖族（adminShouldNotDependOnPermission / adminServiceImplShouldNotDependOnPermission / permissionShouldNotDependOnAdmin / applicationMayDependOnBothDomains 四条）**删除**——能力口径允许 AppService/DomainService 同层跨能力依赖（project-rules §8.2、设计 §2.4）。保留并重判：
 
@@ -479,7 +486,7 @@ Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{
 
 每条重建规则附负向样例自证仍能拒绝违规（033 落地时以 ArchUnit 违规注入验证）。
 
-**AppServiceOperationLogCoverageTest**：扫描包常量由三域 4 包改为 12 能力包 `service.impl` 包集合（能力包统一子结构后可合并模式匹配）；覆盖下限自证由 `>= 40` 改为逐能力包断言（每能力包至少扫描到 1 个 ServiceImpl，或显式登记该能力无 ServiceImpl）；module 三值化、KNOWN_TABLE_NAMES 33 表、targetType 例外清单不变。
+**AppServiceOperationLogCoverageTest**：扫描包常量由三域 4 包改为 13 能力包 `service.impl` 包集合（能力包统一子结构后可合并模式匹配）；覆盖下限自证由 `>= 40` 改为逐能力包断言（每能力包至少扫描到 1 个 ServiceImpl，或显式登记该能力无 ServiceImpl）；module 三值化、KNOWN_TABLE_NAMES 权威表清单、targetType 例外清单不变。
 
 **HttpApiPathSnapshotTest**：路径快照（EXPECTED_PATHS）**零变化**——URL 两风格维持（§6、Q-001）；签名快照（EXPECTED_SIGNATURES）因包名与裁决 1 改名**全量机械重生成**（`access.permission.dto.req.UserCreateReq` → `access.user.dto.req.AbstractUserCreateReq` 等），`normalize()` 剥离规则不变。迁移验收纪律：路径集合 diff 必须为空，任何路径增删即迁移引入契约漂移、禁止。RETIRED_PATHS 清单不变；037 执行时增补 `/config/*` 四条。
 

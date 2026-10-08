@@ -12,6 +12,7 @@
 
 | 文档 | 类型 | 状态 | 说明 |
 |------|------|------|------|
+| [tenant-lifecycle-plan](../archive/2026-10-08/tenant-lifecycle-plan.md) | 租户开通与独立平台运营 | archived | 2026-10-08：八项任务完成，Q-063 已收敛；[验收记录](../archive/2026-10-08/tasks/evidence/tenant-lifecycle/verification.md) |
 | [testing-simplification-plan](../archive/2026-10-04/testing-simplification-plan.md) | 测试维护精简 | archived | [实施设计](../design/testing-simplification.md) · [任务看板](../tasks/README.md) |
 | [pending-problems-clearance-plan](../archive/2026-10-04/pending-problems-clearance-plan.md) | 问题清单转出 | archived | 计划内 24 项完成；代码验收与定案边界见[最终验收](../archive/2026-10-04/tasks/evidence/pending-problems-clearance/final-audit.md)，后续独立实施仍在任务看板 |
 | ~~r2-query-engine-and-admission-plan~~ | （已归档）| — | R2 引擎统一+方案 A 操作准入（2026-09-25 立项 → 2026-10-01 收口归档）：24 任务全 done（T-PERM-080~095 R2 系列〔含 095 基线补卡〕 + T-ACCESS-056~062 ADM 系列 + 归入卡 T-PERM-054）——旧执行体/四旧 DTO 删除（X04 退役锁）、全消费者迁新 execute、操作准入无迁移期统一上线、API 独立授权与旧协议退役、收官卡 T-PERM-094 监控落地（引擎指标接 Micrometer+独立管理端口 9101）与上线门槛八项证据；设计稿 [design/r2-unified-query-and-admission.md](../design/r2-unified-query-and-admission.md) 转 **superseded**（稳定结论回写现行文档族）；三项拍板与定案见 [历史定案原文](../archive/2026-09-26/decision-registry-before.md) 2026-09-25 行、094 四拍板见其任务卡；归档至 [../archive/2026-10-01/](../archive/2026-10-01/)（24 卡随迁 tasks/） |
