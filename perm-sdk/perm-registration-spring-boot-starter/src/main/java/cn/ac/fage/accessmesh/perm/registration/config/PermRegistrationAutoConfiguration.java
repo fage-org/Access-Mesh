@@ -1,6 +1,5 @@
 package cn.ac.fage.accessmesh.perm.registration.config;
 
-import cn.ac.fage.accessmesh.perm.common.feign.FeignCredentialInterceptor;
 import cn.ac.fage.accessmesh.perm.registration.PermissionRegistrationPublisher;
 import cn.ac.fage.accessmesh.perm.registration.RegistrationResult;
 import cn.ac.fage.accessmesh.perm.registration.feign.PermissionManifestClient;
@@ -13,15 +12,18 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.core.io.ResourceLoader;
 import java.util.List;
 
+/**
+ * 注册 starter 装配入口。凭证拦截器不在此注册（T-ACCESS-098）：经
+ * PermissionManifestClient 的 {@code @FeignClient(configuration=...)} 挂载到
+ * 权限客户端自身 Feign 子上下文，不扩大为宿主全部 Feign 客户端的全局拦截器。
+ */
 @AutoConfiguration
 @ConditionalOnProperty(name="perm.registration.enabled", havingValue="true")
 @EnableConfigurationProperties(PermRegistrationProperties.class)
 @EnableFeignClients(clients=PermissionManifestClient.class)
-@Import(FeignCredentialInterceptor.class)
 public class PermRegistrationAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean

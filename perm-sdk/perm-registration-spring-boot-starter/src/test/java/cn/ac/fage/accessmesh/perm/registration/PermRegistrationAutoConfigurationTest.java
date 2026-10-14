@@ -2,7 +2,6 @@ package cn.ac.fage.accessmesh.perm.registration;
 
 import cn.ac.fage.accessmesh.perm.registration.config.PermRegistrationAutoConfiguration;
 import cn.ac.fage.accessmesh.perm.registration.feign.PermissionManifestClient;
-import cn.ac.fage.accessmesh.perm.common.feign.FeignCredentialInterceptor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
@@ -38,17 +37,25 @@ class PermRegistrationAutoConfigurationTest {
     @Test void shouldRemainInactiveWithoutOptIn() {
         runner.run(context -> {
             assertThat(context).doesNotHaveBean(PermissionRegistrationPublisher.class);
-            assertThat(context).doesNotHaveBean(FeignCredentialInterceptor.class);
+            assertThat(context).doesNotHaveBean(feign.RequestInterceptor.class);
         });
     }
-    @Test void shouldImportExistingCredentialInterceptorWithPublisher() {
+    @Test void shouldAssemblePublisherWithoutGlobalInterceptor() {
+        // T-ACCESS-098：凭证拦截器不再经 @Import 进入宿主上下文（会命中宿主全部 Feign
+        // 客户端），只经 PermissionManifestClient 的 @FeignClient(configuration=...) 挂载。
         runner.withPropertyValues("perm.registration.enabled=true","perm.allow-insecure=true",
                 "perm.credential-id=id","perm.credential-secret=secret").run(context -> {
             assertThat(context).hasNotFailed();
             assertThat(context).hasSingleBean(PermissionRegistrationPublisher.class);
-            assertThat(context).hasSingleBean(FeignCredentialInterceptor.class);
+            assertThat(context).doesNotHaveBean(feign.RequestInterceptor.class);
             assertThat(context).doesNotHaveBean("permissionManifestStartupPublisher");
         });
+    }
+    @Test void manifestClientMountsCredentialConfiguration() {
+        var feignClient = PermissionManifestClient.class.getAnnotation(
+                org.springframework.cloud.openfeign.FeignClient.class);
+        assertThat(feignClient.configuration())
+                .containsExactly(cn.ac.fage.accessmesh.perm.common.feign.PermFeignClientsConfiguration.class);
     }
     @Test void shouldRejectHalfCredentialOrMissingTrustDeclaration() {
         for (String[] properties : new String[][]{

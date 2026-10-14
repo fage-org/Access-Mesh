@@ -5,24 +5,25 @@ import cn.ac.fage.accessmesh.common.security.M2mCredentialEndpoints;
 import feign.RequestTemplate;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Component;
 
 /**
  * 服务凭证注入：仅向 M2M 精确端点发送凭证，管理面不注入。
  * 端点清单直接调 common.security.M2mCredentialEndpoints（单源，2026-10-06 逐任务评审清扫「SDK 镜像」退役措辞）。
  * 配置 credential-id/credential-secret 成对必填，allow-insecure 必须显式声明信任域。
  * 仅配置 credential-id 时装配；调用方已声明的凭证头保持原值。
+ * <p>
+ * 路径匹配（T-ACCESS-098）：真实路径按<b>完整值</b>与 M2M 清单匹配（不子串、不 indexOf），
+ * 且仅接受相对路径形态（发现制权限客户端调用；feign RequestTemplate.uri() 结构性拒绝
+ * 绝对 URL）——URL 其他位置（其他路径前缀、query 参数值）出现 /api/access/ 子串不注入。
+ * 装配边界（T-ACCESS-098）：本类不得以 @Component/@Import 注册进宿主应用上下文
+ * （会经 beansOfTypeIncludingAncestors 扩大为宿主全部 Feign 客户端的全局拦截器）；
+ * 唯一挂载点为 {@link PermFeignClientsConfiguration}（权限客户端 Feign 子上下文）。
+ * </p>
  */
-@Component
-@ConditionalOnProperty(name = "perm.credential-id")
 public class FeignCredentialInterceptor implements RequestInterceptor {
 
     public static final String HEADER_CREDENTIAL_ID = "X-Credential-Id";
     public static final String HEADER_CREDENTIAL_SECRET = "X-Credential-Secret";
-
-    /** 内部调用统一路径前缀；仅匹配该前缀的请求才考虑注入，避免污染其他 Feign 调用。 */
-    private static final String ACCESS_PATH_MARKER = "/api/access/";
 
     @Value("${perm.credential-id}")
     private String credentialId;
@@ -66,20 +67,20 @@ public class FeignCredentialInterceptor implements RequestInterceptor {
     @Override
     public void apply(RequestTemplate template) {
         String url = template.url();
-        int markerIndex = url == null ? -1 : url.indexOf(ACCESS_PATH_MARKER);
-        if (markerIndex < 0) {
+        // T-ACCESS-098：仅相对路径形态参与匹配——绝对 URL 形态被 feign 结构性拒绝，
+        // 此处不依赖该前提重复校验 scheme；不以 '/' 开头（如空路径）一律不注入
+        if (url == null || url.isEmpty() || url.charAt(0) != '/') {
             return;
         }
-        // url 可能是相对路径或完整 URL（http://host/api/access/...）——统一截取
-        // /api/access/ 起的路径段（去 query）后精确匹配
-        String path = url.substring(markerIndex);
+        String path = url;
         int queryIndex = path.indexOf('?');
         if (queryIndex >= 0) {
             path = path.substring(0, queryIndex);
         }
         if (!M2mCredentialEndpoints.matches(template.method(), path)) {
-            // 仅 M2M 通道端点注入（common 单源精确清单）——其余 /api/access/ 调用
-            // 不携带凭证头（白名单外携带=服务端 403，见类注释）
+            // 仅 M2M 通道端点按完整路径值注入（common 单源精确清单）——其余调用
+            // （含 /api/access/ 子串出现在其他前缀或 query 值中的形态）不携带凭证头
+            // （白名单外携带=服务端 403，见类注释）
             return;
         }
         if (!hasHeader(template, HEADER_CREDENTIAL_ID)) {

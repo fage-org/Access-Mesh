@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-098
 title: SDK 凭证拦截器端点匹配与装配边界收口
-status: proposed
+status: done
 plan: docs/plans/scenario-audit-remediation-plan.md
 domain: access-service
 design_refs:
@@ -15,7 +15,7 @@ acceptance:
   - "service-authentication.md 记录匹配起点与装配边界口径"
 design_writeback:
   required: true
-  status: pending
+  status: done
 last_updated: 2026-10-14
 ---
 
@@ -38,3 +38,13 @@ P1。外部持续审查发现（探针实证 + 2026-10-14 主代理核实）：`
 ## 非目标 / 遗留
 
 不重提运行时 TLS 护栏（启动声明式为已接受边界）；「HTTP 方法+精确路径清单」契约本身不改动。
+
+## 完成记录
+
+- 实现（2026-10-14）：①拦截器路径匹配改完整值——真实路径（相对形态、去 query）与 M2M 清单精确匹配，`indexOf("/api/access/")` 子串检索退役，非路径起点形态（其他前缀、query 值）不注入；②装配收口——新增 `PermFeignClientsConfiguration`（刻意不标注 @Configuration，防宿主组件扫描收编回全局），拦截器经 `@FeignClient(configuration=...)` 挂载到 PermissionFeignClient/PermissionManifestClient 各自 Feign 子上下文，两自动装配的 `@Import` 删除；fail-fast（半配/缺信任域声明）时点随装配边界移至权限客户端 bean 创建（子上下文刷新，启动期触发）。
+- 框架实证（本地 jar 字节码，2026-10-14）：`NamedContextFactory.getInstances` 走 `beansOfTypeIncludingAncestors`（宿主上下文 RequestInterceptor 命中全部 Feign 客户端=原泄漏面；per-client 子上下文互不可见=隔离依据）；`AbstractApplicationContext.setParent` 调 `Environment.merge`（子上下文 `@Value`/条件注解可解析应用配置源）；`RequestTemplate.uri()` 拒绝对 URL（feign 13.2.1）——异域形态的真实载体是宿主其他 Feign 客户端（同形路径），绝对 URL 结构性不可达拦截器。
+- 红跑实证：`FeignCredentialInterceptorPathStartTest` 旧实现下 4 run 2 failures（前缀包含/query 携带注入了凭证）；`HostFeignClientAssemblyIsolationTest` 三形态全红（前缀包含/query 携带/与 M2M 端点同形路径——旧全局装配下宿主客户端出站请求携带凭证头）+ `shouldNotRegisterGlobalRequestInterceptorInHostContext` 红。
+- 旧用例订正：`FeignCredentialInterceptorTest` 原「完整 URL 形态」用例按真实执行序重写（feign `SynchronousMethodHandler#targetRequest` 先 interceptor 后 target，拦截器可见 url() 恒为相对路径——原用例锁的是拦截期不存在的形态）。
+- 回归（2026-10-14）：三 SDK 模块 31/25/15 全绿；example-service 53 绿；`mvn test -pl e2e -am -T 1C -DskipTestcontainers=true -DskipHeavyIT=true` → BUILD SUCCESS 全模块 0 失败（gateway 145、access-service 1872〔单测轨〕、e2e 33）。
+- 设计回写：service-authentication.md §3.3 SDK 直连行（匹配起点与装配边界口径 + fail-fast 时点移位）；全仓 `FeignCredentialInterceptor` 描述扫描（architecture/extension-guide/project-rules/契约总册）均为行为级表述、新实现下仍成立，无旧装配口径残留。
+- 双轨评审：代码轨发现正向覆盖缺口→补 `PermissionClientCredentialWiringTest`（真实 openfeign 装配链：子上下文构建拦截器、@Value 经 setParent merge 解析、出站请求携带双凭证头）与两客户端注解挂载反射锁；测试脚手架自身一处 bean 定义冲突（探针与自动装配同名客户端 FeignClientSpecification）当轮修正；文档轨零新增发现。

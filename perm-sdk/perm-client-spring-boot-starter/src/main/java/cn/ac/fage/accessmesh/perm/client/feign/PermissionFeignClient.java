@@ -19,6 +19,7 @@ import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
+import cn.ac.fage.accessmesh.perm.common.feign.PermFeignClientsConfiguration;
 
 /**
  * 权限服务Feign客户端接口
@@ -28,7 +29,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
  * 所有接口路径遵循 {@code /api/access/*} 契约（T-ACCESS-042 单命名空间，外部=服务路径），使用 POST + JSON Body 方式调用。
  * </p>
  */
-@FeignClient(name = "access-service")
+@FeignClient(name = "access-service", configuration = PermFeignClientsConfiguration.class)
 public interface PermissionFeignClient {
 
     // ========== 用户管理 ==========

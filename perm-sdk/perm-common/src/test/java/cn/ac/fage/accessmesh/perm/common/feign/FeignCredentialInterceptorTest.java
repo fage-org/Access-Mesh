@@ -68,23 +68,25 @@ class FeignCredentialInterceptorTest {
     }
 
     @Test
-    @DisplayName("完整 URL 形态（http://host/api/access/...）→ 按路径段精确匹配")
-    void shouldMatchByPathSegmentOnAbsoluteUrl() {
+    @DisplayName("真实执行序（T-ACCESS-098）：拦截器先于 target 应用 → 按相对路径匹配注入；miss 形态不注入")
+    void shouldMatchRelativePathBeforeTargetResolution() {
         FeignCredentialInterceptor interceptor = interceptor("sc-a", "sk-b", "true");
         interceptor.validateConfiguration();
 
+        // feign SynchronousMethodHandler#targetRequest：先 interceptor.apply(template)、
+        // 后 target.apply —— 拦截器可见的 url() 恒为相对路径（发现名与显式 url 均在 target 上）
         RequestTemplate hit = new RequestTemplate();
         hit.method("POST");
-        hit.target("http://access-service:9100");
         hit.uri("/api/access/resource-entity/full-sync");
         interceptor.apply(hit);
+        hit.target("http://access-service:9100");
         assertThat(hit.headers()).containsKey(FeignCredentialInterceptor.HEADER_CREDENTIAL_ID);
 
         RequestTemplate miss = new RequestTemplate();
         miss.method("POST");
-        miss.target("http://access-service:9100");
         miss.uri("/api/access/service-credential/list");
         interceptor.apply(miss);
+        miss.target("http://access-service:9100");
         assertThat(miss.headers()).doesNotContainKey(FeignCredentialInterceptor.HEADER_CREDENTIAL_ID);
     }
 
