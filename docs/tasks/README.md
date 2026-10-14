@@ -26,13 +26,13 @@
 
 > **后端门禁已解除（2026-08-22，T-ACCESS-012 完成）**：`T-PERM-*` / `T-ADMIN-*` 后端任务已全部重基线到 access-service 单模块与 `schema/access-service.sql`，可按各自 `depends_on` 推进；前端真接口联调等待对应 Phase 2 后端任务完成。归并主计划已归档（[archive/2026-08-22/access-service-merge-plan.md](../archive/2026-08-22/access-service-merge-plan.md)），后续强化计划亦已归档（[access-post-merge-plan](../archive/2026-08-27/access-post-merge-plan.md)，T-ACCESS-013~015 全 done，CI 准入前置由 T-ACCESS-017 最小 CI 关闭；68 项为 2026-08-22 外部主机历史验证基线，CI 以退出状态判定成功）。
 
-### 架构与使用场景持续审查问题修复（待启动）
+### 架构与使用场景持续审查问题修复（进行中）
 
 [执行计划](../plans/scenario-audit-remediation-plan.md)。2026-10-12~14 外部持续审查 35 项发现 → 外部模型核实（2026-10-13）+ 主代理逐条代码级亲核（2026-10-14）→ 33 项成立缺陷映射 14 任务；1 项撤销（OAuth2 JSON 线协议与契约一致）、1 项降级裁剪候选（Q-072）；五项设计边界与三项裁剪评估登记 Q-070~Q-077。
 
 | ID | 标题 | 状态 | 直接依赖 | 回写 |
 |---|---|---|---|---|
-| [T-GW-014](T-GW-014.md) | Gateway 内部密钥出站收窄（P1） | ⚙️ | — | ⏳ |
+| [T-GW-014](T-GW-014.md) | Gateway 内部密钥出站收窄（P1） | ✅ | — | ✓ |
 | [T-ACCESS-098](T-ACCESS-098.md) | SDK 凭证拦截器端点匹配与装配边界收口（P1） | ⚙️ | — | ⏳ |
 | [T-ACCESS-099](T-ACCESS-099.md) | 预览 Compose 文件持久化卷（P1） | ⚙️ | — | ⏳ |
 | [T-PERM-109](T-PERM-109.md) | 条件 CIDR 参数校验收口（P2 安全面） | ⚙️ | — | ⏳ |

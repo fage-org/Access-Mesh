@@ -234,6 +234,7 @@ logging:
   config: classpath:log4j2-spring.xml
 
 perm:
-  # Internal API secret injected as X-Internal-Secret header to downstream services.
+  # Internal API secret injected as X-Internal-Secret header, only on requests
+  # actually routed to access-service (T-GW-014).
   # Must match perm.internal-secret in access-service.
   internal-secret: ${PERM_INTERNAL_SECRET:}

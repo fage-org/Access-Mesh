@@ -3,7 +3,7 @@ doc_type: design
 title: Gateway 服务设计
 status: adopted
 domain: gateway
-last_reviewed: 2026-10-08
+last_reviewed: 2026-10-14
 ---
 
 # Gateway 服务设计
@@ -43,7 +43,7 @@ last_reviewed: 2026-10-08
 接入方 per-service 静态凭证（`X-Credential-Id` + `X-Credential-Secret`）经 Gateway 的放行形态（认证协议与状态表权威见 [service-authentication.md](../service-authentication.md) 与契约总册 §24）：
 
 - **`M2mCredentialFilter`（order -75，白名单 -80 之后、会话校验 -70 之前）**：**完整凭证头 + 精确 M2M 路径清单**（单源 `common` 模块 `M2mCredentialEndpoints`——与服务端仲裁器白名单同一份，防双源漂移）命中时置 `skipAuth=true`，跳过用户认证（AuthTokenFilter）与用户权限过滤（PermissionFilter），**仅透传、由 access-service 仲裁器终验**（Gateway 不做凭证验证）。半头/缺头/非 M2M 路径不识别 → 回落 AuthTokenFilter 401；完整凭证头调管理端点同回落（401）——管理端点不被凭证旁路。**禁止把 /api/access/** 整体加入白名单**。
-- **`InternalSecretFilter` 收窄**：由「无条件向所有下游请求注入 X-Internal-Secret」收窄为「无凭证头时兜底注入」——携带任一凭证头（X-Credential-Id/X-Credential-Secret）即不注入，凭证请求由服务端按凭证链终验；「凭证头+密钥并存」窗口由服务端仲裁器凭证优先规则消解（上线序=服务端先行向后兼容，无需同批发布）。
+- **`InternalSecretFilter` 按路由目的与凭证头收窄（T-GW-014，取代 T-PERM-070 的「无凭证头时兜底注入」口径）**：仅对**实际路由目的为 access-service**（判据=路由 URI host，与 route id 无关）且无凭证头的请求注入 X-Internal-Secret——携带任一凭证头（X-Credential-Id/X-Credential-Secret）即不注入，凭证请求由服务端按凭证链终验；路由到其他业务下游的用户请求不携带该头（密钥不出平台信任域——此前业务进程可经用户流量持续读到轮换后的新值），路由属性缺失 fail-closed 不注入；Gateway 自身权限客户端（`PermissionClient` 直连带密）不经本过滤器。
 - 凭证头不加入 `gateway.header.clean` 清洗列表（接入方外部携带即合法通道；X-Internal-Secret 清洗保留防外部伪造密钥）。
 
 ## OAuth2 委托令牌透传（T-ACCESS-013，2026-08-22）
@@ -53,7 +53,7 @@ last_reviewed: 2026-10-08
 - 新增 `OAuth2PassthroughFilter`（order -79，白名单 -80 之后、会话校验 -70 之前）：命中 `gateway.oauth2.passthrough-paths`（Ant 通配，**外部路径口径**，默认空 = 无业务路径默认开放）**且 Authorization 为 Bearer 三段式 JWT**（形态识别与下游 JWT 分支同口径，不验签——伪造 JWT 透传后下游验签 401）时设 `skipAuth=true`，跳过会话校验/权限校验/身份头注入/身份头签名，`Authorization` 头原样透传下游（HeaderClean 清单不含 Authorization），由 access-service 开放路径门禁（验签 + 黑名单 + 客户端启用 + scope/audience/clientIds）判定。
 - **租户 uuid 会话令牌与无 Authorization 头的请求不启用透传**（评审 P1 修复）：走正常 AuthTokenFilter 会话校验 + PermissionFilter 接口鉴权，租户原生会话认证路径不变——否则透传路径上 uuid 会话会被下游共享 Redis 会话分支接受，绕过 Gateway 接口权限。
 - `/api/access/auth/**`（运行时鉴权六端点除外）已由白名单精确清单覆盖（userinfo 等端点透传，无需重复配置）。
-- **部署约束（T-ACCESS-042 更新）**：无 StripPrefix，Gateway 与 access-service 匹配同一路径（开放路径配置于 `access.oauth2.resource-paths`，双侧天然同形）；`InternalSecretFilter` 注入的 X-Internal-Secret 对开放路径同样携带（合法流量恒经 Gateway）——原「启动防护禁止开放路径位于内部凭证前缀」守卫已随单命名空间退役（双凭证并存不构成机制冲突，见 OAuth2ResourcePathProperties；注意不在 `/api/access/auth/oauth2/**` 下的开放路径会被内部凭证分支遮蔽——运行期 400 缺 X-Tenant-Id，access 侧启动告警提示）。
+- **部署约束（T-ACCESS-042 更新）**：无 StripPrefix，Gateway 与 access-service 匹配同一路径（开放路径配置于 `access.oauth2.resource-paths`，双侧天然同形）；`InternalSecretFilter` 注入的 X-Internal-Secret 对开放路径同样携带（合法流量恒经 Gateway；开放路径均在 /api/access 命名空间、路由目的即 access-service，T-GW-014 目的收窄后不受影响）——原「启动防护禁止开放路径位于内部凭证前缀」守卫已随单命名空间退役（双凭证并存不构成机制冲突，见 OAuth2ResourcePathProperties；注意不在 `/api/access/auth/oauth2/**` 下的开放路径会被内部凭证分支遮蔽——运行期 400 缺 X-Tenant-Id，access 侧启动告警提示）。
 - 门禁语义权威说明见 `../access-service-architecture.md` §6。
 
 

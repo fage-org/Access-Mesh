@@ -3,7 +3,7 @@ doc_type: design
 title: 公共服务认证模块（per-service credential）
 status: adopted
 domain: access-service
-last_reviewed: 2026-10-06
+last_reviewed: 2026-10-14
 ---
 
 # 公共服务认证模块（per-service credential）设计
@@ -37,7 +37,7 @@ last_reviewed: 2026-10-06
 |---|---|---|---|
 | ① | Sa-Token 会话（仅 Bearer 头，Cookie 通道已关） | 管理面/前端用户 | RequestContextInterceptor（USER 绑定：session tenantId+operatorId）；2026-09-08 Cookie 双向关闭定案 |
 | ② | OAuth2 authorization_code + PKCE / refresh token + JWT HS256 | 外部应用代用户 | sys_oauth2_client.client_secret（BCrypt；T-ACCESS-084 起 PUBLIC 客户端 secret=NULL、强制 S256，DDL CHECK 锁形态）；OAuth2JwtSupport（HS256 强度护栏）；**client_credentials 无发放实现**（grant_types 可选值零消费；历史 `internal-service` 种子行已随「客户端不预置」定案删除） |
-| ③ | X-Internal-Secret 全局共享密钥 | 内网基础设施互信 | Spring 配置 `perm.internal-secret`（环境变量，**不落库**）；Gateway `InternalSecretFilter`（GlobalFilter，配置非空时**无条件向所有下游请求注入**）+ `PermissionClient` 直连带密；业务 SDK 仅发送服务凭证，不再分发该平台密钥 |
+| ③ | X-Internal-Secret 全局共享密钥 | 内网基础设施互信 | Spring 配置 `perm.internal-secret`（环境变量，**不落库**）；Gateway `InternalSecretFilter`（GlobalFilter，T-GW-014 起仅对**实际路由目的为 access-service**〔判据=路由 URI host〕且无凭证头的请求注入——路由到其他业务下游的用户请求不携带该头，路由属性缺失 fail-closed 不注入）+ `PermissionClient` 直连带密；业务 SDK 仅发送服务凭证，不再分发该平台密钥 |
 | ④ | SERVICE 上下文绑定（非独立认证） | ③通过后的自报身份 | 密钥验证（`InternalApiSecretInterceptor`，常量时间比对，失败 403；注册于 `SecurityWebMvcConfig.addInterceptors`，excludePathPatterns 精确豁免会话入口族）→ `X-Service-Code`/`X-Tenant-Id` **自报头**绑定（SignatureVerifier 仅数字解析、无签名）→ `AccessRequestContext.service(tenantId, serviceCode)` |
 
 **原模型风险（外部通道已由 §3.5 取代，真实旧密钥仍须轮换）**：
@@ -109,7 +109,7 @@ CREATE TABLE service_credential (
 
 | 形态 | 链路 | 要求 |
 |---|---|---|
-| 经 Gateway | 接入方 → Gateway → access-service | 三处配套：①凭证头加入 Gateway 透传/清洗策略（不被清洗；`InternalSecretFilter` 收窄为"无凭证头时兜底注入"）；②**M2M 放行链**——`AuthTokenFilter`（用户认证）对非白名单、无 Bearer 的请求**直接 401**，仅透传凭证到不了 access-service：新增早于用户认证的 M2M 识别——**完整凭证头 + 精确 M2M 路径清单**（M2mCredentialEndpoints 单源清单）→ 置 skipAuth 语义跳过用户认证与用户权限过滤，仅透传、由 access-service 仲裁器终验；**禁止把 /api/access/** 整体加入白名单**；③测试矩阵：经 Gateway 两步同步成功、缺头/半头/错凭证拒绝、管理端点不被凭证旁路 |
+| 经 Gateway | 接入方 → Gateway → access-service | 三处配套：①凭证头加入 Gateway 透传/清洗策略（不被清洗；`InternalSecretFilter` 收窄为"无凭证头且路由目的为 access-service 才注入"〔T-GW-014，取代此前"无凭证头即兜底注入"〕）；②**M2M 放行链**——`AuthTokenFilter`（用户认证）对非白名单、无 Bearer 的请求**直接 401**，仅透传凭证到不了 access-service：新增早于用户认证的 M2M 识别——**完整凭证头 + 精确 M2M 路径清单**（M2mCredentialEndpoints 单源清单）→ 置 skipAuth 语义跳过用户认证与用户权限过滤，仅透传、由 access-service 仲裁器终验；**禁止把 /api/access/** 整体加入白名单**；③测试矩阵：经 Gateway 两步同步成功、缺头/半头/错凭证拒绝、管理端点不被凭证旁路 |
 | SDK 直连 | 接入方 starter → access-service（Feign/Nacos） | `FeignCredentialInterceptor`（perm-common，供 client/registration 两 starter 共用）；受 §3.2 **服务端凭证端点白名单**约束（直连不能越出 M2M 通道；负向测试=直连调 /service-credential/list 等管理端点拒绝） |
 
 ### 3.4 凭证生命周期（管理面）

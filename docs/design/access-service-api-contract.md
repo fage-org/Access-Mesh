@@ -6,7 +6,7 @@ domain: cross-service
 supersedes:
   - docs/design/permission-center/api-contract.md
   - docs/design/services/admin-service-api-contract.md
-last_reviewed: 2026-10-08
+last_reviewed: 2026-10-14
 ---
 
 # access-service API 契约总册
@@ -3389,7 +3389,7 @@ schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正�
 
 SDK 运行时查询方法保留单 DTO 入口，并增加 `(req, credentialId, credentialSecret)` 重载；只允许四运行时查询追加这两个认证头，JSON DTO 与服务端契约不变。共享实例必须依据可信租户选取对应凭证，不能修改全局拦截器凭证或按用户请求体选租户。示例配置见服务认证 §3.5。
 
-- **经 Gateway**：`M2mCredentialFilter`（-75，白名单后用户认证前）完整凭证头+M2M 路径 → skipAuth 语义（仅透传、服务端仲裁器终验）；`InternalSecretFilter` 收窄为「无凭证头才兜底注入」；半头/缺头回落 AuthTokenFilter 401。**禁止把 /api/access/** 整体加入白名单**。
+- **经 Gateway**：`M2mCredentialFilter`（-75，白名单后用户认证前）完整凭证头+M2M 路径 → skipAuth 语义（仅透传、服务端仲裁器终验）；`InternalSecretFilter` 收窄为「无凭证头且路由目的为 access-service 才注入」（T-GW-014）；半头/缺头回落 AuthTokenFilter 401。**禁止把 /api/access/** 整体加入白名单**。
 - **SDK 直连**：`perm-common` 的 `FeignCredentialInterceptor`（client 与 registration〔071〕两 starter 共用），配置键：
   - `perm.credential-id` + `perm.credential-secret`：成对必填（半配 fail-fast）；已显式声明凭证头的请求不覆盖；
   - `perm.allow-insecure`：**启动声明式 TLS 信任域护栏**（2026-09-20 拍板；外评处置收紧为二值白名单）——配置凭证必须显式声明且值域仅 `true`/`false`（大小写不敏感，非法值如拼写错拒启并提示合法值；true=单信任域明文 hop 可接受；false=跨边界期望 TLS；缺省拒启）。护栏为纯声明（服务发现形态下静态地址校验无落点，true/false 无运行时行为差异——值校验仅防声明拼写错静默通过），Gateway→access-service 内网 hop 不校验（同部署单元信任域）。

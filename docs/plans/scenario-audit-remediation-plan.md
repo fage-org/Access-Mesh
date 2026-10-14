@@ -1,7 +1,7 @@
 ---
 doc_type: plan
 title: 架构与使用场景持续审查问题修复
-status: proposed
+status: active
 domain: cross-service
 design_refs:
   - docs/design/access-service-api-contract.md
@@ -47,7 +47,7 @@ last_updated: 2026-10-14
 
 | ID | 标题 | 优先级 | 状态 |
 |---|---|---|---|
-| [T-GW-014](../tasks/T-GW-014.md) | Gateway 内部密钥出站收窄 | P1 | ⚙️ |
+| [T-GW-014](../tasks/T-GW-014.md) | Gateway 内部密钥出站收窄 | P1 | ✅ |
 | [T-ACCESS-098](../tasks/T-ACCESS-098.md) | SDK 凭证拦截器端点匹配与装配边界收口 | P1 | ⚙️ |
 | [T-ACCESS-099](../tasks/T-ACCESS-099.md) | 预览 Compose 文件持久化卷 | P1 | ⚙️ |
 | [T-PERM-109](../tasks/T-PERM-109.md) | 条件 CIDR 参数校验收口 | P2（安全面，建议首梯队） | ⚙️ |
@@ -68,4 +68,4 @@ last_updated: 2026-10-14
 
 ## 当前进度
 
-2026-10-14 立项并经外部评审修订：33 项缺陷已全部映射到 14 张任务卡（33 = 35 项发现 − 1 项核实撤销〔OAuth2 JSON 线协议与全仓 POST+JSON 契约一致，非缺陷〕 − 1 项降级为裁剪候选〔iframe 缓存 hash 刷新，Q-072〕）。待用户确认启动。
+2026-10-14 立项并经外部评审修订：33 项缺陷已全部映射到 14 张任务卡（33 = 35 项发现 − 1 项核实撤销〔OAuth2 JSON 线协议与全仓 POST+JSON 契约一致，非缺陷〕 − 1 项降级为裁剪候选〔iframe 缓存 hash 刷新，Q-072〕）。同日用户确认按默认优先序启动（T-GW-014 → T-ACCESS-098 → T-ACCESS-099 → T-PERM-109，随后按批次推进），计划转 active。T-GW-014 已完成收口（2026-10-14）：过滤器按路由目的收窄、四册设计回写、红跑 2/4 实证、reactor 回归 0 失败，证据见任务卡完成记录。下一任务 T-ACCESS-098。
