@@ -118,4 +118,20 @@ class HostFeignClientAssemblyIsolationTest {
                 .doesNotContainKeys("X-Credential-Id", "X-Credential-Secret");
         });
     }
+
+    @Test
+    @DisplayName("官方 FeignClientBuilder 复用 access-service contextId（外评 P2-1：子上下文按 contextId 共享）"
+        + "→ 出站请求不携带凭证头（注入以目标接口为判据；旧实现下失败）")
+    void builderClientReusingAccessServiceContextIdDoesNotReceiveCredentials() {
+        runner.run(context -> {
+            OtherBusinessClient hostClient = new org.springframework.cloud.openfeign.FeignClientBuilder(context)
+                .forType(OtherBusinessClient.class, "access-service")
+                .url("http://other.example.com")
+                .build();
+            hostClient.samePathAsM2mEndpoint();
+            assertThat(CAPTURED).hasSize(1);
+            assertThat(CAPTURED.get(0).headers())
+                .doesNotContainKeys("X-Credential-Id", "X-Credential-Secret");
+        });
+    }
 }

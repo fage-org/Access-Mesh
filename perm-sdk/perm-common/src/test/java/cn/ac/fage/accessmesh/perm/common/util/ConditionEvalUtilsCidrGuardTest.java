@@ -103,4 +103,42 @@ class ConditionEvalUtilsCidrGuardTest {
         assertThat(ConditionEvalUtils.ipMatchesCidr("2001:db8::1", "2001:db9::/32")).isFalse();
         assertThat(ConditionEvalUtils.ipMatchesCidr("2001:db8::1", "10.0.0.0/8")).isFalse();
     }
+
+    @Test
+    @DisplayName("外评 P2-2：结构非法但字符集合法的 IPv6（:::）→ 不满足"
+        + "（字符闸门不校验分组/压缩结构，旧实现过闸后在匹配期普通落空、黑名单经反转放行）")
+    void structurallyInvalidIpv6NotSatisfied() throws Exception {
+        assertThat(ConditionEvalUtils.isValidCidr(":::/64")).isFalse();
+
+        // 黑名单含结构非法项 → 整条不满足（不得经「无匹配→反转」放行）
+        boolean blacklist = ConditionEvalUtils.evalIpList(
+            JSON.readTree("[\"172.16.0.0/12\",\":::/64\"]"), "2001:db8::1", false);
+        assertThat(blacklist).isFalse();
+
+        // 白名单合法项命中 + 结构非法项并存 → 整条不满足（前置全量校验语义）
+        boolean whitelist = ConditionEvalUtils.evalIpList(
+            JSON.readTree("[\"10.0.0.0/8\",\":::/64\"]"), "10.1.2.3", true);
+        assertThat(whitelist).isFalse();
+    }
+
+    @Test
+    @DisplayName("外评 P2-2：全角/Unicode 数字形态拒绝（Character.isDigit 接受全角，解析链路仅认 ASCII）")
+    void unicodeDigitsRejected() {
+        assertThat(ConditionEvalUtils.isValidCidr("１.２.３.４/24")).isFalse();
+        assertThat(ConditionEvalUtils.isValidCidr("10.0.0.0/２４")).isFalse();
+    }
+
+    @Test
+    @DisplayName("合法 IPv6 结构形态保持：全零/压缩/全 8 组/zone/IPv4 映射尾；超界结构拒绝")
+    void legitIpv6StructuresPreserved() {
+        assertThat(ConditionEvalUtils.isValidCidr("::")).isTrue();
+        assertThat(ConditionEvalUtils.isValidCidr("::1")).isTrue();
+        assertThat(ConditionEvalUtils.isValidCidr("2001:db8:0:0:0:0:0:1/128")).isTrue();
+        assertThat(ConditionEvalUtils.isValidCidr("fe80::1%eth0/10")).isTrue();
+        assertThat(ConditionEvalUtils.isValidCidr("::ffff:192.168.1.1/96")).isTrue();
+        assertThat(ConditionEvalUtils.isValidCidr("1:2:3:4:5:6:7:8")).isTrue();
+        assertThat(ConditionEvalUtils.isValidCidr("1:2:3:4:5:6:7:8:9")).isFalse();
+        assertThat(ConditionEvalUtils.isValidCidr("12345::/16")).isFalse();
+        assertThat(ConditionEvalUtils.isValidCidr("fe80::1%/10")).isFalse();
+    }
 }

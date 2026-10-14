@@ -13,8 +13,21 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 真正路径起点（相对路径形态、完整值匹配）——URL 其他位置出现该子串不注入：
  * 异域同路径（绝对 URL 指向任意授权域）、前缀包含（子串嵌在更长路径中）、
  * query 携带（子串仅在 query 参数值里）。三反例在旧 indexOf 实现下失败（红跑实证）。
+ * 外评 P2-1 处置后注入以目标接口为判据——模板须挂 SDK 接口元信息（真实链路经
+ * MethodMetadata 构造自绑定 + RequestTemplate 拷贝构造保留，字节码实证）。
  */
 class FeignCredentialInterceptorPathStartTest {
+
+    /** 与 SDK 客户端同简名的桩接口（configKey=简名#方法），驱动接口绑定门。 */
+    interface PermissionFeignClient {
+        @feign.RequestLine("POST /stub")
+        void stub();
+    }
+
+    private static feign.MethodMetadata sdkMetadata() {
+        return new feign.Contract.Default()
+            .parseAndValidateMetadata(PermissionFeignClient.class).get(0);
+    }
 
     private FeignCredentialInterceptor interceptor;
 
@@ -30,6 +43,7 @@ class FeignCredentialInterceptorPathStartTest {
         RequestTemplate template = new RequestTemplate();
         template.method("POST");
         template.uri(uri);
+        template.methodMetadata(sdkMetadata());
         interceptor.apply(template);
         return template;
     }

@@ -15,6 +15,17 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 class FeignCredentialInterceptorTest {
 
+    /** 与 SDK 客户端同简名的桩接口（configKey=简名#方法），驱动接口绑定门（外评 P2-1 处置）。 */
+    interface PermissionFeignClient {
+        @feign.RequestLine("POST /stub")
+        void stub();
+    }
+
+    private static feign.MethodMetadata sdkMetadata() {
+        return new feign.Contract.Default()
+            .parseAndValidateMetadata(PermissionFeignClient.class).get(0);
+    }
+
     private FeignCredentialInterceptor interceptor(String credentialId, String credentialSecret,
                                                    String allowInsecure) {
         FeignCredentialInterceptor interceptor = new FeignCredentialInterceptor();
@@ -35,6 +46,7 @@ class FeignCredentialInterceptorTest {
             RequestTemplate template = new RequestTemplate();
             template.method(endpoint.method());
             template.uri(endpoint.path());
+            template.methodMetadata(sdkMetadata());
 
             interceptor.apply(template);
 
@@ -58,6 +70,7 @@ class FeignCredentialInterceptorTest {
             RequestTemplate template = new RequestTemplate();
             template.method("POST");
             template.uri(path);
+            template.methodMetadata(sdkMetadata());
 
             interceptor.apply(template);
 
@@ -78,6 +91,7 @@ class FeignCredentialInterceptorTest {
         RequestTemplate hit = new RequestTemplate();
         hit.method("POST");
         hit.uri("/api/access/resource-entity/full-sync");
+        hit.methodMetadata(sdkMetadata());
         interceptor.apply(hit);
         hit.target("http://access-service:9100");
         assertThat(hit.headers()).containsKey(FeignCredentialInterceptor.HEADER_CREDENTIAL_ID);
@@ -85,6 +99,7 @@ class FeignCredentialInterceptorTest {
         RequestTemplate miss = new RequestTemplate();
         miss.method("POST");
         miss.uri("/api/access/service-credential/list");
+        miss.methodMetadata(sdkMetadata());
         interceptor.apply(miss);
         miss.target("http://access-service:9100");
         assertThat(miss.headers()).doesNotContainKey(FeignCredentialInterceptor.HEADER_CREDENTIAL_ID);
@@ -99,6 +114,7 @@ class FeignCredentialInterceptorTest {
         RequestTemplate template = new RequestTemplate();
         template.method("POST");
         template.uri("/api/access/resource-entity/full-sync");
+        template.methodMetadata(sdkMetadata());
         template.header(FeignCredentialInterceptor.HEADER_CREDENTIAL_ID, "sc-explicit");
         template.header(FeignCredentialInterceptor.HEADER_CREDENTIAL_SECRET, "sk-explicit");
 
@@ -153,6 +169,7 @@ class FeignCredentialInterceptorTest {
         var request = new RequestTemplate();
         request.method("GET");
         request.uri("/api/access/auth/check");
+        request.methodMetadata(sdkMetadata());
         interceptor("sc-a", "sk-b", "true").apply(request);
         assertThat(request.headers()).doesNotContainKey("X-Credential-Secret");
     }

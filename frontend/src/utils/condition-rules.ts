@@ -61,7 +61,8 @@ let _itemId = 1;
 /**
  * CIDR 输入合法性（基础形态校验，语义对齐 perm-common ConditionEvalUtils.isValidCidr）：
  * 合法 = IPv4/IPv6 字面量（无 /），或 字面量/前缀（1-3 位纯数字且 ≤ 地址族位数，IPv4=32、IPv6=128）。
- * 负数/带符号/超界前缀与主机名样串均非法。后端写入口为权威校验，前端仅提前拦截明显非法输入。
+ * 负数/带符号/超界/全角数字前缀与主机名样串、结构非法 IPv6（如 :::）均非法
+ * （外评 P2-2：字符集校验升级为结构校验）。后端写入口为权威校验，前端仅提前拦截明显非法输入。
  */
 export function isValidCidrInput(value: string): boolean {
   const v = value.trim();
@@ -75,14 +76,57 @@ export function isValidCidrInput(value: string): boolean {
   return /^\d{1,3}$/.test(prefix) && Number(prefix) <= bits;
 }
 
-/** 数值地址字面量形态判定：IPv4=严格点分四段（每段 0-255）；IPv6=仅 [0-9a-fA-F:.%] 且含冒号。返回位数，非法 -1。 */
+/** 数值地址字面量形态判定：IPv4=严格点分四段（每段 0-255）；IPv6=结构合法字面量。返回位数，非法 -1。 */
 function literalAddressBits(literal: string): number {
   if (literal.includes(":")) {
-    return /^[0-9a-fA-F:.%]+$/.test(literal) ? 128 : -1;
+    return isValidIpv6Literal(literal) ? 128 : -1;
   }
   const octets = literal.split(".");
   if (octets.length !== 4) return -1;
   return octets.every(o => /^\d{1,3}$/.test(o) && Number(o) <= 255) ? 32 : -1;
+}
+
+/** IPv6 结构校验（对齐 Java 单源算法）：[地址[%zone]]，8 组 1-4 位 hex（或 6 组+IPv4 尾）或恰一个 :: 且两侧组数 ≤7。 */
+function isValidIpv6Literal(literal: string): boolean {
+  let address = literal;
+  const zoneIndex = address.indexOf("%");
+  if (zoneIndex >= 0) {
+    if (zoneIndex === literal.length - 1) return false;
+    address = address.slice(0, zoneIndex);
+  }
+  if (!address) return false;
+  const compressIndex = address.indexOf("::");
+  if (compressIndex >= 0) {
+    if (address.indexOf("::", compressIndex + 1) >= 0) return false;
+    const left = ipv6Groups(address.slice(0, compressIndex));
+    const right = ipv6Groups(address.slice(compressIndex + 2));
+    if (left < 0 || right < 0) return false;
+    return left + right <= 7;
+  }
+  return ipv6Groups(address) === 8;
+}
+
+/** 冒号侧组数：空串=0；每组 1-4 位 hex；仅最后一组可为 IPv4 点分尾（计 2 组）；违规 -1。 */
+function ipv6Groups(side: string): number {
+  if (!side) return 0;
+  const parts = side.split(":");
+  let count = 0;
+  for (let i = 0; i < parts.length; i++) {
+    const group = parts[i];
+    if (!group) return -1;
+    if (group.includes(".")) {
+      if (i !== parts.length - 1) return -1;
+      const octets = group.split(".");
+      if (octets.length !== 4) return -1;
+      if (!octets.every(o => /^\d{1,3}$/.test(o) && Number(o) <= 255))
+        return -1;
+      count += 2;
+    } else {
+      if (!/^[0-9a-fA-F]{1,4}$/.test(group)) return -1;
+      count++;
+    }
+  }
+  return count;
 }
 
 /** 创建空规则（新建用） */

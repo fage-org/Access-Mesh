@@ -155,6 +155,18 @@ describe("condition-rules", () => {
       }
     });
 
+    it("should enforce IPv6 structure and ASCII digits (外评 P2-2)", () => {
+      // 结构非法但字符集合法的 IPv6 拒绝；合法结构（压缩/全组/zone）保持
+      expect(isValidCidrInput(":::/64")).toBe(false);
+      expect(isValidCidrInput("::")).toBe(true);
+      expect(isValidCidrInput("::1")).toBe(true);
+      expect(isValidCidrInput("1:2:3:4:5:6:7:8:9")).toBe(false);
+      expect(isValidCidrInput("fe80::1%eth0/10")).toBe(true);
+      // 全角数字拒绝（JS \d 仅 ASCII，锁行为）
+      expect(isValidCidrInput("１.２.３.４/24")).toBe(false);
+      expect(isValidCidrInput("10.0.0.0/２４")).toBe(false);
+    });
+
     it("should reject negative/over-family/signed prefixes and hostname forms", () => {
       for (const v of [
         "192.168.0.0/-1",

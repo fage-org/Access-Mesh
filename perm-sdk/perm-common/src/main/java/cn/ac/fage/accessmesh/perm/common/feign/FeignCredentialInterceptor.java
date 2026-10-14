@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.perm.common.feign;
 
+import feign.MethodMetadata;
 import feign.RequestInterceptor;
 import cn.ac.fage.accessmesh.common.security.M2mCredentialEndpoints;
 import feign.RequestTemplate;
@@ -66,6 +67,19 @@ public class FeignCredentialInterceptor implements RequestInterceptor {
 
     @Override
     public void apply(RequestTemplate template) {
+        // 外评 P2-1 处置（T-ACCESS-098）：Feign 子上下文按 contextId 共享——宿主
+        // FeignClientBuilder/同 contextId 客户端可进入权限客户端子上下文取得本拦截器，
+        // 故注入以<b>目标接口</b>为唯一判据（feign.Feign.configKey=接口简名#方法(…)，
+        // 字节码实证）；无接口元信息的手工模板（非 SDK 链路）不注入
+        MethodMetadata metadata = template.methodMetadata();
+        if (metadata == null || metadata.configKey() == null) {
+            return;
+        }
+        String configKey = metadata.configKey();
+        if (!configKey.startsWith("PermissionFeignClient#")
+            && !configKey.startsWith("PermissionManifestClient#")) {
+            return;
+        }
         String url = template.url();
         // T-ACCESS-098：仅相对路径形态参与匹配——绝对 URL 形态被 feign 结构性拒绝，
         // 此处不依赖该前提重复校验 scheme；不以 '/' 开头（如空路径）一律不注入

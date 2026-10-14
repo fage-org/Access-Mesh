@@ -206,4 +206,7 @@ volumes:
   accessmesh-pgdata:
   accessmesh-redisdata:
   accessmesh-nacosdata:
+  # 物理卷名钉死（外评 P2-3）：默认卷名带项目前缀（随目录名/COMPOSE_PROJECT_NAME 漂移，
+  # 实测为 access-mesh_accessmesh-files），备份指引须可引用确定名
   accessmesh-files:
+    name: accessmesh-files

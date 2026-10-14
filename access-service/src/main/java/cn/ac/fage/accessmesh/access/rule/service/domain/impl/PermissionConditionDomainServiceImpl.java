@@ -428,12 +428,18 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
     }
 
     /**
-     * 数字片段校验：1-3 位纯数字且值不超过 max（已限 3 位，parseInt 无溢出）
+     * 数字片段校验：1-3 位 ASCII 纯数字且值不超过 max（已限 3 位，parseInt 无溢出；
+     * ASCII 限定与 ConditionEvalUtils 同口径——Character.isDigit 接受全角数字，外评 P2-2）
      */
     private boolean isDigitsInRange(String value, int max) {
-        if (value.isEmpty() || value.length() > 3
-            || !value.chars().allMatch(Character::isDigit)) {
+        if (value.isEmpty() || value.length() > 3) {
             return false;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c < '0' || c > '9') {
+                return false;
+            }
         }
         return Integer.parseInt(value) <= max;
     }

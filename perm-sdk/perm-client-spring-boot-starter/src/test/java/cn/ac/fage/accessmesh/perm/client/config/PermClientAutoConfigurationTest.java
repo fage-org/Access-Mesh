@@ -42,6 +42,10 @@ class PermClientAutoConfigurationTest {
             var template = new RequestTemplate();
             template.method("POST");
             template.uri("/api/access/auth/check");
+            // 外评 P2-1 处置后注入以目标接口为判据——挂真实 PermissionFeignClient 元信息
+            template.methodMetadata(new org.springframework.cloud.openfeign.support.SpringMvcContract()
+                .parseAndValidateMetadata(cn.ac.fage.accessmesh.perm.client.feign.PermissionFeignClient.class)
+                .stream().filter(md -> md.configKey().contains("checkAuth")).findFirst().orElseThrow());
             context.getBean(FeignCredentialInterceptor.class).apply(template);
             assertThat(template.headers()).containsKeys("X-Credential-Id", "X-Credential-Secret")
                 .doesNotContainKeys("X-Internal-Secret", "X-Service-Code", "X-Tenant-Id");

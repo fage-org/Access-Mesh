@@ -502,10 +502,12 @@ scopeAll 条目不参与展开；query-resources 的树扩展（原 `expandResou
 - **条件上下文**：`CallerContext`（调用方层：clientIp 受信提取 + attributes）＋ `RunState` 单时钟
   （请求级唯一 evaluatedAt）→ `PermEvalContext` 展平为评估输入 Map（clientIp/evaluatedAt/attributes
   三层；时间类条件优先消费 evaluatedAt，缺省回退本机时钟——网关快照重评维持既有行为）。
-- **IP 条件 CIDR 参数口径（T-PERM-109，2026-10-14）**：`ConditionEvalUtils.isValidCidr` 单源
+- **IP 条件 CIDR 参数口径（T-PERM-109，2026-10-14；外评 P2-2 处置同日）**：`ConditionEvalUtils.isValidCidr` 单源
   （判定器/条件写入口/前端基础校验同语义）——合法 = IP 数值字面量，或 字面量/前缀（前缀 1-3 位
-  纯数字且 ≤ 地址族位数，IPv4=32/IPv6=128；负数/带符号/夹带串拒绝）；地址解析仅走字面量形态
-  闸门（无 `InetAddress.getByName` 主机名解析副作用）。判定面 fail-closed：任一 CIDR 非法 →
+  ASCII 纯数字且 ≤ 地址族位数，IPv4=32/IPv6=128；负数/带符号/夹带串/全角数字拒绝）；地址解析走
+  **结构级**字面量闸门（IPv4 严格点分四段；IPv6 校验分组/压缩/zone/IPv4 映射尾——仅字符集校验会
+  放行 `:::` 等结构非法形态并经黑名单反转放行），通过闸门即保证 `InetAddress.getByName` 数值解析
+  成功、无主机名解析副作用。判定面 fail-closed：任一 CIDR 非法 →
   整个 IP 条件不满足（前置全量校验、合法项先命中不短路；黑名单不因「无匹配→反转」放行非法配置）。
   合法 /0（全族）与单地址用途保持。
 - **审计证据（T-PERM-088）**：`ConflictEvidence` 按 execution＋item＋stage＋ruleRef 聚合，根 execute
