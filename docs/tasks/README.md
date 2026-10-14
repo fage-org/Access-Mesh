@@ -34,7 +34,7 @@
 |---|---|---|---|---|
 | [T-GW-014](T-GW-014.md) | Gateway 内部密钥出站收窄（P1） | ✅ | — | ✓ |
 | [T-ACCESS-098](T-ACCESS-098.md) | SDK 凭证拦截器端点匹配与装配边界收口（P1） | ✅ | — | ✓ |
-| [T-ACCESS-099](T-ACCESS-099.md) | 预览 Compose 文件持久化卷（P1） | ⚙️ | — | ⏳ |
+| [T-ACCESS-099](T-ACCESS-099.md) | 预览 Compose 文件持久化卷（P1） | ✅ | — | ✓ |
 | [T-PERM-109](T-PERM-109.md) | 条件 CIDR 参数校验收口（P2 安全面） | ⚙️ | — | ⏳ |
 | [T-ACCESS-100](T-ACCESS-100.md) | SDK 公共依赖宿主侵入收口（P2×4 族） | ⚙️ | — | ⏳ |
 | [T-PERM-110](T-PERM-110.md) | 认证与登录安全细节批（P2×4 族） | ⚙️ | — | ⏳ |

@@ -66,7 +66,7 @@ Nacos(8848)：服务注册/配置（三服务共同依赖）
 
 - 唯一权威 DDL：`docs/design/schema/access-service.sql`；**当前无 migration 框架**。DDL 及 bootstrap 固定图加行可能令旧库启动 fail-fast；可重建环境先按 §8 备份、演练恢复，再按 [重建手册](../design/access-service-rebuild-runbook.md) 单独重建业务库。备份用于恢复旧版本，不能把旧全库 dump 灌入新 DDL 当作升级。持有不可丢数据的环境须停在升级前，不自动执行销毁。避免 `docker compose down -v` 连带删除 Redis/Nacos 卷。
 - 空库首启顺序：DDL → access-service（bootstrap 建首管理员与固定图）→ gateway → 注册服务/签发凭证 → 配置业务服务并启动。
-- 文件存储（ADMIN_FILE）落在 access-service 本机 `${user.home}/accessmesh-files`——**单实例限制**，多实例/容器化需挂载持久卷并保持单写者。
+- 文件存储（ADMIN_FILE）落在 access-service 本机 `${user.home}/accessmesh-files`——**单实例限制**，多实例需保持单写者（共享存储为非目标）。容器化部署须挂载持久卷：全栈预览档已固定 `FILE_STORAGE_PATH=/var/lib/accessmesh/files` 并挂命名卷 `accessmesh-files`（T-ACCESS-099）——常规 `--profile app up -d --build` 重建容器后既有文件仍可下载；备份见 §8（含该卷），`down -v` 会连带删除该卷。
 
 ### 固定图种子来源切换（T-PERM-106）
 
@@ -92,7 +92,7 @@ login-log 固定图新增路由，旧图启动缺行时须先备份再重建。b
 
 ## 8. PostgreSQL 备份与恢复
 
-以下命令为 Linux/Bash 运维示例，在仓库根目录执行。备份包含用户、授权与凭据哈希，目录须仅运维账号可读；离机副本加密保存。数据库备份之外，另行备份 Nacos 配置、密钥及 ADMIN_FILE 持久目录。Redis 恢复时清空本平台专用逻辑库，重新登录；不要恢复旧会话、授权缓存和令牌。
+以下命令为 Linux/Bash 运维示例，在仓库根目录执行。备份包含用户、授权与凭据哈希，目录须仅运维账号可读；离机副本加密保存。数据库备份之外，另行备份 Nacos 配置、密钥及 ADMIN_FILE 持久目录（Compose 预览档=命名卷 `accessmesh-files`，备份形态如 `docker run --rm -v accessmesh_accessmesh-files:/data -v <备份目录>:/backup alpine tar czf /backup/accessmesh-files-$(date +%Y%m%d%H%M%S).tgz -C /data .`）。Redis 恢复时清空本平台专用逻辑库，重新登录；不要恢复旧会话、授权缓存和令牌。
 
 ### 8.1 定时备份
 

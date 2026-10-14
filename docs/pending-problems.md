@@ -1,7 +1,7 @@
 ---
 doc_type: problems
 title: 待解决问题清单
-counter: Q-077           # 已分配最大问题号；分配后冻结，不复用不重排
+counter: Q-078           # 已分配最大问题号；分配后冻结，不复用不重排
 last_updated: 2026-10-14
 ---
 
@@ -250,6 +250,19 @@ last_updated: 2026-10-14
 **影响**：多关系形态下管理员撤错来源且界面显示「暂无角色」；单来源（纯 null）不暴露。口径冲突未收敛前，前端行为无权威依据。
 
 **设想方向（未定案）**：先拍板支持口径：A=支持多关系（§10.4 为准）→ 前端携带 row.relationId 逐行撤回、列表 key 含关系、§10.3 旧字段说明同步收敛；B=BASIC 仅 null（§10.1.1 字段说明为准）→ 写入限制与存量受控清理路径。拍板后转任务。
+
+## Q-078 文件能力标准部署下整体不可达（准入路由未登记 + ADMIN_FILE 授权无种子 + 前端无消费面）
+
+- **状态**：open
+- **登记**：2026-10-14
+- **来源**：T-ACCESS-099 真实容器验证过程中发现并逐层核实（验证环境=全栈预览 Compose 档）
+- **关联**：—（拍板后转任务；T-ACCESS-099 仅修物理卷持久化，不含本条可达性）
+
+**现象与证据**：三层各自独立核实——①网关面：`resource_api_mapping` 中 access-service 222 条路由零 file 路由（`BootstrapGraphDefinition` 112 条 ApiRoute 同样零 file），Gateway 准入「未注册恒 DENY」，经网关 `POST /api/access/file/upload` 恒 403「无接口访问权限」（requestId bcef52af，2026-10-14 实测）；②服务面：全部租户 `role_resource_permission` 零 ADMIN_FILE 行（type_value=25），无任何角色可通过 ADMIN_FILE 门禁（实测 403「权限不足」；验证时按 `FileServiceSecurityPgIT` 同款夹具插四条单操作位 MANUAL 行后才放行）；③前端面：`frontend/src/api/` 无 file 消费文件。契约面 `HttpApiPathSnapshotTest` 含全部 5 个 file 端点（upload/download/delete/detail/page）。
+
+**影响**：文件夹级授权能力（T-ADMIN-025 全链）与文件上传下载在标准部署（Gateway 单入口 + 租户统一模板开通）下对任何人都不可用，仅测试可经服务层直连 + 夹具授权触达；契约册登记的端点实际不可达。
+
+**设想方向（未定案）**：产品拍板三选一：A=补种子（file 路由入 bootstrap 固定图 + 统一模板给租户管理员 ADMIN_FILE 类型级或预置文件夹实例授权）→ 能力随标准开通可用；B=声明休眠（extension-only：文档明示需接入方自行登记路由与授权，契约册标注可达前提）；C=裁剪（若产品决定不做文件能力则整体退役，含 T-ADMIN-025 授权链与文档清扫）。拍板后转任务。
 
 ## 已收敛（含合并索引；详情在关联问题/任务或历史来源）
 

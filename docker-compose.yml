@@ -100,8 +100,14 @@ services:
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-}
       ACCESSMESH_SIGNATURE_SECRET: ${ACCESSMESH_SIGNATURE_SECRET:-}
       PERM_INTERNAL_SECRET: ${PERM_INTERNAL_SECRET:-}
+      # 文件能力物理存储根目录（T-ACCESS-099）：固定容器内路径 + 命名卷持久化——
+      # 常规 --profile app up -d --build 重建容器后既有文件仍可下载；
+      # 多实例共享文件存储维持非目标（单实例本地盘边界，见 deployment.md 备份指引）
+      FILE_STORAGE_PATH: /var/lib/accessmesh/files
     ports:
       - "127.0.0.1:9100:9100"
+    volumes:
+      - accessmesh-files:/var/lib/accessmesh/files
     # 健康检查走独立管理端口（容器内回环；T-PERM-094 管理端口与主端口分离，同 gateway 先例）
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:9101/actuator/health || exit 1"]
@@ -200,3 +206,4 @@ volumes:
   accessmesh-pgdata:
   accessmesh-redisdata:
   accessmesh-nacosdata:
+  accessmesh-files:

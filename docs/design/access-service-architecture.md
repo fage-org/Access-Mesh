@@ -4,7 +4,7 @@ title: access-service 目标架构与归并约束
 status: adopted
 domain: cross-service
 supersedes: docs/archive/2026-08-15/admin-permission-sync.md
-last_reviewed: 2026-10-08
+last_reviewed: 2026-10-14
 ---
 
 # access-service 目标架构与归并约束
@@ -589,6 +589,9 @@ bootstrap 的 §14.4 最小集（`RESOURCE:VIEW`/`OPERATION:VIEW` scopeAll + `RO
 
 - **已知限制**：多实例部署下本地盘不可共享——元数据（`sys_file`）在共享 PostgreSQL，物理文件在实例本地盘，
   跨实例上传/下载/删除会找不到文件（读失败/清理失败保留孤儿）。多实例部署场景需绑定单实例入口或等待共享存储方案。
+- **容器化持久化（T-ACCESS-099，2026-10-14）**：全栈预览 Compose 档固定 `FILE_STORAGE_PATH=/var/lib/accessmesh/files`
+  并挂载命名卷 `accessmesh-files`——单实例**容器重建**不再丢失有效文件（此前可写层内容随旧容器消失，PG 元数据与授权仍在但内容不可下载）。
+  该修复不改变本节单实例本地盘边界：多实例**共享**存储仍为非目标，卷亦不提供跨实例一致性。
 - **档位决策（用户确认，安全最小修复）**：不建对象存储抽象层、不做共享存储/分布式文件锁、不做孤儿文件自动回收调度
   （清理失败仅记 WARN，孤儿可人工清）。
 - **安全终态（同任务收口）**：全接口 `ADMIN_FILE` 门禁（upload=CREATE、detail/page/download=VIEW、delete=DELETE）；
