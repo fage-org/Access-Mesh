@@ -503,8 +503,10 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
     /**
      * 条件规则写入口径校验（T-PERM-048 双轨共享：管理页 create/update 与授权内联轨同源）。
      * <p>
-     * ① JSON 语法合法；② gatewayEvaluable=true 时 items[].type 全部在白名单内
-     * （T-PERM-017 C2.5，含未知类型默认 fail-close）。
+     * ① JSON 语法合法；② 外部输入路径的 IP 黑白名单 items 的 cidrs 每项经共享单源
+     * {@link ConditionEvalUtils#isValidCidr} 校验（T-PERM-109：负前缀/超地址族位数/
+     * 主机名样串拒绝；DB 读回旧规则不回溯拦截，运行时判定器同源 fail-closed）；
+     * ③ gatewayEvaluable=true 时 items[].type 全部在白名单内（T-PERM-017 C2.5，含未知类型默认 fail-close）。
      * </p>
      */
     @Override
@@ -526,26 +528,72 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
                 throw new BizException(AccessErrorCode.PERM_INVALID_PARAM.getCode(), ex.getMessage());
             }
         }
-        if (!gatewayEvaluable) {
-            return;
-        }
         if (conditionRules == null || conditionRules.isBlank()) {
-            throw new BizException(AccessErrorCode.CONDITION_RULES_INVALID.getCode(),
-                "gatewayEvaluable=true 但 conditionRules 为空");
+            if (gatewayEvaluable) {
+                throw new BizException(AccessErrorCode.CONDITION_RULES_INVALID.getCode(),
+                    "gatewayEvaluable=true 但 conditionRules 为空");
+            }
+            return;
         }
         JsonNode tree;
         try {
             tree = objectMapper.readTree(conditionRules);
         } catch (Exception e) {
+            // 解析失败仅 gatewayEvaluable=true 构成写入口违约（旧口径保持）；语法段已过，
+            // 非 gateway 轨实际不可达——不新增失败面
+            if (!gatewayEvaluable) {
+                return;
+            }
             throw new BizException(AccessErrorCode.CONDITION_RULES_INVALID.getCode(),
                 "conditionRules 解析失败: " + e.getMessage());
         }
-        if (!ConditionEvalUtils.isGatewayPushable(tree)) {
+        // T-PERM-109：CIDR 参数校验仅对外部输入生效（与输入限额同口径）——DB 读回旧规则
+        // 的仅改名等更新不因存量非法值被拦（运行时判定器对非法 CIDR 已 fail-closed）
+        if (externalInput) {
+            assertCidrParamsValid(tree);
+        }
+        if (gatewayEvaluable && !ConditionEvalUtils.isGatewayPushable(tree)) {
             throw new BizException(AccessErrorCode.CONDITION_RULES_INVALID.getCode(),
                 "gatewayEvaluable=true 仅允许 logic ∈ "
                     + ConditionEvalUtils.VALID_LOGIC
                     + "（或缺省=AND）且 items[].type ∈ "
                     + ConditionEvalUtils.GATEWAY_PUSHABLE_TYPES + " 的规则");
+        }
+    }
+
+    /**
+     * IP 黑白名单 CIDR 参数写入口校验（T-PERM-109）：items[].params.cidrs 每项经
+     * {@link ConditionEvalUtils#isValidCidr} 共享单源校验——与判定器同语义
+     * （负前缀不再「匹配一切」、黑名单超界值不再经反转放行）。空 cidrs/非数组形态
+     * 不在此扩权（留运行时 fail-closed，与 maskParams 同口径）。
+     */
+    private void assertCidrParamsValid(JsonNode tree) {
+        JsonNode items = tree.get("items");
+        if (items == null || !items.isArray()) {
+            return;
+        }
+        for (JsonNode item : items) {
+            if (item == null) {
+                continue;
+            }
+            String type = item.has("type") ? item.get("type").asText() : "";
+            if (!PermConstants.ConditionType.IP_WHITELIST.equals(type)
+                && !PermConstants.ConditionType.IP_BLACKLIST.equals(type)) {
+                continue;
+            }
+            JsonNode params = item.get("params");
+            JsonNode cidrs = params == null ? null : params.get("cidrs");
+            if (cidrs == null || !cidrs.isArray() || cidrs.isEmpty()) {
+                continue;
+            }
+            for (JsonNode cidr : cidrs) {
+                String text = cidr == null ? null : cidr.asText();
+                if (!ConditionEvalUtils.isValidCidr(text)) {
+                    throw new BizException(AccessErrorCode.CONDITION_RULES_INVALID.getCode(),
+                        "IP 条件 cidrs 含非法 CIDR: " + text
+                            + "（须为 IP 字面量或 字面量/前缀；前缀为 0-地址族位数〔IPv4=32、IPv6=128〕的纯数字）");
+                }
+            }
         }
     }
 

@@ -179,6 +179,79 @@ class ConditionAppServiceImplTest {
     }
 
     @Nested
+    class CreateConditionCidrParamGuard {
+
+        private void givenCreatePermission() {
+            when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq((String) null), any()))
+                .thenReturn(true);
+        }
+
+        @Test
+        void shouldReject_whenCidrPrefixIsNegative() {
+            givenCreatePermission();
+            // T-PERM-109：白名单负前缀旧实现下评估「匹配一切」扩大适用范围——写入口拒绝
+            String rules = "{\"logic\":\"AND\",\"items\":["
+                + "{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"192.168.0.0/-1\"]}}]}";
+            ConditionCreateReq req = new ConditionCreateReq("c-neg", "n", rules, true, false, "d");
+
+            assertThatThrownBy(() -> service.createCondition(TENANT_ID, req, OPERATOR_ID))
+                .isInstanceOf(BizException.class)
+                .satisfies(e -> assertThat(((BizException) e).getErrorCode())
+                    .isEqualTo(AccessErrorCode.CONDITION_RULES_INVALID.getCode()));
+        }
+
+        @Test
+        void shouldReject_whenCidrPrefixExceedsAddressFamily() {
+            givenCreatePermission();
+            // T-PERM-109：黑名单 /33 旧实现下评估经「无匹配→反转」退化为放行——写入口拒绝
+            String rules = "{\"logic\":\"AND\",\"items\":["
+                + "{\"type\":\"IP_BLACKLIST\",\"params\":{\"cidrs\":[\"192.168.0.0/33\"]}}]}";
+            ConditionCreateReq req = new ConditionCreateReq("c-over", "n", rules, true, false, "d");
+
+            assertThatThrownBy(() -> service.createCondition(TENANT_ID, req, OPERATOR_ID))
+                .isInstanceOf(BizException.class)
+                .satisfies(e -> assertThat(((BizException) e).getErrorCode())
+                    .isEqualTo(AccessErrorCode.CONDITION_RULES_INVALID.getCode()));
+        }
+
+        @Test
+        void shouldReject_whenCidrIsHostnameForm() {
+            givenCreatePermission();
+            String rules = "{\"logic\":\"AND\",\"items\":["
+                + "{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"evil.example.com/24\"]}}]}";
+            ConditionCreateReq req = new ConditionCreateReq("c-host", "n", rules, true, false, "d");
+
+            assertThatThrownBy(() -> service.createCondition(TENANT_ID, req, OPERATOR_ID))
+                .isInstanceOf(BizException.class)
+                .satisfies(e -> assertThat(((BizException) e).getErrorCode())
+                    .isEqualTo(AccessErrorCode.CONDITION_RULES_INVALID.getCode()));
+        }
+
+        @Test
+        void shouldReject_whenAnyEntryInvalidAmongValidOnes() {
+            givenCreatePermission();
+            String rules = "{\"logic\":\"AND\",\"items\":["
+                + "{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\",\"192.168.0.0/-1\"]}}]}";
+            ConditionCreateReq req = new ConditionCreateReq("c-mixed", "n", rules, true, false, "d");
+
+            assertThatThrownBy(() -> service.createCondition(TENANT_ID, req, OPERATOR_ID))
+                .isInstanceOf(BizException.class);
+        }
+
+        @Test
+        void shouldAccept_legitPrefixZeroAndSingleAddress() {
+            givenCreatePermission();
+            String rules = "{\"logic\":\"OR\",\"items\":["
+                + "{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"0.0.0.0/0\",\"10.1.2.3\"]}},"
+                + "{\"type\":\"IP_BLACKLIST\",\"params\":{\"cidrs\":[\"2001:db8::/32\"]}}]}";
+            ConditionCreateReq req = new ConditionCreateReq("c-legit", "n", rules, true, false, "d");
+
+            assertThatCode(() -> service.createCondition(TENANT_ID, req, OPERATOR_ID))
+                .doesNotThrowAnyException();
+        }
+    }
+
+    @Nested
     class UpdateConditionGatewayEvaluable {
 
         @Test

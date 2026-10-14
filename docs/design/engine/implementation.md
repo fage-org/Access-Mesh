@@ -3,7 +3,7 @@ doc_type: design
 title: 权限中心 — 核心功能实现设计
 status: adopted
 domain: access-service
-last_reviewed: 2026-10-06
+last_reviewed: 2026-10-14
 ---
 
 # 权限中心 — 核心功能实现设计
@@ -265,7 +265,7 @@ public interface PermissionConditionDomainService {
 }
 ```
 
-条件双轨制（T-PERM-048 五项定案 2026-09-11，详见 [历史定案原文](../../archive/2026-09-26/decision-registry-before.md)）：`permission_condition.source` 区分 MANAGED（管理页轨——ConditionAppService CRUD，update/remove 实例级门禁 CONDITION:UPDATE/DELETE@{code} 经 resource_entity(CONDITION) 投影解析，删除引用守卫 20059，有实例投影）与 INLINE（内联轨——apply-grant-plan 携带 inlineCondition 同事务创建/编辑/回收，由一个 MANUAL 授权拥有，可被其多个系统派生 AUTO_DEP 行按同一条件身份引用；禁止用户显式共享，回收须确认零有效引用（见 [自动授权设计 §6.4](../dependency-auto-grant.md#64-diff撤销与条件回收)），code 自动生成 inline- 前缀，enabled 恒 true，不投影；管理面防线 20060 三面 + conditionCode 引用轨值域焊死 MANAGED）。条件写路径同事务维护 CONDITION 实例投影（`LocalProjectionDomainService.upsertConditionResource`，status 镜像 enabled）+ bootstrap 自愈补种（`backfillConditionProjections` 仅 MANAGED）。
+条件双轨制（T-PERM-048 五项定案 2026-09-11，详见 [历史定案原文](../../archive/2026-09-26/decision-registry-before.md)）：`permission_condition.source` 区分 MANAGED（管理页轨——ConditionAppService CRUD，update/remove 实例级门禁 CONDITION:UPDATE/DELETE@{code} 经 resource_entity(CONDITION) 投影解析，删除引用守卫 20059，有实例投影）与 INLINE（内联轨——apply-grant-plan 携带 inlineCondition 同事务创建/编辑/回收，由一个 MANUAL 授权拥有，可被其多个系统派生 AUTO_DEP 行按同一条件身份引用；禁止用户显式共享，回收须确认零有效引用（见 [自动授权设计 §6.4](../dependency-auto-grant.md#64-diff撤销与条件回收)），code 自动生成 inline- 前缀，enabled 恒 true，不投影；管理面防线 20060 三面 + conditionCode 引用轨值域焊死 MANAGED）。条件写路径同事务维护 CONDITION 实例投影（`LocalProjectionDomainService.upsertConditionResource`，status 镜像 enabled）+ bootstrap 自愈补种（`backfillConditionProjections` 仅 MANAGED）。写入口径含 CIDR 参数校验（T-PERM-109，2026-10-14）：外部输入路径的 IP 黑白名单 `items[].params.cidrs` 每项经 `ConditionEvalUtils.isValidCidr` 共享单源校验、非法拒 20031；DB 读回旧规则的仅改名/停用更新不回溯拦截（判定器运行时已 fail-closed，见 §3.5）。
 
 ---
 
@@ -502,6 +502,12 @@ scopeAll 条目不参与展开；query-resources 的树扩展（原 `expandResou
 - **条件上下文**：`CallerContext`（调用方层：clientIp 受信提取 + attributes）＋ `RunState` 单时钟
   （请求级唯一 evaluatedAt）→ `PermEvalContext` 展平为评估输入 Map（clientIp/evaluatedAt/attributes
   三层；时间类条件优先消费 evaluatedAt，缺省回退本机时钟——网关快照重评维持既有行为）。
+- **IP 条件 CIDR 参数口径（T-PERM-109，2026-10-14）**：`ConditionEvalUtils.isValidCidr` 单源
+  （判定器/条件写入口/前端基础校验同语义）——合法 = IP 数值字面量，或 字面量/前缀（前缀 1-3 位
+  纯数字且 ≤ 地址族位数，IPv4=32/IPv6=128；负数/带符号/夹带串拒绝）；地址解析仅走字面量形态
+  闸门（无 `InetAddress.getByName` 主机名解析副作用）。判定面 fail-closed：任一 CIDR 非法 →
+  整个 IP 条件不满足（前置全量校验、合法项先命中不短路；黑名单不因「无匹配→反转」放行非法配置）。
+  合法 /0（全族）与单地址用途保持。
 - **审计证据（T-PERM-088）**：`ConflictEvidence` 按 execution＋item＋stage＋ruleRef 聚合，根 execute
   finally 一次受控提交（`QueryAuditCollector`：非阻塞、幂等闸、提交/聚合期异常不覆盖主异常、
   A04 标 EXECUTION_ERROR_AFTER_CONFIRMED_STAGE）；单行单规则结构化摘要（远低于列上限；旧单条

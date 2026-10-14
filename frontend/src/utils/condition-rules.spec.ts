@@ -5,6 +5,7 @@ import {
   serializeRules,
   parseRules,
   summarizeRules,
+  isValidCidrInput,
   CONDITION_TYPE_LABEL
 } from "./condition-rules";
 
@@ -137,6 +138,40 @@ describe("condition-rules", () => {
       expect(summarizeRules(json)).toBe(
         `AND · 2 项（${CONDITION_TYPE_LABEL.DATE_RANGE}、${CONDITION_TYPE_LABEL.IP_WHITELIST}）`
       );
+    });
+  });
+
+  describe("isValidCidrInput（T-PERM-109 基础形态校验）", () => {
+    it("should accept legit literals and prefixes", () => {
+      for (const v of [
+        "10.1.2.3",
+        "0.0.0.0/0",
+        "10.0.0.0/8",
+        "192.168.1.0/32",
+        "2001:db8::/32",
+        "::1/128"
+      ]) {
+        expect(isValidCidrInput(v)).toBe(true);
+      }
+    });
+
+    it("should reject negative/over-family/signed prefixes and hostname forms", () => {
+      for (const v of [
+        "192.168.0.0/-1",
+        "10.0.0.0/-100",
+        "192.168.0.0/33",
+        "2001:db8::/129",
+        "10.0.0.0/+8",
+        "10.0.0.0/ 8",
+        "10.0.0.0/8x",
+        "10.0.0.0/",
+        "10.0.0.256/24",
+        "evil.example.com/24",
+        "not-an-ip",
+        ""
+      ]) {
+        expect(isValidCidrInput(v)).toBe(false);
+      }
     });
   });
 });

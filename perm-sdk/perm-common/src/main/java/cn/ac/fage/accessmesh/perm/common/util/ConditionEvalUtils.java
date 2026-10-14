@@ -89,6 +89,68 @@ public final class ConditionEvalUtils {
      */
     private ConditionEvalUtils() {}
 
+    /**
+     * CIDR 参数合法性校验（T-PERM-109 共享单源：判定器、条件写入口与前端基础校验同语义）。
+     * <p>
+     * 合法形态：IPv4/IPv6 数值字面量（无 {@code /}），或 {@code 字面量/前缀}——前缀为
+     * 1-3 位纯数字（拒绝负数/带符号/夹带任意串）且值不超过地址族位数（IPv4=32、IPv6=128）。
+     * 字面量经 {@link #literalAddressBits} 形态闸门（主机名样串拒绝，无 DNS 解析路径）。
+     * 判定器消费：非法 CIDR 不匹配任何地址（fail-closed）。
+     * </p>
+     */
+    public static boolean isValidCidr(String cidr) {
+        if (cidr == null || cidr.isBlank()) {
+            return false;
+        }
+        int slash = cidr.indexOf('/');
+        String literal = slash < 0 ? cidr : cidr.substring(0, slash);
+        int familyBits = literalAddressBits(literal);
+        if (familyBits < 0) {
+            return false;
+        }
+        if (slash < 0) {
+            return true;
+        }
+        String prefix = cidr.substring(slash + 1);
+        if (prefix.isEmpty() || prefix.length() > 3
+            || !prefix.chars().allMatch(Character::isDigit)) {
+            return false;
+        }
+        return Integer.parseInt(prefix) <= familyBits;
+    }
+
+    /**
+     * 数值地址字面量形态判定（无 DNS 副作用，T-PERM-109 取代裸 {@code InetAddress.getByName}）：
+     * IPv4 = 严格点分四段（每段 1-3 位数字且 0-255）；IPv6 = 字符集仅 [0-9a-fA-F:.%]
+     * （% 为 zone 作用域）且含冒号——含冒号的非法串不是合法主机名形态，getByName 对
+     * 通过闸门的串只做数值解析。返回地址族位数（32/128），非法返回 -1。
+     */
+    private static int literalAddressBits(String literal) {
+        if (literal.indexOf(':') >= 0) {
+            for (int i = 0; i < literal.length(); i++) {
+                char c = literal.charAt(i);
+                boolean allowed = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')
+                    || (c >= 'A' && c <= 'F') || c == ':' || c == '.' || c == '%';
+                if (!allowed) {
+                    return -1;
+                }
+            }
+            return 128;
+        }
+        String[] octets = literal.split("\\.", -1);
+        if (octets.length != 4) {
+            return -1;
+        }
+        for (String octet : octets) {
+            if (octet.isEmpty() || octet.length() > 3
+                || !octet.chars().allMatch(Character::isDigit)
+                || Integer.parseInt(octet) > 255) {
+                return -1;
+            }
+        }
+        return 32;
+    }
+
     // ===== 日期 / 时间范围评估 =====
 
     /**
@@ -196,6 +258,8 @@ public final class ConditionEvalUtils {
      * <p>
      * 判断客户端IP是否匹配CIDR列表中的任一地址。
      * 支持IPv4和IPv6地址格式。
+     * T-PERM-109：任一 CIDR 参数非法（负前缀/超地址族位数/主机名样串）→ 整个 IP 条件
+     * 不满足（fail-closed）——黑名单不因「无匹配→反转」放行非法配置。
      * </p>
      *
      * @param cidrs     CIDR地址列表（JSON数组）
@@ -206,6 +270,13 @@ public final class ConditionEvalUtils {
     public static boolean evalIpList(JsonNode cidrs, String clientIp, boolean whitelist) {
         if (clientIp == null) return false;
         if (cidrs == null || !cidrs.isArray()) return false;
+        // T-PERM-109：前置全量校验——任一非法项令整个 IP 条件不满足（先校验后匹配，
+        // 避免合法项先命中短路遮蔽后面的非法项；黑名单不因「无匹配→反转」放行非法配置）
+        for (JsonNode cidr : cidrs) {
+            if (!isValidCidr(cidr == null ? null : cidr.asText())) {
+                return false;
+            }
+        }
         for (JsonNode cidr : cidrs) {
             if (ipMatchesCidr(clientIp, cidr.asText())) {
                 return whitelist;
@@ -219,6 +290,9 @@ public final class ConditionEvalUtils {
      * <p>
      * 支持IPv4和IPv6地址的CIDR匹配。
      * CIDR格式为 network/prefixLength，如 192.168.1.0/24。
+     * T-PERM-109：参数与客户端值先经 {@link #isValidCidr} 形态闸门——非法 CIDR 不匹配
+     * 任何地址（负前缀不再「匹配一切」）；地址解析仅走数值字面量形态（无主机名 DNS
+     * 解析副作用，getByName 只在闸门之后调用）。
      * </p>
      *
      * @param ip   IP地址
@@ -227,22 +301,19 @@ public final class ConditionEvalUtils {
      */
     public static boolean ipMatchesCidr(String ip, String cidr) {
         try {
+            if (!isValidCidr(ip) || !isValidCidr(cidr)) {
+                return false;
+            }
             if (!cidr.contains("/")) {
                 return cidr.equals(ip);
             }
             String[] parts = cidr.split("/");
-            String networkIp = parts[0];
             int prefixLength = Integer.parseInt(parts[1]);
 
-            InetAddress clientAddr = InetAddress.getByName(ip);
-            InetAddress networkAddr = InetAddress.getByName(networkIp);
-
-            byte[] clientBytes = clientAddr.getAddress();
-            byte[] networkBytes = networkAddr.getAddress();
+            // 字面量形态已过闸门：getByName 无主机名解析（数值路径）
+            byte[] clientBytes = InetAddress.getByName(ip).getAddress();
+            byte[] networkBytes = InetAddress.getByName(parts[0]).getAddress();
             if (clientBytes.length != networkBytes.length) return false;
-
-            int totalBits = clientBytes.length * 8;
-            if (prefixLength > totalBits) return false;
 
             for (int i = 0; i < prefixLength; i++) {
                 int byteIndex = i / 8;

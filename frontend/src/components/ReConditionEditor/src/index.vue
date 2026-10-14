@@ -7,6 +7,7 @@ import {
   createEmptyItem,
   serializeRules,
   validateRulesComplete,
+  isValidCidrInput,
   type ConditionRules,
   type ConditionItem
 } from "@/utils/condition-rules";
@@ -94,8 +95,21 @@ function addCidr(item: ConditionItem) {
   const raw = (cidrsInput.value[item._id] ?? "").trim();
   if (!raw) return;
   if (!item.params.cidrs) item.params.cidrs = [];
-  // 支持逗号/换行/空格分隔批量输入
-  const parts = raw.split(/[\s,]+/).filter(Boolean);
+  // 支持逗号/换行/空格分隔批量输入；T-PERM-109：基础形态校验——非法片段拦截不录入
+  // （负数/超界前缀、主机名样串；后端写入口为权威校验）
+  const invalid = raw
+    .split(/[\s,]+/)
+    .filter(Boolean)
+    .filter(p => !isValidCidrInput(p));
+  if (invalid.length > 0) {
+    message(
+      `忽略非法 CIDR：${invalid.join("、")}（前缀须为 0-${invalid.some(p => p.includes(":")) ? 128 : 32} 位数字）`
+    );
+  }
+  const parts = raw
+    .split(/[\s,]+/)
+    .filter(Boolean)
+    .filter(isValidCidrInput);
   for (const p of parts) {
     if (!item.params.cidrs.includes(p)) item.params.cidrs.push(p);
   }

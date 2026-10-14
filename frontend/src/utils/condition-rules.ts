@@ -56,6 +56,35 @@ export type ConditionRules = {
 
 let _itemId = 1;
 
+// ========== CIDR 输入基础校验（T-PERM-109） ==========
+
+/**
+ * CIDR 输入合法性（基础形态校验，语义对齐 perm-common ConditionEvalUtils.isValidCidr）：
+ * 合法 = IPv4/IPv6 字面量（无 /），或 字面量/前缀（1-3 位纯数字且 ≤ 地址族位数，IPv4=32、IPv6=128）。
+ * 负数/带符号/超界前缀与主机名样串均非法。后端写入口为权威校验，前端仅提前拦截明显非法输入。
+ */
+export function isValidCidrInput(value: string): boolean {
+  const v = value.trim();
+  if (!v) return false;
+  const slash = v.indexOf("/");
+  const literal = slash < 0 ? v : v.slice(0, slash);
+  const bits = literalAddressBits(literal);
+  if (bits < 0) return false;
+  if (slash < 0) return true;
+  const prefix = v.slice(slash + 1);
+  return /^\d{1,3}$/.test(prefix) && Number(prefix) <= bits;
+}
+
+/** 数值地址字面量形态判定：IPv4=严格点分四段（每段 0-255）；IPv6=仅 [0-9a-fA-F:.%] 且含冒号。返回位数，非法 -1。 */
+function literalAddressBits(literal: string): number {
+  if (literal.includes(":")) {
+    return /^[0-9a-fA-F:.%]+$/.test(literal) ? 128 : -1;
+  }
+  const octets = literal.split(".");
+  if (octets.length !== 4) return -1;
+  return octets.every(o => /^\d{1,3}$/.test(o) && Number(o) <= 255) ? 32 : -1;
+}
+
 /** 创建空规则（新建用） */
 export function createEmptyRules(): ConditionRules {
   return { logic: "AND", items: [] };
