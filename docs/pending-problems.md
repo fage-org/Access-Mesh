@@ -1,8 +1,8 @@
 ---
 doc_type: problems
 title: 待解决问题清单
-counter: Q-069           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-10-08
+counter: Q-077           # 已分配最大问题号；分配后冻结，不复用不重排
+last_updated: 2026-10-14
 ---
 
 # 待解决问题清单（pending problems）
@@ -138,6 +138,118 @@ last_updated: 2026-10-08
 **现象与证据**：`BusinessKeyUtil.apiRouteResourceKey(method, path, resourceCode)` 以 `|` 拼三段做映射同步的内存索引，消费点 [MappingSyncHandlerImpl.java:79/90/95](../access-service/src/main/java/cn/ac/fage/accessmesh/access/resource/service/domain/impl/MappingSyncHandlerImpl.java)（存量行索引、incoming 活跃集、按资源 id 拼回查）。`pathPattern` 为 URL 自由文本（`|` 是合法 URL 字符无需转义）、`resourceCode` 自由文本且处尾段之前——与 Q-044 已修的「多个自由文本段相邻拼接」同形态。
 
 **影响与边界**：碰撞需同时满足「某行 path 含 `|`」且「同方法下另一行字段恰可拼出同串」（如 `POST|/api/x|y` 与 path=`/api/x`、resourceCode=`y` 的行），当前实际注册路径未出现该形态；后果为同步过期清理误判（漏删/误删映射行），不涉及权限判定面。修法方向可循 Q-044 元组化先例（record 键或 percent-encode 中段）；属 Q-044 设想「内部消费者全量迁移分开评估」范围，随问题清单批次排期。
+
+<a id="q-070"></a>
+## Q-070 模板 SSO 示例与「记住我」死分支裁剪评估
+
+- **状态**：open
+- **登记**：2026-10-14
+- **来源**：2026-10-12~14 外部持续审查（过度设计候选），外部模型核实（2026-10-13）+ 主代理亲核（2026-10-14）
+- **关联**：[scenario-audit-remediation-plan](plans/scenario-audit-remediation-plan.md)（同批修复计划）
+
+**现象与证据**：`frontend/src/utils/sso.ts:14-57` 为 URL 传 username/roles/accessToken 的自执行示例，唯一引用（`router/index.ts:2`）已注释；`store/modules/user.ts:83-88` 两个设置动作无调用方；login 设计明确无「记住我」UI，`utils/auth.ts:69-87`（setToken）仍消费 isRemembered/loginDay 携带可变记住天数分支。
+
+**影响**：二次开发者可能把示例误当推荐 SSO 接入；死动作与过时注释增加会话模块阅读成本。核实结论：需拆分处理——`multipleTabsKey` 有真实消费点须保留，不可整文件删除。
+
+**设想方向（未定案）**：删未加载 sso 文件与注释入口；无人设置的 remembered 分支收回固定语义；评估结果拍板后转任务或 closed。
+
+<a id="q-071"></a>
+## Q-071 顶栏虚构消息与待办红点裁剪评估
+
+- **状态**：open
+- **登记**：2026-10-14
+- **来源**：2026-10-12~14 外部持续审查（过度设计候选），外部模型核实与主代理亲核成立
+- **关联**：[scenario-audit-remediation-plan](plans/scenario-audit-remediation-plan.md)
+
+**现象与证据**：`layout/components/lay-notice/data.ts:21-107` 硬编码「李白回复你」等示例消息/待办；`lay-notice/index.vue:3-11` 直接计算红点，两种导航布局均实际渲染；无 notice API 封装。
+
+**影响**：新租户登录即见无关消息、过期任务与红点，无法据此完成真实工作；亦模糊「前端为模板 mock」边界的具体产品表现。
+
+**设想方向（未定案）**：删示例数据并暂隐藏入口，或改明确空状态/演示标识；有真实受众需求后才接通，不为消红点实施消息中心。
+
+<a id="q-072"></a>
+## Q-072 iframe 缓存模板 hash 刷新缺陷（原审查 022 号降级项）
+
+- **状态**：open
+- **登记**：2026-10-14
+- **来源**：2026-10-12~14 外部持续审查（原缺陷候选经核实降级为条件性裁剪候选：现役 initRouter 不传 frameSrc、后端固定 keepAlive=false，无启用入口）
+- **关联**：[scenario-audit-remediation-plan](plans/scenario-audit-remediation-plan.md)
+
+**现象与证据**：`layout/frame.vue:68-70` 先 `new URL` 解析又弃用，直接在原字符串尾部拼 `?t=`/`&t=`——URL 含 hash 时刷新参数落入 fragment，按 HTML 导航标准为同文档导航，不重新加载文档（探针实证 `document-url-changed=false`）。
+
+**影响**：仅二次开发者显式启用模板 iframe 缓存后成立：刷新动作对带 hash 的子应用不可靠。现役菜单不受影响。
+
+**设想方向（未定案）**：先按真实扩展需求决定保留与否；若启用，改用已创建 URL 对象经 searchParams 设参再输出 href。相邻闲置面（addAsyncRoutes 非空注入支路无生产输入）可同批评估裁剪。
+
+<a id="q-073"></a>
+## Q-073 已完成导出在源资源撤权后是否仍可领取
+
+- **状态**：open
+- **登记**：2026-10-14
+- **来源**：2026-10-12~14 外部持续审查（设计边界），探针实证行为 + 主代理核实
+- **关联**：[T-ACCESS-102](tasks/T-ACCESS-102.md)（同示例服务相邻修复，不含本项）
+
+**现象与证据**：example-service `ReportController` export/status 仅核对作业归属（tenant+user）返回 DONE 内容，不重查该报表当前 EXPORT 权限（探针：撤权后 `returned-content-after-revocation=true`）。契约 §25.7 一般规则要求返回实际数据前检查并禁止异步永久复用准入，但示例落地描述只明确提交/执行时点检查——规则与实现间的生命周期边界未定。
+
+**影响**：撤权用户凭旧 jobId 可再领取已完成内容；该领取是新请求，不属「无法撤回已送达数据」的已接受范畴。是否接受由产品定。
+
+**设想方向（未定案）**：A=领取含内容结果时按 job.reportCode 做当前 EXPORT 检查（纯状态元数据仍只核归属）；B=明确「产物归提交者独立领取」边界并写入契约与指南。拍板后转任务。
+
+<a id="q-074"></a>
+## Q-074 删除服务后同码重建登记复活原凭证
+
+- **状态**：open
+- **登记**：2026-10-14
+- **来源**：2026-10-12~14 外部持续审查（设计边界），探针三态实证（原凭证验密 true→删服务 false→同码新登记 true）
+- **关联**：—
+
+**现象与证据**：`ServiceConfigAppServiceImpl.java:319` 删除服务登记不回收 service_credential；service_config 唯一索引仅覆盖未删行，同码可重新登记；凭证验密按 tenantId+serviceCode 查当前启用登记，不绑定原登记行身份。
+
+**影响**：若 serviceCode 表示退役身份，旧部署持原 secret 在同码新登记后重新获得查询/同步能力；若表示永久逻辑身份，则属可接受恢复。现行文档未明确该语义。
+
+**设想方向（未定案）**：A=删除即退役：删除事务内吊销对应凭证（停用/恢复仍保留）；B=逻辑身份保留：删除确认与恢复指引明示旧凭证会复活并给出先停凭证的操作顺序。拍板后转任务。
+
+<a id="q-075"></a>
+## Q-075 内置 access-service 登记项可停用自锁管理入口
+
+- **状态**：open
+- **登记**：2026-10-14
+- **来源**：2026-10-12~14 外部持续审查（设计边界），探针实证（停用/删除两态均 routes=0、恢复请求自身 DENY）
+- **关联**：[Q-059](#q-059)（共同失能后果、不同触发面）
+
+**现象与证据**：服务配置 upsert 在 SERVICE 类型 MANAGE 通过后允许把内置 access-service 写 status=0，删除亦未排除；该服务准入同时供 Gateway `/api/access/**` 消费——停用后本租户普通管理 API 全面失去准入，包括把状态改回的路径本身。服务架构 §14.2 已明示内置登记「由可信管理面维护」，故非实现漏修，而是保留该关闭能力的边界未明确。
+
+**影响**：持 SERVICE:MANAGE 的管理员一次误操作即使本租户管理入口自锁，需部署侧/平台身份离线恢复；登录、自助、OAuth2、M2M 入口仍按各自规则工作。
+
+**设想方向（未定案）**：A=内置管理入口的启停/删除限定运营/部署维护（前后端同源约束）；B=维持可信管理员可关闭但明确高影响后果与离线恢复步骤。拍板后转任务。
+
+<a id="q-076"></a>
+## Q-076 服务凭证验密 CPU 成本与运行查询容量目标对齐
+
+- **状态**：open
+- **登记**：2026-10-14
+- **来源**：2026-10-12~14 外部持续审查（设计边界），真实 issue/verify 探针实测（单次验密墙钟/CPU 约 63~64ms）
+- **关联**：—
+
+**现象与证据**：凭证验密每次执行 BCrypt.checkpw（`ServiceCredentialDomainServiceImpl`），且位于 `ServiceAuthArbiter` 请求拦截链——业务 SDK 的每次 M2M 运行查询都付出该开销，权限事实缓存命中不能省略验密。契约把运行查询列为高 QPS 可缓存，但无结合验密的端到端容量目标。
+
+**影响**：条件示例：每秒 100 次最终检查×64ms ≈ 6.4 CPU·秒/秒，仅验密一步即耗约 6 核；低频管理/演示使用则完全可接受。是否构成缺口取决于业务吞吐目标。
+
+**设想方向（未定案）**：先以实际接入吞吐目标核对端到端 CPU/延迟；确有缺口再针对验密评估优化（保留停用/过期/服务停用的即时检查，不做 VerifyResult 长时正向缓存）。不自动迁移哈希算法。
+
+<a id="q-077"></a>
+## Q-077 功能角色非空关系支持口径冲突与前端撤回丢关系标识
+
+- **状态**：open
+- **登记**：2026-10-14
+- **来源**：2026-10-12~14 外部持续审查（设计边界），探针实证（真实 assign→读取→前端原样撤回函数→真实 revoke 全链）+ 主代理亲核
+- **关联**：T-ADMIN-030 验收（多关系支持依据）
+
+**现象与证据**：同一用户同 BASIC_ROLE 可存多行关系（如 relationId=null 无限期 + relationId=200 有限期，契约 §10.4/T-ADMIN-030 明确支持）；前端 `UserDetailPanel.vue:280-297` 与 `api/user-manage.ts:364-384` 的撤回请求不带 relationId，后端按请求关系精确撤回→删掉 null 关系行、保留所点有限期行，前端却按 type+externalId 滤掉全部行并提示成功。同时契约 §10.1.1（user-role/view 字段表，2026-09-13）的 relationId 行仍称「其他类型为 null、前端不直接消费」，与 §10.4 重指派条款（2026-10-02）的多关系支持自相矛盾。
+
+**影响**：多关系形态下管理员撤错来源且界面显示「暂无角色」；单来源（纯 null）不暴露。口径冲突未收敛前，前端行为无权威依据。
+
+**设想方向（未定案）**：先拍板支持口径：A=支持多关系（§10.4 为准）→ 前端携带 row.relationId 逐行撤回、列表 key 含关系、§10.3 旧字段说明同步收敛；B=BASIC 仅 null（§10.1.1 字段说明为准）→ 写入限制与存量受控清理路径。拍板后转任务。
 
 ## 已收敛（含合并索引；详情在关联问题/任务或历史来源）
 

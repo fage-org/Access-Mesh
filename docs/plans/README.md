@@ -6,6 +6,7 @@
 
 | 文档 | 类型 | 状态 | 说明 |
 |------|------|------|------|
+| [scenario-audit-remediation-plan](scenario-audit-remediation-plan.md) | 架构与使用场景持续审查问题修复 | proposed | 2026-10-14 立项待启动：33 项核实成立缺陷（P1×3、P2×27、P3×3）→ 13 任务；五项设计边界与三项裁剪评估在 [待解决问题清单](../pending-problems.md) Q-070~Q-077 |
 | [usage-review-remediation-plan](../archive/2026-10-06/usage-review-remediation-plan.md) | 使用者视角评审问题修复 | archived | 2026-10-06：24 项任务全部 done；任务卡与证据随批归档，现行契约已回写；历史删除项按用户决定排除 |
 
 ## 已归档计划

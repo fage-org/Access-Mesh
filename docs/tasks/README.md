@@ -10,13 +10,13 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| access-service 归并（跨服务） | `T-ACCESS` | 098 |
-| permission-center | `T-PERM` | 109 |
+| access-service 归并（跨服务） | `T-ACCESS` | 105 |
+| permission-center | `T-PERM` | 113 |
 | admin-service | `T-ADMIN` | 036 |
-| gateway | `T-GW` | 014 |
+| gateway | `T-GW` | 015 |
 | 组织/用户（跨 admin+perm） | `T-ORG` | 006 |
 | 跨服务 API 契约 | `T-API` | 014 |
-| 前端 | `T-FE` | 068 |
+| 前端 | `T-FE` | 070 |
 
 > 新建任务时从对应领域取下一编号，计数器 +1。
 
@@ -25,6 +25,27 @@
 > 状态简写：⚙️=proposed / 🔨=in-progress / 👀=review / ✅=done / ❌=cancelled。回写：⏳=pending / ✓=done。
 
 > **后端门禁已解除（2026-08-22，T-ACCESS-012 完成）**：`T-PERM-*` / `T-ADMIN-*` 后端任务已全部重基线到 access-service 单模块与 `schema/access-service.sql`，可按各自 `depends_on` 推进；前端真接口联调等待对应 Phase 2 后端任务完成。归并主计划已归档（[archive/2026-08-22/access-service-merge-plan.md](../archive/2026-08-22/access-service-merge-plan.md)），后续强化计划亦已归档（[access-post-merge-plan](../archive/2026-08-27/access-post-merge-plan.md)，T-ACCESS-013~015 全 done，CI 准入前置由 T-ACCESS-017 最小 CI 关闭；68 项为 2026-08-22 外部主机历史验证基线，CI 以退出状态判定成功）。
+
+### 架构与使用场景持续审查问题修复（待启动）
+
+[执行计划](../plans/scenario-audit-remediation-plan.md)。2026-10-12~14 外部持续审查 35 项发现 → 外部模型核实（2026-10-13）+ 主代理逐条代码级亲核（2026-10-14）→ 33 项成立缺陷映射 14 任务；1 项撤销（OAuth2 JSON 线协议与契约一致）、1 项降级裁剪候选（Q-072）；五项设计边界与三项裁剪评估登记 Q-070~Q-077。
+
+| ID | 标题 | 状态 | 直接依赖 | 回写 |
+|---|---|---|---|---|
+| [T-GW-014](T-GW-014.md) | Gateway 内部密钥出站收窄（P1） | ⚙️ | — | ⏳ |
+| [T-ACCESS-098](T-ACCESS-098.md) | SDK 凭证拦截器端点匹配与装配边界收口（P1） | ⚙️ | — | ⏳ |
+| [T-ACCESS-099](T-ACCESS-099.md) | 预览 Compose 文件持久化卷（P1） | ⚙️ | — | ⏳ |
+| [T-PERM-109](T-PERM-109.md) | 条件 CIDR 参数校验收口（P2 安全面） | ⚙️ | — | ⏳ |
+| [T-ACCESS-100](T-ACCESS-100.md) | SDK 公共依赖宿主侵入收口（P2×4 族） | ⚙️ | — | ⏳ |
+| [T-PERM-110](T-PERM-110.md) | 认证与登录安全细节批（P2×4 族） | ⚙️ | — | ⏳ |
+| [T-FE-068](T-FE-068.md) | 前端迟响应与竞态批（P2×4+P3 族） | ⚙️ | — | ⏳ |
+| [T-FE-069](T-FE-069.md) | 前端选择器与表单可用性批（P2×4 族） | ⚙️ | — | ⏳ |
+| [T-ACCESS-101](T-ACCESS-101.md) | 文件能力收口批（P2×2 族） | ⚙️ | — | ⏳ |
+| [T-PERM-111](T-PERM-111.md) | explain 与声明诊断修正批（P2×2+P3 族） | ⚙️ | — | ⏳ |
+| [T-PERM-112](T-PERM-112.md) | 互斥审计请求关联与主体补全（P2） | ⚙️ | — | ⏳ |
+| [T-ACCESS-102](T-ACCESS-102.md) | example-service 子报表真实父关系核对（P2） | ⚙️ | — | ⏳ |
+| [T-ACCESS-103](T-ACCESS-103.md) | 文档与流程对齐批（P2×3+P3 族） | ⚙️ | — | ⏳ |
+| [T-ACCESS-104](T-ACCESS-104.md) | 无权删除全拒反馈修正（P2） | ⚙️ | — | ⏳ |
 
 ### OAuth2 客户端租户内唯一（待启动，Q-069 承接）
 
