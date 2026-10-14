@@ -267,7 +267,7 @@ RuntimeException
 
 - 使用 **SLF4J + Log4j2**。
 - **禁止**直接使用 `System.out.println`。
-- 所有服务均排除 Spring Boot 默认 `spring-boot-starter-logging`（Logback）并显式引入 `log4j2`。
+- 所有服务均排除 Spring Boot 默认 `spring-boot-starter-logging`（Logback）并显式引入 `log4j2`；`common` 与权限 SDK 不传递任何日志实现/桥接件（T-ACCESS-100，见 §5.5），SDK 模块测试 JVM 以 test scope 声明 log4j2。
 
 ### 4.2 日志格式
 
@@ -375,6 +375,15 @@ ERROR 级别单独写入 error.log，保留 180 天
 - 仅在编译期需要的注解处理器须标注 `<scope>provided</scope>`（如 `MapStruct` 的 `processor`）。
 - **禁止**将测试依赖泄漏到主代码编译路径。
 
+### 5.5 依赖传递边界（common / 权限 SDK，T-ACCESS-100 收口）
+
+外部普通 Spring Boot 宿主引入权限 SDK 后，不得被改变自身运行形态（日志后端/默认时区/全局异常处理/Web 栈四项，外部持续审查 P2×4 族收口）。边界规则：
+
+- **common 编译传递面白名单**：`jackson-databind`、`commons-lang3`、`guava`、`spring-boot-starter-validation`、`spring-boot-autoconfigure`。`spring-boot-starter-web` 为 `<optional>true</optional>`（服务端 WebMvc 组件仅编译期可见）；缓存件（redisson/caffeine/micrometer/mybatis-flex）维持 optional。**禁止**在 common 以 compile 传递任何日志实现（log4j2 starter 由平台应用自声明）。
+- **common 不携带任何 META-INF 装配注册**：`UtcTimezoneEnvironmentPostProcessor`（类在 common）与 `CommonAutoConfiguration`/`CacheAutoConfiguration`/`RedissonCacheAutoConfiguration` 的注册由平台应用各自的 `META-INF/spring.factories` / `AutoConfiguration.imports` 声明——access-service/example-service 装配全部四条；gateway 装配缓存两条，`CommonAutoConfiguration` 行采用「注册以排除」（候选登记 + 主类 exclude）：exclude 校验要求被排除类是自动装配候选（非候选直接抛错），而 E2E 共享大类路径〔子进程类路径含兄弟模块 target/classes〕会经其他服务注册文件带入该类（平台 GlobalExceptionHandler 与 gateway 自有同名 Bean 冲突）——候选登记 + exclude 在任意类路径形态下均合法且净效果恒为不装配。缓存自动配置方法签名引用 optional 依赖，注册外溢到缺件宿主会在条件求值期 `NoClassDefFoundError` 炸掉宿主启动，这是注册不出 common 的硬理由。
+- **SDK 对宿主日志零参与**：starter 不传递任何日志实现，也**不携带 `spring-boot-starter-logging` 排除**——排除项经 Maven 就近仲裁会反向剪掉宿主自选后端（实证可将宿主 Logback 剪成 NOP）。SDK 真正公共依赖显式化：`slf4j-api` 以 provided 声明（宿主必然供应）。
+- **回归锁**：`sdk-host-probe` 模块（reactor 中位于 perm-sdk 与 e2e 之间）模拟外部 WebFlux+Logback 宿主消费两个 starter，四把锁（日志后端类路径与 Provider 绑定/时区不改写/无 @RestControllerAdvice 与 common 包 Bean/应用类型推断 REACTIVE）以红跑证实曾在旧边界下全部失败。
+
 ---
 
 ## 6. 工具类规范
@@ -462,7 +471,7 @@ private LocalDateTime deletedAt;
 
 - **全面使用 Java 8+ 时间 API**：`LocalDateTime`、`LocalDate`、`LocalTime`。
 - **禁止**使用 `java.util.Date`、`java.sql.Timestamp`、`java.sql.Date`。
-- **时间语义全链路 UTC（T-ACCESS-024）**：JVM 默认时区由 common `UtcTimezoneEnvironmentPostProcessor` 启动即强制 UTC（代码级，应用与 `@SpringBootTest` 同源生效，部署无需 `-Duser.timezone`/`TZ`）；`LocalDateTime` ↔ TIMESTAMPTZ 由全局 `TimestamptzLocalDateTimeTypeHandler` 显式按 UTC 换算（经 `OffsetDateTime`，不经 `java.sql.Timestamp`/JVM 时区漂移；handler 落位 access-service、经 `MybatisFlexTypeHandlerConfig` 全局注册，新服务模块引入 DB 实体时须复制同等 handler——不上提 common 以免引入 ORM 依赖）；JDBC URL 禁止携带 `serverTimezone`（MySQL 语义参数，pgjdbc 忽略且误导）。未来多时区部署另立任务，本项目不做跨时区支持。
+- **时间语义全链路 UTC（T-ACCESS-024）**：JVM 默认时区由平台应用各自 `spring.factories` 注册的 `UtcTimezoneEnvironmentPostProcessor`（类在 common、注册在平台应用，T-ACCESS-100 迁移——外部宿主引入权限 SDK 不受影响）启动即强制 UTC（代码级，应用与 `@SpringBootTest` 同源生效，部署无需 `-Duser.timezone`/`TZ`）；`LocalDateTime` ↔ TIMESTAMPTZ 由全局 `TimestamptzLocalDateTimeTypeHandler` 显式按 UTC 换算（经 `OffsetDateTime`，不经 `java.sql.Timestamp`/JVM 时区漂移；handler 落位 access-service、经 `MybatisFlexTypeHandlerConfig` 全局注册，新服务模块引入 DB 实体时须复制同等 handler——不上提 common 以免引入 ORM 依赖）；JDBC URL 禁止携带 `serverTimezone`（MySQL 语义参数，pgjdbc 忽略且误导）。未来多时区部署另立任务，本项目不做跨时区支持。
 - Jackson 序列化配置：`LocalDateTime` 序列化为 ISO-8601 字符串（`"2026-04-21T10:00:00"`，无偏移，语义=UTC 墙钟）；全局 ObjectMapper（common `cacheObjectMapper`）时区固定 UTC。前端展示时区转换按需另行处理，服务端不做「应用层转本地时区」。
 - **63 位 bigint 列 JSON 序列化为十进制字符串（T-PERM-028 定策略，首例 `OperationPermissionResp.binaryBit/inheritMask`）**：JSON number 在 >2^53 丢精度，暴露该类列的响应 DTO 字段加 `@JsonSerialize(using = ToStringSerializer.class)`（内部类型保持 `Long`）；请求侧 `Long` 组件由 Jackson 宽容接受十进制字符串，前端线格式统一 string、位运算用 BigInt。新增暴露 bigint 位值/大数列的 DTO 沿用此策略。
 

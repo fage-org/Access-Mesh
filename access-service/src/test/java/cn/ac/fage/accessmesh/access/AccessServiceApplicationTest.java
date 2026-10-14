@@ -278,8 +278,9 @@ class AccessServiceApplicationTest {
     }
 
     /**
-     * T-ACCESS-024 验收：common 的 {@code UtcTimezoneEnvironmentPostProcessor} 经
-     * spring.factories 注册，@SpringBootTest 上下文环境准备阶段即强制 JVM 默认时区 UTC
+     * T-ACCESS-024 验收：{@code UtcTimezoneEnvironmentPostProcessor} 经 spring.factories
+     * 注册（T-ACCESS-100 注册自 common 迁移至本服务 src/main/resources，宿主外部 SDK
+     * 不再被传递），@SpringBootTest 上下文环境准备阶段即强制 JVM 默认时区 UTC
      * （测试 JVM 不经 main()，部署级方案罩不住的场景）。注册发现断言与宿主时区无关
      * （默认时区即 UTC 的环境下时区断言无判别力，注册丢失只能由 loader 断言暴露）；
      * 时区断言在非 UTC 宿主上证明 EPP 已实际执行。

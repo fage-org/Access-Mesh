@@ -25,18 +25,11 @@
         <dependency>
             <groupId>cn.ac.fage.accessmesh</groupId>
             <artifactId>common</artifactId>
-            <!-- T-ACCESS-003 评审 P1 修复（2026-08-14）：排除 spring-webmvc 传递依赖。
-                 common 的 GlobalExceptionHandler/RResponseAdvice 是 WebMvc 组件
-                 （GatewayApplication 已 exclude CommonAutoConfiguration 不加载），
-                 spring-webmvc 在 classpath 触发 Spring Cloud Gateway 的
-                 MvcFoundOnClasspathException（Gateway 不允许 MVC/WebFlux 共存），
-                 且默认 Bean 名 gatewayProperties 冲突（已改名 accessGatewayProperties）。 -->
-            <exclusions>
-                <exclusion>
-                    <groupId>org.springframework</groupId>
-                    <artifactId>spring-webmvc</artifactId>
-                </exclusion>
-            </exclusions>
+            <!-- T-ACCESS-100：common 的 spring-boot-starter-web 已改 optional，不再传递
+                 spring-webmvc/Tomcat——原 T-ACCESS-003（2026-08-14）的 webmvc 排除与
+                 MvcFoundOnClasspathException 防线随之退役（防线本体：common 边不传 Web 栈）。
+                 WebMvc 系组件（GlobalExceptionHandler/RResponseAdvice）的装配注册同样
+                 不在 common（见本服务 imports 文件，Gateway 维持不装配）。 -->
         </dependency>
         <dependency>
             <groupId>cn.ac.fage.accessmesh</groupId>

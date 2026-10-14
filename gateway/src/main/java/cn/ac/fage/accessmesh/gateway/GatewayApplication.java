@@ -10,16 +10,19 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  * 网关应用程序入口
  * <p>
  * Gateway 微服务的 Spring Boot 主启动类。
- * 提供 API 网关功能，包括路由转发、认证校验、权限校验等。
+ * 提供 API 网关功能，包括路由转发，认证校验，权限校验等。
  * 使用 Spring Cloud Gateway 实现响应式网关，启用服务发现。
  * </p>
  *
- * <p>T-ACCESS-003 评审 P1 修复（2026-08-14）：排除 {@link CommonAutoConfiguration}。
- * common 的 GlobalExceptionHandler / RResponseAdvice 是 WebMvc（Servlet）组件，
- * Gateway 为 WebFlux 应用，加载后与 gateway 自身的 GlobalExceptionHandler 同名 Bean 冲突
- * 导致上下文无法启动（归并前既有缺陷，由新 Gateway 上下文测试暴露）。
- * 排除后 common 的缓存自动配置（CacheAutoConfiguration/RedissonCacheAutoConfiguration
- * 独立注册于 AutoConfiguration.imports）与 BizException/SystemException（普通类）不受影响。</p>
+ * <p>T-ACCESS-100（2026-10-14）：common 不再携带自动装配注册（外部宿主引入权限 SDK
+ * 不被装配平台组件），装配清单由各服务 META-INF/spring/...AutoConfiguration.imports
+ * 自声明——Gateway 实际装配缓存两行。WebMvc 系 CommonAutoConfiguration
+ * （GlobalExceptionHandler/RResponseAdvice）维持主类 exclude，且本服务 imports 将其
+ * 登记为候选（「注册以排除」）：exclude 校验要求被排除类是自动装配候选，而 E2E 共享
+ * 大类路径（子进程类路径含兄弟模块 target/classes）会经 access/example 注册文件带入
+ * 该类——候选登记 + exclude 在两种类路径形态下均合法，净效果恒为不装配（平台
+ * GlobalExceptionHandler 与本服务同名 Bean 冲突，T-ACCESS-003 既有防线，
+ * 2026-10-14 T-ACCESS-100 双向红跑实证仍然承重）。</p>
  */
 @SpringBootApplication(exclude = CommonAutoConfiguration.class)
 @EnableDiscoveryClient

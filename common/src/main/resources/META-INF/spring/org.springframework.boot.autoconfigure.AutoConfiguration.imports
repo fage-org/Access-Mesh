@@ -1,3 +1,0 @@
-cn.ac.fage.accessmesh.common.config.CommonAutoConfiguration
-cn.ac.fage.accessmesh.common.cache.CacheAutoConfiguration
-cn.ac.fage.accessmesh.common.cache.RedissonCacheAutoConfiguration

@@ -14,9 +14,21 @@
     <description>Public models, exceptions, utilities, error codes</description>
 
     <dependencies>
+        <!-- T-ACCESS-100 SDK 依赖边界：Web 栈仅编译期可见（GlobalExceptionHandler/
+             RResponseAdvice 等服务端组件编译需要），optional 不向消费方传递——
+             WebFlux 宿主引入权限 SDK 后不再被推成 Servlet 应用；平台应用自声明
+             spring-boot-starter-web。排除 starter-logging 仅作用于本模块自身
+             类路径（optional 本就不传递），防与下方 test 域 log4j2 形成双 Provider。 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
+            <optional>true</optional>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -35,10 +47,6 @@
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
             <version>${guava.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-log4j2</artifactId>
         </dependency>
         <!-- Redisson for unified L1/L2 cache with cross-node invalidation -->
         <dependency>
@@ -78,6 +86,13 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-configuration-processor</artifactId>
             <optional>true</optional>
+        </dependency>
+        <!-- T-ACCESS-100：日志实现不再以 compile 传递（平台应用自声明 log4j2）；
+             本模块测试 JVM 保持仓库统一 Log4j2 形态，test scope 不外溢 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-log4j2</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

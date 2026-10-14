@@ -1,0 +1,11 @@
+# T-ACCESS-100：平台服务端装配由平台应用自声明（common 不再携带自动装配注册，
+# 外部宿主引入权限 SDK 不被装配平台异常处理/缓存框架）。Gateway 装配缓存两行
+# （caffeine + Redis 逻辑库在用）。CommonAutoConfiguration 行为「注册以排除」：
+# 主类 exclude 要求被排除类是自动装配候选（AutoConfigurationImportSelector
+# checkExcludedClasses 对非候选类直接抛错，本模块测试类路径即如此）；而 E2E 共享
+# 大类路径（子进程类路径含兄弟模块 target/classes）会经 access/example 注册文件
+# 带入该类——注册为本候选 + 主类 exclude 后，两种类路径形态下 exclude 均合法且
+# 净效果恒为不装配（平台 GlobalExceptionHandler 与本服务同名 Bean 冲突）。
+cn.ac.fage.accessmesh.common.config.CommonAutoConfiguration
+cn.ac.fage.accessmesh.common.cache.CacheAutoConfiguration
+cn.ac.fage.accessmesh.common.cache.RedissonCacheAutoConfiguration

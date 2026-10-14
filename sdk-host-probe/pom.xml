@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>cn.ac.fage.accessmesh</groupId>
+        <artifactId>accessmesh</artifactId>
+        <version>0.2.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>sdk-host-probe</artifactId>
+    <name>SDK Host Probe</name>
+    <description>外部普通宿主探针：权限 SDK 不传递日志实现/时区改写/全局异常处理/Servlet 栈（T-ACCESS-100 回归锁）</description>
+
+    <!-- 模块本身就是「外部宿主」的等价物：类路径 = 两个 starter 的传递闭包 + 宿主自选技术栈，
+         不引入任何平台服务端装配（无 log4j2 声明、无平台注册文件）。生产代码为空，
+         全部断言在测试轨；不发布、不被任何模块依赖。
+         宿主自选栈声明在前（与真实宿主 pom 的书写序一致）；收口后 SDK 边无任何
+         starter-logging 排除，声明序不再影响日志解析。 -->
+    <dependencies>
+        <!-- 宿主自选：WebFlux 技术栈（含默认 Logback 后端）——外部非 Servlet 宿主的典型形态，
+             也是「Servlet 栈被推入」「Logback 被替换」两项侵入的最敏感受体 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>cn.ac.fage.accessmesh</groupId>
+            <artifactId>perm-client-spring-boot-starter</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>cn.ac.fage.accessmesh</groupId>
+            <artifactId>perm-registration-spring-boot-starter</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+    </dependencies>
+</project>

@@ -17,9 +17,12 @@ import java.util.TimeZone;
  * 部署侧无需任何 {@code -Duser.timezone} / {@code TZ} 约定，配错面归零。
  * </p>
  * <p>
- * 经 {@code META-INF/spring.factories} 注册，对所有引入 common 的 Spring 应用生效，
- * 包括 {@code @SpringBootTest} 测试上下文与 E2E 子进程（测试 JVM 不经过 main()，
- * 部署级方案罩不住，这是选代码级强制的决定性原因）。幂等：已是 UTC 则不动作。
+ * 经 {@code META-INF/spring.factories} 注册，对所有声明注册的平台应用
+ * （access-service / gateway / example-service 各自的 factories 文件，T-ACCESS-100
+ * 注册迁移）生效，包括 {@code @SpringBootTest} 测试上下文与 E2E 子进程（测试 JVM
+ * 不经过 main()，部署级方案罩不住，这是选代码级强制的决定性原因）。类留在 common、
+ * 注册不在 common：外部宿主引入权限 SDK（传递 common jar）不被改写默认时区。
+ * 幂等：已是 UTC 则不动作。
  * 随之统一为 UTC 的行为面：日志时间戳、cron 调度时区（跨实例同时区约定自动闭合）。
  * 未来若需多时区部署支持，另立任务，不在本项目「不做跨时区支持」边界内扩展。
  * </p>

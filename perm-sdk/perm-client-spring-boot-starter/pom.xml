@@ -19,6 +19,12 @@
             <artifactId>jakarta.servlet-api</artifactId>
             <scope>provided</scope>
         </dependency>
+        <!-- T-ACCESS-100：SDK 真正公共依赖显式化——SLF4J API 编译期可见、由宿主供应 -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
         <dependency>
             <groupId>cn.ac.fage.accessmesh</groupId>
             <artifactId>common</artifactId>
@@ -32,16 +38,10 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter</artifactId>
-            <exclusions>
-                <!-- 全仓库统一 Log4j2（common 已传递 spring-boot-starter-log4j2）；
-                     不排除默认 logging 会与 log4j-slf4j2-impl 并存形成桥接环
-                     （log4j-to-slf4j ↔ log4j-slf4j2-impl），初始化 Spring Boot
-                     自动配置基础设施时即失败。与 access-service/gateway 模块同模式。 -->
-                <exclusion>
-                    <groupId>org.springframework.boot</groupId>
-                    <artifactId>spring-boot-starter-logging</artifactId>
-                </exclusion>
-            </exclusions>
+            <!-- T-ACCESS-100：SDK 对宿主日志保持零参与——不传递任何日志实现，也不带
+                 starter-logging 排除（排除项经 Maven 就近仲裁会反向剪掉宿主自选的
+                 Logback，实测可将宿主后端剪成 NOP）。common 不再传递 log4j2 后，
+                 原「排除默认 logging 防桥接环」的防线随之退役。 -->
         </dependency>
         <dependency>
             <groupId>org.springframework.cloud</groupId>

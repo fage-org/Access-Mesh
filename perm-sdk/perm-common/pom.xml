@@ -45,5 +45,19 @@
             <artifactId>feign-core</artifactId>
             <scope>provided</scope>
         </dependency>
+        <!-- T-ACCESS-100：SDK 真正公共依赖显式化——SLF4J API 编译期可见、由宿主供应
+             （任何 Spring Boot starter 都带）；不再经 common 的日志实现件间接获得 -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <!-- T-ACCESS-100：common 不再传递 log4j2，本模块测试 JVM 保持仓库统一
+             Log4j2 形态；test scope 不外溢宿主 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-log4j2</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 </project>

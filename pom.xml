@@ -17,6 +17,9 @@
         <module>access-service</module>
         <module>example-service</module>
         <module>perm-sdk</module>
+        <!-- T-ACCESS-100：SDK 宿主侵入回归锁——模拟外部普通宿主（WebFlux + 默认 Logback）
+             消费两个 starter，断言日志实现/默认时区/全局异常处理/Servlet 栈四项不外溢 -->
+        <module>sdk-host-probe</module>
         <!-- T-ACCESS-031：E2E 验收轨独立模块（依赖三服务 artifact，reactor 末位执行；
              gateway 因此解除跨服务 test 依赖、可与 access-service 模块并行） -->
         <module>e2e</module>

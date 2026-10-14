@@ -1,0 +1,5 @@
+# T-ACCESS-100：平台服务端装配由平台应用自声明（common 不再携带自动装配注册，
+# 外部宿主引入权限 SDK 不被装配平台异常处理/缓存框架）。行内容与原 common 注册等价迁移。
+cn.ac.fage.accessmesh.common.config.CommonAutoConfiguration
+cn.ac.fage.accessmesh.common.cache.CacheAutoConfiguration
+cn.ac.fage.accessmesh.common.cache.RedissonCacheAutoConfiguration
