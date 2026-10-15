@@ -55,18 +55,21 @@ vi.mock("@/utils/auth", () => ({
 // mock store 工具桶（阻断 router/storageLocal；store 用真 Pinia 实例）
 // storageLocal 返回共享实例，用例可断言 userKey 持久化写入（评审修复：覆盖 localStorage 副作用）
 // responsiveStorageNameSpace 供 multiTags state 初始化（logOut 触发 handleTags 链）
-const { mockStorage, mockRouterPush, mockResetRouter } = vi.hoisted(() => ({
-  mockStorage: {
-    getItem: vi.fn(() => null),
-    setItem: vi.fn(),
-    removeItem: vi.fn()
-  },
-  mockRouterPush: vi.fn(),
-  mockResetRouter: vi.fn()
-}));
+const { mockStorage, mockRouterPush, mockResetRouter, mockCurrentRoute } =
+  vi.hoisted(() => ({
+    mockStorage: {
+      getItem: vi.fn(() => null),
+      setItem: vi.fn(),
+      removeItem: vi.fn()
+    },
+    mockRouterPush: vi.fn(),
+    mockResetRouter: vi.fn(),
+    // T-FE-068：logOut 缺省继承当前页 returnTo 的读取面（currentRoute.value.query）
+    mockCurrentRoute: { query: {} as Record<string, unknown> }
+  }));
 vi.mock("../utils", () => ({
   store: createPinia(),
-  router: { push: mockRouterPush },
+  router: { push: mockRouterPush, currentRoute: { value: mockCurrentRoute } },
   resetRouter: mockResetRouter,
   routerArrays: [],
   constantMenus: [],
@@ -75,6 +78,7 @@ vi.mock("../utils", () => ({
 }));
 
 import { useUserStore } from "./user";
+import { addDialog, dialogStore } from "@/components/ReDialog/store";
 
 const LOGIN_RESP = {
   accessToken: "token-1",
@@ -424,6 +428,66 @@ describe("logOut 真注销（T-FE-045；注销 fire-and-forget 化 T-FE-054/Q-01
     expect(mockLogout).toHaveBeenCalledTimes(1); // 第二次零请求
     expect(mockRemoveToken).toHaveBeenCalledTimes(2); // 幂等清理照常
     expect(mockRouterPush).toHaveBeenCalledTimes(2); // 直接跳登录
+  });
+});
+
+describe("logOut 续接缺省继承与会话终结清弹窗（T-FE-068）", () => {
+  const TOKEN = { accessToken: "token-1", expires: 1, refreshToken: "" };
+  const OAUTH_TARGET = "/oauth2/authorize?client_id=a&state=1";
+
+  beforeEach(() => {
+    mockCurrentRoute.query = {};
+    mockGetToken.mockReturnValue(TOKEN);
+    mockLogout.mockResolvedValue(undefined);
+  });
+
+  it("缺省继承：无参调用时当前页 query 带 returnTo（白名单内本地 OAuth 目标）→ 跳 /login?returnTo=...（旧实现裸 /login 必红）", async () => {
+    mockCurrentRoute.query = { returnTo: OAUTH_TARGET };
+
+    await useUserStore().logOut();
+
+    expect(mockRouterPush).toHaveBeenCalledWith({
+      path: "/login",
+      query: { returnTo: OAUTH_TARGET }
+    });
+  });
+
+  it("白名单外不继承：returnTo 非 /oauth2/authorize 本地路径 → 裸 /login（窄续接规则 oauthReturnTarget 单源，不放宽）", async () => {
+    mockCurrentRoute.query = { returnTo: "https://evil.example.com/phish" };
+
+    await useUserStore().logOut();
+
+    expect(mockRouterPush).toHaveBeenCalledWith("/login");
+  });
+
+  it("显式传参优先：change-password 成功分支显式 returnTo 覆盖当前页 query（两分支共用窄续接规则）", async () => {
+    mockCurrentRoute.query = {
+      returnTo: "/oauth2/authorize?from=current-page"
+    };
+
+    await useUserStore().logOut("/oauth2/authorize?explicit=1");
+
+    expect(mockRouterPush).toHaveBeenCalledWith({
+      path: "/login",
+      query: { returnTo: "/oauth2/authorize?explicit=1" }
+    });
+  });
+
+  it("会话终结清全局编辑弹窗：logOut 清空真实 dialogStore——ReDialog 挂 App 层随路由存活，登出不清则旧上下文弹窗浮在登录页（旧实现零清理必红）", async () => {
+    // 经真实 addDialog 压入两条全局弹窗（模拟编辑弹窗打开态），logOut 后队列须清空
+    addDialog({ title: "编辑组织" } as Parameters<typeof addDialog>[0]);
+    addDialog({ title: "编辑用户" } as Parameters<typeof addDialog>[0]);
+    expect(dialogStore.value).toHaveLength(2);
+
+    await useUserStore().logOut();
+
+    expect(dialogStore.value).toEqual([]);
+  });
+
+  it("当前页无 returnTo：无参调用裸 /login（常规登出不受缺省继承影响——特征锁）", async () => {
+    await useUserStore().logOut();
+
+    expect(mockRouterPush).toHaveBeenCalledWith("/login");
   });
 });
 

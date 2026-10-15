@@ -365,6 +365,37 @@ describe("token 过期短路与双分支统一提示（T-FE-054）", () => {
   });
 });
 
+describe("401 迟到代际守卫（T-FE-068）：401 只终结其所属会话", () => {
+  it("旧会话请求的迟到 401 不注销新会话——请求携旧令牌、当前已重登新令牌：不提示不 logOut（旧实现无条件 logOut 必红）", async () => {
+    installAdapter(() => 401);
+    // 真实链路：请求发出时持旧令牌（第一个 getToken——拦截器附加头），401 响应回来
+    // 前用户已重登（第二个 getToken——401 分支判定）→ 新令牌
+    mockGetToken
+      .mockReturnValueOnce({
+        accessToken: "token-old",
+        refreshToken: "",
+        expires: Date.now() + 600_000
+      })
+      .mockReturnValue({
+        accessToken: "token-new",
+        refreshToken: "",
+        expires: Date.now() + 600_000
+      });
+    await expectRejected("/api/access/stale-from-old-session");
+    await drainMicrotasks();
+    expect(mockLogOut).not.toHaveBeenCalled(); // 旧实现注销新会话 → 红
+    expect(mockMessage).not.toHaveBeenCalled(); // 旧实现弹「会话已过期」误导 → 红
+  });
+
+  it("当前会话 401（请求头=当前令牌）照常终结：提示+logOut（守卫不误伤正常终结——特征锁）", async () => {
+    installAdapter(() => 401);
+    await expectRejected("/api/access/current-session");
+    await drainMicrotasks();
+    expect(mockLogOut).toHaveBeenCalledTimes(1);
+    expect(mockMessage).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("platform request realm isolation", () => {
   it("uses platform bearer and a platform 401 never clears the tenant login", async () => {
     mockPlatformSession.mockReturnValue({

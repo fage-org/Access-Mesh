@@ -8,8 +8,8 @@ import {
   type OrgTreeNode,
   type OrgTreeConfig
 } from "@/api/user-manage";
+import { createOrgTreeModel } from "./model";
 import { confirmOrgMoveIfNeeded } from "./confirmMove";
-import { relocateSelectionAfterReload } from "./relocate";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import { ElMessageBox } from "element-plus";
 import { message } from "@/utils/message";
@@ -67,13 +67,39 @@ const emit = defineEmits<{
   "node-move": [node: OrgTreeNode, targetParentId: number];
 }>();
 
-// 组织树配置（初始值取显式 prop；无 prop 时 null=不发 treeConfigId，走后端默认树语义——
-// 禁止硬编码 1：配置主键为全局 BIGSERIAL，非默认租户的默认配置 id 不保证为 1）
+// 树/选中生命周期模型（T-FE-068 抽出：latest-wins 代际守卫+跨配置预清空，spec 在
+// model.spec.ts；组件保留交互层——高亮/popover/node-click 事件）
+const orgTreeModel = createOrgTreeModel(props.treeConfigId ?? null, {
+  // v1.4 后端 /org/tree 强制要求 orgType（按 orgType 分发 VIEW / VIEW_POSITION 门禁）：
+  // 主组织树面板语义为「普通组织树」，传 orgType=1；调用方需混合查询岗位应在 props
+  // 上扩展，而非传 null 走老语义。T-ADMIN-021 起后端支持 treeConfigId 子树裁剪
+  // ——切换树配置真实生效（缺省不传=默认树子树；无配置 id 时保持缺省语义）
+  fetchTree: configId =>
+    getOrgTree({
+      orgType: ORG_TYPE.ORG,
+      ...(props.operationCode != null
+        ? { operationCode: props.operationCode }
+        : {}),
+      // CREATE 限默认树：后端拒绝 CREATE×treeConfigId 同传（10008），该模式一律不携带
+      ...(props.operationCode !== OPERATION_CODE.CREATE && configId != null
+        ? { treeConfigId: configId }
+        : {})
+    }),
+  orgChange: orgId => emit("org-change", orgId),
+  loadError: () => message("组织树加载失败", { type: "error" })
+});
+// 组织树配置列表（自动发现默认配置用；配置身份与选中态在模型内）
+const {
+  tree: rawOrgTree,
+  selectedConfigId,
+  selectedOrgId,
+  selectedOrgName,
+  selectOrg,
+  clearOrg,
+  loadTree,
+  switchConfig
+} = orgTreeModel;
 const treeConfigs = ref<OrgTreeConfig[]>([]);
-const selectedConfigId = ref<number | null>(props.treeConfigId ?? null);
-
-// 组织树（原始数据）
-const rawOrgTree = ref<OrgTreeNode[]>([]);
 // 过滤后的组织树（用于展示）
 const filteredOrgTree = computed<OrgTreeNode[]>(() => {
   if (!props.orgTypeFilter || props.orgTypeFilter.length === 0) {
@@ -82,15 +108,12 @@ const filteredOrgTree = computed<OrgTreeNode[]>(() => {
   return filterTreeByOrgType(rawOrgTree.value, props.orgTypeFilter);
 });
 
-const selectedOrgId = ref<number | null>(null);
-
 // 搜索
 const filterText = ref("");
 const treeRef = ref();
 
 // 紧凑模式：popover 控制
 const popoverVisible = ref(false);
-const selectedOrgName = ref("");
 
 // 高亮
 const highlightMap = ref<Record<string, { highlight: boolean }>>({});
@@ -151,64 +174,27 @@ async function loadConfigs() {
   }
 }
 
-async function loadTree() {
-  // v1.4 后端 /org/tree 强制要求 orgType（按 orgType 分发 VIEW / VIEW_POSITION 门禁）；
-  // 主组织树面板语义为「普通组织树」，传 orgType=1。
-  // 若调用方需混合查询岗位，应在 props 上扩展并允许此处分别请求合并，而非传 null 走老语义。
-  // T-ADMIN-021 起后端支持 treeConfigId 子树裁剪——切换树配置真实生效
-  //（缺省不传=默认树子树；无配置 id 时保持缺省语义）。
-  try {
-    rawOrgTree.value = await getOrgTree({
-      orgType: ORG_TYPE.ORG,
-      ...(props.operationCode != null
-        ? { operationCode: props.operationCode }
-        : {}),
-      // CREATE 限默认树：后端拒绝 CREATE×treeConfigId 同传（10008），该模式一律不携带
-      ...(props.operationCode !== OPERATION_CODE.CREATE &&
-      selectedConfigId.value != null
-        ? { treeConfigId: selectedConfigId.value }
-        : {})
-    });
-  } catch {
-    // 树加载失败（如无默认树配置租户 11001 fail-closed）——空树降级，避免未处理 rejection
-    rawOrgTree.value = [];
-    message("组织树加载失败", { type: "error" });
-  }
-  // 刷新后按既有选中重定位：节点仍在树中以服务端新快照重发 org-change
-  //（编辑保存后消费方的 selectedOrg 不再持旧 status/父名）；节点消失走清空链路
-  const relocation = relocateSelectionAfterReload(
-    rawOrgTree.value,
-    selectedOrgId.value
-  );
-  if (relocation.kind === "keep") {
-    selectedOrgName.value = relocation.node.orgName;
-    emit("org-change", relocation.node.id);
-  } else if (relocation.kind === "clear") {
-    clearSelection();
-  }
-}
-
 async function onConfigChange(configId: number) {
-  selectedConfigId.value = configId;
-  selectedOrgId.value = null;
-  selectedOrgName.value = "";
+  // 跨配置发起即清旧树并通知消费方（模型内：org-change null）+ 发起新加载；
+  // 旧选中高亮随配置切换一并复位（选中身份在模型内已清）
   highlightMap.value = {};
-  await loadTree();
+  await switchConfig(configId);
+  // 配置身份守卫：等待期间用户又切了配置——本次切换的续接（自动选中首节点）作废，
+  // 由最新一次切换的续接自行选中
+  if (selectedConfigId.value !== configId) return;
   if (!props.compact && filteredOrgTree.value.length > 0) {
     selectNode(filteredOrgTree.value[0]);
   }
 }
 
 function selectNode(node: OrgTreeNode) {
-  selectedOrgId.value = node.id;
-  selectedOrgName.value = node.orgName;
+  selectOrg(node);
   const key = String(node.id);
   Object.keys(highlightMap.value).forEach(k => {
     highlightMap.value[k].highlight = false;
   });
   highlightMap.value[key] = { highlight: true };
   emit("node-click", node);
-  emit("org-change", node.id);
   // compact 模式选中后关闭弹窗
   if (props.compact) {
     popoverVisible.value = false;
@@ -216,12 +202,10 @@ function selectNode(node: OrgTreeNode) {
 }
 
 function clearSelection() {
-  selectedOrgId.value = null;
-  selectedOrgName.value = "";
+  clearOrg();
   Object.keys(highlightMap.value).forEach(k => {
     highlightMap.value[k].highlight = false;
   });
-  emit("org-change", null);
 }
 
 // 新增子组织

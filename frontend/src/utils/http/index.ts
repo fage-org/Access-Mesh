@@ -194,10 +194,21 @@ class PureHttp {
         // 不经过此分支。会话已过期提示（T-FE-054 双分支统一，2026-09-20 拍板）：
         // 服务端判定失效（30min 冻结/他端登出）与本地过期短路同语义同文案，共用去重
         // 窗口。**令牌仍在才提示**（claude 外评 P3 处置）：主动登出（logOut 已清令牌）
-        // 后在途请求的 401 不弹「会话已过期」误导——退出意图是用户自己的动作
+        // 后在途请求的 401 不弹「会话已过期」误导——退出意图是用户自己的动作。
+        // 迟到 401 代际守卫（T-FE-068）：401 只终结其所属会话——请求携带的
+        // Authorization 与当前令牌一致才提示+logOut（平台分支同款比对先例）；
+        // 重登/换租户后旧请求的迟到 401 不得注销新会话。令牌已清（getToken 空）
+        // 形态维持既有幂等口径：不提示、仍 logOut 兜底清理
         if ($error?.response?.status === 401) {
-          if (getToken()) notifySessionExpiredOnce();
-          useUserStoreHook().logOut();
+          const current = getToken();
+          if (
+            current == null ||
+            $error.config?.headers?.Authorization ===
+              formatToken(current.accessToken)
+          ) {
+            if (current) notifySessionExpiredOnce();
+            useUserStoreHook().logOut();
+          }
         }
         // 403 触发会话权限热刷新（T-FE-048）：窗口去重 + 失败静默 + 不重放原请求；
         // 错误本身仍原样 reject 由页面层处理展示。503 等其余状态码由页面层自行处理

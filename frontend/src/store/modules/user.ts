@@ -1,4 +1,5 @@
 import { oauthReturnTarget } from "@/views/oauth-consent/flow";
+import { closeAllDialog } from "@/components/ReDialog/store";
 import { defineStore } from "pinia";
 import {
   type userType,
@@ -212,7 +213,10 @@ export const useUserStore = defineStore("pure-user", {
      *    注销请求 fire-and-forget：发出即不等完成——后端黑洞时本地清理与跳转不再被
      *    推迟（原 await 形态最长挂 10s），窗口内新登录的凭据也不再被旧清理链清除；
      *    失败仅 console.warn 不弹错（浏览器凭证已清，残留服务端会话按 Sa-Token TTL 过期）。
-     * 2. 本地清理无条件立即执行：清 Pinia → removeToken → multiTags 重置 → resetRouter → 跳 /login。
+     * 2. 本地清理无条件立即执行：清 Pinia → removeToken → 清全局编辑弹窗（T-FE-068，
+     *    closeAllDialog——dialogStore 为模块级全局，登出不清则旧上下文弹窗跨路由存活）
+     *    → multiTags 重置 → resetRouter → 跳 /login（returnTo 缺省继承当前页 query，
+     *    经 oauthReturnTarget 白名单校验，T-FE-068 拍板 A）。
      *    登出完成后重复触发时 getToken() 已无令牌，不再发请求，仅幂等清理+跳转。
      * 3. logoutInFlight 标记在 fire-and-forget 后无实际拦截窗口（函数体无 await 挂起点，
      *    同步栈内执行完毕即复位，恒不命中）——保留是防御未来重新引入 await 点时的重入；
@@ -235,9 +239,19 @@ export const useUserStore = defineStore("pure-user", {
         this.menuLoadFailed = false;
         this.menuGateStatus = "uninitialized";
         removeToken();
+        // 会话终结清全局编辑弹窗（T-FE-068）：ReDialog 挂 App 层（router-view 之外）、
+        // dialogStore 为模块级全局——登出不清则旧上下文弹窗浮在登录页，重登后旧对象
+        // 仍可被提交；closeAllDialog 直清不触发弹窗回调（终结处置不做保存类副作用）
+        closeAllDialog();
         useMultiTagsStoreHook().handleTags("equal", [...routerArrays]);
         resetRouter();
-        const consentTarget = oauthReturnTarget(returnTo);
+        // 续接缺省继承（T-FE-068 拍板 A）：无参调用（响应 401 分支/本地过期短路/
+        // initRouter 终结）读当前页 returnTo，与改密成功分支显式传参共用同一窄续接
+        // 规则——经 oauthReturnTarget 白名单校验，仅本地 /oauth2/authorize 目标续接；
+        // 常规页面 query 无 returnTo，行为不变
+        const consentTarget = oauthReturnTarget(
+          returnTo ?? router.currentRoute?.value?.query?.returnTo
+        );
         router.push(
           consentTarget
             ? { path: "/login", query: { returnTo: consentTarget } }

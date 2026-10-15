@@ -200,6 +200,8 @@ export function useNav() {
 
 保存入口仍须比对行/弹窗携带的对象与当前上下文，覆盖后退键、全局弹窗及路由重进窗口；显式 `openedAt*` 上下文不能回退猜测。UserDetailPanel 以弹窗内显式选择为表单权威，不套外层对象守卫；PositionTab 保留自有代际与预清空，不为统一形式强迁公共 loader。页面接线见[服务接口映射](../../docs/design/frontend/service-interface-mapping.md)和[资源操作设计](../../docs/design/frontend/resource-operation.md)；加载与保存边界以本节为准。
 
+同族守卫先例（T-FE-068）：组织树面板配置切换（`ReOrgTreePanel/src/model.ts`——latest-wins 代际+配置身份守卫，跨配置发起即清旧树并 `org-change(null)` 通知消费方；迟到成功/失败均静默丢弃）与同用户重置密码互斥（`system/user/utils/reset-password.ts`——pending 登记+按钮/handler 同源防重入，pending 覆盖确认→请求→交付全程）按 oauth-consent/model.ts 形态抽出可测模块，SFC 保持薄壳；会话终结侧守卫（401 只终结其所属会话、logOut 清全局 addDialog 弹窗与 returnTo 缺省继承）见登录设计[令牌生命周期](../../docs/design/frontend/login.md)。
+
 远程选择器翻页失败回滚页码并保留数据，迟到失败不能覆写新请求；重置回首页并清筛选，watcher 与显式加载单发。候选缓存不能 fallback 猜测对象；本地过滤使一页空时保留 disabled 占位 option，使下拉翻页仍可达。成员多选保留 keyword/page，角色候选 watcher 的 pre-flush 前提不能改成 post。加载失败重抛用于翻页回滚，搜索调用方需消费该异常。来源：T-FE-051、T-FE-058/059，[迁移前决定](../../docs/archive/2026-09-26/decision-registry-before.md)（原第 117、118、182–185、187 行）。
 
 ## 9. Vue 指令导出

@@ -20,6 +20,7 @@ import More from "~icons/ep/more-filled";
 import Key from "~icons/ep/key";
 
 import { resetUserPassword } from "@/api/user-manage";
+import { createResetPasswordFlow } from "../utils/reset-password";
 
 defineOptions({
   name: "MemberTab"
@@ -222,38 +223,32 @@ function handleCommand(command: string, row: any) {
 }
 // 启停开关处理在 useUserManage.handleToggleStatus（T-FE-051 移入 hook，失败透后端原因）
 
-// 重置密码
-async function handleResetPassword(row: any) {
-  // 入口捕获当前选中组织（T-FE-059）：确认框期间上下文可能已变，提交前核对
-  const openedAtOrgId = selectedOrgId.value;
-  try {
-    await ElMessageBox.confirm(
-      `确认重置用户 "${row.name}" 的密码？`,
-      "重置密码",
-      {
-        confirmButtonText: "确认重置",
-        cancelButtonText: "取消",
-        type: "warning"
-      }
-    );
-    if (!Object.is(openedAtOrgId, selectedOrgId.value)) {
-      message("该用户不属于当前选中组织，请刷新后重试", { type: "warning" });
-      return;
-    }
-    const result = await resetUserPassword({ userId: row.id });
-    await ElMessageBox.alert(
-      `新密码：${result.newPassword}\n\n请将密码通知用户妥善保管；用户下次登录需先设置新密码后继续使用。`,
+// 重置密码（T-FE-068 抽出流程模块：同用户互斥防迟到响应交付已失效凭据，
+// spec 在 utils/reset-password.spec.ts；按钮 disabled 与 handler 守卫同源 isPending）
+const resetPwdFlow = createResetPasswordFlow({
+  confirmReset: row =>
+    ElMessageBox.confirm(`确认重置用户 "${row.name}" 的密码？`, "重置密码", {
+      confirmButtonText: "确认重置",
+      cancelButtonText: "取消",
+      type: "warning"
+    }),
+  requestReset: userId => resetUserPassword({ userId }),
+  deliverPassword: password =>
+    ElMessageBox.alert(
+      `新密码：${password}\n\n请将密码通知用户妥善保管；用户下次登录需先设置新密码后继续使用。`,
       "密码重置成功",
       {
         confirmButtonText: "知道了",
         type: "success"
       }
-    );
-  } catch (e: any) {
-    if (e !== "cancel") {
-      message("重置密码失败", { type: "error" });
-    }
-  }
+    ),
+  currentOrgId: () => selectedOrgId.value,
+  notifyContextDrift: () =>
+    message("该用户不属于当前选中组织，请刷新后重试", { type: "warning" })
+});
+
+async function handleResetPassword(row: any) {
+  await resetPwdFlow.reset(row);
 }
 
 const columns = [
@@ -434,6 +429,7 @@ const columns = [
                   type="primary"
                   :size="size"
                   :icon="useRenderIcon(Key)"
+                  :disabled="resetPwdFlow.isPending(row.id)"
                   @click="handleResetPassword(row)"
                 >
                   重置密码
@@ -471,7 +467,11 @@ const columns = [
                       <el-icon><EditPen /></el-icon>
                       <span class="ml-1">修改</span>
                     </el-dropdown-item>
-                    <el-dropdown-item v-if="canResetPwd" command="resetPwd">
+                    <el-dropdown-item
+                      v-if="canResetPwd"
+                      command="resetPwd"
+                      :disabled="resetPwdFlow.isPending(row.id)"
+                    >
                       <el-icon><Key /></el-icon>
                       <span class="ml-1">重置密码</span>
                     </el-dropdown-item>
