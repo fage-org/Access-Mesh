@@ -150,6 +150,8 @@ docker compose exec -T postgresql rm "$tmp_restore"
 java --class-path "$HOME/.m2/repository/cn/dev33/sa-token-core/1.38.0/sa-token-core-1.38.0.jar" tools/ops/PasswordHash.java
 ```
 
+工具校验与服务写入口同口径（T-PERM-110）：密码须 8–32 位、含字母和数字，且 UTF-8 字节长度不超过 72（约 24 个汉字）——BCrypt 只参与前 72 字节，超限密码尾部差异会被静默忽略，先拒后哈希。
+
 ## 10. 授权墓碑恢复
 
 误删固定图授权时，先按 §8 备份、停应用写入，再人工核对 `role_resource_permission` 的租户、角色、资源类型/实例、操作位和墓碑 ID。这只是恢复已存在的同身份授权，不为新版本固定图补行，也不改变其他授权属性。

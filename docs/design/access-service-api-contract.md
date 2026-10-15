@@ -6,7 +6,7 @@ domain: cross-service
 supersedes:
   - docs/design/permission-center/api-contract.md
   - docs/design/services/admin-service-api-contract.md
-last_reviewed: 2026-10-14
+last_reviewed: 2026-10-15
 ---
 
 # access-service API 契约总册
@@ -359,6 +359,8 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 
 **租户登录收紧（T-ACCESS-083）**：密码登录的用户不存在/密码错误统一 code=10005、message="账号或密码错误"；失败计数与锁定阈值不因用户是否存在而分叉。停用（10003）与临时锁定（10004）提示只在**密码正确后**披露（2026-10-06 拍板移序：停用检查先于密码校验会按错误码差异枚举用户名存在性；正确密码路径上停用提示仍优先于锁定提示；锁定期内错误密码照常推进计数）。图形验证码失败不推进临时失败计数、仅记录失败日志（2026-10-06 拍板修正：计数键无 IP 维度，验证码失败计数使免验证码请求可零成本定向锁定任意已知账号——验证码一次性消费，攻击者无需获取验证码即可推动计数；推翻 T-ACCESS-083「验证码失败也计数」口径），技术性 Redis 故障不冒充验证码错误。短信登录端点已删除，无兼容入口；历史 SMS 登录日志仍可查询，将来恢复短信能力须同时交付签发、限流与失败锁定。
 
+**未知账号等成本比对（T-PERM-110）**：账号不存在或无密码哈希的登录分支对预生成 dummy 哈希执行一次与真实验密同档（strength 10）的 BCrypt 比对后仍按 10005 拒绝——消除未知账号（~0.5ms）与错误密码（~60-80ms）的响应时间差异对账号存在性的泄露；错误码、失败计数、登录日志行为不变。租户 `/auth/login` 与平台 `/platform/login` 同口径。
+
 <a id="contract-section-6-1"></a>
 ### 6.1 授权端点（/auth/oauth2/*）
 
@@ -375,7 +377,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 
 应用打开管理台 `/oauth2/authorize`，query 使用 OAuth 标准名称：`client_id`、`response_type=code`、`redirect_uri`、`scope`、`state`、`code_challenge`、`code_challenge_method`。未登录先复用租户登录；首次改密后重新登录，再续接本地授权页；续接参数只接受该本地路径，不作为任意跳转器。
 
-页面先调用 `POST /api/access/auth/oauth2/authorize-preview`，请求体与 AuthorizeReq 相同。服务端复用 authorize 的客户端、租户、用户状态、回调、scope 和 PKCE 校验，返回 `{clientId, clientName, redirectUri, scopes: string[], state}`；预览不签码、不启动刷新链期限。只有用户点击同意才调用 authorize，然后将 code/state 送到核验后的回调；拒绝不调用签码入口，回调携带 `error=access_denied` 与原 state。没有记住同意、历史授权管理或逐 scope 勾选。
+页面先调用 `POST /api/access/auth/oauth2/authorize-preview`，请求体与 AuthorizeReq 相同。服务端复用 authorize 的客户端、租户、用户状态、回调、scope 和 PKCE 校验，返回 `{clientId, clientName, redirectUri, scopes: string[], state}`；预览不签码、不启动刷新链期限。只有用户点击同意才调用 authorize，然后将 code/state 送到核验后的回调；拒绝不调用签码入口，回调携带 `error=access_denied` 与原 state。没有记住同意、历史授权管理或逐 scope 勾选。授权确认页在 query 变化（如同一页面切换 `client_id`）时立即作废旧预览与旧请求并按新 query 重新核验换取新 preview——签码只认当前已核验请求，迟到响应按代际丢弃（T-PERM-110：同页切换 query 不再给旧应用签 code）。
 
 <a id="contract-section-6-1-1"></a>
 #### 6.1.1 `POST /api/access/auth/oauth2/authorize`（需租户原生会话）
@@ -739,7 +741,7 @@ name、phone、email 长度上限分别为 128、32、128；null 保留原值，
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `userId` | `Long` | 是 | |
-| `newPassword` | `String` | 否 | 长度 8-32; 不传则系统生成 |
+| `newPassword` | `String` | 否 | 长度 8-32 且 UTF-8 字节 ≤72（T-PERM-110）; 不传则系统生成 |
 
 **响应 DTO**: `ResetPasswordResp`
 
@@ -752,6 +754,8 @@ name、phone、email 长度上限分别为 128、32、128；null 保留原值，
 **Gateway 放行（T-GW-009，2026-09-19 定案⑤）**: 本端点在 Gateway 匿名白名单会话入口族内（精确清单见 `services/gateway.md` 匿名白名单行）——Gateway 不做接口级鉴权。背景：Gateway 快照条目仅由 API 类型 ACCESS 位派生、实例授权只种子给管理用功能角色（绑首管理员），forceResetPwd 阻断人群（普通用户）不经白名单放行经 Gateway 必 403。服务层门禁不变：Sa-Token 登录校验（`StpUtil.getLoginIdAsLong`，未登录拒绝）+ 自身路径豁免 / 非自身 `USER:RESET_PASSWORD` 实例级（T-PERM-067 语义零改动）。前端强制改密闭环（T-FE-046）的前置.
 
 **重置密码复杂度（T-ACCESS-083）**：管理员重置与自助改密共用同一服务入口，密码须 8–32 位且至少包含一个英文字母及一个数字；复杂度不足返回 HTTP 200 + `10010 PASSWORD_TOO_WEAK`。原 DTO 长度校验保留（不合法长度 HTTP 400），管理员省略 newPassword 时的随机密码生成通道保留；本条不修改旧密码登录验证或强制所有历史密码立即重设。
+
+**密码 UTF-8 字节上限（T-PERM-110）**：BCrypt 仅参与前 72 字节，字符数规则通过的全角密码（24 汉字+字母+数字 = 74 字节）尾部差异会被静默忽略。全部密码写入口（本端点、平台 `/platform/change-password`、平台首装 `ACCESS_PLATFORM_ADMIN_PASSWORD`）统一先拒超限输入：HTTP 200 + `10013 PASSWORD_TOO_LONG`（先于 10010 判定）；离线恢复工具 `tools/ops/PasswordHash.java` 同步该边界。历史超限密码不回溯——登录验证两侧同样截断比对，仍可正常登录。
 
 **会话吊销（T-ACCESS-082）**：非自身重置在写事务内调用 `StpUtil.logout(userId)` 吊销目标的全部租户原生会话；调用失败则数据库事务回滚，不返回重置成功。普通自身改密保留租户原生会话；强制首次改密必须使用不同密码并撤销旧原生会话。OAuth2 旧链仍因密码代际变化而失效。Redis 吊销与数据库并非分布式事务：若后续数据库提交失败，已吊销会话不恢复，用户重新登录即可。
 
@@ -3243,6 +3247,7 @@ schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正�
 | `11113` | `TENANT_GATE_NOT_READY` | 租户状态尚未就绪，请稍后重试 | [平台与租户生命周期](#contract-section-26) |
 | `10011` | `PASSWORD_UNCHANGED` | 强制改密时新密码不能与当前密码相同 | [平台与租户生命周期](#contract-section-26) |
 | `10012` | `PASSWORD_RESET_REQUIRED` | 请先修改自己的初始密码 | [平台与租户生命周期](#contract-section-26) |
+| `10013` | `PASSWORD_TOO_LONG` | 密码UTF-8字节长度不能超过72（约24个汉字），请缩短 | [§7.7](#contract-section-7-7) |
 <!-- error-code-index:end -->
 
 退役码 10111 不复用；历史说明保留于 §20.1。SDK 验签的 30003 已由 PermClientErrorCode 单源定义，保持原 HTTP 200 + 业务码行为。
@@ -3646,7 +3651,7 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
 | `platform-account/update-status` | `{id,status:0或1}` | null |
 | `platform-account/reset-password` | `{id}` | `{password}` |
 
-`PlatformAccountResp={id,username,name,status,forceResetPwd,createdAt,updatedAt}`。账号名最多 64 字符，名称最多 128 字符。新账号及重置密码使用随机初始密码，仅本次响应返回，强制改密；强制标记账号仅可访问自身认证／改密端点。新密码 8–32 位且含字母、数字，强制改密还要求与当前密码不同。停用、重置和自助改密使旧平台令牌代次失效；最后一个启用的平台管理员不能被停用；保护只按数据库启用状态计数，临时登录失败锁定不计入。重置在数据库与审计提交后解除该账号临时登录失败锁定。
+`PlatformAccountResp={id,username,name,status,forceResetPwd,createdAt,updatedAt}`。账号名最多 64 字符，名称最多 128 字符。新账号及重置密码使用随机初始密码，仅本次响应返回，强制改密；强制标记账号仅可访问自身认证／改密端点。新密码 8–32 位且含字母、数字，UTF-8 字节长度不超过 72（超限 `10013 PASSWORD_TOO_LONG`，T-PERM-110），强制改密还要求与当前密码不同。停用、重置和自助改密使旧平台令牌代次失效；最后一个启用的平台管理员不能被停用；保护只按数据库启用状态计数，临时登录失败锁定不计入。重置在数据库与审计提交后解除该账号临时登录失败锁定。
 
 ### 26.2 租户运营
 
@@ -3673,6 +3678,7 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
 |---|---|
 | 10011 | 强制改密的新密码与当前密码相同 |
 | 10012 | 租户用户必须先完成首次改密 |
+| 10013 | 新密码 UTF-8 字节长度超过 72 上限 |
 | 11101 / 11102 | 平台账号不存在 / 用户名已存在 |
 | 11103 | 不得停用最后一个启用平台管理员 |
 | 11104 | 平台账号必须先完成首次改密 |

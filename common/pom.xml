@@ -98,5 +98,12 @@
         </dependency>
         <!-- T-ACCESS-100 r2：测试域后端=全局 spring-boot-starter-test 携带的
              Logback（库模块口径，单 Provider，无桥接环） -->
+        <!-- T-PERM-110：common 自身排除了 starter-logging，测试域实际无 Provider——
+             按上述口径显式补 Logback（仅 test 域，不向宿主传递），供日志脱敏回归捕获断言 -->
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 </project>

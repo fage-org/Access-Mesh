@@ -384,6 +384,13 @@ public class UserAppServiceImpl implements UserAppService {
             ? newPassword
             : generateRandomPassword();
 
+        // 先字节后哈希（T-PERM-110）：字符规则通过的全角密码 UTF-8 可超 BCrypt 72 字节
+        // 参与上限、尾部差异被静默忽略——超限明确拒绝（10013），不与强度不足（10010）混码
+        if (CredentialPasswords.exceedsBcryptByteLimit(effectivePassword)) {
+            throw new BizException(AccessErrorCode.PASSWORD_TOO_LONG.getCode(),
+                AccessErrorCode.PASSWORD_TOO_LONG.getMessage());
+        }
+
         if (!CredentialPasswords.isValid(effectivePassword)) {
             throw new BizException(AccessErrorCode.PASSWORD_TOO_WEAK.getCode(),
                 AccessErrorCode.PASSWORD_TOO_WEAK.getMessage());

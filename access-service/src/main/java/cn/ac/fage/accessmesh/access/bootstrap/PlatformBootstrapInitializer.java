@@ -26,6 +26,11 @@ public class PlatformBootstrapInitializer {
         if (username == null || username.isBlank() || username.length() > 64) {
             throw new IllegalStateException("ACCESS_PLATFORM_ADMIN_USERNAME must contain 1-64 characters");
         }
+        // 先字节后哈希（T-PERM-110）：字符规则通过的全角密码可超 BCrypt 72 字节参与上限
+        if (CredentialPasswords.exceedsBcryptByteLimit(password)) {
+            throw new IllegalStateException(
+                "ACCESS_PLATFORM_ADMIN_PASSWORD exceeds the BCrypt 72-byte input limit (at most 24 CJK characters)");
+        }
         if (!CredentialPasswords.isValid(password)) {
             throw new IllegalStateException("ACCESS_PLATFORM_ADMIN_PASSWORD must contain 8-32 characters, including letters and digits");
         }

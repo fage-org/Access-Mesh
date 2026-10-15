@@ -1,8 +1,8 @@
 ---
 doc_type: problems
 title: 待解决问题清单
-counter: Q-078           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-10-14
+counter: Q-079           # 已分配最大问题号；分配后冻结，不复用不重排
+last_updated: 2026-10-15
 ---
 
 # 待解决问题清单（pending problems）
@@ -263,6 +263,20 @@ last_updated: 2026-10-14
 **影响**：文件夹级授权能力（T-ADMIN-025 全链）与文件上传下载在标准部署（Gateway 单入口 + 租户统一模板开通）下对任何人都不可用，仅测试可经服务层直连 + 夹具授权触达；契约册登记的端点实际不可达。
 
 **设想方向（未定案）**：产品拍板三选一：A=补种子（file 路由入 bootstrap 固定图 + 统一模板给租户管理员 ADMIN_FILE 类型级或预置文件夹实例授权）→ 能力随标准开通可用；B=声明休眠（extension-only：文档明示需接入方自行登记路由与授权，契约册标注可达前提）；C=裁剪（若产品决定不做文件能力则整体退役，含 T-ADMIN-025 授权链与文档清扫）。拍板后转任务。
+
+<a id="q-079"></a>
+## Q-079 IllegalArgumentException 处理器整段记录异常消息的泄露面待盘点
+
+- **状态**：open
+- **登记**：2026-10-15
+- **来源**：[T-PERM-110](tasks/T-PERM-110.md) 双轨评审类推发现（同批已修 HttpMessageNotReadable 日志脱敏；用户拍板本条登记待盘点）
+- **关联**：[T-PERM-110](tasks/T-PERM-110.md)（同根日志通道）
+
+**现象与证据**：`common/.../exception/GlobalExceptionHandler.java:130`（handleIllegalArgumentException）将 `e.getMessage()` 原样写入 WARN 日志。框架路径的该类异常消息可能携带用户提交的原始值（典型形态 `No enum constant com.x.Type '原始值'`）。本仓库业务代码抛 IllegalArgumentException 多为固定文案，但未逐点盘点是否存在把请求输入拼进消息的写法。
+
+**影响**：若存在拼接输入的 throw 点，密码/token 可能随日志外泄（与 T-PERM-110 已修的解析错误日志同型）。当前未证实可达泄露案例：请求体解析错误走 HttpMessageNotReadable（已修）、参数绑定类型错误走 MethodArgumentTypeMismatch、业务校验走 BizException。
+
+**设想方向（未定案）**：先程序化盘点全部 IllegalArgumentException throw 点的消息构造形态（拼接输入 vs 固定文案），证实存在泄露面再定收口修法（同批脱敏会丢失「参数错误具体原因」的运维排查信息，需按盘点结果权衡）。
 
 ## 已收敛（含合并索引；详情在关联问题/任务或历史来源）
 

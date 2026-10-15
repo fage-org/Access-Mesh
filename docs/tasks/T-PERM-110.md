@@ -2,7 +2,7 @@
 doc_type: task
 id: T-PERM-110
 title: 认证与登录安全细节批（敏感日志/授权页切换签码/密码长度上限/等成本比对）
-status: proposed
+status: done
 plan: docs/plans/scenario-audit-remediation-plan.md
 domain: access-service
 design_refs:
@@ -17,8 +17,8 @@ acceptance:
   - "租户/平台登录未知账号分支执行等成本 dummy 哈希比对（0.5ms vs ~60-80ms 时间差异消除），错误码与计数行为不变"
 design_writeback:
   required: true
-  status: pending
-last_updated: 2026-10-14
+  status: done
+last_updated: 2026-10-15
 ---
 
 ## 背景
@@ -42,6 +42,21 @@ P2×4 批（外部持续审查 2026-10-12 发现，2026-10-13 外部核实、202
 
 见 frontmatter `acceptance`；时间侧信道用例以调用次数（0→1 dummy 比对）为断言锚，不以毫秒数为门。
 
+## 完成记录（2026-10-15 收口）
+
+四点全部落地，错误反馈形态经用户拍板（2026-10-15）= 独立错误码 `10013 PASSWORD_TOO_LONG`（先于 10010 判定），前端改密页 placeholder 与文档同批提示字节上限：
+
+- **敏感日志**：`GlobalExceptionHandler.handleHttpMessageNotReadable` 只记异常类名与根因类名，响应体不变；common 测试域补 test-scope logback-classic（单 Provider，不向宿主传递）承载日志捕获断言。
+- **oauth-consent 切换签码**：请求/预览生命周期抽为 `views/oauth-consent/model.ts`（query 变化即作废旧 request/preview 再换取新 preview、迟到响应按代际丢弃、核验失败签码入口不可达、语义相同跳过重取），index.vue 变薄壳；`model.spec.ts` 五用例锁定。
+- **密码字节边界**：`CredentialPasswords` 新增 72 字节上限判定与三写入口接线（租户 reset-password / 平台 change-password / 平台首装 env）；`tools/ops/PasswordHash.java` 与 deployment.md 同步；登录验证不回溯。
+- **等成本 dummy 比对**：`CredentialPasswords.DUMMY_HASH`（strength 10）+ 未知账号/无哈希分支一次真实比对后仍按 10005 拒绝，错误码/计数/日志行为不变（租户与平台两入口）。
+
+红跑实证（2026-10-15）：旧实现下定向 15 跑 5 败——日志脱敏 2 败（断言输出直接含载荷标记）、租户/平台 dummy 2 败（checkpw 0 次）、写入口字节上限 3 败（10013 未抛/insert 照常）；对照用例（账号存在仅一次真实比对、72 字节边界放行、WARN 信号保留）旧实现即绿。前端以变异验证替代红跑（新模型无旧实现载体）：移除「切换先作废旧态」/「代际守卫」分别被对应用例抓住后恢复。
+
+回归证据（2026-10-15，Windows 本机）：`mvn test -pl common,access-service -DskipTestcontainers=true` BUILD SUCCESS 零失败；前端 `pnpm test`（46 文件）/`pnpm typecheck`/`pnpm lint`/`pnpm build` 四件套全绿（placeholder 变更后复跑同绿）；全量收口形态 `mvn test -T 1C`（含 E2E 与 heavy）整文件落盘解析 BUILD SUCCESS——全模块零失败零跳过，E2E 21 例（BasicRoleGrantVerticalSlice 9 + ExampleBusinessFinalCheck 12）与 heavy 组（InterfaceAdmissionHeavy 2 等）均执行。设计回写：契约总册（§6 等成本比对段、§6.1.0 切换重核句、§7.7 字段表与字节上限段、错误码索引 10013 行、§26 平台密码句与失败表行）、frontend/login.md、ops/deployment.md、ops/tenant-operations.md（评审直修：首装密码规则补字节上限）。
+
+双轨评审（2026-10-15）：代码轨/文档轨主代理直跑；P0-P2 零发现；P3 一条存疑（IllegalArgumentException 处理器同型日志通道）经用户拍板登记 Q-079 待盘点；过度设计可裁剪项零（新增件均有验收对应）。
+
 ## 非目标 / 遗留
 
-2026-10-06「密码校验先行、错误码收敛」定案保留；不声称消除全部远程探测面（验证码/限流是部署侧叠加防护）。
+2026-10-06「密码校验先行、错误码收敛」定案保留；不声称消除全部远程探测面（验证码/限流是部署侧叠加防护）。IllegalArgumentException 处理器同型日志通道未证实泄露面，登记 (Q-079) 待盘点。

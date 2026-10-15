@@ -3,34 +3,28 @@ import { onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import {
   approveAuthorization,
-  previewAuthorization,
-  type AuthorizationPreview,
-  type OAuthAuthorizeReq
+  previewAuthorization
 } from "@/api/oauth-consent";
 import { toErrorMessage } from "@/api/_envelope";
-import { authorizationRequest, consentCallback } from "./flow";
+import { consentCallback } from "./flow";
+import { createConsentModel } from "./model";
 
 defineOptions({ name: "OAuthConsent" });
 const route = useRoute();
-const loading = ref(true);
 const submitting = ref(false);
-const error = ref("");
-const preview = ref<AuthorizationPreview | null>(null);
-let request: OAuthAuthorizeReq;
+// query 变化（如切换 client）由模型作废旧请求并换取新 preview，签码只认
+// currentRequest()（T-PERM-110 切换签码修复）
+const { loading, error, preview, refresh, currentRequest } = createConsentModel(
+  () => route.query,
+  previewAuthorization,
+  e => toErrorMessage(e, "无法核验授权请求，请返回应用重新发起")
+);
 
-onMounted(async () => {
-  try {
-    request = authorizationRequest(route.query);
-    preview.value = await previewAuthorization(request);
-  } catch (e) {
-    error.value = toErrorMessage(e, "无法核验授权请求，请返回应用重新发起");
-  } finally {
-    loading.value = false;
-  }
-});
+onMounted(refresh);
 
 async function decide(approved: boolean) {
-  if (!preview.value || submitting.value) return;
+  const request = currentRequest();
+  if (!request || !preview.value || submitting.value) return;
   submitting.value = true;
   error.value = "";
   try {

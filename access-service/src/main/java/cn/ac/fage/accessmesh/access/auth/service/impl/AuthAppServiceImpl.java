@@ -10,6 +10,7 @@ import cn.ac.fage.accessmesh.access.user.entity.SysUser;
 import cn.ac.fage.accessmesh.access.org.entity.SysUserOrg;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
+import cn.ac.fage.accessmesh.access.infrastructure.util.CredentialPasswords;
 import cn.ac.fage.accessmesh.access.infrastructure.util.HttpRequestUtils;
 import cn.ac.fage.accessmesh.access.auth.service.AuthAppService;
 import cn.ac.fage.accessmesh.access.audit.service.domain.LoginLogDomainService;
@@ -179,6 +180,12 @@ public class AuthAppServiceImpl implements AuthAppService {
             throw e;
         }
         SysUser user = tenantId == null ? null : userDomainService.lockValidByUsername(tenantId, req.username());
+        // 等成本 dummy 比对（T-PERM-110 时间侧信道）：账号不存在/无哈希分支对预生成 dummy
+        // 哈希做一次与真实验密同档的 BCrypt 后仍按同码同计数拒绝——未知账号（~0.5ms）与
+        // 错误密码（~60-80ms）的工作量差异不再泄露账号存在性
+        if (user == null || user.getPassword() == null) {
+            CredentialPasswords.dummyCheck(req.password());
+        }
         // 密码校验先行（2026-10-06 拍板：关停用先序存在性探测）——用户不存在与密码错误
         // 同码同计数；停用/锁定状态只在密码正确后披露，按错误码差异枚举用户名的通道关闭
         if (user == null || user.getPassword() == null || !BCrypt.checkpw(req.password(), user.getPassword())) {

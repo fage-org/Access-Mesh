@@ -81,7 +81,7 @@ const onSubmit = async (formEl: FormInstance | undefined) => {
             v-model="ruleForm.newPassword"
             clearable
             show-password
-            placeholder="新密码（8-32 位，包含字母和数字）"
+            placeholder="新密码（8-32 位，包含字母和数字；汉字等全角字符过多会被拒，上限约 24 个汉字）"
             :prefix-icon="useRenderIcon(Lock)"
           />
         </el-form-item>

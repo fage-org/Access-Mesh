@@ -54,6 +54,11 @@ public class PlatformAuthAppServiceImpl implements PlatformAuthAppService {
         try {
             LoginChallengeSupport.validate(redis, req.captchaId(), req.captchaCode());
             var account = accounts.findByUsername(req.username());
+            // 等成本 dummy 比对（T-PERM-110 时间侧信道）：账号不存在/无哈希分支燃烧一次
+            // 与真实验密同档的 BCrypt 后仍同码拒绝——计时不再泄露账号存在性
+            if (account == null || account.getPassword() == null) {
+                CredentialPasswords.dummyCheck(req.password());
+            }
             if (account == null || account.getPassword() == null || !BCrypt.checkpw(req.password(), account.getPassword())) {
                 failures.recordPlatformFailure(req.username());
                 throw error(AccessErrorCode.PASSWORD_INCORRECT);
@@ -91,6 +96,8 @@ public class PlatformAuthAppServiceImpl implements PlatformAuthAppService {
         accounts.lockManagement();
         var account = guard.requireAccount(true);
         if (!BCrypt.checkpw(req.oldPassword(), account.getPassword())) throw error(AccessErrorCode.PASSWORD_INCORRECT);
+        // 先字节后哈希（T-PERM-110）：超 BCrypt 72 字节上限的密码明确拒绝，不与强度不足混码
+        if (CredentialPasswords.exceedsBcryptByteLimit(req.newPassword())) throw error(AccessErrorCode.PASSWORD_TOO_LONG);
         if (!CredentialPasswords.isValid(req.newPassword())) throw error(AccessErrorCode.PASSWORD_TOO_WEAK);
         if (Boolean.TRUE.equals(account.getForceResetPwd()) && BCrypt.checkpw(req.newPassword(), account.getPassword())) {
             throw error(AccessErrorCode.PASSWORD_UNCHANGED);

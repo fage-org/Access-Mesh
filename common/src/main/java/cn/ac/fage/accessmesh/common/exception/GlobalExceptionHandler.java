@@ -136,6 +136,9 @@ public class GlobalExceptionHandler {
      * <p>
      * 处理请求体JSON格式错误导致的HttpMessageNotReadableException异常。
      * 返回请求体格式错误的提示。
+     * 日志只记异常类名与根因类名（T-PERM-110）：解析错误消息携带出错点附近的
+     * 原始请求体片段（密码/token 可能外泄），且该通道发生在进 Controller 之前，
+     * 操作日志 AOP 的「不记录请求参数」覆盖不到。
      * </p>
      *
      * @param e JSON解析异常对象
@@ -144,7 +147,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public R<Void> handleHttpMessageNotReadable(HttpMessageNotReadableException e) {
-        log.warn("HttpMessageNotReadable: {}", e.getMessage());
+        log.warn("HttpMessageNotReadable [cause={}]: rejected malformed request body",
+            e.getCause() == null ? "none" : e.getCause().getClass().getName());
         return R.fail(GlobalErrorCode.VALIDATION_FAILED.code(), "请求体格式错误");
     }
 

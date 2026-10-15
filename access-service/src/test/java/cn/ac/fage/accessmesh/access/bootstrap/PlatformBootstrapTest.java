@@ -29,6 +29,19 @@ class PlatformBootstrapTest {
     }
 
     @Test
+    void shouldRejectOverBcryptByteLimitInitialSecretBeforeCreatingAnything() {
+        // T-PERM-110：24 汉字(72B)+a1(2B)=74 字节——字符规则通过但超 BCrypt 72 字节上限，
+        // 首装密码先拒（尾部差异静默失效面与运行时写入口同源）
+        var accounts = mock(PlatformAccountDomainService.class);
+        var audit = mock(PlatformAuditDomainService.class);
+        assertThatThrownBy(() -> new PlatformBootstrapInitializer(accounts, audit)
+            .initialize("admin", "密".repeat(24) + "a1"))
+            .isInstanceOf(IllegalStateException.class).hasMessageContaining("72");
+        verify(accounts, never()).insert(any());
+        verifyNoInteractions(audit);
+    }
+
+    @Test
     void shouldEnableOnlyThePlatformBootstrapOnExplicitConfiguration() {
         var context = new ApplicationContextRunner()
             .withUserConfiguration(PlatformBootstrapProperties.class, PlatformBootstrapRunner.class)

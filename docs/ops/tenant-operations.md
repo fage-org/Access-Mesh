@@ -4,7 +4,7 @@
 
 ## 首次部署与开通
 
-首次部署使用权威 DDL 建空库。配置 `ACCESS_PLATFORM_BOOTSTRAP_ENABLED=true`、`ACCESS_PLATFORM_ADMIN_USERNAME`（默认 admin）与 `ACCESS_PLATFORM_ADMIN_PASSWORD`（8–32 位，含字母和数字）。平台账号仅在空账号表时初始化；后续修改环境变量或重启不会覆盖已存在账号的密码。环境变量和密钥文件不提交仓库。
+首次部署使用权威 DDL 建空库。配置 `ACCESS_PLATFORM_BOOTSTRAP_ENABLED=true`、`ACCESS_PLATFORM_ADMIN_USERNAME`（默认 admin）与 `ACCESS_PLATFORM_ADMIN_PASSWORD`（8–32 位，含字母和数字，且 UTF-8 字节不超过 72——约 24 个汉字，T-PERM-110，超限首装启动即拒）。平台账号仅在空账号表时初始化；后续修改环境变量或重启不会覆盖已存在账号的密码。环境变量和密钥文件不提交仓库。
 
 首次启动不创建任何租户或 OAuth2 客户端。访问平台登录页（默认 hash 路由为 `/#/platform/login`）登录运营界面，再从租户页开通。第一个租户与后续租户均自由填写不可变编码（小写字母开头，最长 64，允许数字、连字符）。客户使用 `/login`，填写该编码及交付的首管理员凭据；首次改密后重新登录。客户 OAuth2 接入由其管理员另行注册客户端。
 
