@@ -8,6 +8,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
 
@@ -194,6 +195,12 @@ public final class ConditionEvalUtils {
         int[] rightGroups = compressIndex >= 0
             ? parseIpv6Side(literal.substring(compressIndex + 2), true)
             : null;
+        if (compressIndex >= 0 && rightGroups == null) {
+            // 压缩右侧解析失败（超界组/非法 v4 尾）立即拒绝（codex sol r3 P2-2）：
+            // parseIpv6Side 仅对非法输入返回 null（空串返回 0 组），null 按 0 组放行
+            // 会在游标计算处解引用抛 NPE（写入口 500、判定面外层兜底误拒）
+            return null;
+        }
         int groupCount = leftGroups.length + (rightGroups == null ? 0 : rightGroups.length);
         if (compressIndex < 0) {
             if (groupCount != 8) {
@@ -405,9 +412,13 @@ public final class ConditionEvalUtils {
      * T-PERM-109：参数与客户端值先经 {@link #isValidCidr} 形态闸门——非法 CIDR 不匹配
      * 任何地址（负前缀不再「匹配一切」）。codex sol r2 P2-2：地址解析数值化——校验与
      * 匹配共用同一套纯字节解析器（{@link #parseNumericAddress}），全程无
-     * {@code InetAddress.getByName}：不再存在「校验器放行而 JDK 解析拒绝」的落差面
+     * {@code InetAddress.getByName}：不再存在「校验放行而 JDK 解析拒绝」的落差面
      * （旧差形态如 {@code 1.2.3.4::} 在匹配期降级为未命中、黑名单反转为放行），
      * 亦无 zone/网卡名等平台相关解析副作用。
+     * codex sol r3 P2-1：跨族仅 IPv4-mapped（{@code ::ffff:a.b.c.d}）↔IPv4 归一后可比
+     * （恢复 InetAddress 将 mapped 解析为 Inet4Address 的归一语义——mapped 网段前缀
+     * 换算 -96 后与内嵌 v4 比较；纯 v6 × v4 不匹配）；无前缀单地址按归一后字节等值
+     * （压缩/全写同址等价、mapped↔v4 等价，取代旧字符串等值）。
      * </p>
      *
      * @param ip   IP地址
@@ -419,16 +430,36 @@ public final class ConditionEvalUtils {
             return false;
         }
         if (!cidr.contains("/")) {
-            return cidr.equals(ip);
+            // 无前缀单地址：字节等值——压缩/全写同址等价，mapped↔v4 归一（codex sol r3
+            // P2-1：旧字符串等值不识别等价写法，存量观察随 mapped 归一同层收敛）
+            byte[] clientBytes = parseNumericAddress(ip);
+            byte[] networkBytes = parseNumericAddress(cidr);
+            return clientBytes != null && networkBytes != null
+                && bytesEqualNormalized(clientBytes, networkBytes);
         }
         int slash = cidr.indexOf('/');
         int prefixLength = Integer.parseInt(cidr.substring(slash + 1));
 
         byte[] clientBytes = parseNumericAddress(ip);
         byte[] networkBytes = parseNumericAddress(cidr.substring(0, slash));
-        if (clientBytes == null || networkBytes == null
-            || clientBytes.length != networkBytes.length) {
+        if (clientBytes == null || networkBytes == null) {
             return false;
+        }
+        if (clientBytes.length != networkBytes.length) {
+            // 跨族仅 IPv4-mapped↔IPv4 归一后可比（codex sol r3 P2-1）：数值化前
+            // InetAddress 将 ::ffff:a.b.c.d 解析为 Inet4Address，mapped 客户端可命中
+            // 普通 v4 网段——纯字节长度比较丢失该归一曾使黑名单漏拦经反转放行；
+            // 纯 v6 × v4 仍不匹配（::/0 非 mapped 网段不含 v4 客户端）
+            byte[] clientV4 = embeddedIpv4OrSelf(clientBytes);
+            byte[] networkV4 = embeddedIpv4OrSelf(networkBytes);
+            if (clientV4 == null || networkV4 == null) {
+                return false;
+            }
+            if (networkBytes.length == 16) {
+                prefixLength = Math.max(0, prefixLength - 96);
+            }
+            clientBytes = clientV4;
+            networkBytes = networkV4;
         }
 
         for (int i = 0; i < prefixLength; i++) {
@@ -439,6 +470,36 @@ public final class ConditionEvalUtils {
             }
         }
         return true;
+    }
+
+    /**
+     * IPv4-mapped IPv6（前 80 位 0 + ffff 段）取内嵌 IPv4 字节；已是 IPv4 原样返回；
+     * 其余 IPv6 返回 null（codex sol r3 P2-1：恢复 InetAddress 将 mapped 解析为
+     * Inet4Address 的归一语义，匹配层专用——校验/解析层保持 16 字节原形）。
+     */
+    private static byte[] embeddedIpv4OrSelf(byte[] addressBytes) {
+        if (addressBytes.length == 4) {
+            return addressBytes;
+        }
+        for (int i = 0; i < 10; i++) {
+            if (addressBytes[i] != 0) {
+                return null;
+            }
+        }
+        if (addressBytes[10] != (byte) 0xFF || addressBytes[11] != (byte) 0xFF) {
+            return null;
+        }
+        return Arrays.copyOfRange(addressBytes, 12, 16);
+    }
+
+    /** 归一后字节等值：同长直接比较；mapped 16B 与 v4 4B 经内嵌归一后比较（codex sol r3 P2-1）。 */
+    private static boolean bytesEqualNormalized(byte[] left, byte[] right) {
+        if (left.length == right.length) {
+            return Arrays.equals(left, right);
+        }
+        byte[] leftV4 = embeddedIpv4OrSelf(left);
+        byte[] rightV4 = embeddedIpv4OrSelf(right);
+        return leftV4 != null && rightV4 != null && Arrays.equals(leftV4, rightV4);
     }
 
     // ===== 条件项评估 =====

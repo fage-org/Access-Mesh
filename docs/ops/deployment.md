@@ -94,7 +94,12 @@ login-log 固定图新增路由，旧图启动缺行时须先备份再重建。b
 
 以下命令为 Linux/Bash 运维示例，在仓库根目录执行。备份包含用户、授权与凭据哈希，目录须仅运维账号可读；离机副本加密保存。数据库备份之外，另行备份 Nacos 配置、密钥及 ADMIN_FILE 持久目录（Compose 预览档=命名卷，物理卷名已钉死为 `accessmesh-files`——默认卷名带项目前缀且随目录名/COMPOSE_PROJECT_NAME 漂移，钉死后备份命令可移植；备份形态如 `docker run --rm -v accessmesh-files:/data -v <备份目录>:/backup alpine tar czf /backup/accessmesh-files-$(date +%Y%m%d%H%M%S).tgz -C /data .`）。Redis 恢复时清空本平台专用逻辑库，重新登录；不要恢复旧会话、授权缓存和令牌。
 
-**一次性卷迁移（钉名升级，codex sol r2 P2-5）**：物理卷名从默认 `<项目名>_accessmesh-files` 改钉为 `accessmesh-files` 时，Docker 不会改名/迁移旧卷——直接 `up -d` 会挂上新建的空卷，PG 元数据仍在而文件内容全失（下载报物理文件不存在）。已用旧版本（2026-10-14 之前）上传过文件的环境，升级前执行：①停止写入（停 access-service 容器或下线上传入口）；②对旧物理卷做一次上述 tar 备份留底；③将旧卷内容复制到钉名卷：`docker run --rm -v <旧物理卷名>:/src -v accessmesh-files:/dst alpine sh -c "cp -a /src/. /dst/"`（旧卷名用 `docker volume ls` 确认，典型为 `access-mesh_accessmesh-files`）；④抽样核验既有文件可下载后，再删除旧卷并按常规流程重建服务。全新环境无旧卷，直接按钉名卷启动即可。
+**一次性文件迁移（升级到钉名卷形态，codex sol r2 P2-5 + r3 P2-3 双源补全）**：当前形态固定挂载命名卷 `accessmesh-files`（容器内 `/var/lib/accessmesh/files`）。直接 `up -d` 不会把旧来源内容带进钉名卷——PG 元数据仍在而文件内容全失（下载报物理文件不存在）。已上传过文件的环境按旧来源二选一迁移，共同次序为「先备份留底 → 内容落到钉名卷 → 切换新栈 → 抽样核验既有文件可下载且内容一致 → 清理旧来源」：
+
+- **来源一：无卷形态（T-ACCESS-099 之前，2026-10-14 前的更早部署）**——无文件卷，内容在旧 access-service 容器可写层（容器内 `${user.home}/accessmesh-files`，root 运行时典型为 `/root/accessmesh-files`，以旧部署实际 FILE_STORAGE_PATH 为准；`docker exec accessmesh-access-service sh -c 'ls "${user.home:-/root}/accessmesh-files"'` 可确认）。旧容器一旦删除可写层**不可恢复**——必须先导出再重建：①停止写入（停旧容器即可）；②`docker cp accessmesh-access-service:<上述容器内路径> ./accessmesh-files-backup` 导出留底；③按新版本重建服务（钉名卷自动创建）；④`docker run --rm -v "$(pwd)/accessmesh-files-backup:/src" -v accessmesh-files:/dst alpine sh -c "cp -a /src/. /dst/"`。
+- **来源二：项目前缀卷形态（T-ACCESS-099 已挂卷、钉名之前的部署）**——物理卷名为默认 `<项目名>_accessmesh-files`，Docker 不会改名/迁移旧卷：①停止写入；②对旧物理卷做一次上述 tar 备份留底；③`docker run --rm -v <旧物理卷名>:/src -v accessmesh-files:/dst alpine sh -c "cp -a /src/. /dst/"`（旧卷名用 `docker volume ls` 确认，典型为 `access-mesh_accessmesh-files`）；④核验后删除旧卷。
+
+全新环境无旧来源，直接按钉名卷启动即可。
 
 ### 8.1 定时备份
 

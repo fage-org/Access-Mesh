@@ -184,4 +184,63 @@ class ConditionEvalUtilsCidrGuardTest {
         assertThat(ConditionEvalUtils.ipMatchesCidr("10.1.2.3", "::/0")).isFalse();
         assertThat(ConditionEvalUtils.ipMatchesCidr("::1", "0.0.0.0/0")).isFalse();
     }
+
+    // ===== codex sol r3 P2-2：压缩右侧解析失败守卫（曾按 0 组放行后 NPE）=====
+
+    @Test
+    @DisplayName("r3 P2-2：压缩右侧非法（超界组/非 hex 组/非法 v4 尾/无压缩侧 v4 尾超段）→ 拒绝而非 NPE"
+        + "（旧实现右侧 null 按 0 组计数通过组数检查后在 cursor 计算处解引用，红跑实证 NPE）")
+    void compressionRightSideInvalidRejectedNotNpe() {
+        assertThat(ConditionEvalUtils.isValidCidr("2001:db8::12345/64")).isFalse();
+        assertThat(ConditionEvalUtils.isValidCidr("::gggg/64")).isFalse();
+        assertThat(ConditionEvalUtils.isValidCidr("2001:db8::1.2.3.4.5/64")).isFalse();
+        assertThat(ConditionEvalUtils.isValidCidr("::1.2.3.4.5")).isFalse();
+        assertThat(ConditionEvalUtils.isValidCidr("::ffff:1.2.3.4.5/64")).isFalse();
+    }
+
+    @Test
+    @DisplayName("r3 P2-2：黑白名单含压缩右侧非法项 → 整条不满足（fail-closed，写入口前置校验同路径）")
+    void ipListWithRightSideInvalidEntryFailsClosed() throws Exception {
+        assertThat(ConditionEvalUtils.evalIpList(
+            JSON.readTree("[\"172.16.0.0/12\",\"::ffff:1.2.3.4.5/64\"]"), "10.1.2.3", false)).isFalse();
+        assertThat(ConditionEvalUtils.evalIpList(
+            JSON.readTree("[\"10.0.0.0/8\",\"2001:db8::12345/64\"]"), "10.1.2.3", true)).isFalse();
+    }
+
+    // ===== codex sol r3 P2-1：mapped↔v4 跨族归一（数值化丢失 InetAddress 的 Inet4Address 归一）=====
+
+    @Test
+    @DisplayName("r3 P2-1：mapped 客户端 × 普通 v4 网段 → 匹配；mapped 网段 × v4 客户端经前缀换算匹配"
+        + "（数值化后 16B/4B 长度不等曾误判不匹配——旧 InetAddress 时代 mapped 解析为 Inet4Address 可匹配，红跑实证）")
+    void mappedV4CrossFamilyMatching() {
+        assertThat(ConditionEvalUtils.ipMatchesCidr("::ffff:10.1.2.3", "10.0.0.0/8")).isTrue();
+        assertThat(ConditionEvalUtils.ipMatchesCidr("::ffff:192.168.1.5", "10.0.0.0/8")).isFalse();
+        // 反向：mapped 网段 /104 → 内嵌 v4 前缀 8
+        assertThat(ConditionEvalUtils.ipMatchesCidr("10.1.2.3", "::ffff:10.0.0.0/104")).isTrue();
+        assertThat(ConditionEvalUtils.ipMatchesCidr("192.168.1.5", "::ffff:10.0.0.0/104")).isFalse();
+        // 纯 v6 × v4 跨族不匹配保持（::/0 非 mapped 网段、::1 非 mapped 客户端）
+        assertThat(ConditionEvalUtils.ipMatchesCidr("2001:db8::1", "10.0.0.0/8")).isFalse();
+        assertThat(ConditionEvalUtils.ipMatchesCidr("10.1.2.3", "::/0")).isFalse();
+        assertThat(ConditionEvalUtils.ipMatchesCidr("::1", "0.0.0.0/0")).isFalse();
+    }
+
+    @Test
+    @DisplayName("r3 P2-1：黑名单 [\\\"10.0.0.0/8\\\"] × mapped 客户端 → 不满足"
+        + "（数值化丢失归一曾使黑名单漏拦经反转放行，红跑实证）；白名单对应满足")
+    void blacklistMappedClientDenied() throws Exception {
+        assertThat(ConditionEvalUtils.evalIpList(
+            JSON.readTree("[\"10.0.0.0/8\"]"), "::ffff:10.1.2.3", false)).isFalse();
+        assertThat(ConditionEvalUtils.evalIpList(
+            JSON.readTree("[\"10.0.0.0/8\"]"), "::ffff:10.1.2.3", true)).isTrue();
+    }
+
+    @Test
+    @DisplayName("r3 P2-1：无前缀单地址按字节等值——mapped↔v4 等价、IPv6 压缩↔全写等价"
+        + "（旧实现字符串等值——r3 存量观察随 mapped 归一同层收敛）")
+    void singleAddressByteEquality() {
+        assertThat(ConditionEvalUtils.ipMatchesCidr("::ffff:10.1.2.3", "10.1.2.3")).isTrue();
+        assertThat(ConditionEvalUtils.ipMatchesCidr("2001:0db8:0000:0000:0000:0000:0000:0001", "2001:db8::1")).isTrue();
+        assertThat(ConditionEvalUtils.ipMatchesCidr("::ffff:10.1.2.4", "10.1.2.3")).isFalse();
+        assertThat(ConditionEvalUtils.ipMatchesCidr("2001:db8::2", "2001:db8::1")).isFalse();
+    }
 }

@@ -47,3 +47,4 @@ docker-compose.yml 预览档；deployment.md 对应说明。
 - 设计回写（last_reviewed 已 bump）：deployment.md §部署前置（FILE_STORAGE_PATH/命名卷/重建语义/`down -v` 连带删除警示）与 §8 备份指引（卷对应关系与 tar 备份形态示例）；access-service-architecture.md §15 新增「容器化持久化」条（单实例容器重建不再丢文件；单实例本地盘边界与多实例共享非目标不变）。
 - 双轨评审：代码轨=compose 单文件 diff 复核（挂载路径与 env 一致、卷名与顶层登记一致、健康检查/端口无回归）；文档轨=deployment/architecture/契约总册对文件存储描述交叉核对无冲突；新发现 Q-078 已按登记规则落 Q-078 条目。
 - codex sol r2 处置（2026-10-15）：deployment.md 补一次性卷迁移流程——物理卷钉名不改名旧卷，已上传过文件的旧版环境直接 up 会挂空卷（PG 元数据在而文件全失）；迁移四步（停写入→备份旧卷→`docker cp -a` 到钉名卷→核验后删旧卷）入册。
+- codex sol r3 处置（2026-10-15）：r2 迁移流程只覆盖「项目前缀旧卷」来源，漏了更早的**无卷形态**（T-ACCESS-099 之前部署无文件卷，内容在旧容器可写层 `${user.home}/accessmesh-files`）——这类环境没有旧物理卷可迁，直接重建即永久丢失唯一文件副本。deployment.md 迁移段重写为双源形态：来源一=旧容器可写层（`docker cp` 先导出留底再重建，旧容器删除后不可恢复）；来源二=项目前缀旧卷（原四步保持）；共同次序「备份留底→落钉名卷→切换→抽样核验→清理旧源」。

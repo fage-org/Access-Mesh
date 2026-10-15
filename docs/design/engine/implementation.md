@@ -503,13 +503,17 @@ scopeAll 条目不参与展开；query-resources 的树扩展（原 `expandResou
   （请求级唯一 evaluatedAt）→ `PermEvalContext` 展平为评估输入 Map（clientIp/evaluatedAt/attributes
   三层；时间类条件优先消费 evaluatedAt，缺省回退本机时钟——网关快照重评维持既有行为）。
 - **IP 条件 CIDR 参数口径（T-PERM-109，2026-10-14；外评 P2-2 处置同日；codex sol r2 数值化收口
-  2026-10-15）**：`ConditionEvalUtils` 单源（判定器/条件写入口/前端基础校验同语义）——合法 = IP 数值
+  2026-10-15；r3 补全同日）**：`ConditionEvalUtils` 单源（判定器/条件写入口/前端基础校验同语义）——合法 = IP 数值
   字面量，或 字面量/前缀（前缀 1-3 位 ASCII 纯数字且 ≤ 地址族位数，IPv4=32/IPv6=128；负数/带符号/
   夹带串/全角数字拒绝）；地址校验与匹配**共用同一套纯字节解析器**（`parseNumericAddress`：IPv4 严格
-  点分四段；IPv6 分组/压缩/IPv4 映射尾且映射尾仅允许整地址末位——`1.2.3.4::` 形态拒绝；**zone
-  （%scope）一律拒绝**——CIDR 条目无 zone 匹配语义且其解析平台相关；全程无 `InetAddress.getByName`，
+  点分四段；IPv6 分组/压缩/IPv4 映射尾且映射尾仅允许整地址末位——`1.2.3.4::` 形态拒绝，**压缩
+  右侧解析失败（超界组/非法点分尾）立即拒绝**——曾按 0 组放行后在游标计算处 NPE〔r3 P2-2，写入口
+  500/判定面兜底误拒〕；**zone（%scope）一律拒绝**——CIDR 条目无 zone 匹配语义且其解析平台相关；全程无 `InetAddress.getByName`，
   不存在「校验放行而解析拒绝」的落差面——r2 前经 getByName 匹配的差形态会在匹配期降级为未命中、
-  黑名单反转为放行）。判定面 fail-closed：任一 CIDR 非法 →
+  黑名单反转为放行）。**跨族匹配归一（r3 P2-1）**：仅 IPv4-mapped（`::ffff:a.b.c.d`）↔IPv4 在
+  匹配层归一后可比（恢复 InetAddress 将 mapped 解析为 Inet4Address 的既有语义——mapped 网段前缀
+  换算 -96 与内嵌 v4 比较；纯 v6 × v4 不匹配，`::/0` 非 mapped 网段不含 v4 客户端）；无前缀单地址
+  按归一后**字节等值**（压缩/全写同址等价、mapped↔v4 等价，取代字符串等值）。判定面 fail-closed：任一 CIDR 非法 →
   整个 IP 条件不满足（前置全量校验、合法项先命中不短路；黑名单不因「无匹配→反转」放行非法配置）。
   合法 /0（全族）与单地址用途保持。
 - **审计证据（T-PERM-088）**：`ConflictEvidence` 按 execution＋item＋stage＋ruleRef 聚合，根 execute
