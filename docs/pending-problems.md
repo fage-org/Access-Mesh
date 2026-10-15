@@ -1,7 +1,7 @@
 ---
 doc_type: problems
 title: 待解决问题清单
-counter: Q-079           # 已分配最大问题号；分配后冻结，不复用不重排
+counter: Q-080           # 已分配最大问题号；分配后冻结，不复用不重排
 last_updated: 2026-10-15
 ---
 
@@ -277,6 +277,20 @@ last_updated: 2026-10-15
 **影响**：若存在拼接输入的 throw 点，密码/token 可能随日志外泄（与 T-PERM-110 已修的解析错误日志同型）。当前未证实可达泄露案例：请求体解析错误走 HttpMessageNotReadable（已修）、参数绑定类型错误走 MethodArgumentTypeMismatch、业务校验走 BizException。
 
 **设想方向（未定案）**：先程序化盘点全部 IllegalArgumentException throw 点的消息构造形态（拼接输入 vs 固定文案），证实存在泄露面再定收口修法（同批脱敏会丢失「参数错误具体原因」的运维排查信息，需按盘点结果权衡）。
+
+<a id="q-080"></a>
+## Q-080 OAuth2 clientSecret 写入口未限 BCrypt 72 字节边界
+
+- **状态**：open
+- **登记**：2026-10-15
+- **来源**：[T-PERM-110](tasks/T-PERM-110.md) codex sol 外评存量观察（主代理核实 DTO 无上限属实）
+- **关联**：[T-PERM-110](tasks/T-PERM-110.md)（同根 BCrypt 72 字节静默截断面；密码写入口已收口，本条为 clientSecret 面）
+
+**现象与证据**：`Oauth2ClientCreateReq`/`Oauth2ClientUpdateReq` 的 `clientSecret` 仅非空白 `@Pattern` 校验、无长度上限；`Oauth2ClientAppServiceImpl.java:92/:142` 对其直接 `BCrypt.hashpw`——超 72 字节的 clientSecret 尾部被静默截断（与 T-PERM-110 已修的用户密码面同型）。
+
+**影响**：管理员/对接方提交超长 secret 时「前 72 字节相同、尾部不同」的两把密钥视为同一凭据：轮换到前缀相同的新 secret 后旧 secret 不失效（撤销语义受损）；机密性弱化触发条件苛刻（需构造前缀碰撞），主要风险在轮换语义与「以为换了钥匙」的错觉。`TokenReq.clientSecret` 验密侧两侧同样截断，比对不受影响。
+
+**设想方向（未定案）**：与密码面同款收口（DTO 长度上限 + 写入口先拒明确错误）或登记为接受边界（clientSecret 属高熵机密、非用户口令，截断弱化实际可达性低）——拍板后转任务或 closed。
 
 ## 已收敛（含合并索引；详情在关联问题/任务或历史来源）
 

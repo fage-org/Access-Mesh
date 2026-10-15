@@ -55,7 +55,7 @@ P2×4 批（外部持续审查 2026-10-12 发现，2026-10-13 外部核实、202
 
 回归证据（2026-10-15，Windows 本机）：`mvn test -pl common,access-service -DskipTestcontainers=true` BUILD SUCCESS 零失败；前端 `pnpm test`（46 文件）/`pnpm typecheck`/`pnpm lint`/`pnpm build` 四件套全绿（placeholder 变更后复跑同绿）；全量收口形态 `mvn test -T 1C`（含 E2E 与 heavy）整文件落盘解析 BUILD SUCCESS——全模块零失败零跳过，E2E 21 例（BasicRoleGrantVerticalSlice 9 + ExampleBusinessFinalCheck 12）与 heavy 组（InterfaceAdmissionHeavy 2 等）均执行。设计回写：契约总册（§6 等成本比对段、§6.1.0 切换重核句、§7.7 字段表与字节上限段、错误码索引 10013 行、§26 平台密码句与失败表行）、frontend/login.md、ops/deployment.md、ops/tenant-operations.md（评审直修：首装密码规则补字节上限）。
 
-双轨评审（2026-10-15）：代码轨/文档轨主代理直跑；P0-P2 零发现；P3 一条存疑（IllegalArgumentException 处理器同型日志通道）经用户拍板登记 Q-079 待盘点；过度设计可裁剪项零（新增件均有验收对应）。
+双轨评审（2026-10-15）：代码轨/文档轨主代理直跑；P0-P2 零发现；P3 一条存疑（IllegalArgumentException 处理器同型日志通道）经用户拍板登记 Q-079 待盘点；过度设计可裁剪项零（新增件均有验收对应）。codex sol 外评（2026-10-15，read-only 沙箱）：P0-P3 全零、可裁剪零、存疑零——六项专项（密码写入口全集/BCrypt 验密全集/分支不变量/授权页生命周期/日志与兼容性/测试域日志 Provider）实证通过；存量观察三条经核实定性（clientSecret 未限 72 字节登记 Q-080；Q-076/Q-079 既有登记维持）。
 
 ## 非目标 / 遗留
 
