@@ -129,16 +129,59 @@ class ConditionEvalUtilsCidrGuardTest {
     }
 
     @Test
-    @DisplayName("合法 IPv6 结构形态保持：全零/压缩/全 8 组/zone/IPv4 映射尾；超界结构拒绝")
+    @DisplayName("合法 IPv6 结构形态保持：全零/压缩/全 8 组/IPv4 映射尾；超界结构拒绝。"
+        + "codex sol r2：zone 整体拒绝——解析平台相关（%eth0 在无该网卡的宿主 UnknownHost）"
+        + "且 CIDR 条目无 zone 匹配语义（客户端地址不携带 zone），旧「zone 合法」断言随之翻转")
     void legitIpv6StructuresPreserved() {
         assertThat(ConditionEvalUtils.isValidCidr("::")).isTrue();
         assertThat(ConditionEvalUtils.isValidCidr("::1")).isTrue();
         assertThat(ConditionEvalUtils.isValidCidr("2001:db8:0:0:0:0:0:1/128")).isTrue();
-        assertThat(ConditionEvalUtils.isValidCidr("fe80::1%eth0/10")).isTrue();
+        assertThat(ConditionEvalUtils.isValidCidr("fe80::1/10")).isTrue();
         assertThat(ConditionEvalUtils.isValidCidr("::ffff:192.168.1.1/96")).isTrue();
         assertThat(ConditionEvalUtils.isValidCidr("1:2:3:4:5:6:7:8")).isTrue();
         assertThat(ConditionEvalUtils.isValidCidr("1:2:3:4:5:6:7:8:9")).isFalse();
         assertThat(ConditionEvalUtils.isValidCidr("12345::/16")).isFalse();
+        // codex sol r2：zone 一律拒绝（含数值 zone 与 v4-mapped+zone——JDK 对后者明确拒绝）
+        assertThat(ConditionEvalUtils.isValidCidr("fe80::1%eth0/10")).isFalse();
+        assertThat(ConditionEvalUtils.isValidCidr("fe80::1%1/10")).isFalse();
         assertThat(ConditionEvalUtils.isValidCidr("fe80::1%/10")).isFalse();
+        assertThat(ConditionEvalUtils.isValidCidr("::ffff:192.168.1.0%1/120")).isFalse();
+    }
+
+    // ===== codex sol r2 P2-2：校验器与解析落差（结构合法但 JDK 拒绝的形态）=====
+
+    @Test
+    @DisplayName("r2 P2-2：IPv4 点分尾不在整地址末位（1.2.3.4::）→ 拒绝"
+        + "（旧实现左侧 v4 尾计 2 组判合法、匹配期 JDK UnknownHost 降级为未命中，红跑实证）")
+    void ipv4TailNotAtAddressEndRejected() {
+        assertThat(ConditionEvalUtils.isValidCidr("1.2.3.4::/64")).isFalse();
+        assertThat(ConditionEvalUtils.isValidCidr("1.2.3.4::5:6/64")).isFalse();
+        assertThat(ConditionEvalUtils.isValidCidr("::1.2.3.4")).isTrue();
+        assertThat(ConditionEvalUtils.isValidCidr("1:2:3:4:5:6:1.2.3.4/96")).isTrue();
+    }
+
+    @Test
+    @DisplayName("r2 P2-2：黑名单 [\"1.2.3.4::/64\"] 客户端 2001:db8::1 → 整条不满足"
+        + "（旧实现校验器放行 + 匹配失败降级未命中 + 黑名单反转 = 放行，红跑实证）")
+    void blacklistWithJdkRejectedEntryFailsClosed() {
+        com.fasterxml.jackson.databind.node.ArrayNode cidrs =
+            new com.fasterxml.jackson.databind.ObjectMapper().createArrayNode();
+        cidrs.add("1.2.3.4::/64");
+        assertThat(ConditionEvalUtils.evalIpList(cidrs, "2001:db8::1", false)).isFalse();
+        assertThat(ConditionEvalUtils.evalIpList(cidrs, "2001:db8::1", true)).isFalse();
+    }
+
+    @Test
+    @DisplayName("r2 P2-2：数值化匹配正确性——v4 映射尾按字节前缀比较、跨族不匹配、边界前缀")
+    void numericByteMatchingPreserved() {
+        assertThat(ConditionEvalUtils.ipMatchesCidr("::ffff:192.168.1.5", "::ffff:192.168.1.0/120")).isTrue();
+        assertThat(ConditionEvalUtils.ipMatchesCidr("::ffff:192.168.1.5", "::ffff:192.168.2.0/120")).isFalse();
+        assertThat(ConditionEvalUtils.ipMatchesCidr("2001:db8::1", "2001:db8::/64")).isTrue();
+        assertThat(ConditionEvalUtils.ipMatchesCidr("2001:db8:8000::1", "2001:db8::/64")).isFalse();
+        assertThat(ConditionEvalUtils.ipMatchesCidr("2001:db8::1", "2001:db8::/127")).isTrue();
+        assertThat(ConditionEvalUtils.ipMatchesCidr("2001:db8::2", "2001:db8::/127")).isFalse();
+        assertThat(ConditionEvalUtils.ipMatchesCidr("10.1.2.3", "10.1.2.0/24")).isTrue();
+        assertThat(ConditionEvalUtils.ipMatchesCidr("10.1.2.3", "::/0")).isFalse();
+        assertThat(ConditionEvalUtils.ipMatchesCidr("::1", "0.0.0.0/0")).isFalse();
     }
 }

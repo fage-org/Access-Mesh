@@ -19,6 +19,13 @@
             <artifactId>jakarta.servlet-api</artifactId>
             <scope>provided</scope>
         </dependency>
+        <!-- T-ACCESS-100 r2：boot 聚合器退出后显式化（原经 starter 传递）——注解
+             （@PostConstruct 等）由宿主供应（任何 boot starter 都带） -->
+        <dependency>
+            <groupId>jakarta.annotation</groupId>
+            <artifactId>jakarta.annotation-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
         <!-- T-ACCESS-100：SDK 真正公共依赖显式化——SLF4J API 编译期可见、由宿主供应 -->
         <dependency>
             <groupId>org.slf4j</groupId>
@@ -35,17 +42,25 @@
             <artifactId>perm-common</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!-- T-ACCESS-100 r2（codex sol r2 P2-3）：SDK 对宿主日志零参与——不依赖
+             spring-boot-starter 聚合器（其固定携带 starter-logging→Logback，会击穿
+             宿主自选后端的剪除），只声明实际需要的自动装配件；boot 聚合器是零类
+             jar，各 SDK 边一律排除、阻断 starter-logging 传递路径。 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter</artifactId>
-            <!-- T-ACCESS-100：SDK 对宿主日志保持零参与——不传递任何日志实现，也不带
-                 starter-logging 排除（排除项经 Maven 就近仲裁会反向剪掉宿主自选的
-                 Logback，实测可将宿主后端剪成 NOP）。common 不再传递 log4j2 后，
-                 原「排除默认 logging 防桥接环」的防线随之退役。 -->
+            <artifactId>spring-boot-autoconfigure</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-openfeign</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
+        <!-- 测试域后端=全局 spring-boot-starter-test 携带的 Logback（单 Provider；
+             SDK 库模块测试绑定宿主式默认后端，平台应用运行形态仍统一 Log4j2） -->
     </dependencies>
 </project>

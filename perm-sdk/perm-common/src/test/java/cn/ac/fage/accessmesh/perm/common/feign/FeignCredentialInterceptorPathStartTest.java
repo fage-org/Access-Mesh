@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.perm.common.feign;
 
+import cn.ac.fage.accessmesh.perm.client.feign.PermissionFeignClient;
 import feign.RequestTemplate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -13,16 +14,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 真正路径起点（相对路径形态、完整值匹配）——URL 其他位置出现该子串不注入：
  * 异域同路径（绝对 URL 指向任意授权域）、前缀包含（子串嵌在更长路径中）、
  * query 携带（子串仅在 query 参数值里）。三反例在旧 indexOf 实现下失败（红跑实证）。
- * 外评 P2-1 处置后注入以目标接口为判据——模板须挂 SDK 接口元信息（真实链路经
- * MethodMetadata 构造自绑定 + RequestTemplate 拷贝构造保留，字节码实证）。
+ * 注入以目标接口为唯一判据（codex sol r2 P2-1 起按 targetType 全限定名）——模板须挂
+ * SDK 接口元信息（真实链路经 MethodMetadata 构造自绑定 + RequestTemplate 拷贝构造
+ * 保留，字节码实证）；本类使用与真实接口同 FQCN 的测试桩（见桩类注释）。
  */
 class FeignCredentialInterceptorPathStartTest {
-
-    /** 与 SDK 客户端同简名的桩接口（configKey=简名#方法），驱动接口绑定门。 */
-    interface PermissionFeignClient {
-        @feign.RequestLine("POST /stub")
-        void stub();
-    }
 
     private static feign.MethodMetadata sdkMetadata() {
         return new feign.Contract.Default()

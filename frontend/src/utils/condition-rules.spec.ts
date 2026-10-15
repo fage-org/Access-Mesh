@@ -156,15 +156,28 @@ describe("condition-rules", () => {
     });
 
     it("should enforce IPv6 structure and ASCII digits (外评 P2-2)", () => {
-      // 结构非法但字符集合法的 IPv6 拒绝；合法结构（压缩/全组/zone）保持
+      // 结构非法但字符集合法的 IPv6 拒绝；合法结构（压缩/全组/v4 映射尾）保持
       expect(isValidCidrInput(":::/64")).toBe(false);
       expect(isValidCidrInput("::")).toBe(true);
       expect(isValidCidrInput("::1")).toBe(true);
       expect(isValidCidrInput("1:2:3:4:5:6:7:8:9")).toBe(false);
-      expect(isValidCidrInput("fe80::1%eth0/10")).toBe(true);
+      // codex sol r2 P2-2：zone 一律拒绝（无 zone 匹配语义 + 解析平台相关），
+      // 旧「fe80::1%eth0 合法」断言随之翻转（与 Java 单源同步）
+      expect(isValidCidrInput("fe80::1%eth0/10")).toBe(false);
+      expect(isValidCidrInput("fe80::1%1/10")).toBe(false);
+      expect(isValidCidrInput("::ffff:192.168.1.0%1/120")).toBe(false);
       // 全角数字拒绝（JS \d 仅 ASCII，锁行为）
       expect(isValidCidrInput("１.２.３.４/24")).toBe(false);
       expect(isValidCidrInput("10.0.0.0/２４")).toBe(false);
+    });
+
+    it("should reject IPv4 tail not at address end (codex sol r2 P2-2)", () => {
+      // 压缩左侧出现 v4 点分尾 = 不在整地址末位，Java/TS 双侧拒绝（对齐 JDK 数值语义）
+      expect(isValidCidrInput("1.2.3.4::/64")).toBe(false);
+      expect(isValidCidrInput("1.2.3.4::5:6/64")).toBe(false);
+      // 末位 v4 尾保持合法（压缩右侧末组 / 无压缩第 8 组）
+      expect(isValidCidrInput("::1.2.3.4")).toBe(true);
+      expect(isValidCidrInput("1:2:3:4:5:6:1.2.3.4/96")).toBe(true);
     });
 
     it("should reject negative/over-family/signed prefixes and hostname forms", () => {

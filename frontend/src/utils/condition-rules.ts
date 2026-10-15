@@ -86,28 +86,29 @@ function literalAddressBits(literal: string): number {
   return octets.every(o => /^\d{1,3}$/.test(o) && Number(o) <= 255) ? 32 : -1;
 }
 
-/** IPv6 结构校验（对齐 Java 单源算法）：[地址[%zone]]，8 组 1-4 位 hex（或 6 组+IPv4 尾）或恰一个 :: 且两侧组数 ≤7。 */
+/**
+ * IPv6 结构校验（对齐 Java 单源算法，codex sol r2 P2-2 同步）：
+ * 8 组 1-4 位 hex（或 6 组+IPv4 尾）或恰一个 :: 且两侧组数 ≤7；IPv4 点分尾仅允许
+ * 整地址末组（压缩左侧出现 v4 尾即 1.2.3.4:: 形态拒绝）；zone（%scope）一律拒绝
+ * ——CIDR 条目无 zone 匹配语义且其解析平台相关。
+ */
 function isValidIpv6Literal(literal: string): boolean {
-  let address = literal;
-  const zoneIndex = address.indexOf("%");
-  if (zoneIndex >= 0) {
-    if (zoneIndex === literal.length - 1) return false;
-    address = address.slice(0, zoneIndex);
-  }
-  if (!address) return false;
-  const compressIndex = address.indexOf("::");
+  if (literal.includes("%")) return false;
+  if (!literal) return false;
+  const compressIndex = literal.indexOf("::");
   if (compressIndex >= 0) {
-    if (address.indexOf("::", compressIndex + 1) >= 0) return false;
-    const left = ipv6Groups(address.slice(0, compressIndex));
-    const right = ipv6Groups(address.slice(compressIndex + 2));
+    if (literal.indexOf("::", compressIndex + 1) >= 0) return false;
+    const left = ipv6Groups(literal.slice(0, compressIndex), false);
+    const right = ipv6Groups(literal.slice(compressIndex + 2), true);
     if (left < 0 || right < 0) return false;
     return left + right <= 7;
   }
-  return ipv6Groups(address) === 8;
+  return ipv6Groups(literal, true) === 8;
 }
 
-/** 冒号侧组数：空串=0；每组 1-4 位 hex；仅最后一组可为 IPv4 点分尾（计 2 组）；违规 -1。 */
-function ipv6Groups(side: string): number {
+/** 冒号侧组数：空串=0；每组 1-4 位 hex；v4 点分尾（计 2 组）仅当 allowV4Tail（=该侧为
+ *  整地址末侧）且为本侧末组时接受；违规 -1。 */
+function ipv6Groups(side: string, allowV4Tail: boolean): number {
   if (!side) return 0;
   const parts = side.split(":");
   let count = 0;
@@ -115,7 +116,7 @@ function ipv6Groups(side: string): number {
     const group = parts[i];
     if (!group) return -1;
     if (group.includes(".")) {
-      if (i !== parts.length - 1) return -1;
+      if (!allowV4Tail || i !== parts.length - 1) return -1;
       const octets = group.split(".");
       if (octets.length !== 4) return -1;
       if (!octets.every(o => /^\d{1,3}$/.test(o) && Number(o) <= 255))

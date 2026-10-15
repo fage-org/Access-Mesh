@@ -9,10 +9,20 @@
     <dependencies>
         <dependency><groupId>cn.ac.fage.accessmesh</groupId><artifactId>common</artifactId></dependency>
         <dependency><groupId>cn.ac.fage.accessmesh</groupId><artifactId>perm-common</artifactId></dependency>
-        <!-- T-ACCESS-100：SDK 对宿主日志零参与——不带 starter-logging 排除（排除项经
-             Maven 就近仲裁会反向剪掉宿主自选后端）；common 不再传递 log4j2 -->
-        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-validation</artifactId></dependency>
-        <dependency><groupId>org.springframework.cloud</groupId><artifactId>spring-cloud-starter-openfeign</artifactId></dependency>
-        <dependency><groupId>org.springframework.cloud</groupId><artifactId>spring-cloud-starter-loadbalancer</artifactId></dependency>
+        <!-- T-ACCESS-100 r2（codex sol r2 P2-3）：SDK 对宿主日志零参与——所有通向
+             boot 聚合器的边（validation/openfeign/loadbalancer）一律排除
+             spring-boot-starter（零类 jar），阻断 starter-logging→Logback 传递；
+             validation 自身的三件（API/hibernate-validator/EL）不受影响 -->
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-validation</artifactId>
+            <exclusions><exclusion><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter</artifactId></exclusion></exclusions>
+        </dependency>
+        <dependency><groupId>org.springframework.cloud</groupId><artifactId>spring-cloud-starter-openfeign</artifactId>
+            <exclusions><exclusion><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter</artifactId></exclusion></exclusions>
+        </dependency>
+        <dependency><groupId>org.springframework.cloud</groupId><artifactId>spring-cloud-starter-loadbalancer</artifactId>
+            <exclusions><exclusion><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter</artifactId></exclusion></exclusions>
+        </dependency>
+        <!-- 测试域后端=全局 spring-boot-starter-test 携带的 Logback（单 Provider；
+             SDK 库模块测试绑定宿主式默认后端，平台应用运行形态仍统一 Log4j2） -->
     </dependencies>
 </project>

@@ -26,6 +26,12 @@ public class FeignCredentialInterceptor implements RequestInterceptor {
     public static final String HEADER_CREDENTIAL_ID = "X-Credential-Id";
     public static final String HEADER_CREDENTIAL_SECRET = "X-Credential-Secret";
 
+    /** 凭证注入唯一合法目标接口（全限定名；本模块类引用不到两 SDK 接口，见 apply 注释）。 */
+    private static final String CLIENT_SDK_INTERFACE =
+        "cn.ac.fage.accessmesh.perm.client.feign.PermissionFeignClient";
+    private static final String MANIFEST_SDK_INTERFACE =
+        "cn.ac.fage.accessmesh.perm.registration.feign.PermissionManifestClient";
+
     @Value("${perm.credential-id}")
     private String credentialId;
 
@@ -67,17 +73,23 @@ public class FeignCredentialInterceptor implements RequestInterceptor {
 
     @Override
     public void apply(RequestTemplate template) {
-        // 外评 P2-1 处置（T-ACCESS-098）：Feign 子上下文按 contextId 共享——宿主
-        // FeignClientBuilder/同 contextId 客户端可进入权限客户端子上下文取得本拦截器，
-        // 故注入以<b>目标接口</b>为唯一判据（feign.Feign.configKey=接口简名#方法(…)，
-        // 字节码实证）；无接口元信息的手工模板（非 SDK 链路）不注入
+        // 外评 P2-1 处置（T-ACCESS-098）＋codex sol r2 补强：Feign 子上下文按 contextId
+        // 共享——宿主 FeignClientBuilder/同 contextId 客户端可进入权限客户端子上下文取得
+        // 本拦截器，故注入以<b>目标接口</b>为唯一判据。判据取 MethodMetadata.targetType()
+        // 的全限定类名（本模块无法类引用两 SDK 接口：starter 依赖本模块，反向引用成环；
+        // targetType 由各 Contract 解析时绑定，字节码/源码实证）——feign configKey 只含
+        // 接口简名，异包同名接口（acme.PermissionFeignClient）可伪造简名门禁（r2 P2-1
+        // 红跑实证），简名前缀比对不构成身份。无接口元信息/targetType 的手工模板不注入。
         MethodMetadata metadata = template.methodMetadata();
-        if (metadata == null || metadata.configKey() == null) {
+        if (metadata == null) {
             return;
         }
-        String configKey = metadata.configKey();
-        if (!configKey.startsWith("PermissionFeignClient#")
-            && !configKey.startsWith("PermissionManifestClient#")) {
+        Class<?> targetType = metadata.targetType();
+        if (targetType == null) {
+            return;
+        }
+        String targetName = targetType.getName();
+        if (!CLIENT_SDK_INTERFACE.equals(targetName) && !MANIFEST_SDK_INTERFACE.equals(targetName)) {
             return;
         }
         String url = template.url();

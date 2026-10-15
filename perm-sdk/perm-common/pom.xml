@@ -52,12 +52,13 @@
             <artifactId>slf4j-api</artifactId>
             <scope>provided</scope>
         </dependency>
-        <!-- T-ACCESS-100：common 不再传递 log4j2，本模块测试 JVM 保持仓库统一
-             Log4j2 形态；test scope 不外溢宿主 -->
+        <!-- T-ACCESS-100 r2：测试域后端=全局 starter-test 携带的 Logback（库模块口径） -->
+        <!-- codex sol r2 P2-4：SDK 契约 DTO 含 LocalDateTime（快照 generatedAt 等），
+             jsr310 随本模块 compile 传递宿主（此前经 common 的 starter-web 传递，Web 栈
+             optional 化后退出闭包） -->
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-log4j2</artifactId>
-            <scope>test</scope>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
         </dependency>
     </dependencies>
 </project>

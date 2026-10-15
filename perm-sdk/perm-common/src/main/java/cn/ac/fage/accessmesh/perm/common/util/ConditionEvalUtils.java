@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.net.InetAddress;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -97,8 +96,9 @@ public final class ConditionEvalUtils {
      * （IPv4=32、IPv6=128）。字面量经 {@link #literalAddressBits} <b>结构级</b>闸门
      * （外评 P2-2 处置：IPv4 严格点分四段，IPv6 校验分组/压缩/zone/IPv4 映射尾——
      * 仅字符集校验会放行 {@code :::} 等结构非法形态，进而在匹配期经 DNS 解析失败
-     * 落空、黑名单反转为放行）；通过闸门即保证后续 getByName 数值解析成功，无主机名
-     * 解析路径。判定器消费：非法 CIDR 不匹配任何地址（fail-closed）。
+     * 落空、黑名单反转为放行）；闸门与匹配共用同一套纯字节解析器（codex sol r2 P2-2 数值化）——无 InetAddress、
+     * 无「校验放行而解析拒绝」落差面、无 zone/网卡名平台相关副作用。判定器消费：非法
+     * CIDR 不匹配任何地址（fail-closed）。
      * </p>
      */
     public static boolean isValidCidr(String cidr) {
@@ -107,7 +107,8 @@ public final class ConditionEvalUtils {
         }
         int slash = cidr.indexOf('/');
         String literal = slash < 0 ? cidr : cidr.substring(0, slash);
-        int familyBits = literalAddressBits(literal);
+        byte[] addressBytes = parseNumericAddress(literal);
+        int familyBits = addressBytes == null ? -1 : addressBytes.length * 8;
         if (familyBits < 0) {
             return false;
         }
@@ -136,105 +137,130 @@ public final class ConditionEvalUtils {
     }
 
     /**
-     * 数值地址字面量形态判定（无 DNS 副作用，T-PERM-109 取代裸 {@code InetAddress.getByName}）：
-     * IPv4 = 严格点分四段（每段 1-3 位 ASCII 数字且 0-255）；IPv6 = 结构合法的
-     * IPv6 字面量（{@link #isValidIpv6Literal}）。返回地址族位数（32/128），非法返回 -1。
+     * 数值地址字面量解析（T-PERM-109 立项；codex sol r2 P2-2 数值化收口）：纯结构、
+     * 无 {@code InetAddress}/DNS 副作用——IPv4 = 严格点分四段（每段 1-3 位 ASCII 数字
+     * 且 0-255）→ byte[4]；IPv6 = 结构合法字面量（{@link #parseIpv6}）→ byte[16]；
+     * zone（%scope）一律拒绝——CIDR 条目无 zone 匹配语义（客户端地址不携带 zone），
+     * zone 解析平台相关（%eth0 在无该网卡的宿主 UnknownHost）、JDK 对 v4-mapped+zone
+     * 明确拒绝。非法返回 null。校验（{@code isValidCidr}）与匹配（{@code ipMatchesCidr}）
+     * 共用本解析器，不存在「校验放行而解析拒绝」的落差面。
      */
-    private static int literalAddressBits(String literal) {
-        if (literal.indexOf(':') >= 0) {
-            return isValidIpv6Literal(literal) ? 128 : -1;
+    static byte[] parseNumericAddress(String literal) {
+        if (literal == null || literal.isEmpty() || literal.indexOf('%') >= 0) {
+            return null;
         }
+        if (literal.indexOf(':') >= 0) {
+            return parseIpv6(literal);
+        }
+        return parseIpv4(literal);
+    }
+
+    private static byte[] parseIpv4(String literal) {
         String[] octets = literal.split("\\.", -1);
         if (octets.length != 4) {
-            return -1;
+            return null;
         }
-        for (String octet : octets) {
-            if (octet.length() > 3 || !isAsciiDigits(octet) || Integer.parseInt(octet) > 255) {
-                return -1;
+        byte[] bytes = new byte[4];
+        for (int i = 0; i < 4; i++) {
+            String octet = octets[i];
+            if (octet.isEmpty() || octet.length() > 3 || !isAsciiDigits(octet)
+                || Integer.parseInt(octet) > 255) {
+                return null;
             }
+            bytes[i] = (byte) Integer.parseInt(octet);
         }
-        return 32;
+        return bytes;
     }
 
     /**
-     * IPv6 字面量结构校验（纯字符串、无 I/O）：{@code 地址[%zone]}——地址为 8 组
-     * 1-4 位十六进制（或 6 组 + IPv4 点分尾，尾计 2 组），或恰含一个 {@code ::}
-     * 压缩且两侧组数（v4 尾计 2）之和 ≤ 7；空组（连续冒号残余/首尾多余冒号）、
-     * 多个 {@code ::}、非末组 v4 尾、空 zone 均非法。较 JDK 解析略严亦安全——
-     * fail-closed 方向只影响非法形态的接受面。
+     * IPv6 数值解析（纯结构）：每组 1-4 位 ASCII 十六进制；IPv4 点分尾仅允许作为
+     * <b>整地址末组</b>（计 2 组——无压缩时为单侧末组，有压缩时为右侧末组；左侧
+     * 出现 v4 尾即 {@code 1.2.3.4::} 形态拒绝，codex sol r2 P2-2）；恰含一个
+     * {@code ::} 压缩且两侧组数（v4 尾计 2）之和 ≤ 7，无压缩则恰 8 组（允许
+     * 「6 组 + v4 尾」形态）；空组（多余冒号/首尾孤立冒号）、重复压缩、超界组数
+     * 均拒绝。返回 16 字节网络序，非法 null。
      */
-    private static boolean isValidIpv6Literal(String literal) {
-        String address = literal;
-        int zoneIndex = address.indexOf('%');
-        if (zoneIndex >= 0) {
-            if (zoneIndex == literal.length() - 1) {
-                return false;
+    private static byte[] parseIpv6(String literal) {
+        int compressIndex = literal.indexOf("::");
+        if (compressIndex >= 0 && literal.indexOf("::", compressIndex + 1) >= 0) {
+            return null;
+        }
+        // 无压缩：单侧即整地址，末组 v4 尾合法；有压缩：左侧任何 v4 尾都不在地址末位，拒绝
+        int[] leftGroups = parseIpv6Side(
+            compressIndex >= 0 ? literal.substring(0, compressIndex) : literal, compressIndex < 0);
+        if (leftGroups == null) {
+            return null;
+        }
+        int[] rightGroups = compressIndex >= 0
+            ? parseIpv6Side(literal.substring(compressIndex + 2), true)
+            : null;
+        int groupCount = leftGroups.length + (rightGroups == null ? 0 : rightGroups.length);
+        if (compressIndex < 0) {
+            if (groupCount != 8) {
+                return null;
             }
-            address = address.substring(0, zoneIndex);
+        } else if (groupCount > 7) {
+            return null;
         }
-        if (address.isEmpty()) {
-            return false;
+        byte[] bytes = new byte[16];
+        int cursor = 0;
+        for (int group : leftGroups) {
+            bytes[cursor++] = (byte) (group >> 8);
+            bytes[cursor++] = (byte) group;
         }
-        int compressIndex = address.indexOf("::");
         if (compressIndex >= 0) {
-            if (address.indexOf("::", compressIndex + 1) >= 0) {
-                return false;
-            }
-            int leftGroups = ipv6Groups(address.substring(0, compressIndex));
-            int rightGroups = ipv6Groups(address.substring(compressIndex + 2));
-            if (leftGroups < 0 || rightGroups < 0) {
-                return false;
-            }
-            return leftGroups + rightGroups <= 7;
+            cursor = 16 - (rightGroups.length * 2);
         }
-        return ipv6Groups(address) == 8;
+        for (int group : rightGroups == null ? new int[0] : rightGroups) {
+            bytes[cursor++] = (byte) (group >> 8);
+            bytes[cursor++] = (byte) group;
+        }
+        return bytes;
     }
 
     /**
-     * 冒号侧组数：空串=0；每组 1-4 位十六进制；仅允许最后一组为 IPv4 点分尾（计 2 组，
-     * 每段 1-3 位 ASCII 数字且 0-255）；空组/违规组返回 -1。
+     * 冒号侧组解析：空串=0 组；每组 1-4 位十六进制；v4 点分尾（计 2 组）仅在
+     * {@code allowV4Tail}（=该侧为整地址末侧）且为本侧末组时接受；空组/违规组返回 null。
      */
-    private static int ipv6Groups(String side) {
+    private static int[] parseIpv6Side(String side, boolean allowV4Tail) {
         if (side.isEmpty()) {
-            return 0;
+            return new int[0];
         }
         String[] parts = side.split(":", -1);
+        int[] groups = new int[parts.length + 1];
         int count = 0;
         for (int i = 0; i < parts.length; i++) {
             String group = parts[i];
             if (group.isEmpty()) {
-                return -1;
+                return null;
             }
             if (group.indexOf('.') >= 0) {
-                if (i != parts.length - 1) {
-                    return -1;
+                if (!allowV4Tail || i != parts.length - 1) {
+                    return null;
                 }
-                String[] octets = group.split("\\.", -1);
-                if (octets.length != 4) {
-                    return -1;
+                byte[] v4 = parseIpv4(group);
+                if (v4 == null) {
+                    return null;
                 }
-                for (String octet : octets) {
-                    if (octet.length() > 3 || !isAsciiDigits(octet) || Integer.parseInt(octet) > 255) {
-                        return -1;
-                    }
-                }
-                count += 2;
+                groups[count++] = ((v4[0] & 0xFF) << 8) | (v4[1] & 0xFF);
+                groups[count++] = ((v4[2] & 0xFF) << 8) | (v4[3] & 0xFF);
             } else {
                 if (group.length() > 4) {
-                    return -1;
+                    return null;
                 }
+                int value = 0;
                 for (int j = 0; j < group.length(); j++) {
                     char c = group.charAt(j);
-                    boolean hex = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')
-                        || (c >= 'A' && c <= 'F');
-                    if (!hex) {
-                        return -1;
+                    int digit = Character.digit(c, 16);
+                    if (digit < 0) {
+                        return null;
                     }
+                    value = (value << 4) | digit;
                 }
-                count++;
+                groups[count++] = value;
             }
         }
-        return count;
+        return java.util.Arrays.copyOf(groups, count);
     }
 
     // ===== 日期 / 时间范围评估 =====
@@ -377,8 +403,11 @@ public final class ConditionEvalUtils {
      * 支持IPv4和IPv6地址的CIDR匹配。
      * CIDR格式为 network/prefixLength，如 192.168.1.0/24。
      * T-PERM-109：参数与客户端值先经 {@link #isValidCidr} 形态闸门——非法 CIDR 不匹配
-     * 任何地址（负前缀不再「匹配一切」）；地址解析仅走数值字面量形态（无主机名 DNS
-     * 解析副作用，getByName 只在闸门之后调用）。
+     * 任何地址（负前缀不再「匹配一切」）。codex sol r2 P2-2：地址解析数值化——校验与
+     * 匹配共用同一套纯字节解析器（{@link #parseNumericAddress}），全程无
+     * {@code InetAddress.getByName}：不再存在「校验器放行而 JDK 解析拒绝」的落差面
+     * （旧差形态如 {@code 1.2.3.4::} 在匹配期降级为未命中、黑名单反转为放行），
+     * 亦无 zone/网卡名等平台相关解析副作用。
      * </p>
      *
      * @param ip   IP地址
@@ -386,33 +415,30 @@ public final class ConditionEvalUtils {
      * @return IP在范围内返回true，否则返回false
      */
     public static boolean ipMatchesCidr(String ip, String cidr) {
-        try {
-            if (!isValidCidr(ip) || !isValidCidr(cidr)) {
-                return false;
-            }
-            if (!cidr.contains("/")) {
-                return cidr.equals(ip);
-            }
-            String[] parts = cidr.split("/");
-            int prefixLength = Integer.parseInt(parts[1]);
-
-            // 字面量形态已过闸门：getByName 无主机名解析（数值路径）
-            byte[] clientBytes = InetAddress.getByName(ip).getAddress();
-            byte[] networkBytes = InetAddress.getByName(parts[0]).getAddress();
-            if (clientBytes.length != networkBytes.length) return false;
-
-            for (int i = 0; i < prefixLength; i++) {
-                int byteIndex = i / 8;
-                int bitIndex = 7 - (i % 8);
-                if (((clientBytes[byteIndex] >> bitIndex) & 1) != ((networkBytes[byteIndex] >> bitIndex) & 1)) {
-                    return false;
-                }
-            }
-            return true;
-        } catch (Exception e) {
-            log.warn("CIDR匹配失败: ip={} cidr={} — {}", ip, cidr, e.getMessage());
+        if (!isValidCidr(ip) || !isValidCidr(cidr)) {
             return false;
         }
+        if (!cidr.contains("/")) {
+            return cidr.equals(ip);
+        }
+        int slash = cidr.indexOf('/');
+        int prefixLength = Integer.parseInt(cidr.substring(slash + 1));
+
+        byte[] clientBytes = parseNumericAddress(ip);
+        byte[] networkBytes = parseNumericAddress(cidr.substring(0, slash));
+        if (clientBytes == null || networkBytes == null
+            || clientBytes.length != networkBytes.length) {
+            return false;
+        }
+
+        for (int i = 0; i < prefixLength; i++) {
+            int byteIndex = i / 8;
+            int bitIndex = 7 - (i % 8);
+            if (((clientBytes[byteIndex] >> bitIndex) & 1) != ((networkBytes[byteIndex] >> bitIndex) & 1)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     // ===== 条件项评估 =====

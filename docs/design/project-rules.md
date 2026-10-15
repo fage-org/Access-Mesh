@@ -267,7 +267,7 @@ RuntimeException
 
 - 使用 **SLF4J + Log4j2**。
 - **禁止**直接使用 `System.out.println`。
-- 所有服务均排除 Spring Boot 默认 `spring-boot-starter-logging`（Logback）并显式引入 `log4j2`；`common` 与权限 SDK 不传递任何日志实现/桥接件（T-ACCESS-100，见 §5.5），SDK 模块测试 JVM 以 test scope 声明 log4j2。
+- 平台服务均排除 Spring Boot 默认 `spring-boot-starter-logging`（Logback）并显式引入 `log4j2`；`common` 与权限 SDK 的 compile 闭包不传递任何日志实现/桥接件（T-ACCESS-100，细则见 §5.5），SDK 库模块测试域绑定全局 starter-test 携带的 Logback。
 
 ### 4.2 日志格式
 
@@ -379,10 +379,11 @@ ERROR 级别单独写入 error.log，保留 180 天
 
 外部普通 Spring Boot 宿主引入权限 SDK 后，不得被改变自身运行形态（日志后端/默认时区/全局异常处理/Web 栈四项，外部持续审查 P2×4 族收口）。边界规则：
 
-- **common 编译传递面白名单**：`jackson-databind`、`commons-lang3`、`guava`、`spring-boot-starter-validation`、`spring-boot-autoconfigure`。`spring-boot-starter-web` 为 `<optional>true</optional>`（服务端 WebMvc 组件仅编译期可见）；缓存件（redisson/caffeine/micrometer/mybatis-flex）维持 optional。**禁止**在 common 以 compile 传递任何日志实现（log4j2 starter 由平台应用自声明）。
+- **common 编译传递面白名单**：`jackson-databind`、`commons-lang3`、`guava`、`spring-boot-starter-validation`（排除 boot 聚合器 `spring-boot-starter`，validation 自身三件 API/hibernate-validator/EL 不受影响）、`spring-boot-autoconfigure`。`spring-boot-starter-web` 为 `<optional>true</optional>`（服务端 WebMvc 组件仅编译期可见）；缓存件（redisson/caffeine/micrometer/mybatis-flex）维持 optional。**禁止**在 common 以 compile 传递任何日志实现（log4j2 starter 由平台应用自声明）。
 - **common 不携带任何 META-INF 装配注册**：`UtcTimezoneEnvironmentPostProcessor`（类在 common）与 `CommonAutoConfiguration`/`CacheAutoConfiguration`/`RedissonCacheAutoConfiguration` 的注册由平台应用各自的 `META-INF/spring.factories` / `AutoConfiguration.imports` 声明——access-service/example-service 装配全部四条；gateway 装配缓存两条，`CommonAutoConfiguration` 行采用「注册以排除」（候选登记 + 主类 exclude）：exclude 校验要求被排除类是自动装配候选（非候选直接抛错），而 E2E 共享大类路径〔子进程类路径含兄弟模块 target/classes〕会经其他服务注册文件带入该类（平台 GlobalExceptionHandler 与 gateway 自有同名 Bean 冲突）——候选登记 + exclude 在任意类路径形态下均合法且净效果恒为不装配。缓存自动配置方法签名引用 optional 依赖，注册外溢到缺件宿主会在条件求值期 `NoClassDefFoundError` 炸掉宿主启动，这是注册不出 common 的硬理由。
-- **SDK 对宿主日志零参与**：starter 不传递任何日志实现，也**不携带 `spring-boot-starter-logging` 排除**——排除项经 Maven 就近仲裁会反向剪掉宿主自选后端（实证可将宿主 Logback 剪成 NOP）。SDK 真正公共依赖显式化：`slf4j-api` 以 provided 声明（宿主必然供应）。
-- **回归锁**：`sdk-host-probe` 模块（reactor 中位于 perm-sdk 与 e2e 之间）模拟外部 WebFlux+Logback 宿主消费两个 starter，四把锁（日志后端类路径与 Provider 绑定/时区不改写/无 @RestControllerAdvice 与 common 包 Bean/应用类型推断 REACTIVE）以红跑证实曾在旧边界下全部失败。
+- **SDK 闭包零日志实现（r2 收口，codex sol 评审 P2-3）**：boot 聚合器 `spring-boot-starter`（零类 jar，固定携带 `starter-logging`→Logback/log4j-to-slf4j/jul-to-slf4j）不出现在 SDK 任何 compile 边——client starter 以 `spring-boot-autoconfigure` 取代 `spring-boot-starter` 直依，openfeign/loadbalancer/validation 深边一律排除聚合器（深边在真实 Boot 宿主中恒输于宿主自身的浅路径，无「反向剪除宿主后端」面）。SDK 真正公共依赖显式化：`slf4j-api`/`jakarta.annotation-api` provided（宿主必然供应），`jackson-datatype-jsr310` compile（契约 DTO 时间字段编解码）。SDK 库模块测试域绑定全局 `spring-boot-starter-test` 携带的 Logback（单 Provider）；平台应用运行形态仍统一 Log4j2。
+- **SDK Feign 编解码自洽（r2，codex sol 评审 P2-4）**：spring-cloud-openfeign 默认编解码器要求 `HttpMessageConverters` bean（字节码实证无 bean 即 NoSuchBeanDefinition）——`PermFeignClientsConfiguration` 在权限客户端子上下文提供 `@ConditionalOnMissingBean`（搜索含父上下文）兜底实例（专属 ObjectMapper+jsr310+ISO 时间串），Servlet 宿主复用宿主的，WebFlux/无 Web 宿主不再依赖 Web 栈传递兜底。
+- **回归锁**：`sdk-host-probe`（WebFlux+Logback 宿主，四把锁：日志实现类路径与 Provider 绑定/时区不改写/无 @RestControllerAdvice 与 common 包 Bean/应用类型推断 REACTIVE）与 `sdk-host-probe-log4j2`（自选 Log4j2 且自身边剪除默认 logging 的宿主：Logback/log4j-to-slf4j/jul-to-slf4j 缺席 + SLF4J 绑定 Log4j2）两模块，均红跑证实旧边界下失败。
 
 ---
 

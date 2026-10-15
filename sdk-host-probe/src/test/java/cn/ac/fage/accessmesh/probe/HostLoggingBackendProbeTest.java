@@ -36,14 +36,17 @@ class HostLoggingBackendProbeTest {
             "SDK 传递了 log4j-core：宿主默认后端面临被替换（common 的 log4j2 starter 传递边泄漏）");
 
         // log4j-slf4j2-impl（SLF4J→Log4j2 Provider，双 Provider 冲突的一端）不得在场
+        // （该 jar 含 SLF4J2ServiceProvider 与 SLF4JServiceProvider 两个类，均作标记）
         assertThrows(ClassNotFoundException.class,
             () -> Class.forName("org.apache.logging.slf4j.SLF4J2ServiceProvider"),
             "SDK 传递了 log4j-slf4j2-impl：与宿主 Logback 构成 SLF4J 双 Provider");
-
-        // log4j-jul（starter-log4j2 组合件，另一泄漏指示）不得在场
         assertThrows(ClassNotFoundException.class,
-            () -> Class.forName("org.apache.logging.log4j.jul.Log4jBridgeHandler"),
-            "SDK 传递了 log4j-jul：starter-log4j2 组合件外溢");
+            () -> Class.forName("org.apache.logging.slf4j.SLF4JServiceProvider"),
+            "SDK 传递了 log4j-slf4j2-impl（第二标记类）");
+
+        // log4j-to-slf4j/logback 不作缺席断言：宿主 starter-logging 自带同款（自选件），
+        // 类路径无法区分来源——「SDK 不新增默认 logging 来源」由 sdk-host-probe-log4j2
+        // 的 Log4j2 宿主形态锁定（该形态宿主已剪除 starter-logging，在场即 SDK 带入）
 
         // 运行时语义锁：无第二 Provider 竞争时，SLF4J 实际绑定宿主 Logback
         assertInstanceOf(LoggerContext.class, LoggerFactory.getILoggerFactory(),

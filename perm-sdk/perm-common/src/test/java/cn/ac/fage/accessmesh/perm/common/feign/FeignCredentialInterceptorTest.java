@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.perm.common.feign;
 
+import cn.ac.fage.accessmesh.perm.client.feign.PermissionFeignClient;
 import feign.RequestTemplate;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -10,16 +11,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * SDK 凭证头注入拦截器测试（T-PERM-070）：注入条件（/api/access/ 前缀）、
- * 显式头不覆盖、半配 fail-fast、启动声明式 TLS 护栏三态（2026-09-20 拍板：
+ * 显式头不覆盖、半配 fail-fast、启动声明式 TLS 护栏三态（2020-09-20 拍板：
  * 配置凭证必须显式声明 perm.allow-insecure，缺省拒启；true/false 均为有效声明）。
+ * 注入路径经与真实 SDK 接口同 FQCN 的测试桩驱动（身份门按 targetType 全限定名，
+ * codex sol r2 P2-1，见桩类注释）。
  */
 class FeignCredentialInterceptorTest {
-
-    /** 与 SDK 客户端同简名的桩接口（configKey=简名#方法），驱动接口绑定门（外评 P2-1 处置）。 */
-    interface PermissionFeignClient {
-        @feign.RequestLine("POST /stub")
-        void stub();
-    }
 
     private static feign.MethodMetadata sdkMetadata() {
         return new feign.Contract.Default()

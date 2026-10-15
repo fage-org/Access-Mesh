@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>cn.ac.fage.accessmesh</groupId>
+        <artifactId>accessmesh</artifactId>
+        <version>0.2.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>sdk-host-probe-log4j2</artifactId>
+    <name>SDK Host Probe (Log4j2 host)</name>
+    <description>外部 Log4j2 宿主探针：SDK 传递闭包不得带入任何默认日志实现/桥接（T-ACCESS-100 r2 回归锁）</description>
+
+    <!-- 与 sdk-host-probe 互补的第二种宿主形态：宿主自选 Log4j2 并在自身 starter-web
+         边排除默认 logging（Spring Boot 官方推荐做法）。SDK starter 声明在前=最坏
+         仲裁形态——若 SDK 闭包仍带 spring-boot-starter（→starter-logging→Logback），
+         宿主的剪除会被 SDK 路径击穿（多 Provider/后端被换）。生产代码为空，全部断言
+         在测试轨；不发布、不被任何模块依赖。 -->
+    <dependencies>
+        <dependency>
+            <groupId>cn.ac.fage.accessmesh</groupId>
+            <artifactId>perm-client-spring-boot-starter</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>cn.ac.fage.accessmesh</groupId>
+            <artifactId>perm-registration-spring-boot-starter</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!-- 宿主自选：Web 栈 + Log4j2 后端；自身边排除默认 logging（官方推荐形态） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-log4j2</artifactId>
+        </dependency>
+        <!-- 本地重声明全局 test 依赖并排除 boot 聚合器：starter-test 自带
+             spring-boot-starter→starter-logging→Logback，会以 test 域污染类路径
+             存在性断言（与 SDK 无关的假阳性）——排除后测试基建（junit/assertj/…）
+             保持，默认 logging 不进探针类路径 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+    </dependencies>
+</project>

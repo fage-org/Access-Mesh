@@ -47,6 +47,17 @@ class HostFeignClientAssemblyIsolationTest {
         String samePathAsM2mEndpoint();
     }
 
+    /**
+     * 与 SDK 接口<b>同简名、异包</b>的宿主接口（codex sol r2 P2-1 反例）：嵌套于本测试类，
+     * FQCN 含外层类名；feign configKey 只取接口简名——旧简名门禁下同 contextId 复用
+     * 可取得凭证，身份门（targetType 全限定名）下不得注入。
+     */
+    interface PermissionFeignClient {
+
+        @PostMapping("/api/access/auth/check")
+        String samePathAsM2mEndpoint();
+    }
+
     @Configuration(proxyBeanMethods = false)
     @EnableFeignClients(clients = OtherBusinessClient.class)
     static class HostFeignConfig {
@@ -129,6 +140,23 @@ class HostFeignClientAssemblyIsolationTest {
                 .url("http://other.example.com")
                 .build();
             hostClient.samePathAsM2mEndpoint();
+            assertThat(CAPTURED).hasSize(1);
+            assertThat(CAPTURED.get(0).headers())
+                .doesNotContainKeys("X-Credential-Id", "X-Credential-Secret");
+        });
+    }
+
+    @Test
+    @DisplayName("同简名异包宿主接口（codex sol r2 P2-1）+ 复用 access-service contextId + M2M 同形路径"
+        + "→ 不携带凭证头（configKey 仅含简名，旧简名门禁下失败）")
+    void sameSimpleNameHostClientReusingContextIdDoesNotReceiveCredentials() {
+        runner.run(context -> {
+            PermissionFeignClient sameSimpleNameClient =
+                new org.springframework.cloud.openfeign.FeignClientBuilder(context)
+                    .forType(PermissionFeignClient.class, "access-service")
+                    .url("http://other.example.com")
+                    .build();
+            sameSimpleNameClient.samePathAsM2mEndpoint();
             assertThat(CAPTURED).hasSize(1);
             assertThat(CAPTURED.get(0).headers())
                 .doesNotContainKeys("X-Credential-Id", "X-Credential-Secret");
