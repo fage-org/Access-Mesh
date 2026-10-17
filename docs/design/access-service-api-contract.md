@@ -2126,7 +2126,14 @@ POST + JSON，门禁为 OPERATION_LOG:VIEW 类型级，租户仅取可信上下�
 | failReason | String? | 失败原因，读取时脱敏 |
 | loginAt | LocalDateTime | UTC 时间 |
 
-不返回 tenantId/userId。数据库保留原始日志，读取时统一掩码；保留策略与导出仍见 Q-061。
+不返回 tenantId/userId。数据库保留原始日志，读取时统一掩码；导出与保留策略见 §16.7。
+
+<a id="contract-section-16-7"></a>
+### 16.7 审计日志导出与保留策略
+
+**已采纳范围，尚未实施（Q-061，2026-10-17 用户选择 B）**：租户操作日志 `operation_log`、权限变更日志 `permission_change_log`、登录日志 `sys_login_log` 的导出与保留策略同批推进，不仅补下载入口。归档或清理方式、各类日志保留期限、管理权限与执行方式尚待用户确定，不将本范围选择解释为已授权任意期限的自动删除。
+
+新策略确定并完成实施验收前，当前永久保留口径继续适用。平台独立审计 `platform_audit_log` 不在 Q-061 原有三表范围内，其现行永久保留及平台身份边界不随本范围选择改变。`sys_login_log.location` 的后续处置仍待确定。
 
 <a id="contract-section-17"></a>
 ## 17. platform 能力（文件与系统配置）
