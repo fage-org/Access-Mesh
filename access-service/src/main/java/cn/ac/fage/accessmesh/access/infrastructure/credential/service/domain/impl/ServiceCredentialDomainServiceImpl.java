@@ -6,20 +6,24 @@ import cn.ac.fage.accessmesh.access.infrastructure.credential.mapper.ServiceCred
 import cn.ac.fage.accessmesh.access.infrastructure.credential.service.domain.ServiceCredentialDomainService;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ServiceConfigDomainService;
-import cn.dev33.satoken.secure.BCrypt;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.HexFormat;
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * 服务凭证领域服务实现（T-PERM-070）。
  * <p>
  * secret 生成与哈希：32 字节 SecureRandom → base64url（43 字符，URL-safe 无 +/），
- * 库内只存 BCrypt 哈希（sa-token {@link BCrypt}，同 sys_oauth2_client 先例）；
+ * 库内只存带版本的 SHA-256 摘要，仅适用于本服务生成的高熵随机 secret；
  * credentialId 16 字节熵（22 字符）——高熵不可枚举是三码细分安全性的前提。
  * </p>
  */
@@ -33,6 +37,8 @@ public class ServiceCredentialDomainServiceImpl implements ServiceCredentialDoma
 
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final Base64.Encoder URL_ENCODER = Base64.getUrlEncoder().withoutPadding();
+    private static final String HASH_PREFIX = "sha256-v1$";
+    private static final Pattern HASH_FORMAT = Pattern.compile("sha256-v1\\$[0-9a-f]{64}");
 
     private final ServiceCredentialMapper serviceCredentialMapper;
     private final ServiceConfigDomainService serviceConfigDomainService;
@@ -53,7 +59,7 @@ public class ServiceCredentialDomainServiceImpl implements ServiceCredentialDoma
         entity.setTenantId(tenantId);
         entity.setServiceCode(serviceCode);
         entity.setCredentialId(credentialId);
-        entity.setSecretHash(BCrypt.hashpw(plainSecret));
+        entity.setSecretHash(HASH_PREFIX + HexFormat.of().formatHex(digestSecret(plainSecret)));
         entity.setStatus(ServiceCredential.STATUS_ENABLED);
         entity.setExpiresAt(expiresAt);
         entity.setCreatedBy(operatorId);
@@ -84,13 +90,13 @@ public class ServiceCredentialDomainServiceImpl implements ServiceCredentialDoma
         }
         // 先比对 secret 再细分状态：三态细分（过期/停用）仅对持有正确 secret 的请求者
         // 暴露——半头/错误 secret 一律 INVALID，无凭证状态探测面
-        //（损坏的 secret_hash〔非法 BCrypt 串〕checkpw 抛 IllegalArgumentException——DB
-        // 数据异常场景，按凭证无效归一，不产生 500）
-        try {
-            if (!BCrypt.checkpw(secret, credential.getSecretHash())) {
-                return VerifyResult.failure(AccessErrorCode.SERVICE_CREDENTIAL_INVALID);
-            }
-        } catch (IllegalArgumentException e) {
+        // 只接受当前版本的固定长度摘要；旧 BCrypt、未知版本和损坏记录均拒绝，须重新签发。
+        String storedHash = credential.getSecretHash();
+        if (storedHash == null || !HASH_FORMAT.matcher(storedHash).matches()) {
+            return VerifyResult.failure(AccessErrorCode.SERVICE_CREDENTIAL_INVALID);
+        }
+        byte[] expected = HexFormat.of().parseHex(storedHash.substring(HASH_PREFIX.length()));
+        if (!MessageDigest.isEqual(expected, digestSecret(secret))) {
             return VerifyResult.failure(AccessErrorCode.SERVICE_CREDENTIAL_INVALID);
         }
         if (credential.getStatus() != null && credential.getStatus() != ServiceCredential.STATUS_ENABLED) {
@@ -148,6 +154,15 @@ public class ServiceCredentialDomainServiceImpl implements ServiceCredentialDoma
     public int retireServices(Long tenantId, java.util.Set<String> serviceCodes, Long operatorId) {
         if (serviceCodes.isEmpty()) return 0;
         return serviceCredentialMapper.softDeleteByServices(tenantId, serviceCodes, operatorId, LocalDateTime.now());
+    }
+
+    private static byte[] digestSecret(String secret) {
+        try {
+            // MessageDigest 非线程安全，每次使用独立实例；完整 UTF-8 字节参与计算。
+            return MessageDigest.getInstance("SHA-256").digest(secret.getBytes(StandardCharsets.UTF_8));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 algorithm unavailable", e);
+        }
     }
 
     private static byte[] randomBytes(int length) {

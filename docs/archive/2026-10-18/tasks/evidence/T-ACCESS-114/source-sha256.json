@@ -1,0 +1,30 @@
+[
+  {
+    "Path": "access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/credential/dto/resp/ServiceCredentialCreateResp.java",
+    "Hash": "B94988A0F58B2CA45306DEB87481CAEE16F3C866B652F407581642D98F8F3B3D"
+  },
+  {
+    "Path": "access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/credential/entity/ServiceCredential.java",
+    "Hash": "2ECF503229104671C4436C290FF2D5C64015F642BC6377B9D0651BF0B8119056"
+  },
+  {
+    "Path": "access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/credential/service/domain/ServiceCredentialDomainService.java",
+    "Hash": "73C905403CFB3BD6C1DA054016E1F0BC37B1B7D05689BA7623D658268D63DA06"
+  },
+  {
+    "Path": "access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/credential/service/domain/impl/ServiceCredentialDomainServiceImpl.java",
+    "Hash": "7BCB714BED89A436399E877DCFBA08B5AE7D0238CCB8427F327CB777317749C4"
+  },
+  {
+    "Path": "access-service/src/test/java/cn/ac/fage/accessmesh/access/infrastructure/credential/ServiceCredentialPgIT.java",
+    "Hash": "749B92E51AA14DA96795F059ABBF080E869195E3716ACC4867C7E9F754EF0B30"
+  },
+  {
+    "Path": "access-service/src/test/java/cn/ac/fage/accessmesh/access/infrastructure/credential/service/domain/impl/ServiceCredentialDomainServiceImplTest.java",
+    "Hash": "CF0A4B4A931A6AAF350F72736BB6641BF5D2E90A8DCEFBCBA7BB8AF7B03DB0DD"
+  },
+  {
+    "Path": "e2e/src/test/java/cn/ac/fage/accessmesh/e2e/ExampleBusinessFinalCheckE2EIT.java",
+    "Hash": "0276912D58CA74EB95ED34C433806B15F092592D6D79CF967E541941FAB602A4"
+  }
+]

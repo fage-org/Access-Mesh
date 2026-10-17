@@ -104,6 +104,8 @@ docs/
 
 ## 执行计划
 
+独立任务 [T-ACCESS-114](archive/2026-10-18/tasks/T-ACCESS-114.md) 已完成归档；实时任务状态见[任务看板](tasks/README.md)。
+
 已完成并归档[权限生命周期边界收口](archive/2026-10-17/permission-lifecycle-boundaries-plan.md)，[验收记录](archive/2026-10-17/tasks/evidence/lifecycle-boundaries/verification.md)保留测试与当前边界。
 
 已完成并归档[租户开通与独立平台运营](archive/2026-10-08/tenant-lifecycle-plan.md)。已完成并归档：[问题清单转出](archive/2026-10-04/pending-problems-clearance-plan.md)、[测试证据精简与维护成本优化](archive/2026-10-04/testing-simplification-plan.md)。清单定案后续独立实施亦已[完成归档](archive/2026-10-04/tasks/evidence/checklist-followup/final-audit.md)；实时状态见[任务看板](tasks/README.md)。
@@ -174,6 +176,7 @@ docs/
 
 | 归档批次              | 说明                                                                                                   | 入口                                                         |
 | --------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| `archive/2026-10-18/` | T-ACCESS-114 服务凭证 SHA-256 验密完成，任务与验收证据归档。 | [归档入口](archive/2026-10-18/README.md) |
 | `archive/2026-10-17/` | 场景审查修复计划完成：任务卡、完整回归及真实 CI 安全验收证据归档；批准风险例外仍由现行安全规范约束。 同日独立任务 T-ACCESS-106（租户保底管理员连续性与成员变更审计）及审计日志生命周期计划完成归档；同日 T-FE-071/072 租户与独立平台跨标签会话同步归档。 | [归档入口](archive/2026-10-17/README.md) |
 | `archive/2026-09-26/` | T-ACCESS-064 当前规范归位与定案入口轻量化；原登记两册、压缩前原文及迁移验证冻结，T-ACCESS-063 历史任务随批归档。 | [归档入口](archive/2026-09-26/README.md) |
 | `archive/2026-09-21/` | T-PERM-079 单卡归档（done）：自动授权批次风格与可读性清理——七项验收全落地（doSyncOneInternal 参数组 record/状态字面量常量化/服务启用判据单源/SqlBatches 分批样板收敛/var 定调=登记允许/次要项清理/ResourcePublicationHeavyPgIT 拆档+skipHeavyIT 开关），两项用户拍板与 claude 外评处置（P3×2 直修）见 [历史定案原文](archive/2026-09-26/decision-registry-before.md) 2026-09-21 各行。 | [archive/2026-09-21/README.md](archive/2026-09-21/README.md) |

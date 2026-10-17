@@ -6,7 +6,7 @@ domain: cross-service
 supersedes:
   - docs/design/permission-center/api-contract.md
   - docs/design/services/admin-service-api-contract.md
-last_reviewed: 2026-10-17
+last_reviewed: 2026-10-18
 ---
 
 # access-service API 契约总册
@@ -3426,7 +3426,7 @@ schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正�
 <a id="contract-section-24-1"></a>
 ### 24.1 认证协议
 
-**凭证头**：`X-Credential-Id` + `X-Credential-Secret`（TLS 传输；同设计稿「不做签名制」定案——内网 TLS 下重放幂等 full-sync 无害）。
+**凭证头**：`X-Credential-Id` + `X-Credential-Secret`（TLS 传输；不做请求签名，secret 泄露后可重构其权限范围内的查询与同步请求，轮换边界见服务认证 §3.2）。
 
 **仲裁状态表**（access-service order=1 `ServiceAuthArbiter`，替换原 InternalApiSecretInterceptor 单策略位）：
 
@@ -3438,7 +3438,9 @@ schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正�
 | 无凭证头 + X-Internal-Secret 有效 | 平台内部互信 | 签名用户态保持；无用户的同步端点或携带自报服务编码均拒绝；无自报服务的平台内部查询保留 |
 | 无凭证头 + 密钥无效/缺失 | — | 403（既有行为） |
 
-**验证顺序**（泄露面最小化）：行定位 → BCrypt secret 比对（失败一律 20065）→ 状态/过期细分（20067/20066）→ 服务注册+启用（20068）——**三态细分仅对持有正确 secret 的请求者暴露**（credential_id 高熵不可枚举）。
+**验证顺序**（泄露面最小化）：行定位 → SHA-256 secret 摘要恒定时间比对（失败一律 20065）→ 状态/过期细分（20067/20066）→ 服务注册+启用（20068）——**三态细分仅对持有正确 secret 的请求者暴露**（credential_id 高熵不可枚举）。凭证与服务状态逐请求读取，不缓存认证成功结果。
+
+**存储与切换（T-ACCESS-114）**：服务端随机生成的完整 secret 按 UTF-8 计算 SHA-256，唯一存储格式为 `sha256-v1$` 加 64 字符小写十六进制摘要；secret 不归一、不截断，数据库摘要不能作为请求凭证。旧 BCrypt、未知版本及损坏摘要均按 20065 拒绝；没有兼容或自动迁移，当前无正式部署，旧凭证直接重新签发。用户密码与 OAuth2 客户端密钥不受此改造影响。[算法与安全边界](service-authentication.md#service-credential-digest)、[开发环境换发步骤](../ops/deployment.md#service-credential-digest-upgrade)。
 
 **服务端凭证端点白名单**（单源 `common` 模块 `M2mCredentialEndpoints`，Gateway M2M 放行与服务端强制消费同一份）：
 
@@ -3466,7 +3468,7 @@ schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正�
 
 | 端点 | 请求 | 响应 / 语义 |
 |------|------|------------|
-| `POST /create` | `{serviceCode, expiresAt?}`——serviceCode 须为已注册且启用（status=1）的服务（未注册/停用拒绝 20044「未注册或已停用」防死凭证）；expiresAt 须未来时间 | `{id, credentialId, secret, serviceCode, status, expiresAt}`——**明文 secret 仅本响应回显一次**（服务端只存 BCrypt 哈希，任何通道不可回查）；credentialId=`sc-`+22 字符 base64url（16 字节熵）、secret=`sk-`+43 字符 base64url（32 字节熵）；同服务多凭证并存（轮换窗口），**不设数量上限**（2026-09-20 拍板） |
+| `POST /create` | `{serviceCode, expiresAt?}`——serviceCode 须为已注册且启用（status=1）的服务（未注册/停用拒绝 20044「未注册或已停用」防死凭证）；expiresAt 须未来时间 | `{id, credentialId, secret, serviceCode, status, expiresAt}`——**明文 secret 仅本响应回显一次**（服务端只存带版本的 SHA-256 摘要，任何通道不可回查）；credentialId=`sc-`+22 字符 base64url（16 字节熵）、secret=`sk-`+43 字符 base64url（32 字节熵）；同服务多凭证并存（轮换窗口），**不设数量上限**（2026-09-20 拍板） |
 | `POST /update` | `{id, status?, expiresAt?}`——三态语义 null=不修改，至少一项（空 patch 90001）；status 值域 0/1（停用即轮换收尾/吊销，立即生效并记 rotated_at）；expiresAt 仅改期，「清除过期时间」不提供（永不过期=签发时不设） | 更新后行视图（无 secret 面） |
 | `POST /remove` | `{id}` | 软删立即失效 |
 | `POST /list` | `{serviceCode?}`（可选过滤，含停用/过期行——轮换状态可见；凭证量低频管理面不分页） | `{items: [...]}`（无 secretHash） |

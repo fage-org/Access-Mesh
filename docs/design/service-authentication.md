@@ -3,7 +3,7 @@ doc_type: design
 title: 公共服务认证模块（per-service credential）
 status: adopted
 domain: access-service
-last_reviewed: 2026-10-17
+last_reviewed: 2026-10-18
 ---
 
 # 公共服务认证模块（per-service credential）设计
@@ -21,7 +21,7 @@ last_reviewed: 2026-10-17
 **非目标**：
 
 - 用户侧认证零改动（Sa-Token 会话 / OAuth2 authorization_code+PKCE / JWT 维持现状）；
-- 不做签名制（nonce / 验签 / 时钟容忍）——2026-09-19 重评定案：采用受控信任域内 bearer secret + TLS；BCrypt 只保护库中哈希，明文 secret 泄露后可重构凭证权限范围内的查询/同步请求，并非仅幂等重放无害；轮换与停用见 [部署基线](../ops/deployment.md#11-密钥轮换)；
+- 不做签名制（nonce / 验签 / 时钟容忍）：采用受控信任域内 bearer secret + TLS；单向摘要只保护库中验证值，明文 secret 泄露后可重构凭证权限范围内的查询/同步请求，并非仅幂等重放无害；轮换与停用见 [部署基线](../ops/deployment.md#11-密钥轮换)；
 - 不借道 OAuth2 `client_credentials`（**无发放实现**——token 端点仅 authorization_code；grant_types 列含该可选值但零发放路径消费，历史预置的 `internal-service` 种子行已随「客户端不预置」定案删除。且 OAuth2 client 是"应用代用户"的另一套身份语义——权限注册是 control plane 的 M2M 语义）；
 - 不改 20055 类型所有权门禁（它继续作为资源通道第二道防线）。
 
@@ -64,7 +64,7 @@ CREATE TABLE service_credential (
     tenant_id      BIGINT NOT NULL,
     service_code   VARCHAR(128) NOT NULL,   -- 凭证绑定服务（须为 service_config 已注册有效服务）
     credential_id  VARCHAR(64) NOT NULL,    -- 线上传输标识（非自增，签发时生成）
-    secret_hash    VARCHAR(128) NOT NULL,   -- BCrypt 哈希（只存哈希；验证走常量时间 BCrypt 比对）
+    secret_hash    VARCHAR(128) NOT NULL,   -- sha256-v1$ + 完整 secret 的 UTF-8 SHA-256 小写 hex
     status         SMALLINT NOT NULL DEFAULT 1,
     rotated_at     TIMESTAMPTZ,
     expires_at     TIMESTAMPTZ
@@ -80,11 +80,18 @@ CREATE TABLE service_credential (
 
 ### 3.2 认证链（服务端）
 
+<a id="service-credential-digest"></a>
+**服务凭证摘要（T-ACCESS-114，2026-10-17 确认）**：secret 继续由服务端独立生成 32 字节 SecureRandom 随机值，`sk-` 加 Base64URL 无填充编码；不接受自定义 secret。存储唯一形态为 `sha256-v1$` 加完整 secret 的 UTF-8 SHA-256 小写十六进制摘要（64 字符），`secret_hash VARCHAR(128)` 足够容纳。验证严格识别版本与摘要形态，解码为固定 32 字节后用 `MessageDigest.isEqual` 比较；secret 不 trim、不改大小写、不截断，摘要本身不能替代原 secret。该方案仅适用于高熵随机服务凭证，用户密码与 OAuth2 客户端密钥继续各自现行策略。
+
+凭证行及服务启用状态仍逐请求读取，不缓存验密结果或认证成功状态；错误 secret 先于状态细分拒绝。SHA-256 只消除密码哈希计算，不承诺消除数据库与网络延迟，也不新增吊销陈旧窗口。在途请求沿既有认证读取边界处理。
+
+当前无正式部署，旧 BCrypt 凭证统一按无效凭证拒绝（20065），由管理员重新签发并分发；不保留兼容分支、不在查询中改写哈希、不增加自动迁移。未知版本、损坏摘要同样拒绝。旧新实例不支持混用，升级步骤见[部署说明](../ops/deployment.md#service-credential-digest-upgrade)。安全依据：[OWASP 高熵随机验证值存储](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html#server-side-session-token-storage)。
+
 ```text
 请求头：X-Credential-Id + X-Credential-Secret（TLS 传输）
 验证（2026-09-20 实施拍板修订：secret 比对先于状态细分——三态细分仅对持有正确 secret 的请求者暴露，半头/错误 secret 一律 20065 无凭证状态探测面；[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日行）：
   ① credential 行定位（credential_id **全局唯一**（§3.1 uk）；行不存在 → 20065）
-  ② BCrypt 常量时间比对 secret（失败 → 20065）
+  ② 当前版本 SHA-256 摘要恒定时间比对（旧格式、损坏或不匹配 → 20065）
   ③ 状态/过期细分：停用 → 20067；已过期 → 20066
   ④ 前置校验：凭证绑定的 service 在 service_config 注册且未停用（→ 20068；对齐 20055 门禁的服务注册段）
   ⑤ 绑定 SERVICE 上下文：tenantId + serviceCode 均由凭证行派生

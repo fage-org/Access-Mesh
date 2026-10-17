@@ -10,7 +10,7 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| access-service 归并（跨服务） | `T-ACCESS` | 114 |
+| access-service 归并（跨服务） | `T-ACCESS` | 115 |
 | permission-center | `T-PERM` | 113 |
 | admin-service | `T-ADMIN` | 036 |
 | gateway | `T-GW` | 015 |
@@ -21,6 +21,12 @@
 > 新建任务时从对应领域取下一编号，计数器 +1。
 
 ## 任务总表
+
+### 服务凭证 SHA-256 验密
+
+| ID | 标题 | 状态 | 直接依赖 | 回写 |
+|---|---|---|---|---|
+| [T-ACCESS-114](../archive/2026-10-18/tasks/T-ACCESS-114.md) | 服务凭证 SHA-256 验密与旧哈希退役 | ✅ | — | ✓ |
 
 ### 权限生命周期边界收口
 

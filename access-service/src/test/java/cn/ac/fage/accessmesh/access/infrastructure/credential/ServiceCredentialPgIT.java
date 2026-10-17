@@ -170,7 +170,7 @@ class ServiceCredentialPgIT {
         String hash = jdbc.queryForObject(
             "SELECT secret_hash FROM service_credential WHERE credential_id = ?",
             String.class, issued.entity().getCredentialId());
-        assertThat(hash).isNotBlank().isNotEqualTo(issued.plainSecret());
+        assertThat(hash).matches("sha256-v1\\$[0-9a-f]{64}").isNotEqualTo(issued.plainSecret());
 
         // verify 绿
         ServiceCredentialDomainService.VerifyResult verify =
@@ -207,6 +207,8 @@ class ServiceCredentialPgIT {
         ServiceCredentialDomainService.IssuedCredential second =
             domainService.issue(TENANT, SERVICE_CODE, null, 100L);
 
+        assertThat(domainService.verify(first.entity().getCredentialId(), first.plainSecret()).success()).isTrue();
+
         // 停用 → 20067（轮换收尾：新凭证并存生效后再停旧）
         assertThat(domainService.changeStatus(TENANT, first.entity().getId(), 0, 100L)).isEqualTo(1);
         assertThat(domainService.verify(first.entity().getCredentialId(), first.plainSecret()).failure())
@@ -227,15 +229,45 @@ class ServiceCredentialPgIT {
         // 服务停用 → 20068（凭证本身有效）
         ServiceCredentialDomainService.IssuedCredential third =
             domainService.issue(TENANT, SERVICE_CODE, null, 100L);
+        assertThat(domainService.verify(third.entity().getCredentialId(), third.plainSecret()).success()).isTrue();
         jdbc.update("UPDATE service_config SET status = 0 WHERE service_code = ?", SERVICE_CODE);
         assertThat(domainService.verify(third.entity().getCredentialId(), third.plainSecret()).failure())
             .isEqualTo(AccessErrorCode.SERVICE_CREDENTIAL_SERVICE_INACTIVE);
         jdbc.update("UPDATE service_config SET status = 1 WHERE service_code = ?", SERVICE_CODE);
+        assertThat(domainService.verify(third.entity().getCredentialId(), third.plainSecret()).success()).isTrue();
 
         // 删除 → 20065
         assertThat(domainService.remove(TENANT, third.entity().getId(), 100L)).isEqualTo(1);
         assertThat(domainService.verify(third.entity().getCredentialId(), third.plainSecret()).failure())
             .isEqualTo(AccessErrorCode.SERVICE_CREDENTIAL_INVALID);
+    }
+
+    @Test
+    @DisplayName("旧 BCrypt 行经认证仲裁器拒绝且不改写，重新签发后原协议可用")
+    void shouldRejectLegacyCredentialUntilReissued() throws Exception {
+        insertActiveService();
+        var old = domainService.issue(TENANT, SERVICE_CODE, null, 100L);
+        String legacyHash = cn.dev33.satoken.secure.BCrypt.hashpw(old.plainSecret());
+        jdbc.update("UPDATE service_credential SET secret_hash = ? WHERE id = ?", legacyHash, old.entity().getId());
+
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/auth/check");
+        req.addHeader("X-Credential-Id", old.entity().getCredentialId());
+        req.addHeader("X-Credential-Secret", old.plainSecret());
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        assertThat(arbiter.preHandle(req, resp, new Object())).isFalse();
+        assertThat(resp.getStatus()).isEqualTo(403);
+        assertThat(resp.getContentAsString()).contains("20065");
+        assertThat(req.getAttribute(SecurityAttributes.ATTR_SERVICE_PRINCIPAL)).isNull();
+        assertThat(jdbc.queryForObject("SELECT secret_hash FROM service_credential WHERE id = ?",
+            String.class, old.entity().getId())).isEqualTo(legacyHash);
+
+        var replacement = domainService.issue(TENANT, SERVICE_CODE, null, 100L);
+        req = new MockHttpServletRequest("POST", "/api/access/auth/check");
+        req.addHeader("X-Credential-Id", replacement.entity().getCredentialId());
+        req.addHeader("X-Credential-Secret", replacement.plainSecret());
+        assertThat(arbiter.preHandle(req, new MockHttpServletResponse(), new Object())).isTrue();
+        assertThat(req.getAttribute(SecurityAttributes.ATTR_SERVICE_PRINCIPAL))
+            .isEqualTo(new ServicePrincipal(TENANT, SERVICE_CODE, replacement.entity().getCredentialId()));
     }
 
     @Test

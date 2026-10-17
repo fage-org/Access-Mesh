@@ -27,7 +27,7 @@
 | 权限中心 v3.5 端到端设计 | [permission-center-v3.5-design.md](permission-center-v3.5-design.md)（`status: adopted`）|
 | 权限中心 v3.5.1+ 演进方向 | [permission-center-v3.5.1-evolution.md](permission-center-v3.5.1-evolution.md)（`status: evolution`，非约束）|
 | 权限依赖与自动授权（简化方案） | [dependency-auto-grant.md](dependency-auto-grant.md)（adopted；独立接入、写时物化与按需来源解释；实施前细化 T-PERM-078，实施 T-PERM-071～073） |
-| 公共服务认证模块（per-service credential） | [service-authentication.md](service-authentication.md)（`status: adopted`，2026-09-19 随上稿同批定稿——M2M 服务身份认证平台能力，含现有认证体系全景盘点；实现载体 T-PERM-070 前置卡） |
+| 公共服务认证模块（per-service credential） | [service-authentication.md](service-authentication.md)（`status: adopted`；M2M 服务身份、SHA-256 凭证摘要、生命周期与换发边界） |
 | 默认组织树与用户生命周期 | [default-org-tree-user-lifecycle.md](default-org-tree-user-lifecycle.md)               |
 | 组织与用户·权限契约    | [org-user-permission-contract.md](org-user-permission-contract.md)                     |
 | 跨服务设计              | [cross-service/](cross-service/)                                                       |
@@ -106,6 +106,7 @@ Claude 按需技能位于 `.claude/skills/`。
 
 | 归档批次              | 说明                                                                                                                                            |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| [2026-10-18](../archive/2026-10-18/README.md) | T-ACCESS-114 服务凭证 SHA-256 验密任务与验收证据归档，现行规则见服务认证 §3.2 与契约总册 §24。 |
 | [2026-09-26](../archive/2026-09-26/README.md) | T-ACCESS-064：当前决定归所属规范、入口只导航；旧两册与压缩前原文冻结，增量核对及语义对照随任务归档。 |
 | `../archive/2026-09-14/` | access-service 能力包融合计划归档（T-ACCESS-041 终态）：十任务全 done 后用户确认定稿归档。结构契约沉淀至本页 `access-service-capability-structure.md`（adopted，17 顶层包归属清单与边界断言），错误码/缓存目录/操作码单册与契约总册、engine 三册、permission-coding-standards 规则均为现行权威；遗留登记见 pending-problems（Q-006 滚动发布边界 / Q-007 / Q-008；Q-001/Q-009 已收敛——后者 30 边白名单退役为绝对禁断，T-ACCESS-043~046） |
 | `../archive/2026-09-07/` | 计划治理收尾归档批次：product-positioning-landing-plan（三档叙事口径沉淀至本页「能力三档」入口）+ frontend-phase3-plan（九联调任务收口；归档门禁统一冒烟 21/21 通过）。 |

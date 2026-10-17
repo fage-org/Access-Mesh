@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
  * 服务凭证实体（T-PERM-070，service-authentication.md §3.1）。
  * <p>
  * per-service M2M 身份凭证：credential_id 全局唯一（认证先于租户解析，跨租户同 id
- * = 定位歧义越权面）；secret 只存 BCrypt 哈希，明文仅签发响应回显一次；
+ * = 定位歧义越权面）；secret 只存带版本的 SHA-256 摘要，明文仅签发响应回显一次；
  * 同服务多凭证并存支撑轮换（新凭证验证生效后再停旧）。
  * </p>
  */
@@ -34,7 +34,7 @@ public class ServiceCredential {
     /** 线上传输标识（签发生成：sc- + 22 字符 base64url；全局唯一） */
     private String credentialId;
 
-    /** BCrypt 哈希（60 字符；验证走常量时间 BCrypt 比对） */
+    /** sha256-v1$ 加完整 secret 的 UTF-8 SHA-256 小写十六进制摘要（64 字符）。 */
     private String secretHash;
 
     /** 状态：0=停用 1=启用（停用立即失效） */

@@ -34,7 +34,9 @@ import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.time.Duration;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -138,7 +140,8 @@ class ExampleBusinessFinalCheckE2EIT {
                 for (int tenant = 1; tenant <= 2; tenant++) {
                     ps.setLong(1, tenant);
                     ps.setString(2, "sc-example-e2e-" + tenant);
-                    ps.setString(3, cn.dev33.satoken.secure.BCrypt.hashpw("sk-example-e2e-" + tenant));
+                    ps.setString(3, "sha256-v1$" + HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                        .digest(("sk-example-e2e-" + tenant).getBytes(StandardCharsets.UTF_8))));
                     ps.executeUpdate();
                 }
             }

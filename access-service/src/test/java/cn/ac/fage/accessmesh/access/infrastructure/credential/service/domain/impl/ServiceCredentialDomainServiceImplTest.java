@@ -11,9 +11,16 @@ import cn.dev33.satoken.secure.BCrypt;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 
 import java.time.LocalDateTime;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -25,6 +32,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 /**
  * 服务凭证领域服务回归锁（T-PERM-070）：验证顺序（secret 比对先于状态细分——
@@ -50,10 +58,19 @@ class ServiceCredentialDomainServiceImplTest {
         row.setTenantId(7L);
         row.setServiceCode("example-service");
         row.setCredentialId(credentialId);
-        row.setSecretHash(BCrypt.hashpw(plainSecret));
+        row.setSecretHash(expectedHash(plainSecret));
         row.setStatus(status);
         row.setExpiresAt(expiresAt);
         return row;
+    }
+
+    private static String expectedHash(String secret) {
+        try {
+            return "sha256-v1$" + HexFormat.of().formatHex(
+                MessageDigest.getInstance("SHA-256").digest(secret.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new AssertionError(e);
+        }
     }
 
     private ServiceConfig activeService() {
@@ -113,7 +130,7 @@ class ServiceCredentialDomainServiceImplTest {
     }
 
     @Test
-    @DisplayName("issue：credentialId=sc-22 字符、secret=sk-43 字符（base64url 无 +/）、库内只存 BCrypt 哈希")
+    @DisplayName("issue：随机标识与 secret 格式保持，库内只存带版本的 SHA-256 摘要")
     void shouldIssueWithCanonicalFormat() {
         ServiceCredentialDomainService.IssuedCredential issued =
             service.issue(7L, "example-service", null, 100L);
@@ -123,7 +140,7 @@ class ServiceCredentialDomainServiceImplTest {
         assertThat(issued.plainSecret()).doesNotContain("+").doesNotContain("/");
         // 库内只存哈希且可验证明文
         assertThat(issued.entity().getSecretHash()).isNotEqualTo(issued.plainSecret());
-        assertThat(BCrypt.checkpw(issued.plainSecret(), issued.entity().getSecretHash())).isTrue();
+        assertThat(issued.entity().getSecretHash()).isEqualTo(expectedHash(issued.plainSecret()));
         assertThat(issued.entity().getTenantId()).isEqualTo(7L);
         assertThat(issued.entity().getServiceCode()).isEqualTo("example-service");
         assertThat(issued.entity().getStatus()).isEqualTo(1);
@@ -148,15 +165,75 @@ class ServiceCredentialDomainServiceImplTest {
         verify(mapper, times(1)).insert(any(ServiceCredential.class));
     }
 
-    @Test
-    @DisplayName("verify 对损坏 secret_hash（非法 BCrypt 串）→ 20065 归一（不 500）")
-    void shouldNormalizeCorruptedHash() {
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {
+        "", "not-a-hash", "sha256-v2$0000000000000000000000000000000000000000000000000000000000000000",
+        "sha256-v1$", "sha256-v1$00", "sha256-v1$00000000000000000000000000000000000000000000000000000000000000000",
+        "sha256-v1$000000000000000000000000000000000000000000000000000000000000000000000",
+        "sha256-v1$gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg",
+        "sha256-v1$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "0000000000000000000000000000000000000000000000000000000000000000"
+    })
+    @DisplayName("verify：未知版本、非规范或损坏摘要 → 20065，不进入服务状态查询")
+    void shouldNormalizeCorruptedHash(String storedHash) {
         ServiceCredential corrupted = row("sc-x", "sk-x", 1, null);
-        corrupted.setSecretHash("not-a-bcrypt-hash");
+        corrupted.setSecretHash(storedHash);
         when(mapper.selectByCredentialId("sc-x")).thenReturn(corrupted);
 
         assertThat(service.verify("sc-x", "sk-x").failure())
             .isEqualTo(AccessErrorCode.SERVICE_CREDENTIAL_INVALID);
+        verifyNoInteractions(serviceConfigDomainService);
+    }
+
+    @Test
+    @DisplayName("旧 BCrypt 凭证即使 secret 正确也拒绝，无兼容或自动迁移")
+    void shouldRejectLegacyBcryptHash() {
+        ServiceCredential legacy = row("sc-old", "sk-old", 1, null);
+        legacy.setSecretHash(BCrypt.hashpw("sk-old"));
+        when(mapper.selectByCredentialId("sc-old")).thenReturn(legacy);
+
+        assertThat(service.verify("sc-old", "sk-old").failure())
+            .isEqualTo(AccessErrorCode.SERVICE_CREDENTIAL_INVALID);
+        verifyNoInteractions(serviceConfigDomainService);
+        verify(mapper).selectByCredentialId("sc-old");
+        org.mockito.Mockito.verifyNoMoreInteractions(mapper);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {" sk-real", "sk-real ", "SK-REAL", "sk-real\u0000", "sk-other"})
+    @DisplayName("secret 按完整字节比较，不接受空白归一、大小写归一或附加字节")
+    void shouldRejectModifiedSecret(String candidate) {
+        when(mapper.selectByCredentialId("sc-real")).thenReturn(row("sc-real", "sk-real", 1, null));
+        assertThat(service.verify("sc-real", candidate).failure())
+            .isEqualTo(AccessErrorCode.SERVICE_CREDENTIAL_INVALID);
+        verifyNoInteractions(serviceConfigDomainService);
+    }
+
+    @Test
+    @DisplayName("完整 UTF-8 字节参与验密，72 字节后的差异不能被截断")
+    void shouldVerifyEntireUtf8Secret() {
+        String secret = "sk-" + "a".repeat(72) + "尾";
+        when(mapper.selectByCredentialId("sc-long")).thenReturn(row("sc-long", secret, 1, null));
+        when(serviceConfigDomainService.selectByTenantAndServiceCode(7L, "example-service")).thenReturn(activeService());
+        assertThat(service.verify("sc-long", secret).success()).isTrue();
+        assertThat(service.verify("sc-long", "sk-" + "a".repeat(72) + "改").failure())
+            .isEqualTo(AccessErrorCode.SERVICE_CREDENTIAL_INVALID);
+        verify(serviceConfigDomainService, times(1)).selectByTenantAndServiceCode(7L, "example-service");
+    }
+
+    @Test
+    @DisplayName("数据库摘要与其他凭证的 secret 都不能冒充原凭证")
+    void shouldRejectDigestAsSecretOrOtherCredentialSecret() {
+        ServiceCredentialDomainService.IssuedCredential first = service.issue(7L, "example-service", null, 100L);
+        ServiceCredentialDomainService.IssuedCredential second = service.issue(8L, "other-service", null, 100L);
+        when(mapper.selectByCredentialId(first.entity().getCredentialId())).thenReturn(first.entity());
+        for (String candidate : List.of(first.entity().getSecretHash(),
+                first.entity().getSecretHash().substring("sha256-v1$".length()), second.plainSecret())) {
+            assertThat(service.verify(first.entity().getCredentialId(), candidate).failure())
+                .isEqualTo(AccessErrorCode.SERVICE_CREDENTIAL_INVALID);
+        }
+        verifyNoInteractions(serviceConfigDomainService);
     }
 
     @Test

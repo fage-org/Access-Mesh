@@ -19,7 +19,7 @@ public interface ServiceCredentialDomainService {
 
     /**
      * 签发凭证：服务端生成 credential_id（sc- + 22 字符 base64url）与 secret
-     * （sk- + 43 字符 base64url），库内只存 BCrypt 哈希；明文 secret 仅随本方法返回一次。
+     * （sk- + 43 字符 base64url），库内只存带版本的 SHA-256 摘要；明文 secret 仅随本方法返回一次。
      * 同服务多凭证并存（轮换窗口），不设数量上限（2026-09-20 拍板）。
      *
      * @param tenantId    租户
@@ -33,7 +33,7 @@ public interface ServiceCredentialDomainService {
     /**
      * 凭证验证（仲裁器唯一入口）。验证顺序（泄露面最小化——三态细分仅对持有正确
      * secret 的请求者暴露）：行定位（不存在→{@code SERVICE_CREDENTIAL_INVALID}）→
-     * BCrypt 常量比对（失败→{@code SERVICE_CREDENTIAL_INVALID}）→ 状态/过期细分
+     * SHA-256 固定长度摘要恒定时间比对（旧格式/损坏/不匹配→{@code SERVICE_CREDENTIAL_INVALID}）→ 状态/过期细分
      * （{@code SERVICE_CREDENTIAL_DISABLED}/{@code SERVICE_CREDENTIAL_EXPIRED}）→
      * 服务注册+启用（{@code SERVICE_CREDENTIAL_SERVICE_INACTIVE}）。
      *

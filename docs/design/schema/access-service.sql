@@ -1406,7 +1406,7 @@ COMMENT ON COLUMN sys_task_execution.delete_flag IS '逻辑删除：0=未删除�
 --     docs/design/service-authentication.md §3.1）
 --     M2M 服务身份认证的存储面：credential_id 全局唯一（认证先于租户解析——
 --     tenantId 由凭证行派生，跨租户同 id 会产生定位歧义=跨租户越权面）；
---     secret 只存 BCrypt 哈希（sa-token BCrypt.hashpw，同 sys_oauth2_client 先例），
+--     secret 只存带版本的 SHA-256 摘要（高熵随机服务凭证专用），
 --     明文仅在签发响应回显一次；同服务多凭证并存支撑轮换（新凭证验证生效后再停旧）。
 -- -----------------------------------------------------------------------------
 CREATE TABLE service_credential (
@@ -1414,7 +1414,7 @@ CREATE TABLE service_credential (
     tenant_id     BIGINT NOT NULL,
     service_code  VARCHAR(128) NOT NULL,   -- 凭证绑定服务（须为 service_config 已注册且 status=1 启用）
     credential_id VARCHAR(64) NOT NULL,    -- 线上传输标识（签发生成：sc- + 22 字符 base64url，16 字节熵）
-    secret_hash   VARCHAR(128) NOT NULL,   -- BCrypt 哈希（60 字符，验证走 BCrypt.checkpw）
+    secret_hash   VARCHAR(128) NOT NULL,   -- sha256-v1$ + UTF-8 SHA-256 小写 hex（64 字符）
     status        SMALLINT NOT NULL DEFAULT 1,   -- 0=停用 1=启用（停用立即失效）
     rotated_at    TIMESTAMPTZ,             -- 轮换标记（旧凭证停用时记录，供运维追溯轮换时间线）
     expires_at    TIMESTAMPTZ,             -- 过期时间（NULL=永不过期；过期立即失效）
@@ -1434,7 +1434,7 @@ CREATE INDEX idx_service_credential_service ON service_credential (tenant_id, se
 COMMENT ON TABLE service_credential IS '服务凭证：per-service M2M 身份认证（X-Credential-Id + X-Credential-Secret 头，认证链见 service-authentication.md §3.2）。tenantId+serviceCode 均由凭证行派生，消除自报头信任面；同服务多凭证并存支撑轮换';
 COMMENT ON COLUMN service_credential.service_code IS '凭证绑定的服务编码（service_config 按 (tenant_id, service_code) 注册，凭证绑定该行；认证前置校验服务注册且启用，停用即拒绝）';
 COMMENT ON COLUMN service_credential.credential_id IS '线上传输标识（非自增）：签发生成 sc- + 22 字符 base64url；全局唯一（跨租户）——认证先于租户解析，跨租户同 id = 定位歧义越权面，签发生成器保证 + 全局唯一索引兜底';
-COMMENT ON COLUMN service_credential.secret_hash IS 'BCrypt 哈希（sa-token BCrypt.hashpw，同 sys_oauth2_client 先例）；明文 secret 仅签发响应回显一次，任何通道不可回查';
+COMMENT ON COLUMN service_credential.secret_hash IS 'sha256-v1$ 加完整 secret 的 UTF-8 SHA-256 小写十六进制摘要（64 字符）；固定长度摘要恒定时间比较；旧格式与损坏摘要拒绝，旧凭证须重新签发；明文仅签发响应回显一次，任何通道不可回查';
 COMMENT ON COLUMN service_credential.status IS '状态：0=停用 1=启用。停用立即失效（认证链判定）；轮换收尾动作=停旧凭证';
 COMMENT ON COLUMN service_credential.rotated_at IS '轮换标记：旧凭证因轮换停用时记录时间，供运维追溯轮换时间线';
 COMMENT ON COLUMN service_credential.expires_at IS '过期时间（NULL=永不过期）；到期立即失效，管理面可 update 改期（T-PERM-070 拍板：update 支持 status + expiresAt）';

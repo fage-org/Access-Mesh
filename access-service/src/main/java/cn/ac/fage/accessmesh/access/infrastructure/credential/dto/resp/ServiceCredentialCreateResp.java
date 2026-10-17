@@ -4,7 +4,7 @@ import java.time.LocalDateTime;
 
 /**
  * 服务凭证签发响应（T-PERM-070）。
- * <p>{@code secret} 为明文 secret 的<b>唯一一次回显</b>——服务端只存 BCrypt 哈希，
+ * <p>{@code secret} 为明文 secret 的<b>唯一一次回显</b>——服务端只存带版本的 SHA-256 摘要，
  * 任何后续通道（list/detail/update）均不可回查；接入方须立即保存到密钥管理系统。</p>
  *
  * @param id           主键
