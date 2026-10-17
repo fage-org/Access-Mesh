@@ -167,3 +167,8 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 OAuth2 授权续接 query 为 returnTo，仅允许本地 /oauth2/authorize 路径。平台强制改密门禁仍优先，改密成功后再返回确认页；菜单加载失败不把未确认的授权请求自动签码。returnTo 的续接规则单源在 `logOut`（T-FE-068 拍板 A）：改密成功分支显式传参、401 分支/本地过期短路/initRouter 终结的无参调用缺省继承当前页 query 的 returnTo，均经同一 `oauthReturnTarget` 白名单校验——改密首请求响应丢失、重试收 401 等形态重登后不丢原授权确认地址。授权确认页对 query 变化（如同一页面切换 client_id）立即作废旧预览与旧请求并按新 query 重新核验：签码只认当前已核验请求（`views/oauth-consent/model.ts` 生命周期模型，迟到响应按代际丢弃——T-PERM-110 同页切换不再给旧应用签 code）。
 
 登录响应中的 userId/tenantId 随本地会话元数据保存，供授权草稿隔离。登录采用 tenantCode，草稿仍以服务端解析出的内部 tenantId 与 userId 分区；缺 tenantId 的旧会话不能构造草稿归属，不回落租户 1。
+
+
+## HttpOnly 承载演进
+
+2026-10-17 用户选择 P2，启动[浏览器 HttpOnly 会话认证改造](../browser-session-authentication.md)。覆盖范围和兼容方案尚待决定；本页上述 Bearer 与存储描述仍为当前实现。既有跨标签同步的行为保证须保留，不能将 HttpOnly 简化为删除存储代码或仅添加 Cookie 标记。

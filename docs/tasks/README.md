@@ -10,7 +10,7 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| access-service 归并（跨服务） | `T-ACCESS` | 109 |
+| access-service 归并（跨服务） | `T-ACCESS` | 110 |
 | permission-center | `T-PERM` | 113 |
 | admin-service | `T-ADMIN` | 036 |
 | gateway | `T-GW` | 015 |
@@ -21,6 +21,12 @@
 > 新建任务时从对应领域取下一编号，计数器 +1。
 
 ## 任务总表
+
+### 浏览器 HttpOnly 会话认证改造
+
+| ID | 标题 | 状态 | 直接依赖 | 回写 |
+|---|---|---|---|---|
+| [T-ACCESS-109](T-ACCESS-109.md) | 浏览器 HttpOnly 会话认证改造 | 🔨 | T-FE-071、T-FE-072 | ⏳ |
 
 ### 跨标签平台会话同步
 
