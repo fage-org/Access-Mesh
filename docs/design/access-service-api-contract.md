@@ -18,6 +18,8 @@ last_reviewed: 2026-10-17
 
 原未成册五族与四个零散入口的读取位置如下。除登录日志随管理台入口转正外，本表只提供导航，完整形状补册仍按 Q-062 延后。
 
+**补册启动边界（2026-10-17 用户确认 J1）**：继续暂缓 Q-062 的完整接口形状补册，保留“接口稳定后再补”的条件。现有正式契约及已实施功能的局部字段/错误码说明继续同步维护；本次确认不撤回登录日志、审计导出与部署任务等已有契约，不代表剩余缺口已解决。
+
 | 入口 | 读哪里 |
 |---|---|
 | auth 登录族（captcha/login/logout/userinfo/user-menu） | [§6.4](#contract-section-6-4)、[AdminAuthController](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/auth/controller/AdminAuthController.java)、[auth DTO](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/auth/dto) |
