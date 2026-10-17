@@ -3,7 +3,7 @@
 #   与 e2e 模块（T-ACCESS-031：E2E 是收口资产，runner 自带 Docker 会照跑，必须显式跳过）
 # - testcontainers：容器门控（PR / 手动触发），全量 mvn test（含 Testcontainers 与 E2E）
 # - frontend：前端质量门禁（push / PR / 手动触发，无 if 即全触发面——pnpm 钉死版本，
-#   test/lint/typecheck/build 四步 + 35 组 DTO 对账，T-FE-066）
+#   test/lint/typecheck/build 与已登记 DTO 对账）
 # 口径：以测试退出状态判定成功，不维护测试数量计数；不建发布流水线与多分支矩阵。
 name: CI
 
@@ -53,7 +53,10 @@ jobs:
         run: |
           mkdir -p ../reports/pnpm
           pnpm install --frozen-lockfile --ignore-scripts
-          pnpm audit --audit-level high --json > ../reports/pnpm/audit.json
+          node --test ../tools/security/check-pnpm-audit.test.mjs
+          audit_status=0
+          pnpm audit --audit-level high --json > ../reports/pnpm/audit.json || audit_status=$?
+          node ../tools/security/check-pnpm-audit.mjs ../reports/pnpm/audit.json "$audit_status"
       - name: 保存安全报告（包括阻断结果）
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -123,3 +126,4 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test:run
       - run: pnpm contracts:check
+      - run: pnpm build

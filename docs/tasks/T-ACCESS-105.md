@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-105
 title: 存量依赖漏洞核实与高危扫描阻断清理
-status: proposed
+status: in-progress
 plan: docs/plans/scenario-audit-remediation-plan.md
 domain: cross-service
 design_refs:
@@ -30,11 +30,14 @@ T-ACCESS-103 接入扫描前执行 `pnpm audit --json`，2026-10-17 当前锁文
 
 ## 当前口径
 
-依赖修复单列后续任务，当前批次不自行升级依赖。保持安全规范的高危阻断；T-ACCESS-103 与所属计划在阻断清理和 CI 验收前不标完成。未经确认不忽略漏洞、不降低阈值。
+依赖修复已启动，优先按现有大版本升级受影响包。前端测试采用 Vitest 5.0.5 正式版，Node 开发支持调整为 `^22.13.0 || ^24.0.0 || >=26.0.0`，Node 类型声明采用 24.x，本地、CI 与镜像使用 Node 24。保持安全规范的高危阻断；T-ACCESS-103 与所属计划在阻断清理和 CI 验收前不标完成。其他大版本升级、工具替换或风险接受须先明确决策，不降低阈值。braces 的唯一已批准临时例外见[安全规范](../../.claude/rules/security-standards.md#braces-开发依赖临时例外)，不扩大到生产路径或其他公告。
 
 ## 验收对照
 
-见 frontmatter；由原始报告、升级差异、测试和 CI 工件共同证明。
+- [x] 前端已核实原报告并完成可用升级，逐公告处置与验证见[前端证据](evidence/T-ACCESS-105/frontend-remediation.md)。
+- [x] Vitest 大版本及 Node 支持变更已明确；braces 的开发路径风险已获限定批准，门禁与原始报告保留。
+- [ ] Maven 完整扫描、报告核实与必要修复。
+- [ ] GitHub Actions 真实运行及报告工件验收；本地通过不代替 CI。
 
 ## 非目标 / 遗留
 

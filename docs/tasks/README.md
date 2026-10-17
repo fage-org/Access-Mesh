@@ -46,7 +46,7 @@
 | [T-ACCESS-102](T-ACCESS-102.md) | example-service 子报表真实父关系核对（P2） | ✅ | — | ✓ |
 | [T-ACCESS-103](T-ACCESS-103.md) | 文档与流程对齐批（P2×3+P3 族） | 👀 | T-ACCESS-105 | ✓ |
 | [T-ACCESS-104](T-ACCESS-104.md) | 无权删除全拒反馈修正（P2） | ✅ | — | ✓ |
-| [T-ACCESS-105](T-ACCESS-105.md) | 存量依赖漏洞核实与高危扫描阻断清理 | ⚙️ | — | ⏳ |
+| [T-ACCESS-105](T-ACCESS-105.md) | 存量依赖漏洞核实与高危扫描阻断清理 | 🔨 | — | ⏳ |
 
 ### OAuth2 客户端租户内唯一（待启动，Q-069 承接）
 

@@ -9,7 +9,7 @@
 | Docker / Docker Compose | Docker 24+（含 compose v2） | 基础设施 + 全栈预览 |
 | JDK | 21+ | 构建服务 jar（全栈档需要） |
 | Maven | 3.9+ | 构建服务 jar |
-| Node.js + pnpm | Node ≥22.13（或 20.19）、pnpm ≥9 | 仅开发模式改前端时需要（全栈档前端在容器内构建） |
+| Node.js + pnpm | 推荐 Node 24、pnpm 11.5.0；支持范围见 [工程验证基线](ops/engineering-baseline.md#前端开发环境) | 仅开发模式改前端时需要（全栈档前端在容器内构建） |
 
 > 平台先启动，管理员签发服务凭证后再启动业务示例。
 

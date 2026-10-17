@@ -62,7 +62,7 @@ last_updated: 2026-10-17
 | [T-ACCESS-102](../tasks/T-ACCESS-102.md) | example-service 子报表真实父关系核对 | P2 | ✅ |
 | [T-ACCESS-103](../tasks/T-ACCESS-103.md) | 文档与流程对齐批 | P2×3+P3 族 | 👀 |
 | [T-ACCESS-104](../tasks/T-ACCESS-104.md) | 无权删除全拒反馈修正（角色与资源批删链） | P2 | ✅ |
-| [T-ACCESS-105](../tasks/T-ACCESS-105.md) | 存量依赖漏洞核实与高危扫描阻断清理 | 安全扫描阻断 | ⚙️ |
+| [T-ACCESS-105](../tasks/T-ACCESS-105.md) | 存量依赖漏洞核实与高危扫描阻断清理 | 安全扫描阻断 | 🔨 |
 
 ## 归档条件
 

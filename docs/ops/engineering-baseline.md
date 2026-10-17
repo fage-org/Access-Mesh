@@ -1,5 +1,11 @@
 # 工程验证基线
 
+## 前端开发环境
+
+前端开发与测试使用 Node `^22.13.0 || ^24.0.0 || >=26.0.0`、pnpm 11.5.0；推荐与 CI、Docker 构建阶段一致的 Node 24。Vitest 5 已停止支持 Node 20，Node 类型声明采用 24.x。开发环境的 Node 版本要求不影响浏览器终端用户。依赖升级须验证测试、类型检查、lint、构建与 DTO 对账；安全扫描包括开发依赖。
+
+## 本地构建与 CI
+
 本地构建改动上游 API 时使用 `pwsh -File tools/build.ps1 access-service`（PowerShell），或在仓库根执行 `mvn install -pl access-service -am -DskipTests`。目标模块及全部 reactor 上游一起 install，后续局部启动不会拿到旧 SNAPSHOT；`mvn compile -pl access-service` 不满足这一点。脚本参数是模块相对目录，拒绝仓外路径和无 pom 的目录。测试仍按 AGENTS.md 的单测/收口轨道分别运行。
 
 CI 为后端单测与收口测试记录实际耗时到 job summary，失败仍保持 Maven 退出码；目前不自动比较阈值。PR/手动触发跑完整容器与 E2E，push 保留单测并新增前端全部门禁。此安排避免同一次 push + PR 重复执行长容器组；若需要受保护分支的逐提交完整验证，再根据实际漏检事件或发布要求调整触发规则，本次不增加重复 job。

@@ -166,12 +166,18 @@ public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
 现行入口为 `.github/workflows/ci.yml` 的 `dependency-security` job（push / PR / 手动 / 每周一 02:00 UTC）。Maven 先解析并安装 reactor 依赖，再用固定 `org.owasp:dependency-check-maven:12.1.9:aggregate` 扫描，JDK 21，包含 test/provided，`failBuildOnCVSS=7.0`、`failOnError=true`；NVD API key 可通过仓库 secret `NVD_API_KEY` 加速，没有 key 不豁免扫描失败。OSS Index 补充源关闭以避免依赖另一个账户认证，Maven CVE 主检查使用 NVD；前端由 pnpm 单独扫描，不使用 Dependency Check 的 Node 审计适配器。
 
-前端固定 pnpm 11.5.0，按锁文件安装后执行 `pnpm audit --audit-level high --json`，包括生产与开发依赖；high/critical 阻断，不忽略 registry 错误或无修复版本。新增 Actions 固定到经标签核实的 commit SHA，报告即使失败也上传并保留 30 天。扫描失败、未执行和漏洞阻断须与通过分开报告；存量依赖修复由 T-ACCESS-105 承接，不以关闭扫描、调低门槛或未批准的忽略项获得绿色。
+前端固定 pnpm 11.5.0，按锁文件安装后执行 `pnpm audit --audit-level high --json`，包括生产与开发依赖；保留原始报告，再经 `tools/security/check-pnpm-audit.mjs` 执行高危门禁和下述唯一例外判断。不忽略 registry 错误或泛化豁免无修复版本。新增 Actions 固定到经标签核实的 commit SHA，报告即使失败也上传并保留 30 天。扫描失败、未执行、漏洞阻断与批准例外须分别报告；存量依赖修复由 T-ACCESS-105 承接，不以关闭扫描、调低门槛或未批准的忽略项获得绿色。
+
+### braces 开发依赖临时例外
+
+2026-10-17 用户批准（T-ACCESS-105）：仅接受 `GHSA-vfj7-8cjw-p6xm` 在 `braces@3.0.3` 的既有开发工具路径，路径由上述门禁脚本显式限制；不接受生产依赖、新调用路径、其他版本或其他公告。该库在深层花括号匹配规则下可能发生栈耗尽，当前输入来自受开发者控制的文件匹配配置，未发现业务页面输入通路。npm 无已发布修复版本时保留此风险，不声称已修复或漏洞清零；原始报告与例外判定报告同时保存。
+
+复核触发条件：官方发布比 3.0.3 更新的正式版本（门禁实时查询 npm 并重新阻断）、依赖进入生产路径/出现新根路径（门禁阻断），或匹配规则开始接收外部输入（实现变更评审必须撤回例外并重新决策）。未来修复后删除例外和对应专用检查，不推广为默认忽略策略。[公告](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm)。
 
 工具参数依据：[Dependency Check Maven](https://dependency-check.github.io/DependencyCheck/dependency-check-maven/configuration.html)、[pnpm audit](https://pnpm.io/cli/audit)。
 
 要求：
-- **高危漏洞阻断**: CVSS ≥ 7.0 必须修复后方可合并
+- **高危漏洞阻断**: CVSS ≥ 7.0 必须修复后方可合并；仅允许本节明确批准、范围可核对的临时例外
 - **定期扫描**: 每周全量扫描，新漏洞及时告警
 - **禁止黑名单依赖**: 即使扫描通过也禁止使用团队规定的黑名单依赖（如 FastJSON）
 
