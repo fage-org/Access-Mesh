@@ -33,7 +33,51 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class Oauth2ClientAppServiceImplTest {
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"ascii", "unicode"})
+    void shouldRejectOversizedSecret_withoutPersisting(String kind) {
+        String secret = "ascii".equals(kind) ? "a".repeat(73) : "密".repeat(25);
+        var req = new cn.ac.fage.accessmesh.access.auth.dto.Oauth2ClientCreateReq(
+            "client", secret, "Client", "authorization_code", null, null, null, null, null, 1, "CONFIDENTIAL");
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.createClient(req))
+            .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
+            .hasMessageContaining("72");
+        org.mockito.Mockito.verify(oauth2ClientMapper, org.mockito.Mockito.never()).insert(org.mockito.ArgumentMatchers.any());
+
+        SysOauth2Client existing = existingClient();
+        String original = existing.getClientSecret();
+        when(oauth2ClientMapper.selectByIdSafe(TENANT, CLIENT_ROW_ID)).thenReturn(existing);
+        var update = new Oauth2ClientUpdateReq(CLIENT_ROW_ID, secret,
+            null, null, null, null, null, null, null, null, null, null, null);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.updateClient(update))
+            .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
+            .hasMessageContaining("72");
+        assertThat(existing.getClientSecret()).isEqualTo(original);
+        org.mockito.Mockito.verify(oauth2ClientMapper, org.mockito.Mockito.never()).update(org.mockito.ArgumentMatchers.any(SysOauth2Client.class));
+    }
+
     private static final Long TENANT = 1L;
+
+    @Test
+    void shouldValidateUtf8ByteBoundary_forCreateAndUpdate() {
+        try (var factory = jakarta.validation.Validation.buildDefaultValidatorFactory()) {
+            var validator = factory.getValidator();
+            for (String secret : java.util.List.of("a".repeat(72), "密".repeat(24), "a".repeat(73), "密".repeat(25))) {
+                boolean tooLong = secret.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 72;
+                var create = new cn.ac.fage.accessmesh.access.auth.dto.Oauth2ClientCreateReq(
+                    "client", secret, "Client", "authorization_code", null, null, null, null, null, 1, "CONFIDENTIAL");
+                var update = new Oauth2ClientUpdateReq(CLIENT_ROW_ID, secret,
+                    null, null, null, null, null, null, null, null, null, null, null);
+                assertThat(validator.validate(create).stream().anyMatch(v -> v.getMessage().contains("72"))).isEqualTo(tooLong);
+                assertThat(validator.validate(update).stream().anyMatch(v -> v.getMessage().contains("72"))).isEqualTo(tooLong);
+                if (!tooLong) {
+                    service.createClient(create);
+                    when(oauth2ClientMapper.selectByIdSafe(TENANT, CLIENT_ROW_ID)).thenReturn(existingClient());
+                    service.updateClient(update);
+                }
+            }
+        }
+    }
     private static final Long CLIENT_ROW_ID = 5L;
 
     @Mock

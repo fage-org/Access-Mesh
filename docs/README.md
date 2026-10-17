@@ -104,6 +104,8 @@ docs/
 
 ## 执行计划
 
+已完成并归档[权限生命周期边界收口](archive/2026-10-17/permission-lifecycle-boundaries-plan.md)，[验收记录](archive/2026-10-17/tasks/evidence/lifecycle-boundaries/verification.md)保留测试与当前边界。
+
 已完成并归档[租户开通与独立平台运营](archive/2026-10-08/tenant-lifecycle-plan.md)。已完成并归档：[问题清单转出](archive/2026-10-04/pending-problems-clearance-plan.md)、[测试证据精简与维护成本优化](archive/2026-10-04/testing-simplification-plan.md)。清单定案后续独立实施亦已[完成归档](archive/2026-10-04/tasks/evidence/checklist-followup/final-audit.md)；实时状态见[任务看板](tasks/README.md)。
 
 | 主题 | 文档 |

@@ -19,3 +19,5 @@
 独立任务 [T-FE-072](tasks/T-FE-072.md) 将同源保护扩展到平台认证域，Q-082 已收敛；[测试与浏览器验收](tasks/evidence/T-FE-072/verification.md)确认一次性密码弹窗清理与两域互不联动。
 
 独立任务 [T-ACCESS-109](tasks/T-ACCESS-109.md) 完成租户与平台浏览器 HttpOnly 认证及 CSRF 校核，保留 Bearer 接口和立即重新登录，取消跨会话补注销；[验收记录](tasks/evidence/T-ACCESS-109/verification.md)。未启用 SSO 示例已删除，Q-070 的记住我分支仍待单独评估。
+
+[权限生命周期边界收口](permission-lifecycle-boundaries-plan.md)已完成，T-FE-073 与 T-ACCESS-110～113 随计划归档；Q-073/074/075/077/080 按已确认边界收敛。[验收记录](tasks/evidence/lifecycle-boundaries/verification.md)包含完整回归与人工升级前提。

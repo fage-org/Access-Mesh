@@ -128,10 +128,10 @@ public class ServiceCredentialAppServiceImpl implements ServiceCredentialAppServ
         return new ItemsResp<>(items);
     }
 
-    /** 绑定服务注册+启用校验（未注册/停用→参数拒绝，防止签发恒拒绝的死凭证）。 */
+    /** 事务内锁定服务再校验启用状态，避免删除与签发交错漏收凭证。 */
     private void requireActiveService(Long tenantId, String serviceCode) {
         if (!ServiceConfigDomainService.isRegisteredAndEnabled(
-                serviceConfigDomainService.selectByTenantAndServiceCode(tenantId, serviceCode))) {
+                serviceConfigDomainService.lockByTenantAndServiceCode(tenantId, serviceCode))) {
             throw new BizException(AccessErrorCode.PERM_INVALID_PARAM.getCode(),
                 AccessErrorCode.PERM_INVALID_PARAM.getMessage()
                     + ": 服务 " + serviceCode + " 未注册或已停用，凭证只能绑定已启用的注册服务");

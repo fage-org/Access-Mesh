@@ -124,8 +124,15 @@ defineExpose({ validate, getFormData });
     <el-form-item label="服务状态">
       <el-radio-group v-model="formData.status">
         <el-radio :value="1">启用</el-radio>
-        <el-radio :value="0">停用</el-radio>
+        <el-radio
+          :value="0"
+          :disabled="formData.serviceCode === 'access-service'"
+          >停用</el-radio
+        >
       </el-radio-group>
+      <span v-if="formData.serviceCode === 'access-service'"
+        >内置管理服务不能停用</span
+      >
     </el-form-item>
     <el-form-item label="服务说明">
       <el-input

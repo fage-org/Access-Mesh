@@ -84,7 +84,7 @@ class ServiceCredentialAppServiceImplTest {
     @DisplayName("create：门禁 SERVICE:MANAGE + 服务注册启用校验 + 响应含明文 secret（仅一次）")
     void shouldCreateWithSecretEcho() {
         allowManage();
-        when(serviceConfigDomainService.selectByTenantAndServiceCode(TENANT, "example-service")).thenReturn(activeService());
+        when(serviceConfigDomainService.lockByTenantAndServiceCode(TENANT, "example-service")).thenReturn(activeService());
         when(domainService.issue(eq(TENANT), eq("example-service"), any(), eq(OPERATOR)))
             .thenReturn(new ServiceCredentialDomainService.IssuedCredential(sample(), "sk-plain-once"));
 
@@ -112,7 +112,7 @@ class ServiceCredentialAppServiceImplTest {
         allowManage();
         ServiceConfig disabled = new ServiceConfig();
         disabled.setStatus(0);
-        when(serviceConfigDomainService.selectByTenantAndServiceCode(TENANT, "ghost")).thenReturn(disabled);
+        when(serviceConfigDomainService.lockByTenantAndServiceCode(TENANT, "ghost")).thenReturn(disabled);
 
         assertThatThrownBy(() -> appService.create(TENANT, new ServiceCredentialCreateReq("ghost", null), OPERATOR))
             .isInstanceOf(BizException.class)

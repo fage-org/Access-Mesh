@@ -362,6 +362,12 @@ function openSyncForm() {
                 type="danger"
                 plain
                 :icon="useRenderIcon(Delete)"
+                :disabled="currentService.serviceCode === 'access-service'"
+                :title="
+                  currentService.serviceCode === 'access-service'
+                    ? '内置管理服务不能删除'
+                    : undefined
+                "
                 @click="onDeleteService(currentService)"
               >
                 删除服务

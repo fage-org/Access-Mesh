@@ -83,6 +83,12 @@ public record Oauth2ClientCreateReq(
     /** 缺省 CONFIDENTIAL；PUBLIC 使用 S256 PKCE，无客户端密钥。 */
     @Pattern(regexp = "CONFIDENTIAL|PUBLIC") String clientType
 ) {
+    @AssertTrue(message = "clientSecret 的 UTF-8 长度不能超过 72 字节")
+    @JsonIgnore
+    public boolean isClientSecretWithinByteLimit() {
+        return !cn.ac.fage.accessmesh.access.infrastructure.util.CredentialPasswords.exceedsBcryptByteLimit(clientSecret);
+    }
+
     @AssertTrue(message = "CONFIDENTIAL 必须提供密钥；PUBLIC 必须省略密钥")
     @JsonIgnore
     public boolean isClientSecretValid() {

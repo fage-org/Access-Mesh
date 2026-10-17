@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
  * @param roleName        角色名
  * @param roleTypeLabel   角色类型显示名
  * @param targetType      前端展示用，同 roleTypeCode
- * @param relationId      POSITION 角色对应的所属组织 abstract_role.id；其他类型为 null
+ * @param relationId      关系标识（POSITION 为所属组织 abstract_role.id）；功能角色也允许非空值，撤回时原样传回
  * @param relationOrgName POSITION 角色对应的所属组织名（代理层补）
  * @param validFrom       有效期起始
  * @param validTo         有效期截止

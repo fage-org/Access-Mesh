@@ -92,6 +92,12 @@ public record Oauth2ClientUpdateReq(
     Boolean scopesClear,
     Boolean audiencesClear
 ) {
+    @AssertTrue(message = "clientSecret 的 UTF-8 长度不能超过 72 字节")
+    @JsonIgnore
+    public boolean isClientSecretWithinByteLimit() {
+        return !cn.ac.fage.accessmesh.access.infrastructure.util.CredentialPasswords.exceedsBcryptByteLimit(clientSecret);
+    }
+
     @AssertTrue(message = "redirectUris 与 redirectUrisClear 不能同时提供")
     @JsonIgnore
     public boolean isRedirectUrisConflictFree() {

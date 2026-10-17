@@ -32,6 +32,39 @@ vi.mock("@/api/service-interface", () => ({
 }));
 
 import { useServiceInterface } from "./hook";
+import { removeServiceConfigs } from "@/api/service-interface";
+
+describe("内置管理服务保护", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("禁止删除内置服务，也不发送删除请求", async () => {
+    const hook = useServiceInterface();
+    expect(
+      await hook.deleteService({
+        id: 1,
+        serviceCode: "access-service",
+        name: "管理服务"
+      } as any)
+    ).toBe(false);
+    expect(removeServiceConfigs).not.toHaveBeenCalled();
+  });
+
+  it("禁止提交内置服务停用，允许保持启用编辑", async () => {
+    const hook = useServiceInterface();
+    const form = {
+      serviceCode: "access-service",
+      name: "管理服务",
+      basePath: "/api/access",
+      description: "",
+      extra: "",
+      status: 0
+    } as any;
+    expect(await hook.submitService(form, "edit")).toBe(false);
+    expect(mockSaveServiceConfig).not.toHaveBeenCalled();
+    expect(await hook.submitService({ ...form, status: 1 }, "edit")).toBe(true);
+    expect(mockSaveServiceConfig).toHaveBeenCalledTimes(1);
+  });
+});
 
 function mappingOf(id: number, serviceCode: string) {
   return {

@@ -144,6 +144,12 @@ public class ServiceCredentialDomainServiceImpl implements ServiceCredentialDoma
         return serviceCredentialMapper.softDelete(tenantId, id, operatorId, LocalDateTime.now());
     }
 
+    @Override
+    public int retireServices(Long tenantId, java.util.Set<String> serviceCodes, Long operatorId) {
+        if (serviceCodes.isEmpty()) return 0;
+        return serviceCredentialMapper.softDeleteByServices(tenantId, serviceCodes, operatorId, LocalDateTime.now());
+    }
+
     private static byte[] randomBytes(int length) {
         byte[] bytes = new byte[length];
         RANDOM.nextBytes(bytes);

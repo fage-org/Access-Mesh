@@ -68,6 +68,9 @@ public interface ServiceCredentialDomainService {
     /** 软删除凭证（delete_flag=id）。 */
     int remove(Long tenantId, Long id, Long operatorId);
 
+    /** 调用方持有目标服务行锁，在服务删除事务内永久软删除其全部凭证。 */
+    int retireServices(Long tenantId, java.util.Set<String> serviceCodes, Long operatorId);
+
     /** 签发结果：落库实体 + 明文 secret（仅签发时可见，无任何回查通道）。 */
     record IssuedCredential(ServiceCredential entity, String plainSecret) {}
 

@@ -9,6 +9,7 @@ import cn.ac.fage.accessmesh.access.auth.dto.Oauth2ClientUpdateReq;
 import cn.ac.fage.accessmesh.access.auth.dto.Oauth2ClientResp;
 import cn.ac.fage.accessmesh.access.auth.entity.SysOauth2Client;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.util.CredentialPasswords;
 import cn.ac.fage.accessmesh.access.auth.mapper.SysOauth2ClientMapper;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
@@ -54,6 +55,13 @@ public class Oauth2ClientAppServiceImpl implements Oauth2ClientAppService {
         this.permissionValidator = permissionValidator;
     }
 
+    private static void requireSecretWithinByteLimit(String secret) {
+        if (CredentialPasswords.exceedsBcryptByteLimit(secret)) {
+            throw new BizException(AccessErrorCode.ADMIN_INVALID_PARAM.getCode(),
+                "clientSecret 的 UTF-8 长度不能超过 72 字节");
+        }
+    }
+
     /**
      * 创建OAuth2客户端
      * <p>
@@ -79,6 +87,7 @@ public class Oauth2ClientAppServiceImpl implements Oauth2ClientAppService {
             throw new BizException(AccessErrorCode.ADMIN_INVALID_PARAM.getCode(), "客户端类型与密钥不匹配");
         }
         // 检查clientId是否已存在
+        requireSecretWithinByteLimit(req.clientSecret());
         SysOauth2Client existing = oauth2ClientMapper.selectByClientId(TenantContextHolder.getTenantId(), req.clientId());
         if (existing != null) {
             throw new BizException(AccessErrorCode.CLIENT_ID_EXISTS.getCode(), AccessErrorCode.CLIENT_ID_EXISTS.getMessage());
@@ -139,6 +148,7 @@ public class Oauth2ClientAppServiceImpl implements Oauth2ClientAppService {
             if ("PUBLIC".equals(existing.getClientType())) {
                 throw new BizException(AccessErrorCode.ADMIN_INVALID_PARAM.getCode(), "公开客户端不能设置密钥；客户端类型创建后不可切换");
             }
+            requireSecretWithinByteLimit(req.clientSecret());
             existing.setClientSecret(BCrypt.hashpw(req.clientSecret()));
         }
         if (req.clientName() != null) {

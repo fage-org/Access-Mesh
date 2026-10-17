@@ -365,6 +365,7 @@ export const revokeRole = async (data: {
   userId: number;
   roleTypeCode: string;
   roleExternalId: string;
+  relationId: number | null;
 }): Promise<void> => {
   unwrap(
     await http.request<R<void>>("post", "/api/access/user-role/revoke", {
@@ -374,7 +375,8 @@ export const revokeRole = async (data: {
             subjectTypeCode: SUBJECT_TYPE.LOCAL_USER,
             subjectExternalId: String(data.userId),
             roleTypeCode: data.roleTypeCode,
-            roleExternalId: data.roleExternalId
+            roleExternalId: data.roleExternalId,
+            relationId: data.relationId
           }
         ]
       }

@@ -3,7 +3,7 @@ doc_type: design
 title: 公共服务认证模块（per-service credential）
 status: adopted
 domain: access-service
-last_reviewed: 2026-10-14
+last_reviewed: 2026-10-17
 ---
 
 # 公共服务认证模块（per-service credential）设计
@@ -113,6 +113,10 @@ CREATE TABLE service_credential (
 | SDK 直连 | 接入方 starter → access-service（Feign/Nacos） | `FeignCredentialInterceptor`（perm-common，供 client/registration 两 starter 共用）；受 §3.2 **服务端凭证端点白名单**约束（直连不能越出 M2M 通道；负向测试=直连调 /service-credential/list 等管理端点拒绝）。T-ACCESS-098 两项收口：①路径匹配=真实路径按**完整值**与 M2M 清单匹配（不子串/不 indexOf；仅相对路径形态——feign 执行序拦截器先于 target 应用，绝对 URL 不可达拦截器），URL 其他位置（其他路径前缀、query 参数值）出现 /api/access/ 子串不注入；②装配边界=拦截器经 `PermFeignClientsConfiguration` 挂载到 PermissionFeignClient/PermissionManifestClient 各自的 **@FeignClient(configuration=...) 子上下文**——不得以 @Component/@Import 注册进宿主上下文（spring-cloud 按 beansOfTypeIncludingAncestors 收集，宿主 bean 会命中宿主全部 Feign 客户端）；**注入以目标接口为唯一判据**（外评 P2-1 处置：拦截器按 feign configKey〔接口简名#方法〕仅认 PermissionFeignClient/PermissionManifestClient——Feign 子上下文按 contextId 共享，宿主 FeignClientBuilder/同 contextId 客户端可进入权限客户端子上下文，contextId 隔离不足以兜底）；fail-fast（半配/缺信任域声明）时点随装配边界移至权限客户端 bean 创建（子上下文刷新，通常仍在启动期）。注入以目标接口为唯一判据的**身份门取 `MethodMetadata.targetType()` 全限定类名**（codex sol r2：feign configKey 仅含接口简名，异包同名接口可伪造简名门禁；本模块无法类引用两 SDK 接口故按全限定名比对）。T-ACCESS-100 依赖传递边界（外部宿主零侵入，r2 收口）：SDK 传递闭包=common（瘦身后：jackson/commons-lang3/guava/validation〔排除 boot 聚合器〕/autoconfigure，Web 栈 optional、零日志实现、零 META-INF 装配注册）+ perm-common（含 jackson-datatype-jsr310——契约 DTO 时间字段编解码）+ spring-boot-autoconfigure（r2 取代 spring-boot-starter 直依，openfeign/loadbalancer/validation 深边排除 boot 聚合器，闭包零 Logback/桥接）+ openfeign（client）/loadbalancer（registration）；`slf4j-api`/`jakarta.annotation-api` 以 provided 显式声明、宿主供应。权限客户端子上下文自带 `@ConditionalOnMissingBean` 的 `HttpMessageConverters` 兜底（专属 ObjectMapper+jsr310，WebFlux/无 Web 宿主编解码自洽，r2 P2-4）。宿主形态不被改变：默认日志后端、JVM 默认时区、全局异常处理契约、Web 栈选型——回归锁=`sdk-host-probe` 与 `sdk-host-probe-log4j2` 两模块（红跑证实旧边界下失败），细则见 [工程规范 §5.5](project-rules.md#55-依赖传递边界common--权限-sdkt-access-100-收口) |
 
 ### 3.4 凭证生命周期（管理面）
+
+**服务身份退役（T-ACCESS-111，2026-10-17 确认）**：新版删除服务时锁定目标登记行，再批量软删除其全部凭证；签发在同一服务行上取得数据库锁、重新检查登记启用状态后写入，锁保持至事务结束。服务停用恢复保留原凭证；同码新登记不能恢复被软删除的凭证。字段及行为见[契约总册 §24.2](access-service-api-contract.md#service-credential-retirement)。
+
+**旧版本遗留**：不在启动或新建登记时自动清理历史孤立凭证；维护人员必须在同码重建前人工删除，未清理仍可能恢复有效。具体升级前提见[契约总册](access-service-api-contract.md#service-credential-retirement)与[部署手册](../ops/deployment.md#11-密钥轮换)。
 
 - 签发：管理员在 **service-config 管理面扩展**（`/api/access/service-credential/create / update / remove / list`，全部 POST）；create 响应回传明文 secret **仅一次**（服务端只存哈希）；
 - 轮换：签发新凭证（并存）→ 分发到业务系统 → 验证生效 → 停旧凭证；无缝切换；

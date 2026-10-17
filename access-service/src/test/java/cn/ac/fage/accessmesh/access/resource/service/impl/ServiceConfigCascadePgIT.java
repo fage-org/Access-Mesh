@@ -77,6 +77,111 @@ import static org.mockito.Mockito.mockStatic;
     "logging.level.cn.ac.fage.accessmesh=WARN",
 })
 class ServiceConfigCascadePgIT {
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbc;
+    @Autowired
+    private cn.ac.fage.accessmesh.access.infrastructure.credential.service.domain.ServiceCredentialDomainService credentials;
+    @Autowired
+    private org.springframework.transaction.PlatformTransactionManager transactionManager;
+
+    @Test
+    void shouldRollbackCredentialRetirement_withServiceDeletion() {
+        String code = "rollback-" + java.util.UUID.randomUUID();
+        ServiceConfig config = insertService(code);
+        var issued = credentials.issue(TENANT, code, null, 100L);
+        var tx = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+        assertThatThrownBy(() -> tx.executeWithoutResult(status -> {
+            newServiceConfigAppService(permitAllEngine()).deleteServiceConfigsByIds(TENANT, List.of(config.getId()), 100L);
+            throw new IllegalStateException("rollback probe");
+        })).hasMessage("rollback probe");
+        assertThat(serviceConfigMapper.selectByTenantAndServiceCode(TENANT, code)).isNotNull();
+        assertThat(credentials.verify(issued.entity().getCredentialId(), issued.plainSecret()).success()).isTrue();
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {true, false})
+    void shouldSerializeIssuanceAndDeletion_onServiceRow(boolean deleteFirst) throws Exception {
+        String code = "race-" + java.util.UUID.randomUUID();
+        ServiceConfig config = insertService(code);
+        QueryGate engine = permitAllEngine();
+        var service = newServiceConfigAppService(engine);
+        var issuer = new cn.ac.fage.accessmesh.access.infrastructure.credential.service.impl.ServiceCredentialAppServiceImpl(
+            credentials, serviceConfigDomainService, engine);
+        var req = new cn.ac.fage.accessmesh.access.infrastructure.credential.dto.req.ServiceCredentialCreateReq(code, null);
+        var held = new java.util.concurrent.CountDownLatch(1);
+        var release = new java.util.concurrent.CountDownLatch(1);
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            var first = pool.submit(() -> inTenantTransaction(() -> {
+                if (deleteFirst) service.deleteServiceConfigsByIds(TENANT, List.of(config.getId()), 100L);
+                else issuer.create(TENANT, req, 100L);
+                held.countDown();
+                try {
+                    assertThat(release.await(15, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(e);
+                }
+            }));
+            assertThat(held.await(15, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            var second = pool.submit(() -> {
+                Runnable operation = () -> inTenantTransaction(() -> {
+                    if (deleteFirst) issuer.create(TENANT, req, 100L);
+                    else service.deleteServiceConfigsByIds(TENANT, List.of(config.getId()), 100L);
+                });
+                if (deleteFirst) assertThatThrownBy(operation::run).isInstanceOf(BizException.class)
+                    .hasMessageContaining("未注册或已停用");
+                else operation.run();
+            });
+            org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(10)).until(() ->
+                jdbc.queryForObject("SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() "
+                    + "AND query LIKE '%service_config%' AND cardinality(pg_blocking_pids(pid))>0", Integer.class) > 0);
+            release.countDown();
+            first.get(15, java.util.concurrent.TimeUnit.SECONDS);
+            second.get(15, java.util.concurrent.TimeUnit.SECONDS);
+            assertThat(serviceConfigMapper.selectByTenantAndServiceCode(TENANT, code)).isNull();
+            assertThat(credentials.list(TENANT, code)).isEmpty();
+        } finally {
+            release.countDown();
+            pool.shutdownNow();
+            assertThat(pool.awaitTermination(20, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+        }
+    }
+
+    private void inTenantTransaction(Runnable action) {
+        TenantContextHolder.setTenantId(TENANT);
+        try {
+            new org.springframework.transaction.support.TransactionTemplate(transactionManager)
+                .executeWithoutResult(status -> action.run());
+        } finally {
+            TenantContextHolder.clear();
+        }
+    }
+
+    @Test
+    void shouldRetireAllCredentials_whenServiceDeletedAndRecreated() {
+        String code = "retire-" + java.util.UUID.randomUUID();
+        ServiceConfig config = insertService(code);
+        var active = credentials.issue(TENANT, code, null, 100L);
+        var disabled = credentials.issue(TENANT, code, null, 100L);
+        credentials.changeStatus(TENANT, disabled.entity().getId(), 0, 100L);
+        var expired = credentials.issue(TENANT, code, LocalDateTime.now().minusDays(1), 100L);
+        var other = credentials.issue(TENANT, code + "-other", null, 100L);
+        var otherTenant = credentials.issue(2L, code, null, 100L);
+        var tx = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+        tx.executeWithoutResult(status -> newServiceConfigAppService(permitAllEngine())
+            .deleteServiceConfigsByIds(TENANT, List.of(config.getId()), 100L));
+        assertThat(credentials.list(TENANT, code)).isEmpty();
+        assertThat(credentials.findById(TENANT, other.entity().getId())).isNotNull();
+        assertThat(credentials.findById(2L, otherTenant.entity().getId())).isNotNull();
+        insertService(code);
+        for (var old : List.of(active, disabled, expired)) {
+            assertThat(credentials.verify(old.entity().getCredentialId(), old.plainSecret()).success()).isFalse();
+            assertThat(credentials.changeStatus(TENANT, old.entity().getId(), 1, 100L)).isZero();
+        }
+        var fresh = credentials.issue(TENANT, code, null, 100L);
+        assertThat(credentials.verify(fresh.entity().getCredentialId(), fresh.plainSecret()).success()).isTrue();
+    }
     @org.springframework.beans.factory.annotation.Autowired
     private cn.ac.fage.accessmesh.access.resource.service.domain.ApiMappingWriteDomainService admMappingWriter;
     @org.springframework.beans.factory.annotation.Autowired
@@ -141,7 +246,7 @@ class ServiceConfigCascadePgIT {
     private ServiceConfigAppServiceImpl newServiceConfigAppService(QueryGate engine) {
         return new ServiceConfigAppServiceImpl(serviceConfigMapper, engine,
             resourceApiMappingMapper, syncTypeGuard, resourceSyncHandler,
-            typeResolutionService, mock(ResourceManageAppService.class), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class));
+            typeResolutionService, mock(ResourceManageAppService.class), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class), credentials);
     }
 
     private ResourceManageAppService newResourceManageAppService(QueryGate engine) {

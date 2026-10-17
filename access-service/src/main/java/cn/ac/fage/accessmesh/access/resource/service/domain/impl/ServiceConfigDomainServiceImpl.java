@@ -21,6 +21,11 @@ public class ServiceConfigDomainServiceImpl implements ServiceConfigDomainServic
     }
 
     @Override
+    public ServiceConfig lockByTenantAndServiceCode(Long tenantId, String serviceCode) {
+        return serviceConfigMapper.lockByTenantAndServiceCode(tenantId, serviceCode);
+    }
+
+    @Override
     public ServiceConfig selectByTenantAndServiceCode(Long tenantId, String serviceCode) {
         return serviceConfigMapper.selectByTenantAndServiceCode(tenantId, serviceCode);
     }

@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
  * 必须基于 targetRoleType 解析后的类型码，而非 targetType 原始值。
  * </p>
  *
- * @param relationId          关联角色 ID（POSITION 时对应所属组织 abstract_role.id，其他类型为 null）
+ * @param relationId          关系标识；POSITION 时对应所属组织 abstract_role.id，功能角色也可有非空关联关系
  * @param targetType          关联角色类型原始值（写路径固定 ROLE/GROUP_ROLE，不承载岗位语义）
  * @param targetRoleType      target 角色类型值（abstract_role.role_type，服务层解析为 roleTypeCode，岗位判定依据）
  * @param roleExternalId      target 角色外部标识

@@ -10,17 +10,29 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| access-service 归并（跨服务） | `T-ACCESS` | 110 |
+| access-service 归并（跨服务） | `T-ACCESS` | 114 |
 | permission-center | `T-PERM` | 113 |
 | admin-service | `T-ADMIN` | 036 |
 | gateway | `T-GW` | 015 |
 | 组织/用户（跨 admin+perm） | `T-ORG` | 006 |
 | 跨服务 API 契约 | `T-API` | 014 |
-| 前端 | `T-FE` | 073 |
+| 前端 | `T-FE` | 074 |
 
 > 新建任务时从对应领域取下一编号，计数器 +1。
 
 ## 任务总表
+
+### 权限生命周期边界收口
+
+[执行计划](../archive/2026-10-17/permission-lifecycle-boundaries-plan.md)
+
+| ID | 标题 | 状态 | 直接依赖 | 回写 |
+|---|---|---|---|---|
+| [T-FE-073](../archive/2026-10-17/tasks/T-FE-073.md) | 功能角色多关系精确撤回 | ✅ | — | ✓ |
+| [T-ACCESS-110](../archive/2026-10-17/tasks/T-ACCESS-110.md) | 内置管理服务登记保护 | ✅ | — | ✓ |
+| [T-ACCESS-111](../archive/2026-10-17/tasks/T-ACCESS-111.md) | 服务删除永久回收凭证 | ✅ | — | ✓ |
+| [T-ACCESS-112](../archive/2026-10-17/tasks/T-ACCESS-112.md) | 已完成导出产物领取边界 | ✅ | — | ✓ |
+| [T-ACCESS-113](../archive/2026-10-17/tasks/T-ACCESS-113.md) | OAuth2密钥写入字节上限 | ✅ | — | ✓ |
 
 ### 浏览器 HttpOnly 会话认证改造
 

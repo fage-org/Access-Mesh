@@ -17,6 +17,12 @@ import java.util.List;
  */
 public interface ServiceCredentialMapper extends BaseMapper<ServiceCredential> {
 
+    /** 同一服务删除事务内批量退役，不区分凭证状态或期限。 */
+    int softDeleteByServices(@Param("tenantId") Long tenantId,
+                            @Param("serviceCodes") java.util.Set<String> serviceCodes,
+                            @Param("deletedBy") Long deletedBy,
+                            @Param("deletedAt") LocalDateTime deletedAt);
+
     /**
      * 按 credential_id 全局定位有效凭证（delete_flag=0；含停用/过期行——
      * 认证链须先定位再判定状态，以区分 20065/20066/20067 三态）。

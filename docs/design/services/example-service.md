@@ -3,7 +3,7 @@ doc_type: design
 title: Example Service 设计
 status: adopted
 domain: example-service
-last_reviewed: 2026-10-06
+last_reviewed: 2026-10-17
 ---
 
 # Example Service 设计
@@ -27,6 +27,10 @@ last_reviewed: 2026-10-06
 - 菜单/按钮/范围/条件权限等其余演示场景仍为规划（状态见下方演示场景表），随核心主线后续任务补齐。
 - 错误码子段约定：30001-30099 为演示接口相关历史编号；30003 随验签迁至 SDK 的 PermClientErrorCode，保留兼容编号，其余由 ExampleErrorCode 定义，30001+ 段位分配随新资源扩展时在代码枚举中登记。
 - **身份签名校验（perm-client starter 的 `GatewaySignatureFilter`）**：复算 Gateway `SignatureEnrichFilter` 注入的 `X-User-Signature`（HMAC-SHA256(secret, userId|tenantId|timestamp)，常量时间比较），时效窗 `perm.client.signature.valid-seconds`（默认 300s，本服务验签窗口，与 access-service `perm.signature.valid-seconds` 独立；两者均须覆盖各自时钟偏差与传输延迟）；携带身份头但签名缺失/不匹配/超窗的请求拒绝信封 **30003**。密钥经 `perm.client.signature.secret`（默认取环境变量 `ACCESSMESH_SIGNATURE_SECRET`，须与 Gateway 同源）——未配置时 fail-closed（凡携带身份头的请求一律拒绝，启动日志 ERROR 提示）。信任边界的根本保障仍是网络隔离（业务服务仅 Gateway 可达），签名校验是纵深防御/直连自证示例。
+
+## 已完成导出产物领取
+
+**已完成导出领取**：提交和执行时检查 EXPORT；成功生成后，产物允许原提交者领取，不因源报表 EXPORT 后续撤销而失去领取资格。`export/status` 仍要求接口准入、可信身份和同租户同用户归属；不重新检查源报表 EXPORT，也不延长任务存活时间。完整边界见[契约总册 §25.7](../access-service-api-contract.md#completed-export-ownership)（T-ACCESS-112，2026-10-17 确认）。
 
 ## 报表列表分页
 

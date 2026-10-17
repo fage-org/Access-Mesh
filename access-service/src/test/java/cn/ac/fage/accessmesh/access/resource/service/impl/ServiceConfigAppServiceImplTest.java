@@ -48,6 +48,33 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class ServiceConfigAppServiceImplTest {
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints = {0, 2, -1})
+    void shouldRejectDisablingBuiltInService_beforeWriting(int disabledStatus) {
+        mockManagePermission();
+        BizException error = assertThrows(BizException.class, () -> service.saveServiceConfig(1L,
+            new ServiceConfigReq("access-service", "管理服务", null, null, disabledStatus, null, null, null, null), 100L));
+        assertEquals(20044, error.getErrorCode());
+        verify(serviceConfigMapper, never()).insert(any());
+        verify(serviceConfigMapper, never()).update(any(ServiceConfig.class));
+    }
+
+    @Test
+    void shouldRejectWholeBatch_whenDeletingBuiltInService() {
+        mockManagePermission();
+        ServiceConfig ordinary = new ServiceConfig();
+        ordinary.setId(1L);
+        ordinary.setServiceCode("example-service");
+        ServiceConfig builtIn = new ServiceConfig();
+        builtIn.setId(2L);
+        builtIn.setServiceCode("access-service");
+        when(serviceConfigMapper.lockValidByIds(eq(1L), any())).thenReturn(List.of(ordinary, builtIn));
+        BizException error = assertThrows(BizException.class,
+            () -> service.deleteServiceConfigsByIds(1L, List.of(1L, 2L), 100L));
+        assertEquals(20044, error.getErrorCode());
+        verify(serviceConfigMapper, never()).softDeleteBatch(any(), any(), any());
+    }
+
     @Test
     void should_saveTrustedModeAndMarkService_whenModeChanges() {
         when(engine.hasPermissionByCode(any(), any(), any(), any(), any())).thenReturn(true);
@@ -66,6 +93,7 @@ class ServiceConfigAppServiceImplTest {
     }
 
     @Mock private ServiceConfigMapper serviceConfigMapper;
+    @Mock private cn.ac.fage.accessmesh.access.infrastructure.credential.service.domain.ServiceCredentialDomainService serviceCredentials;
     @Mock private QueryGate engine;
     @Mock private ResourceApiMappingMapper resourceApiMappingMapper;
     @Mock private ResourceSyncHandler resourceSyncHandler;
@@ -80,7 +108,7 @@ class ServiceConfigAppServiceImplTest {
         //（guard 依赖的 ServiceConfigDomainService 用真实实现包 mock mapper——域服务零逻辑纯委托）
         service = new ServiceConfigAppServiceImpl(serviceConfigMapper, engine, resourceApiMappingMapper,
                 new SyncTypeGuard(new ServiceConfigDomainServiceImpl(serviceConfigMapper), JsonMapper.builder().configureForJackson2().build()),
-                resourceSyncHandler, typeResolutionService, resourceManageAppService, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class));
+                resourceSyncHandler, typeResolutionService, resourceManageAppService, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class), serviceCredentials);
     }
 
     /**
@@ -209,7 +237,7 @@ class ServiceConfigAppServiceImplTest {
         config.setId(10L);
         config.setTenantId(1L);
         config.setServiceCode("svc-a");
-        when(serviceConfigMapper.selectValidByIds(eq(1L), any())).thenReturn(List.of(config));
+        when(serviceConfigMapper.lockValidByIds(eq(1L), any())).thenReturn(List.of(config));
 
         ResourceApiMapping syncMapping = mapping(301L, "svc-a");
         ResourceApiMapping manualMapping = mapping(302L, "svc-a");
@@ -238,7 +266,7 @@ class ServiceConfigAppServiceImplTest {
         config.setId(11L);
         config.setTenantId(1L);
         config.setServiceCode("svc-b");
-        when(serviceConfigMapper.selectValidByIds(eq(1L), any())).thenReturn(List.of(config));
+        when(serviceConfigMapper.lockValidByIds(eq(1L), any())).thenReturn(List.of(config));
         when(resourceApiMappingMapper.selectValidByServiceCodes(1L, Set.of("svc-b"))).thenReturn(List.of());
         when(typeResolutionService.resolveTypeValue(1L, "resource_type", ResourceTypeCode.API)).thenReturn(null);
 

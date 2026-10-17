@@ -202,6 +202,12 @@ export function useServiceInterface() {
     mode: "create" | "edit",
     original?: ServiceSummary
   ): Promise<boolean> {
+    if (form.serviceCode === "access-service" && form.status === 0) {
+      message("内置管理服务不能停用，否则管理入口将不可用", {
+        type: "warning"
+      });
+      return false;
+    }
     try {
       await saveServiceConfig({
         serviceCode: form.serviceCode,
@@ -233,9 +239,15 @@ export function useServiceInterface() {
   }
 
   async function deleteService(service: ServiceSummary): Promise<boolean> {
+    if (service.serviceCode === "access-service") {
+      message("内置管理服务不能删除，否则管理入口将不可用", {
+        type: "warning"
+      });
+      return false;
+    }
     try {
       await ElMessageBox.confirm(
-        `确认删除服务「${service.name}」吗？该服务关联的接口映射也将不再可用。`,
+        `确认删除服务「${service.name}」吗？关联接口映射将不可用，全部旧凭证将永久作废。同码重新登记后必须签发新凭证；若只需暂停，请改用停用。`,
         "删除服务",
         {
           type: "warning",

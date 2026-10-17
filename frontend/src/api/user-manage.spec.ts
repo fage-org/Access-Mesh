@@ -10,12 +10,41 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 const { mockRequest } = vi.hoisted(() => ({ mockRequest: vi.fn() }));
 vi.mock("@/utils/http", () => ({ http: { request: mockRequest } }));
 
-import { getOrgTreeConfigs } from "./user-manage";
+import { getOrgTreeConfigs, revokeRole } from "./user-manage";
 
 const page = (items: unknown[], hasNext: boolean) => ({
   code: 200,
   message: "success",
   data: { items, total: 3, pageNum: 1, pageSize: 200, hasNext }
+});
+
+describe("撤回用户角色关系", () => {
+  it.each([null, 200])("请求保留所选关系 %s", async relationId => {
+    mockRequest.mockReset().mockResolvedValue({ code: 200, data: null });
+    await revokeRole({
+      userId: 10,
+      roleTypeCode: "BASIC_ROLE",
+      roleExternalId: "report-reader",
+      relationId
+    });
+    expect(mockRequest).toHaveBeenCalledWith(
+      "post",
+      "/api/access/user-role/revoke",
+      {
+        data: {
+          items: [
+            {
+              subjectTypeCode: "LOCAL_USER",
+              subjectExternalId: "10",
+              roleTypeCode: "BASIC_ROLE",
+              roleExternalId: "report-reader",
+              relationId
+            }
+          ]
+        }
+      }
+    );
+  });
 });
 
 describe("getOrgTreeConfigs 分页循环拉全", () => {

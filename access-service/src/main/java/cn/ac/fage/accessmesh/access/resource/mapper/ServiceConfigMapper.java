@@ -17,6 +17,14 @@ import java.util.List;
  */
 public interface ServiceConfigMapper extends BaseMapper<ServiceConfig> {
 
+    /** 服务删除锁：按 id 固定顺序锁定，事务提交后释放。 */
+    List<ServiceConfig> lockValidByIds(@Param("tenantId") Long tenantId,
+                                      @Param("ids") java.util.Set<Long> ids);
+
+    /** 凭证签发锁：与服务删除在同一登记行串行化，必须在调用方事务内使用。 */
+    ServiceConfig lockByTenantAndServiceCode(@Param("tenantId") Long tenantId,
+                                             @Param("serviceCode") String serviceCode);
+
     /**
      * 根据租户ID和服务编码查询有效服务配置
      *
@@ -50,16 +58,6 @@ public interface ServiceConfigMapper extends BaseMapper<ServiceConfig> {
      * @return 服务配置列表
      */
     List<ServiceConfig> selectByTenantId(@Param("tenantId") Long tenantId);
-
-    /**
-     * 根据租户ID和ID集合查询有效服务配置列表
-     *
-     * @param tenantId 租户ID
-     * @param ids      服务配置ID集合
-     * @return 服务配置列表
-     */
-    List<ServiceConfig> selectValidByIds(@Param("tenantId") Long tenantId,
-                                          @Param("ids") java.util.Set<Long> ids);
 
     /**
      * 递增服务准入快照配置代次（T-ACCESS-059 计数列载体）。

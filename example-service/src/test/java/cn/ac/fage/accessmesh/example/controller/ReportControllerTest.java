@@ -282,7 +282,7 @@ class ReportControllerTest {
     // ------------------------------------------------------------------
 
     @Test
-    @DisplayName("export：提交时点检查 EXPORT（拒绝不入队）；执行时点允许 → DONE 带内容")
+    @DisplayName("export：提交和执行时允许，完成后源权限撤销仍允许原提交者领取产物")
     void export_submitChecksAndExecutionAllows() {
         AtomicInteger calls = new AtomicInteger();
         when(permChecker.check(anyString(), anyString(), any(), any(Target.class)))
@@ -295,6 +295,8 @@ class ReportControllerTest {
         ExportStatusResp done = awaitStatus(submit.jobId(), USER, TENANT);
         assertThat(done.status()).isEqualTo("DONE");
         assertThat(done.content()).contains("report-1");
+        assertThat(controller.exportStatus(new ExportStatusReq(submit.jobId()), USER, TENANT, CLIENT_IP)
+            .getData().content()).isEqualTo(done.content());
         // 提交时点与执行时点各查一次同一目标且透传提交时捕获的 clientIp（N24 双时点；
         // 终态后计数确定，不与异步重查抢跑）
         verify(permChecker, times(2)).check(eq(TENANT), eq(USER), eq(CLIENT_IP),

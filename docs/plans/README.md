@@ -10,6 +10,7 @@
 
 | 文档 | 类型 | 状态 | 说明 |
 |------|------|------|------|
+| [permission-lifecycle-boundaries-plan](../archive/2026-10-17/permission-lifecycle-boundaries-plan.md) | 权限生命周期边界收口 | archived | [任务与验收](../archive/2026-10-17/tasks/evidence/lifecycle-boundaries/verification.md) |
 | [audit-log-lifecycle-plan](../archive/2026-10-17/audit-log-lifecycle-plan.md) | 审计日志导出与保留策略 | archived | [任务与验收](../archive/2026-10-17/audit-log-lifecycle-plan.md)，Q-061 已收敛 |
 | [scenario-audit-remediation-plan](../archive/2026-10-17/scenario-audit-remediation-plan.md) | 架构与使用场景持续审查问题修复 | archived | 全部任务及验收证据见[归档批次](../archive/2026-10-17/README.md)；批准例外仍按现行安全规范执行 |
 | [tenant-lifecycle-plan](../archive/2026-10-08/tenant-lifecycle-plan.md) | 租户开通与独立平台运营 | archived | 2026-10-08：八项任务完成，Q-063 已收敛；[验收记录](../archive/2026-10-08/tasks/evidence/tenant-lifecycle/verification.md) |

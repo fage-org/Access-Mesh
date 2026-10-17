@@ -20,13 +20,17 @@ public interface ServiceConfigDomainService {
      */
     ServiceConfig selectByTenantAndServiceCode(Long tenantId, String serviceCode);
 
+    /** 凭证签发用：调用方事务内锁定登记行，并以返回行重新检查启用状态。 */
+    ServiceConfig lockByTenantAndServiceCode(Long tenantId, String serviceCode);
+
     /**
      * 「服务已注册且启用」行级判定的唯一出口（T-PERM-079 收敛）：行存在且 status=1。
      * <p>
      * 软删行经 {@code selectByTenantAndServiceCode} 的 {@code delete_flag=0} 谓词天然排除，
      * 无需另行判 deleteFlag。消费点：类型所有权门禁（运行时/保存侧）、sync 通道白名单、
      * manifest 发布入口、凭证签发与验证——五处语义必须同源，不得各自内联。
-     * 消费形态统一为「先 {@link #selectByTenantAndServiceCode} 取行、再本判定」（不做查询+判定
+     * 消费形态为先读取配置行、再本判定；凭证签发须用 {@link #lockByTenantAndServiceCode} 锁定行。
+     * （不做查询+判定
      * 合并的便捷重载：接口 default 方法会被 Mockito 整体拦截，破坏既有测试对查询方法的桩）。
      * </p>
      */

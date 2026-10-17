@@ -22,6 +22,7 @@ import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import { hasPerms } from "@/utils/auth";
 import { ORG_USER_PERMS } from "../utils/perms";
 import { ASSIGNABLE_ROLE_TYPE_CODES } from "../utils/roleAssignCandidates";
+import { roleRelationKey, withoutRoleRelation } from "../utils/roleRelations";
 import { useRemotePagedOptions, mergeSelected } from "../utils/remoteOptions";
 import Remove from "~icons/ep/remove";
 import AddFill from "~icons/ri/add-circle-line";
@@ -283,16 +284,11 @@ async function handleRevoke(role: UserRoleItem) {
     await revokeRole({
       userId: props.user!.id,
       roleTypeCode: role.roleTypeCode,
-      roleExternalId: role.roleExternalId
+      roleExternalId: role.roleExternalId,
+      relationId: role.relationId
     });
-    roles.value = roles.value.filter(
-      r =>
-        !(
-          r.roleTypeCode === role.roleTypeCode &&
-          r.roleExternalId === role.roleExternalId
-        )
-    );
-    message("角色已移除", { type: "success" });
+    roles.value = withoutRoleRelation(roles.value, role);
+    message("所选角色关系已移除，其他关系不受影响", { type: "success" });
   } catch {
     message("移除失败", { type: "error" });
   }
@@ -618,7 +614,7 @@ function formatDate(val: string | null): string {
           <template v-if="otherRoles.length > 0">
             <div
               v-for="role in otherRoles"
-              :key="`${role.roleTypeCode}:${role.roleExternalId}`"
+              :key="roleRelationKey(role)"
               class="role-item"
             >
               <div class="flex items-center justify-between">
@@ -636,7 +632,7 @@ function formatDate(val: string | null): string {
                   v-if="canRevokeFunctionalRole"
                   link
                   size="small"
-                  title="移除角色"
+                  title="移除此条角色关系"
                   :icon="useRenderIcon(Remove)"
                   @click="handleRevoke(role)"
                 />
@@ -646,6 +642,13 @@ function formatDate(val: string | null): string {
                 class="ml-2 mt-1 text-xs text-gray-400"
               >
                 所属组织: {{ role.relationOrgName }}
+              </div>
+              <div class="ml-2 mt-1 text-xs text-gray-400">
+                {{
+                  role.relationId === null
+                    ? "直接分配"
+                    : `关联分配（关系 ${role.relationId}）`
+                }}
               </div>
               <div
                 v-if="role.validFrom || role.validTo"

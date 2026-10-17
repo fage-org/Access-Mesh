@@ -480,7 +480,7 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
   - 管理用功能角色：`roleTypeCode=BASIC_ROLE`、`domainCode=null`（全局域）、`externalId=bootstrap-admin`；首管理员经 `user_role` 绑定该角色。
   - **交接后的身份检查（T-ACCESS-106）**：已有固定图按合格的现任保底成员验证，不再将初始 admin 账号、其角色绑定或其默认根组织绑定作为永久身份锚点；允许交接后停用/删除原账号。无合格成员仍拒绝初始化，不重新创建原管理员、不自动补权、不重置接班人密码。其余固定图结构与授权来源检查保留。
   - `resource_entity(SERVICE, code=access-service)`（固定图对象 1）。
-  - `service_config(service_code=access-service)`：空库初始化为启用，配置身份纳入固定图检查；T-ACCESS-062 删除模式字段，统一操作准入。名称与状态由可信管理面维护，不在重启时覆盖。旧库按退役手册先备份迁移。
+  - `service_config(service_code=access-service)`：空库初始化为启用，配置身份纳入固定图检查；统一操作准入。租户管理入口禁止停用或删除该内置登记，名称等其他字段继续按既有规则维护；需要停用整个租户走独立平台租户运营，不新增平台关闭内置服务接口。状态不在重启时覆盖，已有异常状态按部署恢复流程处理。此保护替代原“状态由可信管理面维护”的可停用口径（T-ACCESS-110，2026-10-17 确认）；旧库按退役手册先备份迁移。
   - 管理 API 与目标接口的 API 资源：`resource_entity(API).code = {METHOD}:{外部路径}`（如 `POST:/api/access/role/my-info`、`POST:/api/access/abstract-role/tree`；T-ACCESS-042 起外部路径=服务路径），`code_type=default`；`resource_api_mapping.serviceCode=access-service`、`httpMethod/pathPattern` 与外部路径的方法和路径一致。
   - 幂等三状态的「完整匹配」按上述键定位对象后比对身份、角色、关联与授权；「业务键被占用」= 任一键被非本图数据持有（fail-fast 报告具体冲突）。
 - **幂等三状态**：① 固定图完全不存在——单事务创建完整固定图；② 完整存在且身份、角色、关联与授权行齐全——整体 no-op，绝不重置密码；③ 部分存在（含授权行缺失；授权缺行处置例外见下方「收缩通道」条）、关联缺失或固定业务键被其他数据占用——初始化失败并报告具体冲突，不自动修复、不补权、不扩权。**固定图种子来源（T-PERM-106）**：新库授权行标 BOOTSTRAP_SEED，管理 API 不可改删或挂子权限（20074），仅转授出去的 MANUAL 行可正常维护。旧库未标记固定图拒绝初始化，先备份后重建，不自动将 MANUAL 行认作种子。已标记种子的离线属性漂移仍仅 warn、不重种覆盖；墓碑收缩只接受已标记 BOOTSTRAP_SEED 的历史行，离线恢复走部署手册。原管理端可修改固定图属性的范围由本任务取代；保底成员连续性由 T-ACCESS-106 的独立写守卫承担，规则见[租户生命周期](tenant-lifecycle.md#tenant-admin-continuity)，不由种子行只读机制代替。不新增 ownership 字段、种子版本表或通用 bootstrap 框架；唯一约束仅并发兜底（同编码开通由全局唯一索引拒绝重复）。

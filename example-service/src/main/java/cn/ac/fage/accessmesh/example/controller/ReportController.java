@@ -205,7 +205,8 @@ public class ReportController {
 
     /**
      * 查询导出作业状态（仅作业归属人：租户+用户与提交时不符=与不存在同口径拒绝，不泄露
-     * 作业存在性）：DONE 才携带内容；DENIED=执行时点重查拒绝（N24 撤权窗口演示）。
+     * 作业存在性）：DONE 产物归提交者领取，不因源报表后续撤权而拒领；
+     * DENIED=执行时点重查拒绝。接口准入与可信身份仍由既有链路校验。
      */
     @PostMapping("/export/status")
     public R<ExportStatusResp> exportStatus(@Valid @RequestBody ExportStatusReq req,

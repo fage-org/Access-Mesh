@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.resource.service.impl;
 
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
+import cn.ac.fage.accessmesh.access.infrastructure.credential.service.domain.ServiceCredentialDomainService;
 import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLog;
@@ -51,6 +52,7 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
     private static final Logger log = LoggerFactory.getLogger(ServiceConfigAppServiceImpl.class);
 
     private final ServiceConfigMapper serviceConfigMapper;
+    private final ServiceCredentialDomainService serviceCredentials;
     private final TreeWriteLockSupport locks;
     private final QueryGate queryGate;
     private final ResourceApiMappingMapper resourceApiMappingMapper;
@@ -63,12 +65,14 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
      * 构造函数注入依赖
      *
      * @param serviceConfigMapper      服务配置数据访问层
-     * @param engine                   权限查询引擎
+     * @param queryGate                权限查询门面
      * @param resourceApiMappingMapper 资源API映射数据访问层
      * @param syncTypeGuard            同步类型白名单守卫（保存边界校验 extra.syncTypes 结构）
      * @param resourceSyncHandler      资源同步处理器（服务删除级联清理 SERVICE_SYNC 资源）
      * @param typeResolutionService    类型解析服务（级联清理解析 API 资源类型值）
      * @param resourceManageAppService 资源管理应用服务（apis 复用映射列表的门禁与资源字段补全）
+     * @param locks                    资源树写锁
+     * @param serviceCredentials       服务删除时批量退役凭证
      */
     public ServiceConfigAppServiceImpl(ServiceConfigMapper serviceConfigMapper,
                                         QueryGate queryGate,
@@ -76,8 +80,10 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
                                         SyncTypeGuard syncTypeGuard,
                                         ResourceSyncHandler resourceSyncHandler,
                                         TypeResolutionService typeResolutionService,
-                                        ResourceManageAppService resourceManageAppService, TreeWriteLockSupport locks) {
+                                        ResourceManageAppService resourceManageAppService, TreeWriteLockSupport locks,
+                                        ServiceCredentialDomainService serviceCredentials) {
         this.serviceConfigMapper = serviceConfigMapper;
+        this.serviceCredentials = serviceCredentials;
         this.locks = locks;
         this.queryGate = queryGate;
         this.resourceApiMappingMapper = resourceApiMappingMapper;
@@ -113,6 +119,10 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
         }
 
         locks.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
+
+        if ("access-service".equals(req.serviceCode()) && req.status() != null && req.status() != 1) {
+            throw new BizException(AccessErrorCode.PERM_INVALID_PARAM.getCode(), "内置管理服务不能停用");
+        }
 
         // 保存边界校验：extra.syncTypes 结构不合法会在运行时被解释为空白名单导致全部同步 SECURITY_DENIED
         // （fail-closed 的必要运行配置，写入时尽早暴露；运行时校验仍保留，防止绕过接口改库）
@@ -301,11 +311,15 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
             return;
         }
 
-        List<ServiceConfig> entities = serviceConfigMapper.selectValidByIds(tenantId, validInputIds);
+        List<ServiceConfig> entities = serviceConfigMapper.lockValidByIds(tenantId, validInputIds);
 
         if (entities.isEmpty()) {
             OperationLogRuntimeContext.markSkip();
             return;
+        }
+
+        if (entities.stream().anyMatch(config -> "access-service".equals(config.getServiceCode()))) {
+            throw new BizException(AccessErrorCode.PERM_INVALID_PARAM.getCode(), "内置管理服务不能删除");
         }
 
         Set<Long> validIds = entities.stream()
@@ -317,6 +331,8 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
 
         LocalDateTime now = LocalDateTime.now();
         serviceConfigMapper.softDeleteBatch(tenantId, new ArrayList<>(validIds), now);
+        // 服务行锁与签发共用，整个事务内退役所有旧凭证，含停用和过期项。
+        int retiredCredentials = serviceCredentials.retireServices(tenantId, serviceCodes, operatorId);
 
         // 级联①：软删该服务全部映射（含 MANUAL；服务已删，其路由不再存在，映射即死路径）
         List<ResourceApiMapping> mappings = resourceApiMappingMapper.selectValidByServiceCodes(tenantId, serviceCodes);
@@ -344,7 +360,8 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
         PermissionChangeContext.markServiceCodes(tenantId, serviceCodes);
 
         OperationLogRuntimeContext.setSummary("soft-deleted " + validIds.size() + " service_config row(s), "
-            + mappingIds.size() + " api mapping(s), " + deletedResources + " synced api resource(s)");
+            + mappingIds.size() + " api mapping(s), " + deletedResources + " synced api resource(s), "
+            + retiredCredentials + " service credential(s)");
     }
 
     /**
