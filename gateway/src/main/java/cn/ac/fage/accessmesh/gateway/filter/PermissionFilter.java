@@ -15,8 +15,8 @@ import cn.ac.fage.accessmesh.gateway.service.InterfaceAdmissionMatcher.Decision;
 import cn.ac.fage.accessmesh.gateway.service.PermissionClient;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceAdmissionResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceAdmissionSnapshotResp;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
@@ -499,7 +499,7 @@ public class PermissionFilter implements GlobalFilter, Ordered {
             byte[] bytes = objectMapper.writeValueAsBytes(resp);
             DataBuffer buffer = response.bufferFactory().wrap(bytes);
             return response.writeWith(Mono.just(buffer));
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             return response.setComplete();
         }
     }

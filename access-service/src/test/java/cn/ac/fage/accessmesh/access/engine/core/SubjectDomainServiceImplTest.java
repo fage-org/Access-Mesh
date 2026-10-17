@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.engine.core;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
@@ -10,7 +12,7 @@ import cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.user.mapper.AbstractUserMapper;
 import cn.ac.fage.accessmesh.access.role.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -54,7 +56,7 @@ class SubjectDomainServiceImplTest {
             userRoleMapper,
             userRoleQueryMapper,
             cacheService,
-            new ObjectMapper()
+            JsonMapper.builder().configureForJackson2().build()
         );
         // T-ACCESS-008：beginRead 委托真实实现——mock 默认返回 null 令牌会导致
         // putBatch(token) 断言失真

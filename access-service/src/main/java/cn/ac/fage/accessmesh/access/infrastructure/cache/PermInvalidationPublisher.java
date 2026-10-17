@@ -1,8 +1,8 @@
 package cn.ac.fage.accessmesh.access.infrastructure.cache;
 
 import cn.ac.fage.accessmesh.perm.common.event.PermInvalidateEvent;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -53,7 +53,7 @@ public class PermInvalidationPublisher {
         try {
             String message = objectMapper.writeValueAsString(new PermInvalidateEvent(tenantId, roleIds, userIds, serviceCodes));
             redisTemplate.convertAndSend(TOPIC, message);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             log.warn("Failed to serialize PermInvalidateEvent (tenantId={}, roleIds={}, userIds={}, serviceCodes={}): {}",
                 tenantId, roleIds, userIds, serviceCodes, e.getMessage());
         } catch (Exception e) {

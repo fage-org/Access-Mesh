@@ -1,8 +1,8 @@
 package cn.ac.fage.accessmesh.gateway.cache;
 
 import cn.ac.fage.accessmesh.perm.common.event.PermInvalidateEvent;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.SmartLifecycle;
@@ -99,7 +99,7 @@ public class PermInvalidationSubscriber implements SmartLifecycle {
             PermInvalidateEvent event = objectMapper.readValue(message, PermInvalidateEvent.class);
             long evicted = invalidator.evict(event);
             log.debug("Handled perm invalidation event (tenantId={}, evicted={})", event.tenantId(), evicted);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             log.warn("Skip malformed perm invalidation message: {}", e.getMessage());
         } catch (Exception e) {
             log.warn("Failed to handle perm invalidation message: {}", e.getMessage(), e);

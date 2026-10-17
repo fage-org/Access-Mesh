@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.perm.client.config;
 
 import cn.ac.fage.accessmesh.perm.client.security.GatewaySignatureFilter;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;

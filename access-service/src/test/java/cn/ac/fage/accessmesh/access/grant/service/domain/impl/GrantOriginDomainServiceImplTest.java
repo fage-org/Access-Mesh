@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.grant.service.domain.impl;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.role.entity.AbstractRole;
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
@@ -11,7 +13,7 @@ import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.grant.service.domain.GrantOriginDomainService;
 import cn.ac.fage.accessmesh.access.grant.service.domain.PermissionGrantPlanDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -56,7 +58,7 @@ class GrantOriginDomainServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new GrantOriginDomainServiceImpl(new ObjectMapper(), typeResolutionService,
+        service = new GrantOriginDomainServiceImpl(JsonMapper.builder().configureForJackson2().build(), typeResolutionService,
             subjectDomainService, roleResourcePermissionMapper, operationPermissionMapper,
             permissionGrantPlanDomainService, typeDefinitionDomainService);
     }

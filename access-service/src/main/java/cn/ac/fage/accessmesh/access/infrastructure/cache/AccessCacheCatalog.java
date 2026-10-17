@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.access.platform.dto.resp.DictTypeResp;
 import cn.ac.fage.accessmesh.common.cache.CacheCatalogEntry;
 import cn.ac.fage.accessmesh.common.cache.CacheMode;
 import cn.ac.fage.accessmesh.common.cache.TypeRef;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 import java.time.Duration;
 import java.util.List;

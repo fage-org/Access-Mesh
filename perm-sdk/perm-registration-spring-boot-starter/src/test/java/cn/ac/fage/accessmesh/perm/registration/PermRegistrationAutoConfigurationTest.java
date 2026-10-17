@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.perm.registration;
 
 import cn.ac.fage.accessmesh.perm.registration.config.PermRegistrationAutoConfiguration;
 import cn.ac.fage.accessmesh.perm.registration.feign.PermissionManifestClient;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import org.junit.jupiter.api.Test;

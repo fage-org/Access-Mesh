@@ -1,12 +1,14 @@
 package cn.ac.fage.accessmesh.gateway.filter;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.gateway.cache.InvalidationMarker;
 import cn.ac.fage.accessmesh.gateway.cache.InterfaceSnapshotCacheInvalidator;
 import cn.ac.fage.accessmesh.gateway.cache.InterfaceSnapshotLoadRegistry;
 import cn.ac.fage.accessmesh.gateway.config.GatewayProperties;
 import cn.ac.fage.accessmesh.gateway.service.PermissionClient;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.DisplayName;
@@ -102,7 +104,7 @@ class GatewayFailModeRemovalTest {
             mock(InterfaceSnapshotLoadRegistry.class),
             mock(InterfaceSnapshotCacheInvalidator.class),
             new GatewayProperties(),
-            new ObjectMapper(),
+            JsonMapper.builder().configureForJackson2().build(),
             registry);
 
         List<String> violatingMeters = new ArrayList<>();
@@ -135,7 +137,7 @@ class GatewayFailModeRemovalTest {
             mock(InterfaceSnapshotLoadRegistry.class),
             mock(InterfaceSnapshotCacheInvalidator.class),
             new GatewayProperties(),
-            new ObjectMapper(),
+            JsonMapper.builder().configureForJackson2().build(),
             registry);
 
         assertThat(registry.getMeters().stream()

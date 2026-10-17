@@ -17,11 +17,11 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.http.MediaType;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.boot.test.mock.mockito.SpyBean;
+import tools.jackson.databind.ObjectMapper;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
@@ -72,7 +72,7 @@ class ResourcePublicationPgIT {
     @Autowired private cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService resolver;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private PlatformTransactionManager transactions;
-    @SpyBean private TreeWriteLockSupport locks;
+    @MockitoSpyBean private TreeWriteLockSupport locks;
     @Autowired private MockMvc mvc;
     @Autowired private ObjectMapper json;
     @Autowired private ServiceCredentialDomainService credentials;
@@ -303,7 +303,7 @@ class ResourcePublicationPgIT {
         var credential = credentials.issue(1L, f.service(), null, 100L);
         var body = json.valueToTree(new ResourceEntityFullSyncReq(new ResourceEntitySyncScope(f.service(), f.typeCode()), List.of(), "1"));
         for (String missing : List.of("items", "publicationGeneration", "none", "null-items")) {
-            var input = (com.fasterxml.jackson.databind.node.ObjectNode) body.deepCopy();
+            var input = (tools.jackson.databind.node.ObjectNode) body.deepCopy();
             if (missing.equals("null-items")) input.putNull("items");
             else if (!missing.equals("none")) input.remove(missing);
             var response = mvc.perform(post("/api/access/resource-entity/full-sync")

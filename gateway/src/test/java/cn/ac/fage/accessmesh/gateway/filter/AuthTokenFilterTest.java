@@ -1,10 +1,12 @@
 package cn.ac.fage.accessmesh.gateway.filter;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.dev33.satoken.SaManager;
 import cn.dev33.satoken.config.SaTokenConfig;
 import cn.dev33.satoken.context.SaTokenContext;
 import cn.dev33.satoken.context.SaTokenContextForThreadLocal;
-import cn.dev33.satoken.context.SaTokenContextForThreadLocalStorage;
+import cn.dev33.satoken.context.SaTokenContextForThreadLocalStaff;
 import cn.dev33.satoken.context.model.SaRequest;
 import cn.dev33.satoken.context.model.SaResponse;
 import cn.dev33.satoken.context.model.SaStorage;
@@ -12,7 +14,7 @@ import cn.dev33.satoken.dao.SaTokenDao;
 import cn.dev33.satoken.dao.SaTokenDaoDefaultImpl;
 import cn.dev33.satoken.session.SaSession;
 import cn.dev33.satoken.stp.StpUtil;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -63,7 +65,7 @@ class AuthTokenFilterTest {
 
     @BeforeEach
     void setUp() {
-        filter = new AuthTokenFilter(new ObjectMapper());
+        filter = new AuthTokenFilter(JsonMapper.builder().configureForJackson2().build());
         originalDao = SaManager.getSaTokenDao();
         originalConfig = SaManager.getConfig();
         originalContext = SaManager.getSaTokenContext();
@@ -89,7 +91,7 @@ class AuthTokenFilterTest {
         SaManager.setSaTokenDao(originalDao);
         SaManager.setConfig(originalConfig);
         SaManager.setSaTokenContext(originalContext);
-        SaTokenContextForThreadLocalStorage.clearBox();
+        SaTokenContextForThreadLocalStaff.clearModelBox();
     }
 
     /**
@@ -98,7 +100,7 @@ class AuthTokenFilterTest {
      */
     private String loginAsAccessService(boolean withTenantId, boolean withSubjectTypeCode,
                                         boolean withOperatorName) {
-        SaTokenContextForThreadLocalStorage.setBox(mock(SaRequest.class),
+        SaTokenContextForThreadLocalStaff.setModelBox(mock(SaRequest.class),
             mock(SaResponse.class), new MapBackedStorage());
         StpUtil.login(LOGIN_ID);
         SaSession session = StpUtil.getSessionByLoginId(LOGIN_ID, false);
@@ -115,7 +117,7 @@ class AuthTokenFilterTest {
         StpUtil.getTokenSession().set("forceResetPwd", false);
         StpUtil.getTokenSession().set("redisProcessId", "a".repeat(40));
         String token = StpUtil.getTokenValue();
-        SaTokenContextForThreadLocalStorage.clearBox();
+        SaTokenContextForThreadLocalStaff.clearModelBox();
         return token;
     }
 

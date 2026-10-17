@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.engine.core;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.common.cache.CacheReadToken;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
@@ -8,8 +10,8 @@ import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.BatchConditionEvaluator;
 import cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -55,7 +57,7 @@ class BatchConditionEvaluatorTest {
     @BeforeEach
     void setUp() {
         service = new PermissionConditionDomainServiceImpl(conditionMapper,
-            rolePermMapper, new ObjectMapper(), cacheService);
+            rolePermMapper, JsonMapper.builder().configureForJackson2().build(), cacheService);
         lenient().when(cacheService.beginRead(AccessCacheCatalog.CONDITION_RULES)).thenReturn(readToken);
         // 默认缓存全 miss（各用例按需覆写为命中）
         lenient().when(cacheService.getBatch(eq(AccessCacheCatalog.CONDITION_RULES), eq(TENANT), anySet()))
@@ -156,7 +158,7 @@ class BatchConditionEvaluatorTest {
         // 缓存命中（=OK）不回源 DB；命中规则体直接参与评估（恒真体放行）
         JsonNode rules;
         try {
-            rules = new ObjectMapper().readTree(ALWAYS_TRUE_RULES);
+            rules = JsonMapper.builder().configureForJackson2().build().readTree(ALWAYS_TRUE_RULES);
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }

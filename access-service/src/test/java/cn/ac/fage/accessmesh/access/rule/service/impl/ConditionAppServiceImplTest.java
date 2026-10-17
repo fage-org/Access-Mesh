@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.rule.service.impl;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.rule.dto.req.ConditionCreateReq;
@@ -17,7 +19,7 @@ import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomai
 import cn.ac.fage.accessmesh.access.rule.service.domain.impl.PermissionConditionDomainServiceImpl;
 import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
@@ -100,7 +102,7 @@ class ConditionAppServiceImplTest {
         // 真实 PermissionConditionDomainServiceImpl（条件规则写入口径校验双轨共享，T-PERM-048 收敛）——
         // 保留 T-PERM-017 C2.5 白名单/JSON 校验回归锁为真实行为（mock 会令校验用例空转）
         PermissionConditionDomainService conditionDomainService =
-            new PermissionConditionDomainServiceImpl(conditionMapper, rolePermMapper, new ObjectMapper(), cacheService);
+            new PermissionConditionDomainServiceImpl(conditionMapper, rolePermMapper, JsonMapper.builder().configureForJackson2().build(), cacheService);
         service = new ConditionAppServiceImpl(conditionMapper, rolePermMapper, engine,
             localProjectionDomainService, conditionDomainService);
         // T-PERM-017 P2-A：mark 调用需绑定上下文；测试入口主动 bind，AfterEach 清理

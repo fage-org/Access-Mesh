@@ -29,8 +29,8 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
@@ -96,8 +96,8 @@ class AutoGrantMaterializationPgIT {
     @Autowired private cn.ac.fage.accessmesh.access.role.service.AbstractRoleSyncAppService roleSync;
     @Autowired private RoleManageAppService roleManage;
     @Autowired private JdbcTemplate jdbc;
-    @SpyBean private TreeWriteLockSupport locks;
-    @SpyBean private QueryGate engine;
+    @MockitoSpyBean private TreeWriteLockSupport locks;
+    @MockitoSpyBean private QueryGate engine;
 
     @BeforeEach void allowManagement() {
         doReturn(true).when(engine).hasPermissionByCode(anyLong(), any(), anyString(), any(), anyString());

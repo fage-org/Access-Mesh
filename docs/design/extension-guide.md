@@ -68,13 +68,15 @@ last_reviewed: 2026-10-17
 spring:
   cloud:
     gateway:
-      routes:
-        - id: example-service
-          uri: lb://example-service
-          predicates:
-            - Path=/api/example/**
-          metadata:
-            serviceCode: example-service
+      server:
+        webflux:
+          routes:
+            - id: example-service
+              uri: lb://example-service
+              predicates:
+                - Path=/api/example/**
+              metadata:
+                serviceCode: example-service
 ```
 
 Path 覆盖登记的 basePath；metadata.serviceCode 与登记的 serviceCode 一致，供准入按服务定位。uri 指向实际目的服务，此处 `lb://` 要求服务发现中存在同名实例；固定地址部署可使用对应服务根地址。没有 StripPrefix，服务收到的路径与外部路径相同。接入新服务时完成接口登记、显式转发路由与服务可达性配置，才能进行授权后的调用验收。

@@ -17,8 +17,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -45,7 +45,7 @@ import static org.mockito.Mockito.verify;
  * 对比纯 Mock 单测（{@code LocalProjectionDomainServiceImplTest} 只 verify 投影软删未执行）：
  * 本测试经 Spring 事务代理调用真实 {@code UserOrgWriteAppService}/{@code OrgWriteAppService}
  * （@Transactional 生效），真实 PostgreSQL（Testcontainers）落库管理事实（sys_org/sys_user_org），
- * 用 @SpyBean 在 {@code unbindUserOrg}/{@code batchUnbindUserOrg} 注入投影缺失异常，
+ * 用 @MockitoSpyBean 在 {@code unbindUserOrg}/{@code batchUnbindUserOrg} 注入投影缺失异常，
  * 断言管理事实仍存在（删除被回滚）、permission_change_log 无新增、回滚不发布缓存失效。
  * Docker 不可用时由 Testcontainers 自动跳过。
  * </p>
@@ -87,15 +87,15 @@ class UserOrgWriteAppServiceFaultInjectionIT {
     private JdbcTemplate jdbcTemplate;
 
     /** 投影层 spy：仅指定方法注入故障，其余真实（成功用例全链路落库）。 */
-    @SpyBean
+    @MockitoSpyBean
     private LocalProjectionDomainService localProjectionDomainService;
 
     /** 失效广播 mock：断言「回滚不发布变更」。 */
-    @MockBean
+    @MockitoBean
     private PermInvalidationPublisher publisher;
 
     /** 门禁 mock（void 方法默认通过）：解绑/删组织不依赖操作者权限数据。 */
-    @MockBean
+    @MockitoBean
     private AdminPermissionValidator permissionValidator;
 
 

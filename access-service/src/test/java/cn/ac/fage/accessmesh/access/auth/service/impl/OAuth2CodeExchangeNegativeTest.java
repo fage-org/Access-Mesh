@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.auth.service.impl;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.support.OAuth2CredentialFixtures;
 import cn.ac.fage.accessmesh.access.auth.dto.TokenReq;
 import cn.ac.fage.accessmesh.access.auth.dto.TokenResp;
@@ -9,7 +11,7 @@ import cn.ac.fage.accessmesh.access.auth.service.domain.OAuth2ClientDomainServic
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.user.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -61,7 +63,7 @@ class OAuth2CodeExchangeNegativeTest {
     private ValueOperations<String, String> valueOperations;
 
     private OAuth2AppServiceImpl service;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = JsonMapper.builder().configureForJackson2().build();
 
     @BeforeEach
     void setUp() {

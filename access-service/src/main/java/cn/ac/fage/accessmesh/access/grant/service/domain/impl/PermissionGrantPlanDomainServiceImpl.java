@@ -26,8 +26,8 @@ import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.grant.util.DatabaseExceptionSupport;
 import cn.ac.fage.accessmesh.access.engine.util.ScopeModeSupport;
 import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 

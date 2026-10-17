@@ -1,7 +1,9 @@
 package cn.ac.fage.accessmesh.common.cache;
 
-import com.fasterxml.jackson.databind.JavaType;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
+
+import tools.jackson.databind.JavaType;
+import tools.jackson.databind.ObjectMapper;
 import lombok.Getter;
 
 /**
@@ -28,7 +30,7 @@ import lombok.Getter;
 @Getter
 public abstract class TypeRef<T> {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = JsonMapper.builder().configureForJackson2().build();
 
     private final JavaType type;
 

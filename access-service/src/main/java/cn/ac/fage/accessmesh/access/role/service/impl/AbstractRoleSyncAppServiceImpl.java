@@ -24,8 +24,8 @@ import cn.ac.fage.accessmesh.access.sync.SyncResultBuilder;
 import cn.ac.fage.accessmesh.access.sync.guard.SyncTypeGuard;
 import cn.ac.fage.accessmesh.access.sync.guard.SyncTypeGuard.SyncTypes;
 import cn.ac.fage.accessmesh.access.sync.SyncKeyCodecUtil;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -594,7 +594,7 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
         }
         try {
             return objectMapper.writeValueAsString(extra);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new SystemException(AccessErrorCode.SYSTEM_INIT_FAILED.getCode(),
                     "serialize abstract_role extra failed", e);
         }

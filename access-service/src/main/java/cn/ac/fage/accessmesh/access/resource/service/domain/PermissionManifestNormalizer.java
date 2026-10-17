@@ -7,7 +7,7 @@ import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.perm.common.dto.req.PermissionManifestReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.PermissionManifestReq.ResourceKey;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.validation.Validator;
 import org.springframework.stereotype.Component;
 
@@ -23,7 +23,8 @@ public class PermissionManifestNormalizer {
     private final ObjectMapper mapper;
     private final Validator validator;
     public PermissionManifestNormalizer(ObjectMapper mapper, Validator validator) {
-        this.mapper = mapper.copy().setSerializationInclusion(JsonInclude.Include.ALWAYS);
+        this.mapper = mapper.rebuild().changeDefaultPropertyInclusion(ignored ->
+                JsonInclude.Value.construct(JsonInclude.Include.ALWAYS, JsonInclude.Include.ALWAYS)).build();
         this.validator = validator;
     }
     public record Normalized(long generation, String revision, String payloadHash, String semanticHash,
@@ -70,7 +71,7 @@ public class PermissionManifestNormalizer {
     }
     public DependencyCompiler.Declaration readDeclaration(String json) {
         try { return mapper.readValue(json, DependencyCompiler.Declaration.class); }
-        catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+        catch (tools.jackson.core.JacksonException e) {
             throw new cn.ac.fage.accessmesh.common.exception.SystemException(
                     AccessErrorCode.SYSTEM_INIT_FAILED.getCode(), "invalid stored dependency declaration", e);
         }

@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.domain.service.domain.impl;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.domain.entity.BizDomain;
 import cn.ac.fage.accessmesh.access.domain.entity.DomainConfig;
 import cn.ac.fage.accessmesh.access.type.entity.TypeDefinition;
@@ -8,7 +10,7 @@ import cn.ac.fage.accessmesh.access.domain.mapper.BizDomainMapper;
 import cn.ac.fage.accessmesh.access.domain.service.domain.DomainConfigDomainService;
 import cn.ac.fage.accessmesh.access.type.service.domain.TypeDefinitionDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -47,7 +49,7 @@ class DomainClassifyServiceImplTest {
             domainConfigMapper,
             typeDefinitionMapper,
             typeResolutionService,
-            new ObjectMapper()
+            JsonMapper.builder().configureForJackson2().build()
         );
     }
 

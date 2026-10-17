@@ -5,8 +5,8 @@ import cn.ac.fage.accessmesh.common.security.TenantGateState;
 import cn.ac.fage.accessmesh.common.security.TenantGateSnapshot;
 import cn.ac.fage.accessmesh.common.security.TenantSessionStamp;
 import cn.ac.fage.accessmesh.gateway.model.GatewayResponse;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
@@ -73,7 +73,7 @@ public class TenantGateFilter implements GlobalFilter, Ordered {
         }
         try {
             return response.writeWith(Mono.just(response.bufferFactory().wrap(json.writeValueAsBytes(body))));
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             return Mono.error(exception);
         }
     }

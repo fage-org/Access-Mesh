@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.grant.service.domain.impl;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.grant.dto.req.ApplyGrantPlanReq;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceResolveKey;
@@ -17,7 +19,7 @@ import cn.ac.fage.accessmesh.access.grant.service.domain.PermissionGrantDomainSe
 import cn.ac.fage.accessmesh.access.grant.service.domain.PermissionGrantPlanDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -76,7 +78,7 @@ class PermissionGrantPlanDomainServiceImplTest {
         service = new PermissionGrantPlanDomainServiceImpl(
             typeResolutionService, domainClassifyService, permissionGrantDomainService,
             conditionDomainService, rolePermissionMapper, resourceEntityDomainService, operationPermissionMapper,
-            domainConfigMapper, new ObjectMapper(), subjectDomainService);
+            domainConfigMapper, JsonMapper.builder().configureForJackson2().build(), subjectDomainService);
     }
 
     // ---- 2026-10-06 bootstrap 校验方案 A（用户拍板）：固定图墓碑身份写守卫 ----

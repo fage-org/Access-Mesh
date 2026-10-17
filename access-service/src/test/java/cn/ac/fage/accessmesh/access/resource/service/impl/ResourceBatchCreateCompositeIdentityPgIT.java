@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.resource.service.impl;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
@@ -117,7 +119,7 @@ class ResourceBatchCreateCompositeIdentityPgIT {
             mock(cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService.class),
             new cn.ac.fage.accessmesh.access.type.service.domain.ResourceTypeOwnershipGuard(
                 typeDefinitionMapper, serviceConfigDomainService, resourceEntityDomainService,
-                new com.fasterxml.jackson.databind.ObjectMapper()),
+                JsonMapper.builder().configureForJackson2().build()),
             mock(TreeWriteLockSupport.class), admMappingWriter, admOperations);
     }
 

@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.platform.service.impl;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.platform.dto.req.FilePageReq;
 import cn.ac.fage.accessmesh.access.infrastructure.dto.IdsReq;
 import cn.ac.fage.accessmesh.access.platform.entity.SysFile;
@@ -138,7 +140,7 @@ class FileAppServiceImplTest {
 
         var result = service.getFile(1L);
         assertThat(result.id()).isEqualTo(1L);
-        assertThat(new com.fasterxml.jackson.databind.ObjectMapper().valueToTree(result).has("fileUrl")).isFalse();
+        assertThat(JsonMapper.builder().configureForJackson2().build().valueToTree(result).has("fileUrl")).isFalse();
         verify(permissionValidator).checkInstanceLevel(
             ResourceTypeCode.ADMIN_FILE, "default", OperationCode.VIEW);
     }

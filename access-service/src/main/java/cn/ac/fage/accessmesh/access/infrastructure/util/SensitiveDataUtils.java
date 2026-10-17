@@ -1,10 +1,12 @@
 package cn.ac.fage.accessmesh.access.infrastructure.util;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
+import tools.jackson.databind.json.JsonMapper;
+
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.StringNode;
 
 /**
  * 敏感数据脱敏工具（T-ACCESS-007）。
@@ -94,7 +96,7 @@ public final class SensitiveDataUtils {
     };
 
     /** 树遍历用 ObjectMapper（仅用于解析/序列化，线程安全）。 */
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final ObjectMapper OBJECT_MAPPER = JsonMapper.builder().configureForJackson2().build();
 
     private SensitiveDataUtils() {
     }
@@ -168,14 +170,14 @@ public final class SensitiveDataUtils {
             String configKeyValue = findFieldText(obj, "configkey");
             if (configKeyValue != null && isSecretConfigKey(configKeyValue)) {
                 ObjectNode valueHolder = (ObjectNode) obj;
-                valueHolder.set("configValue", TextNode.valueOf(MASK));
+                valueHolder.set("configValue", StringNode.valueOf(MASK));
             }
-            obj.fields().forEachRemaining(entry -> {
+            obj.properties().iterator().forEachRemaining(entry -> {
                 String fieldName = entry.getKey();
                 JsonNode value = entry.getValue();
                 if (isSensitiveField(fieldName, extraPreciseFields) && value != null && !value.isNull()) {
                     // 命中敏感字段名：无论值结构（标量/对象/数组/内嵌JSON字符串）整体替换为掩码
-                    obj.set(fieldName, TextNode.valueOf(MASK));
+                    obj.set(fieldName, StringNode.valueOf(MASK));
                 } else if (value != null && (value.isObject() || value.isArray())) {
                     obj.set(fieldName, maskNode(value, extraPreciseFields, maskTextValues));
                 } else if (value != null && value.isTextual()) {
@@ -183,9 +185,9 @@ public final class SensitiveDataUtils {
                     // 尝试解析为对象/数组树并递归脱敏，再序列化回字符串，防止内层敏感键明文返回
                     String inner = maskEmbeddedJson(value.asText(), extraPreciseFields, maskTextValues);
                     if (inner != null) {
-                        obj.set(fieldName, TextNode.valueOf(inner));
+                        obj.set(fieldName, StringNode.valueOf(inner));
                     } else if (maskTextValues) {
-                        obj.set(fieldName, TextNode.valueOf(maskText(value.asText())));
+                        obj.set(fieldName, StringNode.valueOf(maskText(value.asText())));
                     }
                 }
             });
@@ -204,9 +206,9 @@ public final class SensitiveDataUtils {
                 } else if (element.isTextual()) {
                     String inner = maskEmbeddedJson(element.asText(), extraPreciseFields, maskTextValues);
                     if (inner != null) {
-                        arr.set(i, TextNode.valueOf(inner));
+                        arr.set(i, StringNode.valueOf(inner));
                     } else if (maskTextValues) {
-                        arr.set(i, TextNode.valueOf(maskText(element.asText())));
+                        arr.set(i, StringNode.valueOf(maskText(element.asText())));
                     }
                 }
             }
@@ -214,7 +216,7 @@ public final class SensitiveDataUtils {
         }
         if (maskTextValues && node.isTextual()) {
             String inner = maskEmbeddedJson(node.asText(), extraPreciseFields, true);
-            return TextNode.valueOf(inner != null ? inner : maskText(node.asText()));
+            return StringNode.valueOf(inner != null ? inner : maskText(node.asText()));
         }
         return node;
     }
@@ -336,7 +338,7 @@ public final class SensitiveDataUtils {
         if (obj == null || obj.size() == 0) {
             return null;
         }
-        var it = obj.fields();
+        var it = obj.properties().iterator();
         while (it.hasNext()) {
             var entry = it.next();
             if (normalize(entry.getKey()).equals(targetNormalized) && entry.getValue() != null

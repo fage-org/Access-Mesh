@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.gateway.cache;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import static cn.ac.fage.accessmesh.gateway.support.PermissionFilterTestSupport.routedExchange;
 
 import cn.ac.fage.accessmesh.common.cache.CacheProperties;
@@ -12,7 +14,7 @@ import cn.ac.fage.accessmesh.gateway.filter.PermissionFilter;
 import cn.ac.fage.accessmesh.gateway.service.PermissionClient;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceAdmissionSnapshotResp;
 import cn.ac.fage.accessmesh.perm.common.event.PermInvalidateEvent;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -74,7 +76,7 @@ class GatewayInvalidationRaceTest {
         permissionClient = mock(PermissionClient.class);
         marker = new InvalidationMarker();
         loadRegistry = new InterfaceSnapshotLoadRegistry();
-        ObjectMapper objectMapper = new ObjectMapper();
+        ObjectMapper objectMapper = JsonMapper.builder().configureForJackson2().build();
         cacheService = Mockito.spy(new DefaultCacheService(null, null,
             new CaffeineLocalCacheStore(objectMapper, null, new CacheProperties()),
             new CacheProperties(), null));
@@ -88,7 +90,7 @@ class GatewayInvalidationRaceTest {
         GatewayProperties props = new GatewayProperties();
         props.getPermission().setSnapshotLoadDeadline(Duration.ofSeconds(5));
         return new PermissionFilter(permissionClient, cacheService, marker, loadRegistry,
-            invalidator, props, new ObjectMapper(), new SimpleMeterRegistry());
+            invalidator, props, JsonMapper.builder().configureForJackson2().build(), new SimpleMeterRegistry());
     }
 
     private ServerWebExchange buildExchange() {

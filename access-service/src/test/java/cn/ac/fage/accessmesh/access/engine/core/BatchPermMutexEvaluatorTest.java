@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.engine.core;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.rule.entity.PermissionConflictRule;
 import cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomainService;
@@ -8,7 +10,7 @@ import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.BatchPermMutexEvaluator;
 import cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -56,7 +58,7 @@ class BatchPermMutexEvaluatorTest {
     @BeforeEach
     void setUp() {
         service = new PermissionConflictDomainServiceImpl(conflictRuleMapper, cacheService,
-            new ObjectMapper(), auditDomainService, operationPermissionMapper,
+            JsonMapper.builder().configureForJackson2().build(), auditDomainService, operationPermissionMapper,
             subjectDomainService);
     }
 

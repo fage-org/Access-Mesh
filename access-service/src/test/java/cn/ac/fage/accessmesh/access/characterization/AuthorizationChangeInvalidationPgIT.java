@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.characterization;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
@@ -224,8 +226,8 @@ class AuthorizationChangeInvalidationPgIT {
         String diff = jdbc.queryForObject(
             "SELECT diff_snapshot FROM permission_change_log WHERE tenant_id = ? AND entity_id = ?",
             String.class, TENANT, targetRole);
-        com.fasterxml.jackson.databind.JsonNode snapshot =
-            new com.fasterxml.jackson.databind.ObjectMapper().readTree(diff);
+        tools.jackson.databind.JsonNode snapshot =
+            JsonMapper.builder().configureForJackson2().build().readTree(diff);
         assertThat(snapshot.path("eventType").asText()).isEqualTo("ROLE_PERMISSION_CHANGE");
         assertThat(snapshot.path("items").size()).isEqualTo(2);
         assertThat(snapshot.path("items")).anyMatch(item ->

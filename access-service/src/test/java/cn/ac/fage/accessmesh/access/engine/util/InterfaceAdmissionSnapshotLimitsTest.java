@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.engine.util;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.engine.query.EngineLimits;
 import cn.ac.fage.accessmesh.access.engine.query.QueryBudgetExceededException;
@@ -7,7 +9,7 @@ import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.perm.common.dto.req.InterfaceAdmissionSnapshotReq;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.AdmissionRequirement;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -19,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 class InterfaceAdmissionSnapshotLimitsTest {
-    private final ObjectMapper json = new ObjectMapper().findAndRegisterModules();
+    private final ObjectMapper json = JsonMapper.builder().configureForJackson2().findAndAddModules().build();
     private final InterfaceAdmissionSnapshotReq request = new InterfaceAdmissionSnapshotReq("USER", "1", "reports");
     private final LocalDateTime now = LocalDateTime.of(2026, 9, 29, 0, 0);
     private final List<InterfaceAdmissionSnapshotAssembler.RouteRequirement> routes = List.of(

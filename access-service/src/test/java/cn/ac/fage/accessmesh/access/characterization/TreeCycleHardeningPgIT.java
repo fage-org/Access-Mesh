@@ -23,7 +23,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -114,7 +114,7 @@ class TreeCycleHardeningPgIT {
     private PlatformTransactionManager transactionManager;
 
     /** 门禁 mock（void 方法默认通过）：交叉移动用例不依赖操作者权限数据。 */
-    @MockBean
+    @MockitoBean
     private AdminPermissionValidator permissionValidator;
 
     /**

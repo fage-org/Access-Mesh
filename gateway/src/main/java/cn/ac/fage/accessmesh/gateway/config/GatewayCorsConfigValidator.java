@@ -13,7 +13,7 @@ import java.util.Map;
 /**
  * Gateway CORS 配置启动校验器（T-GW-007）
  * <p>
- * 校验 {@code spring.cloud.gateway.globalcors} 最终生效值（含 Nacos 远端覆盖后的值）。
+ * 校验 {@code spring.cloud.gateway.server.webflux.globalcors} 最终生效值（含 Nacos 远端覆盖后的值）。
  * 部署前提：生产 nginx 同源代理（CORS 无生产消费场景）。规则：
  * <ul>
  *   <li>origin 列表为空或未配置：允许——CORS 禁用（同源部署终态），跨域请求被

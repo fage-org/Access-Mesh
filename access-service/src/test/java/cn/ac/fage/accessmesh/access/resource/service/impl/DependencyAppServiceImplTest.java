@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.resource.service.impl;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceDependency;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
@@ -34,7 +36,7 @@ class DependencyAppServiceImplTest {
     void shouldSerializePublicationGenerationAsExactDecimalString() throws Exception {
         var value = new cn.ac.fage.accessmesh.access.resource.dto.resp.DependencyDeclarationStatusResp.ManifestSyncItem(
             "report-svc", 9007199254740993L, "v1", "SUCCESS", false, null);
-        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        var mapper = JsonMapper.builder().configureForJackson2().build();
         var json = mapper.readTree(mapper.writeValueAsString(value));
         assertThat(json.get("publicationGeneration").isTextual()).isTrue();
         assertThat(json.get("publicationGeneration").asText()).isEqualTo("9007199254740993");

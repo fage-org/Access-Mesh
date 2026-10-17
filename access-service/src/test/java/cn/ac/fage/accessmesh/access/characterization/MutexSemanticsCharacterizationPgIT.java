@@ -31,7 +31,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
@@ -116,7 +116,7 @@ class MutexSemanticsCharacterizationPgIT {
     @Autowired private PermissionConflictDomainService conflictDomainService;
     @Autowired private JdbcTemplate jdbc;
     /** 引擎级互斥审计锁（新引擎受控提交面需要可捕获的审计桩；QueryAuditCollector 消费本服务） */
-    @MockBean private AuditDomainService auditDomainService;
+    @MockitoBean private AuditDomainService auditDomainService;
 
     private R2BaselineFixture fixture() {
         return new R2BaselineFixture(jdbc);

@@ -1,14 +1,16 @@
 package cn.ac.fage.accessmesh.access.sync;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.bootstrap.AccessBootstrapInitializer;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
 import cn.dev33.satoken.stp.StpUtil;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -71,7 +73,7 @@ class SyncStatusPgIT {
                     .header("X-Signature-Timestamp", now).header("X-User-Signature", hmac(signatureSecret, String.valueOf(admin), "1", now))
                     .contentType(MediaType.APPLICATION_JSON).content("{\"sourceService\":\"t65\",\"pageNum\":1,\"pageSize\":20}"))
                 .andExpect(status().isOk()).andReturn().getResponse();
-            var data = new ObjectMapper().readTree(response.getContentAsString()).path("data");
+            var data = JsonMapper.builder().configureForJackson2().build().readTree(response.getContentAsString()).path("data");
             assertThat(data.path("total").asInt()).isEqualTo(1);
             assertThat(data.path("items").get(0).path("trackedItems").asInt()).isZero();
             assertThat(data.path("items").get(0).path("lastFullStatus").asText()).isEqualTo("SUCCESS");
@@ -103,7 +105,7 @@ class SyncStatusPgIT {
         assertThat(query(user, source, 403).path("code").asInt()).isEqualTo(403);
     }
 
-    private com.fasterxml.jackson.databind.JsonNode query(long user, String source, int expectedStatus) throws Exception {
+    private tools.jackson.databind.JsonNode query(long user, String source, int expectedStatus) throws Exception {
         String token = StpUtil.getStpLogic().createLoginSession(user);
         cn.ac.fage.accessmesh.access.it.TenantTestSupport.stampSession(token,tenantFixtureRedis,1L);
         StpUtil.getSessionByLoginId(user).set("tenantId", 1L);
@@ -115,7 +117,7 @@ class SyncStatusPgIT {
                     .header("X-Signature-Timestamp", now).header("X-User-Signature", hmac(signatureSecret, String.valueOf(user), "1", now))
                     .contentType(MediaType.APPLICATION_JSON).content("{\"sourceService\":\"" + source + "\",\"pageNum\":1,\"pageSize\":20}"))
                 .andExpect(status().is(expectedStatus)).andReturn().getResponse();
-            return new ObjectMapper().readTree(response.getContentAsString());
+            return JsonMapper.builder().configureForJackson2().build().readTree(response.getContentAsString());
         } finally {
             StpUtil.logout(user);
         }

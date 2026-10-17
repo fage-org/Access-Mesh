@@ -1,12 +1,14 @@
 package cn.ac.fage.accessmesh.gateway.service;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.perm.common.dto.resp.AdmissionRequirement;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceAdmissionSnapshotResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceAdmissionSnapshotResp.OperationCandidateEntry;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceAdmissionSnapshotResp.RouteEntry;
 import cn.ac.fage.accessmesh.perm.common.util.ConditionEvalUtils;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.AntPathMatcher;
@@ -42,7 +44,7 @@ public final class InterfaceAdmissionMatcher {
 
     private static final Logger log = LoggerFactory.getLogger(InterfaceAdmissionMatcher.class);
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
-    private static final ObjectMapper SHARED_MAPPER = new ObjectMapper();
+    private static final ObjectMapper SHARED_MAPPER = JsonMapper.builder().configureForJackson2().build();
 
     private static final String LOGIC_AND = "AND";
     private static final String TYPE_DATE_RANGE = "DATE_RANGE";

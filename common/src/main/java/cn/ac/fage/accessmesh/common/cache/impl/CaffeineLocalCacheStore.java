@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.common.cache.CacheCatalogEntry;
 import cn.ac.fage.accessmesh.common.cache.CacheKeyUtil;
 import cn.ac.fage.accessmesh.common.cache.CacheProperties;
 import cn.ac.fage.accessmesh.common.cache.spi.LocalCacheStore;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import io.micrometer.core.instrument.Counter;

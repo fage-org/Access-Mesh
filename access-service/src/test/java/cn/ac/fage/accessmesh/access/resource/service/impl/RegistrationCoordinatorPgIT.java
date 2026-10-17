@@ -10,7 +10,7 @@ import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;
 import cn.ac.fage.accessmesh.perm.registration.PermissionRegistrationPublisher;
 import cn.ac.fage.accessmesh.perm.registration.RegistrationTarget;
 import cn.ac.fage.accessmesh.perm.registration.feign.PermissionManifestClient;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import feign.Feign;
 import feign.Retryer;
 import jakarta.validation.Validator;
@@ -116,7 +116,7 @@ class RegistrationCoordinatorPgIT {
         var client=Feign.builder().contract(new SpringMvcContract()).retryer(Retryer.NEVER_RETRY)
                 .encoder((value,type,template) -> {
                     try { template.header("Content-Type","application/json"); template.body(json.writeValueAsString(value)); }
-                    catch (java.io.IOException e) { throw new feign.codec.EncodeException("encode failed",e); }
+                    catch (tools.jackson.core.JacksonException e) { throw new feign.codec.EncodeException("encode failed",e); }
                 })
                 .decoder((response,type) -> json.readValue(response.body().asInputStream(),json.constructType(type)))
                 .target(PermissionManifestClient.class,"http://localhost:"+port);

@@ -1,7 +1,9 @@
 package cn.ac.fage.accessmesh.access.infrastructure.cache;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -27,7 +29,7 @@ class OperationPermissionCacheWireFormatTest {
         op.setBinaryBit(1L);
         op.setInheritMask(4L);
 
-        ObjectMapper mapper = new ObjectMapper();
+        ObjectMapper mapper = JsonMapper.builder().configureForJackson2().build();
         String json = mapper.writeValueAsString(op);
 
         assertThat(json).doesNotContain("effectiveBits");

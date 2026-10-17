@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.resource.service.impl;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
@@ -119,7 +121,7 @@ class ResourceOperationKeyPgIT {
 
     private cn.ac.fage.accessmesh.access.type.service.domain.ResourceTypeOwnershipGuard ownershipGuard() {
         return new cn.ac.fage.accessmesh.access.type.service.domain.ResourceTypeOwnershipGuard(
-                typeDefinitionMapper, serviceConfigMapper, resourceEntityDomainService, new com.fasterxml.jackson.databind.ObjectMapper());
+                typeDefinitionMapper, serviceConfigMapper, resourceEntityDomainService, JsonMapper.builder().configureForJackson2().build());
     }
 
     private final LocalDateTime now = LocalDateTime.now();

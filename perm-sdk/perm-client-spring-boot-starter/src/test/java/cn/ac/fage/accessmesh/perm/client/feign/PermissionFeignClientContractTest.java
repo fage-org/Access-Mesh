@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.perm.client.feign;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.cloud.openfeign.FeignClient;
@@ -193,7 +195,7 @@ class PermissionFeignClientContractTest {
 
     @Test
     void explicitCredentialHeadersReachFeignRequests_withoutGlobalFallback() throws Exception {
-        var json = new com.fasterxml.jackson.databind.ObjectMapper();
+        var json = JsonMapper.builder().configureForJackson2().build();
         var requests = new java.util.ArrayList<feign.Request>();
         var fixed = new cn.ac.fage.accessmesh.perm.common.feign.FeignCredentialInterceptor();
         org.springframework.test.util.ReflectionTestUtils.setField(fixed, "credentialId", "sc-default");
@@ -202,7 +204,7 @@ class PermissionFeignClientContractTest {
             .contract(new org.springframework.cloud.openfeign.support.SpringMvcContract())
             .encoder((body, type, template) -> {
                 try { template.body(json.writeValueAsString(body)); }
-                catch (com.fasterxml.jackson.core.JsonProcessingException e) { throw new IllegalStateException(e); }
+                catch (tools.jackson.core.JacksonException e) { throw new IllegalStateException(e); }
             })
             .decoder((response, type) -> null)
             .requestInterceptor(fixed)

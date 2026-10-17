@@ -1,10 +1,12 @@
 package cn.ac.fage.accessmesh.access.type.service.domain;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.type.entity.TypeDefinition;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ServiceConfigDomainService;
 import cn.ac.fage.accessmesh.access.type.service.domain.TypeDefinitionDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -46,7 +48,7 @@ class ResourceTypeOwnershipGuardTest {
     @BeforeEach
     void setUp() {
         guard = new ResourceTypeOwnershipGuard(typeDefinitionMapper, serviceConfigMapper,
-                resourceEntityDomainService, new ObjectMapper());
+                resourceEntityDomainService, JsonMapper.builder().configureForJackson2().build());
     }
 
     private static TypeDefinition resourceType(Long id, String code, Integer value, String extra) {

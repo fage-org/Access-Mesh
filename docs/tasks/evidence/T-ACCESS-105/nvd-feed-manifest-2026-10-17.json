@@ -1,0 +1,158 @@
+[
+  {
+    "source": "https://nvd.nist.gov/feeds/json/cve/2.0/nvdcve-2.0-2002.meta",
+    "lastModifiedDate": "2026-10-16T03:04:33-04:00",
+    "gzSize": 2190506,
+    "uncompressedSha256": "724C4C7955063D9B1058AD8152D65045A7E92CA090CC16D9AF0FA48A7464F704"
+  },
+  {
+    "source": "https://nvd.nist.gov/feeds/json/cve/2.0/nvdcve-2.0-2003.meta",
+    "lastModifiedDate": "2026-08-28T03:04:38-04:00",
+    "gzSize": 728838,
+    "uncompressedSha256": "B952F9DB6DEF6A462922875710E14E081DEDBB2F2DB637B920AA8B1CBAC49FD6"
+  },
+  {
+    "source": "https://nvd.nist.gov/feeds/json/cve/2.0/nvdcve-2.0-2004.meta",
+    "lastModifiedDate": "2026-10-10T03:03:37-04:00",
+    "gzSize": 1490098,
+    "uncompressedSha256": "D14FE509F03097FEEA3FFC2A4472EDD750FD30ADE0A2F7743B15513F3A4E45B5"
+  },
+  {
+    "source": "https://nvd.nist.gov/feeds/json/cve/2.0/nvdcve-2.0-2005.meta",
+    "lastModifiedDate": "2026-10-16T03:04:30-04:00",
+    "gzSize": 2172836,
+    "uncompressedSha256": "16236C0E2EB2912B14FE056C226439E2B332DB32293E178750DF534010709C11"
+  },
+  {
+    "source": "https://nvd.nist.gov/feeds/json/cve/2.0/nvdcve-2.0-2006.meta",
+    "lastModifiedDate": "2026-10-16T03:04:26-04:00",
+    "gzSize": 3499544,
+    "uncompressedSha256": "A110B014119A1A2D851DC22DE81E366825935F8F2C7839F9FC62125B1FA9EDC1"
+  },
+  {
+    "source": "https://nvd.nist.gov/feeds/json/cve/2.0/nvdcve-2.0-2007.meta",
+    "lastModifiedDate": "2026-08-28T03:04:26-04:00",
+    "gzSize": 3605891,
+    "uncompressedSha256": "90CB14B7022A5E12608872694804F48BBD647432FFE2558D3AB2092B4AF5FA91"
+  },
+  {
+    "source": "https://nvd.nist.gov/feeds/json/cve/2.0/nvdcve-2.0-2008.meta",
+    "lastModifiedDate": "2026-09-25T03:03:10-04:00",
+    "gzSize": 4185659,
+    "uncompressedSha256": "A5F50779A52067D2E118F32A216938D5AF0C3637BC6B73D0BF3CBAED87DB4885"
+  },
+  {
+    "source": "https://nvd.nist.gov/feeds/json/cve/2.0/nvdcve-2.0-2009.meta",
+    "lastModifiedDate": "2026-10-02T03:04:25-04:00",
+    "gzSize": 4529444,
+    "uncompressedSha256": "01742B33C09C8C5040779BEA5AC1E554380C3F26807C2F0033A3EC570F1E00B1"
+  },
+  {
+    "source": "https://nvd.nist.gov/feeds/json/cve/2.0/nvdcve-2.0-2010.meta",
+    "lastModifiedDate": "2026-10-03T03:03:50-04:00",
+    "gzSize": 4359898,
+    "uncompressedSha256": "F98856F360D1BD0F8C2B021A2826A4C54CF14677FDEBAAB3FBD6AC5FD393838F"
+  },
+  {
+    "source": "https://nvd.nist.gov/feeds/json/cve/2.0/nvdcve-2.0-2011.meta",
+    "lastModifiedDate": "2026-10-10T03:03:29-04:00",
+    "gzSize": 4275222,
+    "uncompressedSha256": "91EFEE94571B389AFA3608698BD8D49B2F93D521B659F0CE035B863D4DD8F196"
+  },
+  {
+    "source": "https://nvd.nist.gov/feeds/json/cve/2.0/nvdcve-2.0-2012.meta",
+    "lastModifiedDate": "2026-10-10T03:03:23-04:00",
+    "gzSize": 4865078,
+    "uncompressedSha256": "A39FD67F0533215B0DBFD6F81E3A80BC59937504E1E9050C6E787775DE1EA926"
+  },
+  {
+    "source": "https://nvd.nist.gov/feeds/json/cve/2.0/nvdcve-2.0-2013.meta",
+    "lastModifiedDate": "2026-10-16T03:04:19-04:00",
+    "gzSize": 5800676,
+    "uncompressedSha256": "CFC9652AEAA7AB9363EA1F37A6F9FEE3D1BAA2FB1FF5D6E21FB4EDAFDF52B67C"
+  },
+  {
+    "source": "https://nvd.nist.gov/feeds/json/cve/2.0/nvdcve-2.0-2014.meta",
+    "lastModifiedDate": "2026-10-15T03:04:16-04:00",
+    "gzSize": 4548818,
+    "uncompressedSha256": "13E3476692EC732815074662B80DD30F64DD7C3C9F6A07C4C669F7C941742EDF"
+  },
+  {
+    "source": "https://nvd.nist.gov/feeds/json/cve/2.0/nvdcve-2.0-2015.meta",
+    "lastModifiedDate": "2026-10-15T03:04:09-04:00",
+    "gzSize": 4211362,
+    "uncompressedSha256": "05ADA9C48DB35736B601459F44BAEF9A14C1AD17E8E52022D1A6551C12D3E74B"
+  },
+  {
+    "source": "https://nvd.nist.gov/feeds/json/cve/2.0/nvdcve-2.0-2016.meta",
+    "lastModifiedDate": "2026-10-16T03:04:12-04:00",
+    "gzSize": 5169180,
+    "uncompressedSha256": "4F9887E72468AD410EDE1F2852F902216CFDD992F174E680F32C83C08A06D390"
+  },
+  {
+    "source": "https://nvd.nist.gov/feeds/json/cve/2.0/nvdcve-2.0-2017.meta",
+    "lastModifiedDate": "2026-10-16T03:04:02-04:00",
+    "gzSize": 7708205,
+    "uncompressedSha256": "BE24F0E6A04F48305D5FB8AE74BFE48917C3FB66104FC6DB58C7447080C7B976"
+  },
+  {
+    "source": "https://nvd.nist.gov/feeds/json/cve/2.0/nvdcve-2.0-2018.meta",
+    "lastModifiedDate": "2026-10-16T03:03:50-04:00",
+    "gzSize": 8274041,
+    "uncompressedSha256": "46B1B55EBEC6B46B7C756119988F1E47F0D7906C844F5A6CEBC47B0A1E75F2EB"
+  },
+  {
+    "source": "https://nvd.nist.gov/feeds/json/cve/2.0/nvdcve-2.0-2019.meta",
+    "lastModifiedDate": "2026-10-16T03:03:37-04:00",
+    "gzSize": 10197385,
+    "uncompressedSha256": "0A7EAABB7E8B3AA7600AD1F3AA632175B89730D524CCA21F83579E9D41A650F4"
+  },
+  {
+    "source": "https://nvd.nist.gov/feeds/json/cve/2.0/nvdcve-2.0-2020.meta",
+    "lastModifiedDate": "2026-10-16T03:03:19-04:00",
+    "gzSize": 14012646,
+    "uncompressedSha256": "FCB92AC8A40D88071D31CE23D14D92365696E1DD9B91EFFF45AAFF2F340876AE"
+  },
+  {
+    "source": "https://nvd.nist.gov/feeds/json/cve/2.0/nvdcve-2.0-2021.meta",
+    "lastModifiedDate": "2026-10-16T03:02:56-04:00",
+    "gzSize": 16863771,
+    "uncompressedSha256": "F804D1BF3D9FA5AAD2BAB5691B58DFFD30AE3095B00033CDDF021B636BBFDF97"
+  },
+  {
+    "source": "https://nvd.nist.gov/feeds/json/cve/2.0/nvdcve-2.0-2022.meta",
+    "lastModifiedDate": "2026-10-16T03:02:34-04:00",
+    "gzSize": 18388247,
+    "uncompressedSha256": "A9CC60A178477DC7E3A4117FBFB8FC4163ED761FE0F04AC9DDEE5B8972667CF3"
+  },
+  {
+    "source": "https://nvd.nist.gov/feeds/json/cve/2.0/nvdcve-2.0-2023.meta",
+    "lastModifiedDate": "2026-10-16T03:02:09-04:00",
+    "gzSize": 20226366,
+    "uncompressedSha256": "2A209EBBFA35346F42C9F6E66E4468CE3C808CFFB58EA0A9170126A81119165E"
+  },
+  {
+    "source": "https://nvd.nist.gov/feeds/json/cve/2.0/nvdcve-2.0-2024.meta",
+    "lastModifiedDate": "2026-10-16T03:01:38-04:00",
+    "gzSize": 25050976,
+    "uncompressedSha256": "D05227BEE048355DC011EC031BEB12FBE6589E080182099EF156291CA54121FF"
+  },
+  {
+    "source": "https://nvd.nist.gov/feeds/json/cve/2.0/nvdcve-2.0-2025.meta",
+    "lastModifiedDate": "2026-10-16T03:01:06-04:00",
+    "gzSize": 24977798,
+    "uncompressedSha256": "65C808B291F0CFC4E108A0F312D096A4BD08F21162D3D17DF3B7AE08B3831556"
+  },
+  {
+    "source": "https://nvd.nist.gov/feeds/json/cve/2.0/nvdcve-2.0-2026.meta",
+    "lastModifiedDate": "2026-10-16T03:00:20-04:00",
+    "gzSize": 36949962,
+    "uncompressedSha256": "E07BA4ECF0960D0080C2A4BCD61CD740FD27CBA1F096D21CBB4FABC090D0A2CB"
+  },
+  {
+    "source": "https://nvd.nist.gov/feeds/json/cve/2.0/nvdcve-2.0-modified.meta",
+    "lastModifiedDate": "2026-10-16T18:00:09-04:00",
+    "gzSize": 12475853,
+    "uncompressedSha256": "B54E018B3CC9C0E24B0CEECBEBC39F0A92BE753F7F4B7B27940AFEC92BE67423"
+  }
+]

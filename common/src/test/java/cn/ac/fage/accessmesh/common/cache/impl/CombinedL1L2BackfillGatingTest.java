@@ -1,11 +1,13 @@
 package cn.ac.fage.accessmesh.common.cache.impl;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.common.cache.CacheCatalogEntry;
 import cn.ac.fage.accessmesh.common.cache.CacheKeyUtil;
 import cn.ac.fage.accessmesh.common.cache.CacheMode;
 import cn.ac.fage.accessmesh.common.cache.CacheProperties;
 import cn.ac.fage.accessmesh.common.cache.TypeRef;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -69,7 +71,7 @@ class CombinedL1L2BackfillGatingTest {
     @BeforeEach
     @SuppressWarnings("unchecked")
     void setUp() throws Exception {
-        l2Json = new ObjectMapper().writeValueAsString("v1");
+        l2Json = JsonMapper.builder().configureForJackson2().build().writeValueAsString("v1");
         redissonClient = mock(RedissonClient.class);
         bucket = mock(RBucket.class);
         batch = mock(RBatch.class);
@@ -100,7 +102,7 @@ class CombinedL1L2BackfillGatingTest {
         });
         when(batch.execute()).thenReturn(null);
 
-        store = new CombinedL1L2Store(redissonClient, new ObjectMapper(),
+        store = new CombinedL1L2Store(redissonClient, JsonMapper.builder().configureForJackson2().build(),
             new SimpleMeterRegistry(), new CacheProperties());
     }
 

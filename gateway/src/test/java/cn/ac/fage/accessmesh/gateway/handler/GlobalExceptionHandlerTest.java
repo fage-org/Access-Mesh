@@ -1,7 +1,9 @@
 package cn.ac.fage.accessmesh.gateway.handler;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
+
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -23,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class GlobalExceptionHandlerTest {
 
-    private final GlobalExceptionHandler handler = new GlobalExceptionHandler(new ObjectMapper());
+    private final GlobalExceptionHandler handler = new GlobalExceptionHandler(JsonMapper.builder().configureForJackson2().build());
 
     @Test
     @DisplayName("未匹配路由 404 → JSON 信封 code=404、message 路由文案、无 requestId")
@@ -36,7 +38,7 @@ class GlobalExceptionHandlerTest {
         assertThat(exchange.getResponse().getHeaders().getContentType())
             .isEqualTo(org.springframework.http.MediaType.APPLICATION_JSON);
         String body = exchange.getResponse().getBodyAsString().block();
-        JsonNode json = new ObjectMapper().readTree(body);
+        JsonNode json = JsonMapper.builder().configureForJackson2().build().readTree(body);
         assertThat(json.get("code").asInt()).isEqualTo(404);
         assertThat(json.get("message").asText()).contains("No static resource");
         assertThat(json.hasNonNull("requestId")).as("网关自身 404 不带 requestId（业务信封才回填）").isFalse();
@@ -51,7 +53,7 @@ class GlobalExceptionHandlerTest {
         handler.handle(exchange, new ResponseStatusException(HttpStatus.NOT_FOUND, "No static resource api/x")).block();
 
         String body = exchange.getResponse().getBodyAsString().block();
-        JsonNode json = new ObjectMapper().readTree(body);
+        JsonNode json = JsonMapper.builder().configureForJackson2().build().readTree(body);
         assertThat(json.get("requestId").asText()).isEqualTo("req-42");
         assertThat(json.get("traceId").asText()).isEqualTo("req-42");
     }

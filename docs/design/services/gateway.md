@@ -3,7 +3,7 @@ doc_type: design
 title: Gateway 服务设计
 status: adopted
 domain: gateway
-last_reviewed: 2026-10-14
+last_reviewed: 2026-10-17
 ---
 
 # Gateway 服务设计
@@ -33,7 +33,7 @@ last_reviewed: 2026-10-14
 
 - **清洗（`HeaderCleanFilter`，order -90）**：`gateway.header.clean` 列表加入 `X-Forwarded-For` / `X-Real-IP`，外部传入一律删除；另扩列 `X-Forwarded-Host/Port/Proto/Prefix` 与 `Forwarded`（RFC 7239）——同属外部可伪造转发声明，当前三服务零消费，配合下条启动护栏防未来任一服务消费转发声明时伪造面复活（注意：清洗对 `forward-headers-strategy=framework` 场景**不生效**——Spring 的 ForwardedHeaderTransformer 在全部过滤器之前消费转发头，须靠护栏拒绝）。匹配按 HTTP 头名大小写不敏感（RFC 7230），小写变体（`x-forwarded-for`）一并清除——变体缝隙曾对整个清洗列表有效（含 clean 列表既有全部内部头）。
 - **forward-headers-strategy 启动护栏（`ForwardHeadersStrategyGuard`，codex 外评 P1 处置 2026-09-10）**：`server.forward-headers-strategy=framework` 时 Spring Boot（ReactiveWebServerFactoryAutoConfiguration 条件注册）会启用 ForwardedHeaderTransformer，其在 `HttpWebHandlerAdapter.handle` 首指令（全部 WebFilter 之前）把外部 `X-Forwarded-For` 解析进 `request.getRemoteAddress()` 并删除转发头——清洗来不及参与，`resolveClientIp` 直用 remoteAddr 与 XFF 重建消费的都是伪造 IP（spring-web 6.1.5 + spring-boot 3.2.4 字节码实证）。护栏启动校验：`framework`/`native` 一律拒绝启动（native 在 WebFlux 下无 transformer 不污染，同拒防语义混淆），允许缺省/`none`（Spring Boot 默认）；回归锁钉五分支（缺省/none/NONE 放行，framework/FRAMEWORK/native 拒启）。
-- **重建（单一可信来源）**：清洗后以 Gateway 自身观测的 `remoteAddr` 重建 `X-Forwarded-For: <remoteAddr>` 写回下游。access-service 门禁条件评估（PermEvalContext clientIp）、操作/登录日志（HttpRequestUtils）、网关快照条件重评统一消费该值。remoteAddr 不可得时不写回（下游按自身 remoteAddr 兜底）。**SCG 内置 XForwardedHeadersFilter 的 `for-append` 已置 false**（默认 true 会在代理出口再追加一段同值致下游双段 `remoteAddr,remoteAddr`；关闭后替换写回、下游单值——三服务消费链均取首段本无安全差异，纯形态统一，回归锁与文档口径均为单值）；host/port/proto/prefix 维度维持 SCG 默认 append（写入网关观测真实值，与清洗外部伪造声明不冲突）。
+- **重建（单一可信来源）**：HeaderCleanFilter 清洗后以 Gateway 自身观测的 `remoteAddr` 重建 `X-Forwarded-For: <remoteAddr>`。Gateway 5 在未启用 trusted-proxies 时还会在出站阶段删除转发头，因此 `ClientIpHeadersFilter` 在框架头过滤链末位再次仅按 socket 对端重建单值 XFF；不读取客户端转发声明，也不启用代理信任。access-service 门禁条件评估（PermEvalContext clientIp）、操作/登录日志（HttpRequestUtils）消费该值，网关快照条件重评直接使用 remoteAddr。remoteAddr 不可得时移除 XFF（下游按自身 remoteAddr 兜底）；其他转发声明保持清除。`GatewayApplicationConfigTest` 驱动实际装配的完整出站头过滤链，覆盖伪造多值头及无对端地址两种形态。
 - **网关自身条件重评直用 remoteAddr**（`PermissionFilter.resolveClientIp`）：不读任何请求头——即使清洗配置被误删，网关侧评估也不采信可伪造头；下游消费重建 XFF（值同为该观测值）。
 - **实现约束（存量缺陷修复）**：清洗必须走 `headers(h -> h.remove(...))` 显式删除，**禁止**「构建干净头副本再 `putAll`」——`ServerHttpRequest.Builder#headers` 的 consumer 收到的是原请求头的可写视图，`putAll` 为叠加语义，清洗项不会被移除（归并起旧实现即因此从未真正删除过头，仅靠下游注入 filter 的 set 覆盖兜底；T-GW-008 实测修正并以回归锁钉住）。重建用 `set`（替换）——清洗配置误删时外部任意 XFF 值/多值也被覆盖为单值观测值。
 - **部署前提（多层 LB / nginx / CDN 拓扑）**：Gateway 观测到的是**代理出口 IP**，按真实客户端 IP 的黑白名单在此类拓扑下不工作（所有客户端同呈一个代理 IP）。要么接受白名单只配到代理出口段（粒度变粗），要么把 IP 过滤上移到能看见真实客户端 IP 的最外层可信设施（nginx/WAF）；如需 Gateway 层精确采信真实客户端 IP，须重新评估已弃的 trusted-proxies 方向（另立项）。详见 `.claude/rules/security-standards.md` §7 与 `access-service-rebuild-runbook.md`。
@@ -191,7 +191,7 @@ Gateway 通过 Micrometer 暴露 Prometheus 指标。依赖 `spring-boot-starter
 ## CORS 配置终态（T-GW-007，2026-08-25；T-GW-010 修订 2026-09-23）
 
 - **部署前提**：生产前端经 nginx 反向代理成同源（浏览器请求全部同源；nginx `proxy_set_header Host $host` 保留 Host，Gateway 侧 Spring 同源短路判定放行，不消费白名单——**该短路仅在外层 scheme+端口与网关观测一致时成立**：明文 http + 对外默认端口（80）形态。TLS 终结或对外非默认端口形态下，浏览器 Origin（如 `https://<域名>`）与网关观测 URI（明文 http、Host 不带端口——`X-Forwarded-Proto` 按 T-GW-008 清洗、framework 转发策略被护栏拒启，网关无法感知外层 https）scheme/端口不等，同源短路**不成立**，携带 Origin 的请求全部走白名单——此时必须把对外 Origin 列入 `GATEWAY_CORS_ALLOWED_ORIGINS`，不得置空，见部署基线 §1）。开发 vite 代理对浏览器同源、**对 Gateway 是跨域请求**：`changeOrigin: true` 只改写 Host 为代理目标、不删浏览器 Origin 头，到达 Gateway 的请求按 Origin 白名单校验（F012/T-GW-010 修正原「开发经 vite 代理同为同源」表述——它仅对浏览器视角成立）。CORS 消费场景=开发代理转发 + 直连网关调试 + TLS/非默认端口对外部署。
-- 配置面：`spring.cloud.gateway.globalcors.cors-configurations.'[/**]'`（Binder 绑定后 map key 为 `/**`）。
+- 配置面：`spring.cloud.gateway.server.webflux.globalcors.cors-configurations.'[/**]'`（Binder 绑定后 map key 为 `/**`）。
   - `allowed-origin-patterns`：默认四个环回 dev 形态 `http://localhost:8848,http://localhost:8890,http://127.0.0.1:8848,http://127.0.0.1:8890`（T-GW-010 拍板四条全放：8848=前端 dev 默认端口、8890=quickstart 避让 Nacos 的替代端口；localhost 与 127.0.0.1 是两个不同 Origin，按字面各占一条；占位符默认值含逗号由 Binder 切分为列表，绑定锁见 `GatewayApplicationConfigTest`），`GATEWAY_CORS_ALLOWED_ORIGINS` 环境变量/Nacos 可覆盖；**显式置空 = CORS 禁用**（同源部署终态：跨域请求被 CorsProcessor 主动 403 拒绝且无 CORS 头，启动 INFO 声明）。
   - `allow-credentials: true`（保持；token 走 Authorization 头，无 cookie 依赖，未来接 cookie 会话时不受影响）。
 - **启动 fail-fast**（`GatewayCorsConfigValidator`，校验最终生效值含 Nacos 覆盖后的值）：`allow-credentials=true` 且 origin 列表（`allowed-origin-patterns` 与兄弟键 `allowed-origins`）含任意 `*` 通配 → 启动失败（任意源携带凭证为安全缺陷，含 Nacos 远端旧值回退场景；exact 键通配若漏到运行期会每请求 500）。缺失/显式空均不放行任意源（fail-closed）。

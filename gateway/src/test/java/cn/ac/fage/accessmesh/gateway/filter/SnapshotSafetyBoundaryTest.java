@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.gateway.filter;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import static cn.ac.fage.accessmesh.gateway.support.PermissionFilterTestSupport.routedExchange;
 
 import cn.ac.fage.accessmesh.common.cache.CacheCatalogEntry;
@@ -20,7 +22,7 @@ import cn.ac.fage.accessmesh.gateway.config.GatewayProperties;
 import cn.ac.fage.accessmesh.gateway.service.PermissionClient;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.AdmissionRequirement;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceAdmissionSnapshotResp;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -151,7 +153,7 @@ class SnapshotSafetyBoundaryTest {
     @BeforeEach
     void setUp() {
         permissionClient = mock(PermissionClient.class);
-        ObjectMapper objectMapper = new ObjectMapper();
+        ObjectMapper objectMapper = JsonMapper.builder().configureForJackson2().build();
         gatewayCache = new DefaultCacheService(null, null,
             new CaffeineLocalCacheStore(objectMapper, null, new CacheProperties()),
             new CacheProperties(), null);

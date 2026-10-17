@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.engine.query;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
@@ -25,8 +27,8 @@ import cn.ac.fage.accessmesh.common.cache.CacheProperties;
 import cn.ac.fage.accessmesh.common.cache.CacheReadToken;
 import cn.ac.fage.accessmesh.common.cache.DefaultCacheService;
 import cn.ac.fage.accessmesh.common.cache.spi.DistributedCacheStore;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -96,7 +98,7 @@ class QueryStagesTest {
             Set<Long> ids = i.getArgument(2);
             return instanceRows.stream().filter(r -> ids.contains(r.getResourceEntityId())).toList();
         });
-        ObjectMapper json = new ObjectMapper();
+        ObjectMapper json = JsonMapper.builder().configureForJackson2().build();
         var conditions = new PermissionConditionDomainServiceImpl(conditionMapper,
             mock(RoleResourcePermissionDomainService.class), json, cache);
         var conflicts = new PermissionConflictDomainServiceImpl(rules, cache, json, audit, operations, subjects);
@@ -827,7 +829,7 @@ class QueryStagesTest {
 
     @Test
     void should_reuseHotConditionAcrossStages_whenSameConditionAppearsInScopeAndInstance() throws Exception {
-        JsonNode rule = new ObjectMapper().readTree("{\"logic\":\"AND\",\"items\":[{\"type\":\"DATE_RANGE\",\"params\":{\"start\":\"2004-01-02\",\"end\":\"2004-01-02\"}}]}");
+        JsonNode rule = JsonMapper.builder().configureForJackson2().build().readTree("{\"logic\":\"AND\",\"items\":[{\"type\":\"DATE_RANGE\",\"params\":{\"start\":\"2004-01-02\",\"end\":\"2004-01-02\"}}]}");
         when(cache.getBatch(AccessCacheCatalog.CONDITION_RULES, 1L, Set.of(501L))).thenReturn(Map.of(501L, rule));
         RoleResourcePermission scope = grant(101, 1, null, 2); scope.setConditionId(501L); scopeRows.add(scope);
         RoleResourcePermission instance = grant(102, 1, 100L, 2); instance.setConditionId(501L); instanceRows.add(instance);

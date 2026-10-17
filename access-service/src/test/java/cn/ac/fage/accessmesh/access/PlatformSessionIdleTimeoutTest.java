@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.user.entity.SysUser;
 import cn.ac.fage.accessmesh.access.audit.service.domain.LoginLogDomainService;
 import cn.ac.fage.accessmesh.access.auth.service.domain.OAuth2ClientDomainService;
@@ -11,15 +13,15 @@ import cn.dev33.satoken.dao.SaTokenDao;
 import java.time.Duration;
 import static org.awaitility.Awaitility.await;
 import cn.dev33.satoken.dao.SaTokenDaoDefaultImpl;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -60,7 +62,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "spring.cloud.nacos.config.import-check.enabled=false",
     "spring.cloud.nacos.discovery.enabled=false",
     "accessmesh.sync.scheduler.enabled=false", "access.tenant.gate-repair.enabled=false",
-    "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration,org.redisson.spring.starter.RedissonAutoConfigurationV2,com.alibaba.cloud.nacos.NacosConfigAutoConfiguration,com.alibaba.cloud.nacos.NacosDiscoveryAutoConfiguration,com.alibaba.cloud.nacos.discovery.NacosDiscoveryClientConfiguration",
+    "spring.autoconfigure.exclude=org.springframework.boot.data.redis.autoconfigure.DataRedisAutoConfiguration,org.springframework.boot.data.redis.autoconfigure.DataRedisRepositoriesAutoConfiguration,org.redisson.spring.starter.RedissonAutoConfigurationV4,com.alibaba.cloud.nacos.NacosConfigAutoConfiguration,com.alibaba.cloud.nacos.NacosDiscoveryAutoConfiguration,com.alibaba.cloud.nacos.discovery.NacosDiscoveryClientConfiguration",
     "mybatis-flex.configuration.map-underscore-to-camel-case=true",
     "logging.level.cn.ac.fage.accessmesh=WARN",
     "JWT_SECRET_KEY=test-jwt-secret-for-idle-timeout",
@@ -72,28 +74,28 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 class PlatformSessionIdleTimeoutTest {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = JsonMapper.builder().configureForJackson2().build();
     private static final String PASSWORD = "Pass@123";
 
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
+    @MockitoBean
     private UserDomainService userDomainService;
-    @MockBean
+    @MockitoBean
     private UserOrgDomainService userOrgDomainService;
-    @MockBean
+    @MockitoBean
     private OAuth2ClientDomainService oauth2ClientDomainService;
-    @MockBean
+    @MockitoBean
     private LoginLogDomainService loginLogDomainService;
-    @MockBean
+    @MockitoBean
     private UserMenuQueryAppService userMenuQueryService;
-    @MockBean
+    @MockitoBean
     private StringRedisTemplate stringRedisTemplate;
 
-    @MockBean
+    @MockitoBean
     private cn.ac.fage.accessmesh.access.tenant.service.domain.TenantDomainService tenants;
-    @MockBean
+    @MockitoBean
     private cn.ac.fage.accessmesh.access.tenant.service.TenantAccessGuard tenantAccess;
     @org.junit.jupiter.api.BeforeEach
     void activeTenantFixture() {

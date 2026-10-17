@@ -1,0 +1,2467 @@
+{
+  "command": "mvn -B test -T 1C",
+  "finishedAt": "2026-10-17T13:24:25+08:00",
+  "elapsed": "17:30 min",
+  "logSha256": "0dba66b170d05eaaeffecba46ad3980bb7e57ec9befc009c7d92d935b90e0caf",
+  "counting": "Actual testcase elements in reports written by this run, cross-checked against Maven execution totals; nested suite tests attributes are not additive.",
+  "excludedStaleReports": [
+    "access-service\\target\\surefire-reports\\TEST-cn.ac.fage.accessmesh.access.bootstrap.AccessBootstrapRunnerTest.xml",
+    "access-service\\target\\surefire-reports\\TEST-cn.ac.fage.accessmesh.access.user.TxDiagScratchPgIT.xml"
+  ],
+  "totals": {
+    "tests": 2870,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "modules": [
+    {
+      "module": "common",
+      "totals": {
+        "tests": 104,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "suites": [
+        {
+          "class": "cn.ac.fage.accessmesh.common.cache.CacheAutoConfigurationTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.common.cache.CacheCatalogEntryTest",
+          "tests": 7,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.common.cache.CacheEffectiveTtlTest",
+          "tests": 8,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.common.cache.CacheInvalidationBroadcasterTest",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.common.cache.CacheKeyUtilTest",
+          "tests": 9,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.common.cache.CachePropertiesBindingTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.common.cache.impl.CaffeineSecondsPrecisionTest",
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.common.cache.impl.CatalogWideEvictAllTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.common.cache.impl.CombinedL1L2BackfillGatingTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.common.cache.impl.RedissonSecondsPrecisionTest",
+          "tests": 8,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.common.cache.TypeRefTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.common.exception.GlobalExceptionHandlerLogMaskingTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.common.model.RJsonTest",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.common.model.RWireShapeTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.common.security.M2mCredentialEndpointsTest",
+          "tests": 13,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.common.security.TenantGateStateTest",
+          "tests": 21,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.common.timezone.UtcTimezoneEnvironmentPostProcessorTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      ]
+    },
+    {
+      "module": "gateway",
+      "totals": {
+        "tests": 147,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "suites": [
+        {
+          "class": "cn.ac.fage.accessmesh.gateway.cache.GatewayInvalidationRaceTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.gateway.cache.InterfaceSnapshotCacheInvalidatorTest",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.gateway.cache.InterfaceSnapshotLoadRegistryTest",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.gateway.cache.InvalidationMarkerTest",
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.gateway.cache.PermInvalidationSubscriberTest",
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.gateway.config.ForwardHeadersStrategyGuardTest",
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.gateway.config.GatewayCacheBoundaryValidatorTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.gateway.config.GatewayCorsConfigValidatorTest",
+          "tests": 9,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.gateway.config.TracingConfigTest",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.gateway.filter.AuthTokenFilterTest",
+          "tests": 14,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.gateway.filter.GatewayFailModeRemovalTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.gateway.filter.HeaderCleanFilterTest",
+          "tests": 8,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.gateway.filter.InternalSecretFilterCredentialNarrowingTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.gateway.filter.InternalSecretFilterRouteNarrowingTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.gateway.filter.M2mCredentialFilterTest",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.gateway.filter.OAuth2PassthroughFilterTest",
+          "tests": 7,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.gateway.filter.PermissionFilterMetricsTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.gateway.filter.PermissionFilterTest",
+          "tests": 13,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.gateway.filter.SnapshotSafetyBoundaryTest",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.gateway.filter.TenantGateFilterTest",
+          "tests": 10,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.gateway.GatewayApplicationConfigTest",
+          "tests": 8,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.gateway.handler.GlobalExceptionHandlerTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.gateway.SaTokenConfigParityTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.gateway.service.InterfaceAdmissionMatcherTest",
+          "tests": 20,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.gateway.SnapshotDecodeBudgetTest",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      ]
+    },
+    {
+      "module": "access-service",
+      "totals": {
+        "tests": 2429,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "suites": [
+        {
+          "class": "cn.ac.fage.accessmesh.access.AccessServiceApplicationTest",
+          "tests": 12,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.architecture.AccessServiceArchitectureTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.architecture.QueryBoundaryArchitectureTest",
+          "tests": 10,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.architecture.QueryMapperPgIT",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.architecture.QueryMapperXmlContractTest",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.audit.aop.OperationLogAspectTest",
+          "tests": 22,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.audit.aop.OperationLogRuntimeContextAppServiceTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.audit.service.domain.impl.AuditDomainServiceImplTest",
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.audit.service.domain.impl.LoginLogDomainServiceImplTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.audit.service.impl.AuditReadMaskingTest",
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.audit.service.impl.AuditRequestUrlTruncationTest",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.audit.service.impl.GatewayAuditAppServiceImplTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.audit.service.impl.LogQueryAppServiceImplChangeLogTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.audit.service.impl.LogQueryAppServiceImplOperationLogTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.audit.util.JsonValidationUtilsTest",
+          "tests": 12,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.auth.service.impl.OAuth2AudienceClaimTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.auth.service.impl.OAuth2AuthCodeClientBindingTest",
+          "tests": 11,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.auth.service.impl.OAuth2AuthorizeSerializeRecheckTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.auth.service.impl.Oauth2ClientAppServiceImplTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.auth.service.impl.OAuth2ClientTtlTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.auth.service.impl.OAuth2CodeExchangeNegativeTest",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.auth.service.impl.OAuth2CredentialGenerationTest",
+          "tests": 15,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.auth.service.impl.OAuth2JwtRevokeTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.auth.service.impl.OAuth2LoginLogTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.auth.service.impl.OAuth2RedirectDotSegmentTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.auth.service.impl.OAuth2ScopeValidationTest",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.auth.service.LoginUnknownAccountCostTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.auth.service.Oauth2ClientBootstrapReachabilityPgIT",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.auth.service.Oauth2ClientTenantUniquenessPgIT",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.auth.service.PasswordByteLimitOnWritePathsTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.auth.service.PlatformAccountAppServiceTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.auth.service.PlatformAccountsPgIT",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.auth.service.PlatformAuthenticationPgIT",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.auth.service.PlatformOperatorSessionTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.auth.service.TenantNativeSessionTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.AuthLoginLockTest",
+          "tests": 12,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.bootstrap.AccessBootstrapPgIT",
+          "tests": 20,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.bootstrap.BootstrapGraphUserSectionTest",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.bootstrap.FirstAdminUserTrackPgIT",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.bootstrap.PlatformBootstrapTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.bootstrap.TenantOpeningPgIT",
+          "tests": 7,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.characterization.AdminXmlPaginationPgIT",
+          "tests": 8,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.characterization.AncestorChainCycleGuardTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.characterization.AuthorizationChangeInvalidationPgIT",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.characterization.AutoGrantEngineContractPgIT",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.characterization.BatchAuthCheckPgIT",
+          "tests": 11,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.characterization.DualTenantSameCodeIsolationPgIT",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.characterization.FileServiceSecurityPgIT",
+          "tests": 11,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.characterization.GoldenFixturePgIT",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.characterization.InstanceGateBusinessCodePgIT",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.characterization.KeywordLikeSearchPgIT",
+          "tests": 10,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.characterization.LocalSubjectIdUnificationPgIT",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.characterization.LoginLockTemporaryPgIT",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.characterization.LoginSessionPgIT",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.characterization.MutexSemanticsCharacterizationPgIT",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.characterization.OrgTreeIncludePositionsPgIT",
+          "tests": 21,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.characterization.PermissionCharacterizationPgIT",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.characterization.QuerySemanticsBaselinePgIT",
+          "tests": 20,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.characterization.TargetModeClosurePgIT",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.characterization.TreeCycleHardeningPgIT",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.contract.AdminPageRespShapeTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.contract.AppServiceOperationLogCoverageTest",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.contract.BatchEntrySizeValidationTest",
+          "tests": 8,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.contract.BusinessFieldValidationTest",
+          "tests": 18,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.contract.CheckFamilyWireShapeTest",
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.contract.ClearFieldProtocolValidationTest",
+          "tests": 33,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.contract.ErrorCodeContractTest",
+          "tests": 7,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.contract.ErrorCodeIndexTest",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.contract.ExplicitClearFieldsPgIT",
+          "tests": 10,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.contract.HttpApiPathSnapshotTest",
+          "tests": 8,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.contract.LegacyInterfaceRetirementTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.contract.OperationCodeCaseValidationTest",
+          "tests": 7,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.contract.OperationPermissionWireFormatTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.contract.PaginationPolicyTest",
+          "tests": 15,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.contract.PermCommonReqContractTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.contract.RetiredGrantApiContractTest",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.contract.RetiredRoleApiContractTest",
+          "tests": 7,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.contract.UserOrgTypeWireTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.contract.UserRoleFullSyncEmptyItemsValidationTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.contract.UserRoleRelationIdValidationTest",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.domain.service.domain.impl.DomainClassifyServiceImplTest",
+          "tests": 13,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.domain.service.impl.BizDomainAppServiceImplTest",
+          "tests": 18,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.domain.service.impl.BizDomainConfigPgIT",
+          "tests": 7,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.domain.service.impl.DomainConfigAppServiceImplTest",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.DualInstanceContainerTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.engine.AdminPermissionValidatorImplHasTypeLevelTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.engine.AdminPermissionValidatorImplTest",
+          "tests": 9,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.engine.constant.OrgOperationCodeMapperTest",
+          "tests": 28,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.engine.controller.PermissionViewControllerTest",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.engine.core.BatchConditionEvaluatorTest",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.engine.core.BatchPermMutexEvaluatorTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.engine.core.SubjectDomainServiceImplTest",
+          "tests": 10,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.engine.core.TypeResolutionServiceImplTest",
+          "tests": 8,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.engine.dto.PermViewResultTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.engine.InterfaceAdmissionHeavyPgIT",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.engine.InterfaceAdmissionPgIT",
+          "tests": 20,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.engine.query.AdmissionStagesTest",
+          "tests": 31,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.engine.query.CandidateSelectorTest",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.engine.query.EngineLimitsTest",
+          "tests": 7,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.engine.query.MicrometerQueryEngineMetricsTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.engine.query.QueryAuditAndTraceTest",
+          "tests": 20,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.engine.query.QueryBudgetPgIT",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.engine.query.QueryContractModelsTest",
+          "tests": 21,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.engine.query.QueryExecutionEngineTest",
+          "tests": 10,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.engine.query.QueryExecutionPgIT",
+          "tests": 24,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.engine.query.QueryGateTest",
+          "tests": 8,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.engine.query.QueryReadSupportPgIT",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.engine.query.QueryReadSupportTest",
+          "tests": 25,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.engine.query.QueryRequestValidationTest",
+          "tests": 20,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.engine.query.QueryStagesTest",
+          "tests": 75,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.engine.service.impl.PermissionAdmissionAppServiceImplTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.engine.service.impl.PermissionCheckAppServiceImplTest",
+          "tests": 11,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.engine.service.impl.PermissionQueryAppServiceImplTest",
+          "tests": 7,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.engine.service.impl.PermissionViewAppServiceImplTest",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.engine.util.InterfaceAdmissionSnapshotLimitsTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.engine.util.PermResultUtilsConditionEvaluatedTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.engine.util.PermViewAssemblerTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.engine.util.ScopeModeSupportTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.extension.CustomResourceTypeSlicePgIT",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.grant.service.DelegatedDirectoryClosurePgIT",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantDerivationTest",
+          "tests": 12,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.grant.service.domain.impl.AutoGrantMaterializationDomainServiceImplTest",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.grant.service.domain.impl.GrantOriginDomainServiceImplTest",
+          "tests": 21,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.grant.service.domain.impl.PermissionGrantDomainServiceImplTest",
+          "tests": 16,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.grant.service.domain.impl.PermissionGrantPlanDomainServiceImplTest",
+          "tests": 82,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.grant.service.impl.AutoGrantInsightPgIT",
+          "tests": 21,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.grant.service.impl.AutoGrantMaterializationPgIT",
+          "tests": 19,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.grant.service.impl.PermissionGrantAppServiceImplTest",
+          "tests": 11,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.grant.util.DatabaseExceptionSupportTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContextTest",
+          "tests": 8,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.infrastructure.AdmissionConfigurationExceptionHandlerTest",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalogBoundaryTest",
+          "tests": 12,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.infrastructure.cache.AuthorizationCacheBypassToDbTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.infrastructure.cache.DualInstanceCacheInvalidationTest",
+          "tests": 7,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.infrastructure.cache.OperationPermissionCacheWireFormatTest",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.infrastructure.cache.PermInvalidationPublisherTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.infrastructure.cache.StaleBackfillLatchTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.infrastructure.config.AsyncConfigTest",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.infrastructure.config.HeaderSignatureInterceptorTest",
+          "tests": 10,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.infrastructure.config.ServiceAuthArbiterTest",
+          "tests": 8,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.infrastructure.credential.service.domain.impl.ServiceCredentialDomainServiceImplTest",
+          "tests": 12,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.infrastructure.credential.service.impl.ServiceCredentialAppServiceImplTest",
+          "tests": 9,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.infrastructure.credential.ServiceCredentialPgIT",
+          "tests": 15,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.infrastructure.MybatisFlexTenantConfigTest",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.infrastructure.OAuth2ClockSkewToleranceTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.infrastructure.OAuth2JwtCodecTest",
+          "tests": 7,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.infrastructure.OAuth2JwtSupportSecretStrengthTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.infrastructure.OAuth2ResourcePathPropertiesTest",
+          "tests": 18,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeAspectTest",
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.infrastructure.QueryValidationExceptionHandlerTest",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.infrastructure.RequestContextInterceptorTest",
+          "tests": 64,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.infrastructure.task.impl.JobInvokeDomainServiceTest",
+          "tests": 7,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.infrastructure.task.TaskExecutionDomainServiceImplTest",
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.infrastructure.task.TaskExecutorConfigTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.infrastructure.TenantGateRedisIT",
+          "tests": 9,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.infrastructure.TimestamptzDualTimezonePgIT",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.infrastructure.TimestamptzLocalDateTimeTypeHandlerTest",
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.infrastructure.util.CredentialPasswordsTest",
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContextTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.infrastructure.util.PageUtilLowerBoundTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.infrastructure.util.SensitiveDataUtilsTest",
+          "tests": 20,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.it.SyncEndpointAuthIT",
+          "tests": 10,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.menu.service.domain.impl.MenuDomainServiceImplTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.menu.service.impl.UserMenuQueryAppServiceImplTest",
+          "tests": 19,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.menu.service.MenuWriteAppServiceTest",
+          "tests": 26,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.menu.service.MenuWritePostgresIT",
+          "tests": 16,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.org.service.DefaultTreeDirectoryGuardPgIT",
+          "tests": 11,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.org.service.domain.impl.OrgTreeConfigDomainServiceResolveTest",
+          "tests": 16,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.org.service.impl.OrgAppServiceImplDelegatedDirectoryTest",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.org.service.impl.OrgAppServiceImplTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.org.service.impl.OrgTreeConfigAppServiceImplTest",
+          "tests": 16,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.org.service.impl.OrgVisibilityQueryAppServiceImplTest",
+          "tests": 8,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.org.service.MemberCandidatesGatePgIT",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.org.service.OrgWriteAppServiceTest",
+          "tests": 32,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.org.service.PositionDisablePruneObservationPgIT",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.org.service.UserOrgAppServiceTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.org.service.UserOrgWriteAppServiceFaultInjectionIT",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.org.service.UserOrgWriteAppServiceTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.platform.service.AdminFileFolderRegistrarImplTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.platform.service.domain.impl.JobLogDomainServiceImplTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.platform.service.impl.FileAppServiceImplTest",
+          "tests": 26,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.platform.service.impl.JobAppServiceImplTest",
+          "tests": 16,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.platform.service.impl.SystemConfigAppServiceImplTest",
+          "tests": 10,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.platform.service.impl.SystemConfigJsonbPgIT",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.platform.service.impl.TaskExecutionLeaseConcurrencyTest",
+          "tests": 10,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.platform.service.NoticeLifecyclePgIT",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.PlatformSessionAbsoluteTimeoutTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.PlatformSessionIdleTimeoutTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.projection.LocalProjectionBatchSqlIT",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainServiceImplTest",
+          "tests": 27,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.resource.service.domain.DependencyCompilerTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.resource.service.domain.impl.ApiMappingWriteDomainServiceImplTest",
+          "tests": 9,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.resource.service.domain.impl.MappingSyncHandlerImplTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.resource.service.domain.PermissionManifestNormalizerTest",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.resource.service.impl.AdmissionMappingPgIT",
+          "tests": 12,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.resource.service.impl.DependencyAppServiceImplTest",
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.resource.service.impl.DependencyLifecyclePgIT",
+          "tests": 8,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.resource.service.impl.PermissionManifestPgIT",
+          "tests": 9,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.resource.service.impl.RegistrationCoordinatorPgIT",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.resource.service.impl.ResourceBatchCreateCompositeIdentityPgIT",
+          "tests": 7,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.resource.service.impl.ResourceDeletePermChangeRegistrationTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.resource.service.impl.ResourceEntitySyncAppServiceTest",
+          "tests": 24,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.resource.service.impl.ResourceManageAppServiceImplTest",
+          "tests": 44,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.resource.service.impl.ResourceOperationKeyPgIT",
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.resource.service.impl.ServiceConfigAppServiceImplTest",
+          "tests": 15,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.resource.service.impl.ServiceConfigCascadePgIT",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.resource.service.impl.ServiceSyncAppServiceImplTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.ResourceSortOrderRetiredTest",
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.RetiredSyncTaskEndpointTest",
+          "tests": 7,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.role.service.impl.AbstractRoleSyncAppServiceTest",
+          "tests": 21,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.role.service.impl.RoleGrantOriginGuardPgIT",
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.role.service.impl.RoleManageAppServiceImplTest",
+          "tests": 30,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.role.service.impl.RoleMutexGuardPgIT",
+          "tests": 9,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.role.service.impl.UserRoleQueryAppServiceImplTest",
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.role.service.impl.UserRoleReassignmentPgIT",
+          "tests": 13,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.role.service.impl.UserRoleSyncAppServiceTest",
+          "tests": 23,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.rule.service.domain.impl.PermissionConditionDomainServiceImplTest",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.rule.service.domain.impl.PermissionConflictDomainServiceImplTest",
+          "tests": 19,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.rule.service.impl.ConditionAppServiceImplTest",
+          "tests": 40,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.rule.service.impl.ConditionChangeEffectPgIT",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.rule.service.impl.ConditionProjectionDualTrackPgIT",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.rule.service.impl.ConflictRuleAppServiceImplTest",
+          "tests": 44,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.schema.AccessServiceSchemaPostgresTest",
+          "tests": 25,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.SecurityMatrixIT",
+          "tests": 16,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.ServiceConfigSyncOperationCodeRetiredTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.sync.FullSyncN1GuardTest",
+          "tests": 7,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.sync.FullSyncResponseContractTest",
+          "tests": 7,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.sync.FullSyncStaleVersionTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuardTest",
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.sync.guard.SyncTypeGuardTest",
+          "tests": 19,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.sync.metadata.SyncMetadataConcurrencyTest",
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.sync.metadata.SyncMetadataDomainServiceTest",
+          "tests": 11,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.sync.ResourcePublicationHeavyPgIT",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.sync.ResourcePublicationNormalizerTest",
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.sync.ResourcePublicationPgIT",
+          "tests": 16,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.sync.ResourcePublicationPolicyTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.sync.strategy.SyncResultStateTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.sync.SyncFailureAtomicityPgIT",
+          "tests": 8,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.sync.SyncKeyCodecUtilEquivalenceTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.sync.SyncKeyCodecUtilTest",
+          "tests": 10,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.sync.SyncStatusPgIT",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.type.service.domain.ResourceTypeOwnershipGuardTest",
+          "tests": 20,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.type.service.impl.MixedTypeDeletionLockPgIT",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.type.service.impl.OperationAppServiceImplTest",
+          "tests": 37,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.type.service.impl.OperationPermissionCacheEvictionPgIT",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.type.service.impl.TypeDefinitionAppServiceImplTest",
+          "tests": 60,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.type.service.impl.TypeDefinitionProjectionPgIT",
+          "tests": 8,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.user.controller.AdminUserControllerTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.user.dto.req.AbstractUserUpdateReqValidationTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.user.service.impl.AbstractUserSyncAppServiceTest",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.user.service.impl.UserManageAppServiceImplTest",
+          "tests": 25,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.user.service.impl.UserResetPasswordByteLimitTest",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.user.service.impl.UserRoleWriteProjectionPgIT",
+          "tests": 10,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.user.service.UserAppServiceMemberCandidatesGateTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.user.service.UserAppServiceResetPasswordGateTest",
+          "tests": 10,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.user.service.UserCreateWithOrgPgIT",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.user.service.UserWriteAppServiceCreateStatusTest",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.user.service.UserWriteAppServiceFaultInjectionIT",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.user.service.UserWriteAppServiceFaultInjectionTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.user.service.UserWriteAppServiceUpdateGateTest",
+          "tests": 10,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.access.user.UserLoginRowLockPgIT",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      ]
+    },
+    {
+      "module": "example-service",
+      "totals": {
+        "tests": 53,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "suites": [
+        {
+          "class": "cn.ac.fage.accessmesh.example.controller.DemoControllerTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.example.controller.ReportControllerTest",
+          "tests": 20,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.example.controller.ReportControllerValidationTest",
+          "tests": 7,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.example.ExampleServiceApplicationTest",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.example.perm.BusinessPermCheckerTest",
+          "tests": 12,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.example.perm.ExamplePermissionPropertiesTest",
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      ]
+    },
+    {
+      "module": "perm-sdk/perm-common",
+      "totals": {
+        "tests": 53,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "suites": [
+        {
+          "class": "cn.ac.fage.accessmesh.perm.common.feign.FeignCredentialInterceptorIdentityGateTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.perm.common.feign.FeignCredentialInterceptorPathStartTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.perm.common.feign.FeignCredentialInterceptorTest",
+          "tests": 9,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtilParityTest",
+          "tests": 18,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.perm.common.util.ConditionEvalUtilsCidrGuardTest",
+          "tests": 19,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      ]
+    },
+    {
+      "module": "perm-sdk/perm-client-spring-boot-starter",
+      "totals": {
+        "tests": 29,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "suites": [
+        {
+          "class": "cn.ac.fage.accessmesh.perm.client.config.FeignCodecAssemblyWithoutWebStackTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.perm.client.config.HostFeignClientAssemblyIsolationTest",
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.perm.client.config.PermClientAutoConfigurationTest",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.perm.client.config.PermClientServletSecurityAutoConfigurationTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.perm.client.config.PermissionClientCredentialWiringTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.perm.client.feign.PermissionFeignClientContractTest",
+          "tests": 7,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.perm.client.security.GatewaySignatureFilterTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      ]
+    },
+    {
+      "module": "perm-sdk/perm-registration-spring-boot-starter",
+      "totals": {
+        "tests": 17,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "suites": [
+        {
+          "class": "cn.ac.fage.accessmesh.perm.registration.PermissionRegistrationPublisherTest",
+          "tests": 8,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.perm.registration.PermRegistrationAutoConfigurationTest",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.perm.registration.RegistrationSpringFeignHttpTest",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.perm.registration.SameSimpleNameHostClientIsolationTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      ]
+    },
+    {
+      "module": "sdk-host-probe",
+      "totals": {
+        "tests": 4,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "suites": [
+        {
+          "class": "cn.ac.fage.accessmesh.probe.HostLoggingBackendProbeTest",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.probe.HostTimezoneProbeTest",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.probe.HostWebFluxStackProbeTest",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.probe.PlatformExceptionHandlingProbeTest",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      ]
+    },
+    {
+      "module": "sdk-host-probe-log4j2",
+      "totals": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "suites": [
+        {
+          "class": "cn.ac.fage.accessmesh.probe.log4j2.HostChosenLog4j2BackendProbeTest",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      ]
+    },
+    {
+      "module": "e2e",
+      "totals": {
+        "tests": 33,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "suites": [
+        {
+          "class": "cn.ac.fage.accessmesh.e2e.BasicRoleGrantVerticalSliceE2EIT",
+          "tests": 9,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.e2e.E2eProcessSupportTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.e2e.ExampleBusinessFinalCheckE2EIT",
+          "tests": 12,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "cn.ac.fage.accessmesh.e2e.ExampleProtectedApiE2EIT",
+          "tests": 10,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      ]
+    }
+  ]
+}

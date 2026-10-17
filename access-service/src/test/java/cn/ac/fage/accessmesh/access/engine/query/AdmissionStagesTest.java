@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.engine.query;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
@@ -19,7 +21,7 @@ import cn.ac.fage.accessmesh.access.rule.service.domain.impl.PermissionCondition
 import cn.ac.fage.accessmesh.access.rule.service.domain.impl.PermissionConflictDomainServiceImpl;
 import cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomainService;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -60,7 +62,7 @@ class AdmissionStagesTest {
         when(grants.selectAdmissionCandidatesByTypeMasks(eq(1L), anySet(), anyList()))
             .thenAnswer(i -> List.copyOf(candidates));
         when(grants.selectAdmissionParentsByIds(eq(1L), anySet())).thenAnswer(i -> List.copyOf(parents));
-        ObjectMapper json = new ObjectMapper();
+        ObjectMapper json = JsonMapper.builder().configureForJackson2().build();
         var conditionService = new PermissionConditionDomainServiceImpl(conditionRows,
             mock(RoleResourcePermissionDomainService.class), json, cache);
         var conflictService = new PermissionConflictDomainServiceImpl(rules, cache, json, audit, operations, subjects);

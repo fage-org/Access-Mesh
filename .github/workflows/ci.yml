@@ -40,13 +40,27 @@ jobs:
       - name: Maven 已解析依赖扫描（包含 test/provided）
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
-        run: >-
-          mvn -B org.owasp:dependency-check-maven:12.1.9:aggregate
-          -DfailBuildOnCVSS=7.0 -DfailOnError=true
-          -DskipTestScope=false -DskipProvidedScope=false
-          -Dformats=HTML,JSON -Dodc.outputDirectory=reports/maven
-          -DnvdApiKeyEnvironmentVariable=NVD_API_KEY
-          -DossIndexAnalyzerEnabled=false -DnodeAuditAnalyzerEnabled=false
+        run: |
+          mkdir -p reports/maven
+          scan_status=0
+          mvn -B org.owasp:dependency-check-maven:12.2.2:aggregate \
+            -Dstyle.color=never -DfailBuildOnCVSS=7.0 -DfailOnError=true \
+            -DsuppressionFiles=tools/security/dependency-check-suppressions.xml \
+            -DskipTestScope=false -DskipProvidedScope=false \
+            -Dformats=HTML,JSON -Dodc.outputDirectory=reports/maven \
+            -DnvdApiKeyEnvironmentVariable=NVD_API_KEY \
+            -DossIndexAnalyzerEnabled=false -DnodeAuditAnalyzerEnabled=false \
+            > reports/maven/scan.log 2>&1 || scan_status=$?
+          cat reports/maven/scan.log
+          # Dependency Check can log individual CVE import errors and continue.
+          risk_status=0
+          node --test tools/security/check-maven-audit.test.mjs || risk_status=$?
+          node tools/security/check-maven-audit.mjs reports/maven/dependency-check-report.json || risk_status=$?
+          if grep -q '^\[ERROR\]' reports/maven/scan.log; then
+            exit 1
+          fi
+          if [ "$scan_status" -ne 0 ]; then exit "$scan_status"; fi
+          exit "$risk_status"
       - name: pnpm 锁定依赖扫描（包含开发依赖）
         if: always()
         working-directory: frontend

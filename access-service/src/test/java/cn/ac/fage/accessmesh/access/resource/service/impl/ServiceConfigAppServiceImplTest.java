@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.resource.service.impl;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigReq;
 import cn.ac.fage.accessmesh.access.resource.dto.resp.ApiMappingResp;
@@ -20,7 +22,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import org.mockito.MockedStatic;
 import static org.mockito.Mockito.mockStatic;
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -77,7 +79,7 @@ class ServiceConfigAppServiceImplTest {
         // 真实 SyncTypeGuard（validateSyncTypesExtra 不依赖 mapper）：保存边界结构校验真实生效
         //（guard 依赖的 ServiceConfigDomainService 用真实实现包 mock mapper——域服务零逻辑纯委托）
         service = new ServiceConfigAppServiceImpl(serviceConfigMapper, engine, resourceApiMappingMapper,
-                new SyncTypeGuard(new ServiceConfigDomainServiceImpl(serviceConfigMapper), new ObjectMapper()),
+                new SyncTypeGuard(new ServiceConfigDomainServiceImpl(serviceConfigMapper), JsonMapper.builder().configureForJackson2().build()),
                 resourceSyncHandler, typeResolutionService, resourceManageAppService, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class));
     }
 

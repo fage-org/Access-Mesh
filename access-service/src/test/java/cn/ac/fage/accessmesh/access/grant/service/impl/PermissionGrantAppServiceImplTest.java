@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.grant.service.impl;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.infrastructure.util.PermissionConstants;
 import cn.ac.fage.accessmesh.access.grant.dto.req.ApplyGrantPlanReq;
@@ -25,8 +27,8 @@ import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomain
 import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -84,7 +86,7 @@ class PermissionGrantAppServiceImplTest {
         service = new PermissionGrantAppServiceImpl(
             operationPermissionMapper,
             rolePermMapper, conditionDomainService, permissionGrantPlanDomainService,
-            auditDomainService, typeResolutionService, engine, new ObjectMapper(),
+            auditDomainService, typeResolutionService, engine, JsonMapper.builder().configureForJackson2().build(),
             subjectDomainService, resourceEntityDomainService,
             treeWriteLockSupport, autoGrantMaterializationDomainService, autoGrantInsightDomainService);
     }
@@ -207,7 +209,7 @@ class PermissionGrantAppServiceImplTest {
             ArgumentCaptor.forClass(List.class);
         verify(auditDomainService).recordChangeLog(any(), captor.capture());
         assertEquals(1, captor.getValue().size());
-        JsonNode snapshot = new ObjectMapper().readTree(captor.getValue().get(0).diffSnapshot());
+        JsonNode snapshot = JsonMapper.builder().configureForJackson2().build().readTree(captor.getValue().get(0).diffSnapshot());
         assertEquals("ROLE_PERMISSION_CHANGE", snapshot.path("eventType").asText());
         assertEquals(2, snapshot.path("items").size());
         JsonNode first = snapshot.path("items").get(0);

@@ -93,7 +93,7 @@ class RequestContextInterceptorTest {
             case "expired" -> claims.put("chain_exp", System.currentTimeMillis() / 1000 - 1);
             default -> throw new IllegalArgumentException(invalid);
         }
-        String jwt = cn.dev33.satoken.jwt.SaJwtUtil.createToken("oauth2", 100L, "oauth2", 3600, claims, JWT_SECRET);
+        String jwt = cn.ac.fage.accessmesh.access.infrastructure.OAuth2JwtSupport.createToken("oauth2", 100L, "oauth2", 3600, claims, JWT_SECRET);
         var req = new MockHttpServletRequest("POST", "/api/access/auth/oauth2/userinfo");
         req.addHeader("Authorization", "Bearer " + jwt);
         var resp = new MockHttpServletResponse();
@@ -522,8 +522,8 @@ class RequestContextInterceptorTest {
     @Test
     @DisplayName("评审 P1：OAuth2 JWT 签名无效（错误密钥签发）→ 401")
     void shouldReject_whenOAuth2JwtSignatureInvalid() throws Exception {
-        String jwt = cn.dev33.satoken.jwt.SaJwtUtil.createToken("oauth2", 100L, "oauth2", 3600,
-            oauth2Claims(null, null), "wrong-secret-key");
+        String jwt = cn.ac.fage.accessmesh.access.infrastructure.OAuth2JwtSupport.createToken("oauth2", 100L, "oauth2", 3600,
+            oauth2Claims(null, null), "wrong-signing-secret-at-least-32-characters");
 
         MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/auth/oauth2/userinfo");
         MockHttpServletResponse resp = new MockHttpServletResponse();
@@ -1000,7 +1000,7 @@ class RequestContextInterceptorTest {
 
     /** 以测试密钥签发 OAuth2 JWT（与拦截器验签密钥一致）。 */
     private static String jwt(Map<String, Object> claims) {
-        return cn.dev33.satoken.jwt.SaJwtUtil.createToken("oauth2", 100L, "oauth2", 3600,
+        return cn.ac.fage.accessmesh.access.infrastructure.OAuth2JwtSupport.createToken("oauth2", 100L, "oauth2", 3600,
             claims, JWT_SECRET);
     }
 

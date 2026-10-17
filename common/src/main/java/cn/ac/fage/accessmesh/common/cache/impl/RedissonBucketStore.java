@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.common.cache.CacheCatalogEntry;
 import cn.ac.fage.accessmesh.common.cache.CacheKeyUtil;
 import cn.ac.fage.accessmesh.common.cache.CacheProperties;
 import cn.ac.fage.accessmesh.common.cache.spi.DistributedCacheStore;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -36,7 +36,7 @@ import java.util.concurrent.TimeUnit;
  *
  * <h3>特性：</h3>
  * <ul>
- *   <li>JsonJacksonCodec 序列化</li>
+ *   <li>Jackson 生成 JSON 字符串，Redis 编码沿用 Redisson 默认 codec</li>
  *   <li>批量写入使用 Pipeline 提升性能</li>
  *   <li>SCAN 删除避免 KEYS 阻塞</li>
  *   <li>put(null) 静默忽略，不缓存 null</li>

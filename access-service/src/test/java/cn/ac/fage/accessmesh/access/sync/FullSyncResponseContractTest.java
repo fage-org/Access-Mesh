@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.sync;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;
@@ -28,7 +30,7 @@ import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.sync.SyncAuthVerifier;
 import cn.ac.fage.accessmesh.access.sync.SyncResultBuilder;
 import cn.ac.fage.accessmesh.access.sync.guard.SyncTypeGuard;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -128,7 +130,7 @@ class FullSyncResponseContractTest {
                 .thenReturn(Collections.emptyList());
 
         AbstractUserSyncAppServiceImpl service = new AbstractUserSyncAppServiceImpl(
-                syncMetadataDomainService, typeResolutionService, abstractUserMapper, new ObjectMapper(),
+                syncMetadataDomainService, typeResolutionService, abstractUserMapper, JsonMapper.builder().configureForJackson2().build(),
                 new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(), syncTypeGuard);
         AbstractUserFullSyncReq req = new AbstractUserFullSyncReq(
                 new AbstractUserSyncScope(SOURCE_SERVICE, "USER"),
@@ -154,7 +156,7 @@ class FullSyncResponseContractTest {
         AccessRequestContext.bind(RequestContext.service(TENANT_ID, "other-service"));
 
         AbstractUserSyncAppServiceImpl service = new AbstractUserSyncAppServiceImpl(
-                syncMetadataDomainService, typeResolutionService, abstractUserMapper, new ObjectMapper(),
+                syncMetadataDomainService, typeResolutionService, abstractUserMapper, JsonMapper.builder().configureForJackson2().build(),
                 new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(), syncTypeGuard);
         AbstractUserFullSyncReq req = new AbstractUserFullSyncReq(
                 new AbstractUserSyncScope(SOURCE_SERVICE, "USER"),
@@ -190,7 +192,7 @@ class FullSyncResponseContractTest {
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any())).thenReturn(true);
         AbstractRoleSyncAppServiceImpl service = new AbstractRoleSyncAppServiceImpl(
-                syncMetadataDomainService, typeResolutionService, abstractRoleMapper, new ObjectMapper(),
+                syncMetadataDomainService, typeResolutionService, abstractRoleMapper, JsonMapper.builder().configureForJackson2().build(),
                 new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(), syncTypeGuard,
                 subjectDomainService, fullSyncLockSupport,
                 org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService.class),
@@ -227,7 +229,7 @@ class FullSyncResponseContractTest {
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any())).thenReturn(true);
         AbstractRoleSyncAppServiceImpl service = new AbstractRoleSyncAppServiceImpl(
-                syncMetadataDomainService, typeResolutionService, abstractRoleMapper, new ObjectMapper(),
+                syncMetadataDomainService, typeResolutionService, abstractRoleMapper, JsonMapper.builder().configureForJackson2().build(),
                 new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(), syncTypeGuard,
                 subjectDomainService, fullSyncLockSupport,
                 org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService.class),
@@ -307,7 +309,7 @@ class FullSyncResponseContractTest {
         AccessRequestContext.bind(RequestContext.service(TENANT_ID, "other-service"));
 
         ResourceEntitySyncAppServiceImpl service = new ResourceEntitySyncAppServiceImpl(
-                syncMetadataDomainService, syncMetadataMapper, typeResolutionService, resourceEntityMapper, new ObjectMapper(),
+                syncMetadataDomainService, syncMetadataMapper, typeResolutionService, resourceEntityMapper, JsonMapper.builder().configureForJackson2().build(),
                 new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(), resourceTypeOwnershipGuard,
                 org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService.class),
                 org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.sync.metadata.ResourcePublicationDomainService.class), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.DependencyCompilationDomainService.class),

@@ -3,8 +3,9 @@ package cn.ac.fage.accessmesh.perm.registration;
 import cn.ac.fage.accessmesh.perm.common.dto.req.PermissionManifestReq;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;
 import cn.ac.fage.accessmesh.perm.registration.feign.PermissionManifestClient;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
 import jakarta.validation.Validator;
 import java.io.IOException;
 import java.io.InputStream;
@@ -26,8 +27,8 @@ public final class PermissionRegistrationPublisher {
         // 与现役 perm.allow-insecure 一致：声明信任域，不以静态 URL 猜测服务发现后的实际 hop。
         Objects.requireNonNull(allowInsecure, "perm.allow-insecure must be explicitly declared");
         this.client = client;
-        this.json = json.copy().enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-                .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
+        this.json = json.rebuild().enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).build();
         this.validation = new ManifestValidation(validator);
     }
 
@@ -52,7 +53,13 @@ public final class PermissionRegistrationPublisher {
 
     /** JSON 与请求 DTO 同构，文件自身携带源侧绑定的 generation；流由调用方关闭。 */
     public PermissionManifestReq read(InputStream input) throws IOException {
-        var manifest = json.readValue(input, PermissionManifestReq.class);
+        PermissionManifestReq manifest;
+        try {
+            manifest = json.readValue(input, PermissionManifestReq.class);
+        } catch (JacksonException e) {
+            // Preserve the SDK's checked read-failure contract across Jackson major versions.
+            throw new IOException("Cannot read permission manifest JSON", e);
+        }
         validation.validate(manifest);
         return manifest;
     }

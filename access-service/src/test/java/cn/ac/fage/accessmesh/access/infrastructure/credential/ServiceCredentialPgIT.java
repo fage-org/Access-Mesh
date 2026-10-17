@@ -37,7 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 由单测锁定，本 IT 聚焦存储与认证链。
  */
 @SpringBootTest
-@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
+@org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Tag("testcontainers")
 @Testcontainers(disabledWithoutDocker = true)

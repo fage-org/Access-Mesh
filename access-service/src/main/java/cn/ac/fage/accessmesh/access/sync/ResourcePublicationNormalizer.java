@@ -7,11 +7,11 @@ import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntitySyncItem;
 import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntitySyncReq;
 import cn.ac.fage.accessmesh.access.sync.metadata.SyncVersionOrder;
 import cn.ac.fage.accessmesh.common.exception.SystemException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.util.Collections;
 import java.util.Comparator;
@@ -27,8 +27,8 @@ public final class ResourcePublicationNormalizer {
     private final ObjectMapper storedJson;
     public ResourcePublicationNormalizer(ObjectMapper json) {
         this.json = json;
-        this.storedJson = json.copy().enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
-                .enable(DeserializationFeature.USE_BIG_INTEGER_FOR_INTS);
+        this.storedJson = json.rebuild().enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+                .enable(DeserializationFeature.USE_BIG_INTEGER_FOR_INTS).build();
     }
 
     public ResourceEntitySyncReq snapshot(ResourceEntitySyncReq request) {
@@ -93,7 +93,7 @@ public final class ResourcePublicationNormalizer {
         if (left.isNumber() && right.isNumber()) return left.decimalValue().compareTo(right.decimalValue()) == 0;
         if (left.isObject() && right.isObject()) {
             if (left.size() != right.size()) return false;
-            var fields = left.fields();
+            var fields = left.properties().iterator();
             while (fields.hasNext()) {
                 var field = fields.next();
                 if (!right.has(field.getKey()) || !equalValue(field.getValue(), right.get(field.getKey()))) return false;
@@ -133,7 +133,7 @@ public final class ResourcePublicationNormalizer {
         if (extra == null) return null;
         JsonNode value = json.valueToTree(extra);
         Map<String, Object> copied = new LinkedHashMap<>();
-        value.fields().forEachRemaining(entry -> copied.put(entry.getKey(), entry.getValue().deepCopy()));
+        value.properties().iterator().forEachRemaining(entry -> copied.put(entry.getKey(), entry.getValue().deepCopy()));
         return Collections.unmodifiableMap(copied);
     }
     private boolean blank(String value) { return value == null || value.isBlank(); }

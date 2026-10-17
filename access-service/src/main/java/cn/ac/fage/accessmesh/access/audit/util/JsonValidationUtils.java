@@ -1,18 +1,20 @@
 package cn.ac.fage.accessmesh.access.audit.util;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.ObjectMapper;
 
 import java.nio.charset.StandardCharsets;
 
 /** 写入 JSONB 前校验完整单根 JSON；外部字段与内部聚合快照的容量边界独立。 */
 public final class JsonValidationUtils {
     private static final int MAX_INPUT_BYTES = 64 * 1024;
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-        .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
+    private static final ObjectMapper MAPPER = JsonMapper.builder().configureForJackson2()
+        .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).build();
 
     private JsonValidationUtils() {}
 
@@ -35,7 +37,7 @@ public final class JsonValidationUtils {
         }
         try {
             MAPPER.readTree(value);
-        } catch (JsonProcessingException ex) {
+        } catch (JacksonException ex) {
             // 不回显载荷或解析器片段，避免凭据等内容进入错误响应与日志。
             throw new IllegalArgumentException("JSON 必须为完整单根合法值");
         }

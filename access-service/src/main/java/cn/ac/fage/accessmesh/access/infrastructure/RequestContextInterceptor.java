@@ -13,9 +13,6 @@ import cn.ac.fage.accessmesh.access.auth.entity.SysOauth2Client;
 import cn.ac.fage.accessmesh.access.auth.service.domain.OAuth2ClientDomainService;
 import cn.ac.fage.accessmesh.access.user.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.access.user.entity.SysUser;
-import cn.dev33.satoken.exception.SaTokenException;
-import cn.dev33.satoken.jwt.SaJwtTemplate;
-import cn.dev33.satoken.jwt.SaJwtUtil;
 import cn.dev33.satoken.stp.StpUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -211,7 +208,7 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
         }
 
         // 2.5 OAuth2 JWT 认证（2026-08-14 实现；T-ACCESS-013 白名单配置化）：
-        // 第三方 OAuth2 访问令牌（三段式 JWT，SaJwtUtil 独立签发）与平台 uuid 会话互斥。
+        // 第三方 OAuth2 访问令牌（三段式 JWT，Nimbus 独立签发）与平台 uuid 会话互斥。
         // 仅显式配置的开放路径（access.oauth2.resource-paths，默认仅 /api/access/auth/oauth2/userinfo）
         // 走本分支，其余路径委托令牌默认拒绝（落到会话分支 → 401）；
         // 开放路径不得覆盖平台会话端点（启动防护 fail-fast）；内部凭证路径重叠防护已随
@@ -406,7 +403,7 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
     }
 
     /**
-     * OAuth2 JWT 认证（2026-08-14 用户决策限定路径）：SaJwtUtil 验签
+     * OAuth2 JWT 认证（2026-08-14 用户决策限定路径）：Nimbus 验签
      * （HS256 + loginType 匹配 + 超时）→ 撤销黑名单检查 → 绑定 USER 上下文
      * （operatorId=JWT loginId、tenantId=JWT 载荷）。验签失败/黑名单命中 → 401。
      * 仅对显式配置的开放路径（access.oauth2.resource-paths，默认仅 /api/access/auth/oauth2/userinfo）
@@ -430,19 +427,18 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
             writeJson(response, HttpServletResponse.SC_UNAUTHORIZED, "认证失败");
             return false;
         }
-        // 评审 P2：SaJwtUtil 返回 hutool JSONObject（LinkedHashMap 子类），
-        // 一律以 Map 接收，hutool 类型不进入业务代码（AGENTS.md 禁止 Hutool）。
+        // 验签后的载荷以 Map 接收，租户/客户端/撤销与代际校验保持独立。
         Map<String, Object> payloads;
         try {
-            // getPayloads 校验签名 + loginType + 超时，失败抛 SaTokenException
-            payloads = SaJwtUtil.getPayloads(token, OAuth2JwtSupport.LOGIN_TYPE, jwtSecretKey);
-        } catch (SaTokenException e) {
+            // getPayloads 校验签名 + loginType + 超时，失败抛 SecurityException
+            payloads = OAuth2JwtSupport.getPayloads(token, OAuth2JwtSupport.LOGIN_TYPE, jwtSecretKey);
+        } catch (SecurityException e) {
             logSecurity(request, "oauth2 jwt signature or timeout invalid");
             writeJson(response, HttpServletResponse.SC_UNAUTHORIZED, "认证失败");
             return false;
         }
 
-        Object loginIdObj = payloads.get(SaJwtTemplate.LOGIN_ID);
+        Object loginIdObj = payloads.get(OAuth2JwtSupport.LOGIN_ID_CLAIM);
         Object jtiObj = payloads.get(OAuth2JwtSupport.JTI_CLAIM);
         Object clientIdObj = payloads.get(OAuth2JwtSupport.CLIENT_ID_CLAIM);
         if (loginIdObj == null || jtiObj == null || clientIdObj == null

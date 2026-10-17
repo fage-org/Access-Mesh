@@ -6,6 +6,8 @@
 
 ## 本地构建与 CI
 
+后端使用 Java 21、Spring Boot 4.0.8 / Cloud 2025.1.3 / Alibaba 2025.1.0.0；自有 JSON 链路采用 Jackson 3，保持既有 wire format。Redisson 4.8.0 明确选用 Spring Data Redis 4.0 适配器，测试采用 JUnit 6 / Testcontainers 2。Nacos 服务端仍为 2.3.2，客户端 3.1.1 的注册发现与配置读写已独立验证；具体回归和扫描证据见 [T-ACCESS-105](../tasks/evidence/T-ACCESS-105/maven-remediation.md)。前后端安全扫描通过须同时满足高危门禁与[明确批准例外](../../.claude/rules/security-standards.md#6-依赖安全扫描)的范围限制，不等同于漏洞清零。
+
 本地构建改动上游 API 时使用 `pwsh -File tools/build.ps1 access-service`（PowerShell），或在仓库根执行 `mvn install -pl access-service -am -DskipTests`。目标模块及全部 reactor 上游一起 install，后续局部启动不会拿到旧 SNAPSHOT；`mvn compile -pl access-service` 不满足这一点。脚本参数是模块相对目录，拒绝仓外路径和无 pom 的目录。测试仍按 AGENTS.md 的单测/收口轨道分别运行。
 
 CI 为后端单测与收口测试记录实际耗时到 job summary，失败仍保持 Maven 退出码；目前不自动比较阈值。PR/手动触发跑完整容器与 E2E，push 保留单测并新增前端全部门禁。此安排避免同一次 push + PR 重复执行长容器组；若需要受保护分支的逐提交完整验证，再根据实际漏检事件或发布要求调整触发规则，本次不增加重复 job。

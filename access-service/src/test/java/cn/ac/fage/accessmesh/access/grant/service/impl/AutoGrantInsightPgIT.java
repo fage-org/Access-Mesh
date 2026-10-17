@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
@@ -86,7 +86,7 @@ class AutoGrantInsightPgIT {
     @Autowired private ResourceEntitySyncAppService resources;
     @Autowired private AutoGrantReconcileDomainService reconcile;
     @Autowired private JdbcTemplate jdbc;
-    @SpyBean private QueryGate engine;
+    @MockitoSpyBean private QueryGate engine;
 
     @BeforeEach void allowManagement() {
         doReturn(true).when(engine).hasPermissionByCode(anyLong(), any(), anyString(), any(), anyString());

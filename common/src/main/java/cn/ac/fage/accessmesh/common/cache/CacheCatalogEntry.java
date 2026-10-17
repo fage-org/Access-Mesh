@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.common.cache;
 
-import com.fasterxml.jackson.databind.JavaType;
+import tools.jackson.databind.JavaType;
 import lombok.Builder;
 import lombok.Getter;
 

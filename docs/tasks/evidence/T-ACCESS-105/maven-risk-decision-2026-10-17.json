@@ -1,0 +1,14 @@
+{
+  "acceptedRisks": [
+    {
+      "cve": "CVE-2026-54399",
+      "file": "docker-java-transport-zerodep-3.7.1.jar (shaded: org.apache.httpcomponents.core5:httpcore5:5.3.6)",
+      "references": [
+        "Access Service:test",
+        "E2E Tests:test"
+      ]
+    }
+  ],
+  "checkedAt": "2026-10-17T04:51:03.064Z",
+  "metadataUrl": "https://repo.maven.apache.org/maven2/com/github/docker-java/docker-java-transport-zerodep/maven-metadata.xml"
+}

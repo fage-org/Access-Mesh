@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.engine.service.impl;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.perm.common.dto.req.AuthCheckReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq;
 import cn.ac.fage.accessmesh.access.engine.dto.BatchAuthCheckResp;
@@ -259,7 +261,7 @@ class PermissionCheckAppServiceImplTest {
             List.of(new BatchAuthCheckReq.AuthCheckItem("REPORT", "report:1", "VIEW", null, null, null)),
             null, null, null, null, Map.of()));
         assertEquals(conditional, single.conditionEvaluated());
-        var itemJson = new com.fasterxml.jackson.databind.ObjectMapper().valueToTree(batch.items().getFirst());
+        var itemJson = JsonMapper.builder().configureForJackson2().build().valueToTree(batch.items().getFirst());
         assertTrue(itemJson.path("conditionEvaluated").isBoolean());
         assertEquals(conditional, itemJson.path("conditionEvaluated").booleanValue());
         assertEquals(single.reason(), batch.items().getFirst().reason());

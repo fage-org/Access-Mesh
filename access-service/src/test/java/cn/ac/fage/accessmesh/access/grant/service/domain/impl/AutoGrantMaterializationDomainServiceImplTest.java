@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.grant.service.domain.impl;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
@@ -9,7 +11,7 @@ import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomain
 import cn.ac.fage.accessmesh.access.role.entity.AbstractRole;
 import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService;
 import cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomainService;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -55,7 +57,7 @@ class AutoGrantMaterializationDomainServiceImplTest {
     void setUp() {
         service = new AutoGrantMaterializationDomainServiceImpl(rolePermissionMapper, derivation,
             compilation, subjectDomainService, resourceEntities, operations,
-            conditionDomainService, auditDomainService, new ObjectMapper());
+            conditionDomainService, auditDomainService, JsonMapper.builder().configureForJackson2().build());
     }
 
     @Test

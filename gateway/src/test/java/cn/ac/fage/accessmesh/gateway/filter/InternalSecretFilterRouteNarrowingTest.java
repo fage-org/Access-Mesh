@@ -11,12 +11,15 @@ import org.springframework.cloud.gateway.support.ServerWebExchangeUtils;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.server.ServerWebExchange;
+import org.mockito.ArgumentCaptor;
 import reactor.core.publisher.Mono;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 
 /**
  * 内部密钥注入按路由目的收窄回归锁（T-GW-014）：仅实际路由目的为 access-service
@@ -37,7 +40,7 @@ class InternalSecretFilterRouteNarrowingTest {
     }
 
     /** 构造带路由属性的交换对象并驱动过滤器；routeUri 为 null 表示不设置路由属性。 */
-    private MockServerWebExchange run(String routeId, String routeUri) {
+    private ServerWebExchange run(String routeId, String routeUri) {
         MockServerWebExchange exchange = MockServerWebExchange.from(
             MockServerHttpRequest.post("/api/access/role/list").build());
         if (routeUri != null) {
@@ -48,34 +51,36 @@ class InternalSecretFilterRouteNarrowingTest {
         GatewayFilterChain chain = mock(GatewayFilterChain.class);
         when(chain.filter(any())).thenReturn(Mono.empty());
         filter.filter(exchange, chain).block();
-        return exchange;
+        ArgumentCaptor<ServerWebExchange> forwarded = ArgumentCaptor.forClass(ServerWebExchange.class);
+        verify(chain).filter(forwarded.capture());
+        return forwarded.getValue();
     }
 
     @Test
     @DisplayName("路由目的 access-service → 注入（平台内部互信保持）")
     void shouldInject_whenRoutedToAccessService() {
-        MockServerWebExchange exchange = run("access-service", "lb://access-service");
+        ServerWebExchange exchange = run("access-service", "lb://access-service");
         assertThat(exchange.getRequest().getHeaders().getFirst("X-Internal-Secret")).isEqualTo(SECRET);
     }
 
     @Test
     @DisplayName("同入口、路由目的 example-service → 不注入（密钥不出平台信任域；旧实现下本断言失败）")
     void shouldNotInject_whenRoutedToOtherDownstream() {
-        MockServerWebExchange exchange = run("example-service", "lb://example-service");
+        ServerWebExchange exchange = run("example-service", "lb://example-service");
         assertThat(exchange.getRequest().getHeaders().getFirst("X-Internal-Secret")).isNull();
     }
 
     @Test
     @DisplayName("路由属性缺失（未经路由解析的调用）→ 不注入（fail-closed）")
     void shouldNotInject_whenRouteAttributeMissing() {
-        MockServerWebExchange exchange = run(null, null);
+        ServerWebExchange exchange = run(null, null);
         assertThat(exchange.getRequest().getHeaders().getFirst("X-Internal-Secret")).isNull();
     }
 
     @Test
     @DisplayName("判据=路由 URI host（实际转发目的），与 route id 无关 → id 任意而目的为 access-service 仍注入")
     void shouldInject_judgedByRouteUriHostNotRouteId() {
-        MockServerWebExchange exchange = run("admin-legacy-route", "lb://access-service");
+        ServerWebExchange exchange = run("admin-legacy-route", "lb://access-service");
         assertThat(exchange.getRequest().getHeaders().getFirst("X-Internal-Secret")).isEqualTo(SECRET);
     }
 }

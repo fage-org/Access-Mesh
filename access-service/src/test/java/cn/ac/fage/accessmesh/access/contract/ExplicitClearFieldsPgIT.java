@@ -80,7 +80,7 @@ class ExplicitClearFieldsPgIT {
     @Autowired
     private JdbcTemplate jdbc;
     // 本类验证持久化；管理轨门禁独立由安全矩阵覆盖。
-    @org.springframework.boot.test.mock.mockito.MockBean
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
     private cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator adminPermissionValidator;
     @Autowired
     private cn.ac.fage.accessmesh.access.platform.service.SystemConfigAppService systemConfigs;

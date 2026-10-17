@@ -54,7 +54,7 @@ services:
       retries: 12
 
   # standalone 模式（内嵌 derby 存储，开发够用）；8848 HTTP/控制台 + 9848 gRPC
-  # （spring-cloud-alibaba 2023.0.1.0 对应 nacos client 2.3.x 需要 gRPC 端口）
+  # （当前 nacos client 3.1.1 兼容本机 2.3.2 服务端，仍 需要 gRPC 端口）
   nacos:
     image: nacos/nacos-server:v2.3.2
     container_name: accessmesh-nacos

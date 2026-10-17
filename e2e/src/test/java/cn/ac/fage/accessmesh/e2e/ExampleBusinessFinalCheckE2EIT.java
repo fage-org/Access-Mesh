@@ -1,11 +1,13 @@
 package cn.ac.fage.accessmesh.e2e;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.e2e.E2eProcessSupport.ServiceHandle;
 import static cn.ac.fage.accessmesh.e2e.E2eProcessSupport.filterOutTestClasses;
 import static cn.ac.fage.accessmesh.e2e.E2eProcessSupport.freePort;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.api.StatefulRedisConnection;
@@ -18,7 +20,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
@@ -94,7 +96,7 @@ class ExampleBusinessFinalCheckE2EIT {
     private static final Duration STALE_WINDOW = Duration.ofSeconds(30);
 
     @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:16-alpine")
         .withDatabaseName("access_db")
         .withUsername("postgres")
         .withPassword("postgres");
@@ -109,7 +111,7 @@ class ExampleBusinessFinalCheckE2EIT {
     private static final HttpClient HTTP = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(5))
         .build();
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMapper.builder().configureForJackson2().build();
 
     private static ServiceHandle accessService;
     private static ServiceHandle gatewayService;
@@ -232,7 +234,7 @@ class ExampleBusinessFinalCheckE2EIT {
             .as("七条路由映射必须创建成功，响应：" + syncResp).isEqualTo(7);
     }
 
-    private static com.fasterxml.jackson.databind.node.ObjectNode api(String name, String method, String path, String op) {
+    private static tools.jackson.databind.node.ObjectNode api(String name, String method, String path, String op) {
         return JSON.createObjectNode()
             .put("name", name)
             .put("httpMethod", method)
@@ -485,7 +487,7 @@ class ExampleBusinessFinalCheckE2EIT {
     // 授权/撤权辅助（apply-grant-plan 唯一写入口）
     // ------------------------------------------------------------------
 
-    private static com.fasterxml.jackson.databind.node.ObjectNode grantKey(
+    private static tools.jackson.databind.node.ObjectNode grantKey(
             String op, String scopeMode, String resourceCode) {
         var key = JSON.createObjectNode();
         key.put("resourceTypeCode", TYPE);
@@ -504,12 +506,12 @@ class ExampleBusinessFinalCheckE2EIT {
             grantPlan(List.of(grantKey(op, scopeMode, resourceCode)), List.of()));
     }
 
-    private static com.fasterxml.jackson.databind.node.ObjectNode grantPlan(
-            List<com.fasterxml.jackson.databind.node.ObjectNode> creates,
+    private static tools.jackson.databind.node.ObjectNode grantPlan(
+            List<tools.jackson.databind.node.ObjectNode> creates,
             List<Long> removes) {
         var plan = JSON.createObjectNode();
         var createsArr = JSON.createArrayNode();
-        for (com.fasterxml.jackson.databind.node.ObjectNode key : creates) {
+        for (tools.jackson.databind.node.ObjectNode key : creates) {
             var item = JSON.createObjectNode();
             item.set("key", key);
             createsArr.add(item);
@@ -782,7 +784,7 @@ class ExampleBusinessFinalCheckE2EIT {
             "--spring.cloud.nacos.discovery.enabled=false",
             "--accessmesh.sync.scheduler.enabled=false",
             "--file.storage.path=" + Path.of("files").toAbsolutePath(),
-            "--spring.cloud.gateway.enabled=false",
+            "--spring.cloud.gateway.server.webflux.enabled=false",
             "--spring.autoconfigure.exclude=org.springframework.cloud.gateway.config.GatewayRedisAutoConfiguration,"
                 + "org.springframework.cloud.gateway.config.GatewayClassPathWarningAutoConfiguration,"
                 + "org.springframework.cloud.gateway.discovery.GatewayDiscoveryClientAutoConfiguration,"
@@ -819,7 +821,7 @@ class ExampleBusinessFinalCheckE2EIT {
             "--spring.cloud.nacos.config.enabled=false",
             "--spring.cloud.nacos.config.import-check.enabled=false",
             "--spring.cloud.nacos.discovery.enabled=false",
-            "--spring.cloud.gateway.enabled=false",
+            "--spring.cloud.gateway.server.webflux.enabled=false",
             "--example.export.delay-ms=" + EXPORT_DELAY_MS,
             "--spring.cloud.discovery.client.simple.instances.access-service[0].uri=http://localhost:" + accessPort,
             "--spring.autoconfigure.exclude=org.springframework.cloud.gateway.config.GatewayRedisAutoConfiguration,"
@@ -833,11 +835,11 @@ class ExampleBusinessFinalCheckE2EIT {
                 + "org.springframework.cloud.gateway.config.GatewayMetricsAutoConfiguration,"
                 + "org.springframework.cloud.gateway.config.GatewayResilience4JCircuitBreakerAutoConfiguration,"
                 + "cn.dev33.satoken.reactor.spring.SaTokenContextRegister,"
-                + "org.redisson.spring.starter.RedissonAutoConfigurationV2,"
+                + "org.redisson.spring.starter.RedissonAutoConfigurationV4,"
                 + "cn.ac.fage.accessmesh.common.cache.RedissonCacheAutoConfiguration,"
-                + "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,"
-                + "org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration,"
-                + "com.mybatisflex.spring.boot.MybatisFlexAutoConfiguration");
+                + "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,"
+                + "org.springframework.boot.jdbc.autoconfigure.JdbcTemplateAutoConfiguration,"
+                + "com.mybatisflex.spring.boot.v4.MybatisFlexAutoConfiguration");
     }
 
     private static List<String> gatewayArgs(int port, int managementPort, int accessPort, int examplePort) {
@@ -852,12 +854,15 @@ class ExampleBusinessFinalCheckE2EIT {
             "--spring.cloud.nacos.config.enabled=false",
             "--spring.cloud.nacos.config.import-check.enabled=false",
             "--spring.cloud.nacos.discovery.enabled=false",
-            "--spring.autoconfigure.exclude=org.redisson.spring.starter.RedissonAutoConfigurationV2,"
+            // The shared E2E classpath contains Tomcat; production Gateway uses Netty only.
+            "--spring.autoconfigure.exclude=org.springframework.boot.tomcat.autoconfigure.reactive.TomcatReactiveWebServerAutoConfiguration,"
+                + "org.springframework.boot.tomcat.autoconfigure.actuate.web.server.TomcatReactiveManagementContextAutoConfiguration,"
+                + "org.redisson.spring.starter.RedissonAutoConfigurationV4,"
                 + "cn.ac.fage.accessmesh.common.cache.RedissonCacheAutoConfiguration,"
                 + "cn.dev33.satoken.spring.SaTokenContextRegister,"
-                + "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,"
-                + "org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration,"
-                + "com.mybatisflex.spring.boot.MybatisFlexAutoConfiguration",
+                + "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,"
+                + "org.springframework.boot.jdbc.autoconfigure.JdbcTemplateAutoConfiguration,"
+                + "com.mybatisflex.spring.boot.v4.MybatisFlexAutoConfiguration",
             "--spring.cloud.discovery.client.simple.instances.access-service[0].uri=http://localhost:" + accessPort,
             "--spring.cloud.discovery.client.simple.instances.example-service[0].uri=http://localhost:" + examplePort,
             "--perm.client.enabled=false");
@@ -983,7 +988,7 @@ class ExampleBusinessFinalCheckE2EIT {
     private static JsonNode parseEnvelope(EnvelopeResult r) {
         try {
             return JSON.readTree(r.rawBody());
-        } catch (IOException e) {
+        } catch (tools.jackson.core.JacksonException e) {
             throw new IllegalStateException("响应不是合法 JSON：" + r.rawBody(), e);
         }
     }
@@ -1011,7 +1016,7 @@ class ExampleBusinessFinalCheckE2EIT {
         JsonNode envelope;
         try {
             envelope = JSON.readTree(raw);
-        } catch (IOException e) {
+        } catch (tools.jackson.core.JacksonException e) {
             throw new IllegalStateException("响应不是合法 JSON: " + raw, e);
         }
         assertThat(envelope.path("code").asInt())

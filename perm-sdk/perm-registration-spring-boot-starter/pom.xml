@@ -24,5 +24,10 @@
         </dependency>
         <!-- 测试域后端=全局 spring-boot-starter-test 携带的 Logback（单 Provider；
              SDK 库模块测试绑定宿主式默认后端，平台应用运行形态仍统一 Log4j2） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-jackson</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 </project>

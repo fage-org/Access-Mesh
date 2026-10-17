@@ -1,8 +1,8 @@
 package cn.ac.fage.accessmesh.gateway.handler;
 
 import cn.ac.fage.accessmesh.gateway.model.GatewayResponse;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.annotation.Order;
@@ -111,7 +111,7 @@ public class GlobalExceptionHandler implements WebExceptionHandler {
                     log.error("Failed to write error response", e);
                     return response.setComplete();
                 });
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             log.error("Failed to serialize error response", e);
             return response.setComplete();
         }

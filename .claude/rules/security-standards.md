@@ -164,7 +164,7 @@ public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
 **MUST** CI 管道集成依赖安全扫描。
 
-现行入口为 `.github/workflows/ci.yml` 的 `dependency-security` job（push / PR / 手动 / 每周一 02:00 UTC）。Maven 先解析并安装 reactor 依赖，再用固定 `org.owasp:dependency-check-maven:12.1.9:aggregate` 扫描，JDK 21，包含 test/provided，`failBuildOnCVSS=7.0`、`failOnError=true`；NVD API key 可通过仓库 secret `NVD_API_KEY` 加速，没有 key 不豁免扫描失败。OSS Index 补充源关闭以避免依赖另一个账户认证，Maven CVE 主检查使用 NVD；前端由 pnpm 单独扫描，不使用 Dependency Check 的 Node 审计适配器。
+现行入口为 `.github/workflows/ci.yml` 的 `dependency-security` job（push / PR / 手动 / 每周一 02:00 UTC）。Maven 先解析并安装 reactor 依赖，再用固定 `org.owasp:dependency-check-maven:12.2.2:aggregate` 扫描，JDK 21，包含 test/provided，`failBuildOnCVSS=7.0`、`failOnError=true`；NVD API key 可通过仓库 secret `NVD_API_KEY` 加速，没有 key 不豁免扫描失败。12.2.2 修复 NVD 参考链接超出旧数据库 URL 字段长度时的导入错误；出现逐条 CVE 导入错误时，即使工具继续运行也不能视为完整数据验收。OSS Index 补充源关闭以避免依赖另一个账户认证，Maven CVE 主检查使用 NVD；前端由 pnpm 单独扫描，不使用 Dependency Check 的 Node 审计适配器。
 
 前端固定 pnpm 11.5.0，按锁文件安装后执行 `pnpm audit --audit-level high --json`，包括生产与开发依赖；保留原始报告，再经 `tools/security/check-pnpm-audit.mjs` 执行高危门禁和下述唯一例外判断。不忽略 registry 错误或泛化豁免无修复版本。新增 Actions 固定到经标签核实的 commit SHA，报告即使失败也上传并保留 30 天。扫描失败、未执行、漏洞阻断与批准例外须分别报告；存量依赖修复由 T-ACCESS-105 承接，不以关闭扫描、调低门槛或未批准的忽略项获得绿色。
 
@@ -176,6 +176,25 @@ public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
 工具参数依据：[Dependency Check Maven](https://dependency-check.github.io/DependencyCheck/dependency-check-maven/configuration.html)、[pnpm audit](https://pnpm.io/cli/audit)。
 
+### Maven 精确误报排除
+
+2026-10-17 用户批准（T-ACCESS-105）：`tools/security/dependency-check-suppressions.xml` 仅排除以下已核实不适用的匹配，原始报告及核实依据见 [Maven 证据](../../docs/tasks/evidence/T-ACCESS-105/maven-remediation.md)。这不是接受可利用漏洞，不按整个 CPE 或严重等级忽略。
+
+| 限定对象 | CVE | 不适用依据 |
+|---|---|---|
+| `com.mybatis-flex` 的 core、spring、codegen、annotation、processor、spring-boot-starter、spring-boot4-starter 七个 `mybatis-flex-*` 包，固定 1.11.8 | CVE-2023-25330、CVE-2020-26945 | 前者针对 MyBatis-Plus，后者针对 MyBatis <3.5.6；实际 MyBatis 为 3.5.19，不把 Flex 版本当作 MyBatis 版本 |
+| `com.alibaba.nacos:logback-adapter:1.1.4` | CVE-2021-29441、CVE-2021-29442、CVE-2021-43116 | 仅日志适配包，不含公告涉及的 Nacos 服务端认证过滤器、控制台或 ConfigOpsController |
+| `docker-java-transport-zerodep:3.7.1` JAR 内嵌 HttpClient 的精确路径 | CVE-2026-71290 | Docker 传输使用 Classic 同步客户端；Apache 公告明确其不受该异步客户端漏洞影响。普通 HttpClient 依赖不排除 |
+| 同一 Docker JAR 内嵌 httpcore5 / httpcore5-h2 5.3.6 的精确路径 | CVE-2026-54428 | 实际使用 Classic HTTP/1.1，不走该公告涉及的 HTTP/2 HPACK 解码链 |
+
+组件或版本变化时重新核实；Docker 传输调用方式变化时必须重新核实并撤回不再成立的排除。其他 CVE 仍按阈值阻断，保留原始及排除后报告，不能把排除规则扩展到未来版本或其他组件。
+
+### Docker 测试依赖临时风险例外
+
+2026-10-17 用户批准（T-ACCESS-105）：仅接受 `docker-java-transport-zerodep:3.7.1` JAR 内嵌 HttpCore 5.3.6 的 **CVE-2026-54399**，范围为 Access Service / E2E Tests 的 test 依赖、连接可信 Docker 基础设施。此 HTTP/1.1 头资源耗尽漏洞真实存在，不能归为误报；普通 HttpCore 已升级，排除不覆盖普通依赖或生产链路。
+
+XML 规则限定内嵌路径和 CVE，`tools/security/check-maven-audit.mjs` 从原始报告核对版本及全部 projectReferences，缺失或超出上述测试范围即阻断；查询 Maven Central，当出现更新的 docker-java 正式版即阻断并要求复核其修复情况，查询失败也不放行。原始报告与风险判定报告一起保存。上游修复、生产路径或不可信 Docker/代理接入时撤回例外并重新处理；连接可信性须在环境配置变更评审中核实，不由 artifact 版本推断。修复后删除对应规则及专用门禁。
+
 要求：
 - **高危漏洞阻断**: CVSS ≥ 7.0 必须修复后方可合并；仅允许本节明确批准、范围可核对的临时例外
 - **定期扫描**: 每周全量扫描，新漏洞及时告警
@@ -185,6 +204,7 @@ public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
 **MUST** 网关清洗外部 `X-Forwarded-For` / `X-Real-IP`（头名匹配大小写不敏感，RFC 7230），并以自身观测的 `remoteAddr` 重建 `X-Forwarded-For` 写回下游——客户端可伪造的 IP 头声明一律不采信（T-GW-008，2026-09-10 定案；实现见 `docs/design/services/gateway.md` §请求头清洗与客户端 IP 重建）。`X-Forwarded-Host/Port/Proto/Prefix` 与 `Forwarded` 同在清洗列表（可伪造转发声明）。
 
+- **出站最终重建**：Gateway 5 的框架头清理之后，`ClientIpHeadersFilter` 在出站过滤链末位仅从 socket 对端重建单值 XFF；没有对端地址则移除 XFF。不得为保留 XFF 而启用客户端代理声明信任。入口清洗与出站重建共同维持上述既有来源契约。
 - **网关自身条件评估直用 remoteAddr**：`PermissionFilter` 做 IP_WHITELIST / IP_BLACKLIST 评估时直接取 socket 层 remoteAddr，不读任何请求头——即使清洗配置被误删，网关侧评估也不复活伪造面。
 - **下游统一消费重建值**：access-service 门禁条件评估与操作/登录日志消费网关重建后的 XFF（值=网关观测的直连对端 IP）；下游服务不得自行采信外部 XFF / X-Real-IP 声明。
 - **多层 LB / nginx / CDN 拓扑部署前提**：网关观测到的是**代理出口 IP**，按真实客户端 IP 的黑白名单在此类拓扑下不工作（所有客户端同呈一个代理 IP）。要么 IP 条件改配代理出口网段（粒度变粗），要么把按真实客户端 IP 的过滤上移到最外层可信设施（nginx/WAF）；需要网关层精确采信真实客户端 IP 须重启已弃的 trusted-proxies 设计（另立项，定案见 [历史定案原文](../../docs/archive/2026-09-26/decision-registry-before.md) 2026-09-10）。

@@ -1,8 +1,10 @@
 package cn.ac.fage.accessmesh.access.contract;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.user.dto.resp.UserPageItemResp;
 import cn.ac.fage.accessmesh.access.user.dto.resp.UserResp;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -26,7 +28,7 @@ class UserOrgTypeWireTest {
         var value = type.getDeclaredConstructor(Arrays.stream(fields)
             .map(RecordComponent::getType).toArray(Class<?>[]::new))
             .newInstance(1L, "岗位", orgType, false);
-        var json = new ObjectMapper().valueToTree(value);
+        var json = JsonMapper.builder().configureForJackson2().build().valueToTree(value);
         assertThat(json.path("orgType").isIntegralNumber()).isTrue();
         assertThat(json.path("orgType").intValue()).isEqualTo(2);
     }

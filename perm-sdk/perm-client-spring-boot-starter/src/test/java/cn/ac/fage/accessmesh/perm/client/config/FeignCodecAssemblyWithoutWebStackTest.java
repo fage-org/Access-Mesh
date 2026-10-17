@@ -1,9 +1,11 @@
 package cn.ac.fage.accessmesh.perm.client.config;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.perm.client.feign.PermissionFeignClient;
 import cn.ac.fage.accessmesh.perm.common.dto.req.AuthCheckReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.InterfaceAdmissionSnapshotReq;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import feign.Request;
 import feign.Response;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,21 +28,9 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * SDK Feign 编解码装配回归锁（codex sol r2 P2-4）：宿主不带 Web 栈（WebFlux 宿主
- * 无 HttpMessageConverters bean、无 Web 宿主无 jsr310 模块）时，SDK 客户端的
- * JSON 编解码必须自洽。
- * <p>
- * 背景：common 的 Web 栈传递退役（T-ACCESS-100）后，spring-cloud-openfeign 默认
- * SpringEncoder/SpringDecoder 依赖的 {@code HttpMessageConverters} bean 不再由
- * 传递的 Servlet 栈兜底——{@code SpringEncoder.initConvertersIfRequired} 字节码
- * 实证直接 {@code ObjectFactory.getObject()}，无 bean 即
- * {@code NoSuchBeanDefinitionException}；jackson-datatype-jsr310 亦随 starter-web
- * 退出闭包（{@code InterfaceAdmissionSnapshotResp.generatedAt} 等时间字段无法
- * 编解码）。修复：{@code PermFeignClientsConfiguration} 在权限客户端子上下文提供
- * {@code @ConditionalOnMissingBean} 的 HttpMessageConverters（专属 ObjectMapper
- * + jsr310，宿主已有（Servlet 宿主）时复用宿主的）。本测试宿主上下文刻意不带
- * converters 自动配置=WebFlux/无 Web 宿主形态。
- * </p>
+ * SDK Feign 编解码装配回归：无 Servlet/WebFlux 运行栈时，子上下文的 JSON 编解码自洽。
+ * Cloud 5 的客户端转换器通过 PermFeignClientsConfiguration 的局部 customizer 配置；
+ * Jackson 3 内建 Java time 支持，不向宿主创建全局 mapper 或引入 Web 运行栈。
  */
 class FeignCodecAssemblyWithoutWebStackTest {
 
@@ -96,7 +86,7 @@ class FeignCodecAssemblyWithoutWebStackTest {
             assertThat(CAPTURED).hasSize(1);
             String body = new String(CAPTURED.get(0).body(), StandardCharsets.UTF_8);
             assertThat(body).contains("\"subjectTypeCode\":\"LOCAL_USER\"");
-            // 解码路径：LocalDateTime（generatedAt）经 jsr310 反序列化
+            // 解码路径：LocalDateTime（generatedAt）经 Jackson 3 内建时间支持反序列化
             var snapshot = client.interfaceAdmissionSnapshot(
                 new InterfaceAdmissionSnapshotReq("LOCAL_USER", "u-1", "reports"));
             assertThat(snapshot).isNotNull();
@@ -111,7 +101,7 @@ class FeignCodecAssemblyWithoutWebStackTest {
     /** 契约形态钉死：响应壳 R 与快照字段名与后端序列化一致（防止测试桩与契约漂移）。 */
     @Test
     void snapshotStubMatchesContractShape() throws Exception {
-        var node = new ObjectMapper().readTree(SNAPSHOT_JSON);
+        var node = JsonMapper.builder().configureForJackson2().build().readTree(SNAPSHOT_JSON);
         assertThat(node.path("data").path("generatedAt").isTextual()).isTrue();
         assertThat(node.path("data").path("expiresAt").isTextual()).isTrue();
     }

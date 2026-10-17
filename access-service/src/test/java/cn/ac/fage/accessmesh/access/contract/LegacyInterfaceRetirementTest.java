@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.contract;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.engine.controller.PermAuthController;
 import cn.ac.fage.accessmesh.access.engine.service.PermissionAdmissionAppService;
 import cn.ac.fage.accessmesh.access.engine.service.PermissionCheckAppService;
@@ -8,8 +10,8 @@ import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigReq;
 import cn.ac.fage.accessmesh.access.resource.controller.ServiceConfigController;
 import cn.ac.fage.accessmesh.access.resource.service.ServiceConfigAppService;
 import cn.ac.fage.accessmesh.access.resource.service.ServiceSyncAppService;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.exc.UnrecognizedPropertyException;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -41,7 +43,7 @@ class LegacyInterfaceRetirementTest {
 
     @Test
     void shouldRejectRemovedModeField_whenSavingServiceConfiguration() {
-        assertThatThrownBy(() -> new ObjectMapper().readValue("""
+        assertThatThrownBy(() -> JsonMapper.builder().configureForJackson2().build().readValue("""
             {"serviceCode":"example-service","name":"Example","apiAuthMode":"LEGACY_API"}
             """, ServiceConfigReq.class)).isInstanceOf(UnrecognizedPropertyException.class);
     }

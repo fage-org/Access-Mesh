@@ -1,9 +1,11 @@
 package cn.ac.fage.accessmesh.access.characterization;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.it.ItInfra;
 import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -82,7 +84,7 @@ class GoldenFixturePgIT {
     @Autowired
     private JdbcTemplate jdbc;
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = JsonMapper.builder().configureForJackson2().build();
     private int nextTypeValue = TYPE_VALUE_BASE;
     private long nextSubjectId = SUBJECT_ID_BASE;
 

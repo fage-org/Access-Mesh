@@ -20,8 +20,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -91,11 +91,11 @@ class MenuWritePostgresIT {
     private JdbcTemplate jdbcTemplate;
 
     /** 门禁 mock（void 方法默认通过）：写链路验证不依赖操作者权限数据。 */
-    @MockBean
+    @MockitoBean
     private AdminPermissionValidator permissionValidator;
 
     /** 领域层 spy：并发窗口用例让唯一性预查失效，其余真实。 */
-    @SpyBean
+    @MockitoSpyBean
     private MenuDomainService menuDomainService;
 
     @BeforeEach

@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.dev33.satoken.SaManager;
 import cn.dev33.satoken.config.SaTokenConfig;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.LoggerContext;
@@ -16,11 +16,11 @@ import org.mockito.Mockito;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
-import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
-import org.springframework.boot.env.EnvironmentPostProcessor;
+import org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration;
+import org.springframework.boot.EnvironmentPostProcessor;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
@@ -60,7 +60,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
     "spring.cloud.nacos.discovery.enabled=false",
     // 定时任务隔离：关闭会查空库的调度器，避免污染后续测试
     // 排除 Redis/Nacos 自动配置
-    "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration,org.redisson.spring.starter.RedissonAutoConfigurationV2,com.alibaba.cloud.nacos.NacosConfigAutoConfiguration,com.alibaba.cloud.nacos.NacosDiscoveryAutoConfiguration,com.alibaba.cloud.nacos.discovery.NacosDiscoveryClientConfiguration",
+    "spring.autoconfigure.exclude=org.springframework.boot.data.redis.autoconfigure.DataRedisAutoConfiguration,org.springframework.boot.data.redis.autoconfigure.DataRedisRepositoriesAutoConfiguration,org.redisson.spring.starter.RedissonAutoConfigurationV4,com.alibaba.cloud.nacos.NacosConfigAutoConfiguration,com.alibaba.cloud.nacos.NacosDiscoveryAutoConfiguration,com.alibaba.cloud.nacos.discovery.NacosDiscoveryClientConfiguration",
     "mybatis-flex.configuration.map-underscore-to-camel-case=true",
     "logging.level.cn.ac.fage.accessmesh=WARN",
     "JWT_SECRET_KEY=test-jwt-secret-for-context-test-only",
@@ -208,18 +208,18 @@ class AccessServiceApplicationTest {
         // 全局唯一实例由 common 缓存框架 CacheAutoConfiguration.cacheObjectMapper 提供
         // （条件评估顺序：common jar 在 classpath 前部先注册，Boot 的 jacksonObjectMapper 回退）。
         // 注：spring.jackson.* 配置不驱动全局（评审 P2 结论，用户决策接受现状），
-        // 该 mapper 已注册 JavaTimeModule + 禁用时间戳，LocalDateTime 输出 ISO-8601。
+        // 该 mapper 已注册 Jackson 3 Java time + 禁用时间戳，LocalDateTime 输出 ISO-8601。
         assertNotNull(applicationContext.getBean(ObjectMapper.class));
         assertTrue(applicationContext.getBeanNamesForType(ObjectMapper.class).length == 1,
             "ObjectMapper 必须唯一");
     }
 
     /**
-     * T-ACCESS-003 验收：唯一 ObjectMapper 序列化可用（JavaTimeModule 生效，
+     * T-ACCESS-003 验收：唯一 ObjectMapper 序列化可用（Jackson 3 Java time 生效，
      * LocalDateTime 输出 ISO-8601 —— 精确断言，评审 P2 修正）。
      */
     @Test
-    @DisplayName("T-ACCESS-003：ObjectMapper JavaTimeModule 生效，LocalDateTime 输出 ISO-8601")
+    @DisplayName("T-ACCESS-003：ObjectMapper Jackson 3 Java time 生效，LocalDateTime 输出 ISO-8601")
     void objectMapperSerializesLocalDateTime() throws Exception {
         ObjectMapper mapper = applicationContext.getBean(ObjectMapper.class);
         String json = mapper.writeValueAsString(LocalDateTime.of(2026, 8, 13, 10, 30, 0));
@@ -329,9 +329,9 @@ class AccessServiceApplicationTest {
             "唯一 ObjectMapper 必须为 common cacheObjectMapper（兼任 HTTP 序列化），实际 "
                 + java.util.Arrays.toString(mapperBeanNames));
         ObjectMapper mapper = applicationContext.getBean(ObjectMapper.class);
-        assertTrue("UTC".equals(mapper.getSerializationConfig().getTimeZone().getID()),
+        assertTrue("UTC".equals(mapper.serializationConfig().getTimeZone().getID()),
             "全局 ObjectMapper 时区必须为 UTC，实际 "
-                + mapper.getSerializationConfig().getTimeZone().getID());
+                + mapper.serializationConfig().getTimeZone().getID());
     }
 
     /**

@@ -1,16 +1,18 @@
 package cn.ac.fage.accessmesh.access.characterization;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import static cn.ac.fage.accessmesh.access.it.GatewayTestSignatures.hmac;
 
 import cn.ac.fage.accessmesh.access.it.ItInfra;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
@@ -78,8 +80,8 @@ class FileServiceSecurityPgIT {
 
 
     /** Gateway 转发形态身份头（T-ACCESS-042：/api/access/** 统一内部密钥边界，MockMvc 直连按 Gateway 注入形态模拟；泛型自类型兼容 multipart 构造器。 */
-    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder gatewayHeaders(
-            org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder builder, long userId) throws Exception {
+    private <B extends org.springframework.test.web.servlet.request.AbstractMockHttpServletRequestBuilder<B>> B gatewayHeaders(
+            B builder, long userId) throws Exception {
         long ts = System.currentTimeMillis() / 1000;
         return builder
             .header("X-Internal-Secret", INTERNAL_SECRET)
@@ -89,12 +91,6 @@ class FileServiceSecurityPgIT {
             .header("X-Signature-Timestamp", String.valueOf(ts));
     }
 
-    /** multipart 构造器 overload——header() 返回父类型，故委托父实现原地变更后返回原 multipart 引用（保 .file()/.param() 链式）。 */
-    private org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder gatewayHeaders(
-            org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder builder, long userId) throws Exception {
-        gatewayHeaders((org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder) builder, userId);
-        return builder;
-    }
     private static final String PASSWORD = "Pass@123";
     /** 文件存储根（单实例本地盘语义，测试临时目录；static 先于 @DynamicPropertySource 注册） */
     private static final Path STORAGE_ROOT = createStorageRoot();
@@ -135,7 +131,7 @@ class FileServiceSecurityPgIT {
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
 
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = JsonMapper.builder().configureForJackson2().build();
 
     private static Path createStorageRoot() {
         try {

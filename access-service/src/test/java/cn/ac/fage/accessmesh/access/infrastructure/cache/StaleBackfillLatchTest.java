@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.infrastructure.cache;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.projection.PermConstants;
 import cn.ac.fage.accessmesh.access.role.entity.UserRole;
 import cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper;
@@ -13,7 +15,7 @@ import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.common.cache.DefaultCacheService;
 import cn.ac.fage.accessmesh.common.cache.TypeRef;
 import cn.ac.fage.accessmesh.common.cache.spi.DistributedCacheStore;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -136,7 +138,7 @@ class StaleBackfillLatchTest {
         AbstractUserMapper abstractUserMapper = mock(AbstractUserMapper.class);
         subjectDomainService = new SubjectDomainServiceImpl(abstractUserMapper, abstractRoleMapper,
             userRoleMapper, mock(cn.ac.fage.accessmesh.access.role.mapper.UserRoleQueryMapper.class),
-            cacheService, new ObjectMapper());
+            cacheService, JsonMapper.builder().configureForJackson2().build());
     }
 
     private void advanceMs(long millis) {

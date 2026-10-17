@@ -3,7 +3,7 @@ package cn.ac.fage.accessmesh.perm.registration.config;
 import cn.ac.fage.accessmesh.perm.registration.PermissionRegistrationPublisher;
 import cn.ac.fage.accessmesh.perm.registration.RegistrationResult;
 import cn.ac.fage.accessmesh.perm.registration.feign.PermissionManifestClient;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.validation.Validator;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.AutoConfiguration;

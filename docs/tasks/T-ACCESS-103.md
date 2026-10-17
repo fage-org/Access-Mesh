@@ -46,7 +46,7 @@ README/CHANGELOG/extension-guide/security-standards 对齐；ci.yml 扫描 job�
 - [x] 指南区分准入映射与转发路由，给出与现役配置一致的显式路由例子。
 - [x] 扫描 job、周计划、固定工具版本与 Actions SHA、失败报告保存已接入源码；工作流 YAML 解析通过。
 - [x] 时间条件输入直接提示 UTC 与不自动换算。
-- [ ] GitHub Actions 真实运行通过并保存报告工件：待 T-ACCESS-105 清理依赖阻断后执行。当前仅完成本地 pnpm 报告，不能视为 Maven 或 CI 扫描通过。
+- [ ] GitHub Actions 真实运行通过并保存报告工件：待 T-ACCESS-105 清理依赖阻断后执行。前后端本地扫描已完成（包含批准例外），报告与边界见 [T-ACCESS-105 证据](evidence/T-ACCESS-105/maven-remediation.md)；本地结果不代替真实 CI。
 
 ## 非目标 / 遗留
 
@@ -54,6 +54,6 @@ README/CHANGELOG/extension-guide/security-standards 对齐；ci.yml 扫描 job�
 
 ## 完成记录
 
-2026-10-17：源码实现与设计回写已准备，工作流 YAML 解析和固定 Actions 标签 SHA 核对通过；前端 `pnpm test` 50 文件、562 项通过，typecheck/lint:check/build 与 DTO 对账通过。`pnpm audit --json` 实际返回失败，原报告已保存到 T-ACCESS-105 证据目录。GitHub Actions 与 Maven 漏洞扫描未运行，不将本地解析或业务回归通过当作 CI 安全验收。
+2026-10-17：源码实现与设计回写已准备，工作流 YAML 解析和固定 Actions 标签 SHA 核对通过；前端 `pnpm test` 50 文件、562 项通过，typecheck/lint:check/build 与 DTO 对账通过。`pnpm audit --json` 实际返回失败，原报告已保存到 T-ACCESS-105 证据目录。Maven 本地完整扫描已由 T-ACCESS-105 完成，GitHub Actions 尚未运行，不将本地解析、扫描或业务回归通过当作 CI 安全验收。
 
 代码轨核对扫描包含 Maven 解析依赖与 pnpm 锁定依赖、失败不吞、报告失败时仍上传、每周调度与 UTC 提示；文档轨核对 README/Unreleased 当前多租户能力、历史版本记录保持、转发路由与准入映射职责。剩余验收由 T-ACCESS-105 与真实 CI 报告承接，保持 review。

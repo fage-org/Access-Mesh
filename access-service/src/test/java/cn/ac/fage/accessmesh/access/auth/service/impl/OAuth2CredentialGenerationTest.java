@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.auth.service.impl;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.auth.dto.AuthorizeReq;
 import cn.ac.fage.accessmesh.access.auth.dto.TokenReq;
 import cn.ac.fage.accessmesh.access.auth.entity.SysOauth2Client;
@@ -11,7 +13,7 @@ import cn.ac.fage.accessmesh.access.user.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.dev33.satoken.secure.BCrypt;
 import cn.dev33.satoken.stp.StpUtil;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,7 +34,7 @@ import static org.mockito.Mockito.*;
 class OAuth2CredentialGenerationTest {
     private static final String CLIENT = "web-console";
     private static final String REDIRECT = "https://console.example.com/cb";
-    private final ObjectMapper json = new ObjectMapper();
+    private final ObjectMapper json = JsonMapper.builder().configureForJackson2().build();
     private final Map<String, String> records = new HashMap<>();
     private final Map<String, Long> ttls = new HashMap<>();
     private final SysUser user = new SysUser();
@@ -130,7 +132,7 @@ class OAuth2CredentialGenerationTest {
         String code = authorize();
         String credential = authorizationCode ? code : exchange(code).refreshToken();
         String key = (authorizationCode ? "oauth2:code:" : "oauth2:refresh:") + credential;
-        var stored = (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree(records.get(key));
+        var stored = (tools.jackson.databind.node.ObjectNode) json.readTree(records.get(key));
         stored.remove(List.of("passwordFingerprint", "chainIssuedAt", "chainExpiresAt"));
         records.put(key, json.writeValueAsString(stored));
         assertThatThrownBy(() -> {
@@ -141,7 +143,7 @@ class OAuth2CredentialGenerationTest {
     @Test
     void refreshAndAccessTtlCannotPassAbsoluteDeadline() throws Exception {
         String token = exchange(authorize()).refreshToken();
-        var stored = (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree(records.get("oauth2:refresh:" + token));
+        var stored = (tools.jackson.databind.node.ObjectNode) json.readTree(records.get("oauth2:refresh:" + token));
         long now = System.currentTimeMillis() / 1000;
         stored.put("chainIssuedAt", now - 604770);
         stored.put("chainExpiresAt", now + 30);
@@ -151,7 +153,7 @@ class OAuth2CredentialGenerationTest {
         var jwt = json.readTree(java.util.Base64.getUrlDecoder().decode(rotated.accessToken().split("\\.")[1]));
         assertThat(jwt.path("eff").asLong()).isLessThanOrEqualTo((now + 30) * 1000L);
         assertThat(ttls.get("oauth2:refresh:" + rotated.refreshToken())).isBetween(1L, 30L);
-        var expired = (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree(records.get("oauth2:refresh:" + rotated.refreshToken()));
+        var expired = (tools.jackson.databind.node.ObjectNode) json.readTree(records.get("oauth2:refresh:" + rotated.refreshToken()));
         expired.put("chainExpiresAt", now - 1);
         records.put("oauth2:refresh:" + rotated.refreshToken(), json.writeValueAsString(expired));
         assertThatThrownBy(() -> service.refreshToken(rotated.refreshToken(), CLIENT)).isInstanceOf(BizException.class);
@@ -229,7 +231,7 @@ class OAuth2CredentialGenerationTest {
         client.setClientType("PUBLIC");
         client.setClientSecret(null);
         String code = authorize(REDIRECT, CHALLENGE, "S256");
-        var stored = (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree(records.get("oauth2:code:" + code));
+        var stored = (tools.jackson.databind.node.ObjectNode) json.readTree(records.get("oauth2:code:" + code));
         stored.put("codeChallengeMethod", "plain");
         records.put("oauth2:code:" + code, json.writeValueAsString(stored));
         assertThatThrownBy(() -> service.token(new TokenReq("authorization_code", CLIENT, null, code, REDIRECT, CHALLENGE, null)))

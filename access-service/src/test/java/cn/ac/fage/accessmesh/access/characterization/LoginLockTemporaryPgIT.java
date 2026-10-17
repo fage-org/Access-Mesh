@@ -1,15 +1,17 @@
 package cn.ac.fage.accessmesh.access.characterization;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import static cn.ac.fage.accessmesh.access.it.GatewayTestSignatures.hmac;
 
 import cn.ac.fage.accessmesh.access.it.ItInfra;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -95,7 +97,7 @@ class LoginLockTemporaryPgIT {
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
 
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = JsonMapper.builder().configureForJackson2().build();
 
     /** 真实验证码 + 单次登录请求，返回信封 body。 */
     private JsonNode login(String username, String password) throws Exception {

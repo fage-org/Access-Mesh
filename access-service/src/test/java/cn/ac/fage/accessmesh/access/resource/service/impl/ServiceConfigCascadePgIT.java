@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.resource.service.impl;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
@@ -124,7 +126,7 @@ class ServiceConfigCascadePgIT {
 
     private cn.ac.fage.accessmesh.access.type.service.domain.ResourceTypeOwnershipGuard ownershipGuard() {
         return new cn.ac.fage.accessmesh.access.type.service.domain.ResourceTypeOwnershipGuard(
-                typeDefinitionMapper, serviceConfigDomainService, resourceEntityDomainService, new com.fasterxml.jackson.databind.ObjectMapper());
+                typeDefinitionMapper, serviceConfigDomainService, resourceEntityDomainService, JsonMapper.builder().configureForJackson2().build());
     }
 
     private QueryGate permitAllEngine() {

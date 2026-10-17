@@ -1,7 +1,9 @@
 package cn.ac.fage.accessmesh.common.model;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
+
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashSet;
@@ -15,14 +17,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class RWireShapeTest {
 
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = JsonMapper.builder().configureForJackson2().build();
 
     @Test
     void okWireShapeIsFrozen() throws Exception {
         JsonNode node = mapper.readTree(mapper.writeValueAsString(R.ok(java.util.List.of("a"))));
 
         Set<String> fields = new LinkedHashSet<>();
-        node.fieldNames().forEachRemaining(fields::add);
+        node.propertyNames().iterator().forEachRemaining(fields::add);
         assertEquals(Set.of("code", "message", "data", "requestId", "traceId"), fields);
         assertEquals(200, node.get("code").asInt());
         assertEquals("success", node.get("message").asText());

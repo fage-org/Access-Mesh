@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.role.service.impl;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
@@ -15,7 +17,7 @@ import cn.ac.fage.accessmesh.access.domain.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -70,7 +72,7 @@ class RoleManageAppServiceImplTest {
             subjectDomainService,
             typeResolutionService,
             domainClassifyService,
-            new ObjectMapper(),
+            JsonMapper.builder().configureForJackson2().build(),
             auditDomainService,
             new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(),
             localProjectionDomainService,

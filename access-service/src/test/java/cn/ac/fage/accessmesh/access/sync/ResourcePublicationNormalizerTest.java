@@ -1,12 +1,14 @@
 package cn.ac.fage.accessmesh.access.sync;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntityFullSyncReq;
 import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntitySyncItem;
 import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntitySyncReq;
 import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntitySyncScope;
 import cn.ac.fage.accessmesh.access.sync.metadata.SyncVersionRef;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
@@ -20,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ResourcePublicationNormalizerTest {
     private static final LocalDateTime AT = LocalDateTime.of(2026, 9, 21, 0, 0);
-    private final ResourcePublicationNormalizer normalizer = new ResourcePublicationNormalizer(new ObjectMapper());
+    private final ResourcePublicationNormalizer normalizer = new ResourcePublicationNormalizer(JsonMapper.builder().configureForJackson2().build());
 
     @Test void shouldIgnoreGenerationAndObjectKeyOrder_butPreserveArrayOrder() {
         Map<String, Object> first = new LinkedHashMap<>();

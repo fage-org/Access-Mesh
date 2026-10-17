@@ -62,7 +62,7 @@ last_updated: 2026-10-17
 | [T-ACCESS-102](../tasks/T-ACCESS-102.md) | example-service 子报表真实父关系核对 | P2 | ✅ |
 | [T-ACCESS-103](../tasks/T-ACCESS-103.md) | 文档与流程对齐批 | P2×3+P3 族 | 👀 |
 | [T-ACCESS-104](../tasks/T-ACCESS-104.md) | 无权删除全拒反馈修正（角色与资源批删链） | P2 | ✅ |
-| [T-ACCESS-105](../tasks/T-ACCESS-105.md) | 存量依赖漏洞核实与高危扫描阻断清理 | 安全扫描阻断 | 🔨 |
+| [T-ACCESS-105](../tasks/T-ACCESS-105.md) | 存量依赖漏洞核实与高危扫描阻断清理 | 安全扫描阻断 | 👀 |
 
 ## 归档条件
 
@@ -70,4 +70,4 @@ last_updated: 2026-10-17
 
 ## 当前进度
 
-原任务中除 T-ACCESS-103 外均已完成。T-ACCESS-103 实现与回写已准备，保持 review，等待 T-ACCESS-105 清理存量依赖阻断并完成真实 CI 验收。各卡保存验收与验证证据；计划保持 active，不归档。
+T-ACCESS-103 与 T-ACCESS-105 的本地实现、扫描及回归已完成，均保持 review，等待真实 CI 验收；其余任务已完成。批准例外与验证证据按任务卡及安全规范保存，计划保持 active，不归档。

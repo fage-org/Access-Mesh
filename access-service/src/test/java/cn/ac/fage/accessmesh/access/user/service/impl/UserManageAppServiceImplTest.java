@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.user.service.impl;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.perm.common.dto.req.UserAssignRoleReq;
@@ -20,7 +22,7 @@ import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.engine.query.QueryGate;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -66,7 +68,7 @@ class UserManageAppServiceImplTest {
             auditDomainService,
             new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(),
             localProjectionDomainService,
-            new ObjectMapper(),
+            JsonMapper.builder().configureForJackson2().build(),
             engine,
             permissionConflictDomainService
         );

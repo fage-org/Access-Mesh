@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.sync;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;
@@ -21,7 +23,7 @@ import cn.ac.fage.accessmesh.access.role.service.impl.UserRoleSyncAppServiceImpl
 import cn.ac.fage.accessmesh.access.sync.metadata.SyncMetadataDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.sync.SyncAuthVerifier;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -130,7 +132,7 @@ class FullSyncN1GuardTest {
         });
 
         AbstractUserSyncAppServiceImpl service = new AbstractUserSyncAppServiceImpl(
-                syncMetadataDomainService, typeResolutionService, abstractUserMapper, new ObjectMapper(),
+                syncMetadataDomainService, typeResolutionService, abstractUserMapper, JsonMapper.builder().configureForJackson2().build(),
                 new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(), syncTypeGuard);
 
         List<AbstractUserSyncItem> items = new ArrayList<>(ITEM_COUNT);
@@ -187,7 +189,7 @@ class FullSyncN1GuardTest {
 
         ResourceEntitySyncAppServiceImpl service = new ResourceEntitySyncAppServiceImpl(
                 syncMetadataDomainService, syncMetadataMapper, typeResolutionService,
-                resourceEntityMapper, new ObjectMapper(),
+                resourceEntityMapper, JsonMapper.builder().configureForJackson2().build(),
                 new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(), resourceTypeOwnershipGuard,
                 org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService.class),
                 org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.sync.metadata.ResourcePublicationDomainService.class), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.DependencyCompilationDomainService.class),

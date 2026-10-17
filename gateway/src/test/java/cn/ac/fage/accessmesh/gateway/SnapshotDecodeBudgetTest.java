@@ -1,12 +1,14 @@
 package cn.ac.fage.accessmesh.gateway;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.gateway.config.GatewayProperties;
 import cn.ac.fage.accessmesh.gateway.config.WebClientConfig;
 import cn.ac.fage.accessmesh.gateway.service.PermissionClient;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.AdmissionRequirement;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceAdmissionSnapshotResp;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
 
@@ -30,7 +32,7 @@ class SnapshotDecodeBudgetTest {
         var snapshot = new InterfaceAdmissionSnapshotResp(InterfaceAdmissionSnapshotResp.CURRENT_SCHEMA_VERSION,
             1L, new InterfaceAdmissionSnapshotResp.Subject("USER", "1"), "reports", now, now.plusSeconds(10),
             1, routes, List.of(), "OPERATION_ADMISSION", true);
-        byte[] body = new ObjectMapper().findAndRegisterModules().writeValueAsBytes(R.ok(snapshot));
+        byte[] body = JsonMapper.builder().configureForJackson2().findAndAddModules().build().writeValueAsBytes(R.ok(snapshot));
         assertThat(body.length).isGreaterThan(256 * 1024);
         Files.writeString(Path.of("target", "t-perm-093-snapshot-wire-size.txt"), Integer.toString(body.length));
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);

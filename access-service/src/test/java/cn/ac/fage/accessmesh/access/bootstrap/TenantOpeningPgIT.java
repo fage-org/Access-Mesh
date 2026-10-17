@@ -1,13 +1,13 @@
 package cn.ac.fage.accessmesh.access.bootstrap;
 
 import cn.ac.fage.accessmesh.access.it.ItInfra;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
@@ -42,7 +42,7 @@ class TenantOpeningPgIT {
     @Autowired StringRedisTemplate redis;
     @Autowired PlatformBootstrapInitializer bootstrap;
     @Autowired cn.ac.fage.accessmesh.access.tenant.service.TenantGateRepairAppService repair;
-    @org.springframework.boot.test.mock.mockito.SpyBean cn.ac.fage.accessmesh.common.security.RedisTenantGateStore gates;
+    @org.springframework.test.context.bean.override.mockito.MockitoSpyBean cn.ac.fage.accessmesh.common.security.RedisTenantGateStore gates;
     @Autowired cn.ac.fage.accessmesh.access.tenant.service.TenantAppService tenants;
     private String platformToken;
 

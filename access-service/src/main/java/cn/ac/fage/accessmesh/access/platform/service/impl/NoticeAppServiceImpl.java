@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.platform.service.impl;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
@@ -21,8 +23,8 @@ import cn.ac.fage.accessmesh.access.platform.service.NoticeAppService;
 import cn.ac.fage.accessmesh.access.user.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -64,7 +66,7 @@ public class NoticeAppServiceImpl implements NoticeAppService {
     private static final int STATUS_DRAFT = 0;
 
     /** JSONB 数组序列化/反序列化（Jackson 线程安全，静态复用） */
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMapper.builder().configureForJackson2().build();
     private static final TypeReference<List<Long>> LONG_LIST = new TypeReference<>() {};
 
     private final SysNoticeMapper noticeMapper;
@@ -370,7 +372,7 @@ public class NoticeAppServiceImpl implements NoticeAppService {
     private static String serializeIds(List<Long> ids) {
         try {
             return JSON.writeValueAsString(ids);
-        } catch (java.io.IOException e) {
+        } catch (tools.jackson.core.JacksonException e) {
             throw new IllegalStateException("目标用户序列化失败", e);
         }
     }
@@ -384,7 +386,7 @@ public class NoticeAppServiceImpl implements NoticeAppService {
         }
         try {
             return JSON.readValue(targetIds, LONG_LIST);
-        } catch (java.io.IOException e) {
+        } catch (tools.jackson.core.JacksonException e) {
             throw new IllegalStateException("目标用户受众数据损坏（非 JSONB 数字数组）: " + targetIds, e);
         }
     }

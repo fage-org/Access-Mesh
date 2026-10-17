@@ -1,7 +1,9 @@
 package cn.ac.fage.accessmesh.e2e;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
+
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -14,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /** 产品入口构造租户夹具；不插入租户主数据，也不绕过首次改密。 */
 final class E2eTenantSupport {
     static final String TENANT_CODE = "e2e-customer";
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMapper.builder().configureForJackson2().build();
     private static final HttpClient HTTP = HttpClient.newHttpClient();
     private E2eTenantSupport() {}
 

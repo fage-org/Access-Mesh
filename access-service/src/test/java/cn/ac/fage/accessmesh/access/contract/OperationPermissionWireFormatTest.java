@@ -1,8 +1,10 @@
 package cn.ac.fage.accessmesh.access.contract;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.type.dto.resp.OperationPermissionResp;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -21,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class OperationPermissionWireFormatTest {
 
-    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+    private final ObjectMapper objectMapper = JsonMapper.builder().configureForJackson2().findAndAddModules().build();
 
     @Test
     @DisplayName("响应 binaryBit/inheritMask 序列化为十进制字符串（含 2^62 超精度位值）")

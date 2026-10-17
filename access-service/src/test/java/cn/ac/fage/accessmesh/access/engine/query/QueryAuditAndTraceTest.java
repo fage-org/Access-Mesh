@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.engine.query;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
@@ -19,7 +21,7 @@ import cn.ac.fage.accessmesh.access.rule.service.domain.impl.PermissionConflictD
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomainService;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -108,8 +110,8 @@ class QueryAuditAndTraceTest {
     /** 带预算构造（超限细分观测锁用，T-PERM-094）。 */
     QueryExecutionEngine newEngine(QueryEngineMetrics metricsImpl, EngineLimits limits) {
         var conditions = new PermissionConditionDomainServiceImpl(conditionMapper,
-            mock(RoleResourcePermissionDomainService.class), new ObjectMapper(), cache);
-        var conflicts = new PermissionConflictDomainServiceImpl(rules, cache, new ObjectMapper(), audit, operations, subjects);
+            mock(RoleResourcePermissionDomainService.class), JsonMapper.builder().configureForJackson2().build(), cache);
+        var conflicts = new PermissionConflictDomainServiceImpl(rules, cache, JsonMapper.builder().configureForJackson2().build(), audit, operations, subjects);
         return new QueryExecutionEngine(clock,
             new QueryReadSupport(types, operations, resources, roleMapper, grants, cache, new RolePermEntryMapper()),
             subjects, conditions, conflicts, resourceMapper, new QueryAuditCollector(audit, metricsImpl),
@@ -118,7 +120,7 @@ class QueryAuditAndTraceTest {
 
     /** 新核心直连的互斥评估器（describeRules 契约锁用）。 */
     cn.ac.fage.accessmesh.access.engine.core.BatchPermMutexEvaluator mutexEvaluator() {
-        var conflicts = new PermissionConflictDomainServiceImpl(rules, cache, new ObjectMapper(), audit, operations, subjects);
+        var conflicts = new PermissionConflictDomainServiceImpl(rules, cache, JsonMapper.builder().configureForJackson2().build(), audit, operations, subjects);
         return conflicts.openBatchMutexEvaluator(1L, requested -> definitions.stream()
             .filter(op -> requested.contains(op.getResourceType())).toList());
     }

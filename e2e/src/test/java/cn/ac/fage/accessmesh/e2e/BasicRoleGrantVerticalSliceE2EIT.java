@@ -1,11 +1,13 @@
 package cn.ac.fage.accessmesh.e2e;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.e2e.E2eProcessSupport.ServiceHandle;
 import static cn.ac.fage.accessmesh.e2e.E2eProcessSupport.filterOutTestClasses;
 import static cn.ac.fage.accessmesh.e2e.E2eProcessSupport.freePort;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.api.StatefulRedisConnection;
@@ -18,7 +20,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
@@ -113,7 +115,7 @@ class BasicRoleGrantVerticalSliceE2EIT {
     // ------------------------------------------------------------------
 
     @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:16-alpine")
         .withDatabaseName("access_db")
         .withUsername("perm")
         .withPassword("perm");
@@ -133,7 +135,7 @@ class BasicRoleGrantVerticalSliceE2EIT {
     private static final HttpClient HTTP = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(5))
         .build();
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMapper.builder().configureForJackson2().build();
 
     private static ServiceHandle accessService;
     private static ServiceHandle gatewayService;
@@ -499,7 +501,7 @@ class BasicRoleGrantVerticalSliceE2EIT {
             // 共享类路径带入了 spring-cloud-gateway 自动配置：servlet 上下文会触发
             // MvcFoundOnClasspathException 与 GatewayRedisAutoConfiguration 缺 Bean 失败——
             // enabled=false 只关主装配，Redis/发现/CORS 等独立自动配置需显式排除（本服务不是网关）
-            "--spring.cloud.gateway.enabled=false",
+            "--spring.cloud.gateway.server.webflux.enabled=false",
             "--spring.autoconfigure.exclude=org.springframework.cloud.gateway.config.GatewayRedisAutoConfiguration,"
                 + "org.springframework.cloud.gateway.config.GatewayClassPathWarningAutoConfiguration,"
                 + "org.springframework.cloud.gateway.discovery.GatewayDiscoveryClientAutoConfiguration,"
@@ -543,12 +545,15 @@ class BasicRoleGrantVerticalSliceE2EIT {
             "--spring.cloud.nacos.discovery.enabled=false",
             // 共享类路径带入了 access-service 依赖树的 Redisson/sa-token-servlet/数据源系自动配置：
             // 生产 Gateway 无 Redisson、只有 reactor 版 sa-token、无 JDBC/MyBatis——排除后保持生产装配面
-            "--spring.autoconfigure.exclude=org.redisson.spring.starter.RedissonAutoConfigurationV2,"
+            // The shared E2E classpath contains Tomcat; production Gateway uses Netty only.
+            "--spring.autoconfigure.exclude=org.springframework.boot.tomcat.autoconfigure.reactive.TomcatReactiveWebServerAutoConfiguration,"
+                + "org.springframework.boot.tomcat.autoconfigure.actuate.web.server.TomcatReactiveManagementContextAutoConfiguration,"
+                + "org.redisson.spring.starter.RedissonAutoConfigurationV4,"
                 + "cn.ac.fage.accessmesh.common.cache.RedissonCacheAutoConfiguration,"
                 + "cn.dev33.satoken.spring.SaTokenContextRegister,"
-                + "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,"
-                + "org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration,"
-                + "com.mybatisflex.spring.boot.MybatisFlexAutoConfiguration",
+                + "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,"
+                + "org.springframework.boot.jdbc.autoconfigure.JdbcTemplateAutoConfiguration,"
+                + "com.mybatisflex.spring.boot.v4.MybatisFlexAutoConfiguration",
             // 路由与权限回源 WebClient 的 lb://access-service 解析目标（免 Nacos 直连）
             "--spring.cloud.discovery.client.simple.instances.access-service[0].uri=http://localhost:" + accessPort,
             "--perm.client.enabled=false");
@@ -709,7 +714,7 @@ class BasicRoleGrantVerticalSliceE2EIT {
         JsonNode envelope;
         try {
             envelope = JSON.readTree(r.rawBody());
-        } catch (IOException e) {
+        } catch (tools.jackson.core.JacksonException e) {
             throw new IllegalStateException(scene + "：响应不是合法 JSON：" + r.rawBody(), e);
         }
         assertThat(envelope.path("code").asInt())
@@ -746,7 +751,7 @@ class BasicRoleGrantVerticalSliceE2EIT {
         JsonNode envelope = null;
         try {
             envelope = JSON.readTree(raw);
-        } catch (IOException e) {
+        } catch (tools.jackson.core.JacksonException e) {
             throw new IllegalStateException("响应不是合法 JSON: " + raw, e);
         }
         assertThat(envelope.path("code").asInt())

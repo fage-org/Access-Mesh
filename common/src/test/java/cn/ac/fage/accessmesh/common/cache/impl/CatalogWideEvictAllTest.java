@@ -1,10 +1,12 @@
 package cn.ac.fage.accessmesh.common.cache.impl;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.common.cache.CacheCatalogEntry;
 import cn.ac.fage.accessmesh.common.cache.CacheMode;
 import cn.ac.fage.accessmesh.common.cache.CacheProperties;
 import cn.ac.fage.accessmesh.common.cache.TypeRef;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,7 +47,7 @@ class CatalogWideEvictAllTest {
 
     @BeforeEach
     void setUp() {
-        l1Store = new CaffeineLocalCacheStore(new ObjectMapper(), null, new CacheProperties());
+        l1Store = new CaffeineLocalCacheStore(JsonMapper.builder().configureForJackson2().build(), null, new CacheProperties());
     }
 
     @Test
@@ -91,7 +93,7 @@ class CatalogWideEvictAllTest {
                 .l2Ttl(Duration.ofMinutes(1))
                 .valueType(new TypeRef<String>() {})
                 .build();
-        RedissonBucketStore store = new RedissonBucketStore(redisson, new ObjectMapper(),
+        RedissonBucketStore store = new RedissonBucketStore(redisson, JsonMapper.builder().configureForJackson2().build(),
             new SimpleMeterRegistry(), new CacheProperties());
 
         store.evictAll(l2Catalog);
@@ -123,7 +125,7 @@ class CatalogWideEvictAllTest {
                 .valueType(new TypeRef<String>() {})
                 .build();
         SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
-        RedissonBucketStore store = new RedissonBucketStore(redisson, new ObjectMapper(),
+        RedissonBucketStore store = new RedissonBucketStore(redisson, JsonMapper.builder().configureForJackson2().build(),
             meterRegistry, new CacheProperties());
 
         store.evictAll(l2Catalog);

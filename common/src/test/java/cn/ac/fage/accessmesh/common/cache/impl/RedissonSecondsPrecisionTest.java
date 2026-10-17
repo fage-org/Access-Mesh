@@ -1,11 +1,13 @@
 package cn.ac.fage.accessmesh.common.cache.impl;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.common.cache.CacheCatalogEntry;
 import cn.ac.fage.accessmesh.common.cache.CacheKeyUtil;
 import cn.ac.fage.accessmesh.common.cache.CacheMode;
 import cn.ac.fage.accessmesh.common.cache.CacheProperties;
 import cn.ac.fage.accessmesh.common.cache.TypeRef;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -56,7 +58,7 @@ class RedissonSecondsPrecisionTest {
         when(redissonClient.<String>getBucket(anyString())).thenReturn(bucket);
         when(redissonClient.createBatch()).thenReturn(batch);
         when(batch.<String>getBucket(anyString())).thenReturn(batchBucket);
-        store = new RedissonBucketStore(redissonClient, new ObjectMapper(),
+        store = new RedissonBucketStore(redissonClient, JsonMapper.builder().configureForJackson2().build(),
             new SimpleMeterRegistry(), new CacheProperties());
     }
 

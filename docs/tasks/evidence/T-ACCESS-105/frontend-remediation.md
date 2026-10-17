@@ -89,10 +89,10 @@
 - 同一门禁回放升级前原始报告：退出码 1、阻断 78 个 high/critical 条目，仅接受已批准的 braces 条目；证明例外没有吞掉其他存量漏洞。
 - `pnpm --dir frontend audit --audit-level high --json` 原始退出码 1；`node tools/security/check-pnpm-audit.mjs <原始报告> 1` 退出码 0，accepted=[GHSA-vfj7-8cjw-p6xm]、blocked=[]。原始报告见 [pnpm-audit-after-2026-10-17.json](pnpm-audit-after-2026-10-17.json)。
 - `pnpm --dir frontend audit --prod --json`：生产依赖 high=0、critical=0；low=1、moderate=4 保留，未认定这些公告均有可触发业务通路。
-- Maven 扫描与 GitHub Actions 验收尚未完成，不能由本记录推导为通过。
+- 后端迁移后再次执行前端审计和 44 组 DTO 对账，通过；审计 JSON 与上述保存报告内容一致，[例外判定](pnpm-risk-decision-2026-10-17.json) 保留。Maven 本地扫描另见 [Maven 证据](maven-remediation.md)，GitHub Actions 尚待实际验收，不能由本记录推导为通过。
 
 ## 本地评审
 
 代码轨：核对升级后的锁定依赖、Vitest 隔离配置保持、图标名称注册与组件渲染调用、例外仅作用于指定公告/版本/开发入口、新正式版本触发复核及其他高危失败保留；补齐 CI 已声明但缺失的 `pnpm build`。当前前端范围无未处理 P0–P2。
 
-文档轨：核对 Node 支持与 quickstart/镜像/工程基线一致，批准例外归安全规则，原始漏洞数和例外结果分别保存，任务状态与计划/看板一致且未提前验收；变更文件链接与过程词扫描通过。Maven 与 CI 的未完成项保留在 T-ACCESS-105，不用前端通过代替整体收口。
+文档轨：核对 Node 支持与 quickstart/镜像/工程基线一致，批准例外归安全规则，原始漏洞数和例外结果分别保存，任务状态与计划/看板一致且未提前验收；变更文件链接与过程词扫描通过。整体回归与 CI 的未完成项保留在 T-ACCESS-105，不用前端通过代替整体收口。

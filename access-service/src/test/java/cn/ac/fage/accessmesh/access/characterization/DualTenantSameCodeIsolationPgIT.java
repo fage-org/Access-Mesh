@@ -1,19 +1,21 @@
 package cn.ac.fage.accessmesh.access.characterization;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import static cn.ac.fage.accessmesh.access.it.GatewayTestSignatures.hmac;
 
 import cn.ac.fage.accessmesh.access.bootstrap.AccessBootstrapInitializer;
 import cn.ac.fage.accessmesh.access.bootstrap.BootstrapGraphDefinition;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -175,7 +177,7 @@ class DualTenantSameCodeIsolationPgIT {
         }
     }
 
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = JsonMapper.builder().configureForJackson2().build();
 
     @Test
     @DisplayName("双租户同码夹具：跨读 USER_NOT_FOUND/跨写同码不串/授权隔离双向（含 B→A 反向夹具）")

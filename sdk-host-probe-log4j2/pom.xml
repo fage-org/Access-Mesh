@@ -32,7 +32,7 @@
         <!-- 宿主自选：Web 栈 + Log4j2 后端；自身边排除默认 logging（官方推荐形态） -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
             <exclusions>
                 <exclusion>
                     <groupId>org.springframework.boot</groupId>

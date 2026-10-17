@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
@@ -38,7 +38,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 该链若被加上结果缓存、REQUIRES_NEW 或调整「先建主体后绑定」顺序，读回将得空 →
  * 20046 抛错整体回滚，本用例必红（此前仅 LocalProjectionDomainServiceImplTest 以
  * mock TypeResolutionService 覆盖组件级语义，无入口级真实链锁）。门禁经
- * {@code @MockBean AdminPermissionValidator} 放行（先例 UserOrgWriteAppServiceFaultInjectionIT），
+ * {@code @MockitoBean AdminPermissionValidator} 放行（先例 UserOrgWriteAppServiceFaultInjectionIT），
  * 组织/投影/解析全部真实落库（真实 PostgreSQL + Redis，Testcontainers）。
  * Docker 不可用时自动跳过。
  * </p>
@@ -82,7 +82,7 @@ class UserCreateWithOrgPgIT {
     private JdbcTemplate jdbc;
 
     /** 门禁 mock（void 方法默认通过）：本用例聚焦投影/解析真实链，不装配操作者授权。 */
-    @MockBean
+    @MockitoBean
     private AdminPermissionValidator permissionValidator;
 
     @BeforeEach

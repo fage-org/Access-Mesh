@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access;
 
+import cn.ac.fage.accessmesh.access.infrastructure.OAuth2JwtSupport;
+
 import cn.ac.fage.accessmesh.access.support.OAuth2CredentialFixtures;
 import static cn.ac.fage.accessmesh.access.it.GatewayTestSignatures.hmac;
 
@@ -11,9 +13,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -30,7 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 外部 sync/full-sync 和权限管理建立可测试的安全策略矩阵）。
  * <p>
  * 全量 Spring Context + 真实安全拦截器链（InternalApiSecret → HeaderSignature →
- * RequestContext），业务 service 层 @MockBean（矩阵验证目标为身份层与上下文绑定）。
+ * RequestContext），业务 service 层 @MockitoBean（矩阵验证目标为身份层与上下文绑定）。
  * </p>
  * <table>
  *   <tr><th>入口分类</th><th>用例</th><th>期望</th></tr>
@@ -56,7 +58,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "spring.cloud.nacos.config.import-check.enabled=false",
     "spring.cloud.nacos.discovery.enabled=false",
     "accessmesh.sync.scheduler.enabled=false", "access.tenant.gate-repair.enabled=false",
-    "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration,org.redisson.spring.starter.RedissonAutoConfigurationV2,com.alibaba.cloud.nacos.NacosConfigAutoConfiguration,com.alibaba.cloud.nacos.NacosDiscoveryAutoConfiguration,com.alibaba.cloud.nacos.discovery.NacosDiscoveryClientConfiguration",
+    "spring.autoconfigure.exclude=org.springframework.boot.data.redis.autoconfigure.DataRedisAutoConfiguration,org.springframework.boot.data.redis.autoconfigure.DataRedisRepositoriesAutoConfiguration,org.redisson.spring.starter.RedissonAutoConfigurationV4,com.alibaba.cloud.nacos.NacosConfigAutoConfiguration,com.alibaba.cloud.nacos.NacosDiscoveryAutoConfiguration,com.alibaba.cloud.nacos.discovery.NacosDiscoveryClientConfiguration",
     "mybatis-flex.configuration.map-underscore-to-camel-case=true",
     "logging.level.cn.ac.fage.accessmesh=WARN",
     "JWT_SECRET_KEY=test-jwt-secret-for-security-matrix",
@@ -64,7 +66,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "PERM_INTERNAL_SECRET=test-internal-secret-for-security-matrix"
 })
 class SecurityMatrixIT {
-    @org.springframework.boot.test.mock.mockito.MockBean
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
     private cn.ac.fage.accessmesh.access.tenant.service.TenantAccessGuard tenantAccess;
 
 
@@ -77,30 +79,30 @@ class SecurityMatrixIT {
     private MockMvc mockMvc;
 
     /** 认证业务层 mock（/auth/captcha 走真实服务会触达 Redis——mock 连接工厂无 connection）。 */
-    @MockBean
+    @MockitoBean
     private cn.ac.fage.accessmesh.access.auth.service.AuthAppService authService;
 
     /** OAuth2 userinfo 正向链路：mock 用户查询（评审 P1 修复验证）。 */
-    @MockBean
+    @MockitoBean
     private cn.ac.fage.accessmesh.access.user.service.domain.UserDomainService userDomainService;
 
     /** T-ACCESS-013：OAuth2 JWT 分支客户端启用动态校验依赖（mock 返回启用客户端）。 */
-    @MockBean
+    @MockitoBean
     private cn.ac.fage.accessmesh.access.auth.service.domain.OAuth2ClientDomainService oauth2ClientDomainService;
 
     /** OAuth2 JWT 黑名单检查依赖（底层 mock 连接工厂无 connection，hasKey 默认 false=未撤销）。 */
-    @MockBean
+    @MockitoBean
     private org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate;
 
     /** sync 业务层 mock（矩阵验证目标为身份层放行）。 */
-    @MockBean
+    @MockitoBean
     private AbstractUserSyncAppService abstractUserSyncAppService;
 
     /** 权限管理业务层 mock（矩阵验证目标为身份层放行）。 */
-    @MockBean
+    @MockitoBean
     private DomainConfigAppService domainConfigAppService;
 
-    @MockBean
+    @MockitoBean
     private cn.ac.fage.accessmesh.access.infrastructure.credential.service.domain.ServiceCredentialDomainService credentials;
 
     private void stubCredential(long tenantId, String serviceCode) {
@@ -224,9 +226,9 @@ class SecurityMatrixIT {
         client.setTenantId(1L);
         when(oauth2ClientDomainService.findActiveByClientId(1L, "admin-web")).thenReturn(client);
 
-        // 模拟 OAuth2 签发链路（SaJwtUtil.createToken，loginType=oauth2、jwt-secret-key）
+        // 模拟 OAuth2 签发链路（OAuth2JwtSupport.createToken，loginType=oauth2、jwt-secret-key）
         long ts = System.currentTimeMillis() / 1000;
-        String jwt = cn.dev33.satoken.jwt.SaJwtUtil.createToken("oauth2", 100L, "oauth2", 3600,
+        String jwt = cn.ac.fage.accessmesh.access.infrastructure.OAuth2JwtSupport.createToken("oauth2", 100L, "oauth2", 3600,
             OAuth2CredentialFixtures.claims(java.util.Map.of("tenant_id", "1", "jti", "jti-it-" + ts, "client_id", "admin-web")), JWT_SECRET);
         cn.ac.fage.accessmesh.access.user.entity.SysUser user = new cn.ac.fage.accessmesh.access.user.entity.SysUser();
         user.setId(100L);
@@ -251,7 +253,7 @@ class SecurityMatrixIT {
         when(oauth2ClientDomainService.findActiveByClientId(1L, "admin-web")).thenReturn(null);
         when(stringRedisTemplate.hasKey(org.mockito.ArgumentMatchers.anyString())).thenReturn(false);
         long ts = System.currentTimeMillis() / 1000;
-        String jwt = cn.dev33.satoken.jwt.SaJwtUtil.createToken("oauth2", 100L, "oauth2", 3600,
+        String jwt = cn.ac.fage.accessmesh.access.infrastructure.OAuth2JwtSupport.createToken("oauth2", 100L, "oauth2", 3600,
             java.util.Map.of("tenant_id", "1", "jti", "jti-disabled-" + ts, "client_id", "admin-web"), JWT_SECRET);
 
         mockMvc.perform(post("/api/access/auth/oauth2/userinfo")

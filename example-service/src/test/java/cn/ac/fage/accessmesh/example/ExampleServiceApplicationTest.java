@@ -1,12 +1,14 @@
 package cn.ac.fage.accessmesh.example;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
+
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -24,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 也能起）；② /api/example/demo/hello 经 Mock 身份头调用返回统一信封与身份回显，
  * 参数非法经全局异常处理器映射为 30001（HTTP 200 + 信封 code=30001）。
  */
+@org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = {
         "spring.cloud.nacos.config.enabled=false",
@@ -50,7 +53,7 @@ class ExampleServiceApplicationTest {
         assertThat(health.getStatusCode().value()).isEqualTo(200);
         assertThat(json.readTree(health.getBody()).path("status").asText()).isEqualTo("UP");
         assertThat(applicationContext.getBeansOfType(
-            org.springframework.boot.actuate.endpoint.web.servlet.WebMvcEndpointHandlerMapping.class)).isEmpty();
+            org.springframework.boot.webmvc.actuate.endpoint.web.WebMvcEndpointHandlerMapping.class)).isEmpty();
     }
 
     /**
@@ -64,7 +67,7 @@ class ExampleServiceApplicationTest {
         assertThat(json.readTree(resp.getBody()).path("code").asInt()).isEqualTo(404);
     }
 
-    private final ObjectMapper json = new ObjectMapper();
+    private final ObjectMapper json = JsonMapper.builder().configureForJackson2().build();
 
     /** 按 Gateway SignatureEnrichFilter 同款算法构造签名请求头（HMAC-SHA256，hex） */
     private static void sign(HttpHeaders headers, String userId, String tenantId) {

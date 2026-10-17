@@ -1,5 +1,9 @@
 package cn.ac.fage.accessmesh.access.auth.service;
 
+import tools.jackson.databind.json.JsonMapper;
+
+import cn.ac.fage.accessmesh.access.infrastructure.OAuth2JwtSupport;
+
 import static cn.ac.fage.accessmesh.access.it.GatewayTestSignatures.hmac;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -15,7 +19,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -29,10 +33,10 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
 
 import cn.ac.fage.accessmesh.access.auth.service.impl.OAuth2AppServiceImpl;
 import cn.ac.fage.accessmesh.access.bootstrap.AccessBootstrapInitializer;
@@ -96,7 +100,7 @@ class Oauth2ClientTenantUniquenessPgIT {
     @Autowired
     private StringRedisTemplate redisTemplate;
 
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = JsonMapper.builder().configureForJackson2().build();
 
     @BeforeEach
     void enableTenantFixtures() {
@@ -227,7 +231,7 @@ class Oauth2ClientTenantUniquenessPgIT {
         insertClient(TENANT_2, sharedClientId, "t2-secret");
 
         long ts = System.currentTimeMillis() / 1000;
-        String jwt = cn.dev33.satoken.jwt.SaJwtUtil.createToken("oauth2", userId, "oauth2", 3600,
+        String jwt = cn.ac.fage.accessmesh.access.infrastructure.OAuth2JwtSupport.createToken("oauth2", userId, "oauth2", 3600,
             OAuth2CredentialFixtures.claims(Map.of(
                 "tenant_id", "1", "jti", "jti-uniq-" + ts, "client_id", sharedClientId)),
             JWT_SECRET);

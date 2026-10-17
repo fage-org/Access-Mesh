@@ -18,12 +18,10 @@ import cn.ac.fage.accessmesh.common.exception.BizException;
 import lombok.Getter;
 import lombok.Setter;
 
-import cn.dev33.satoken.exception.SaTokenException;
-import cn.dev33.satoken.jwt.SaJwtUtil;
 import cn.dev33.satoken.secure.BCrypt;
 import cn.dev33.satoken.stp.StpUtil;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -91,7 +89,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
 
     /**
      * JWT 签名密钥强度 fail-fast（release-preview 双轨评审 P3-3，2026-09-16 用户拍板）：
-     * sa-token-jwt 对 HS256 密钥长度零校验，短密钥静默签发弱签名；启动期拒绝
+     * HS256 密钥强度在启动期校验，避免开放弱签名通道；拒绝
      * （对齐 bootstrap 密码/双密钥拦截器 @PostConstruct fail-fast 先例）。
      */
     @PostConstruct
@@ -171,7 +169,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
         try {
             String json = objectMapper.writeValueAsString(codeData);
             redisTemplate.opsForValue().set(AUTH_CODE_PREFIX + code, json, AUTH_CODE_TTL_SECONDS, TimeUnit.SECONDS);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             log.error("Failed to serialize auth code data", e);
             throw new BizException(AccessErrorCode.OAUTH2_CLIENT_INVALID.getCode(), "授权码生成失败");
         }
@@ -341,7 +339,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
             RefreshTokenData preview;
             try {
                 preview = objectMapper.readValue(previewJson, RefreshTokenData.class);
-            } catch (JsonProcessingException e) {
+            } catch (JacksonException e) {
                 recordOauth2Failure(clientId, "refresh token malformed");
                 throw new BizException(AccessErrorCode.OAUTH2_TOKEN_INVALID.getCode(),
                     AccessErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
@@ -378,7 +376,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
             RefreshTokenData refreshTokenData;
             try {
                 refreshTokenData = objectMapper.readValue(refreshTokenDataJson, RefreshTokenData.class);
-            } catch (JsonProcessingException e) {
+            } catch (JacksonException e) {
                 recordOauth2Failure(clientId, "refresh token malformed");
                 throw new BizException(AccessErrorCode.OAUTH2_TOKEN_INVALID.getCode(),
                     AccessErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
@@ -425,7 +423,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
                 redisTemplate.opsForValue().set(REFRESH_TOKEN_PREFIX + newRefreshToken,
                     objectMapper.writeValueAsString(newRefreshTokenData),
                     refreshTokenTtl, TimeUnit.SECONDS);
-            } catch (JsonProcessingException e) {
+            } catch (JacksonException e) {
                 log.error("Failed to serialize refresh token data", e);
                 recordOauth2Failure(clientId, "refresh token generation failed");
                 throw new BizException(AccessErrorCode.OAUTH2_CLIENT_INVALID.getCode(), "刷新令牌生成失败");
@@ -463,8 +461,8 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
         Map<String, Object> payloads;
         try {
             // getPayloads 校验签名 + loginType + 有效期（isCheckTimeout=true）
-            payloads = SaJwtUtil.getPayloads(accessToken, OAuth2JwtSupport.LOGIN_TYPE, jwtSecretKey);
-        } catch (SaTokenException e) {
+            payloads = OAuth2JwtSupport.getPayloads(accessToken, OAuth2JwtSupport.LOGIN_TYPE, jwtSecretKey);
+        } catch (SecurityException e) {
             log.warn("revoke ignored invalid oauth2 jwt (signature/loginType/expired)");
             return;
         }
@@ -479,8 +477,8 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
         if (tenantId != null) {
             OperationLogRuntimeContext.setTenantId(tenantId);
         }
-        // 实际剩余有效期（SaJwtTemplate 以 eff claim 计算，签发侧 6 参 createToken 写入）
-        long ttl = SaJwtUtil.getTimeout(accessToken, OAuth2JwtSupport.LOGIN_TYPE, jwtSecretKey);
+        // 实际剩余有效期按已验签载荷的 eff 毫秒时间戳计算
+        long ttl = OAuth2JwtSupport.getTimeout(accessToken, OAuth2JwtSupport.LOGIN_TYPE, jwtSecretKey);
         if (ttl > 0) {
             redisTemplate.opsForValue().set(
                 OAuth2JwtSupport.BLACKLIST_KEY_PREFIX + jti, "1", ttl, TimeUnit.SECONDS);
@@ -558,7 +556,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
         AuthCodeData preview;
         try {
             preview = objectMapper.readValue(previewJson, AuthCodeData.class);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             recordOauth2Failure(req.clientId(), "authorization code malformed");
             throw new BizException(AccessErrorCode.OAUTH2_CODE_INVALID.getCode(),
                 AccessErrorCode.OAUTH2_CODE_INVALID.getMessage());
@@ -611,7 +609,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
         AuthCodeData codeData;
         try {
             codeData = objectMapper.readValue(codeDataJson, AuthCodeData.class);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             recordOauth2Failure(req.clientId(), "authorization code malformed");
             throw new BizException(AccessErrorCode.OAUTH2_CODE_INVALID.getCode(),
                 AccessErrorCode.OAUTH2_CODE_INVALID.getMessage());
@@ -692,7 +690,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
             redisTemplate.opsForValue().set(REFRESH_TOKEN_PREFIX + refreshToken,
                 objectMapper.writeValueAsString(refreshData),
                 refreshTokenTtl, TimeUnit.SECONDS);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             log.error("Failed to serialize refresh token data", e);
             recordOauth2Failure(req.clientId(), "refresh token generation failed");
             throw new BizException(AccessErrorCode.OAUTH2_CLIENT_INVALID.getCode(), "刷新令牌生成失败");
@@ -707,7 +705,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
     /**
      * 生成JWT访问令牌
      * <p>
-     * 使用SaJwtUtil创建JWT令牌，包含用户ID、客户端ID、租户ID、授权范围、受众、jti等额外数据。
+     * 使用 Nimbus 创建 JWT 令牌，包含用户ID、客户端ID、租户ID、授权范围、受众、jti等额外数据。
      * </p>
      *
      * @param userId 用户ID
@@ -748,18 +746,9 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
         }
         extraData.put(OAuth2JwtSupport.JTI_CLAIM, UUID.randomUUID().toString().replace("-", ""));
 
-        // 历史缺陷（createToken 参数错位，任何持有者可伪造 OAuth2 token，存量安全漏洞）：
-        // ① 原参数错位——createToken 签名为 (loginType, loginId, extraData, keyt)，存量把
-        //    jwtSecretKey 当 loginType、字面量 "Bearer" 当签名密钥（任何持有者可伪造 OAuth2 token，
-        //    存量安全漏洞）。修复：loginType=oauth2（与 RequestContextInterceptor 验签一致）、
-        //    keyt=jwt-secret-key。
-        // ② 4 参 createToken 不设置有效期（EFF），拦截器验签（isCheckTimeout=true）必抛"已过期"；
-        //    改 6 参（带 timeout）由 SaJwtTemplate 写入 EFF=now+ttl。
-        // 项目未部署（空库），无存量 token 兼容负担；载荷不变（loginId/tenant_id/jti/scope）。
-        // 链期限以秒记录，SaJwtTemplate 的 EFF 以毫秒记录；显式截住小于 1 秒的取整余量。
-        // SaJwtTemplate 先写内置 EFF 再合并 extraData，故这里的可信上限覆盖默认 now+ttl。
+        // 固定 OAuth2 loginType 与配置密钥；eff 使用毫秒且不得超出授权链绝对期限。
         extraData.put("eff", Math.min(System.currentTimeMillis() + accessTokenTtl * 1000L, expiresAt * 1000L));
-        return SaJwtUtil.createToken(OAuth2JwtSupport.LOGIN_TYPE, userId, DEVICE,
+        return OAuth2JwtSupport.createToken(OAuth2JwtSupport.LOGIN_TYPE, userId, DEVICE,
             accessTokenTtl, extraData, jwtSecretKey);
     }
 

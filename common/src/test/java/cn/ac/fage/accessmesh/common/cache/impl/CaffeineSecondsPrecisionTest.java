@@ -1,11 +1,13 @@
 package cn.ac.fage.accessmesh.common.cache.impl;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.common.cache.CacheCatalogEntry;
 import cn.ac.fage.accessmesh.common.cache.CacheKeyUtil;
 import cn.ac.fage.accessmesh.common.cache.CacheMode;
 import cn.ac.fage.accessmesh.common.cache.CacheProperties;
 import cn.ac.fage.accessmesh.common.cache.TypeRef;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -32,7 +34,7 @@ class CaffeineSecondsPrecisionTest {
 
     @BeforeEach
     void setUp() {
-        store = new CaffeineLocalCacheStore(new ObjectMapper(), null, new CacheProperties());
+        store = new CaffeineLocalCacheStore(JsonMapper.builder().configureForJackson2().build(), null, new CacheProperties());
     }
 
     private CacheCatalogEntry<String> catalog(Duration ttl) {

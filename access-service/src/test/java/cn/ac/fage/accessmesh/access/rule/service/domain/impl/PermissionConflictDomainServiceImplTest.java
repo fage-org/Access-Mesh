@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.rule.service.domain.impl;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
 import cn.ac.fage.accessmesh.access.rule.entity.PermissionConflictRule;
@@ -9,7 +11,7 @@ import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConflictRuleMapper;
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -60,7 +62,7 @@ class PermissionConflictDomainServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new PermissionConflictDomainServiceImpl(conflictRuleMapper, cacheService,
-            new ObjectMapper(), auditDomainService, operationPermissionMapper,
+            JsonMapper.builder().configureForJackson2().build(), auditDomainService, operationPermissionMapper,
             subjectDomainService);
     }
 

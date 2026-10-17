@@ -17,16 +17,16 @@ import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceApiMappingDo
 import cn.ac.fage.accessmesh.access.rule.dto.req.ConditionUpdateReq;
 import cn.ac.fage.accessmesh.access.rule.service.ConditionAppService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
@@ -62,7 +62,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 覆盖：快照全量路由与候选投影（ALL/条件内联/CONTEXT_DEFERRED）、在线判定四态与
  * reason 词表、20070 路由歧义 / 20071 配置故障（引用悬空/LEGACY 模式）、配置代次
  * 逐写入口递增回归锁、N21 构建期自一致（真库并发写路径——代次复读经 flushCache 落库，
- * 非 SpyBean 喂数列）、停用/未登记空路由快照（外评拍板：网关 DENY 语义对称）、
+ * 非 MockitoSpyBean 喂数列）、停用/未登记空路由快照（外评拍板：网关 DENY 语义对称）、
  * 保存不回写代次（整实体回写倒退锁）、凭证服务归属约束、HTTP 契约冒烟、
  * T-ACCESS-060 N19 条件/操作类型超集反查广播与 N23 模式切换演练。
  * </p>
@@ -110,10 +110,10 @@ class InterfaceAdmissionPgIT {
     @Autowired ResourceApiMappingDomainService apiMappingReads;
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
-    @MockBean cn.ac.fage.accessmesh.access.engine.query.QueryGate gate;
-    @SpyBean ServiceConfigMapper serviceConfigMapper;
-    @SpyBean InterfaceAdmissionSnapshotAssembler snapshotAssembler;
-    @SpyBean PermInvalidationPublisher invalidationPublisher;
+    @MockitoBean cn.ac.fage.accessmesh.access.engine.query.QueryGate gate;
+    @MockitoSpyBean ServiceConfigMapper serviceConfigMapper;
+    @MockitoSpyBean InterfaceAdmissionSnapshotAssembler snapshotAssembler;
+    @MockitoSpyBean PermInvalidationPublisher invalidationPublisher;
 
     /** 用例序号（每用例唯一 subject/role ID 段内递增）。 */
     private static final java.util.concurrent.atomic.AtomicLong SEQ = new java.util.concurrent.atomic.AtomicLong();
@@ -542,7 +542,7 @@ class InterfaceAdmissionPgIT {
 
     @Test
     void snapshotBuildShouldDiscardAndRebuildWhenGenerationChangesMidBuild() throws Exception {
-        // N21 真库并发路径（2026-09-28 外评修正：SpyBean doReturn 喂代次序列不经 MyBatis
+        // N21 真库并发路径（2026-09-28 外评修正：MockitoSpyBean doReturn 喂代次序列不经 MyBatis
         // 执行器，测不出 SESSION 级一级缓存吞掉同语句复读——自一致校验曾在生产恒失效）：
         // 装配器首次解析挂起，另一线程独立连接真实提交「新增路由+代次递增」，
         // 构建事务复读（flushCache 落库）必须看到新代次并废弃重建，不得发出混合快照

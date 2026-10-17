@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.common.cache;
 
 import cn.ac.fage.accessmesh.common.cache.impl.CombinedL1L2Store;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.redisson.api.RTopic;

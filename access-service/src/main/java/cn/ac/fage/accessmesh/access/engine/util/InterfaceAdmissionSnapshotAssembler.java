@@ -19,11 +19,11 @@ import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceAdmissionSnapshotResp
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceAdmissionSnapshotResp.OperationCandidateEntry;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceAdmissionSnapshotResp.RouteEntry;
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
-import java.io.IOException;
+import tools.jackson.core.JacksonException;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -203,7 +203,7 @@ public class InterfaceAdmissionSnapshotAssembler {
                     limits.snapshotBytes(bytes);
                 }
             }, response);
-        } catch (IOException error) {
+        } catch (JacksonException error) {
             for (Throwable cause = error; cause != null; cause = cause.getCause()) {
                 if (cause instanceof QueryBudgetExceededException budget) throw budget;
             }

@@ -1,6 +1,8 @@
 package cn.ac.fage.accessmesh.perm.common.util;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
+
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -14,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class ConditionEvalUtilsCidrGuardTest {
 
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMapper.builder().configureForJackson2().build();
 
     /** 白名单条件是否满足（clientIp 在 10.x 网段） */
     private boolean whitelistSatisfied(String cidrText) throws Exception {
@@ -164,8 +166,8 @@ class ConditionEvalUtilsCidrGuardTest {
     @DisplayName("r2 P2-2：黑名单 [\"1.2.3.4::/64\"] 客户端 2001:db8::1 → 整条不满足"
         + "（旧实现校验器放行 + 匹配失败降级未命中 + 黑名单反转 = 放行，红跑实证）")
     void blacklistWithJdkRejectedEntryFailsClosed() {
-        com.fasterxml.jackson.databind.node.ArrayNode cidrs =
-            new com.fasterxml.jackson.databind.ObjectMapper().createArrayNode();
+        tools.jackson.databind.node.ArrayNode cidrs =
+            JsonMapper.builder().configureForJackson2().build().createArrayNode();
         cidrs.add("1.2.3.4::/64");
         assertThat(ConditionEvalUtils.evalIpList(cidrs, "2001:db8::1", false)).isFalse();
         assertThat(ConditionEvalUtils.evalIpList(cidrs, "2001:db8::1", true)).isFalse();

@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.perm.common.util;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

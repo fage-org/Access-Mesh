@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.audit.service.impl;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.audit.dto.resp.LoginLogResp;
 import cn.ac.fage.accessmesh.access.audit.entity.OperationLog;
 import cn.ac.fage.accessmesh.access.audit.entity.PermissionChangeLog;
@@ -88,7 +90,7 @@ class AuditReadMaskingTest {
     }
     @Test
     void snapshotMaskingPreservesJsonNumbersAndKeysIncludingEmbeddedJson() throws Exception {
-        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        var mapper = JsonMapper.builder().configureForJackson2().build();
         var nested = mapper.createObjectNode().put("id", 13812345678L)
             .put("phone", "13812345678");
         var source = mapper.createObjectNode().put("id", 13812345678L)

@@ -1,11 +1,13 @@
 package cn.ac.fage.accessmesh.e2e;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.e2e.E2eProcessSupport.ServiceHandle;
 import static cn.ac.fage.accessmesh.e2e.E2eProcessSupport.filterOutTestClasses;
 import static cn.ac.fage.accessmesh.e2e.E2eProcessSupport.freePort;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.api.StatefulRedisConnection;
@@ -18,7 +20,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
@@ -107,7 +109,7 @@ class ExampleProtectedApiE2EIT {
     private static final Duration STALE_WINDOW = Duration.ofSeconds(30);
 
     @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:16-alpine")
         .withDatabaseName("access_db")
         .withUsername("perm")
         .withPassword("perm");
@@ -122,7 +124,7 @@ class ExampleProtectedApiE2EIT {
     private static final HttpClient HTTP = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(5))
         .build();
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMapper.builder().configureForJackson2().build();
 
     private static ServiceHandle accessService;
     private static ServiceHandle gatewayService;
@@ -469,7 +471,7 @@ class ExampleProtectedApiE2EIT {
             .as("SYNC 类型 fixture 必须创建成功，响应：" + typeCreated).isPositive();
 
         String syncUrl = gateway() + "/api/access/resource-entity/sync";
-        com.fasterxml.jackson.databind.node.ObjectNode syncBody = JSON.createObjectNode()
+        tools.jackson.databind.node.ObjectNode syncBody = JSON.createObjectNode()
             .put("operation", "UPSERT")
             .put("resourceTypeCode", "E2E_CRED_RES")
             .put("resourceCode", "e2e-cred-item-1")
@@ -490,7 +492,7 @@ class ExampleProtectedApiE2EIT {
 
         // ②c 凭证 DELETE 同步资源（幂等软删成功信封）——同时为清理段扫清类型删除守卫
         //（T-PERM-056：类型下有效资源行不可删——SYNC 类型资源行仅能经同步通道软删）
-        com.fasterxml.jackson.databind.node.ObjectNode deleteBody = JSON.createObjectNode()
+        tools.jackson.databind.node.ObjectNode deleteBody = JSON.createObjectNode()
             .put("operation", "DELETE")
             .put("resourceTypeCode", "E2E_CRED_RES")
             .put("resourceCode", "e2e-cred-item-1")
@@ -714,7 +716,7 @@ class ExampleProtectedApiE2EIT {
             "--spring.cloud.nacos.discovery.enabled=false",
             "--accessmesh.sync.scheduler.enabled=false",
             "--file.storage.path=" + Path.of("files").toAbsolutePath(),
-            "--spring.cloud.gateway.enabled=false",
+            "--spring.cloud.gateway.server.webflux.enabled=false",
             "--spring.autoconfigure.exclude=org.springframework.cloud.gateway.config.GatewayRedisAutoConfiguration,"
                 + "org.springframework.cloud.gateway.config.GatewayClassPathWarningAutoConfiguration,"
                 + "org.springframework.cloud.gateway.discovery.GatewayDiscoveryClientAutoConfiguration,"
@@ -752,7 +754,7 @@ class ExampleProtectedApiE2EIT {
             "--spring.cloud.nacos.config.enabled=false",
             "--spring.cloud.nacos.config.import-check.enabled=false",
             "--spring.cloud.nacos.discovery.enabled=false",
-            "--spring.cloud.gateway.enabled=false",
+            "--spring.cloud.gateway.server.webflux.enabled=false",
             "--spring.autoconfigure.exclude=org.springframework.cloud.gateway.config.GatewayRedisAutoConfiguration,"
                 + "org.springframework.cloud.gateway.config.GatewayClassPathWarningAutoConfiguration,"
                 + "org.springframework.cloud.gateway.discovery.GatewayDiscoveryClientAutoConfiguration,"
@@ -764,11 +766,11 @@ class ExampleProtectedApiE2EIT {
                 + "org.springframework.cloud.gateway.config.GatewayMetricsAutoConfiguration,"
                 + "org.springframework.cloud.gateway.config.GatewayResilience4JCircuitBreakerAutoConfiguration,"
                 + "cn.dev33.satoken.reactor.spring.SaTokenContextRegister,"
-                + "org.redisson.spring.starter.RedissonAutoConfigurationV2,"
+                + "org.redisson.spring.starter.RedissonAutoConfigurationV4,"
                 + "cn.ac.fage.accessmesh.common.cache.RedissonCacheAutoConfiguration,"
-                + "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,"
-                + "org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration,"
-                + "com.mybatisflex.spring.boot.MybatisFlexAutoConfiguration");
+                + "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,"
+                + "org.springframework.boot.jdbc.autoconfigure.JdbcTemplateAutoConfiguration,"
+                + "com.mybatisflex.spring.boot.v4.MybatisFlexAutoConfiguration");
     }
 
     private static List<String> gatewayArgs(int port, int managementPort, int accessPort, int examplePort) {
@@ -783,12 +785,15 @@ class ExampleProtectedApiE2EIT {
             "--spring.cloud.nacos.config.enabled=false",
             "--spring.cloud.nacos.config.import-check.enabled=false",
             "--spring.cloud.nacos.discovery.enabled=false",
-            "--spring.autoconfigure.exclude=org.redisson.spring.starter.RedissonAutoConfigurationV2,"
+            // The shared E2E classpath contains Tomcat; production Gateway uses Netty only.
+            "--spring.autoconfigure.exclude=org.springframework.boot.tomcat.autoconfigure.reactive.TomcatReactiveWebServerAutoConfiguration,"
+                + "org.springframework.boot.tomcat.autoconfigure.actuate.web.server.TomcatReactiveManagementContextAutoConfiguration,"
+                + "org.redisson.spring.starter.RedissonAutoConfigurationV4,"
                 + "cn.ac.fage.accessmesh.common.cache.RedissonCacheAutoConfiguration,"
                 + "cn.dev33.satoken.spring.SaTokenContextRegister,"
-                + "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,"
-                + "org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration,"
-                + "com.mybatisflex.spring.boot.MybatisFlexAutoConfiguration",
+                + "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,"
+                + "org.springframework.boot.jdbc.autoconfigure.JdbcTemplateAutoConfiguration,"
+                + "com.mybatisflex.spring.boot.v4.MybatisFlexAutoConfiguration",
             // /example/** 路由的 lb://example-service 解析目标（免 Nacos 直连子进程）
             "--spring.cloud.discovery.client.simple.instances.access-service[0].uri=http://localhost:" + accessPort,
             "--spring.cloud.discovery.client.simple.instances.example-service[0].uri=http://localhost:" + examplePort,
@@ -929,7 +934,7 @@ class ExampleProtectedApiE2EIT {
     private static JsonNode parseEnvelope(EnvelopeResult r) {
         try {
             return JSON.readTree(r.rawBody());
-        } catch (IOException e) {
+        } catch (tools.jackson.core.JacksonException e) {
             throw new IllegalStateException("响应不是合法 JSON：" + r.rawBody(), e);
         }
     }
@@ -967,7 +972,7 @@ class ExampleProtectedApiE2EIT {
         JsonNode envelope;
         try {
             envelope = JSON.readTree(raw);
-        } catch (IOException e) {
+        } catch (tools.jackson.core.JacksonException e) {
             throw new IllegalStateException("响应不是合法 JSON: " + raw, e);
         }
         assertThat(envelope.path("code").asInt())

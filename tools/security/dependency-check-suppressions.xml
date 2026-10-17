@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.4.xsd">
+    <!-- User-approved false positives, 2026-10-17. Evidence and review triggers:
+         docs/tasks/evidence/T-ACCESS-105/maven-remediation.md. Never suppress a whole CPE. -->
+    <suppress>
+        <notes><![CDATA[MyBatis-Flex is neither MyBatis-Plus nor MyBatis 1.11.8.
+Actual MyBatis is 3.5.19. Reassess on package/version changes.]]></notes>
+        <packageUrl regex="true">^pkg:maven/com\.mybatis-flex/mybatis-flex-(core|spring|codegen|annotation|processor|spring-boot-starter|spring-boot4-starter)@1\.11\.8$</packageUrl>
+        <cve>CVE-2023-25330</cve>
+        <cve>CVE-2020-26945</cve>
+    </suppress>
+    <suppress>
+        <notes><![CDATA[Nacos logging adapter only; no Nacos server authentication filter,
+console or ConfigOpsController. Reassess on package/version changes.]]></notes>
+        <packageUrl>pkg:maven/com.alibaba.nacos/logback-adapter@1.1.4</packageUrl>
+        <cve>CVE-2021-29441</cve>
+        <cve>CVE-2021-29442</cve>
+        <cve>CVE-2021-43116</cve>
+    </suppress>
+    <suppress>
+        <notes><![CDATA[docker-java 3.7.1 uses shaded Classic CloseableHttpClient;
+Apache says Classic is unaffected by this async-client CVE. Only this embedded copy,
+not ordinary HttpClient dependencies. Reassess on transport version or call-path changes.
+https://lists.apache.org/thread/bhf7g2zwpom2ohvwjjjlonc93br2s8vq]]></notes>
+        <filePath regex="true">.*[/\\]docker-java-transport-zerodep-3\.7\.1\.jar[/\\]META-INF[/\\]maven[/\\]org\.apache\.httpcomponents\.client5[/\\]httpclient5[/\\]pom\.xml$</filePath>
+        <cve>CVE-2026-71290</cve>
+    </suppress>
+    <suppress>
+        <notes><![CDATA[Docker Classic HTTP/1.1 transport does not use HTTP/2 HPACK.
+Only this shaded copy; reassess on version or transport changes.]]></notes>
+        <filePath regex="true">.*[/\\]docker-java-transport-zerodep-3\.7\.1\.jar[/\\]META-INF[/\\]maven[/\\]org\.apache\.httpcomponents\.core5[/\\]httpcore5(-h2)?[/\\]pom\.xml$</filePath>
+        <cve>CVE-2026-54428</cve>
+    </suppress>
+    <suppress>
+        <notes><![CDATA[ACCEPTED RISK, NOT A FALSE POSITIVE. User approved 2026-10-17:
+Testcontainers-only dependency connected to trusted Docker infrastructure.
+Unbounded HTTP/1.1 headers can exhaust the test JVM. check-maven-audit.mjs enforces
+test-only paths and blocks for review when a newer stable docker-java is published.
+Remove/reassess on upstream fix, production use or untrusted Docker/proxy use.]]></notes>
+        <filePath regex="true">.*[/\\]docker-java-transport-zerodep-3\.7\.1\.jar[/\\]META-INF[/\\]maven[/\\]org\.apache\.httpcomponents\.core5[/\\]httpcore5(-h2)?[/\\]pom\.xml$</filePath>
+        <cve>CVE-2026-54399</cve>
+    </suppress>
+</suppressions>

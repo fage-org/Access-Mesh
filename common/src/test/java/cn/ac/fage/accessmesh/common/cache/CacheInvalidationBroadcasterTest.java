@@ -1,7 +1,9 @@
 package cn.ac.fage.accessmesh.common.cache;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.common.cache.impl.CombinedL1L2Store;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -63,7 +65,7 @@ class CacheInvalidationBroadcasterTest {
             return 1;
         }).when(topic).addListener(eq(String.class), any(MessageListener.class));
 
-        ObjectMapper objectMapper = new ObjectMapper();
+        ObjectMapper objectMapper = JsonMapper.builder().configureForJackson2().build();
         meterRegistry = new SimpleMeterRegistry();
         combinedStore = new CombinedL1L2Store(redissonClient, objectMapper, meterRegistry,
             new CacheProperties());
@@ -107,7 +109,7 @@ class CacheInvalidationBroadcasterTest {
         assertThat(combinedStore.get(catalog, keyA)).isEqualTo("v1");
 
         // 模拟收到其他实例广播：清理本地 L1
-        String json = new ObjectMapper().writeValueAsString(
+        String json = JsonMapper.builder().configureForJackson2().build().writeValueAsString(
             new CacheInvalidationMessage(catalog.getCode(), TENANT_ID, Set.of(keyA), false));
         capturedListener.onMessage(RedissonCacheInvalidationBroadcaster.TOPIC, json);
 
@@ -120,7 +122,7 @@ class CacheInvalidationBroadcasterTest {
         String keyA = fullKey("a");
         combinedStore.put(catalog, keyA, "v1");
 
-        String json = new ObjectMapper().writeValueAsString(
+        String json = JsonMapper.builder().configureForJackson2().build().writeValueAsString(
             new CacheInvalidationMessage(catalog.getCode(), TENANT_ID, Set.of(), true));
         capturedListener.onMessage(RedissonCacheInvalidationBroadcaster.TOPIC, json);
 
@@ -149,6 +151,6 @@ class CacheInvalidationBroadcasterTest {
     }
 
     private CacheInvalidationMessage parse(String json) throws Exception {
-        return new ObjectMapper().readValue(json, CacheInvalidationMessage.class);
+        return JsonMapper.builder().configureForJackson2().build().readValue(json, CacheInvalidationMessage.class);
     }
 }

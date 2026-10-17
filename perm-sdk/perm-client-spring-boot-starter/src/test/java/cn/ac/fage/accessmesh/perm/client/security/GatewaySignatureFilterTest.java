@@ -1,7 +1,9 @@
 package cn.ac.fage.accessmesh.perm.client.security;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
+
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -29,14 +31,14 @@ class GatewaySignatureFilterTest {
     private static final String SECRET = "test-signature-secret";
 
     private final GatewaySignatureFilter filter =
-        new GatewaySignatureFilter(SECRET, 60, new ObjectMapper());
+        new GatewaySignatureFilter(SECRET, 60, JsonMapper.builder().configureForJackson2().build());
     private final FilterChain chain = mock(FilterChain.class);
-    private final ObjectMapper json = new ObjectMapper();
+    private final ObjectMapper json = JsonMapper.builder().configureForJackson2().build();
 
     @Test
     @DisplayName("未配置密钥 fail-closed：空 secret 直接拒绝 30003，不进入验签（2026-10-06 逐任务评审补回归锁——收编携带的既有缺口）")
     void emptySecret_failsClosedBeforeVerification() throws Exception {
-        GatewaySignatureFilter unconfigured = new GatewaySignatureFilter("", 60, new ObjectMapper());
+        GatewaySignatureFilter unconfigured = new GatewaySignatureFilter("", 60, JsonMapper.builder().configureForJackson2().build());
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/example/demo/hello");
         request.addHeader("X-User-Id", "42");
         request.addHeader("X-Signature-Timestamp", String.valueOf(System.currentTimeMillis() / 1000));

@@ -6,7 +6,7 @@
 
 | 文档 | 类型 | 状态 | 说明 |
 |------|------|------|------|
-| [scenario-audit-remediation-plan](scenario-audit-remediation-plan.md) | 架构与使用场景持续审查问题修复 | active | 任务与验收见[看板](../tasks/README.md)；存量依赖漏洞修复由 T-ACCESS-105 承接，保留扫描阻断 |
+| [scenario-audit-remediation-plan](scenario-audit-remediation-plan.md) | 架构与使用场景持续审查问题修复 | active | 任务与验收见[看板](../tasks/README.md)；依赖修复见 T-ACCESS-105，等待真实 CI 验收 |
 | [usage-review-remediation-plan](../archive/2026-10-06/usage-review-remediation-plan.md) | 使用者视角评审问题修复 | archived | 2026-10-06：24 项任务全部 done；任务卡与证据随批归档，现行契约已回写；历史删除项按用户决定排除 |
 
 ## 已归档计划

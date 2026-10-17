@@ -3,7 +3,8 @@ package cn.ac.fage.accessmesh.common.cache;
 import cn.ac.fage.accessmesh.common.cache.impl.CaffeineLocalCacheStore;
 import cn.ac.fage.accessmesh.common.cache.impl.CombinedL1L2Store;
 import cn.ac.fage.accessmesh.common.cache.impl.RedissonBucketStore;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.redisson.api.RedissonClient;
@@ -15,9 +16,22 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.Mockito.mock;
 
 class CacheAutoConfigurationTest {
+
+    @Test
+    void shouldReuseAHostMapperDeclaredAsObjectMapper() {
+        ObjectMapper hostMapper = JsonMapper.builder().build();
+        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+            context.registerBean(ObjectMapper.class, () -> hostMapper);
+            context.register(CacheAutoConfiguration.class);
+            context.refresh();
+            assertEquals(1, context.getBeanNamesForType(ObjectMapper.class).length);
+            assertSame(hostMapper, context.getBean(ObjectMapper.class));
+        }
+    }
 
     @Test
     void cacheObjectMapperShouldUseUtcTimezone() {
@@ -29,7 +43,7 @@ class CacheAutoConfigurationTest {
 
             // T-ACCESS-024：时间序列化统一 UTC。LocalDateTime 本身无时区（ISO 无偏移），
             // setTimeZone(UTC) 是对未来引入 Date 等带时区类型的防御性兜底
-            assertEquals("UTC", mapper.getSerializationConfig().getTimeZone().getID());
+            assertEquals("UTC", mapper.serializationConfig().getTimeZone().getID());
         }
     }
 

@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.resource.service.impl;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.access.sync.metadata.SyncVersionRef;
@@ -18,7 +20,7 @@ import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.type.service.domain.ResourceTypeOwnershipGuard;
 import cn.ac.fage.accessmesh.access.sync.SyncAuthVerifier;
 import cn.ac.fage.accessmesh.access.sync.SyncResultBuilder;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -75,7 +77,7 @@ class ResourceEntitySyncAppServiceTest {
     @BeforeEach
     void setUp() {
         service = new ResourceEntitySyncAppServiceImpl(syncMetadataDomainService, syncMetadataMapper,
-                typeResolutionService, resourceEntityMapper, new ObjectMapper(),
+                typeResolutionService, resourceEntityMapper, JsonMapper.builder().configureForJackson2().build(),
                 new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(),
                 resourceTypeOwnershipGuard,
                 resourceEntityDomainService, treeWriteLockSupport, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.sync.metadata.ResourcePublicationDomainService.class), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.DependencyCompilationDomainService.class),

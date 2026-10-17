@@ -1,7 +1,9 @@
 package cn.ac.fage.accessmesh.access.infrastructure.cache;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.perm.common.event.PermInvalidateEvent;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
@@ -19,7 +21,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 class PermInvalidationPublisherTest {
 
     private final StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = JsonMapper.builder().configureForJackson2().build();
     private final PermInvalidationPublisher publisher = new PermInvalidationPublisher(redisTemplate, objectMapper);
 
     @Test

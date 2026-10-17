@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.type.service.impl;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
@@ -64,7 +66,7 @@ class TypeDefinitionAppServiceImplTest {
         cn.ac.fage.accessmesh.access.type.service.domain.ResourceTypeOwnershipGuard ownershipGuard =
             new cn.ac.fage.accessmesh.access.type.service.domain.ResourceTypeOwnershipGuard(
                 typeDefinitionMapper, serviceConfigMapper, resourceEntityDomainService,
-                new com.fasterxml.jackson.databind.ObjectMapper());
+                JsonMapper.builder().configureForJackson2().build());
         service = new TypeDefinitionAppServiceImpl(
             typeDefinitionMapper, operationPermissionMapper, engine, ownershipGuard,
             resourceEntityDomainService, localProjectionDomainService, subjectDomainService,

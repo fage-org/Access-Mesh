@@ -1,7 +1,9 @@
 package cn.ac.fage.accessmesh.gateway.cache;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.perm.common.event.PermInvalidateEvent;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -46,7 +48,7 @@ class PermInvalidationSubscriberTest {
     void setUp() {
         clock = VirtualTimeScheduler.getOrSet();
         redisTemplate = mock(ReactiveStringRedisTemplate.class);
-        objectMapper = new ObjectMapper();
+        objectMapper = JsonMapper.builder().configureForJackson2().build();
         invalidator = mock(InterfaceSnapshotCacheInvalidator.class);
         subscriber = new PermInvalidationSubscriber(redisTemplate, objectMapper, invalidator);
     }

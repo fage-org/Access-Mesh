@@ -23,7 +23,7 @@
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
             <scope>provided</scope>
             <exclusions>
                 <exclusion><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-logging</artifactId></exclusion>
@@ -53,12 +53,14 @@
             <scope>provided</scope>
         </dependency>
         <!-- T-ACCESS-100 r2：测试域后端=全局 starter-test 携带的 Logback（库模块口径） -->
-        <!-- codex sol r2 P2-4：SDK 契约 DTO 含 LocalDateTime（快照 generatedAt 等），
-             jsr310 随本模块 compile 传递宿主（此前经 common 的 starter-web 传递，Web 栈
-             optional 化后退出闭包） -->
+        <!-- SDK JSON codec includes Java time support in Jackson 3, without a Web runtime dependency. -->
         <dependency>
-            <groupId>com.fasterxml.jackson.datatype</groupId>
-            <artifactId>jackson-datatype-jsr310</artifactId>
+            <groupId>tools.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-http-converter</artifactId>
         </dependency>
     </dependencies>
 </project>

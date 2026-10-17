@@ -1,6 +1,12 @@
 package cn.ac.fage.accessmesh.gateway;
 
 import cn.ac.fage.accessmesh.gateway.cache.PermInvalidationSubscriber;
+import cn.ac.fage.accessmesh.gateway.filter.HeaderCleanFilter;
+import org.springframework.cloud.gateway.filter.headers.HttpHeadersFilter;
+import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
+import org.springframework.mock.web.server.MockServerWebExchange;
+import java.net.InetSocketAddress;
+import reactor.core.publisher.Mono;
 import cn.ac.fage.accessmesh.gateway.config.GatewayProperties;
 import org.springframework.cloud.gateway.config.GlobalCorsProperties;
 import org.springframework.web.cors.CorsConfiguration;
@@ -12,7 +18,7 @@ import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.cloud.gateway.route.RouteDefinitionLocator;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
@@ -26,6 +32,7 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.layout.JsonLayout;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -61,7 +68,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
     // 引入的排除，T-ACCESS-031 依赖迁出后类路径已无对应触发类（no-op 护栏，留作
     // 防回归——依赖树再漂移引入同类自动配置仍被挡住）；RedissonCacheAutoConfiguration
     // 类本身随 common 常在，仅 Redisson 类存在时激活，排除持续有效
-    "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisReactiveAutoConfiguration,com.alibaba.cloud.nacos.NacosConfigAutoConfiguration,com.alibaba.cloud.nacos.NacosDiscoveryAutoConfiguration,com.alibaba.cloud.nacos.discovery.NacosDiscoveryClientConfiguration,org.redisson.spring.starter.RedissonAutoConfigurationV2,cn.ac.fage.accessmesh.common.cache.RedissonCacheAutoConfiguration,cn.dev33.satoken.spring.SaTokenContextRegister,org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration",
+    "spring.autoconfigure.exclude=org.springframework.boot.data.redis.autoconfigure.DataRedisAutoConfiguration,org.springframework.boot.data.redis.autoconfigure.DataRedisRepositoriesAutoConfiguration,org.springframework.boot.data.redis.autoconfigure.DataRedisReactiveAutoConfiguration,com.alibaba.cloud.nacos.NacosConfigAutoConfiguration,com.alibaba.cloud.nacos.NacosDiscoveryAutoConfiguration,com.alibaba.cloud.nacos.discovery.NacosDiscoveryClientConfiguration,org.redisson.spring.starter.RedissonAutoConfigurationV4,cn.ac.fage.accessmesh.common.cache.RedissonCacheAutoConfiguration,cn.dev33.satoken.spring.SaTokenContextRegister,org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,org.springframework.boot.jdbc.autoconfigure.JdbcTemplateAutoConfiguration",
     "logging.level.cn.ac.fage.accessmesh=WARN",
     "ACCESSMESH_SIGNATURE_SECRET=test-signature-secret-for-gateway-test",
     "PERM_INTERNAL_SECRET=test-internal-secret-for-gateway-test"
@@ -70,14 +77,14 @@ class GatewayApplicationConfigTest {
 
     @Autowired
     private ApplicationContext applicationContext;
-    @MockBean
+    @MockitoBean
     private org.springframework.data.redis.core.ReactiveStringRedisTemplate tenantGateRedis;
 
     /**
      * Mock 权限失效订阅器：SmartLifecycle start() 在上下文刷新时执行 Redis pub/sub 订阅，
      * 测试环境不连真实 Redis，替换为 mock 避免订阅逻辑在测试上下文执行。
      */
-    @MockBean
+    @MockitoBean
     private PermInvalidationSubscriber permInvalidationSubscriber;
 
     /**
@@ -129,6 +136,33 @@ class GatewayApplicationConfigTest {
     void redisConfigLoadsDatabaseZero() {
         String db = applicationContext.getEnvironment().getProperty("spring.data.redis.database");
         assertTrue("0".equals(db), "Redis database 必须为 0（与 access-service 共享会话存储），实际 " + db);
+    }
+
+    @Test
+    void forwardedClientIpSurvivesActualOutboundHeaderFilters() {
+        var request = MockServerHttpRequest
+            .post("http://localhost/api/access/auth/userinfo")
+            .remoteAddress(new InetSocketAddress("10.0.0.99", 12345))
+            .header("X-Forwarded-For", "203.0.113.7", "192.0.2.9")
+            .header("X-Forwarded-Host", "untrusted.example")
+            .header("Forwarded", "for=203.0.113.7").build();
+        var exchange = MockServerWebExchange.from(request);
+        var filters = applicationContext.getBeanProvider(
+            HttpHeadersFilter.class).orderedStream().toList();
+        applicationContext.getBean(HeaderCleanFilter.class)
+            .filter(exchange, cleaned -> {
+                var forwarded = HttpHeadersFilter.filterRequest(filters, cleaned);
+                assertThat(forwarded.get("X-Forwarded-For")).containsExactly("10.0.0.99");
+                assertThat(forwarded.getFirst("X-Forwarded-Host")).isNull();
+                assertThat(forwarded.getFirst("Forwarded")).isNull();
+                return Mono.empty();
+            }).block();
+
+        var noPeer = MockServerWebExchange.from(
+            MockServerHttpRequest.post("http://localhost/api/access/auth/userinfo")
+                .header("X-Forwarded-For", "203.0.113.7").build());
+        var forwarded = HttpHeadersFilter.filterRequest(filters, noPeer);
+        assertThat(forwarded.getFirst("X-Forwarded-For")).isNull();
     }
 
     /**
@@ -254,9 +288,9 @@ class GatewayApplicationConfigTest {
         // T-GW-009（claude 外评处置补强）：Java 默认清单（yml 键丢失/Nacos 空覆盖时的兜底回退位）
         // 与 yml 同源同步——删除默认条目时本断言红，防三载体（yml/默认值/密钥豁免）漂移回归
         var defaults = new GatewayProperties().getWhitelist().getPaths();
-        org.assertj.core.api.Assertions.assertThat(wl).doesNotContain("/public/**", "/captcha/**");
-        org.assertj.core.api.Assertions.assertThat(defaults).doesNotContain("/public/**", "/captcha/**");
-        org.assertj.core.api.Assertions.assertThat(applicationContext.getEnvironment()
+        assertThat(wl).doesNotContain("/public/**", "/captcha/**");
+        assertThat(defaults).doesNotContain("/public/**", "/captcha/**");
+        assertThat(applicationContext.getEnvironment()
             .containsProperty("gateway.permission.unregistered-policy")).isFalse();
         assertTrue(defaults.contains("/api/access/user/reset-password"),
             "GatewayProperties.Whitelist.paths 默认值必须包含 /api/access/user/reset-password（与 yml 同源），实际 " + defaults);

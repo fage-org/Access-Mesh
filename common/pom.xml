@@ -21,7 +21,7 @@
              类路径（optional 本就不传递），与全局测试域 Logback 保持单 Provider。 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
             <optional>true</optional>
             <exclusions>
                 <exclusion>
@@ -44,7 +44,7 @@
             </exclusions>
         </dependency>
         <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
+            <groupId>tools.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
         </dependency>
         <dependency>
@@ -61,7 +61,11 @@
         <dependency>
             <groupId>org.redisson</groupId>
             <artifactId>redisson-spring-boot-starter</artifactId>
-            <version>${redisson.version}</version>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.redisson</groupId>
+            <artifactId>redisson-spring-data-40</artifactId>
             <optional>true</optional>
         </dependency>
         <!-- 缓存相关依赖 -->
@@ -88,7 +92,7 @@
         <!-- MyBatis-Flex for tenant-safe query utilities (optional) -->
         <dependency>
             <groupId>com.mybatis-flex</groupId>
-            <artifactId>mybatis-flex-spring-boot3-starter</artifactId>
+            <artifactId>mybatis-flex-spring-boot4-starter</artifactId>
             <optional>true</optional>
         </dependency>
         <dependency>

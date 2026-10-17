@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.auth.service.impl;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.auth.dto.TokenReq;
 import cn.ac.fage.accessmesh.access.support.OAuth2CredentialFixtures;
 import cn.ac.fage.accessmesh.access.auth.dto.TokenResp;
@@ -11,7 +13,7 @@ import cn.ac.fage.accessmesh.access.auth.service.domain.OAuth2ClientDomainServic
 import cn.ac.fage.accessmesh.access.user.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.dev33.satoken.secure.BCrypt;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -60,7 +62,7 @@ class OAuth2LoginLogTest {
     @BeforeEach
     void setUp() {
         service = new OAuth2AppServiceImpl(oauth2ClientDomainService, userDomainService,
-            loginLogDomainService, redisTemplate, new ObjectMapper(), cn.ac.fage.accessmesh.access.it.TenantTestSupport.activeGuard());
+            loginLogDomainService, redisTemplate, JsonMapper.builder().configureForJackson2().build(), cn.ac.fage.accessmesh.access.it.TenantTestSupport.activeGuard());
         ReflectionTestUtils.setField(service, "jwtSecretKey", JWT_SECRET);
     }
 
@@ -87,7 +89,7 @@ class OAuth2LoginLogTest {
         codeData.setTenantId(10L);
         codeData.setRedirectUri("http://app/cb");
         codeData.setScope("read");
-        String codeJson = new ObjectMapper().writeValueAsString(codeData);
+        String codeJson = JsonMapper.builder().configureForJackson2().build().writeValueAsString(codeData);
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.get(org.mockito.ArgumentMatchers.anyString())).thenReturn(codeJson);
         org.mockito.BDDMockito.doReturn(codeJson)
@@ -163,7 +165,7 @@ class OAuth2LoginLogTest {
         codeData.setRedirectUri("http://app/cb");
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.get(org.mockito.ArgumentMatchers.anyString()))
-            .thenReturn(new ObjectMapper().writeValueAsString(codeData));
+            .thenReturn(JsonMapper.builder().configureForJackson2().build().writeValueAsString(codeData));
         try {
             service.token(new TokenReq(
                 "authorization_code", "client-1", "wrong-secret", "code-abc",

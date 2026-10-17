@@ -1,14 +1,16 @@
 package cn.ac.fage.accessmesh.common.model;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
+
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class RJsonTest {
     @Test void shouldDeserializeGenericHttpEnvelope_withoutCustomClientDecoder() throws Exception {
-        var json = new ObjectMapper();
+        var json = JsonMapper.builder().configureForJackson2().build();
         var envelope = new R<>(200,"success",List.of(new Item("large-id","ok")),"request","trace");
         var decoded = json.readValue(json.writeValueAsString(envelope),new TypeReference<R<List<Item>>>() {});
         assertThat(decoded.getCode()).isEqualTo(200);

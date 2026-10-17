@@ -1,10 +1,12 @@
 package cn.ac.fage.accessmesh.gateway.filter;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.common.security.TenantGateProtocol;
 import cn.ac.fage.accessmesh.common.security.TenantSessionStamp;
 import cn.ac.fage.accessmesh.common.security.PlatformEndpoints;
 import cn.ac.fage.accessmesh.gateway.config.GatewayProperties;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -30,7 +32,7 @@ class TenantGateFilterTest {
             .thenReturn(Flux.just("a".repeat(40)+"|"+wire));
         var exchange = exchange("/api/access/user/page", epoch, forced);
         var chained = new AtomicBoolean();
-        new TenantGateFilter(redis, new ObjectMapper()).filter(exchange, e -> {
+        new TenantGateFilter(redis, JsonMapper.builder().configureForJackson2().build()).filter(exchange, e -> {
             chained.set(true); return Mono.empty();
         }).block();
         assertThat(chained.get()).isEqualTo(status == 200);
@@ -43,7 +45,7 @@ class TenantGateFilterTest {
         when(redis.execute(TenantGateProtocol.SCRIPT,List.of(TenantGateProtocol.key(2)),List.of("READ_SESSION")))
             .thenReturn(Flux.just("b".repeat(40)+"|ENABLED|7"));
         var exchange=exchange("/api/access/user/page",7,false);
-        new TenantGateFilter(redis,new ObjectMapper()).filter(exchange,e->{ throw new AssertionError("restored session must not reach permissions"); }).block();
+        new TenantGateFilter(redis,JsonMapper.builder().configureForJackson2().build()).filter(exchange,e->{ throw new AssertionError("restored session must not reach permissions"); }).block();
         assertThat(exchange.getResponse().getStatusCode().value()).isEqualTo(401);
     }
 
@@ -53,7 +55,7 @@ class TenantGateFilterTest {
         when(redis.execute(TenantGateProtocol.SCRIPT, List.of(TenantGateProtocol.key(2)), List.of("READ_SESSION")))
             .thenReturn(Flux.error(new IllegalStateException("unavailable")));
         var exchange = exchange("/api/access/user/page", 7, false);
-        new TenantGateFilter(redis, new ObjectMapper()).filter(exchange, e -> {
+        new TenantGateFilter(redis, JsonMapper.builder().configureForJackson2().build()).filter(exchange, e -> {
             throw new AssertionError("must not query permissions");
         }).block();
         assertThat(exchange.getResponse().getStatusCode().value()).isEqualTo(503);
@@ -64,7 +66,7 @@ class TenantGateFilterTest {
         var redis = mock(ReactiveStringRedisTemplate.class);
         when(redis.execute(TenantGateProtocol.SCRIPT, List.of(TenantGateProtocol.key(2)), List.of("READ_SESSION")))
             .thenReturn(Flux.just("a".repeat(40)+"|ENABLED|7"), Flux.just("a".repeat(40)+"|DISABLED|8"));
-        var filter = new TenantGateFilter(redis, new ObjectMapper());
+        var filter = new TenantGateFilter(redis, JsonMapper.builder().configureForJackson2().build());
         var chained = new AtomicBoolean();
         filter.filter(exchange("/api/access/user/reset-password", 7, true), e -> {
             chained.set(true); return Mono.empty();
@@ -79,7 +81,7 @@ class TenantGateFilterTest {
     void exactPlatformPathsUseIndependentBackendAuthentication() {
         var whitelist = new WhitelistFilter(new GatewayProperties());
         var redis = mock(ReactiveStringRedisTemplate.class);
-        var gate = new TenantGateFilter(redis, new ObjectMapper());
+        var gate = new TenantGateFilter(redis, JsonMapper.builder().configureForJackson2().build());
         for (String path : PlatformEndpoints.paths()) {
             var exchange = MockServerWebExchange.from(MockServerHttpRequest.post(path));
             var chained = new AtomicBoolean();

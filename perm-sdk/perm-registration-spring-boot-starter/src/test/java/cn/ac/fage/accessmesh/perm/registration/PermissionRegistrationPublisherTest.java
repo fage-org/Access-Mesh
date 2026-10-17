@@ -1,11 +1,13 @@
 package cn.ac.fage.accessmesh.perm.registration;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.perm.common.dto.req.PermissionManifestReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.PermissionManifestReq.*;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;
 import cn.ac.fage.accessmesh.perm.registration.feign.PermissionManifestClient;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.validation.Validation;
 import jakarta.validation.ValidatorFactory;
 import org.junit.jupiter.api.AfterAll;
@@ -22,7 +24,7 @@ import static org.mockito.Mockito.*;
 class PermissionRegistrationPublisherTest {
     private static final ValidatorFactory VALIDATORS = Validation.buildDefaultValidatorFactory();
     private final PermissionManifestClient client = mock(PermissionManifestClient.class);
-    private final PermissionRegistrationPublisher publisher = new PermissionRegistrationPublisher(client,new ObjectMapper(),VALIDATORS.getValidator(),true);
+    private final PermissionRegistrationPublisher publisher = new PermissionRegistrationPublisher(client,JsonMapper.builder().configureForJackson2().build(),VALIDATORS.getValidator(),true);
     private final RegistrationTarget target = new RegistrationTarget(1L,"reports","id-one","secret-one");
     @AfterAll static void close() { VALIDATORS.close(); }
 
@@ -109,7 +111,7 @@ class PermissionRegistrationPublisherTest {
         when(client.fullSync(anyString(),anyString(),any())).thenReturn(R.fail(20066,"expired"));
         assertThatThrownBy(() -> publisher.publish(target,new PermissionManifestReq(1,"1","r",List.of())))
                 .hasMessageContaining("20066");
-        assertThatThrownBy(() -> new PermissionRegistrationPublisher(client,new ObjectMapper(),VALIDATORS.getValidator(),null))
+        assertThatThrownBy(() -> new PermissionRegistrationPublisher(client,JsonMapper.builder().configureForJackson2().build(),VALIDATORS.getValidator(),null))
                 .hasMessageContaining("allow-insecure");
     }
     private static Dependency dependency(String key,String from,String to) {

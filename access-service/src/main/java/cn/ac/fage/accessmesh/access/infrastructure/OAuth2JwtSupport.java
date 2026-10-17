@@ -1,21 +1,35 @@
 package cn.ac.fage.accessmesh.access.infrastructure;
 
+import cn.ac.fage.accessmesh.common.enums.GlobalErrorCode;
+import cn.ac.fage.accessmesh.common.exception.SystemException;
+import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.JOSEObjectType;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.JWSObject;
+import com.nimbusds.jose.Payload;
+import com.nimbusds.jose.crypto.MACSigner;
+import com.nimbusds.jose.crypto.MACVerifier;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.json.JsonMapper;
+
+import java.nio.charset.StandardCharsets;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 
 /**
- * OAuth2 JWT 认证共享常量与载荷提取（评审 P1，2026-08-14 用户决策完整实现）。
+ * OAuth2 JWT 签发、验证与共享载荷提取。
  * <p>
- * 评审 P2：SaJwtUtil.getPayloads 返回 hutool JSONObject（LinkedHashMap 子类），
- * 业务代码一律以 {@code Map<String, Object>} 接收，禁止 hutool 类型进入业务代码
- * （AGENTS.md / project-rules 禁止 Hutool）。
- * </p>
- * <p>
- * OAuth2 访问令牌由 SaJwtUtil（HS256）独立签发，与平台用户会话（uuid 模式）无关。
+ * OAuth2 访问令牌由 Nimbus（HS256）独立签发，与平台用户会话（uuid 模式）无关。
  * 签发与验签必须使用相同的 loginType 与密钥（jwt-secret-key）：
  * </p>
  * <ul>
@@ -27,8 +41,77 @@ import java.util.Set;
  */
 public final class OAuth2JwtSupport {
 
-    /** JWT loginType claim（SaJwtTemplate.LOGIN_TYPE 语义）。 */
+    private static final JsonMapper JSON = JsonMapper.builder().configureForJackson2().build();
+    private static final String LOGIN_TYPE_CLAIM = "loginType";
+    public static final String LOGIN_ID_CLAIM = "loginId";
+    private static final String EXPIRY_CLAIM = "eff";
+
+    /** JWT loginType claim。 */
     public static final String LOGIN_TYPE = "oauth2";
+
+    /** 保持既有 JWT 协议：eff 是毫秒时间戳，可信额外载荷可截短授权链期限。 */
+    public static String createToken(String loginType, Object loginId, String device, long timeoutSeconds,
+                                     Map<String, Object> extraData, String secret) {
+        validateHmacSecretStrength(secret);
+        Map<String, Object> payloads = new LinkedHashMap<>();
+        payloads.put(LOGIN_TYPE_CLAIM, loginType);
+        payloads.put(LOGIN_ID_CLAIM, loginId);
+        payloads.put("device", device);
+        payloads.put(EXPIRY_CLAIM, timeoutSeconds == -1 ? -1L
+                : Math.addExact(System.currentTimeMillis(), Math.multiplyExact(timeoutSeconds, 1000L)));
+        payloads.put("rnStr", UUID.randomUUID().toString().replace("-", ""));
+        if (extraData != null) payloads.putAll(extraData);
+        try {
+            JWSObject jwt = new JWSObject(new JWSHeader.Builder(JWSAlgorithm.HS256)
+                    .type(JOSEObjectType.JWT).build(), new Payload(JSON.writeValueAsString(payloads)));
+            jwt.sign(new MACSigner(secret.getBytes(StandardCharsets.UTF_8)));
+            return jwt.serialize();
+        } catch (JOSEException | JacksonException e) {
+            throw new SystemException(GlobalErrorCode.SYSTEM_ERROR.code(), "OAuth2 JWT 签发失败", e);
+        }
+    }
+
+    /** 验签后才使用载荷；严格限定 HS256，保留 loginType 和 eff 期限校验。 */
+    public static Map<String, Object> getPayloads(String token, String loginType, String secret) {
+        if (token == null || secret == null || secret.isBlank()) throw new SecurityException("OAuth2 JWT 无效");
+        try {
+            JWSObject jwt = JWSObject.parse(token);
+            if (!JWSAlgorithm.HS256.equals(jwt.getHeader().getAlgorithm())
+                    || !jwt.getHeader().isBase64URLEncodePayload()
+                    || !jwt.verify(new MACVerifier(secret.getBytes(StandardCharsets.UTF_8)))) {
+                throw new SecurityException("OAuth2 JWT 签名无效");
+            }
+            Map<String, Object> payloads = JSON.readValue(jwt.getPayload().toString(), new TypeReference<>() {});
+            if (payloads == null || !Objects.equals(loginType, payloads.get(LOGIN_TYPE_CLAIM))) {
+                throw new SecurityException("OAuth2 JWT 类型无效");
+            }
+            long expiry = expiryOf(payloads);
+            if (expiry != -1 && expiry < System.currentTimeMillis()) throw new SecurityException("OAuth2 JWT 已过期");
+            return payloads;
+        } catch (ParseException | JOSEException | JacksonException | IllegalArgumentException e) {
+            throw new SecurityException("OAuth2 JWT 无效", e);
+        }
+    }
+
+    /** 有效令牌的剩余秒数；无效/过期返回 -2，原有永久期限返回 -1。 */
+    public static long getTimeout(String token, String loginType, String secret) {
+        try {
+            long expiry = expiryOf(getPayloads(token, loginType, secret));
+            return expiry == -1 ? -1 : Math.max(0, (expiry - System.currentTimeMillis()) / 1000);
+        } catch (SecurityException e) {
+            return -2;
+        }
+    }
+
+    private static long expiryOf(Map<String, Object> payloads) {
+        Object value = payloads.get(EXPIRY_CLAIM);
+        if (value == null) throw new SecurityException("OAuth2 JWT 缺少有效期");
+        try {
+            return Long.parseLong(value.toString());
+        } catch (NumberFormatException e) {
+            throw new SecurityException("OAuth2 JWT 有效期无效", e);
+        }
+    }
 
     /** 撤销令牌黑名单键前缀（Redis，键 = 前缀 + jti）。 */
     public static final String BLACKLIST_KEY_PREFIX = "oauth2:blacklist:";
@@ -164,7 +247,7 @@ public final class OAuth2JwtSupport {
 
     /**
      * 校验 JWT 签名密钥强度：空白或长度 &lt; {@link #MIN_SECRET_LENGTH} 抛 IllegalStateException
-     * （启动 fail-fast，对齐 bootstrap 密码/双密钥拦截器先例；sa-token-jwt 本身不校验长度）。
+     * （启动 fail-fast，对齐 bootstrap 密码/双密钥拦截器先例）。
      */
     public static void validateHmacSecretStrength(String secret) {
         if (secret == null || secret.isBlank() || secret.trim().length() < MIN_SECRET_LENGTH) {

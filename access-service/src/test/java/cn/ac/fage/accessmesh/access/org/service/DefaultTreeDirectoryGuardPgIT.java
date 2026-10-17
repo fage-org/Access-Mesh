@@ -21,8 +21,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -88,7 +88,7 @@ class DefaultTreeDirectoryGuardPgIT {
     @Autowired
     private OrgTreeConfigAppService orgTreeConfigAppService;
     /** 投影层 spy：故障注入用例在 batchUnbindUserOrg 注入异常，其余用例真实执行。 */
-    @SpyBean
+    @MockitoSpyBean
     private LocalProjectionDomainService localProjectionDomainService;
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -96,11 +96,11 @@ class DefaultTreeDirectoryGuardPgIT {
     private PlatformTransactionManager transactionManager;
 
     /** 失效广播 mock：拒绝路径断言「不发布变更」。 */
-    @MockBean
+    @MockitoBean
     private PermInvalidationPublisher publisher;
 
     /** 门禁 mock（void 方法默认通过）：守卫语义不依赖操作者权限数据。 */
-    @MockBean
+    @MockitoBean
     private AdminPermissionValidator permissionValidator;
 
     @BeforeEach

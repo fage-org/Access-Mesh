@@ -102,7 +102,7 @@ class HeaderCleanFilterTest {
 
         runFilter(exchange);
 
-        assertThat(downstream.get().getHeaders().containsKey("X-Real-IP")).isFalse();
+        assertThat(downstream.get().getHeaders().containsHeader("X-Real-IP")).isFalse();
     }
 
     @Test
@@ -115,8 +115,8 @@ class HeaderCleanFilterTest {
         runFilter(exchange);
 
         HttpHeaders downstreamHeaders = downstream.get().getHeaders();
-        assertThat(downstreamHeaders.containsKey("X-Internal-Secret")).isFalse();
-        assertThat(downstreamHeaders.containsKey("X-User-Id")).isFalse();
+        assertThat(downstreamHeaders.containsHeader("X-Internal-Secret")).isFalse();
+        assertThat(downstreamHeaders.containsHeader("X-User-Id")).isFalse();
     }
 
     @Test
@@ -132,11 +132,11 @@ class HeaderCleanFilterTest {
         runFilter(exchange);
 
         HttpHeaders downstreamHeaders = downstream.get().getHeaders();
-        assertThat(downstreamHeaders.containsKey("X-Forwarded-Host")).isFalse();
-        assertThat(downstreamHeaders.containsKey("X-Forwarded-Proto")).isFalse();
-        assertThat(downstreamHeaders.containsKey("X-Forwarded-Port")).isFalse();
-        assertThat(downstreamHeaders.containsKey("X-Forwarded-Prefix")).isFalse();
-        assertThat(downstreamHeaders.containsKey("Forwarded")).isFalse();
+        assertThat(downstreamHeaders.containsHeader("X-Forwarded-Host")).isFalse();
+        assertThat(downstreamHeaders.containsHeader("X-Forwarded-Proto")).isFalse();
+        assertThat(downstreamHeaders.containsHeader("X-Forwarded-Port")).isFalse();
+        assertThat(downstreamHeaders.containsHeader("X-Forwarded-Prefix")).isFalse();
+        assertThat(downstreamHeaders.containsHeader("Forwarded")).isFalse();
         // XFF 重建不受转发声明头清洗影响
         assertThat(downstreamHeaders.getFirst("X-Forwarded-For")).isEqualTo(GATEWAY_OBSERVED_IP);
     }
@@ -168,7 +168,7 @@ class HeaderCleanFilterTest {
         runFilter(exchange);
 
         // 外部伪造值已清洗，且无重建值：下游不见任何 XFF
-        assertThat(downstream.get().getHeaders().containsKey("X-Forwarded-For")).isFalse();
+        assertThat(downstream.get().getHeaders().containsHeader("X-Forwarded-For")).isFalse();
     }
 
     private ServerWebExchange exchangeWithRemote(MockServerHttpRequest.BaseBuilder<?> builder) {

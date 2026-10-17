@@ -19,8 +19,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -45,7 +45,7 @@ import static org.mockito.Mockito.verify;
  * <p>
  * 对比纯 Mock 单测（{@link UserWriteAppServiceFaultInjectionTest}）：
  * 本测试经 Spring 事务代理调用真实 {@code UserWriteAppServiceImpl}（@Transactional 生效），
- * 真实 PostgreSQL（Testcontainers）落库，用 @SpyBean 在投影/审计步骤注入故障，
+ * 真实 PostgreSQL（Testcontainers）落库，用 @MockitoSpyBean 在投影/审计步骤注入故障，
  * 断言管理事实表、投影表、change_log 表全部无残留，且回滚不触发 {@link PermInvalidationPublisher}。
  * Docker 不可用时由 Testcontainers 自动跳过（与既有 17 个 PG 测试一致）。
  * </p>
@@ -84,19 +84,19 @@ class UserWriteAppServiceFaultInjectionIT {
     private JdbcTemplate jdbcTemplate;
 
     /** 投影层 spy：仅指定方法注入故障，其余真实（成功场景全链路落库）。 */
-    @SpyBean
+    @MockitoSpyBean
     private LocalProjectionDomainService localProjectionDomainService;
 
     /** 审计层 spy：change_log 注入故障。 */
-    @SpyBean
+    @MockitoSpyBean
     private AuditDomainService auditDomainService;
 
     /** 失效广播 mock：断言「回滚不发布变更」。 */
-    @MockBean
+    @MockitoBean
     private PermInvalidationPublisher publisher;
 
     /** 门禁 mock（void 方法默认通过）：createUser 不依赖操作者权限数据。 */
-    @MockBean
+    @MockitoBean
     private AdminPermissionValidator permissionValidator;
 
 

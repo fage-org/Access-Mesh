@@ -7,7 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -87,7 +87,7 @@ public final class ItInfra {
     private static final int REDIS_INDEX_BASE = (FORK_NUMBER - 1) * 16 + 1;
     private static final int REDIS_INDEX_MAX = FORK_NUMBER * 16 - 1;
 
-    private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine")
+    private static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine")
         .withDatabaseName(HUB_DATABASE)
         .withUsername(PG_USERNAME)
         .withPassword(PG_PASSWORD)

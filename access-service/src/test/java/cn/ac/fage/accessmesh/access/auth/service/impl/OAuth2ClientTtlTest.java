@@ -1,5 +1,9 @@
 package cn.ac.fage.accessmesh.access.auth.service.impl;
 
+import tools.jackson.databind.json.JsonMapper;
+
+import cn.ac.fage.accessmesh.access.infrastructure.OAuth2JwtSupport;
+
 import cn.ac.fage.accessmesh.access.support.OAuth2CredentialFixtures;
 import cn.ac.fage.accessmesh.access.auth.dto.TokenReq;
 import cn.ac.fage.accessmesh.access.auth.dto.TokenResp;
@@ -7,8 +11,7 @@ import cn.ac.fage.accessmesh.access.auth.entity.SysOauth2Client;
 import cn.ac.fage.accessmesh.access.audit.service.domain.LoginLogDomainService;
 import cn.ac.fage.accessmesh.access.auth.service.domain.OAuth2ClientDomainService;
 import cn.ac.fage.accessmesh.access.user.service.domain.UserDomainService;
-import cn.dev33.satoken.jwt.SaJwtUtil;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -61,7 +64,7 @@ class OAuth2ClientTtlTest {
     private ValueOperations<String, String> valueOperations;
 
     private OAuth2AppServiceImpl service;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = JsonMapper.builder().configureForJackson2().build();
 
     @BeforeEach
     void setUp() {
@@ -112,7 +115,7 @@ class OAuth2ClientTtlTest {
 
         assertThat(resp.expiresIn()).isEqualTo(CUSTOM_TTL);
         // getTimeout = eff - 当前时刻，签发后存在亚秒流逝，允许 5 秒容差
-        assertThat(SaJwtUtil.getTimeout(resp.accessToken(), "oauth2", JWT_SECRET))
+        assertThat(OAuth2JwtSupport.getTimeout(resp.accessToken(), "oauth2", JWT_SECRET))
             .isBetween(CUSTOM_TTL - 5L, CUSTOM_TTL + 0L);
     }
 
@@ -135,7 +138,7 @@ class OAuth2ClientTtlTest {
 
         TokenResp resp = service.refreshToken("old-refresh-token", CLIENT_ID);
         assertThat(resp.expiresIn()).isEqualTo(expectedTtl);
-        assertThat(SaJwtUtil.getTimeout(resp.accessToken(), "oauth2", JWT_SECRET))
+        assertThat(OAuth2JwtSupport.getTimeout(resp.accessToken(), "oauth2", JWT_SECRET))
             .isBetween(expectedTtl - 5L, expectedTtl);
     }
 }

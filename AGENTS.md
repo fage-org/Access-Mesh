@@ -13,7 +13,7 @@
 | 层面      | 技术                                                                            |
 | --------- | ------------------------------------------------------------------------------- |
 | 语言      | Java 21                                                                         |
-| 框架      | Spring Boot 3 + Spring Cloud                                                    |
+| 框架      | Spring Boot 4 + Spring Cloud                                                    |
 | ORM       | MyBatis-Flex                                                                    |
 | 数据库    | PostgreSQL（多租户，软删除）                                                    |
 | 注册/配置 | Nacos                                                                           |

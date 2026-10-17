@@ -2,8 +2,8 @@ package cn.ac.fage.accessmesh.access.sync.guard;
 
 import cn.ac.fage.accessmesh.access.resource.entity.ServiceConfig;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ServiceConfigDomainService;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -113,7 +113,7 @@ public class SyncTypeGuard {
             if (!syncTypes.isObject()) {
                 throw new IllegalArgumentException("extra.syncTypes 必须为对象");
             }
-            syncTypes.fieldNames().forEachRemaining(field -> {
+            syncTypes.propertyNames().iterator().forEachRemaining(field -> {
                 if (!SYNC_TYPES_FIELD_WHITELIST.contains(field)) {
                     throw new IllegalArgumentException("extra.syncTypes 存在未知字段: " + field);
                 }

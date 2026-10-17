@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
@@ -77,7 +77,7 @@ class AutoGrantEngineContractPgIT {
     @Autowired private PermissionViewAppService viewAppService;
     @Autowired private JdbcTemplate jdbc;
     // 审计持久化异步实现另测；本类只锁定引擎发出的通知，避免异步 target spy 校验竞态。
-    @MockBean private AuditDomainService audit;
+    @MockitoBean private AuditDomainService audit;
 
     @Test
     void shouldKeepConditionsSpecificToEachCanonicalOperation() {

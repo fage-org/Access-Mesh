@@ -1,11 +1,13 @@
 package cn.ac.fage.accessmesh.access.resource.service.domain;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.perm.common.dto.req.PermissionManifestReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.PermissionManifestReq.Dependency;
 import cn.ac.fage.accessmesh.perm.common.dto.req.PermissionManifestReq.Requirement;
 import cn.ac.fage.accessmesh.perm.common.dto.req.PermissionManifestReq.ResourceKey;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.validation.Validation;
 import jakarta.validation.ValidatorFactory;
 import org.junit.jupiter.api.AfterAll;
@@ -18,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class PermissionManifestNormalizerTest {
     private static final ValidatorFactory FACTORY = Validation.buildDefaultValidatorFactory();
-    private final PermissionManifestNormalizer normalizer = new PermissionManifestNormalizer(new ObjectMapper(), FACTORY.getValidator());
+    private final PermissionManifestNormalizer normalizer = new PermissionManifestNormalizer(JsonMapper.builder().configureForJackson2().build(), FACTORY.getValidator());
     @AfterAll static void close() { FACTORY.close(); }
 
     @Test
@@ -74,8 +76,8 @@ class PermissionManifestNormalizerTest {
 
     @Test
     void shouldUseOneCanonicalDeclarationIdentity_acrossJsonNullPolicies() {
-        var alternate = new PermissionManifestNormalizer(new ObjectMapper().setSerializationInclusion(
-                com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL), FACTORY.getValidator());
+        var alternate = new PermissionManifestNormalizer(JsonMapper.builder().configureForJackson2().changeDefaultPropertyInclusion(ignored ->
+                com.fasterxml.jackson.annotation.JsonInclude.Value.construct(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL, com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)).build(), FACTORY.getValidator());
         var req = new PermissionManifestReq(1, "1", "r", List.of(dependency("a", null, "a", List.of("VIEW"), null)));
         var first = normalizer.normalize(req);
         var second = alternate.normalize(req);

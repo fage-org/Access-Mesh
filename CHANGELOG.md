@@ -64,6 +64,8 @@
 
 ### Security
 
+- **依赖安全与框架迁移（T-ACCESS-105）**：后端采用 Boot 4.0.8 / Cloud 2025.1.3 / Alibaba 2025.1.0.0，自有 JSON 迁移 Jackson 3，OAuth2 JWT 底层切换 Nimbus 并移除 Hutool，保留既有接口及认证语义；Redisson 4 使用 Spring Data 4.0 适配器。前端升级 Vitest 5，开发环境停止支持 Node 20。安全扫描固定工具版本并保存原始报告，精确误报排除与 braces 开发依赖、Docker 测试依赖的限定风险例外分别登记，不宣称漏洞清零；范围与撤回条件见 `.claude/rules/security-standards.md`。
+
 - **验证码失败不再计入账号失败锁（恢复既有语义）**：验证码缺参/错误仅留审计日志——失败计数键无 IP 维度，原「验证码失败也计数」使免验证码请求可零成本定向锁定任意已知账号（验证码一次性消费，攻击者无需获取验证码即可推动计数锁 30 分钟并可续锁）；推翻 T-ACCESS-083 收紧口径（2026-10-06 拍板）。
 - **bootstrap 固定图防护升级（方案 A，2026-10-06 拍板）**：新增写路径守卫 **20074 BOOTSTRAP_SEED_READONLY**（既有）/ **20075 BOOTSTRAP_TOMBSTONE_TWIN_READONLY**（新）——种子行与墓碑孪生行的撤/改/挂子权限全形态全实例拒绝（不依赖 bootstrap 开关）；启动检查谓词分流——真旧库（未标记且无种子墓碑）维持拒启，「墓碑+同键 MANUAL 孪生」并存态 WARN 放行不补回（修掉「撤了重授比撤了不重授更严」自相矛盾）。
 - **OAuth2 客户端管理权限起点补齐（全档，ADMIN_NOTICE 先例）**：固定图新增 oauth2/client 五路由行与 ADMIN_OAUTH2_CLIENT 四档类型级授权（VIEW/CREATE/UPDATE/DELETE）——原默认部署下 PUBLIC 客户端注册不可达（Gateway 未映射 403 + QueryGate 无授权起点恒拒），T-ACCESS-084 交付的公开客户端流程端到端打通；存量库重启 fail-fast 按既有口径备份重建。

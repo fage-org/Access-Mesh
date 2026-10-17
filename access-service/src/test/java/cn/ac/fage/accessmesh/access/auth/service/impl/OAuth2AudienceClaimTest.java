@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.auth.service.impl;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.support.OAuth2CredentialFixtures;
 import cn.ac.fage.accessmesh.access.auth.dto.TokenReq;
 import cn.ac.fage.accessmesh.access.auth.dto.TokenResp;
@@ -8,8 +10,7 @@ import cn.ac.fage.accessmesh.access.audit.service.domain.LoginLogDomainService;
 import cn.ac.fage.accessmesh.access.auth.service.domain.OAuth2ClientDomainService;
 import cn.ac.fage.accessmesh.access.user.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.access.infrastructure.OAuth2JwtSupport;
-import cn.dev33.satoken.jwt.SaJwtUtil;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -56,7 +57,7 @@ class OAuth2AudienceClaimTest {
     private ValueOperations<String, String> valueOperations;
 
     private OAuth2AppServiceImpl service;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = JsonMapper.builder().configureForJackson2().build();
 
     @BeforeEach
     void setUp() {
@@ -110,7 +111,7 @@ class OAuth2AudienceClaimTest {
     void audiencesConfigured_writtenAsAudClaim() throws Exception {
         String jwt = issueTokenByCodeExchange(clientWithAudiences("access-service, example-service"));
 
-        Map<String, Object> payloads = SaJwtUtil.getPayloads(jwt, "oauth2", JWT_SECRET);
+        Map<String, Object> payloads = OAuth2JwtSupport.getPayloads(jwt, "oauth2", JWT_SECRET);
         List<String> aud = OAuth2JwtSupport.audiencesOf(payloads);
         assertThat(aud).containsExactly("access-service", "example-service");
     }
@@ -120,7 +121,7 @@ class OAuth2AudienceClaimTest {
     void audiencesNotConfigured_noAudClaim() throws Exception {
         String jwt = issueTokenByCodeExchange(clientWithAudiences(null));
 
-        Map<String, Object> payloads = SaJwtUtil.getPayloads(jwt, "oauth2", JWT_SECRET);
+        Map<String, Object> payloads = OAuth2JwtSupport.getPayloads(jwt, "oauth2", JWT_SECRET);
         assertThat(payloads).doesNotContainKey(OAuth2JwtSupport.AUD_CLAIM);
         assertThat(OAuth2JwtSupport.audiencesOf(payloads)).isEmpty();
     }
@@ -130,7 +131,7 @@ class OAuth2AudienceClaimTest {
     void audiencesBlank_noAudClaim() throws Exception {
         String jwt = issueTokenByCodeExchange(clientWithAudiences("  "));
 
-        Map<String, Object> payloads = SaJwtUtil.getPayloads(jwt, "oauth2", JWT_SECRET);
+        Map<String, Object> payloads = OAuth2JwtSupport.getPayloads(jwt, "oauth2", JWT_SECRET);
         assertThat(payloads).doesNotContainKey(OAuth2JwtSupport.AUD_CLAIM);
     }
 
@@ -152,7 +153,7 @@ class OAuth2AudienceClaimTest {
 
         TokenResp resp = service.refreshToken("old-refresh-token", CLIENT_ID);
 
-        Map<String, Object> payloads = SaJwtUtil.getPayloads(resp.accessToken(), "oauth2", JWT_SECRET);
+        Map<String, Object> payloads = OAuth2JwtSupport.getPayloads(resp.accessToken(), "oauth2", JWT_SECRET);
         assertThat(OAuth2JwtSupport.audiencesOf(payloads)).containsExactly("example-service");
         // scope/client_id 载荷随链路保留
         assertThat(payloads.get(OAuth2JwtSupport.SCOPE_CLAIM)).isEqualTo("profile");

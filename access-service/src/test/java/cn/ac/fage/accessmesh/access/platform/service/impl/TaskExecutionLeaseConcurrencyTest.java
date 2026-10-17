@@ -16,7 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.core.task.TaskExecutor;
 import java.time.Duration;
 import static org.awaitility.Awaitility.await;
@@ -71,7 +71,7 @@ import cn.ac.fage.accessmesh.access.platform.service.impl.JobAppServiceImpl;
 @Testcontainers(disabledWithoutDocker = true)
 class TaskExecutionLeaseConcurrencyTest {
     // 此类只建任务租约局部表，租户生命周期由独立真实链路验证。
-    @org.springframework.boot.test.mock.mockito.MockBean
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
     private cn.ac.fage.accessmesh.access.tenant.service.TenantAccessGuard tenantAccess;
 
 
@@ -123,7 +123,7 @@ class TaskExecutionLeaseConcurrencyTest {
     @Autowired
     private TaskLeaseTestJobBean testJobBean;
 
-    @SpyBean(name = "accessTaskExecutor")
+    @MockitoSpyBean(name = "accessTaskExecutor")
     private TaskExecutor taskExecutor;
 
     @BeforeAll

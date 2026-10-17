@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.contract;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.resource.dto.req.ApiMappingUpdateReq;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigReq;
 import cn.ac.fage.accessmesh.access.role.dto.req.RoleUpdateReq;
@@ -62,8 +64,8 @@ class ClearFieldProtocolValidationTest {
     @org.junit.jupiter.params.ParameterizedTest(name = "{0}.{1} 三态与冲突")
     @org.junit.jupiter.params.provider.MethodSource("remainingFields")
     void shouldValidateRemainingClearProtocol(Class<?> dto, String field, String base) throws Exception {
-        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-        var json = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(base);
+        var mapper = JsonMapper.builder().configureForJackson2().build();
+        var json = (tools.jackson.databind.node.ObjectNode) mapper.readTree(base);
         assertTrue(validator.validate(mapper.treeToValue(json, dto)).isEmpty());
         json.put(field, "\u3000");
         assertFalse(validator.validate(mapper.treeToValue(json, dto)).isEmpty(), field + " 空白必须拒绝");
@@ -77,7 +79,7 @@ class ClearFieldProtocolValidationTest {
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(strings = {"clientName", "clientSecret", "grantTypes"})
     void shouldRejectBlankRequiredOauthUpdateFields(String field) throws Exception {
-        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        var mapper = JsonMapper.builder().configureForJackson2().build();
         var json = mapper.createObjectNode().put("id", 1).put(field, " ");
         assertFalse(validator.validate(mapper.treeToValue(json,
             cn.ac.fage.accessmesh.access.auth.dto.Oauth2ClientUpdateReq.class)).isEmpty());
@@ -161,9 +163,8 @@ class ClearFieldProtocolValidationTest {
     @Test
     @DisplayName("线格式键集==组件集且严格 mapper 往返成功（旧实现 is-getter 泄露必红）")
     void wireFormatKeysMustEqualRecordComponents() throws Exception {
-        com.fasterxml.jackson.databind.ObjectMapper mapper =
-            new com.fasterxml.jackson.databind.ObjectMapper()
-                .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+        tools.jackson.databind.ObjectMapper mapper =
+            JsonMapper.builder().configureForJackson2().build();
         java.util.List<Class<?>> dtos = java.util.List.of(
             cn.ac.fage.accessmesh.access.rule.dto.req.ConditionUpdateReq.class,
             cn.ac.fage.accessmesh.access.platform.dto.req.SystemConfigReq.class,
@@ -260,8 +261,8 @@ class ClearFieldProtocolValidationTest {
     @org.junit.jupiter.params.ParameterizedTest(name = "{0}.{1} 新建入口空白拒绝（拍板 A）")
     @org.junit.jupiter.params.provider.MethodSource("createSideFields")
     void createSideBlankMustBeRejected(Class<?> dto, String field, String base) throws Exception {
-        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-        var json = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(base);
+        var mapper = JsonMapper.builder().configureForJackson2().build();
+        var json = (tools.jackson.databind.node.ObjectNode) mapper.readTree(base);
         assertTrue(validator.validate(mapper.treeToValue(json, dto)).isEmpty(), "基线载荷必须合法");
         json.put(field, "\u3000");
         assertFalse(validator.validate(mapper.treeToValue(json, dto)).isEmpty(),
@@ -274,7 +275,7 @@ class ClearFieldProtocolValidationTest {
     }
     @Test
     void oauthGrantTypesIsRequiredAtCreation() throws Exception {
-        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        var mapper = JsonMapper.builder().configureForJackson2().build();
         var json = mapper.createObjectNode().put("clientId", "client-a")
             .put("clientSecret", "secret-a").put("clientName", "client-a");
         var type = cn.ac.fage.accessmesh.access.auth.dto.Oauth2ClientCreateReq.class;

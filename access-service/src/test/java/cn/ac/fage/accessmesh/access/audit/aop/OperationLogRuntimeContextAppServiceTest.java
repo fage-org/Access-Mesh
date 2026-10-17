@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.audit.aop;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.projection.PermConstants;
@@ -25,7 +27,7 @@ import cn.ac.fage.accessmesh.access.resource.service.impl.ResourceManageAppServi
 import cn.ac.fage.accessmesh.access.type.service.impl.TypeDefinitionAppServiceImpl;
 import cn.ac.fage.accessmesh.access.user.service.impl.UserManageAppServiceImpl;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -193,7 +195,7 @@ class OperationLogRuntimeContextAppServiceTest {
             auditDomainService,
             new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(),
             localProjectionDomainService,
-            new ObjectMapper(),
+            JsonMapper.builder().configureForJackson2().build(),
             engine,
             permissionConflictDomainService
         );

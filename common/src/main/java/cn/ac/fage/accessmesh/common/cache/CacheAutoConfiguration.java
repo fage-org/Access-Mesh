@@ -3,7 +3,9 @@ package cn.ac.fage.accessmesh.common.cache;
 import cn.ac.fage.accessmesh.common.cache.spi.DistributedCacheStore;
 import cn.ac.fage.accessmesh.common.cache.spi.LocalCacheStore;
 import cn.ac.fage.accessmesh.common.cache.impl.CaffeineLocalCacheStore;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.cfg.DateTimeFeature;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -53,18 +55,17 @@ public class CacheAutoConfiguration {
      * <p>
      * 如果用户已配置 ObjectMapper，则使用用户的配置。
      * 时间序列化统一 UTC（T-ACCESS-024）：{@code LocalDateTime} 本身无时区
-     * （ISO-8601 无偏移、契约语义=UTC 墙钟），{@code setTimeZone(UTC)} 是对
+     * （ISO-8601 无偏移、契约语义=UTC 墙钟），builder 的 UTC 默认时区是对
      * 未来可能引入的 {@code java.util.Date} 等带时区类型的防御性兜底，现状无消费方。
      * </p>
      */
     @Bean
-    @ConditionalOnMissingBean
-    public ObjectMapper cacheObjectMapper() {
-        ObjectMapper mapper = new ObjectMapper();
-        mapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
-        mapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        mapper.setTimeZone(TimeZone.getTimeZone("UTC"));
-        return mapper;
+    @ConditionalOnMissingBean(ObjectMapper.class)
+    public JsonMapper cacheObjectMapper() {
+        return JsonMapper.builder().configureForJackson2()
+                .disable(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS)
+                .defaultTimeZone(TimeZone.getTimeZone("UTC"))
+                .build();
     }
 
     /**

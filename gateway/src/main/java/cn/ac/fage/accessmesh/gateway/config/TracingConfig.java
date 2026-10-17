@@ -1,10 +1,9 @@
 package cn.ac.fage.accessmesh.gateway.config;
 
 import io.micrometer.observation.ObservationRegistry;
-import io.micrometer.tracing.Tracer;
+import org.springframework.boot.webflux.autoconfigure.WebHttpHandlerBuilderCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.filter.reactive.ServerHttpObservationFilter;
 
 /**
  * Micrometer链路追踪配置类
@@ -19,18 +18,18 @@ import org.springframework.web.filter.reactive.ServerHttpObservationFilter;
 public class TracingConfig {
 
     /**
-     * 创建HTTP观测过滤器
+     * 将观测注册表接入 WebFlux HTTP handler。
      * <p>
      * 启用基于观测的WebFlux路由追踪。
-     * 每个请求获得一个服务端span，以路由ID作为操作名称。
+     * 每个请求获得一个服务端 span。
      * 用于分布式链路追踪和性能监控。
      * </p>
      *
      * @param observationRegistry 观测注册表
-     * @return HTTP观测过滤器实例
+     * @return HTTP handler 构建定制器
      */
     @Bean
-    public ServerHttpObservationFilter serverHttpObservationFilter(ObservationRegistry observationRegistry) {
-        return new ServerHttpObservationFilter(observationRegistry);
+    public WebHttpHandlerBuilderCustomizer gatewayObservationCustomizer(ObservationRegistry observationRegistry) {
+        return builder -> builder.observationRegistry(observationRegistry);
     }
 }

@@ -9,6 +9,12 @@ import cn.ac.fage.accessmesh.access.it.ItInfra;
 import cn.ac.fage.accessmesh.access.bootstrap.BootstrapSeedWriter;
 import cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService;
 import cn.dev33.satoken.secure.BCrypt;
+import cn.dev33.satoken.context.SaTokenContextForThreadLocalStaff;
+import cn.dev33.satoken.servlet.model.SaRequestForServlet;
+import cn.dev33.satoken.servlet.model.SaResponseForServlet;
+import cn.dev33.satoken.servlet.model.SaStorageForServlet;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.LogEvent;
@@ -24,7 +30,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
@@ -103,10 +109,10 @@ class AccessBootstrapPgIT {
     private cn.ac.fage.accessmesh.access.infrastructure.task.JobInvokeDomainService jobInvokeDomainService;
 
     /** 写入组件 spy：两个回滚用例分别在中段 insertGrants 与末段 bindUserOrg 注入故障，其余用例真实执行（用毕 reset）。 */
-    @SpyBean
+    @MockitoSpyBean
     private BootstrapSeedWriter seedWriter;
 
-    @SpyBean
+    @MockitoSpyBean
     private LocalProjectionDomainService localProjectionDomainService;
 
     @Test
@@ -420,11 +426,19 @@ class AccessBootstrapPgIT {
         String captchaCode = stringRedisTemplate.opsForValue().get("captcha:" + captcha.captchaId());
         assertThat(captchaCode).isNotBlank();
 
-        LoginResp resp = authService.login(new LoginReq(
-            cn.ac.fage.accessmesh.access.it.TenantTestSupport.CODE, BootstrapGraphDefinition.ADMIN_USERNAME, BOOTSTRAP_PASSWORD,
-            captcha.captchaId(), captchaCode, "admin-web"));
-        assertThat(resp.accessToken()).isNotBlank();
-        assertThat(resp.forceResetPwd()).isTrue();
+        // Direct service invocation has no servlet filter to establish Sa-Token's request context.
+        var request = new MockHttpServletRequest();
+        SaTokenContextForThreadLocalStaff.setModelBox(new SaRequestForServlet(request),
+            new SaResponseForServlet(new MockHttpServletResponse()), new SaStorageForServlet(request));
+        try {
+            LoginResp resp = authService.login(new LoginReq(
+                cn.ac.fage.accessmesh.access.it.TenantTestSupport.CODE, BootstrapGraphDefinition.ADMIN_USERNAME, BOOTSTRAP_PASSWORD,
+                captcha.captchaId(), captchaCode, "admin-web"));
+            assertThat(resp.accessToken()).isNotBlank();
+            assertThat(resp.forceResetPwd()).isTrue();
+        } finally {
+            SaTokenContextForThreadLocalStaff.clearModelBox();
+        }
     }
 
     @Test

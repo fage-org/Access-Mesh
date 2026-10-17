@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.infrastructure.cache;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import cn.ac.fage.accessmesh.common.cache.CacheCatalogEntry;
 import cn.ac.fage.accessmesh.common.cache.CacheMode;
 import cn.ac.fage.accessmesh.common.cache.CacheProperties;
@@ -9,7 +11,7 @@ import cn.ac.fage.accessmesh.common.cache.RedissonCacheInvalidationBroadcaster;
 import cn.ac.fage.accessmesh.common.cache.TypeRef;
 import cn.ac.fage.accessmesh.common.cache.impl.CombinedL1L2Store;
 import cn.ac.fage.accessmesh.common.cache.impl.RedissonBucketStore;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.core.instrument.Counter;
@@ -246,7 +248,7 @@ class DualInstanceCacheInvalidationTest {
     @BeforeEach
     void setUp() throws Exception {
         redis = new FakeRedis();
-        objectMapper = new ObjectMapper();
+        objectMapper = JsonMapper.builder().configureForJackson2().build();
         properties = new CacheProperties();
 
         CombinedL1L2Store storeA = new CombinedL1L2Store(redis.client(), objectMapper,

@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.sync;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.JsonNodeFactory;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -19,7 +19,7 @@ public final class CanonicalJson {
         if (node.isObject()) {
             var result = JsonNodeFactory.instance.objectNode();
             List<String> keys = new ArrayList<>();
-            node.fieldNames().forEachRemaining(keys::add);
+            node.propertyNames().iterator().forEachRemaining(keys::add);
             keys.sort(CanonicalJson::compareText);
             for (String key : keys) result.set(key, sort(node.get(key)));
             return result;
