@@ -47,7 +47,7 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 ## API 依赖（链接后端契约章节）
 
 - `POST /api/access/auth/captcha` → `R<CaptchaResp{captchaId, image}>`（契约来源：后端 `AdminAuthController`/`CaptchaResp`——租户登录端点族已在契约总册 §6.4 登记）
-- `POST /api/access/auth/login` → `R<LoginResp{accessToken, refreshToken(null), expiresIn(秒), tokenType, userId, username, tenantId, forceResetPwd}>`（契约来源同上：`LoginReq`/`LoginResp`）；业务失败 HTTP 200 + code≠200
+- `POST /api/access/auth/browser-login` → `R<BrowserLoginResp>`（仅 sessionId/用户元数据，认证值只经 HttpOnly Cookie）；请求复用 LoginReq，详见[网页会话契约](../access-service-api-contract.md#browser-session-contract)。原 Bearer 登录入口继续供工具使用。
 - `POST /api/access/auth/user-menu` → `R<UserMenuData{menus, roles, permissions}>`（拉取时机（T-FE-048 起）：登录（loginByUsername 直调）、会话恢复（initRouter 拉取分支，F5/启动）、403 自动刷新、顶栏手动入口、授予页重试（retryLoadDeps）、menu-retry 重试（reloadSessionMenus，T-FE-056 起）——登录外各路均收敛到「会话权限热刷新」节的能力刷新入口，登录路径复用 loginByUsername 已拉取结果不重复请求；HTTP 401 会话失效不降级 rethrow，其余异常仅 console.warn 不阻断登录）
 - 路径经 Gateway 统一路由（`/api/access/**` 单命名空间，无 StripPrefix——T-ACCESS-042）；开发环境由 vite proxy 单条 `/api` 同路径转发（`VITE_PROXY_TARGET`）
 
@@ -58,7 +58,7 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 - `views/login/utils/messages.ts`：`resolveLoginMessages` 登录成功提示语义唯一出口（T-FE-049 两态；forceResetPwd 提示分支已随 T-FE-046 阻断流程删除）
 - `views/change-password/index.vue` + `utils/rules.ts`：强制改密页（T-FE-046，见「强制改密闭环」节）
 - `api/auth.ts`：`getCaptcha`/`login`/`logout`（后两者 `unwrap` 解包）/`getUserMenu`
-- `store/modules/user.ts`：`loginByUsername`（unwrap → expiresIn 转绝对时间 → setToken → LoginResp 的 userId/forceResetPwd 随登录写入 userKey（T-FE-046，阻断标记与改密请求主体）→ refreshUserMenu）、`refreshUserMenu`（成败维护 `menuLoadFailed`——空侧栏两态区分的事实来源，成功但空 menus=合法形态非失败；回写前按 accessToken 指纹做会话代际守卫——旧会话响应不污染新会话，Q-016）、`logOut`（服务端注销 fire-and-forget，见「登出流程」）；**无刷新令牌链路**（后端普通 Sa-Token 会话 refreshToken 为 null）
+- `store/modules/user.ts`：登录保存会话元数据并加载菜单；refreshUserMenu 维护 menuLoadFailed，并以 sessionId 校核响应归属；logOut 创建原会话的注销请求后立即清理本地状态。无刷新令牌链路。
 - `utils/session-expired.ts`：会话已过期统一提示（`notifySessionExpiredOnce` 10s 去重窗口）与 `SessionExpiredError` 信号（initRouter 会话终结分支抛出，T-FE-054；独立小模块：去重状态放 http 会与既有边成环、放 router/utils 属职责错位）
 - `router/gate.ts`：路由级 UX 门禁判定纯函数（`isPublicRoute` 公共白名单 / `collectMenuPaths` menus 树 path 集 / `isRouteAllowed` 三源判定，T-FE-056——见「路由级 UX 门禁」节；独立小模块同 session-expired 先例：守卫消费、可单测）
 
@@ -66,19 +66,19 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 
 登录页本身无权限门禁（白名单路由）。登录后角色/权限经 `/api/access/auth/user-menu` 写入 store，供路由 `auths` 过滤与页面按钮 `hasPerms` 使用。`forceResetPwd=true` 登录后由路由守卫阻断至 `/change-password`（T-FE-046，见下节）——T-ADMIN-022「非阻断提示引导联系管理员」口径就此退役（自助通道 `/api/access/user/reset-password` 自身路径已定位，T-PERM-067）。
 
-## 令牌生命周期与 401 窄处理
+## 会话生命周期与错误处理
 
-- `expiresIn`（秒）→ `new Date(Date.now() + expiresIn*1000)` 绝对时间供 `setToken`（cookie + localStorage）。
-- 无 refresh-token/自动续期/重试体系（后端无 `/refresh-token`，相关模板代码已删除）。
-- 请求拦截器（T-FE-054 短路口径，2026-09-20 拍板；外评 P2 收口后判据单源）：会话终结判据统一走 `utils/auth.ts isSessionTerminated`（无凭证 ∨ 本地 `expires` 到期；**cookie 过期被清 + userKey 残留**形态下 `getToken()` 兜底 localStorage 仍真值——仅判无凭证会漏，该形态同判终结）→ 统一提示「会话已过期，请重新登录」（10s 去重窗口）+ `logOut()` 清会话回登录页 + **本次请求直接 reject**（`SessionExpiredError`，message 与提示同文案；授予页 `classifySaveError` 按 name 识别为「未发出可安全重试」非「结果未知」）——原「无令牌放行、由 Gateway 401 兜底」口径退役（多一次必然 401 的往返）。白名单 `/api/access/auth/captcha`、`/api/access/auth/login` 不经拦截器令牌逻辑，`/api/access/auth/logout` 亦在白名单但由调用方显式携令牌（见「登出流程」）。
-- 响应拦截器：**仅** HTTP 401 → 统一提示「会话已过期」（**令牌仍在才提示**——主动登出（logOut 已清令牌）后在途请求的 401 不弹「会话已过期」误导，外评 P3 处置）+ `logOut()` 清会话回登录页；提示与本地过期短路双分支统一、共用 10s 去重窗口（T-FE-054）；**401 只终结其所属会话**（T-FE-068 代际守卫）——请求携带的 Authorization 头与当前令牌一致才提示+logOut（平台分支同款比对先例），重登/换租户后旧请求的迟到 401 不注销新会话、不弹过期提示；令牌已清（getToken 空）形态维持既有幂等口径（不提示、仍 logOut 兜底）。HTTP 403 → 触发会话权限热刷新（见下节，T-FE-048）；503 等其余状态码由页面层自行处理。
+- expiresIn 转为绝对时间，`setTenantSession` 保存非认证的 sessionId 与用户元数据。原生令牌仅由服务器签入 HttpOnly Cookie；前端不读 Cookie 认证值，不将其放入 Authorization。
+- `isSessionTerminated` 统一判断活动元数据缺失、标记缺失或本地 expires 已到期。请求短路时提示“会话已过期，请重新登录”（10 秒去重），立即 logOut 清理并抛 SessionExpiredError；不发出已知无效的业务请求。登录、验证码与注销进入各自窄分支，注销显式使用请求创建时的原标记。
+- 401 只终结对应的当前会话：先检查请求代际，再比较 X-AM-Session 与当前 sessionId；主动退出后迟到 401 不重复弹过期提示，旧会话响应不得注销新身份。403 维持原能力刷新去重规则，503 等错误由页面处理。
+- HTTP 409 + code=90002 表示 Cookie 与页面上下文不一致；只在请求仍属于当前页会话时清除对应活动元数据并阻断旧界面，确认重新载入后进入登录页。此分支不调用注销新 Cookie、不重放写请求、不触发权限刷新。
 
 <a id="cross-tab-session-status"></a>
 ## 跨标签会话同步交付边界
 
-**当前实现（2026-10-17 用户选择 M2/N1，Q-068）**：增强同一浏览器内租户管理台标签页的会话变更检测，处理其他标签页退出、换账号或换租户后旧页面状态滞留的问题；不得让旧页面继续以新共享令牌提交原上下文操作。保留现有 Bearer 请求头认证，本项不改用 HttpOnly Cookie，不绑定平台认证域与租户认证域。
+**当前实现（2026-10-17 用户选择 M2/N1，Q-068）**：增强同一浏览器内租户管理台标签页的会话变更检测，处理其他标签页退出、换账号或换租户后旧页面状态滞留的问题；不得让旧页面继续以新共享令牌提交原上下文操作。T-ACCESS-109 将认证承载改为 HttpOnly Cookie，继续保持 M2/N1 的页面清理与身份隔离保证，两种身份域不绑定。
 
-共享令牌继续由 JavaScript 可读 Cookie 保存，用户名/菜单等状态保存在各标签页内存。`tenant-session.ts` 固定当前页令牌与本地会话代次，监听租户元数据的 storage/clear 事件、focus、pageshow 与 visibilitychange。请求创建时记录身份，发送前及响应回调/401/403 处理前复核；发送头使用请求创建时的令牌，避免校验与取头之间读取新身份。通知延迟仍由请求检查兜底。当前标签页自身的登录/退出更新本地基线；跨标签失效只清本页内存与界面，不能调用旧登出流程注销或删除共享新会话。已明确发起的退出请求保留其旧令牌，继续执行服务端注销，迟到失败不终结新会话。检测到会话变化后立即清理旧页面和弹窗，丢弃普通未保存输入，不自动提交；已成功保存的授权草稿保持原账号/租户隔离，不转交新身份。显示阻断提示，由用户点击重新载入：无有效租户会话进入登录页，有新会话进入当前账号首页（既有强制改密/菜单门禁仍适用），不恢复旧编辑页面。Hash 路由重新载入须真正重建页面运行时，不能只更新 hash。Cookie 自然过期且仍有过期元数据时，保留既有本地过期处置。已经发出的写请求不能据此承诺撤回，结果未知仍按原有核验与授权草稿规则处理；不自动重放请求。任务见 [T-FE-071](../../archive/2026-10-17/tasks/T-FE-071.md)。
+原生认证值由 HttpOnly Cookie 保存，页面只持有 sessionId 和可读元数据。`tenant-session.ts` 固定当前页标记与本地代次，监听 storage/clear、focus、pageshow 和 visibilitychange。请求创建时记录标记，发送及响应回写前复核；服务端再检查该标记与浏览器实际携带的 Cookie 是否绑定。通知延迟不允许旧页面借用新 Cookie 操作。当前标签页登录/退出更新本地基线；跨标签失效只清本页状态，不能注销或删除共享新会话。已发起的退出请求只携原标记，迟到失败仅提示“服务器尚未确认退出”，不终结新会话。检测到会话变化后立即清理旧页面和弹窗，丢弃普通未保存输入，不自动提交；已成功保存的授权草稿保持原账号/租户隔离，不转交新身份。显示阻断提示，由用户点击重新载入：无有效租户会话进入登录页，有新会话进入当前账号首页（既有强制改密/菜单门禁仍适用），不恢复旧编辑页面。Hash 路由重新载入须真正重建页面运行时，不能只更新 hash。可读元数据本地到期时继续走统一会话过期处置；Cookie 失效则由服务端校核拒绝。已经发出的写请求不能据此承诺撤回，结果未知仍按原有核验与授权草稿规则处理；不自动重放请求。任务见 [T-FE-071](../../archive/2026-10-17/tasks/T-FE-071.md)。
 
 <a id="session-permissions"></a>
 
@@ -90,7 +90,7 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 
 - 成功：侧栏即时重建（撤销的菜单项从侧栏消失；全撤销落「当前账号无可用菜单」占位）；
 - 失败：原样抛出且不触碰 wholeMenus——按钮/侧栏维持旧态（后端 fail-closed 兜底）；门禁状态机维持 loaded（failed 仅由首次加载失败产生）——T-FE-056 起门禁消费面落地：path 集为 menus 的**响应式派生**（每次导航现算，本入口回写 menus 即门禁随会话权限即时收敛，无快照失联——T-FE-055 capability 派生化同款定案）、状态机迁移在本入口所经的 `refreshUserMenu`（见下节）；
-- **single-flight（Q-016 收口，T-FE-054）**：入口内共享在途 Promise——同会话（accessToken 指纹相同）并发调用只发一次 user-menu 请求，403 自动/手动/授予页重试多通道并发不再各发各的（旧响应晚到覆盖新权限串的同会话竞态随之消除）；完成后在途标记复位，下次调用重新发起；
+- **single-flight（Q-016 收口，T-FE-054）**：入口内共享在途 Promise——同会话（sessionId 标记相同）并发调用只发一次 user-menu 请求，403 自动/手动/授予页重试多通道并发不再各发各的（旧响应晚到覆盖新权限串的同会话竞态随之消除）；完成后在途标记复位，下次调用重新发起；
 - **跨会话代际守卫**：成功结果只在 `sessionAlive`（当前令牌存在且仍等于请求指纹）时回写 Pinia、localStorage userKey 与侧栏；令牌已消失时也丢弃成功结果，防止复活旧会话。失败只在 `sessionReplaced`（另一活会话）时丢弃，会话终结型 401 仍上抛，不能让手动刷新假成功。正常 `setUserKey` 恒带 expires，残缺 userKey 的回写入口已封闭，暂不为不可达的 NaN 形态增加防御分支；新增持久化写者时复核。[来源](../../archive/2026-09-26/decision-registry-history.md)（原第 33 行）。
 - 不清理 multiTags 已缓存标签（标签指向的路由由后端 403 兜底）；不经 `handleAsyncRoutes`（其 multiTags 重置仅属登录/F5 的 initRouter 全量路径）。
 
@@ -126,17 +126,13 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 
 登录提示与令牌在毫秒级失效交错时仍可能短暂不同，维持现有提示行为；令牌终结统一由请求层处理，不给 menu-retry 等单入口另造判空分支，也不把提示边界扩为鉴权豁免。[来源](../../archive/2026-09-26/decision-registry-before.md)（原第 122 行）。
 
-## 登出流程（T-FE-045 真注销；T-FE-054 起注销改 fire-and-forget）
+## 登出流程（保留 U2，取消 W1 与 X1/X2）
 
-请求短路、initRouter 和 menu-retry 的会话终结编排共用 `terminateLocalSession`（提示过期、调用 logOut、抛 SessionExpiredError）；普通主动登出直接调用 logOut，不借终结异常控制流。
+主动退出及现有会话终结编排继续共用 logOut。持有活动元数据时，先创建 `/api/access/auth/browser-logout` 请求，固定原 sessionId 到 X-AM-Session；随后立即清 Pinia、对应本地活动元数据、标签状态与全局编辑弹窗，重置路由并进入登录页，不等待服务端确认。无活动元数据则只做幂等本地清理，不发请求。
 
-登出入口（顶栏下拉 `useNav.logout`、请求拦截器本地过期短路分支、响应拦截器 401 分支、initRouter 会话终结分支〔Q-020，凭证已无形态〕）统一走 `useUserStore.logOut()`：
+服务端只注销 Cookie 与原标记匹配的会话，不接受标记单独授权。响应不写 Set-Cookie，迟到响应不会清除新 Cookie；请求若已自动携带新账号 Cookie，则按不匹配拒绝，不转而注销新账号。失败向用户提示原会话“服务器尚未确认退出”，允许立即重新登录；不保留补注销队列，不在网络恢复或换账号后补发，旧服务端会话按原过期规则结束。成功注销后的残留 Cookie 值无效，下次登录覆盖或浏览器按期限清理；本地活动元数据已清除时，刷新不从 Cookie 自动恢复旧身份。
 
-1. **服务端注销 fire-and-forget（T-FE-054/Q-016 收口，2026-09-20 拍板）**：持令牌时发出 `POST /api/access/auth/logout`（`api/auth.ts logout()`，`R<Void>` 经 unwrap 解包）即**不等完成**——后端黑洞时本地清理与跳转不再被推迟（原 await 形态最长挂 10s），窗口内新登录的凭据也不再被旧清理链清除。注销请求**显式携带 Authorization 头**（store 读当前 token 经 `formatToken` 构造后传入）——该端点已加入 http 请求白名单，拦截器不注入令牌也不做过期判定（防过期分支 `logOut` 递归），令牌仍照常送达服务端：本地 `expires` 已到期但仍能取得令牌时，可以注销可能仍存活的服务端会话（本地到期时刻与 Sa-Token 服务端会话不完全同步）。注销失败仅 `console.warn` 不弹错。Cookie 已到期且令牌已不可取得时，接受无法主动注销的边界，由服务端 2h TTL 兜底；不为此延长 accessToken 在 localStorage 的留存。[来源](../../archive/2026-09-26/decision-registry-before.md)（原第 114 行）。
-2. **本地清理无条件立即执行**（由 `userStore.logOut` 单源执行，同步段完成，不依赖注销结果）：清 Pinia（username/roles/permissions/menus）→ `removeToken`（cookie+localStorage）→ 清全局编辑弹窗（T-FE-068：`closeAllDialog` 直清 dialogStore，不触发弹窗回调——addDialog 弹窗由挂 App 层的 ReDialog 渲染、跨路由存活，登出不清则旧上下文弹窗浮在登录页、重登后旧对象仍可被提交；弹窗队列自 ReDialog barrel 拆至纯 ts `store.ts`，会话终结方依赖不连带 SFC）→ multiTags 重置 → `resetRouter` → 跳 `/login`。**returnTo 缺省继承**（T-FE-068 拍板 A）：无参调用（401 分支/本地过期短路/initRouter 终结）读当前页 query 的 returnTo，与改密成功分支显式传参共用同一窄续接规则（经 `oauthReturnTarget` 白名单校验，仅本地 `/oauth2/authorize` 目标续接）——改密页响应丢失重试收 401 等形态不再丢授权确认地址；常规页面 query 无 returnTo，行为不变。登出完成后重复触发时 `getToken()` 已无令牌，不再发请求，仅幂等清理+跳转（`logoutInFlight` 标记在 fire-and-forget 后无实际拦截窗口，保留仅为防御未来重新引入 await 点）。
-3. **会话已过期提示**（T-FE-054）：三通道（本地过期短路/401 响应/initRouter 会话终结）统一经 `notifySessionExpiredOnce` 弹「会话已过期，请重新登录」warning，10s 去重窗口防并发轰炸。
-
-> T-FE-045 原「服务端注销优先=等注销完成再清理」口径就此演进（2026-09-20，T-FE-054）：「优先」语义从「等注销完成」改为「注销请求先发出即清理」。T-FE-041「前端登出仅清本地、不调接口」口径已于 2026-09-19 退役（T-FE-045）。logoutAll 踢全部端点与多设备会话管理为非目标（另立评估）。
+原 OAuth2 returnTo 续接规则保持：缺省继承当前页面 query，只接受本地 `/oauth2/authorize` 目标。普通页面无 returnTo 不改变跳转；改密成功、401、本地过期及初始化会话终结共用该规则。请求短路、initRouter、menu-retry 继续通过 terminateLocalSession 提示过期、调用 logOut 并抛 SessionExpiredError，主动退出不借终结异常控制流。
 
 ## 强制改密闭环
 
@@ -151,9 +147,9 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 平台 `/platform/login`、`/platform/change-password` 与 `/platform/*` 运营布局在同一前端工程中独立注册，不进入租户布局的路由压平流程。平台账号、租户和平台审计页面只调用独立平台 API，平台没有客户用户、组织和授权管理入口。
 
 <a id="platform-cross-tab-session"></a>
-**平台跨标签同步（2026-10-17 用户选择 O1，Q-082 已收敛）**：通过 `session-boundary.ts` 共用工厂与 `tenant-session.ts` / `platform-session.ts` 两个独立实例实现，两域独立记录当前页身份与失效状态，互不注销、互不删除凭据。平台身份变化时清理平台旧页面、普通未保存输入和一次性密码弹窗；未复制的一次性密码不另存草稿，后续需经重置流程恢复交付，已创建的账号不删除。显示阻断提示，用户确认后完整重新载入；无有效平台会话进入平台登录页，有会话进入平台租户列表，既有强制改密守卫仍适用。请求身份固定及迟到响应保护与租户同源，不更换 Bearer 承载。任务见 [T-FE-072](../../archive/2026-10-17/tasks/T-FE-072.md)。
+**平台跨标签同步（2026-10-17 用户选择 O1，Q-082 已收敛）**：通过 `session-boundary.ts` 共用工厂与 `tenant-session.ts` / `platform-session.ts` 两个独立实例实现，两域独立记录当前页身份与失效状态，互不注销、互不删除凭据。平台身份变化时清理平台旧页面、普通未保存输入和一次性密码弹窗；未复制的一次性密码不另存草稿，后续需经重置流程恢复交付，已创建的账号不删除。显示阻断提示，用户确认后完整重新载入；无有效平台会话进入平台登录页，有会话进入平台租户列表，既有强制改密守卫仍适用。请求身份固定及迟到响应保护与租户同源；T-ACCESS-109 同步改用独立平台 HttpOnly Cookie。任务见 [T-FE-072](../../archive/2026-10-17/tasks/T-FE-072.md)。
 
-平台令牌使用 `platform-operator-session` 独立存储及 `authRealm=platform` 请求分支；平台 401 或登出只清平台身份，不触发租户菜单刷新或租户登出。租户会话使用 v2 键（`tenant-user-info-v2`、`tenant-authorized-token-v2`、`tenant-tabs-v2`），旧键不再消费，升级后重新登录。两个身份可在同一浏览器同时存在。Redis 重启会使租户原生会话失效，收到 401 后重新登录；平台会话继续按独立数据库凭据代次校验。
+平台可读元数据使用 `platform-browser-session-v3` 与 `authRealm=platform` 分支；租户使用 `tenant-browser-session-v3`，`tenant-tabs-v3` 仅为浏览器标签生命周期标记，均不保存原生令牌。平台 401/退出只清平台身份，不刷新租户菜单或注销租户；两个身份可以同时存在。升级按 V1 删除旧版认证存储并分别重新登录。Redis 重启后的租户进程代次门禁和平台数据库凭据代次规则保持。
 
 开通或凭据重置的明文只在当前弹窗内一次展示，不持久化到浏览器；关闭弹窗即清除。响应中断时提示先查已创建对象，再用受审计重置入口恢复交付。租户列表分别展示登记状态和访问状态；门禁未就绪不表述为已恢复。
 
@@ -161,14 +157,19 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 
 侧栏菜单的斜杠图标键走离线注册，`offlineIcon.ts` 覆盖 `BootstrapGraphDefinition` 菜单种子集合。`ep/coins`、`ep/history` 保留既有键，分别注册 Element Plus 的 `coin`、`clock` 图形；后端种子与静态路由键不变（T-FE-062，2026-10-04 确认）。
 
-- `mock/login.ts` 由 `VITE_MOCK_LOGIN`（.env.development，默认 **false**）控制注册；开启时注册 `/api/access/auth/captcha`（SVG 占位图）+ `/api/access/auth/login` + `/api/access/auth/user-menu`，响应壳已对齐 R，前端代码零分支（开关经 wrapperEnv 写回 `process.env` 生效，已端到端验证：后端未启动时三端点全走 mock；关闭时请求穿透 vite 代理）。生产构建 mock 由 `VITE_ENABLE_PROD_MOCK=false` 关闭。mock user-menu 自 T-FE-015 起下发最小菜单树（welcome 纯展示，对齐 bootstrap 种子形态）——侧栏唯一数据源已切本接口 menus 树，空数组（拉取成功形态）渲染为「当前账号无可用菜单」占位（T-FE-049 两态——mock 场景不触发失败态）。
-- 纯静态路由：`initRouter` 不再请求 `/get-async-routes`（`src/api/routes.ts` 已删除），路由注册由 `router/modules/*.ts` 静态维护；**侧栏菜单已切后端派生（T-FE-015 已接线 2026-08-31）**——`initRouter` 将 `/api/access/auth/user-menu` 的 menus 树直接渲染为侧栏（标题/图标/层级来自 sys_menu bootstrap 种子，可见性 = v3.5 §4.1 ∃op 派生），`meta.showLink` 不再控制侧栏；会话恢复 = 已登录 F5/启动重取 user-menu，失败 fail-closed 空菜单，不持久化、不回退全量静态菜单。**会话已终结分支（Q-020 收口，T-FE-054；外评 P2 收口后判据单源）**：`initRouter` 开头经 `isSessionTerminated()`（无凭证 ∨ 本地过期，与请求拦截器短路同源）判会话已终结时统一提示「会话已过期」+ `logOut` 跳登录 + 抛 `SessionExpiredError`（调用方 catch 后跳过按陈旧菜单状态的业务提示）——/menu-retry 重试不再零请求误报「仍无可用菜单，请联系管理员」（含 cookie 过期被清+userKey 残留形态）；本地过期后的 F5 会话恢复同样命中本分支（守卫 `initRouter().then` 已补 catch 留痕）；登录路径刚 setToken 恒不触达。**空侧栏占位项两态（T-FE-049，`resolveSidebarFallback` 按 `menuLoadFailed` 区分）**：拉取失败=「菜单加载失败，点击重试」（既有，跳 `/menu-retry` 重试页）；拉取成功但账号无菜单=「当前账号无可用菜单」——重试对该形态无意义，着陆页（同为 `/menu-retry`，页内自适应）引导联系管理员、保留「重新检查」入口（管理员补配后点击即恢复，无需重登）。
+- `mock/login.ts` 由 `VITE_MOCK_LOGIN`（.env.development，默认 **false**）控制注册；开启时注册 `/api/access/auth/captcha`（SVG 占位图）+ `/api/access/auth/browser-login` + `/api/access/auth/user-menu`，响应壳已对齐 R，前端代码零分支（开关经 wrapperEnv 写回 `process.env` 生效，已端到端验证：后端未启动时三端点全走 mock；关闭时请求穿透 vite 代理）。生产构建 mock 由 `VITE_ENABLE_PROD_MOCK=false` 关闭。mock user-menu 自 T-FE-015 起下发最小菜单树（welcome 纯展示，对齐 bootstrap 种子形态）——侧栏唯一数据源已切本接口 menus 树，空数组（拉取成功形态）渲染为「当前账号无可用菜单」占位（T-FE-049 两态——mock 场景不触发失败态）。
+- 纯静态路由：`initRouter` 不再请求 `/get-async-routes`（`src/api/routes.ts` 已删除），路由注册由 `router/modules/*.ts` 静态维护；**侧栏菜单已切后端派生（T-FE-015 已接线 2026-08-31）**——`initRouter` 将 `/api/access/auth/user-menu` 的 menus 树直接渲染为侧栏（标题/图标/层级来自 sys_menu bootstrap 种子，可见性 = v3.5 §4.1 ∃op 派生），`meta.showLink` 不再控制侧栏；会话恢复 = 已登录 F5/启动重取 user-menu，失败 fail-closed 空菜单，不持久化、不回退全量静态菜单。**会话已终结分支（Q-020 收口，T-FE-054；外评 P2 收口后判据单源）**：`initRouter` 开头经 `isSessionTerminated()`（无活动元数据或本地过期，与请求拦截器短路同源）判会话已终结时统一提示「会话已过期」+ `logOut` 跳登录 + 抛 `SessionExpiredError`（调用方 catch 后跳过按陈旧菜单状态的业务提示）——/menu-retry 重试不再零请求误报「仍无可用菜单，请联系管理员」（包括活动元数据不完整形态）；本地过期后的 F5 会话恢复同样命中本分支（守卫 `initRouter().then` 已补 catch 留痕）；登录路径刚 setToken 恒不触达。**空侧栏占位项两态（T-FE-049，`resolveSidebarFallback` 按 `menuLoadFailed` 区分）**：拉取失败=「菜单加载失败，点击重试」（既有，跳 `/menu-retry` 重试页）；拉取成功但账号无菜单=「当前账号无可用菜单」——重试对该形态无意义，着陆页（同为 `/menu-retry`，页内自适应）引导联系管理员、保留「重新检查」入口（管理员补配后点击即恢复，无需重登）。
 
 OAuth2 授权续接 query 为 returnTo，仅允许本地 /oauth2/authorize 路径。平台强制改密门禁仍优先，改密成功后再返回确认页；菜单加载失败不把未确认的授权请求自动签码。returnTo 的续接规则单源在 `logOut`（T-FE-068 拍板 A）：改密成功分支显式传参、401 分支/本地过期短路/initRouter 终结的无参调用缺省继承当前页 query 的 returnTo，均经同一 `oauthReturnTarget` 白名单校验——改密首请求响应丢失、重试收 401 等形态重登后不丢原授权确认地址。授权确认页对 query 变化（如同一页面切换 client_id）立即作废旧预览与旧请求并按新 query 重新核验：签码只认当前已核验请求（`views/oauth-consent/model.ts` 生命周期模型，迟到响应按代际丢弃——T-PERM-110 同页切换不再给旧应用签 code）。
 
 登录响应中的 userId/tenantId 随本地会话元数据保存，供授权草稿隔离。登录采用 tenantCode，草稿仍以服务端解析出的内部 tenantId 与 userId 分区；缺 tenantId 的旧会话不能构造草稿归属，不回落租户 1。
 
 
-## HttpOnly 承载演进
+## HttpOnly 承载与升级
 
-2026-10-17 用户选择 P2，启动[浏览器 HttpOnly 会话认证改造](../browser-session-authentication.md)。覆盖范围和兼容方案尚待决定；本页上述 Bearer 与存储描述仍为当前实现。既有跨标签同步的行为保证须保留，不能将 HttpOnly 简化为删除存储代码或仅添加 Cookie 标记。
+按[浏览器会话设计](../browser-session-authentication.md)与[网页会话契约](../access-service-api-contract.md#browser-session-contract)实施。新网页登录不接收明文原生令牌，原 Bearer 登录供工具保留。V1 要求加载新版后分别重新登录，不迁移旧会话。U2 保留立即重新登录，W1 与 X1/X2 已由用户取消；本任务不建设离线补偿或独立注销凭据。
+
+<a id="legacy-sso-template-status"></a>
+## 未启用 SSO 模板处置
+
+2026-10-17 用户确认：随 T-ACCESS-109 删除未挂载的 URL username/roles/accessToken 登录示例及其注释导入；不恢复脚本写入原生令牌的旧函数，不影响现有登录或标准 OAuth2 授权。Q-070 的 isRemembered/loginDay 分支及设置动作本次不裁剪；实际使用的 multipleTabsKey 标记继续保留，剩余裁剪另行评估。

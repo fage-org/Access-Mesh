@@ -8,7 +8,7 @@ const { api, token, message } = vi.hoisted(() => ({
 }));
 vi.mock("@/api/audit-export", () => ({ exportAuditLogs: api }));
 vi.mock("@/utils/auth", () => ({
-  getToken: () => ({ accessToken: token.value })
+  getTenantSession: () => ({ sessionId: token.value })
 }));
 vi.mock("@/utils/message", () => ({ message }));
 import { useAuditExport } from "./audit-export";

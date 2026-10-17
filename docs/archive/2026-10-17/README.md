@@ -17,3 +17,5 @@
 独立任务 [T-FE-071](tasks/T-FE-071.md) 完成租户跨标签会话同步，按 N1 清理旧界面并确认重载；[浏览器及测试验收](tasks/evidence/T-FE-071/verification.md)。Q-068 的延期子项与 Q-082 平台同类范围仍待各自处置。
 
 独立任务 [T-FE-072](tasks/T-FE-072.md) 将同源保护扩展到平台认证域，Q-082 已收敛；[测试与浏览器验收](tasks/evidence/T-FE-072/verification.md)确认一次性密码弹窗清理与两域互不联动。
+
+独立任务 [T-ACCESS-109](tasks/T-ACCESS-109.md) 完成租户与平台浏览器 HttpOnly 认证及 CSRF 校核，保留 Bearer 接口和立即重新登录，取消跨会话补注销；[验收记录](tasks/evidence/T-ACCESS-109/verification.md)。未启用 SSO 示例已删除，Q-070 的记住我分支仍待单独评估。

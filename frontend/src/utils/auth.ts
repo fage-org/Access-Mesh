@@ -10,153 +10,80 @@ import Cookies from "js-cookie";
 import { useUserStoreHook } from "@/store/modules/user";
 import { storageLocal, isString, isIncludeAllChildren } from "@pureadmin/utils";
 
+/** Script-readable metadata; sessionId is a CSRF/context marker, never a login credential. */
 export interface DataInfo<T> {
-  /** token */
-  accessToken: string;
-  /** `accessToken`的过期时间（时间戳） */
+  sessionId: string;
   expires: T;
-  /** 用于调用刷新accessToken的接口时所需的token */
-  refreshToken: string;
-  /** 头像 */
   avatar?: string;
-  /** 用户名 */
   username?: string;
-  /** 昵称 */
   nickname?: string;
-  /** 当前登录用户的角色 */
-  roles?: Array<string>;
-  /** 当前登录用户的按钮级别权限 */
-  permissions?: Array<string>;
-  /** 当前登录用户 ID（T-FE-046：登录时从 LoginResp 写入，自助改密请求 userId 入参来源） */
+  roles?: string[];
+  permissions?: string[];
   userId?: number;
-  /** 已验证登录响应中的租户 ID，供本地草稿隔离。 */
   tenantId?: number;
-  /** 强制改密阻断标记（T-FE-046：登录时从 LoginResp.forceResetPwd 写入，路由守卫按它阻断；改密成功置 false） */
   forceResetPwd?: boolean;
 }
+export const userKey = "tenant-browser-session-v3";
+export const multipleTabsKey = "tenant-tabs-v3";
+export const platformSessionKey = "platform-browser-session-v3";
 
-export const userKey = "tenant-user-info-v2";
-export const TokenKey = "tenant-authorized-token-v2";
-/**
- * 通过`multiple-tabs`是否在`cookie`中，判断用户是否已经登录系统，
- * 从而支持多标签页打开已经登录的系统后无需再登录。
- * 浏览器完全关闭后`multiple-tabs`将自动从`cookie`中销毁，
- * 再次打开浏览器需要重新登录系统
- * */
-export const multipleTabsKey = "tenant-tabs-v2";
-
-/** 获取`token` */
-export function getToken(): DataInfo<number> {
-  // 此处与`TokenKey`相同，此写法解决初始化时`Cookies`中不存在`TokenKey`报错
-  return Cookies.get(TokenKey)
-    ? JSON.parse(Cookies.get(TokenKey))
-    : storageLocal().getItem(userKey);
+/** V1: no conversion of a script-readable legacy credential into a browser session. */
+export function clearLegacyAuthentication() {
+  Cookies.remove("tenant-authorized-token-v2");
+  Cookies.remove("tenant-tabs-v2");
+  storageLocal().removeItem("tenant-user-info-v2");
+  storageLocal().removeItem("platform-operator-session");
 }
-
-/**
- * 会话是否已终结（T-FE-054/Q-020 单源判据，claude 外评 P2 收口 2026-09-20）：
- * 无凭证（cookie 与 userKey 均无）∨ 本地 `expires` 已到期。请求拦截器短路分支与
- * initRouter 会话终结分支共用——`getToken()` cookie 缺失时兜底 userKey（setUserKey
- * 七字段不含 accessToken、仅 removeToken 清除），「cookie 过期被清 + userKey 残留」
- * 形态下 getToken() 仍真值，仅判 `!getToken()` 会漏（Q-020 条目点名的形态）。
- */
-export function isSessionTerminated(data = getToken()): boolean {
-  if (!data) return true;
-  return parseInt(data.expires) - Date.now() <= 0;
+export function getTenantSession(): DataInfo<number> | null {
+  const session = storageLocal().getItem<DataInfo<number>>(userKey);
+  return typeof session?.sessionId === "string" && session.sessionId
+    ? session
+    : null;
 }
-
-/**
- * @description 设置`token`以及一些必要信息并采用无感刷新`token`方案
- * 无感刷新：后端返回`accessToken`（访问接口使用的`token`）、`refreshToken`（用于调用刷新`accessToken`的接口时所需的`token`，`refreshToken`的过期时间（比如30天）应大于`accessToken`的过期时间（比如2小时））、`expires`（`accessToken`的过期时间）
- * 将`accessToken`、`expires`、`refreshToken`这三条信息放在key值为authorized-token的cookie里（过期自动销毁）
- * 将`avatar`、`username`、`nickname`、`roles`、`permissions`、`refreshToken`、`expires`这七条信息放在key值为`user-info`的localStorage里（利用`multipleTabsKey`当浏览器完全关闭后自动销毁）
- */
-export function setToken(data: DataInfo<Date>) {
+export function isSessionTerminated(data = getTenantSession()): boolean {
+  return (
+    !data?.sessionId ||
+    !Number.isFinite(Number(data.expires)) ||
+    Number(data.expires) <= Date.now()
+  );
+}
+export function setTenantSession(data: DataInfo<Date>) {
   assertTenantSessionCurrent();
-  let expires = 0;
-  const { accessToken, refreshToken } = data;
-  const { isRemembered, loginDay } = useUserStoreHook();
-  expires = new Date(data.expires).getTime(); // 如果后端直接设置时间戳，将此处代码改为expires = data.expires，然后把上面的DataInfo<Date>改成DataInfo<number>即可
-  const cookieString = JSON.stringify({ accessToken, expires, refreshToken });
-
-  expires > 0
-    ? Cookies.set(TokenKey, cookieString, {
-        expires: (expires - Date.now()) / 86400000
-      })
-    : Cookies.set(TokenKey, cookieString);
-
-  acceptLocalTenantSession(accessToken);
-
+  const current = getTenantSession();
+  const previous = current?.sessionId === data.sessionId ? current : null;
+  const session: DataInfo<number> = {
+    sessionId: data.sessionId,
+    expires: new Date(data.expires).getTime(),
+    avatar: data.avatar ?? previous?.avatar ?? "",
+    username: data.username ?? previous?.username ?? "",
+    nickname: data.nickname ?? previous?.nickname ?? "",
+    roles: data.roles ?? previous?.roles ?? [],
+    permissions: data.permissions ?? previous?.permissions ?? [],
+    userId: data.userId,
+    tenantId: data.tenantId,
+    forceResetPwd: data.forceResetPwd
+  };
+  storageLocal().setItem(userKey, session);
+  acceptLocalTenantSession(session.sessionId);
+  const store = useUserStoreHook();
+  store.SET_AVATAR(session.avatar);
+  store.SET_USERNAME(session.username);
+  store.SET_NICKNAME(session.nickname);
+  store.SET_ROLES(session.roles);
+  store.SET_PERMS(session.permissions);
   Cookies.set(
     multipleTabsKey,
     "true",
-    isRemembered
-      ? {
-          expires: loginDay
-        }
-      : {}
+    store.isRemembered ? { expires: store.loginDay } : {}
   );
-
-  function setUserKey({ avatar, username, nickname, roles, permissions }) {
-    useUserStoreHook().SET_AVATAR(avatar);
-    useUserStoreHook().SET_USERNAME(username);
-    useUserStoreHook().SET_NICKNAME(nickname);
-    useUserStoreHook().SET_ROLES(roles);
-    useUserStoreHook().SET_PERMS(permissions);
-    storageLocal().setItem(userKey, {
-      refreshToken,
-      expires,
-      avatar,
-      username,
-      nickname,
-      roles,
-      permissions
-    });
-  }
-
-  if (data.username && data.roles) {
-    const { username, roles } = data;
-    setUserKey({
-      avatar: data?.avatar ?? "",
-      username,
-      nickname: data?.nickname ?? "",
-      roles,
-      permissions: data?.permissions ?? []
-    });
-  } else {
-    const avatar =
-      storageLocal().getItem<DataInfo<number>>(userKey)?.avatar ?? "";
-    const username =
-      storageLocal().getItem<DataInfo<number>>(userKey)?.username ?? "";
-    const nickname =
-      storageLocal().getItem<DataInfo<number>>(userKey)?.nickname ?? "";
-    const roles =
-      storageLocal().getItem<DataInfo<number>>(userKey)?.roles ?? [];
-    const permissions =
-      storageLocal().getItem<DataInfo<number>>(userKey)?.permissions ?? [];
-    setUserKey({
-      avatar,
-      username,
-      nickname,
-      roles,
-      permissions
-    });
-  }
 }
-
-/** 删除`token`以及key值为`user-info`的localStorage信息 */
-export function removeToken() {
+/** Removing metadata prevents refresh from reviving a pending/failed logout via its residual Cookie. */
+export function removeTenantSession() {
   assertTenantSessionCurrent();
-  Cookies.remove(TokenKey);
+  storageLocal().removeItem(userKey);
   Cookies.remove(multipleTabsKey);
   acceptLocalTenantSession(null);
-  storageLocal().removeItem(userKey);
 }
-
-/** 格式化token（jwt格式） */
-export const formatToken = (token: string): string => {
-  return "Bearer " + token;
-};
 
 /** 是否有按钮级别的权限（根据登录接口返回的`permissions`字段进行判断）*/
 export const hasPerms = (value: string | Array<string>): boolean => {
@@ -171,9 +98,9 @@ export const hasPerms = (value: string | Array<string>): boolean => {
   return isAuths ? true : false;
 };
 
-/** 平台会话与租户会话使用独立键，登出互不影响。 */
+/** Platform metadata uses a separate namespace; no native token is persisted. */
 export type PlatformSession = {
-  accessToken: string;
+  sessionId: string;
   expires: number;
   account: {
     id: number;
@@ -183,14 +110,20 @@ export type PlatformSession = {
     forceResetPwd: boolean;
   };
 };
-export const platformSessionKey = "platform-operator-session";
 export function getPlatformSession(): PlatformSession | null {
-  return storageLocal().getItem<PlatformSession>(platformSessionKey) ?? null;
+  const session = storageLocal().getItem<PlatformSession>(platformSessionKey);
+  return typeof session?.sessionId === "string" && session.sessionId
+    ? session
+    : null;
 }
 export function setPlatformSession(session: PlatformSession) {
   assertPlatformSessionCurrent();
-  storageLocal().setItem(platformSessionKey, session);
-  acceptLocalPlatformSession(session.accessToken);
+  storageLocal().setItem(platformSessionKey, {
+    sessionId: session.sessionId,
+    expires: session.expires,
+    account: session.account
+  });
+  acceptLocalPlatformSession(session.sessionId);
 }
 export function removePlatformSession() {
   assertPlatformSessionCurrent();

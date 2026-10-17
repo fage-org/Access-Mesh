@@ -259,6 +259,7 @@ class GatewayApplicationConfigTest {
         // 密钥豁免同源
         var wl = props.getWhitelist().getPaths();
         for (String p : java.util.List.of("/api/access/auth/captcha", "/api/access/auth/login",
+                "/api/access/auth/browser-login", "/api/access/auth/browser-logout",
                 "/api/access/auth/logout", "/api/access/auth/userinfo",
                 "/api/access/auth/user-menu", "/api/access/auth/oauth2/**",
                 // T-GW-009：自助改密通道（forceResetPwd 阻断人群经 Gateway 必达，回归锁=本断言在

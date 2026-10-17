@@ -495,6 +495,27 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 OAuth2 授权码、刷新记录携带签发时租户代次；JWT 使用字符串 `tenant_epoch` claim。兑换、刷新及资源请求同时验证启用状态和代次，缺字段或停用前的旧代次拒绝，恢复后不复活；服务凭证只检查租户启用状态及自身有效性。
 
 <a id="contract-section-7"></a>
+<a id="browser-session-contract"></a>
+<a id="contract-section-6-5"></a>
+### 6.5 网页 HttpOnly 会话（T-ACCESS-109）
+
+原 `/api/access/auth/login` 与 `/api/access/platform-auth/login` 继续返回 Bearer 令牌，供工具和既有调用方使用。自带网页改用下列专用入口；全部 POST + JSON，响应沿用 R 信封。
+
+| 路径 | 请求 DTO | 响应 data |
+|---|---|---|
+| `/api/access/auth/browser-login` | 复用 `LoginReq`：tenantCode、username、password、captchaId、captchaCode、可选 clientId | `BrowserLoginResp`：sessionId（字符串）、expiresIn（秒）、userId、username、tenantId、forceResetPwd |
+| `/api/access/platform-auth/browser-login` | 复用 `PlatformLoginReq`：username、password、captchaId、captchaCode | `PlatformBrowserLoginResp`：sessionId、expiresIn、account（原 PlatformAccountResp） |
+| `/api/access/auth/browser-logout` | `{}`（EmptyReq） | null |
+| `/api/access/platform-auth/browser-logout` | `{}`（EmptyReq） | null |
+
+网页登录不返回 accessToken/refreshToken。认证值只在 HttpOnly Cookie 中：生产分别为 `__Host-am-tenant` / `__Host-am-platform`，Secure、SameSite=Strict、Path=/、不设置 Domain；回环 HTTP 使用 `am-local-tenant` / `am-local-platform`。期限取原生会话的 expiresIn，不改变服务端绝对/闲置过期及密码、租户门禁。
+
+网页请求显式携带 `X-AM-Browser-Request: 1`；Cookie 业务请求与注销还携带登录响应的 `X-AM-Session: <sessionId>`。sessionId 为与原生 token-session 绑定的不可预测上下文/CSRF 标记，单独不能认证或注销。登录、Cookie 认证与注销均校核受信 Origin（缺失时严格校核 Referer），允许列表由两服务同值的 `accessmesh.browser-session.allowed-origins` / `ACCESS_BROWSER_ALLOWED_ORIGINS` 提供；来源不可信、缺失或格式错误为 HTTP 403。只支持已有同源部署，本地 HTTP 仅限回环主机。
+
+同身份域 Cookie 与显式 Bearer 混用返回 HTTP 400；另一个身份域的 Cookie 不构成混用。Cookie/标记缺失或不匹配返回 HTTP 409、code=90002，不能回退为另一身份。正常凭据校核后继续既有认证、权限及门禁，不因进入 Cookie 通道改变业务授权。标准 OAuth2 令牌、原生 Bearer 登录及服务凭证通道保持各自认证协议。
+
+注销仅作用于通过 Cookie 与标记共同校核的原会话；不接受账号 ID 或普通标记单独授权注销。注销响应不写 Set-Cookie，避免迟到响应删除新登录。前端立即清除旧页面和可读活动会话，失败提示“服务器尚未确认退出”；不后台补注销、不保存独立注销凭据，未成功注销的旧会话按原期限结束。残留 Cookie 不能使已清除活动元数据的新版网页恢复旧身份。完整隔离与升级规则见[浏览器会话设计](browser-session-authentication.md)。
+
 ## 7. user 能力（用户管理）
 
 **orgType 迁移（T-API-011，破坏性变更）**：用户分页、用户详情以及用户组织列表的 OrgBrief.orgType 统一返回 JSON 数字（组织 1、岗位 2），不再返回字符串 `"1"`/`"2"`。组织族原有数字线格式不变。消费者应将 String 类型改 Integer/number 并移除字符串比较；可缺失组织仍保留 null。普通列表默认页大小统一 20，完整枚举每批上限 200，按 hasNext 继续取数。前端领域常量统一入口 `frontend/src/constants/access.ts`，测试夹具与展示说明允许保留字面值。
@@ -3298,6 +3319,7 @@ schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正�
 | `30004` | PERMISSION_DENIED | [§25.7](#contract-section-25-7) | [源码](../../example-service/src/main/java/cn/ac/fage/accessmesh/example/enums/ExampleErrorCode.java) |
 | `30005` | PERM_CHECK_UNAVAILABLE | [§25.7](#contract-section-25-7) | [源码](../../example-service/src/main/java/cn/ac/fage/accessmesh/example/enums/ExampleErrorCode.java) |
 | `90001` | VALIDATION_FAILED | [§2.5](#contract-section-2-5)、[§2.6](#contract-section-2-6)、[§2.7](#contract-section-2-7)、[§7.3](#contract-section-7-3)、[§7.4](#contract-section-7-4)、[§7.8](#contract-section-7-8)、[§8.4](#contract-section-8-4)、[§8.5](#contract-section-8-5)、[§9.2](#contract-section-9-2)、[§9.6](#contract-section-9-6)、[§12.1](#contract-section-12-1)、[§12.2](#contract-section-12-2)、[§17.3](#contract-section-17-3)、[§21.2](#contract-section-21-2)、[§24.2](#contract-section-24-2) | [源码](../../common/src/main/java/cn/ac/fage/accessmesh/common/enums/GlobalErrorCode.java) |
+| `90002` | BROWSER_SESSION_CHANGED | [§6.5](#contract-section-6-5) | [源码](../../common/src/main/java/cn/ac/fage/accessmesh/common/enums/GlobalErrorCode.java) |
 | `99999` | SYSTEM_ERROR | [§2.6](#contract-section-2-6)、[§4](#contract-section-4)、[§8.1](#contract-section-8-1)、[§18.1](#contract-section-18-1)、[§21.2](#contract-section-21-2)、[§25.6](#contract-section-25-6) | [源码](../../common/src/main/java/cn/ac/fage/accessmesh/common/enums/GlobalErrorCode.java) |
 | `11101` | `PLATFORM_ACCOUNT_NOT_FOUND` | 平台账号不存在 | [平台与租户生命周期](#contract-section-26) |
 | `11102` | `PLATFORM_ACCOUNT_EXISTS` | 平台账号已存在 | [平台与租户生命周期](#contract-section-26) |

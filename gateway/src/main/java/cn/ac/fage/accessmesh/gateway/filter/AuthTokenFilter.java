@@ -181,10 +181,8 @@ public class AuthTokenFilter implements GlobalFilter, Ordered {
     /**
      * 从请求中提取Token
      * <p>
-     * 仅从Authorization Header提取Bearer Token，不读Cookie：令牌经头显式
-     * 传递（前端恒发Bearer头），Cookie承载会被浏览器跨站自动携带构成CSRF面
-     * （sa-token种出的Authorization Cookie无SameSite标记，Safari/旧浏览器不受
-     * Lax默认保护）。
+     * 只消费 Authorization Bearer。网页 Cookie 已由前置 BrowserSessionFilter 完成来源、
+     * CSRF 与会话绑定校核并内部转换；本过滤器不另开直接 Cookie 认证旁路。
      * </p>
      *
      * @param exchange 服务器Web交换对象

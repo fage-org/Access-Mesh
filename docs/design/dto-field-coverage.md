@@ -52,7 +52,8 @@ RolePermissionItemResp 与其列表信封已由 perm-common 单源供服务端�
 | `SyncStatusResp` | entityKind, lastFullGeneration, lastFullStatus, maxGeneration, scopeKey, sourceService, trackedItems, updatedAt |
 | `SyncStatusListReq` | pageNum, pageSize, sourceService |
 | `PlatformAccountResp` | createdAt, forceResetPwd, id, name, status, updatedAt, username |
-| `PlatformLoginResp` | accessToken, account, expiresIn |
+| `PlatformBrowserLoginResp` | sessionId, account, expiresIn |
+| `BrowserLoginResp` | sessionId, expiresIn, userId, username, tenantId, forceResetPwd |
 | `TenantResp` | accessState, adminUserId, code, createdAt, id, name, status, updatedAt |
 | `PlatformAuditResp` | action, createdAt, id, ipAddress, operatorId, operatorName, outcome, requestId, summary, targetId, targetTenantId, targetType |
 | `TenantAdminPasswordResp` | password, userStatus, username |

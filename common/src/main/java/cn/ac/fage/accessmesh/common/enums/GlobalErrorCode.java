@@ -20,6 +20,8 @@ public enum GlobalErrorCode {
      */
     VALIDATION_FAILED(90001, "参数校验失败"),
 
+    BROWSER_SESSION_CHANGED(90002, "页面会话与浏览器凭据不一致，请重新登录"),
+
     /**
      * 系统异常
      */

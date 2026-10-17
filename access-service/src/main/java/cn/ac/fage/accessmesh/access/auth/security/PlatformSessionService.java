@@ -52,5 +52,8 @@ public class PlatformSessionService {
     }
 
     public long expiresIn(String token) { return logic.getTokenTimeout(token); }
+    public void bindBrowserSession(String token, String sessionId) {
+        logic.getTokenSessionByToken(token).set(cn.ac.fage.accessmesh.common.security.BrowserSessionPolicy.SESSION_ATTRIBUTE, sessionId);
+    }
     public void logout(String token) { if (token != null && !token.isBlank()) logic.logoutByTokenValue(token); }
 }

@@ -104,10 +104,7 @@ sa-token:
   is-concurrent: true
   is-share: false
   token-style: uuid
-  # 登录不种 Authorization Cookie：sa-token 默认 isReadCookie=true，不显式关闭时
-  # StpUtil.login 会在响应 Set-Cookie Authorization=<token>（无 SameSite/HttpOnly/Secure
-  # 标记，Safari/旧浏览器跨站请求自动携带 = CSRF 面）；令牌仅经 Authorization 头显式
-  # 传递（前端恒发 Bearer），Gateway 读侧已同步关闭 Cookie 备选
+  # 禁止 Sa-Token 通用 Cookie 读取/自动签发；网页登录由显式 HttpOnly/CSRF 适配器处理。
   is-read-cookie: false
   is-log: false
   # jwt-secret-key 仅用于 OAuth2 访问令牌签发（OAuth2JwtSupport / Nimbus HS256），与平台用户会话 token-style 无关；

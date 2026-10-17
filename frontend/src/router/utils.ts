@@ -18,7 +18,7 @@ import {
 } from "@pureadmin/utils";
 import { buildHierarchyTree } from "@/utils/tree";
 import {
-  getToken,
+  getTenantSession,
   isSessionTerminated,
   userKey,
   type DataInfo
@@ -283,7 +283,7 @@ function rebuildSidebarFromUserMenus() {
 
 /**
  * 会话能力刷新在途标记（Q-016 同会话变体收口，2026-09-20 拍板：入口内共享在途
- * Promise single-flight）。fingerprint=发起时的 accessToken——同会话并发调用共享
+ * Promise single-flight）。fingerprint=发起时的 sessionId——同会话并发调用共享
  * 同一刷新（多通道〔403 自动/手动/重试〕并发只发一次 user-menu 请求，旧响应晚到
  * 覆盖新权限串的竞态随之消除）；会话已换（登出重登）时 fingerprint 不同，不复用
  * 在途、由代际守卫丢弃旧结果。
@@ -316,9 +316,9 @@ let capabilityRefreshInFlight: {
  */
 export async function refreshSessionCapability(): Promise<void> {
   // 无会话无可刷（会话失效由拦截器 401 分支 logOut 收口）
-  const token = getToken();
+  const token = getTenantSession();
   if (!token) return;
-  const fingerprint = token?.accessToken;
+  const fingerprint = token?.sessionId;
   if (
     capabilityRefreshInFlight &&
     capabilityRefreshInFlight.fingerprint === fingerprint
@@ -328,7 +328,7 @@ export async function refreshSessionCapability(): Promise<void> {
   const userStore = useUserStoreHook();
   const promise = (async () => {
     await userStore.refreshUserMenu();
-    if (getToken()?.accessToken === fingerprint) {
+    if (getTenantSession()?.sessionId === fingerprint) {
       rebuildSidebarFromUserMenus();
     }
   })();
@@ -365,16 +365,7 @@ export async function refreshSessionCapability(): Promise<void> {
  */
 async function initRouter() {
   const userStore = useUserStoreHook();
-  // 会话已终结（Q-020 收口，2026-09-20 拍板）：统一提示+走 logOut 跳登录，并抛
-  // SessionExpiredError 让调用方跳过按陈旧菜单状态的业务提示（此前 menu-retry 重试
-  // 零请求发出、误报「仍无可用菜单，请联系管理员」）。判据单源 isSessionTerminated
-  // （claude 外评 P2 收口）：无凭证 ∨ 本地 expires 已到期——「cookie 过期被清+
-  // userKey 残留」形态（getToken 真值无 accessToken）同判终结，此前仅判 !getToken()
-  // 时该形态漏走刷新分支重弹失真提示。登录流程（刚 setToken 未过期）恒不触达；
-  // 触发面 = /menu-retry 等放行页内动作 + 本地过期后的 F5 会话恢复（守卫 then 已
-  // 补 catch 留痕，见 router/index.ts）
-  // 会话终结处置三件套单源（T-FE-056 复评 P3-1 统一；原手写 await logOut 与不
-  // await 等价——logOut fire-and-forget 后本地清理在同步段完成，T-FE-054 定案）
+  // Missing/incomplete metadata or local expiry uses the same termination flow as HTTP dispatch.
   if (isSessionTerminated()) terminateLocalSession();
   if (userStore.menus.length === 0) {
     try {

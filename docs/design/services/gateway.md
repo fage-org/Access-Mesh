@@ -216,3 +216,9 @@ Gateway 通过 Micrometer 暴露 Prometheus 指标。依赖 `spring-boot-starter
 - 旧版详细过滤器链和配置样例见归档文档。
 
 会话配置的共有键由 `SaTokenConfigParityTest` 对两份 YAML 经 Spring 解析、绑定后的有效值逐键对照。Gateway 单侧显式 `is-read-header=true`；access-service 使用 Sa-Token 同值默认，测试同时锁定默认，暂不重复声明。`jwt-secret-key` 仅 access-service 使用。新增单侧键须在对照测试登记用途，未知键导致失败。未注册接口固定拒绝，不提供 `unregistered-policy` 配置。
+
+## 浏览器 Cookie 适配（T-ACCESS-109）
+
+`BrowserSessionFilter`（order=-85，头清洗之后、白名单之前）按[网页会话契约](../access-service-api-contract.md#browser-session-contract)校核来源、同域凭据混用、页面标记与原生 token-session 的绑定；同步 DAO 操作在 boundedElastic 上执行。网页登录/注销仅向实际目的为 access-service 的路由转发原请求，由服务端重复校核。其他 Cookie 业务请求在内部适配为现有 Bearer 头，移除浏览器认证 Cookie 与专用会话头，再走既有认证、租户、权限与签名链；不引入可由客户端伪造的“已校核”标记头。平台 Cookie 不随租户业务流量传给 example-service。
+
+原生 Bearer、OAuth2 和 M2M 路径继续按原协议处理。T1 的冲突判定仅针对当前身份域；来源配置须与 access-service 一致，见[部署基线](../../ops/deployment.md)。

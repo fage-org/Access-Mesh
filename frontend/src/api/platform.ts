@@ -11,8 +11,8 @@ export type PlatformAccount = {
   createdAt: string;
   updatedAt: string;
 };
-export type PlatformLoginResp = {
-  accessToken: string;
+export type PlatformBrowserLoginResp = {
+  sessionId: string;
   expiresIn: number;
   account: PlatformAccount;
 };
@@ -67,13 +67,13 @@ export type PlatformAccountCreatedResp = {
 async function request<T>(
   path: string,
   data: object = {},
-  authorization?: string
+  sessionId?: string
 ): Promise<T> {
   return unwrap(
     await http.request<R<T>>("post", `/api/access/${path}`, {
       authRealm: "platform",
       data,
-      ...(authorization ? { headers: { Authorization: authorization } } : {})
+      ...(sessionId ? { headers: { "X-AM-Session": sessionId } } : {})
     })
   );
 }
@@ -84,10 +84,10 @@ export const platformLogin = (data: {
   password: string;
   captchaId: string;
   captchaCode: string;
-}) => request<PlatformLoginResp>("platform-auth/login", data);
+}) => request<PlatformBrowserLoginResp>("platform-auth/browser-login", data);
 export const platformMe = () => request<PlatformAccount>("platform-auth/me");
-export const platformLogout = (authorization: string) =>
-  request<void>("platform-auth/logout", {}, authorization);
+export const platformLogout = (sessionId: string) =>
+  request<void>("platform-auth/browser-logout", {}, sessionId);
 export const changePlatformPassword = (data: {
   oldPassword: string;
   newPassword: string;

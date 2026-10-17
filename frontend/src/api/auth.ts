@@ -10,7 +10,7 @@ export type CaptchaResp = {
 };
 
 /**
- * `/api/access/auth/login` 请求体（对齐后端 LoginReq）。
+ * `/api/access/auth/browser-login` 请求体（对齐后端 LoginReq）。
  * tenantCode 由用户填写；普通登录不依赖 OAuth2 客户端。
  */
 export type LoginReq = {
@@ -22,16 +22,10 @@ export type LoginReq = {
   clientId?: string;
 };
 
-/**
- * `/api/access/auth/login` 响应（对齐后端 LoginResp）。
- * - `expiresIn` 为秒数，调用方需转换为绝对时间供 `setToken` 使用
- * - 普通 Sa-Token 会话 `refreshToken` 为 null——不接 OAuth2 刷新令牌
- */
-export type LoginResp = {
-  accessToken: string;
-  refreshToken: string | null;
+/** Browser metadata. sessionId binds CSRF and request context; it cannot authenticate alone. */
+export type BrowserLoginResp = {
+  sessionId: string;
   expiresIn: number;
-  tokenType: string;
   userId: number;
   username: string;
   tenantId: number;
@@ -59,35 +53,37 @@ export const getCaptcha = async (): Promise<CaptchaResp> => {
 };
 
 /**
- * 账号密码登录（POST /api/access/auth/login）。
+ * 账号密码登录（POST /api/access/auth/browser-login）。
  * <p>
  * 保留 R 信封返回，由 store 通过 `unwrap` 解包以走统一异常路径
  * （业务失败 HTTP 200 + code≠200，经 unwrap 抛 RequestError）。
  */
-export const login = (data: LoginFormData): Promise<R<LoginResp>> => {
-  return http.request<R<LoginResp>>("post", "/api/access/auth/login", {
-    data: {
-      tenantCode: data.tenantCode,
-      username: data.username,
-      password: data.password,
-      captchaId: data.captchaId,
-      captchaCode: data.captchaCode
-    } satisfies LoginReq
-  });
+export const login = (data: LoginFormData): Promise<R<BrowserLoginResp>> => {
+  return http.request<R<BrowserLoginResp>>(
+    "post",
+    "/api/access/auth/browser-login",
+    {
+      data: {
+        tenantCode: data.tenantCode,
+        username: data.username,
+        password: data.password,
+        captchaId: data.captchaId,
+        captchaCode: data.captchaCode
+      } satisfies LoginReq
+    }
+  );
 };
 
-/**
- * 注销当前会话（POST /api/access/auth/logout，T-FE-045）。
- * <p>
- * Authorization 头值由调用方显式传入（store 读当前 token 经 formatToken 构造），
- * 不经请求拦截器附加——本端点已加入 http 请求白名单（防过期分支 logOut 递归），
- * 拦截器不注入令牌也不做过期判定：本地 `expires` 已到期路径触发的登出，
- * 也能注销可能仍存活的服务端会话（本地到期时刻与 Sa-Token 服务端会话不完全同步）。
- */
-export const logout = async (authorization: string): Promise<void> => {
-  const res = await http.request<R<void>>("post", "/api/access/auth/logout", {
-    headers: { Authorization: authorization }
-  });
+/** Attempt to revoke the original Cookie session; never retry after changing accounts. */
+export const logout = async (sessionId: string): Promise<void> => {
+  const res = await http.request<R<void>>(
+    "post",
+    "/api/access/auth/browser-logout",
+    {
+      data: {},
+      headers: { "X-AM-Session": sessionId }
+    }
+  );
   unwrap(res);
 };
 

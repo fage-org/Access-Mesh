@@ -62,6 +62,8 @@ class HttpApiPathSnapshotTest {
 /api/access/platform-auth/captcha
 /api/access/platform-auth/change-password
 /api/access/platform-auth/login
+/api/access/platform-auth/browser-login
+/api/access/platform-auth/browser-logout
 /api/access/platform-auth/logout
 /api/access/platform-auth/me
 /api/access/tenant/create
@@ -173,6 +175,8 @@ class HttpApiPathSnapshotTest {
 /api/access/user-role/sync
 /api/access/auth/captcha
 /api/access/auth/login
+/api/access/auth/browser-login
+/api/access/auth/browser-logout
 /api/access/auth/logout
 /api/access/auth/oauth2/authorize
 /api/access/auth/oauth2/authorize-preview
@@ -267,6 +271,8 @@ class HttpApiPathSnapshotTest {
 /api/access/platform-auth/captcha|-|common.model.R<access.auth.dto.CaptchaResp>
 /api/access/platform-auth/change-password|access.auth.dto.PlatformPasswordReq|common.model.R<Void>
 /api/access/platform-auth/login|access.auth.dto.PlatformLoginReq|common.model.R<access.auth.dto.PlatformLoginResp>
+/api/access/platform-auth/browser-login|access.auth.dto.PlatformLoginReq|common.model.R<access.auth.dto.PlatformBrowserLoginResp>
+/api/access/platform-auth/browser-logout|access.infrastructure.dto.EmptyReq|common.model.R<Void>
 /api/access/platform-auth/logout|-|common.model.R<Void>
 /api/access/platform-auth/me|-|common.model.R<access.auth.dto.PlatformAccountResp>
 /api/access/tenant/create|access.tenant.dto.TenantCreateReq|common.model.R<access.tenant.dto.TenantCreatedResp>
@@ -378,6 +384,8 @@ class HttpApiPathSnapshotTest {
 /api/access/user-role/sync|access.sync.dto.UserRoleSyncReq|common.model.R<perm.common.dto.resp.SyncResultResp>
 /api/access/auth/captcha|-|common.model.R<access.auth.dto.CaptchaResp>
 /api/access/auth/login|access.auth.dto.LoginReq|common.model.R<access.auth.dto.LoginResp>
+/api/access/auth/browser-login|access.auth.dto.LoginReq|common.model.R<access.auth.dto.BrowserLoginResp>
+/api/access/auth/browser-logout|access.infrastructure.dto.EmptyReq|common.model.R<Void>
 /api/access/auth/logout|-|common.model.R<Void>
 /api/access/auth/oauth2/authorize|access.auth.dto.AuthorizeReq|common.model.R<access.auth.dto.AuthorizeResp>
 /api/access/auth/oauth2/authorize-preview|access.auth.dto.AuthorizeReq|common.model.R<access.auth.dto.AuthorizationPreviewResp>

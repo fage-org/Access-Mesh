@@ -48,7 +48,8 @@ Nacos(8848)：服务注册/配置（三服务共同依赖）
 ## 3. TLS 与安全头（强制）
 
 - 所有对外入口（前端、Gateway）**仅 HTTPS**：TLS 在最外层 LB/nginx 终止；HTTP→HTTPS 重定向；HSTS 开启。
-- 会话令牌仅经 `Authorization: Bearer` 头传递（Cookie 通道双端关闭，无 CSRF 面）；TLS 下无需额外 CSRF 令牌。
+- 自带网页登录使用 HttpOnly Cookie，并同时校核 Origin/Referer 和会话绑定的 CSRF 标记；原生工具登录仍返回 Bearer。TLS 不替代 CSRF 防护。
+- gateway 与 access-service 同值配置 `ACCESS_BROWSER_ALLOWED_ORIGINS=https://<对外域名>`（或 `accessmesh.browser-session.allowed-origins`），多个 Origin 用逗号分隔；必须是纯 Origin，不带路径，不允许通配符。TLS 终止层不改变这一公开 Origin，不能由未信任的转发头推断。默认仅含本地回环开发/预览地址，生产不配置实际域名会拒绝网页登录。Cookie 在 HTTPS 下具有 Secure，HTTP 仅允许回环预览并使用独立名称。
 - 安全响应头（X-Content-Type-Options、X-Frame-Options、CSP 等）在 TLS 终止层配置；Gateway/服务侧不重复注入。
 
 ## 4. X-Forwarded-For 与多层代理（部署前提）
@@ -63,6 +64,8 @@ Nacos(8848)：服务注册/配置（三服务共同依赖）
 - 全链路 UTC 墙钟：JVM 时区由 common 启动强制 UTC（代码级，无需部署侧 `-Duser.timezone`/`TZ` 约定）；PG 使用 TIMESTAMPTZ；API 返回 ISO-8601 无偏移字符串（语义=UTC）。详见 [归并后目标架构 §16](../design/access-service-architecture.md)。
 
 ## 6. 数据与升级
+
+浏览器 HttpOnly 切换（T-ACCESS-109）：协调部署 gateway、access-service 和前端，避免新页面访问旧认证入口实现。新版网页清除旧版脚本可读认证存储，租户与平台分别重新登录一次；没有自动会话迁移，也不批量吊销工具的 Bearer 会话。原登录接口保留。尚未加载新版的旧标签页不会仅因发布而在服务器端强制下线，仍受原过期与门禁约束。同一浏览器已建立新 Cookie 后，旧页面的 Bearer 请求会因 T1 混用规则被拒绝，应刷新到新版；这不等于批量吊销旧 Bearer 令牌。
 
 - 唯一权威 DDL：`docs/design/schema/access-service.sql`；**当前无 migration 框架**。DDL 及 bootstrap 固定图加行可能令旧库启动 fail-fast；可重建环境先按 §8 备份、演练恢复，再按 [重建手册](../design/access-service-rebuild-runbook.md) 单独重建业务库。备份用于恢复旧版本，不能把旧全库 dump 灌入新 DDL 当作升级。持有不可丢数据的环境须停在升级前，不自动执行销毁。避免 `docker compose down -v` 连带删除 Redis/Nacos 卷。
 - 空库首启顺序：DDL → access-service（bootstrap 建首管理员与固定图）→ gateway → 注册服务/签发凭证 → 配置业务服务并启动。

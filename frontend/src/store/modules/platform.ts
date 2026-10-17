@@ -1,3 +1,4 @@
+import { message } from "@/utils/message";
 import { assertPlatformSessionCurrent } from "@/utils/platform-session";
 import { defineStore } from "pinia";
 import { store } from "@/store";
@@ -6,8 +7,7 @@ import { platformLogin, platformLogout, platformMe } from "@/api/platform";
 import {
   getPlatformSession,
   setPlatformSession,
-  removePlatformSession,
-  formatToken
+  removePlatformSession
 } from "@/utils/auth";
 
 export const usePlatformStore = defineStore("platform-operator", {
@@ -19,7 +19,7 @@ export const usePlatformStore = defineStore("platform-operator", {
     async login(data: Parameters<typeof platformLogin>[0]) {
       const result = await platformLogin(data);
       setPlatformSession({
-        accessToken: result.accessToken,
+        sessionId: result.sessionId,
         expires: Date.now() + result.expiresIn * 1000,
         account: result.account
       });
@@ -29,7 +29,7 @@ export const usePlatformStore = defineStore("platform-operator", {
     async refresh() {
       const session = getPlatformSession();
       const account = await platformMe();
-      if (session?.accessToken !== getPlatformSession()?.accessToken) return;
+      if (session?.sessionId !== getPlatformSession()?.sessionId) return;
       setPlatformSession({ ...session, account });
       this.account = account;
       if (account.forceResetPwd)
@@ -39,8 +39,8 @@ export const usePlatformStore = defineStore("platform-operator", {
       assertPlatformSessionCurrent();
       const session = getPlatformSession();
       if (session)
-        void platformLogout(formatToken(session.accessToken)).catch(() =>
-          console.warn("平台服务端注销失败，本地凭据已清除")
+        void platformLogout(session.sessionId).catch(() =>
+          message("原平台会话：服务器尚未确认退出", { type: "warning" })
         );
       removePlatformSession();
       this.clearLocalSessionState();

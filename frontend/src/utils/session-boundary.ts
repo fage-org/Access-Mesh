@@ -9,7 +9,7 @@ export class SessionChangedError extends Error {
 }
 
 /** Each authentication realm owns a separate instance; only the algorithm is shared. */
-export function createSessionBoundary(allowExpiredCookie = false) {
+export function createSessionBoundary() {
   const blocked = ref(false);
   const sessionBlocked = readonly(blocked);
   let readSession: (() => SessionSnapshot) | undefined;
@@ -17,6 +17,12 @@ export function createSessionBoundary(allowExpiredCookie = false) {
   let expectedToken: string | null = null;
   let revision = 0;
   let dispose: (() => void) | undefined;
+
+  function block() {
+    if (blocked.value) return;
+    blocked.value = true;
+    invalidate?.();
+  }
 
   /** Shared storage is only observed here: invalidation never deletes or revokes another tab's session. */
   function assertCurrent() {
@@ -28,15 +34,8 @@ export function createSessionBoundary(allowExpiredCookie = false) {
     } catch {
       current = { token: null, expires: null };
     }
-    // Cookie expiry leaves expired local metadata: retain the existing local-expiry/logout flow.
-    const expiredCookie =
-      allowExpiredCookie &&
-      current.token === null &&
-      current.expires !== null &&
-      current.expires <= Date.now();
-    if (current.token !== expectedToken && !expiredCookie) {
-      blocked.value = true;
-      invalidate?.();
+    if (current.token !== expectedToken) {
+      block();
       throw new SessionChangedError();
     }
   }
@@ -108,6 +107,7 @@ export function createSessionBoundary(allowExpiredCookie = false) {
 
   return {
     blocked: sessionBlocked,
+    block,
     assertCurrent,
     captureRequest,
     assertRequest,

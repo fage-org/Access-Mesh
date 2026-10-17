@@ -87,6 +87,46 @@ class LoginSessionPgIT {
     private final ObjectMapper mapper = JsonMapper.builder().configureForJackson2().build();
 
     @Test
+    void browserSessionUsesRealNativeAuthenticationAndCannotLogoutAReplacementSession() throws Exception {
+        String username = "browser_" + UUID.randomUUID().toString().substring(0, 8);
+        jdbc.update("INSERT INTO sys_user (id, tenant_id, username, password, name, status, user_type, force_reset_pwd) VALUES (?, ?, ?, ?, 'Browser', 1, 3, false)",
+            910502L, TENANT, username, cn.dev33.satoken.secure.BCrypt.hashpw(PASSWORD));
+        var first = browserLogin(username);
+        var second = browserLogin(username);
+        assertThat(first.getResponse().getHeaders("Set-Cookie")).hasSize(1);
+        assertThat(first.getResponse().getHeader("Authorization")).isNull();
+        String markerA = mapper.readTree(first.getResponse().getContentAsString()).path("data").path("sessionId").asText();
+        String markerB = mapper.readTree(second.getResponse().getContentAsString()).path("data").path("sessionId").asText();
+        jakarta.servlet.http.Cookie cookieA = first.getResponse().getCookie("am-local-tenant");
+        jakarta.servlet.http.Cookie cookieB = second.getResponse().getCookie("am-local-tenant");
+        assertThat(markerA).hasSize(43).isNotEqualTo(markerB);
+        assertThat(first.getResponse().getContentAsString()).doesNotContain("accessToken", cookieA.getValue());
+        mockMvc.perform(browserRequest("/api/access/auth/userinfo", markerB, cookieB)).andExpect(status().isOk());
+        // Late A logout carries B's automatically attached Cookie: reject, never revoke B.
+        mockMvc.perform(browserRequest("/api/access/auth/browser-logout", markerA, cookieB)).andExpect(status().isConflict());
+        mockMvc.perform(browserRequest("/api/access/auth/userinfo", markerB, cookieB)).andExpect(status().isOk());
+        var logout = mockMvc.perform(browserRequest("/api/access/auth/browser-logout", markerA, cookieA)).andExpect(status().isOk()).andReturn();
+        assertThat(logout.getResponse().getHeader("Set-Cookie")).isNull();
+        mockMvc.perform(browserRequest("/api/access/auth/userinfo", markerB, cookieB)).andExpect(status().isOk());
+        mockMvc.perform(browserRequest("/api/access/auth/userinfo", markerA, cookieA)).andExpect(status().is4xxClientError());
+    }
+
+    private MvcResult browserLogin(String username) throws Exception {
+        String captchaId = UUID.randomUUID().toString();
+        stringRedisTemplate.opsForValue().set("captcha:" + captchaId, "3141", 5, TimeUnit.MINUTES);
+        return mockMvc.perform(post("/api/access/auth/browser-login").contentType(MediaType.APPLICATION_JSON)
+            .header("Origin", "http://127.0.0.1:8848").header("X-AM-Browser-Request", "1")
+            .content(mapper.writeValueAsString(Map.of("tenantCode", cn.ac.fage.accessmesh.access.it.TenantTestSupport.CODE,
+                "username", username, "password", PASSWORD, "captchaId", captchaId, "captchaCode", "3141"))))
+            .andExpect(status().isOk()).andReturn();
+    }
+
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder browserRequest(String path, String marker, jakarta.servlet.http.Cookie cookie) {
+        return post(path).contentType(MediaType.APPLICATION_JSON).content("{}")
+            .header("Origin", "http://127.0.0.1:8848").header("X-AM-Browser-Request", "1").header("X-AM-Session", marker).cookie(cookie);
+    }
+
+    @Test
     @DisplayName("登录：真实库用户 + 真实 Redis 验证码 → 会话建立 → userinfo 消费 → logout 失效")
     void loginShouldEstablishSessionAgainstRealDatabaseAndRedis() throws Exception {
         // 真实 sys_user 行（BCrypt 密码，登录链路走 UserDomainService 真实 SQL）

@@ -980,6 +980,50 @@ class ExampleProtectedApiE2EIT {
         return envelope.path("data");
     }
 
+    @Test
+    @Order(11)
+    void browserCookieAuthenticationPreservesBothRealmsAndTheBearerToolChannel() throws Exception {
+        java.util.Map<String, String> cookies = new java.util.LinkedHashMap<>();
+        java.util.Map<String, String> markers = new java.util.LinkedHashMap<>();
+        for (String realm : java.util.List.of("auth", "platform-auth")) {
+            String path = "/api/access/" + realm;
+            JsonNode captcha = postForData(gateway() + path + "/captcha", null, JSON.createObjectNode());
+            String captchaId = captcha.path("captchaId").asText();
+            var body = JSON.createObjectNode().put("username", "admin").put("password", BOOTSTRAP_ADMIN_PASSWORD)
+                .put("captchaId", captchaId).put("captchaCode", readCaptchaFromRedis(captchaId));
+            if (realm.equals("auth")) body.put("tenantCode", E2eTenantSupport.TENANT_CODE);
+            var response = browserPost(path + "/browser-login", body.toString(), null, String.join("; ", cookies.values()), null);
+            assertThat(response.statusCode()).isEqualTo(200);
+            JsonNode data = JSON.readTree(response.body()).path("data");
+            assertThat(data.has("accessToken")).isFalse();
+            markers.put(realm, data.path("sessionId").asText());
+            assertThat(markers.get(realm)).hasSize(43);
+            String cookie = response.headers().firstValue("Set-Cookie").orElseThrow();
+            assertThat(cookie).contains("HttpOnly", "SameSite=Strict");
+            cookies.put(realm, cookie.split(";", 2)[0]);
+        }
+        String both = String.join("; ", cookies.values());
+        assertThat(browserPost("/api/access/user/page", "{}", markers.get("auth"), both, null).statusCode()).isEqualTo(200);
+        assertThat(browserPost("/api/access/platform-auth/me", "{}", markers.get("platform-auth"), both, null).statusCode()).isEqualTo(200);
+        assertThat(browserPost("/api/access/auth/userinfo", "{}", markers.get("auth"), both, adminToken).statusCode()).isEqualTo(400);
+        assertThat(browserPost("/api/access/auth/userinfo", "{}", null, cookies.get("platform-auth"), adminToken).statusCode()).isEqualTo(200);
+        var logout = browserPost("/api/access/auth/browser-logout", "{}", markers.get("auth"), both, null);
+        assertThat(logout.statusCode()).isEqualTo(200);
+        assertThat(logout.headers().allValues("Set-Cookie")).isEmpty();
+        assertThat(browserPost("/api/access/platform-auth/me", "{}", markers.get("platform-auth"), both, null).statusCode()).isEqualTo(200);
+        assertThat(browserPost("/api/access/auth/userinfo", "{}", markers.get("auth"), both, null).statusCode()).isBetween(400, 499);
+    }
+
+    private static HttpResponse<String> browserPost(String path, String body, String marker, String cookies, String bearer) throws Exception {
+        var request = HttpRequest.newBuilder(URI.create(gateway() + path)).timeout(Duration.ofSeconds(30))
+            .header("Content-Type", "application/json").header("Origin", "http://127.0.0.1:8848")
+            .header("X-AM-Browser-Request", "1").POST(HttpRequest.BodyPublishers.ofString(body));
+        if (marker != null) request.header("X-AM-Session", marker);
+        if (cookies != null && !cookies.isBlank()) request.header("Cookie", cookies);
+        if (bearer != null) request.header("Authorization", "Bearer " + bearer);
+        return HTTP.send(request.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
     private static String realLogin(String username, String password) {
         JsonNode captcha = postForData(gateway() + "/api/access/auth/captcha", null, JSON.createObjectNode());
         String captchaId = captcha.path("captchaId").asText();

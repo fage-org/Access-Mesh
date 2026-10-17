@@ -2,7 +2,7 @@ import type { SessionRequestStamp } from "@/utils/session-boundary";
 import type { AxiosError, AxiosResponse, AxiosRequestConfig } from "axios";
 
 export type resultType = {
-  accessToken?: string;
+  sessionId?: string;
 };
 
 export type RequestMethods = "post";

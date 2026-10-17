@@ -5,6 +5,11 @@ import cn.ac.fage.accessmesh.common.security.PlatformEndpoints;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import org.springframework.web.servlet.HandlerInterceptor;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import cn.ac.fage.accessmesh.common.security.BrowserSessionPolicy;
+import cn.dev33.satoken.SaManager;
 
 /**
  * 统一安全 MVC 配置（T-ACCESS-004，替换 admin WebMvcConfig 与 permission PermWebMvcConfig 双链）。
@@ -12,6 +17,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  * 全库唯一 WebMvcConfigurer，注册统一安全链，执行顺序如下：
  * </p>
  * <ol>
+ *   <li>order=0 已校核的浏览器会话桥接到 Sa-Token 请求内存，不签发响应凭据。</li>
  *   <li>order=1 ServiceAuthArbiter（T-PERM-070 重构 InternalApiSecretInterceptor 单策略位）
  *       — 作用于 /api/access/** 豁免会话入口族（精确清单以 addInterceptors 的
  *       excludePathPatterns 为准，勿在此枚举防漂移；运行时鉴权六端点维持覆盖，
@@ -51,7 +57,22 @@ public class SecurityWebMvcConfig implements WebMvcConfigurer {
      */
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        // order=1：服务认证仲裁器必须最先执行，成功时写 attribute 供后续决策
+        // Sa-Token's context filter may capture the request before our header wrapper.
+        // Bridge only the already-validated server-side candidate into request-local storage;
+        // this API does not emit Cookie/header credentials or bypass native session validation.
+        registry.addInterceptor(new HandlerInterceptor() {
+            @Override
+            public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
+                if (request.getAttribute(BrowserSessionFilter.CANDIDATE) instanceof BrowserSessionPolicy.Candidate candidate
+                    && candidate.token() != null) {
+                    SaManager.getStpLogic(candidate.realm() == BrowserSessionPolicy.Realm.PLATFORM ? "platform-operator" : "login")
+                        .setTokenValueToStorage(candidate.token());
+                }
+                return true;
+            }
+        }).addPathPatterns("/api/access/**").order(0);
+
+        // order=1：服务认证仲裁器先于身份上下文绑定执行，成功时写 attribute 供后续决策
         // （ServicePrincipal=CREDENTIAL 路径或 INTERNAL_AUTHENTICATED=旧密钥路径）。
         // 覆盖 /api/access/**（T-ACCESS-042 前为 /api/perm/**——管理面并入后统一「仅经
         // Gateway 或持凭证/密钥服务可达」）；豁免会话入口族与白名单自服务端点（精确清单
@@ -68,6 +89,8 @@ public class SecurityWebMvcConfig implements WebMvcConfigurer {
                 .excludePathPatterns(
                         "/api/access/auth/captcha",
                         "/api/access/auth/login",
+                        "/api/access/auth/browser-login",
+                        "/api/access/auth/browser-logout",
                         "/api/access/auth/logout",
                         "/api/access/auth/userinfo",
                         "/api/access/auth/user-menu",

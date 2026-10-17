@@ -7,8 +7,9 @@ export {
   SessionChangedError as TenantSessionChangedError,
   reloadSessionPage as reloadTenantSession
 } from "@/utils/session-boundary";
-const tenant = createSessionBoundary(true);
+const tenant = createSessionBoundary();
 export const tenantSessionBlocked = tenant.blocked;
+export const blockTenantSession = tenant.block;
 export const assertTenantSessionCurrent = tenant.assertCurrent;
 export const captureTenantRequest = tenant.captureRequest;
 export const assertTenantRequest = tenant.assertRequest;

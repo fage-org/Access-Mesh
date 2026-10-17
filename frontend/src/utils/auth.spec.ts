@@ -19,7 +19,15 @@ const { memStorage } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/store/modules/user", () => ({
-  useUserStoreHook: () => ({ isRemembered: false, loginDay: 7 })
+  useUserStoreHook: () => ({
+    isRemembered: false,
+    loginDay: 7,
+    SET_AVATAR: vi.fn(),
+    SET_USERNAME: vi.fn(),
+    SET_NICKNAME: vi.fn(),
+    SET_ROLES: vi.fn(),
+    SET_PERMS: vi.fn()
+  })
 }));
 // auth.ts 模块级还 import isString/isIncludeAllChildren（hasPerms 用，本 spec 不触达），
 // 一并给出桩实现防命名导入缺位
@@ -36,13 +44,14 @@ vi.mock("@pureadmin/utils", () => ({
 }));
 
 import {
-  getToken,
-  removeToken,
+  getTenantSession,
+  removeTenantSession,
   getPlatformSession,
   setPlatformSession,
   removePlatformSession,
   userKey,
-  TokenKey,
+  clearLegacyAuthentication,
+  setTenantSession,
   platformSessionKey
 } from "@/utils/auth";
 import { readDraftOwner } from "@/views/perm/grant/utils/draft-storage";
@@ -51,7 +60,7 @@ beforeEach(() => {
   cookieJar.clear();
 });
 const platform = {
-  accessToken: "operator-token",
+  sessionId: "operator-token",
   expires: Date.now() + 60000,
   account: {
     id: 1,
@@ -66,9 +75,9 @@ describe("independent identity storage", () => {
     setPlatformSession(platform);
     memStorage.set(
       userKey,
-      JSON.stringify({ accessToken: "tenant-token", tenantId: 2, userId: 1 })
+      JSON.stringify({ sessionId: "tenant-token", tenantId: 2, userId: 1 })
     );
-    removeToken();
+    removeTenantSession();
     expect(memStorage.has(userKey)).toBe(false);
     expect(getPlatformSession()).toEqual(platform);
   });
@@ -82,9 +91,9 @@ describe("independent identity storage", () => {
   it("legacy login and missing tenant drafts are not assigned to tenant 1", () => {
     memStorage.set(
       "user-info",
-      JSON.stringify({ accessToken: "legacy", userId: 1 })
+      JSON.stringify({ sessionId: "legacy", userId: 1 })
     );
-    expect(getToken()).toBeNull();
+    expect(getTenantSession()).toBeNull();
     memStorage.set(userKey, JSON.stringify({ userId: 1 }));
     expect(readDraftOwner()).toBeNull();
   });
@@ -92,11 +101,11 @@ describe("independent identity storage", () => {
 
 it("stale tab cannot remove the cookie or metadata belonging to a new tenant session", () => {
   const expires = Date.now() + 60000;
-  cookieJar.set(TokenKey, JSON.stringify({ accessToken: "A", expires }));
+  memStorage.set(userKey, JSON.stringify({ sessionId: "A", expires }));
   const stop = startTenantSessionSync({
     read: () => ({
-      token: getToken()?.accessToken ?? null,
-      expires: getToken()?.expires ?? null
+      token: getTenantSession()?.sessionId ?? null,
+      expires: getTenantSession()?.expires ?? null
     }),
     invalidate: vi.fn(),
     storageKey: userKey,
@@ -104,13 +113,13 @@ it("stale tab cannot remove the cookie or metadata belonging to a new tenant ses
     document: new EventTarget() as Document
   });
   try {
-    cookieJar.set(TokenKey, JSON.stringify({ accessToken: "B", expires }));
+    memStorage.set(userKey, JSON.stringify({ sessionId: "B", expires }));
     memStorage.set(
       userKey,
-      JSON.stringify({ tenantId: 2, userId: 22, expires })
+      JSON.stringify({ sessionId: "B", tenantId: 2, userId: 22, expires })
     );
-    expect(() => removeToken()).toThrow(TenantSessionChangedError);
-    expect(getToken()?.accessToken).toBe("B");
+    expect(() => removeTenantSession()).toThrow(TenantSessionChangedError);
+    expect(getTenantSession()?.sessionId).toBe("B");
     expect(readDraftOwner()).toEqual({ tenantId: "2", userId: "22" });
   } finally {
     stop();
@@ -120,11 +129,11 @@ it("stale tab cannot remove the cookie or metadata belonging to a new tenant ses
 it("stale platform cleanup cannot remove either new platform credentials or tenant credentials", async () => {
   const { startPlatformSessionSync } = await import("./platform-session");
   const expires = Date.now() + 60000;
-  cookieJar.set(TokenKey, JSON.stringify({ accessToken: "tenant-A", expires }));
-  setPlatformSession({ ...platform, accessToken: "operator-A" });
+  memStorage.set(userKey, JSON.stringify({ sessionId: "tenant-A", expires }));
+  setPlatformSession({ ...platform, sessionId: "operator-A" });
   const stop = startPlatformSessionSync({
     read: () => ({
-      token: getPlatformSession()?.accessToken ?? null,
+      token: getPlatformSession()?.sessionId ?? null,
       expires: getPlatformSession()?.expires ?? null
     }),
     invalidate: vi.fn(),
@@ -135,12 +144,62 @@ it("stale platform cleanup cannot remove either new platform credentials or tena
   try {
     memStorage.set(
       platformSessionKey,
-      JSON.stringify({ ...platform, accessToken: "operator-B" })
+      JSON.stringify({ ...platform, sessionId: "operator-B" })
     );
     expect(() => removePlatformSession()).toThrow(TenantSessionChangedError);
-    expect(getPlatformSession()?.accessToken).toBe("operator-B");
-    expect(getToken()?.accessToken).toBe("tenant-A");
+    expect(getPlatformSession()?.sessionId).toBe("operator-B");
+    expect(getTenantSession()?.sessionId).toBe("tenant-A");
   } finally {
     stop();
   }
+});
+
+it("upgrade removes legacy credentials without migrating them or clearing unrelated state", () => {
+  cookieJar.set("tenant-authorized-token-v2", "legacy-auth-secret");
+  memStorage.set("tenant-user-info-v2", "{}");
+  memStorage.set("platform-operator-session", "legacy-platform-secret");
+  memStorage.set("preferences", "keep");
+  clearLegacyAuthentication();
+  expect(cookieJar.has("tenant-authorized-token-v2")).toBe(false);
+  expect(memStorage.has("platform-operator-session")).toBe(false);
+  expect(getTenantSession()).toBeNull();
+  expect(memStorage.get("preferences")).toBe("keep");
+});
+it("persists only session metadata, never a supplied native token", () => {
+  setTenantSession({
+    sessionId: "marker",
+    expires: new Date(Date.now() + 60000),
+    accessToken: "secret"
+  } as any);
+  expect(memStorage.get(userKey)).not.toContain("secret");
+  expect(cookieJar.has("tenant-authorized-token-v2")).toBe(false);
+});
+
+it("a replacement identity never inherits the previous account's display or permissions", () => {
+  const expires = new Date(Date.now() + 60000);
+  setTenantSession({
+    sessionId: "A",
+    expires,
+    username: "alpha",
+    avatar: "alpha-avatar",
+    forceResetPwd: true,
+    permissions: ["ROLE:MANAGE"]
+  });
+  setTenantSession({
+    sessionId: "B",
+    expires,
+    username: "beta",
+    userId: 2,
+    tenantId: 3,
+    forceResetPwd: false
+  });
+  expect(getTenantSession()).toMatchObject({
+    sessionId: "B",
+    username: "beta",
+    userId: 2,
+    tenantId: 3,
+    forceResetPwd: false,
+    avatar: "",
+    permissions: []
+  });
 });

@@ -1,6 +1,6 @@
 import { ref, onScopeDispose } from "vue";
 import { exportAuditLogs, type AuditExportKind } from "@/api/audit-export";
-import { getToken } from "@/utils/auth";
+import { getTenantSession } from "@/utils/auth";
 import { message } from "@/utils/message";
 import { toErrorMessage } from "@/api/_envelope";
 export function useAuditExport(kind: AuditExportKind, filters: () => object) {
@@ -13,13 +13,13 @@ export function useAuditExport(kind: AuditExportKind, filters: () => object) {
   });
   async function download() {
     if (exporting.value || disposed) return;
-    const token = getToken()?.accessToken;
+    const token = getTenantSession()?.sessionId;
     if (!token) return;
     exporting.value = true;
     controller = new AbortController();
     try {
       const blob = await exportAuditLogs(kind, filters(), controller.signal);
-      if (disposed || token !== getToken()?.accessToken) return;
+      if (disposed || token !== getTenantSession()?.sessionId) return;
       const url = URL.createObjectURL(blob);
       try {
         const link = document.createElement("a");
@@ -30,7 +30,7 @@ export function useAuditExport(kind: AuditExportKind, filters: () => object) {
         URL.revokeObjectURL(url);
       }
     } catch (error) {
-      if (!disposed && token === getToken()?.accessToken)
+      if (!disposed && token === getTenantSession()?.sessionId)
         message(toErrorMessage(error, "日志导出失败"), { type: "error" });
     } finally {
       exporting.value = false;

@@ -37,10 +37,10 @@ vi.mock("@/router/utils", () => ({
 }));
 vi.mock("@/utils/auth", () => ({
   isSessionTerminated: mockIsSessionTerminated,
-  getToken: vi.fn(),
-  setToken: vi.fn(),
-  removeToken: vi.fn(),
-  // logOut 消费 formatToken——当前 getToken 桩恒 undefined 不可达，补齐防未来桩
+  getTenantSession: vi.fn(),
+  setTenantSession: vi.fn(),
+  removeTenantSession: vi.fn(),
+  // logOut 消费 formatToken——当前 getTenantSession 桩恒 undefined 不可达，补齐防未来桩
   // 返回真令牌时误导性 TypeError（T-FE-047 同族 mock 泄漏教训，复评存量观察）
   formatToken: (t: string) => "Bearer " + t,
   userKey: "user-info"

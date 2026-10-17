@@ -544,6 +544,8 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
     private static boolean isPublicAuthEndpoint(String uri) {
         return uri.equals("/api/access/auth/captcha")
             || uri.equals("/api/access/auth/login")
+            || uri.equals("/api/access/auth/browser-login")
+            || uri.equals("/api/access/auth/browser-logout")
             || uri.equals("/api/access/auth/oauth2/token")
             || uri.equals("/api/access/auth/oauth2/refresh")
             || uri.equals("/api/access/auth/oauth2/revoke")

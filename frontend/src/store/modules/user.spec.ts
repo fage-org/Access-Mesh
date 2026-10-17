@@ -1,7 +1,7 @@
 /**
  * 登录链路 store 单测（T-FE-041 评审修复回归保护）。
  * 覆盖 loginByUsername 四分支：
- *  1. 成功：expiresIn 秒 → 绝对时间供 setToken；username/roles 占位立即落位；菜单数据填充（含 userKey 持久化）
+ *  1. 成功：expiresIn 秒 → 绝对时间供 setTenantSession；username/roles 占位立即落位；菜单数据填充（含 userKey 持久化）
  *  2. 业务失败（HTTP 200 + code≠200）：unwrap 抛 RequestError，整体 reject
  *  3. user-menu HTTP 401（会话失效）：不降级，reject
  *  4. user-menu 普通异常（网络等）：降级，仍 resolve
@@ -27,28 +27,31 @@ import { RequestError } from "@/api/_envelope";
 import type { R } from "@/api/_envelope";
 
 // mock API 层（阻断 http；login/getUserMenu/logout 返回值由用例控制）
-const { mockLogin, mockGetUserMenu, mockLogout } = vi.hoisted(() => ({
-  mockLogin: vi.fn(),
-  mockGetUserMenu: vi.fn(),
-  mockLogout: vi.fn()
-}));
+const { mockLogin, mockGetUserMenu, mockLogout, mockMessage } = vi.hoisted(
+  () => ({
+    mockLogin: vi.fn(),
+    mockGetUserMenu: vi.fn(),
+    mockMessage: vi.fn(),
+    mockLogout: vi.fn()
+  })
+);
+vi.mock("@/utils/message", () => ({ message: mockMessage }));
 vi.mock("@/api/auth", () => ({
   login: mockLogin,
   getUserMenu: mockGetUserMenu,
   logout: mockLogout
 }));
 
-// mock setToken/getToken/removeToken（真实实现依赖 Cookie/localStorage/Pinia 链，node 环境不可用）
+// mock setTenantSession/getTenantSession/removeTenantSession（真实实现依赖 Cookie/localStorage/Pinia 链，node 环境不可用）
 const { mockSetToken, mockGetToken, mockRemoveToken } = vi.hoisted(() => ({
   mockSetToken: vi.fn(),
   mockGetToken: vi.fn(),
   mockRemoveToken: vi.fn()
 }));
 vi.mock("@/utils/auth", () => ({
-  setToken: mockSetToken,
-  getToken: mockGetToken,
-  removeToken: mockRemoveToken,
-  formatToken: (t: string) => "Bearer " + t,
+  setTenantSession: mockSetToken,
+  getTenantSession: mockGetToken,
+  removeTenantSession: mockRemoveToken,
   userKey: "user-info"
 }));
 
@@ -81,10 +84,8 @@ import { useUserStore } from "./user";
 import { addDialog, dialogStore } from "@/components/ReDialog/store";
 
 const LOGIN_RESP = {
-  accessToken: "token-1",
-  refreshToken: null,
+  sessionId: "token-1",
   expiresIn: 7200,
-  tokenType: "Bearer",
   userId: 1,
   username: "admin",
   tenantId: 1,
@@ -111,15 +112,14 @@ beforeEach(() => {
 });
 
 describe("loginByUsername 真实链路（T-FE-041）", () => {
-  it("成功：expiresIn 转绝对时间写入 setToken，username 与 roles 占位落位，菜单填充角色权限", async () => {
+  it("成功：expiresIn 转绝对时间写入 setTenantSession，username 与 roles 占位落位，菜单填充角色权限", async () => {
     mockLogin.mockResolvedValue({ code: 200, message: "ok", data: LOGIN_RESP });
     mockGetUserMenu.mockResolvedValue(MENU_RESP);
-    // setToken 为 mock 不写真存储——getToken 须反映登录后持令牌的真实链路
-    //（refreshUserMenu 代际守卫发起/回写均读 getToken，sol P2 修复后终结形态不回写）
+    // setTenantSession 为 mock 不写真存储——getTenantSession 须反映登录后持令牌的真实链路
+    //（refreshUserMenu 代际守卫发起/回写均读 getTenantSession，sol P2 修复后终结形态不回写）
     mockGetToken.mockReturnValue({
-      accessToken: "token-1",
-      expires: 1,
-      refreshToken: ""
+      sessionId: "token-1",
+      expires: 1
     });
     const before = Date.now();
 
@@ -138,9 +138,9 @@ describe("loginByUsername 真实链路（T-FE-041）", () => {
     const expires = new Date(arg.expires).getTime();
     expect(expires).toBeGreaterThanOrEqual(before + 7200 * 1000);
     expect(expires).toBeLessThanOrEqual(before + 7200 * 1000 + 2000);
-    // Sa-Token 无刷新令牌 → 空串；username 立即落位 + roles 占位（使 setToken 走传入分支）
-    expect(arg.accessToken).toBe("token-1");
-    expect(arg.refreshToken).toBe("");
+    // Sa-Token 无刷新令牌 → 空串；username 立即落位 + roles 占位（使 setTenantSession 走传入分支）
+    expect(arg.sessionId).toBe("token-1");
+    expect(arg).not.toHaveProperty("accessToken");
     expect(arg.username).toBe("admin");
     expect(arg.roles).toEqual([]);
     // 菜单数据写入 store（评审修复：menus 用非空夹具并断言，防止 SET_MENUS 删除后测试仍绿）
@@ -148,7 +148,7 @@ describe("loginByUsername 真实链路（T-FE-041）", () => {
     expect(user.roles).toEqual(["Bootstrap Admin"]);
     expect(user.permissions).toEqual(["ROLE:VIEW"]);
     expect(user.menus).toEqual([{ path: "/welcome", name: "Welcome" }]);
-    // userKey 持久化：refreshUserMenu 与 setToken 写入的 storage 保持一致语义
+    // userKey 持久化：refreshUserMenu 与 setTenantSession 写入的 storage 保持一致语义
     expect(mockStorage.setItem).toHaveBeenCalledWith(
       "user-info",
       expect.objectContaining({
@@ -215,11 +215,12 @@ describe("loginByUsername 真实链路（T-FE-041）", () => {
 
     expect(result).toEqual(LOGIN_RESP);
     expect(warn).toHaveBeenCalled();
+
     warn.mockRestore();
   });
 });
 
-describe("强制改密标记写入（T-FE-046：LoginResp userId/forceResetPwd 随登录入 userKey）", () => {
+describe("强制改密标记写入（T-FE-046：BrowserLoginResp userId/forceResetPwd 随登录入 userKey）", () => {
   it("forceResetPwd=true 登录：userId 与阻断标记写入 userKey（跨标签共享存储，守卫阻断的标记源）——旧实现不写必红", async () => {
     mockLogin.mockResolvedValue({
       code: 200,
@@ -236,28 +237,14 @@ describe("强制改密标记写入（T-FE-046：LoginResp userId/forceResetPwd �
       captchaCode: "1234"
     });
 
-    expect(mockStorage.setItem).toHaveBeenCalledWith(
-      "user-info",
+    expect(mockSetToken).toHaveBeenCalledWith(
       expect.objectContaining({ userId: 1, forceResetPwd: true })
     );
   });
 
   it("forceResetPwd=false 登录：覆盖旧会话残留标记（登录覆盖生命周期）——旧实现不写必红", async () => {
-    // 模拟 userKey 残留上一阻断会话标记。先取 store 实例使 state 初始化的
-    // 5 次 getItem（avatar/username/nickname/roles/permissions）消化默认 null，
-    // 两个 mockReturnValueOnce 精确落在 loginByUsername 链路读点（标记写入 +
-    // refreshUserMenu spread）——双轨评审代码轨 P3 修复：此前 Once 队列被
-    // state 初始化吞噬，stale 路径未被真正测到
+    // The complete login snapshot is delegated in one write; storage replacement is covered by auth.spec.
     const user = useUserStore();
-    const staleUserKey = {
-      username: "prev",
-      roles: [],
-      forceResetPwd: true,
-      userId: 9
-    };
-    mockStorage.getItem
-      .mockReturnValueOnce(staleUserKey)
-      .mockReturnValueOnce(staleUserKey);
     mockLogin.mockResolvedValue({
       code: 200,
       message: "ok",
@@ -274,8 +261,7 @@ describe("强制改密标记写入（T-FE-046：LoginResp userId/forceResetPwd �
     });
 
     // stale 里的 forceResetPwd:true 被登录响应覆盖为 false（残留不外溢）
-    expect(mockStorage.setItem).toHaveBeenCalledWith(
-      "user-info",
+    expect(mockSetToken).toHaveBeenCalledWith(
       expect.objectContaining({ userId: 2, forceResetPwd: false })
     );
   });
@@ -292,11 +278,10 @@ describe("menuLoadFailed 状态维护（T-FE-049：空侧栏两态区分的事�
 
   it("失败后重拉成功：翻转为 false 并填充 menus（拉取成功但空菜单=合法形态，非失败）", async () => {
     const user = useUserStore();
-    // 会话恒在（代际守卫发起/回写读 getToken；undefined 指纹会被判终结不回写）
+    // 会话恒在（代际守卫发起/回写读 getTenantSession；undefined 指纹会被判终结不回写）
     mockGetToken.mockReturnValue({
-      accessToken: "token-1",
-      expires: 1,
-      refreshToken: ""
+      sessionId: "token-1",
+      expires: 1
     });
     mockGetUserMenu.mockRejectedValueOnce(new Error("network down"));
     await expect(user.refreshUserMenu()).rejects.toThrow();
@@ -320,9 +305,8 @@ describe("menuLoadFailed 状态维护（T-FE-049：空侧栏两态区分的事�
     expect(user.menuLoadFailed).toBe(true);
 
     mockGetToken.mockReturnValue({
-      accessToken: "token-1",
-      expires: 1,
-      refreshToken: ""
+      sessionId: "token-1",
+      expires: 1
     });
     mockLogout.mockResolvedValue(undefined);
     await user.logOut();
@@ -332,14 +316,14 @@ describe("menuLoadFailed 状态维护（T-FE-049：空侧栏两态区分的事�
 });
 
 describe("logOut 真注销（T-FE-045；注销 fire-and-forget 化 T-FE-054/Q-016 收口）", () => {
-  const TOKEN = { accessToken: "token-1", expires: 1, refreshToken: "" };
+  const TOKEN = { sessionId: "token-1", expires: 1, refreshToken: "" };
 
   /** 微任务排空（fire-and-forget 的注销 catch 在微任务后，断言前排空） */
   async function drainMicrotasks(times = 5) {
     for (let i = 0; i < times; i++) await Promise.resolve();
   }
 
-  it("调用序：先发起 POST 注销（fire-and-forget 不等完成）再清本地——removeToken/resetRouter/push 依次在后，Pinia 清空", async () => {
+  it("调用序：先发起 POST 注销（fire-and-forget 不等完成）再清本地——removeTenantSession/resetRouter/push 依次在后，Pinia 清空", async () => {
     mockGetToken.mockReturnValue(TOKEN);
     mockLogout.mockResolvedValue(undefined);
 
@@ -347,7 +331,7 @@ describe("logOut 真注销（T-FE-045；注销 fire-and-forget 化 T-FE-054/Q-01
 
     expect(mockLogout).toHaveBeenCalledTimes(1);
     // 注销请求显式携带当前 token（formatToken 构造 Authorization 头；旧实现不调接口，此断言必红）
-    expect(mockLogout).toHaveBeenCalledWith("Bearer token-1");
+    expect(mockLogout).toHaveBeenCalledWith("token-1");
     // 调用序锁：注销请求发起先于本地清理，清理先于路由重置与跳转
     expect(mockLogout.mock.invocationCallOrder[0]).toBeLessThan(
       mockRemoveToken.mock.invocationCallOrder[0]
@@ -376,6 +360,9 @@ describe("logOut 真注销（T-FE-045；注销 fire-and-forget 化 T-FE-054/Q-01
     await drainMicrotasks();
 
     expect(warn).toHaveBeenCalled();
+    expect(mockMessage).toHaveBeenCalledWith("原租户会话：服务器尚未确认退出", {
+      type: "warning"
+    });
     expect(mockRemoveToken).toHaveBeenCalledTimes(1);
     expect(mockResetRouter).toHaveBeenCalledTimes(1);
     expect(mockRouterPush).toHaveBeenCalledWith("/login");
@@ -402,7 +389,7 @@ describe("logOut 真注销（T-FE-045；注销 fire-and-forget 化 T-FE-054/Q-01
       await drainMicrotasks(10);
 
       // 注销仍 pending：logOut 已 settled 且清理链已全部完成——旧实现（await 注销）
-      // 下 first 挂起 settled=false、removeToken 未调用，两断言必红
+      // 下 first 挂起 settled=false、removeTenantSession 未调用，两断言必红
       expect(settled).toBe(true);
       expect(mockRemoveToken).toHaveBeenCalledTimes(1);
       expect(mockResetRouter).toHaveBeenCalledTimes(1);
@@ -416,10 +403,10 @@ describe("logOut 真注销（T-FE-045；注销 fire-and-forget 化 T-FE-054/Q-01
     expect(mockRemoveToken).toHaveBeenCalledTimes(1);
   });
 
-  it("登出完成后重复触发不再发请求：本地已清（getToken 无令牌）即幂等清理+直接跳登录", async () => {
+  it("登出完成后重复触发不再发请求：本地已清（getTenantSession 无令牌）即幂等清理+直接跳登录", async () => {
     mockGetToken
       .mockReturnValueOnce(TOKEN) // 第一次登出：持令牌
-      .mockReturnValueOnce(null); // 第二次触发：removeToken 后已无令牌
+      .mockReturnValueOnce(null); // 第二次触发：removeTenantSession 后已无令牌
     mockLogout.mockResolvedValue(undefined);
 
     await useUserStore().logOut();
@@ -432,7 +419,7 @@ describe("logOut 真注销（T-FE-045；注销 fire-and-forget 化 T-FE-054/Q-01
 });
 
 describe("logOut 续接缺省继承与会话终结清弹窗（T-FE-068）", () => {
-  const TOKEN = { accessToken: "token-1", expires: 1, refreshToken: "" };
+  const TOKEN = { sessionId: "token-1", expires: 1, refreshToken: "" };
   const OAUTH_TARGET = "/oauth2/authorize?client_id=a&state=1";
 
   beforeEach(() => {
@@ -497,9 +484,8 @@ describe("refreshUserMenu 会话代际守卫（Q-016 收口：旧会话响应不
     user.SET_MENUS([{ path: "/new-session" } as any]);
     user.menuLoadFailed = true; // 新会话的既有状态
     mockGetToken.mockReturnValue({
-      accessToken: "token-old",
-      expires: 1,
-      refreshToken: ""
+      sessionId: "token-old",
+      expires: 1
     });
     let resolveMenu!: (v: unknown) => void;
     mockGetUserMenu.mockImplementation(
@@ -512,9 +498,8 @@ describe("refreshUserMenu 会话代际守卫（Q-016 收口：旧会话响应不
     const pending = user.refreshUserMenu();
     // 刷新在途：旧会话登出、新登录（令牌已换）
     mockGetToken.mockReturnValue({
-      accessToken: "token-new",
-      expires: 1,
-      refreshToken: ""
+      sessionId: "token-new",
+      expires: 1
     });
     resolveMenu(MENU_RESP);
     await pending;
@@ -530,9 +515,8 @@ describe("refreshUserMenu 会话代际守卫（Q-016 收口：旧会话响应不
     const user = useUserStore();
     user.menuLoadFailed = false;
     mockGetToken.mockReturnValue({
-      accessToken: "token-old",
-      expires: 1,
-      refreshToken: ""
+      sessionId: "token-old",
+      expires: 1
     });
     let rejectMenu!: (e: unknown) => void;
     mockGetUserMenu.mockImplementation(
@@ -544,9 +528,8 @@ describe("refreshUserMenu 会话代际守卫（Q-016 收口：旧会话响应不
 
     const pending = user.refreshUserMenu();
     mockGetToken.mockReturnValue({
-      accessToken: "token-new",
-      expires: 1,
-      refreshToken: ""
+      sessionId: "token-new",
+      expires: 1
     });
     rejectMenu(new Error("old session network down"));
     await pending; // 旧实现：错误上抛，此处即 throw（用例红）
@@ -554,13 +537,12 @@ describe("refreshUserMenu 会话代际守卫（Q-016 收口：旧会话响应不
     expect(user.menuLoadFailed).toBe(false); // 旧实现置 true → 红
   });
 
-  it("锁（外评 P3）：会话终结型失败不吞——401 分支已 logOut 清令牌（getToken 空）时照常置位+上抛（旧守卫 undefined!==fingerprint 误拦吞掉，手动刷新假成功/登录 401 硬化不可达，必红）", async () => {
+  it("锁（外评 P3）：会话终结型失败不吞——401 分支已 logOut 清令牌（getTenantSession 空）时照常置位+上抛（旧守卫 undefined!==fingerprint 误拦吞掉，手动刷新假成功/登录 401 硬化不可达，必红）", async () => {
     const user = useUserStore();
     user.menuLoadFailed = false;
     mockGetToken.mockReturnValue({
-      accessToken: "token-1",
-      expires: 1,
-      refreshToken: ""
+      sessionId: "token-1",
+      expires: 1
     });
     let rejectMenu!: (e: unknown) => void;
     mockGetUserMenu.mockImplementation(
@@ -571,7 +553,7 @@ describe("refreshUserMenu 会话代际守卫（Q-016 收口：旧会话响应不
     );
 
     const pending = user.refreshUserMenu();
-    // 401 到达：响应拦截器已先 logOut（同步清令牌）——getToken() 变 null，
+    // 401 到达：响应拦截器已先 logOut（同步清令牌）——getTenantSession() 变 null，
     // 与「跨会话（另一活会话令牌）」语义不同，不得拦
     mockGetToken.mockReturnValue(null);
     rejectMenu(
@@ -580,19 +562,18 @@ describe("refreshUserMenu 会话代际守卫（Q-016 收口：旧会话响应不
       })
     );
 
-    // 已提交实现（getToken 空也拦）：静默 return resolve、menuLoadFailed 不置位（双红）
+    // 已提交实现（getTenantSession 空也拦）：静默 return resolve、menuLoadFailed 不置位（双红）
     await expect(pending).rejects.toThrow();
     expect(user.menuLoadFailed).toBe(true);
   });
 
-  it("锁（sol 外评 P2）：会话终结后的成功响应不回写——刷新在途时登出/401 已清令牌（getToken 空），200 晚到不得重建 Pinia/userKey（旧判据终结不拦回写，三断言必红）", async () => {
+  it("锁（sol 外评 P2）：会话终结后的成功响应不回写——刷新在途时登出/401 已清令牌（getTenantSession 空），200 晚到不得重建 Pinia/userKey（旧判据终结不拦回写，三断言必红）", async () => {
     const user = useUserStore();
     user.SET_MENUS([]);
     user.menuLoadFailed = true; // 终结前的既有状态
     mockGetToken.mockReturnValueOnce({
-      accessToken: "token-1",
-      expires: 1,
-      refreshToken: ""
+      sessionId: "token-1",
+      expires: 1
     });
     let resolveMenu!: (v: unknown) => void;
     mockGetUserMenu.mockImplementation(
@@ -603,7 +584,7 @@ describe("refreshUserMenu 会话代际守卫（Q-016 收口：旧会话响应不
     );
 
     const pending = user.refreshUserMenu();
-    // 刷新在途：主动登出/401 分支已同步清令牌（getToken 变 null）
+    // 刷新在途：主动登出/401 分支已同步清令牌（getTenantSession 变 null）
     mockGetToken.mockReturnValue(null);
     resolveMenu(MENU_RESP);
     await pending;
@@ -619,9 +600,8 @@ describe("refreshUserMenu 会话代际守卫（Q-016 收口：旧会话响应不
 describe("门禁状态机迁移（T-FE-056：refreshUserMenu 唯一迁移入口，守卫判定依据）", () => {
   function withToken() {
     mockGetToken.mockReturnValue({
-      accessToken: "token-1",
-      expires: 1,
-      refreshToken: ""
+      sessionId: "token-1",
+      expires: 1
     });
   }
 

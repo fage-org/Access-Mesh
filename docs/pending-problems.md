@@ -55,13 +55,13 @@ last_updated: 2026-10-17
 - **来源**：逐任务三通道评审 P3 处置时发现的任务卡登记缺口——T-ACCESS-082（两条延期项）、T-ACCESS-083（验证码延后）、T-FE-064（C10）各自声称「登记/延后」但本清单此前零对应条目（2026-10-06 逐任务评审补录合并）
 - **关联**：[T-ACCESS-082](archive/2026-10-06/tasks/T-ACCESS-082.md)、[T-ACCESS-083](archive/2026-10-06/tasks/T-ACCESS-083.md)、[T-FE-064](archive/2026-10-06/tasks/T-FE-064.md)
 
-**现象与证据**：三项延后能力在任务卡「非目标/遗留」节声明但无登记载体：①**强制下线**——管理员主动终结指定租户用户原生会话的能力（现仅重置密码链路顺带 logout，无独立入口）；②**验证码替代通道**——图形验证码的无障碍/行为式/音频替代（当前唯一形态 4 位纯数字，见 Q-067 关联的验证码强度议题）；③**跨标签同步与令牌承载**（T-FE-064 C10）——两项独立事项：租户同步已由 T-FE-071 实施；HttpOnly Cookie 改造已启动方案定案，启用 Cookie 认证须先满足 security-standards §3 的 CSRF 前置约束。独立平台运营页同类状态问题已随 T-FE-072 收敛（Q-082）。
+**现象与证据**：三项延后能力在任务卡「非目标/遗留」节声明但无登记载体：①**强制下线**——管理员主动终结指定租户用户原生会话的能力（现仅重置密码链路顺带 logout，无独立入口）；②**验证码替代通道**——图形验证码的无障碍/行为式/音频替代（当前唯一形态 4 位纯数字，见 Q-067 关联的验证码强度议题）；③**跨标签同步与令牌承载**（T-FE-064 C10）——两项独立事项：租户同步已由 T-FE-071 实施；HttpOnly Cookie 与 CSRF 改造已由 T-ACCESS-109 实施并验收。独立平台运营页同类状态问题已随 T-FE-072 收敛（Q-082）。
 
 **影响与边界**：强制下线及验证码替代属于延期能力；跨标签同步已处理租户旧界面与新身份不一致窗口，不能与 HttpOnly 改造混为同一交付。此前预览期需求压力较小，不代表现有边界不存在。另：T-ACCESS-082 卡内「并发窗口已由 085e1d5fa 行锁实施闭合」的后续补丁指针缺失（卡为归档时点快照不回改，本条为指针补录载体）。
 
 **设想方向（未定案）**：按需求优先级逐项立项；②启动时与 Q-067 修法评估联动（验证码形态影响计数锁与限流设计）；③启动时按 security-standards §3 前置补 CSRF 面。
 
-**处理入口**：强制下线继续暂缓，边界见[会话吊销契约](design/access-service-api-contract.md#admin-force-logout-status)；验证码替代通道继续暂缓，已明确[无法读图用户的限制](design/frontend/login.md#captcha-accessibility-status)；跨标签租户会话同步已完成，由 [T-FE-071](archive/2026-10-17/tasks/T-FE-071.md) 承接，范围见[登录设计](design/frontend/login.md#cross-tab-session-status)；平台同步由 [T-FE-072](archive/2026-10-17/tasks/T-FE-072.md) 完成；HttpOnly 改造由 [T-ACCESS-109](tasks/T-ACCESS-109.md) 承接，当前范围与兼容决策见[草案](design/browser-session-authentication.md)。
+**处理入口**：强制下线继续暂缓，边界见[会话吊销契约](design/access-service-api-contract.md#admin-force-logout-status)；验证码替代通道继续暂缓，已明确[无法读图用户的限制](design/frontend/login.md#captcha-accessibility-status)；跨标签租户会话同步已完成，由 [T-FE-071](archive/2026-10-17/tasks/T-FE-071.md) 承接，范围见[登录设计](design/frontend/login.md#cross-tab-session-status)；平台同步由 [T-FE-072](archive/2026-10-17/tasks/T-FE-072.md) 完成；HttpOnly 改造由 [T-ACCESS-109](archive/2026-10-17/tasks/T-ACCESS-109.md) 完成，当前范围与兼容边界见[认证设计](design/browser-session-authentication.md)。
 
 <a id="q-069"></a>
 ## Q-069 OAuth2 client_id 跨租户命名冲突与存在性泄露
@@ -118,18 +118,18 @@ last_updated: 2026-10-17
 **影响与边界**：碰撞需同时满足「某行 path 含 `|`」且「同方法下另一行字段恰可拼出同串」（如 `POST|/api/x|y` 与 path=`/api/x`、resourceCode=`y` 的行），当前实际注册路径未出现该形态；后果为同步过期清理误判（漏删/误删映射行），不涉及权限判定面。修法方向可循 Q-044 元组化先例（record 键或 percent-encode 中段）；属 Q-044 设想「内部消费者全量迁移分开评估」范围，随问题清单批次排期。
 
 <a id="q-070"></a>
-## Q-070 模板 SSO 示例与「记住我」死分支裁剪评估
+## Q-070「记住我」死分支裁剪评估（SSO 示例已移除）
 
 - **状态**：open
 - **登记**：2026-10-14
 - **来源**：2026-10-12~14 外部持续审查（过度设计候选），外部模型核实（2026-10-13）+ 主代理亲核（2026-10-14）
 - **关联**：[scenario-audit-remediation-plan](archive/2026-10-17/scenario-audit-remediation-plan.md)（同批修复计划）
 
-**现象与证据**：`frontend/src/utils/sso.ts:14-57` 为 URL 传 username/roles/accessToken 的自执行示例，唯一引用（`router/index.ts:2`）已注释；`store/modules/user.ts:83-88` 两个设置动作无调用方；login 设计明确无「记住我」UI，`utils/auth.ts:69-87`（setToken）仍消费 isRemembered/loginDay 携带可变记住天数分支。
+**现象与证据**：user store 的 isRemembered/loginDay 设置动作没有调用方，登录页没有“记住我”UI；`setTenantSession` 仍消费这两个字段来设置标签页标记的保留期限。
 
-**影响**：二次开发者可能把示例误当推荐 SSO 接入；死动作与过时注释增加会话模块阅读成本。核实结论：需拆分处理——`multipleTabsKey` 有真实消费点须保留，不可整文件删除。
+**影响与边界**：剩余死动作与分支增加会话模块阅读成本；multipleTabsKey 仍有真实消费点，不可连带删除。未启用 URL 令牌 SSO 示例已随 T-ACCESS-109 移除，处置边界见[登录设计](design/frontend/login.md#legacy-sso-template-status)。
 
-**设想方向（未定案）**：删未加载 sso 文件与注释入口；无人设置的 remembered 分支收回固定语义；评估结果拍板后转任务或 closed。
+**处理入口**：SSO 部分已由 [T-ACCESS-109](archive/2026-10-17/tasks/T-ACCESS-109.md) 收敛；其余记住我字段、动作与期限分支保留，待单独评估后决定是否裁剪。
 
 <a id="q-071"></a>
 ## Q-071 顶栏虚构消息与待办红点裁剪评估

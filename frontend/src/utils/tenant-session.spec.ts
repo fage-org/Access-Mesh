@@ -21,7 +21,7 @@ beforeEach(() => {
   stop = startTenantSessionSync({
     read: () => session,
     invalidate,
-    storageKey: "tenant-user-info-v2",
+    storageKey: "tenant-browser-session-v3",
     window: win as Window,
     document: doc as Document
   });
@@ -44,7 +44,7 @@ describe("cross-tab tenant session boundary", () => {
     "clears old context after %s even without a request",
     event => {
       session = { token: null, expires: null };
-      if (event === "storage") storage("tenant-user-info-v2");
+      if (event === "storage") storage("tenant-browser-session-v3");
       else
         (event === "visibilitychange" ? doc : win).dispatchEvent(
           new Event(event)
@@ -54,7 +54,7 @@ describe("cross-tab tenant session boundary", () => {
     }
   );
   it("ignores metadata-only and platform storage changes", () => {
-    storage("tenant-user-info-v2");
+    storage("tenant-browser-session-v3");
     storage("platform-operator-session");
     expect(tenantSessionBlocked.value).toBe(false);
     expect(invalidate).not.toHaveBeenCalled();
@@ -72,13 +72,13 @@ describe("cross-tab tenant session boundary", () => {
   });
   it("never automatically unblocks a page even if the original token reappears", () => {
     session.token = "B";
-    storage("tenant-user-info-v2");
+    storage("tenant-browser-session-v3");
     session.token = "A";
     expect(() => captureTenantRequest()).toThrow(TenantSessionChangedError);
     expect(invalidate).toHaveBeenCalledTimes(1);
   });
-  it("preserves the existing local expiry flow when cookie expiry leaves expired metadata", () => {
-    session = { token: null, expires: Date.now() - 1 };
+  it("preserves local expiry handling while the same session metadata remains", () => {
+    session = { token: "A", expires: Date.now() - 1 };
     win.dispatchEvent(new Event("focus"));
     expect(tenantSessionBlocked.value).toBe(false);
   });

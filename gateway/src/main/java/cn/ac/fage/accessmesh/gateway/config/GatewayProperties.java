@@ -59,6 +59,8 @@ public class GatewayProperties {
         private List<String> paths = List.of(
             "/api/access/auth/captcha",
             "/api/access/auth/login",
+            "/api/access/auth/browser-login",
+            "/api/access/auth/browser-logout",
             "/api/access/auth/logout",
             "/api/access/auth/userinfo",
             "/api/access/auth/user-menu",

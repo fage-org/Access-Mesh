@@ -4,9 +4,9 @@
 
 当前规则与有效例外按[定案入口](decision-registry.md)定位；定案历史不默认整读。
 
-## 待定设计
+## 浏览器会话认证
 
-- [浏览器 HttpOnly 会话认证改造](browser-session-authentication.md)（draft）：已确认启动，覆盖范围、调用兼容及具体方案待定；当前运行契约未替换。
+- [浏览器 HttpOnly 会话认证改造](browser-session-authentication.md)（adopted）：网页登录 HttpOnly/CSRF、双身份隔离、简化注销与升级边界。
 
 ## 权威来源
 

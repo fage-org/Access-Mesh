@@ -26,7 +26,7 @@
 
 | ID | 标题 | 状态 | 直接依赖 | 回写 |
 |---|---|---|---|---|
-| [T-ACCESS-109](T-ACCESS-109.md) | 浏览器 HttpOnly 会话认证改造 | 🔨 | T-FE-071、T-FE-072 | ⏳ |
+| [T-ACCESS-109](../archive/2026-10-17/tasks/T-ACCESS-109.md) | 浏览器 HttpOnly 会话认证改造 | ✅ | T-FE-071、T-FE-072 | ✓ |
 
 ### 跨标签平台会话同步
 

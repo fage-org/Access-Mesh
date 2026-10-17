@@ -249,10 +249,11 @@ class ErrorCodeContractTest {
     }
 
     @Test
-    @DisplayName("基线保持：公共 GlobalErrorCode 仍为 90001/99999 两项")
-    void globalErrorCode_unchanged() {
+    @DisplayName("公共错误码与当前会话错误契约一致")
+    void globalErrorCodesMatchPublicContract() {
         assertThat(globalByName()).containsOnly(
             Map.entry("VALIDATION_FAILED", 90001),
+            Map.entry("BROWSER_SESSION_CHANGED", 90002),
             Map.entry("SYSTEM_ERROR", 99999));
     }
 

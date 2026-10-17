@@ -63,7 +63,7 @@ vi.mock("@/store/modules/user", () => ({
 }));
 vi.mock("@/layout/types", () => ({ routerArrays: [] }));
 vi.mock("@/utils/auth", () => ({
-  getToken: (...args: unknown[]) => mockGetToken(...args),
+  getTenantSession: (...args: unknown[]) => mockGetToken(...args),
   // isSessionTerminated 真实语义镜像（T-FE-054 外评 P2 单源判据的 mock 面）
   isSessionTerminated: (data?: unknown) => {
     const d = (data ?? mockGetToken()) as
@@ -144,9 +144,9 @@ describe("initRouter 无凭证分支（Q-020 收口：menu-retry 会话过期重
     expect(mockHandleBackendMenus).not.toHaveBeenCalled(); // 旧实现 rebuild 空侧栏占位 → 调用 → 红
   });
 
-  it("锁（外评 P2）：cookie 过期被清+userKey 残留形态（getToken 真值、无 accessToken、本地 expires 已过）同判会话终结——Q-020 条目点名形态（此前仅判 !getToken() 漏判、走刷新分支重弹失真提示必红）", async () => {
-    // setUserKey 七字段不含 accessToken：cookie 被浏览器清除后 getToken() 兜底
-    // userKey 返回真值对象（expires 已过、accessToken undefined）
+  it("锁（外评 P2）：cookie 过期被清+userKey 残留形态（getTenantSession 真值、无 sessionId、本地 expires 已过）同判会话终结——Q-020 条目点名形态（此前仅判 !getTenantSession() 漏判、走刷新分支重弹失真提示必红）", async () => {
+    // setUserKey 七字段不含 sessionId：cookie 被浏览器清除后 getTenantSession() 兜底
+    // userKey 返回真值对象（expires 已过、sessionId undefined）
     mockGetToken.mockReturnValue({
       refreshToken: "",
       expires: Date.now() - 1000
@@ -155,7 +155,7 @@ describe("initRouter 无凭证分支（Q-020 收口：menu-retry 会话过期重
     const { initRouter } = await import("./utils");
 
     const err: unknown = await initRouter().catch(e => e);
-    // 已提交实现（仅判 !getToken()）：该形态 truthy → 走刷新分支 resolve router →
+    // 已提交实现（仅判 !getTenantSession()）：该形态 truthy → 走刷新分支 resolve router →
     // err=undefined 且无提示无 logOut（三断言红）
     expect((err as Error)?.name).toBe("SessionExpiredError");
     expect(mockMessage).toHaveBeenCalledTimes(1);
@@ -165,7 +165,7 @@ describe("initRouter 无凭证分支（Q-020 收口：menu-retry 会话过期重
 
   it("有凭证形态不受扰：走重取分支正常构建侧栏（特征锁，防无凭证分支误伤守卫/登录路径）", async () => {
     mockGetToken.mockReturnValue({
-      accessToken: "t1",
+      sessionId: "t1",
       expires: Date.now() + 600_000
     });
     mockUser.menus = [];
@@ -194,7 +194,7 @@ describe("refreshSessionCapability single-flight 与代际守卫（Q-016 收口�
   });
 
   it("锁：同会话并发两次只发一次 refreshUserMenu，两调用方共享同一在途结果（旧实现两次必红）", async () => {
-    mockGetToken.mockReturnValue({ accessToken: "t1", expires: 1 });
+    mockGetToken.mockReturnValue({ sessionId: "t1", expires: 1 });
     let resolveMenu!: () => void;
     mockRefreshUserMenu.mockImplementation(
       () =>
@@ -214,7 +214,7 @@ describe("refreshSessionCapability single-flight 与代际守卫（Q-016 收口�
   });
 
   it("锁：跨会话代际——刷新在途时令牌已换（登出重登），旧响应不重建新会话侧栏（旧实现必红）", async () => {
-    mockGetToken.mockReturnValue({ accessToken: "t1", expires: 1 });
+    mockGetToken.mockReturnValue({ sessionId: "t1", expires: 1 });
     let resolveMenu!: () => void;
     mockRefreshUserMenu.mockImplementation(
       () =>
@@ -226,7 +226,7 @@ describe("refreshSessionCapability single-flight 与代际守卫（Q-016 收口�
     const { refreshSessionCapability } = await import("./utils");
 
     const pending = refreshSessionCapability();
-    mockGetToken.mockReturnValue({ accessToken: "t2", expires: 1 });
+    mockGetToken.mockReturnValue({ sessionId: "t2", expires: 1 });
     resolveMenu();
     await pending;
 
@@ -234,7 +234,7 @@ describe("refreshSessionCapability single-flight 与代际守卫（Q-016 收口�
   });
 
   it("同会话完成后在途标记复位：第二次调用重新发起（single-flight 非永久单次）", async () => {
-    mockGetToken.mockReturnValue({ accessToken: "t1", expires: 1 });
+    mockGetToken.mockReturnValue({ sessionId: "t1", expires: 1 });
     mockRefreshUserMenu.mockResolvedValue(undefined);
     vi.resetModules();
     const { refreshSessionCapability } = await import("./utils");

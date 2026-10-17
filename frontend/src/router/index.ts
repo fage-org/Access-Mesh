@@ -4,7 +4,6 @@ import {
   TenantSessionChangedError
 } from "@/utils/tenant-session";
 import { oauthReturnTarget } from "@/views/oauth-consent/flow";
-// import "@/utils/sso";
 import Cookies from "js-cookie";
 import { getConfig } from "@/config";
 import NProgress from "@/utils/progress";
@@ -41,7 +40,7 @@ import { useUserStoreHook } from "@/store/modules/user";
 import {
   type DataInfo,
   userKey,
-  removeToken,
+  removeTenantSession,
   multipleTabsKey,
   getPlatformSession,
   removePlatformSession
@@ -354,7 +353,7 @@ router.beforeEach((to: ToRouteType, _from, next) => {
         next();
         return;
       } else {
-        removeToken();
+        removeTenantSession();
         const returnTo = oauthReturnTarget(to.fullPath);
         next(
           returnTo

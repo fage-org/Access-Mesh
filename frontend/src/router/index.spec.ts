@@ -85,9 +85,9 @@ vi.mock("@/store/modules/permission", () => ({
 vi.mock("@/utils/auth", () => ({
   userKey: "user-info",
   multipleTabsKey: "multiple-tabs",
-  removeToken: vi.fn(),
-  getToken: vi.fn(),
-  setToken: vi.fn(),
+  removeTenantSession: vi.fn(),
+  getTenantSession: vi.fn(),
+  setTenantSession: vi.fn(),
   // hasPerms 等价 stub（gate.ts 显式映射判定消费）：单串/数组两形态与真实现等价，
   // 数据经 hoisted gatePermsBridge 与 store 状态单点同步（见 setGateLoaded）
   hasPerms: (value: string | Array<string>) =>
@@ -115,7 +115,7 @@ vi.mock("@pureadmin/utils", () => ({
 }));
 
 import Cookies from "js-cookie";
-import { removeToken, userKey } from "@/utils/auth";
+import { removeTenantSession, userKey } from "@/utils/auth";
 import { initRouter } from "./utils";
 import { useUserStoreHook } from "@/store/modules/user";
 import { router } from "./index";
@@ -256,11 +256,11 @@ describe("路由守卫 beforeEach（T-FE-053）", () => {
     expect(next).toHaveBeenCalledTimes(1);
   });
 
-  it('未登录访问非白名单：removeToken + next({path:"/login"}) 恰一次（既有行为特征锁）', () => {
+  it('未登录访问非白名单：removeTenantSession + next({path:"/login"}) 恰一次（既有行为特征锁）', () => {
     loginOutState();
     const next = vi.fn();
     guard(makeTo(), fromNamed, next);
-    expect(removeToken).toHaveBeenCalledTimes(1);
+    expect(removeTenantSession).toHaveBeenCalledTimes(1);
     expect(next).toHaveBeenCalledTimes(1);
     expect(next).toHaveBeenCalledWith({ path: "/login" });
   });
@@ -269,7 +269,7 @@ describe("路由守卫 beforeEach（T-FE-053）", () => {
     loginOutState();
     const next = vi.fn();
     guard(makeTo({ path: "/login", fullPath: "/login" }), fromNamed, next);
-    expect(removeToken).not.toHaveBeenCalled();
+    expect(removeTenantSession).not.toHaveBeenCalled();
     expect(next).toHaveBeenCalledTimes(1);
     expect(next).toHaveBeenCalledWith();
   });

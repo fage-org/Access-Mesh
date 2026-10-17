@@ -3,7 +3,7 @@
     <el-result
       v-if="showSessionChange"
       icon="warning"
-      title="登录状态已在其他标签页改变"
+      title="登录状态已改变"
       :sub-title="
         platformPage
           ? '旧页面与一次性密码弹窗已清除。未复制的密码需重新重置取得，请重新载入后继续。'
@@ -30,7 +30,7 @@ import { tenantSessionBlocked } from "@/utils/tenant-session";
 import { reloadSessionPage } from "@/utils/session-boundary";
 import { platformSessionBlocked } from "@/utils/platform-session";
 import {
-  getToken,
+  getTenantSession,
   isSessionTerminated,
   getPlatformSession
 } from "@/utils/auth";
@@ -52,7 +52,7 @@ function reloadSession() {
         ? "/platform/tenants"
         : "/platform/login";
   } else {
-    path = isSessionTerminated(getToken()) ? "/login" : "/";
+    path = isSessionTerminated(getTenantSession()) ? "/login" : "/";
   }
   reloadSessionPage(window.location, router.resolve(path).href);
 }

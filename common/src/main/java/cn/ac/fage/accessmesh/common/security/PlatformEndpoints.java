@@ -8,7 +8,8 @@ public final class PlatformEndpoints {
     private PlatformEndpoints() {}
 
     private static final Set<String> PUBLIC = Set.of(
-        "/api/access/platform-auth/captcha", "/api/access/platform-auth/login", "/api/access/platform-auth/logout");
+        "/api/access/platform-auth/captcha", "/api/access/platform-auth/login", "/api/access/platform-auth/logout",
+        "/api/access/platform-auth/browser-login", "/api/access/platform-auth/browser-logout");
     private static final Set<String> SELF = Set.of(
         "/api/access/platform-auth/me", "/api/access/platform-auth/change-password");
     private static final Set<String> MANAGEMENT = Set.of(

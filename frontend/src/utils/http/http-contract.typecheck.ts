@@ -8,15 +8,17 @@ export function verifyPostOnly(
   implementation: typeof http
 ) {
   const post: RequestMethods = "post";
-  declared.request(post, "/api/access/auth/login");
+  declared.request(post, "/api/access/auth/browser-login");
   // @ts-expect-error GET 不属于业务请求协议
-  declared.request("get", "/api/access/auth/login");
+  declared.request("get", "/api/access/auth/browser-login");
   // @ts-expect-error PUT 不属于业务请求协议
-  implementation.request("put", "/api/access/auth/login");
-  // @ts-expect-error 配置参数不能覆盖为非 POST
-  implementation.request("post", "/api/access/auth/login", { method: "get" });
+  implementation.request("put", "/api/access/auth/browser-login");
+  implementation.request("post", "/api/access/auth/browser-login", {
+    // @ts-expect-error 配置参数不能覆盖为非 POST
+    method: "get"
+  });
   // @ts-expect-error 具名 GET 通道已退役
-  declared.get("/api/access/auth/login");
+  declared.get("/api/access/auth/browser-login");
   // @ts-expect-error 实现不得另留 GET 通道
-  implementation.get("/api/access/auth/login");
+  implementation.get("/api/access/auth/browser-login");
 }

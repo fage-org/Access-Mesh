@@ -239,17 +239,15 @@ const KNOWN_USERS = Object.keys(ROLE_PERM_MATRIX);
 function buildLoginPayload(username: string) {
   const profile = ROLE_PROFILES[username];
   return {
-    // 响应对齐后端 LoginResp（R.data）
+    // 响应对齐后端 BrowserLoginResp（R.data）
     // 显式假串前缀，避免被误认为真 JWT
-    accessToken: `mock-token-${username}`,
-    refreshToken: null,
+    sessionId: `mock-token-${username}`,
     expiresIn: 7200,
-    tokenType: "Bearer",
     userId: 1,
     username,
     tenantId: 1,
     forceResetPwd: false,
-    // 以下为前端 store 兼容字段（真后端 LoginResp 不含，mock 供 setToken 参考）
+    // 以下为前端 store 兼容字段（真后端 BrowserLoginResp 不含，mock 供 setTenantSession 参考）
     avatar: profile.avatar,
     nickname: profile.nickname,
     roles: [username === "admin" ? "admin" : "common"],
@@ -293,7 +291,7 @@ export default defineFakeRoute(
           }
         },
         {
-          url: "/api/access/auth/login",
+          url: "/api/access/auth/browser-login",
           method: "post",
           response: ({ body }) => {
             const username = body?.username as string;

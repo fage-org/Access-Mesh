@@ -2,7 +2,8 @@ import { startPlatformSessionSync } from "@/utils/platform-session";
 import { usePlatformStoreHook } from "@/store/modules/platform";
 import { startTenantSessionSync } from "@/utils/tenant-session";
 import {
-  getToken,
+  getTenantSession,
+  clearLegacyAuthentication,
   userKey,
   getPlatformSession,
   platformSessionKey
@@ -66,12 +67,13 @@ import VueTippy from "vue-tippy";
 app.use(VueTippy);
 
 getPlatformConfig(app).then(async config => {
+  clearLegacyAuthentication();
   setupStore(app);
   startTenantSessionSync({
     read: () => {
-      const session = getToken();
+      const session = getTenantSession();
       return {
-        token: session?.accessToken ?? null,
+        token: session?.sessionId ?? null,
         expires: session?.expires == null ? null : Number(session.expires)
       };
     },
@@ -92,7 +94,7 @@ getPlatformConfig(app).then(async config => {
     read: () => {
       const session = getPlatformSession();
       return {
-        token: session?.accessToken ?? null,
+        token: session?.sessionId ?? null,
         expires: session?.expires ?? null
       };
     },

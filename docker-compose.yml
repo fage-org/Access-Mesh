@@ -100,6 +100,7 @@ services:
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-}
       ACCESSMESH_SIGNATURE_SECRET: ${ACCESSMESH_SIGNATURE_SECRET:-}
       PERM_INTERNAL_SECRET: ${PERM_INTERNAL_SECRET:-}
+      ACCESS_BROWSER_ALLOWED_ORIGINS: ${ACCESS_BROWSER_ALLOWED_ORIGINS:-http://localhost:8848,http://127.0.0.1:8848,http://localhost:8890,http://127.0.0.1:8890,http://127.0.0.1}
       # 文件能力物理存储根目录（T-ACCESS-099）：固定容器内路径 + 命名卷持久化——
       # 常规 --profile app up -d --build 重建容器后既有文件仍可下载；
       # 多实例共享文件存储维持非目标（单实例本地盘边界，见 deployment.md 备份指引）
@@ -139,6 +140,7 @@ services:
       GATEWAY_CORS_ALLOWED_ORIGINS: ${GATEWAY_CORS_ALLOWED_ORIGINS-http://localhost:8848,http://localhost:8890,http://127.0.0.1:8848,http://127.0.0.1:8890}
       ACCESSMESH_SIGNATURE_SECRET: ${ACCESSMESH_SIGNATURE_SECRET:-}
       PERM_INTERNAL_SECRET: ${PERM_INTERNAL_SECRET:-}
+      ACCESS_BROWSER_ALLOWED_ORIGINS: ${ACCESS_BROWSER_ALLOWED_ORIGINS:-http://localhost:8848,http://127.0.0.1:8848,http://localhost:8890,http://127.0.0.1:8890,http://127.0.0.1}
     ports:
       - "127.0.0.1:8080:8080"
     # 健康检查走独立管理端口（容器内回环；T-GW-007 管理端口与主端口分离）

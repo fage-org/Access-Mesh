@@ -29,6 +29,7 @@ const {
   mockRefreshUserMenu,
   mockHandleBackendMenus,
   mockGetToken,
+  mockRemoveTenantSession,
   mockMessage
 } = vi.hoisted(() => {
   const mockUser = {
@@ -43,6 +44,7 @@ const {
     mockRefreshUserMenu: mockUser.refreshUserMenu,
     mockHandleBackendMenus: vi.fn(),
     mockGetToken: vi.fn(),
+    mockRemoveTenantSession: vi.fn(),
     mockMessage: vi.fn()
   };
 });
@@ -68,7 +70,8 @@ vi.mock("@/router", () => ({ router: { push: mockPlatformPush } }));
 vi.mock("@/utils/auth", () => ({
   getPlatformSession: mockPlatformSession,
   removePlatformSession: mockRemovePlatformSession,
-  getToken: (...args: unknown[]) => mockGetToken(...args),
+  getTenantSession: (...args: unknown[]) => mockGetToken(...args),
+  removeTenantSession: mockRemoveTenantSession,
   // isSessionTerminated 真实语义镜像（T-FE-054 外评 P2 单源判据的 mock 面）
   isSessionTerminated: (data?: unknown) => {
     const d = (data ?? mockGetToken()) as
@@ -139,7 +142,7 @@ beforeEach(async () => {
   mockRefreshUserMenu.mockReset().mockResolvedValue(undefined);
   // 会话默认未过期（T-FE-054 短路用例各自覆盖为过期形态）
   mockGetToken.mockReset().mockReturnValue({
-    accessToken: "token-1",
+    sessionId: "token-1",
     refreshToken: "",
     expires: Date.now() + 600_000
   });
@@ -241,7 +244,7 @@ describe("http 403 触发会话能力刷新（T-FE-048）", () => {
 
 describe("token 过期短路与双分支统一提示（T-FE-054）", () => {
   const EXPIRED_TOKEN = {
-    accessToken: "token-1",
+    sessionId: "token-1",
     refreshToken: "",
     expires: Date.now() - 1000
   };
@@ -276,7 +279,7 @@ describe("token 过期短路与双分支统一提示（T-FE-054）", () => {
       type: "warning"
     });
     // logOut 触发即证（mock 层无防抖语义；真实 store 的 logoutInFlight 在
-    // fire-and-forget 后恒不命中，重复触发防护由 getToken 无令牌幂等分支承担）
+    // fire-and-forget 后恒不命中，重复触发防护由 getTenantSession 无令牌幂等分支承担）
     expect(mockLogOut).toHaveBeenCalled();
   });
 
@@ -291,13 +294,13 @@ describe("token 过期短路与双分支统一提示（T-FE-054）", () => {
     expect(mockLogOut).toHaveBeenCalledTimes(1);
   });
 
-  it("锁（外评 P3）：主动登出后在途请求的 401 不弹「会话已过期」——令牌已清（getToken 空）不提示，仍 logOut 幂等清理（旧实现无条件提示必红）", async () => {
+  it("锁（外评 P3）：主动登出后在途请求的 401 不弹「会话已过期」——令牌已清（getTenantSession 空）不提示，仍 logOut 幂等清理（旧实现无条件提示必红）", async () => {
     installAdapter(() => 401);
-    // 真实链路：请求发出时令牌在（第一个 getToken——拦截器附加头），401 响应回来时
-    // 主动登出已完成本地清理（第二个 getToken——401 分支判定）→ 空
+    // 真实链路：请求发出时令牌在（第一个 getTenantSession——拦截器附加头），401 响应回来时
+    // 主动登出已完成本地清理（第二个 getTenantSession——401 分支判定）→ 空
     mockGetToken
       .mockReturnValueOnce({
-        accessToken: "token-1",
+        sessionId: "token-1",
         refreshToken: "",
         expires: Date.now() + 600_000
       })
@@ -323,7 +326,7 @@ describe("token 过期短路与双分支统一提示（T-FE-054）", () => {
     // 窗口过期：可再弹
     vi.setSystemTime(Date.now() + SESSION_EXPIRED_NOTIFY_WINDOW_MS + 1);
     mockGetToken.mockReturnValue({
-      accessToken: "token-1",
+      sessionId: "token-1",
       refreshToken: "",
       expires: Date.now() + 600_000
     });
@@ -332,8 +335,8 @@ describe("token 过期短路与双分支统一提示（T-FE-054）", () => {
     expect(mockMessage).toHaveBeenCalledTimes(2);
   });
 
-  it("锁（sol 外评 P2）：并发短路首个 logOut 同步清令牌后，后续 getToken 为 null 的请求同被短路——无头放行必红（旧实现 else 分支放行，多一次必然 401 的往返）", async () => {
-    // 首请求读到过期对象（短路+logOut 清令牌），次请求 getToken() 已为 null
+  it("锁（sol 外评 P2）：并发短路首个 logOut 同步清令牌后，后续 getTenantSession 为 null 的请求同被短路——无头放行必红（旧实现 else 分支放行，多一次必然 401 的往返）", async () => {
+    // 首请求读到过期对象（短路+logOut 清令牌），次请求 getTenantSession() 已为 null
     mockGetToken.mockReturnValueOnce(EXPIRED_TOKEN).mockReturnValue(null);
     installAdapter(() => 403);
     const first = await http.post("/api/access/a").catch(e => e);
@@ -368,16 +371,16 @@ describe("token 过期短路与双分支统一提示（T-FE-054）", () => {
 describe("401 迟到代际守卫（T-FE-068）：401 只终结其所属会话", () => {
   it("旧会话请求的迟到 401 不注销新会话——请求携旧令牌、当前已重登新令牌：不提示不 logOut（旧实现无条件 logOut 必红）", async () => {
     installAdapter(() => 401);
-    // 真实链路：请求发出时持旧令牌（第一个 getToken——拦截器附加头），401 响应回来
-    // 前用户已重登（第二个 getToken——401 分支判定）→ 新令牌
+    // 真实链路：请求发出时持旧令牌（第一个 getTenantSession——拦截器附加头），401 响应回来
+    // 前用户已重登（第二个 getTenantSession——401 分支判定）→ 新令牌
     mockGetToken
       .mockReturnValueOnce({
-        accessToken: "token-old",
+        sessionId: "token-old",
         refreshToken: "",
         expires: Date.now() + 600_000
       })
       .mockReturnValue({
-        accessToken: "token-new",
+        sessionId: "token-new",
         refreshToken: "",
         expires: Date.now() + 600_000
       });
@@ -399,7 +402,7 @@ describe("401 迟到代际守卫（T-FE-068）：401 只终结其所属会话", 
 describe("platform request realm isolation", () => {
   it("uses platform bearer and a platform 401 never clears the tenant login", async () => {
     mockPlatformSession.mockReturnValue({
-      accessToken: "operator-token",
+      sessionId: "operator-token",
       expires: Date.now() + 60000
     });
     installAdapter(() => 401);
@@ -408,9 +411,10 @@ describe("platform request realm isolation", () => {
       .catch(e => e);
     await drainMicrotasks();
     expect(
-      (error as { config: InternalAxiosRequestConfig }).config.headers
-        .Authorization
-    ).toBe("Bearer operator-token");
+      (error as { config: InternalAxiosRequestConfig }).config.headers[
+        "X-AM-Session"
+      ]
+    ).toBe("operator-token");
     expect(mockRemovePlatformSession).toHaveBeenCalledTimes(1);
     expect(mockLogOut).not.toHaveBeenCalled();
     expect(mockRefreshUserMenu).not.toHaveBeenCalled();
@@ -419,14 +423,15 @@ describe("platform request realm isolation", () => {
   it("platform login remains anonymous even while tenant is signed in", async () => {
     installAdapter(() => 400);
     const error = await http
-      .post("/api/access/platform-auth/login", {
+      .post("/api/access/platform-auth/browser-login", {
         authRealm: "platform",
         data: {}
       })
       .catch(e => e);
     expect(
-      (error as { config: InternalAxiosRequestConfig }).config.headers
-        .Authorization
+      (error as { config: InternalAxiosRequestConfig }).config.headers[
+        "X-AM-Session"
+      ]
     ).toBeUndefined();
     expect(mockLogOut).not.toHaveBeenCalled();
   });
@@ -450,7 +455,7 @@ describe("cross-tab HTTP ownership", () => {
       read: () => {
         const value = mockGetToken();
         return {
-          token: value?.accessToken ?? null,
+          token: value?.sessionId ?? null,
           expires: value?.expires ?? null
         };
       },
@@ -471,7 +476,7 @@ describe("cross-tab HTTP ownership", () => {
   it("blocks old-page calls before the storage notification without logging out the new identity", async () => {
     installAdapter(() => 403);
     mockGetToken.mockReturnValue({
-      accessToken: "new-user",
+      sessionId: "new-user",
       expires: Date.now() + 60000
     });
     await expect(http.post("/api/access/user/page")).rejects.toThrow(
@@ -485,7 +490,7 @@ describe("cross-tab HTTP ownership", () => {
     installAdapter(() => 403);
     const request = http.post("/api/access/user/page");
     mockGetToken.mockReturnValue({
-      accessToken: "new-user",
+      sessionId: "new-user",
       expires: Date.now() + 60000
     });
     boundary.acceptLocalTenantSession("new-user");
@@ -520,7 +525,7 @@ describe("cross-tab HTTP ownership", () => {
       });
       await drainMicrotasks();
       mockGetToken.mockReturnValue({
-        accessToken: "new-user",
+        sessionId: "new-user",
         expires: Date.now() + 60000
       });
       finish();
@@ -533,7 +538,7 @@ describe("cross-tab HTTP ownership", () => {
   it("still sends explicit logout of the old token after local credentials are removed", async () => {
     const sent: unknown[] = [];
     instance().defaults.adapter = async config => {
-      sent.push(config.headers.Authorization);
+      sent.push(config.headers["X-AM-Session"]);
       return {
         status: 200,
         data: { code: 200 },
@@ -542,56 +547,56 @@ describe("cross-tab HTTP ownership", () => {
         statusText: ""
       };
     };
-    const request = http.post("/api/access/auth/logout", {
-      headers: { Authorization: "Bearer token-1" }
+    const request = http.post("/api/access/auth/browser-logout", {
+      headers: { "X-AM-Session": "token-1" }
     });
     mockGetToken.mockReturnValue(null);
     boundary.acceptLocalTenantSession(null);
     await expect(request).resolves.toEqual({ code: 200 });
-    expect(sent).toEqual(["Bearer token-1"]);
+    expect(sent).toEqual(["token-1"]);
     expect(boundary.tenantSessionBlocked.value).toBe(false);
   });
   it("pins the outgoing identity even if shared storage changes between guard and header assignment", async () => {
     let reads = 0;
     mockGetToken.mockImplementation(() => ({
-      accessToken: ++reads < 3 ? "token-1" : "new-user",
+      sessionId: ++reads < 3 ? "token-1" : "new-user",
       expires: Date.now() + 60000
     }));
     const sent: unknown[] = [];
     instance().defaults.adapter = async config => {
-      sent.push(config.headers.Authorization);
+      sent.push(config.headers["X-AM-Session"]);
       return { status: 200, data: {}, config, headers: {}, statusText: "" };
     };
     await expect(http.post("/api/access/user/page")).rejects.toThrow(
       "登录状态已改变"
     );
-    expect(sent).toEqual(["Bearer token-1"]);
+    expect(sent).toEqual(["token-1"]);
   });
   it("keeps the platform realm usable while tenant UI is blocked", async () => {
     mockGetToken.mockReturnValue({
-      accessToken: "new-user",
+      sessionId: "new-user",
       expires: Date.now() + 60000
     });
     expect(() => boundary.captureTenantRequest()).toThrow();
     mockPlatformSession.mockReturnValue({
-      accessToken: "operator-token",
+      sessionId: "operator-token",
       expires: Date.now() + 60000
     });
     const sent: unknown[] = [];
     instance().defaults.adapter = async config => {
-      sent.push(config.headers.Authorization);
+      sent.push(config.headers["X-AM-Session"]);
       return { status: 200, data: {}, config, headers: {}, statusText: "" };
     };
     await expect(
       http.post("/api/access/tenant/page", { authRealm: "platform" })
     ).resolves.toEqual({});
-    expect(sent).toEqual(["Bearer operator-token"]);
+    expect(sent).toEqual(["operator-token"]);
   });
 });
 
 it("platform request must not reread a different identity after it has been created", async () => {
   mockPlatformSession.mockReturnValue({
-    accessToken: "operator-A",
+    sessionId: "operator-A",
     expires: Date.now() + 60000
   });
   const sent: unknown[] = [];
@@ -599,7 +604,7 @@ it("platform request must not reread a different identity after it has been crea
     axiosInstance: AxiosInstance;
   };
   ctor.axiosInstance.defaults.adapter = async config => {
-    sent.push(config.headers.Authorization);
+    sent.push(config.headers["X-AM-Session"]);
     return { status: 200, data: {}, config, headers: {}, statusText: "" };
   };
   const boundary = await import("@/utils/platform-session");
@@ -607,7 +612,7 @@ it("platform request must not reread a different identity after it has been crea
     read: () => {
       const session = mockPlatformSession();
       return {
-        token: session?.accessToken ?? null,
+        token: session?.sessionId ?? null,
         expires: session?.expires ?? null
       };
     },
@@ -620,11 +625,11 @@ it("platform request must not reread a different identity after it has been crea
     authRealm: "platform"
   });
   mockPlatformSession.mockReturnValue({
-    accessToken: "operator-B",
+    sessionId: "operator-B",
     expires: Date.now() + 60000
   });
   await request.catch(() => {});
-  expect(sent).not.toContain("Bearer operator-B");
+  expect(sent).not.toContain("operator-B");
   expect(sent).toEqual([]);
   stop();
 });
@@ -634,7 +639,7 @@ describe("platform response and tenant isolation", () => {
   let boundary: typeof import("@/utils/platform-session");
   beforeEach(async () => {
     mockPlatformSession.mockReturnValue({
-      accessToken: "operator-A",
+      sessionId: "operator-A",
       expires: Date.now() + 60000
     });
     boundary = await import("@/utils/platform-session");
@@ -642,7 +647,7 @@ describe("platform response and tenant isolation", () => {
       read: () => {
         const session = mockPlatformSession();
         return {
-          token: session?.accessToken ?? null,
+          token: session?.sessionId ?? null,
           expires: session?.expires ?? null
         };
       },
@@ -688,7 +693,7 @@ describe("platform response and tenant isolation", () => {
       });
       await drainMicrotasks();
       mockPlatformSession.mockReturnValue({
-        accessToken: "operator-B",
+        sessionId: "operator-B",
         expires: Date.now() + 60000
       });
       finish();
@@ -702,48 +707,69 @@ describe("platform response and tenant isolation", () => {
   it("sends explicit old platform logout even after own local removal", async () => {
     const sent: unknown[] = [];
     instance().defaults.adapter = async config => {
-      sent.push(config.headers.Authorization);
+      sent.push(config.headers["X-AM-Session"]);
       return { status: 200, data: {}, config, headers: {}, statusText: "" };
     };
-    const request = http.post("/api/access/platform-auth/logout", {
+    const request = http.post("/api/access/platform-auth/browser-logout", {
       authRealm: "platform",
-      headers: { Authorization: "Bearer operator-A" }
+      headers: { "X-AM-Session": "operator-A" }
     });
     mockPlatformSession.mockReturnValue(null);
     boundary.acceptLocalPlatformSession(null);
     await expect(request).resolves.toEqual({});
-    expect(sent).toEqual(["Bearer operator-A"]);
+    expect(sent).toEqual(["operator-A"]);
     expect(boundary.platformSessionBlocked.value).toBe(false);
   });
   it("pins platform headers across a shared-state race", async () => {
     let reads = 0;
     mockPlatformSession.mockImplementation(() => ({
-      accessToken: ++reads < 3 ? "operator-A" : "operator-B",
+      sessionId: ++reads < 3 ? "operator-A" : "operator-B",
       expires: Date.now() + 60000
     }));
     const sent: unknown[] = [];
     instance().defaults.adapter = async config => {
-      sent.push(config.headers.Authorization);
+      sent.push(config.headers["X-AM-Session"]);
       return { status: 200, data: {}, config, headers: {}, statusText: "" };
     };
     await expect(
       http.post("/api/access/tenant/page", { authRealm: "platform" })
     ).rejects.toThrow("登录状态已改变");
-    expect(sent).toEqual(["Bearer operator-A"]);
+    expect(sent).toEqual(["operator-A"]);
   });
   it("keeps tenant requests working when only platform is blocked", async () => {
     mockPlatformSession.mockReturnValue({
-      accessToken: "operator-B",
+      sessionId: "operator-B",
       expires: Date.now() + 60000
     });
     expect(() => boundary.capturePlatformRequest()).toThrow();
     const sent: unknown[] = [];
     instance().defaults.adapter = async config => {
-      sent.push(config.headers.Authorization);
+      sent.push(config.headers["X-AM-Session"]);
       return { status: 200, data: {}, config, headers: {}, statusText: "" };
     };
     await expect(http.post("/api/access/user/page")).resolves.toEqual({});
-    expect(sent).toEqual(["Bearer token-1"]);
+    expect(sent).toEqual(["token-1"]);
     expect(mockRemovePlatformSession).not.toHaveBeenCalled();
   });
+});
+
+it("server Cookie/context mismatch clears only its own active metadata and blocks old UI", async () => {
+  const ctor = Object.getPrototypeOf(http).constructor as {
+    axiosInstance: AxiosInstance;
+  };
+  ctor.axiosInstance.defaults.adapter = config =>
+    Promise.reject(
+      Object.assign(new Error("mismatch"), {
+        config,
+        response: { status: 409, data: { code: 90002 }, config, headers: {} }
+      })
+    );
+  await expect(http.post("/api/access/user/page")).rejects.toThrow(
+    "登录状态已改变"
+  );
+  expect(mockRemoveTenantSession).toHaveBeenCalledTimes(1);
+  expect(mockRemovePlatformSession).not.toHaveBeenCalled();
+  expect(mockLogOut).not.toHaveBeenCalled();
+  const boundary = await import("@/utils/tenant-session");
+  expect(boundary.tenantSessionBlocked.value).toBe(true);
 });

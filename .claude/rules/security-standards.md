@@ -75,7 +75,7 @@ session:
 
 > 示例为通用 Spring Security 参考写法（示意「按认证类型选择策略」的语义）；本项目实际使用 Sa-Token + Gateway 自研过滤器，仓内无 Spring Security 依赖——落地时按本项目过滤器链实现同等语义，照抄示例会引入不存在的框架依赖。
 >
-> 本仓事实：令牌仅经 `Authorization` 头显式传递（前端 http 层恒发 Bearer 头），Cookie 承载通道已双向关闭——access-service `is-read-cookie: false`（sa-token 默认 true，不显式关闭时 `StpUtil.login` 会在响应种无 SameSite/HttpOnly 标记的 `Authorization` Cookie，Safari/旧浏览器跨站自动携带 = CSRF 面），Gateway `AuthTokenFilter` 只认 Bearer 头且 sa-token 侧同步 `is-read-cookie: false`；双端 `saTokenConfigMatchesAuthority` 断言钉住。若未来要启用 cookie 承载，须先补 CSRF 防护（Origin/Referer 校验、显式 SameSite/HttpOnly/Secure）并重评本节策略。
+> 本仓认证现状（T-ACCESS-109）：自带网页通过专用入口使用 HttpOnly Cookie，Gateway 与 access-service 的显式适配器校核 Origin/Referer、请求标记与 token-session 中绑定的 CSRF/会话标记。生产 Cookie 必须 Secure、HttpOnly、SameSite=Strict、host-only；不将 TLS 或 SameSite 当作完整 CSRF 防护。原生工具登录仍返回 Bearer，OAuth2 和服务凭证各自协议保留。Sa-Token 的通用 `is-read-cookie: false` 继续保持，不自动接受遗留 Authorization Cookie。精确契约与注销失败边界见 [网页会话契约](../../docs/design/access-service-api-contract.md#browser-session-contract)。
 
 ```java
 // ✅ 正确 — 无状态 JWT API 禁用 CSRF（需文档说明理由）
@@ -98,7 +98,7 @@ public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
 | API 类型 | CSRF 配置 |
 |---------|----------|
-| 无状态 JWT | 禁用（令牌仅经 Header 显式传递，浏览器不自动附带；本仓 Cookie 承载通道已关闭，见上注） |
+| 无状态 JWT | 禁用（仅限显式 Header 凭证通道，不适用于本仓网页登录的 Cookie 通道） |
 | 有状态 Session | 启用（默认 CSRF Token 校验） |
 
 **MUST** CORS 配置限制 `Access-Control-Allow-Origin` 为可信域名，**禁止**使用 `*`。

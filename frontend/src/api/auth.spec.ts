@@ -58,13 +58,15 @@ describe("auth api URL 契约（登录族单命名空间）", () => {
   });
 });
 
-describe("logout 注销契约（T-FE-045：显式携 token，不经拦截器过期分支免头路径）", () => {
-  it("→ POST /api/access/auth/logout，Authorization 头值由调用方显式传入并原样送达", async () => {
-    await logout("Bearer raw-token-1");
+describe("logout 注销契约（T-FE-045：显式携原会话标记，不经拦截器过期分支免头路径）", () => {
+  it("→ POST /api/access/auth/browser-logout，X-AM-Session 标记由调用方显式传入并原样送达", async () => {
+    await logout("original-session-marker");
     const [method, url, config] = mockRequest.mock.calls[0];
     expect(method).toBe("post");
-    expect(url).toBe(`${PREFIX}/logout`);
-    expect(config.headers).toEqual({ Authorization: "Bearer raw-token-1" });
+    expect(url).toBe(`${PREFIX}/browser-logout`);
+    expect(config.headers).toEqual({
+      "X-AM-Session": "original-session-marker"
+    });
   });
 
   it("unwrap 解包：code≠200 抛 RequestError（业务失败 HTTP 200 形态）", async () => {
@@ -73,17 +75,17 @@ describe("logout 注销契约（T-FE-045：显式携 token，不经拦截器过�
       message: "会话不存在",
       data: null
     });
-    await expect(logout("Bearer t")).rejects.toThrow(RequestError);
+    await expect(logout("session-marker")).rejects.toThrow(RequestError);
   });
 
-  it("http 请求白名单含 /api/access/auth/logout（防过期分支 logOut 递归与注销空转）", async () => {
+  it("http 请求白名单含 /api/access/auth/browser-logout（防过期分支 logOut 递归与注销空转）", async () => {
     const { readFileSync } = await import("node:fs");
     const { resolve } = await import("node:path");
     const src = readFileSync(
       resolve(__dirname, "../utils/http/index.ts"),
       "utf-8"
     );
-    expect(src).toContain('"/api/access/auth/logout"');
+    expect(src).toContain('"/api/access/auth/browser-logout"');
   });
 });
 

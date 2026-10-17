@@ -1,16 +1,18 @@
 import {
   capturePlatformRequest,
+  blockPlatformSession,
   assertPlatformRequest
 } from "@/utils/platform-session";
 import {
   captureTenantRequest,
+  blockTenantSession,
   assertTenantRequest,
   TenantSessionChangedError
 } from "@/utils/tenant-session";
 const isPlatformLogout = (url?: string) =>
-  url === "/api/access/platform-auth/logout";
+  url === "/api/access/platform-auth/browser-logout";
 const isTenantLogout = (url?: string) =>
-  url?.endsWith("/api/access/auth/logout");
+  url?.endsWith("/api/access/auth/browser-logout");
 import Axios, {
   type AxiosInstance,
   type AxiosRequestConfig,
@@ -25,8 +27,8 @@ import type {
 } from "./types.d";
 import { stringify } from "qs";
 import {
-  getToken,
-  formatToken,
+  getTenantSession,
+  removeTenantSession,
   isSessionTerminated,
   getPlatformSession,
   removePlatformSession
@@ -42,10 +44,12 @@ import {
 const defaultConfig: AxiosRequestConfig = {
   // 请求超时时间
   timeout: 10000,
+  withCredentials: true,
   headers: {
     Accept: "application/json, text/plain, */*",
     "Content-Type": "application/json",
-    "X-Requested-With": "XMLHttpRequest"
+    "X-Requested-With": "XMLHttpRequest",
+    "X-AM-Browser-Request": "1"
   },
   // 数组格式参数序列化（https://github.com/axios/axios/issues/5142）
   paramsSerializer: {
@@ -108,8 +112,8 @@ class PureHttp {
             assertPlatformRequest(config.platformSessionStamp);
           const publicPaths = [
             "/api/access/platform-auth/captcha",
-            "/api/access/platform-auth/login",
-            "/api/access/platform-auth/logout"
+            "/api/access/platform-auth/browser-login",
+            "/api/access/platform-auth/browser-logout"
           ];
           if (publicPaths.includes(config.url)) return config;
           const session = getPlatformSession();
@@ -122,13 +126,13 @@ class PureHttp {
           }
           const token =
             config.platformSessionStamp === undefined
-              ? session.accessToken
+              ? session.sessionId
               : config.platformSessionStamp.token;
           if (!token) throw new TenantSessionChangedError();
-          config.headers.Authorization = formatToken(token);
+          config.headers["X-AM-Session"] = token;
           return config;
         }
-        // Logout already carries the verified old token: it must still be sent after local token removal.
+        // Logout already carries the original session marker: it must still be sent after local token removal.
         if (!isTenantLogout(config.url))
           assertTenantRequest(config.tenantSessionStamp);
         // 优先判断post/get等方法是否传入回调，否则执行初始化设置等回调
@@ -141,17 +145,17 @@ class PureHttp {
           return config;
         }
         /** 请求白名单，放置不经拦截器附加/判定`token`的接口（通过设置请求白名单，防止`token`过期后再请求造成的死循环问题）。
-         *  logout 由调用方显式携带 Authorization 头（T-FE-045）：本端点入白名单是为跳过
-         *  过期分支（过期时本分支会嵌套触发 logOut 并免头发请求，注销将空转），令牌仍照常送达服务端 */
+         *  logout 由调用方显式携带 会话标记头（T-FE-045）：本端点入白名单是为跳过
+         *  过期分支（过期时本分支会嵌套触发 logOut 并免头发请求，注销将空转），实际认证 Cookie 由浏览器附带 */
         const whiteList = [
           "/api/access/auth/captcha",
-          "/api/access/auth/login",
-          "/api/access/auth/logout"
+          "/api/access/auth/browser-login",
+          "/api/access/auth/browser-logout"
         ];
         return whiteList.some(url => config.url.endsWith(url))
           ? config
           : new Promise(resolve => {
-              const data = getToken();
+              const data = getTenantSession();
               if (isSessionTerminated(data)) {
                 // 会话终结短路（T-FE-054，2026-09-20 拍板）：不再无令牌放行（原
                 // T-FE-041 口径由 Gateway 401 兜底，多一次必然 401 的往返）。处置
@@ -159,18 +163,17 @@ class PureHttp {
                 // ——T-FE-056 复评 P3-1 统一；message 与提示同源，授予页
                 // classifySaveError 按 name 识别为「未发出可重试」）；executor 内
                 // throw 被 Promise 构造转为 reject，与原 reject 形态等价。判据单源
-                // isSessionTerminated（无凭证 ∨ 本地 expires 已到期——cookie 被清、
-                // userKey 残留形态同判终结）；无凭证形态同样短路——并发短路首个
+                // isSessionTerminated（无凭证 ∨ 本地 expires 已到期——活动元数据已清除或不完整）；无凭证形态同样短路——并发短路首个
                 // logOut 同步清令牌后，后续请求不得无头放行再跑一次必然 401 的往返
                 terminateLocalSession();
               } else {
                 const token =
                   config.tenantSessionStamp === undefined
-                    ? data.accessToken
+                    ? data.sessionId
                     : config.tenantSessionStamp.token;
                 if (!token) throw new TenantSessionChangedError();
                 // Never reread a replacement identity into an already-created request.
-                config.headers["Authorization"] = formatToken(token);
+                config.headers["X-AM-Session"] = token;
                 resolve(config);
               }
             });
@@ -222,12 +225,16 @@ class PureHttp {
           } catch (changed) {
             return Promise.reject(changed);
           }
+          if (($error.response?.data as { code?: number })?.code === 90002) {
+            removePlatformSession();
+            blockPlatformSession();
+            return Promise.reject(new TenantSessionChangedError());
+          }
           const session = getPlatformSession();
           if (
             $error.response?.status === 401 &&
             session &&
-            $error.config?.headers?.Authorization ===
-              formatToken(session.accessToken)
+            $error.config?.headers?.["X-AM-Session"] === session.sessionId
           ) {
             removePlatformSession();
             void import("@/router").then(({ router }) =>
@@ -248,6 +255,11 @@ class PureHttp {
         } catch (changed) {
           return Promise.reject(changed);
         }
+        if (($error.response?.data as { code?: number })?.code === 90002) {
+          removeTenantSession();
+          blockTenantSession();
+          return Promise.reject(new TenantSessionChangedError());
+        }
         // HTTP 401 统一窄处理（T-FE-041）：收到 401 即清除本地会话并跳转登录页；
         // 不增加 refresh-token、自动续期或重试体系。后端业务失败为 HTTP 200 + code≠200，
         // 不经过此分支。会话已过期提示（T-FE-054 双分支统一，2026-09-20 拍板）：
@@ -255,15 +267,14 @@ class PureHttp {
         // 窗口。**令牌仍在才提示**（claude 外评 P3 处置）：主动登出（logOut 已清令牌）
         // 后在途请求的 401 不弹「会话已过期」误导——退出意图是用户自己的动作。
         // 迟到 401 代际守卫（T-FE-068）：401 只终结其所属会话——请求携带的
-        // Authorization 与当前令牌一致才提示+logOut（平台分支同款比对先例）；
-        // 重登/换租户后旧请求的迟到 401 不得注销新会话。令牌已清（getToken 空）
+        // 会话标记与当前元数据一致才提示+logOut（平台分支同款比对先例）；
+        // 重登/换租户后旧请求的迟到 401 不得注销新会话。令牌已清（getTenantSession 空）
         // 形态维持既有幂等口径：不提示、仍 logOut 兜底清理
         if ($error?.response?.status === 401) {
-          const current = getToken();
+          const current = getTenantSession();
           if (
             current == null ||
-            $error.config?.headers?.Authorization ===
-              formatToken(current.accessToken)
+            $error.config?.headers?.["X-AM-Session"] === current.sessionId
           ) {
             if (current) notifySessionExpiredOnce();
             useUserStoreHook().logOut();

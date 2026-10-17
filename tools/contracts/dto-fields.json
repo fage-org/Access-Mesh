@@ -735,22 +735,22 @@
     ]
   },
   {
-    "name": "PlatformLoginResp",
+    "name": "PlatformBrowserLoginResp",
     "targets": [
       {
         "kind": "java",
-        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/auth/dto/PlatformLoginResp.java",
-        "name": "PlatformLoginResp"
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/auth/dto/PlatformBrowserLoginResp.java",
+        "name": "PlatformBrowserLoginResp"
       },
       {
         "kind": "typescript",
         "file": "frontend/src/api/platform.ts",
-        "name": "PlatformLoginResp"
+        "name": "PlatformBrowserLoginResp"
       },
       {
         "kind": "markdown",
         "file": "docs/design/dto-field-coverage.md",
-        "name": "PlatformLoginResp"
+        "name": "PlatformBrowserLoginResp"
       }
     ]
   },
@@ -891,6 +891,26 @@
         "kind": "markdown",
         "file": "docs/design/dto-field-coverage.md",
         "name": "BatchDeleteResp"
+      }
+    ]
+  },
+  {
+    "name": "BrowserLoginResp",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/auth/dto/BrowserLoginResp.java",
+        "name": "BrowserLoginResp"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/auth.ts",
+        "name": "BrowserLoginResp"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "BrowserLoginResp"
       }
     ]
   }
