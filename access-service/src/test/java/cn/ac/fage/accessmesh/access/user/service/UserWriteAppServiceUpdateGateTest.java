@@ -78,7 +78,7 @@ class UserWriteAppServiceUpdateGateTest {
             localProjectionDomainService,
             auditDomainService,
             treeWriteLockSupport
-        );
+        , org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.user.service.domain.TenantAdminContinuityDomainService.class));
         AccessRequestContext.bind(RequestContext.user(TENANT, OPERATOR));
     }
 

@@ -137,12 +137,6 @@ class BootstrapSeedWriterImpl implements BootstrapSeedWriter {
     }
 
     @Override
-    public List<UserRole> findValidBindings(Long tenantId, Long subjectId, Long roleId) {
-        return userRoleMapper.selectValidByUserIdsAndTargetIds(
-            tenantId, Set.of(subjectId), Set.of(roleId), ResourceTypeCode.ROLE);
-    }
-
-    @Override
     public List<OperationPermission> findOperations(Long tenantId, Set<Integer> resourceTypeValues,
                                                     Set<String> operationCodes) {
         return operationPermissionMapper.selectByTenantResourceTypesAndOpCodes(

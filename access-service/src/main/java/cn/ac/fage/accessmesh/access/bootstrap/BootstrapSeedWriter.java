@@ -5,7 +5,6 @@ import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
-import cn.ac.fage.accessmesh.access.role.entity.UserRole;
 
 import java.util.List;
 import java.util.Set;
@@ -50,9 +49,6 @@ public interface BootstrapSeedWriter {
      * </p>
      */
     List<RoleResourcePermission> findSoftDeletedGrants(Long tenantId, Long roleId);
-
-    /** 主体与角色的有效绑定行。 */
-    List<UserRole> findValidBindings(Long tenantId, Long subjectId, Long roleId);
 
     /** 批量查操作位定义（固定图授权 granted_bits 取自 operation_permission.binary_bit，禁止硬编码数值）。 */
     List<OperationPermission> findOperations(Long tenantId, Set<Integer> resourceTypeValues, Set<String> operationCodes);

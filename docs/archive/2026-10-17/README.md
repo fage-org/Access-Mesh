@@ -9,3 +9,5 @@
 本地完整后端回归 2870 项、前端 562 项通过；后端含容器/E2E/heavy，0 失败/错误/跳过。依赖安全门禁通过，仍保留已批准的 braces 开发路径风险和 Docker 测试依赖风险，不声称漏洞清零；边界与撤回条件见[现行安全规范](../../../.claude/rules/security-standards.md#6-依赖安全扫描)。
 
 原先未纳入计划的 Q-070~Q-080 条目继续由[待解决问题清单](../../pending-problems.md)承接，不因本计划归档而自动关闭。
+
+独立任务 [T-ACCESS-106](tasks/T-ACCESS-106.md) 同日完成归档：租户保底管理员连续性与成员变更审计，Q-059 已收敛；[验收记录](tasks/evidence/T-ACCESS-106/verification.md)。

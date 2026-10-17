@@ -41,6 +41,62 @@ import static org.mockito.Mockito.when;
  */
 @ExtendWith(MockitoExtension.class)
 class AbstractRoleSyncAppServiceTest {
+    @Mock private cn.ac.fage.accessmesh.access.user.service.domain.TenantAdminContinuityDomainService tenantAdminContinuity;
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"DISABLE", "DELETE", "UPSERT"})
+    void shouldRejectBuiltinRoleLossBeforeConsumingVersion(String operation) {
+        mockHeaderMatch();
+        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(6);
+        AbstractRole existing = role(123L, null);
+        when(abstractRoleMapper.selectByTypeAndExternalId(TENANT_ID, 6, "bootstrap-admin")).thenReturn(existing);
+        when(tenantAdminContinuity.isProtectedRole(isNull(), eq(123L))).thenReturn(true);
+        var req = new AbstractRoleSyncReq(operation, "BASIC_ROLE", "bootstrap-admin", null, null, null,
+            "ROOT", 0, null, null, SOURCE_SERVICE, "role", "123", new SyncVersionRef(OCCURRED_AT, 1L));
+        var result = service.sync(TENANT_ID, req, httpRequest);
+        assertThat(result.retryClass()).isEqualTo(SyncResultBuilder.RETRY_NON_RETRYABLE);
+        assertThat(result.reason()).contains("TENANT_LAST_ADMIN");
+        verify(syncMetadataDomainService, org.mockito.Mockito.never()).applyVersion(anyLong(), anyString(),
+            anyString(), anyString(), anyString(), anyString(), anyString(), anyString(), anyString(), any(), any());
+        verify(abstractRoleMapper, org.mockito.Mockito.never()).update(any(AbstractRole.class));
+    }
+
+    @Test
+    void shouldRejectFullSyncBuiltinDisableWithoutConsumingItemVersion() {
+        mockHeaderMatch();
+        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(6);
+        AbstractRole existing = role(123L, null);
+        existing.setExternalId("bootstrap-admin");
+        when(abstractRoleMapper.selectByTypeAndExternalIds(eq(TENANT_ID), eq(6), any()))
+            .thenReturn(java.util.List.of(existing));
+        when(tenantAdminContinuity.isProtectedRole(isNull(), eq(123L))).thenReturn(true);
+        var item = new cn.ac.fage.accessmesh.access.sync.dto.AbstractRoleSyncItem("bootstrap-admin", null,
+            null, null, 0, null, null, null, null, new SyncVersionRef(OCCURRED_AT, 1L));
+        var result = service.fullSync(TENANT_ID, fullSyncReq(java.util.List.of(item)), httpRequest);
+        assertThat(result.detail().failedCount()).isEqualTo(1);
+        assertThat(result.detail().itemResults().get(0).reason()).contains("TENANT_LAST_ADMIN");
+        verify(syncMetadataDomainService, org.mockito.Mockito.never()).applyVersion(anyLong(), anyString(),
+            anyString(), anyString(), anyString(), anyString(), anyString(), anyString(), anyString(), any(), any());
+        verify(abstractRoleMapper, org.mockito.Mockito.never()).update(any(AbstractRole.class));
+    }
+
+    @Test
+    void shouldRejectFullSyncBuiltinMissingDeletionBeforeMetadataChange() {
+        mockHeaderMatch();
+        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(6);
+        var metadata = new cn.ac.fage.accessmesh.access.sync.metadata.SyncMetadata();
+        metadata.setBusinessKeyHash("missing-builtin-role");
+        metadata.setTargetId(123L);
+        metadata.setTargetStatus("ACTIVE");
+        when(syncMetadataDomainService.listScopeForFullSync(eq(TENANT_ID), eq("ABSTRACT_ROLE"), eq(SOURCE_SERVICE), anyString()))
+            .thenReturn(java.util.List.of(metadata));
+        when(tenantAdminContinuity.isProtectedRole(isNull(), eq(123L))).thenReturn(true);
+        var result = service.fullSync(TENANT_ID, fullSyncReq(java.util.List.of()), httpRequest);
+        assertThat(result.retryClass()).isEqualTo(SyncResultBuilder.RETRY_NON_RETRYABLE);
+        assertThat(result.reason()).contains("TENANT_LAST_ADMIN");
+        verify(syncMetadataDomainService, org.mockito.Mockito.never()).markStatus(anyLong(), anyString(), anyString(), anyString(), anyString(), anyString());
+        verify(abstractRoleMapper, org.mockito.Mockito.never()).softDeleteBatch(anyLong(), any(), any());
+    }
 
     private static final Long TENANT_ID = 1L;
     private static final String SOURCE_SERVICE = "example-service";
@@ -76,7 +132,7 @@ class AbstractRoleSyncAppServiceTest {
                 typeResolutionService, abstractRoleMapper, JsonMapper.builder().configureForJackson2().build(),
                 new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(), syncTypeGuard,
                 subjectDomainService, treeWriteLockSupport, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService.class),
-                grantOriginDomainService);
+                grantOriginDomainService, tenantAdminContinuity);
         org.mockito.Mockito.lenient().when(syncTypeGuard.validate(org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any())).thenReturn(true);
         // 版本预判领域判定的 mock 默认：无现存元数据（Map 空取 null）= 新版本放行；

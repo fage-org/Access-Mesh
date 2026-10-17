@@ -1305,6 +1305,13 @@ PERSONAL 的后端创建/维护/授权与用户详情角色分配入口可用；
 <a id="contract-section-10-4"></a>
 ### 10.4 user-role 管理与同步端点（/api/access/user-role/*）
 
+**租户保底管理员（T-ACCESS-106）**：资格及成员管理权限见[租户生命周期](tenant-lifecycle.md#tenant-admin-continuity)。用户角色 assign/batch-assign/revoke、原生账号 update/enable/remove、内置角色 update/remove 共同保护永久保底成员；会使最后一名合格成员失效的操作返回 `10014 TENANT_LAST_ADMIN`，数据库修改整体回滚。原有自身停用/删除拒绝及操作者权限检查继续生效，不以保底身份绕过 QueryGate。初始化直绑的 `relationId=null` 口径保留；带关联来源的绑定可按原契约存在，但不替代保底直绑。
+
+抽象角色 sync 的停用/删除（含 UPSERT status=0）触达内置角色时返回 `NON_RETRYABLE`、reason 前缀 `TENANT_LAST_ADMIN`，先于版本消费；full-sync 同类 item 逐项拒绝且不消费版本，缺失删除集合包含内置角色时沿用全量校准拒绝语义：不执行校准删除，不标 DELETED，已成功应用项按既有契约提交。外部主体/成员同步不能修改 LOCAL_USER，继续沿用保留类型拒绝。
+
+管理员新增及改期记录同事务聚合 `USER_ROLE_CHANGE` 明细，包含目标用户、绑定、角色业务键和前后有效期；撤回复用既有聚合日志并补齐相同定位信息。操作者与请求关联保留在审计公共字段，日志不包含密码或令牌。
+
+
 **重指派语义（T-ADMIN-030，2026-10-02）**：`assign` 与 `batch-assign` 按同租户的用户、角色和 `relationId` 定位未删除绑定，装载包含已过期及尚未生效的行。相同关系且 `validFrom`、`validTo` 都相同则幂等跳过；`relationId=null` 的有效期变化更新原行；不同关系新增，保留其他关系的旧行；非空相同关系的有效期变化整批拒绝 `VALIDATION_FAILED(20027)`，提示先撤销再分配，不覆盖旧行或放宽唯一约束。`assign` 使用请求中的有效期，`batch-assign` 的目标有效期固定为 `null/null`（无限期），因此 null 关系的有限期绑定会改为无限期。先撤销再分配仍可恢复。sync/full-sync 多重集语义不在本次变更范围。
 
 `relationId` 三个写入口（assign 条目 / batch-assign / batch-revoke 条目）均为 `@Positive`：0 与 null 在 `uk_user_role（COALESCE(relation_id,0)）`同槽位而内存键区分，0 会形成 null 侧分配/撤销全部冲突或查不到的持粘行，HTTP 层 400 拒绝（T-ADMIN-030 外评处置，2026-10-02 拍板）。`assign` 条目倒置区间（`validFrom > validTo`）整批拒绝 20027——改写既有有效绑定为永不生效窗口等同静默失权（同日拍板）。
@@ -1393,7 +1400,7 @@ PERSONAL 的后端创建/维护/授权与用户详情角色分配入口可用；
 
 **初始化种子只读与转授边界（T-PERM-106）**：`grantSource=BOOTSTRAP_SEED` 的固定图行与类型授权根同属只读来源，apply-grant-plan 的 updates/removes/挂子权限返回 `20074 BOOTSTRAP_SEED_READONLY`；保护跟行来源走，不按角色名称特判。新库直接打标；旧库未标记且无种子墓碑的真旧库拒启并要求备份后重建，不自动补标。「种子墓碑+同键 MANUAL 孪生」并存态（离线撤销后重授）WARN 放行不补回，孪生行由写守卫 **20075** `BOOTSTRAP_TOMBSTONE_TWIN_READONLY` 置为只读（撤/改/挂子权限拒绝，与 20074 同为全形态写路径守卫——不依赖 bootstrap 开关，2026-10-06 bootstrap 校验方案 A 拍板）。转授给其他角色产生的普通 MANUAL 行仍可编辑/撤回。
 
-可转授最小集仍为 SERVICE:MANAGE、SERVICE:MANAGE_API_MAPPING、ORG:MANAGE_MEMBER、USER:VIEW 四条。每次转授既须持有覆盖目标的可转授权限，也须对目标角色持有 ROLE:MANAGE；不存在“只凭可转授标志即可给任意角色授权”的旁路。当前不衰减 canGrant、不限制链深，满足上述前提的受让者可继续转授。成员分配能力守卫、最后管理员保护及审批机制未交付（Q-059）；因此仍须控制 ROLE:MANAGE 与角色成员维护权限。默认组织树的目录边界只约束相应用户/组织管理入口，不是全局转授或最后管理员保护。
+可转授最小集仍为 SERVICE:MANAGE、SERVICE:MANAGE_API_MAPPING、ORG:MANAGE_MEMBER、USER:VIEW 四条。每次转授既须持有覆盖目标的可转授权限，也须对目标角色持有 ROLE:MANAGE；不存在“只凭可转授标志即可给任意角色授权”的旁路。当前不衰减 canGrant、不限制链深，满足上述前提的受让者可继续转授。成员管理保留 ROLE:MANAGE 门禁，保底成员连续性及审计见 §10.4（T-ACCESS-106）；不额外要求操作者是永久保底成员，审批机制仍未交付。默认组织树目录边界只约束相应用户/组织管理入口，不替代全局转授检查或保底成员守卫。
 
 <a id="contract-section-11-1"></a>
 ### 11.1 授权关系端点清单（/api/access/role-resource-permission/*）
@@ -3120,6 +3127,7 @@ schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正�
 | `10007` | CANNOT_DELETE_SELF | [§20.1](#contract-section-20-1) | [源码](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/enums/AccessErrorCode.java) |
 | `10008` | ADMIN_INVALID_PARAM | [§2.5](#contract-section-2-5)、[§8.1](#contract-section-8-1) | [源码](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/enums/AccessErrorCode.java) |
 | `10009` | CANNOT_DISABLE_SELF | [§20.1](#contract-section-20-1) | [源码](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/enums/AccessErrorCode.java) |
+| `10014` | TENANT_LAST_ADMIN | [§10.4](#contract-section-10-4) | [源码](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/enums/AccessErrorCode.java) |
 | `10010` | PASSWORD_TOO_WEAK | [§7.7](#contract-section-7-7) | [源码](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/enums/AccessErrorCode.java) |
 | `10101` | ORG_NOT_FOUND | [§4](#contract-section-4)、[§7.2](#contract-section-7-2) | [源码](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/enums/AccessErrorCode.java) |
 | `10102` | ORG_CODE_EXISTS | [§20.1](#contract-section-20-1) | [源码](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/enums/AccessErrorCode.java) |

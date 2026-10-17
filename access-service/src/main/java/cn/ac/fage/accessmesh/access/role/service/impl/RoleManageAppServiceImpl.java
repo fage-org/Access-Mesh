@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.role.service.impl;
 
+import cn.ac.fage.accessmesh.access.user.service.domain.TenantAdminContinuityDomainService;
 import cn.ac.fage.accessmesh.access.infrastructure.dto.BatchDeleteResp;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
@@ -63,6 +64,8 @@ import java.util.stream.Collectors;
  */
 @Service
 public class RoleManageAppServiceImpl implements RoleManageAppService {
+    private final TenantAdminContinuityDomainService tenantAdminContinuity;
+
 
     private static final Logger log = LoggerFactory.getLogger(RoleManageAppServiceImpl.class);
 
@@ -102,7 +105,9 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
             cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService autoGrantMaterializationDomainService,
                                  cn.ac.fage.accessmesh.access.grant.service.domain.GrantOriginDomainService grantOriginDomainService,
                                  QueryGate queryGate,
-                                 TreeWriteLockSupport treeWriteLockSupport) {
+                                 TreeWriteLockSupport treeWriteLockSupport,
+                                 TenantAdminContinuityDomainService tenantAdminContinuity) {
+        this.tenantAdminContinuity = tenantAdminContinuity;
         this.abstractRoleMapper = abstractRoleMapper;
         this.subjectDomainService = subjectDomainService;
         this.typeResolutionService = typeResolutionService;
@@ -212,6 +217,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         //（update(entity) 非 null 列全写），无锁时并发移动会被静默回滚、经两步合法移动+回写
         // 可闭合成环——锁内读写串行后回写旧值不可能覆盖并发变更
         treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE);
+        var adminBefore = tenantAdminContinuity.begin(tenantId);
 
         AbstractRole role = subjectDomainService.selectValidRoleById(tenantId, roleId);
         if (role == null) {
@@ -263,6 +269,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         recordProjectionChange(tenantId, operatorId, roleId, "UPSERT");
         PermissionChangeContext.markRoles(tenantId, Set.of(roleId));
 
+        tenantAdminContinuity.finish(adminBefore);
         return toRoleResp(role);
     }
 
@@ -350,6 +357,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         // 无锁时「查子孙 → 软删」窗口内并发 createRole/moveRole 挂入本子树 → 存活孤儿角色
         //（parent 指向已删行，树上不可见无法管理）；锁内串行后挂入者读到的是已删父（校验拒绝）
         treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE);
+        var adminBefore = tenantAdminContinuity.begin(tenantId);
 
         if (roleIds == null || roleIds.isEmpty()) {
             OperationLogRuntimeContext.markSkip();
@@ -493,6 +501,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
                 roleArr
             ))
         );
+        tenantAdminContinuity.finish(adminBefore);
         return new BatchDeleteResp<>(
             validRoleIds.stream().filter(allIdsToDelete::contains).toList(),
             validRoleIds.stream().filter(id -> existingRoles.containsKey(id) && !allIdsToDelete.contains(id)).toList(),

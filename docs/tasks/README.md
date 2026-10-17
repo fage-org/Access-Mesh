@@ -10,7 +10,7 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| access-service 归并（跨服务） | `T-ACCESS` | 106 |
+| access-service 归并（跨服务） | `T-ACCESS` | 107 |
 | permission-center | `T-PERM` | 113 |
 | admin-service | `T-ADMIN` | 036 |
 | gateway | `T-GW` | 015 |
@@ -21,6 +21,12 @@
 > 新建任务时从对应领域取下一编号，计数器 +1。
 
 ## 任务总表
+
+### 租户保底管理员连续性
+
+| ID | 标题 | 状态 | 直接依赖 | 回写 |
+|---|---|---|---|---|
+| [T-ACCESS-106](../archive/2026-10-17/tasks/T-ACCESS-106.md) | 租户保底管理员连续性与成员变更审计 | ✅ | — | ✓ |
 
 > 状态简写：⚙️=proposed / 🔨=in-progress / 👀=review / ✅=done / ❌=cancelled。回写：⏳=pending / ✓=done。
 

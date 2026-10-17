@@ -77,7 +77,7 @@ class UserWriteAppServiceCreateStatusTest {
             localProjectionDomainService,
             auditDomainService,
             treeWriteLockSupport
-        );
+        , org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.user.service.domain.TenantAdminContinuityDomainService.class));
         // 绑定带操作者的用户上下文：operatorId 非 null 时 currentOperatorId 跳过 StpUtil 兜底（纯单测无 Sa-Token 上下文）
         AccessRequestContext.bind(RequestContext.user(TENANT, 900L));
     }

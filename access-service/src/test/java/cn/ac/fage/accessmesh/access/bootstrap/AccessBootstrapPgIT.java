@@ -650,7 +650,7 @@ class AccessBootstrapPgIT {
 
         assertThatThrownBy(() -> initializer.initialize(1L, BOOTSTRAP_PASSWORD))
             .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("user_role 直绑缺失");
+            .hasMessageContaining("缺少启用且永久有效的保底管理员成员");
     }
 
     @Test

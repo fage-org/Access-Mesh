@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.user.service.impl;
 
+import cn.ac.fage.accessmesh.access.user.service.domain.TenantAdminContinuityDomainService;
 import cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtil;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLog;
@@ -72,6 +73,8 @@ import java.util.stream.Collectors;
  */
 @Service
 public class UserManageAppServiceImpl implements UserManageAppService {
+    private final TenantAdminContinuityDomainService tenantAdminContinuity;
+
 
     private static final Logger log = LoggerFactory.getLogger(UserManageAppServiceImpl.class);
 
@@ -118,7 +121,9 @@ public class UserManageAppServiceImpl implements UserManageAppService {
                                  LocalProjectionDomainService localProjectionDomainService,
                                  ObjectMapper objectMapper,
                                  QueryGate queryGate,
-                                 PermissionConflictDomainService permissionConflictDomainService) {
+                                 PermissionConflictDomainService permissionConflictDomainService,
+                                 TenantAdminContinuityDomainService tenantAdminContinuity) {
+        this.tenantAdminContinuity = tenantAdminContinuity;
         this.abstractUserMapper = abstractUserMapper;
         this.subjectDomainService = subjectDomainService;
         this.typeResolutionService = typeResolutionService;
@@ -420,6 +425,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
     @OperationLog(module = "PERMISSION", action = "USER_ROLE_ASSIGN", targetType = "user_role", targetId = "", summary = "'assign user roles'")
     @PermissionChange
     public void assignRole(Long tenantId, UserAssignRoleReq req) {
+        var adminBefore = tenantAdminContinuity.begin(tenantId);
         Long operatorId = OperatorContext.getOperatorId();
 
         if (req.items() == null || req.items().isEmpty()) {
@@ -552,6 +558,8 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         if (!affectedUserIds.isEmpty()) {
             PermissionChangeContext.markUsers(tenantId, affectedUserIds);
         }
+        tenantAdminContinuity.finishMemberChange(adminBefore);
+
     }
 
     @Override
@@ -559,6 +567,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
     @OperationLog(module = "PERMISSION", action = "USER_ROLE_BATCH_ASSIGN", targetType = "abstract_role", targetId = "#req.roleExternalId()", summary = "'batch assign role ' + #req.roleExternalId()")
     @PermissionChange
     public void assignRolesBatch(Long tenantId, UserRoleBatchAssignReq req) {
+        var adminBefore = tenantAdminContinuity.begin(tenantId);
         if (req.subjectExternalIds() == null || req.subjectExternalIds().isEmpty()) {
             OperationLogRuntimeContext.markSkip();
             return;
@@ -641,6 +650,8 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         if (!affectedUserIds.isEmpty()) {
             PermissionChangeContext.markUsers(tenantId, affectedUserIds);
         }
+        tenantAdminContinuity.finishMemberChange(adminBefore);
+
     }
 
     /**
@@ -743,6 +754,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
     @OperationLog(module = "PERMISSION", action = "USER_ROLE_REVOKE", targetType = "user_role", targetId = "", summary = "'batch revoke user-role relations'")
     @PermissionChange
     public void revokeRolesBatch(Long tenantId, UserRoleBatchRevokeReq req) {
+        var adminBefore = tenantAdminContinuity.begin(tenantId);
         Long operatorId = OperatorContext.getOperatorId();
 
         if (req.items() == null || req.items().isEmpty()) {
@@ -865,6 +877,11 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             AbstractRole role = roleMap.get(targetRoleId);
             ObjectNode it = objectMapper.createObjectNode();
             it.put("changeType", "REMOVE");
+            it.put("userId", abstractUserId);
+            it.put("bindingId", ur.getId());
+            it.set("before", objectMapper.valueToTree(new TenantAdminContinuityDomainService.Member(
+                ur.getId(), abstractUserId, ur.getRelationId(), ur.getValidFrom(), ur.getValidTo())));
+            it.putNull("after");
             ObjectNode roleNode = it.putObject("role");
             roleNode.put("roleTypeCode", item.roleTypeCode());
             roleNode.put("roleExternalId", item.roleExternalId());
@@ -911,6 +928,8 @@ public class UserManageAppServiceImpl implements UserManageAppService {
                 roleArr
             ))
         );
+        tenantAdminContinuity.finish(adminBefore);
+
     }
 
     @Override

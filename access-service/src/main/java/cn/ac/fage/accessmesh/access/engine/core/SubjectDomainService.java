@@ -18,6 +18,12 @@ import java.util.Set;
  */
 public interface SubjectDomainService {
 
+    /** 写守卫使用的角色身份新鲜读，不经权限结果缓存。 */
+    AbstractRole findRoleByIdentity(Long tenantId, Integer roleType, String externalId);
+
+    /** 指定角色的原始成员关系（含未生效及已过期窗口），供生命周期守卫及审计。 */
+    java.util.List<cn.ac.fage.accessmesh.access.role.entity.UserRole> findRoleBindings(Long tenantId, Long roleId);
+
     // ===== AbstractUser =====
 
     /**

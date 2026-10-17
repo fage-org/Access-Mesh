@@ -196,7 +196,7 @@ class FullSyncResponseContractTest {
                 new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(), syncTypeGuard,
                 subjectDomainService, fullSyncLockSupport,
                 org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService.class),
-                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.service.domain.GrantOriginDomainService.class));
+                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.service.domain.GrantOriginDomainService.class), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.user.service.domain.TenantAdminContinuityDomainService.class));
         AbstractRoleFullSyncReq req = new AbstractRoleFullSyncReq(
                 new AbstractRoleSyncScope(SOURCE_SERVICE, "BASIC_ROLE", "ROOT"),
                 List.of(new AbstractRoleSyncItem("org-1", "Org 1", null, null,
@@ -233,7 +233,7 @@ class FullSyncResponseContractTest {
                 new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(), syncTypeGuard,
                 subjectDomainService, fullSyncLockSupport,
                 org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService.class),
-                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.service.domain.GrantOriginDomainService.class));
+                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.service.domain.GrantOriginDomainService.class), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.user.service.domain.TenantAdminContinuityDomainService.class));
         AbstractRoleFullSyncReq req = new AbstractRoleFullSyncReq(
                 new AbstractRoleSyncScope(SOURCE_SERVICE, "BASIC_ROLE", "ROOT"),
                 List.of(new AbstractRoleSyncItem("org-1", "Org 1", "BASIC_ROLE", "missing-parent",

@@ -2,7 +2,7 @@
 doc_type: problems
 title: 待解决问题清单
 counter: Q-081           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-10-15
+last_updated: 2026-10-17
 ---
 
 # 待解决问题清单（pending problems）
@@ -14,20 +14,6 @@ last_updated: 2026-10-15
 ## 未收敛问题
 
 **阅读约定**：按根因或可共同处理的范围合并，子项各自保留证据、影响与既有边界。旧编号的去向见文末索引；编号合并不代表缺陷修复。原始登记细节见 [合并前快照](archive/2026-09-30/pending-problems-before-consolidation.md)，外部报告核实见 [核实记录](archive/2026-09-30/logic-review-verification.md)。本次整理没有重新运行业务复现。
-
-<a id="q-059"></a>
-## Q-059 管理员治理延后项：能力守卫与最后管理员保护
-
-- **状态**：open
-- **登记**：2026-10-05
-- **来源**：使用者视角评审立项拍板（D1=B′ 收窄为种子行锁死，两项延后——用户明示「先记录，后面再考虑」）
-- **关联**：[T-PERM-106](archive/2026-10-06/tasks/T-PERM-106.md)（已承接的种子行锁死）；[计划](archive/2026-10-06/usage-review-remediation-plan.md)
-
-**现象与证据**：①user-role/assign 唯一门禁=操作者对目标角色持 ROLE:MANAGE（`UserManageAppServiceImpl.java:483-487,590-595`），对目标用户零门禁、bootstrap-admin 非保留角色——绑入全权角色无专项守卫与强审计；②无「最后管理员」概念——移除 bootstrap-admin 最后成员/停用最后管理员账号无任何关卡（种子行锁死后剩余的残余风险面）。
-
-**影响与边界**：两者触发前提均为操作者已持 ROLE:MANAGE（仅 bootstrap-admin 成员），非低权越权；当前单管理员环境未发生。能力守卫候选形态=通用规则「绑入持 ROLE:MANAGE 行的角色要求操作者持同等能力+强审计」（零角色名特判）。
-
-**设想方向（未定案）**：与审批机制（I5 治理路线图）合并评估；用户重启拍板后转任务。
 
 <a id="q-060"></a>
 ## Q-060 权限排障能力新形态重做待重启
@@ -312,6 +298,7 @@ last_updated: 2026-10-15
 
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
+| <a id="q-059"></a>Q-059 | 管理员治理：能力守卫与最后管理员保护 | 已收敛：保底成员连续性与成员审计已实施；成员管理保留既有门禁，规则见租户生命周期 | [T-ACCESS-106](archive/2026-10-17/tasks/T-ACCESS-106.md) | 2026-10-17 |
 | <a id="q-064"></a>Q-064 | 不存在的 MVC 资源被兜底映射为 HTTP 500 | 已修复（2026-10-07 轻量清扫批）：common `GlobalExceptionHandler` 补 `NoResourceFoundException` 映射——HTTP 404 + 信封 code=404（与 SecurityException→403 映射形态一致），不再落 `Exception` 兜底 500；`ExampleServiceApplicationTest` 恢复业务端口未知路径断言（404+code=404 实跑绿；旧实现 500 已有 2026-10-06 实跑记录实证）。边界核对随批闭合：`NoHandlerFoundException` 需 `throwExceptionIfNoHandlerFound` 显式开启（默认关）本栈不可达不处理；`HttpRequestMethodNotSupportedException`（405 族）仍走兜底 500，非本条登记面不扩。架构册 `/actuator/**` 行同批订正 | —（2026-10-07 轻量清扫批，无任务卡载体） | 2026-10-07 |
 | <a id="q-058"></a>Q-058 | MenuDomainService 两个零调用树写方法（deleteWithChildren/insertBatch） | 已删除（2026-10-07 轻量清扫批）：接口+实现整体删除，全仓零调用复核（含测试）；消除无锁树批量软删 API 未来误用绕过菜单树写互斥的通道（Q-048 同型；Q-010 死方法清理先例）；menu 定向测试 28 项绿 | [T-ADMIN-031](archive/2026-10-04/tasks/T-ADMIN-031.md)（发现载体） | 2026-10-07 |
 | <a id="q-066"></a>Q-066 | sys_org.org_type 标签语义与数字解析的潜在错配 | 已修复（2026-10-07 轻量清扫批短期防御）：三处读面组装（OrgAppServiceImpl.toResp / UserAppServiceImpl 用户页 OrgBrief / UserOrgDomainServiceImpl.getUserOrgBriefs）收敛至 `OrgOperationCodeMapper.parseWireOrgType` 单源——null/空白/不可识别标签→null 降级不中断读取、历史标签 ORG/POSITION 归一 1/2、数值原样解析；红跑实证旧实现两炸法（null 与 POSITION 均 NumberFormatException，2 红）。**登记口径修正**：旧实现失败形态是信封 400「参数错误」（NumberFormatException 经 IllegalArgumentException 处理器），非登记的 500。独立边界保持：org_type schema 口径（SMALLINT+CHECK 或标签语义）未拍板未实施，脏数据现降级为 null 展示 | [T-API-011](archive/2026-10-06/tasks/T-API-011.md) | 2026-10-07 |

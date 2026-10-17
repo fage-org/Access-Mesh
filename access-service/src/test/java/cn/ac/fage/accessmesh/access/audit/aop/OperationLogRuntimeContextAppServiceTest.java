@@ -198,7 +198,7 @@ class OperationLogRuntimeContextAppServiceTest {
             JsonMapper.builder().configureForJackson2().build(),
             engine,
             permissionConflictDomainService
-        );
+        , org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.user.service.domain.TenantAdminContinuityDomainService.class));
 
         UserRoleBatchRevokeReq req = new UserRoleBatchRevokeReq(List.of(
             new UserRoleBatchRevokeReq.RevokeItem("USER", "u-1", "HR", "ROLE", "r-1", 55L)

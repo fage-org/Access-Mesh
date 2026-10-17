@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.user.service.impl;
 
+import cn.ac.fage.accessmesh.access.user.service.domain.TenantAdminContinuityDomainService;
 import cn.ac.fage.accessmesh.access.infrastructure.dto.IdsReq;
 import cn.ac.fage.accessmesh.access.user.dto.req.UserCreateReq;
 import cn.ac.fage.accessmesh.access.user.dto.req.UserUpdateReq;
@@ -52,6 +53,8 @@ import java.util.stream.Collectors;
  */
 @Service
 public class UserWriteAppServiceImpl implements UserWriteAppService {
+    private final TenantAdminContinuityDomainService tenantAdminContinuity;
+
 
     private static final Logger log = LoggerFactory.getLogger(UserWriteAppServiceImpl.class);
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
@@ -74,7 +77,9 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
                                    OrgVisibilityQueryAppService orgVisibilityQueryService,
                                    LocalProjectionDomainService localProjectionDomainService,
                                    AuditDomainService auditDomainService,
-                                   TreeWriteLockSupport treeWriteLockSupport) {
+                                   TreeWriteLockSupport treeWriteLockSupport,
+                                 TenantAdminContinuityDomainService tenantAdminContinuity) {
+        this.tenantAdminContinuity = tenantAdminContinuity;
         this.userDomainService = userDomainService;
         this.userOrgDomainService = userOrgDomainService;
         this.orgTreeConfigDomainService = orgTreeConfigDomainService;
@@ -184,6 +189,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
     @OperationLog(module = "ACCESS", action = "USER_UPDATE", targetType = "sys_user",
         targetId = "#req.id()", summary = "'update user ' + #req.id()")
     public void updateUser(UserUpdateReq req) {
+        var adminBefore = tenantAdminContinuity.begin(TenantContextHolder.getTenantId());
         Long currentUserId = currentOperatorId();
         boolean self = req.id().equals(currentUserId);
         // status 仅接纳 0/1（T-ADMIN-022 语义收口：0=停用，1=启用，临时锁定不落库）。
@@ -270,6 +276,8 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         recordProjectionChange(tenantId, "abstract_user", abstractUserId, "UPSERT",
             new Long[]{abstractUserId}, new Long[0]);
         PermissionChangeContext.markUsers(tenantId, Set.of(abstractUserId));
+        tenantAdminContinuity.finish(adminBefore);
+
     }
 
     @Override
@@ -278,6 +286,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
     @OperationLog(module = "ACCESS", action = "USER_DELETE", targetType = "sys_user",
         targetId = "", summary = "'batch delete users'")
     public void deleteUser(IdsReq req) {
+        var adminBefore = tenantAdminContinuity.begin(TenantContextHolder.getTenantId());
         Long tenantId = TenantContextHolder.getTenantId();
         long currentUserId = currentOperatorId();
         for (Long id : req.ids()) {
@@ -344,6 +353,8 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         if (!abstractUserIds.isEmpty()) {
             PermissionChangeContext.markUsers(tenantId, abstractUserIds);
         }
+        tenantAdminContinuity.finish(adminBefore);
+
     }
 
     @Override
@@ -352,6 +363,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
     @OperationLog(module = "ACCESS", action = "USER_ENABLE", targetType = "sys_user",
         targetId = "", summary = "'enable/disable users'")
     public void updateStatus(UserUpdateStatusReq req) {
+        var adminBefore = tenantAdminContinuity.begin(TenantContextHolder.getTenantId());
         if (req.status() == null || (req.status() != 0 && req.status() != 1)) {
             throw new BizException(AccessErrorCode.ADMIN_INVALID_PARAM.getCode(), "状态值无效，必须为0(停用)或1(启用)");
         }
@@ -409,6 +421,8 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
                     tenantId, currentOperatorId(), OperatorContext.getRequestId(), PermConstants.MaintainSource.MANUAL, "local-projection"),
                 statusEntries);
         }
+        tenantAdminContinuity.finish(adminBefore);
+
     }
 
     private void recordProjectionChange(Long tenantId, String entityType, Long entityId, String operation,

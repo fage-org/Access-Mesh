@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.role.service.impl;
 
+import cn.ac.fage.accessmesh.access.user.service.domain.TenantAdminContinuityDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.exception.SystemException;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;
@@ -44,6 +45,7 @@ import java.util.Set;
  */
 @Service
 public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppService {
+    private final TenantAdminContinuityDomainService tenantAdminContinuity;
 
     static final String ENTITY_KIND = "ABSTRACT_ROLE";
     private static final String OP_UPSERT = "UPSERT";
@@ -82,7 +84,8 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
                                           SubjectDomainService subjectDomainService,
                                           TreeWriteLockSupport treeWriteLockSupport,
                                            cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService autoGrantMaterializationDomainService,
-                                           cn.ac.fage.accessmesh.access.grant.service.domain.GrantOriginDomainService grantOriginDomainService) {
+                                           cn.ac.fage.accessmesh.access.grant.service.domain.GrantOriginDomainService grantOriginDomainService, TenantAdminContinuityDomainService tenantAdminContinuity) {
+        this.tenantAdminContinuity = tenantAdminContinuity;
         this.syncMetadataDomainService = syncMetadataDomainService;
         this.typeResolutionService = typeResolutionService;
         this.abstractRoleMapper = abstractRoleMapper;
@@ -120,6 +123,7 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
         // T-PERM-044：外部同步同样写 parent（isCyclicParent 同为 check-then-act），与 moveRole
         // 共持 (abstract_role, 租户) 树写锁——move×sync 交叉否则窗口仍在
         treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE);
+        var adminBefore = tenantAdminContinuity.begin(tenantId);
 
         // 2. operation 合法性
         String op = req.operation();
@@ -168,6 +172,11 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
         // 且先于 applyVersion——拒绝路径不推进同步版本，上游修正后同版本重试不被判 STALE；
         // existing 预加载供写入步骤复用避免二次单查；新建角色无既有子树天然无环
         AbstractRole selfExisting = abstractRoleMapper.selectByTypeAndExternalId(tenantId, roleType, req.roleExternalId());
+        if (selfExisting != null && tenantAdminContinuity.isProtectedRole(adminBefore, selfExisting.getId())
+            && (OP_DELETE.equals(op) || OP_DISABLE.equals(op) || (req.status() != null && req.status() != 1))) {
+            return SyncResultBuilder.nonRetryable("TENANT_LAST_ADMIN: " + AccessErrorCode.TENANT_LAST_ADMIN.getMessage());
+        }
+
         if (selfExisting != null && isCyclicParent(tenantId, selfExisting.getId(), parentId)) {
             return SyncResultBuilder.nonRetryable(
                     "ROLE_PARENT_INVALID: " + req.parentRoleTypeCode() + ":" + req.parentRoleExternalId());
@@ -257,6 +266,7 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
         // T-PERM-044：全量同步批量写 parent，与 moveRole/sync 共持树写锁（单事务全程持有，
         // 期间并发 move 在锁上排队——低频管理操作可接受）
         treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE);
+        var adminBefore = tenantAdminContinuity.begin(tenantId);
 
         Integer roleType = typeResolutionService.resolveTypeValue(tenantId, "role_type", req.scope().roleTypeCode());
         if (roleType == null) {
@@ -357,6 +367,14 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
             Long parentId = null;
             String itemParentTypeCode = effectiveParentTypeCode(item, req.scope().roleTypeCode());
             AbstractRole existing = existingByExternalId.get(item.roleExternalId());
+            if (existing != null && tenantAdminContinuity.isProtectedRole(adminBefore, existing.getId())
+                && item.status() != null && item.status() != 1) {
+                failed++;
+                itemResults.add(new SyncResultResp.ItemResult(businessKey, false, false,
+                    SyncResultBuilder.RETRY_NON_RETRYABLE, "TENANT_LAST_ADMIN: " + AccessErrorCode.TENANT_LAST_ADMIN.getMessage()));
+                continue;
+            }
+
             if (item.parentRoleExternalId() != null && !item.parentRoleExternalId().isBlank()) {
                 Map<String, Long> parentMap = parentResolvedByType.get(itemParentTypeCode);
                 parentId = parentMap == null ? null : parentMap.get(item.parentRoleExternalId());
@@ -444,6 +462,11 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
             //（幂等，重试 no-op），校准未执行——上游迁移所有者（type-definition/update）后重新校准
             List<Long> deactivateTargetIds = toDeactivate.stream()
                     .map(SyncMetadata::getTargetId).filter(java.util.Objects::nonNull).toList();
+            if (deactivateTargetIds.stream().anyMatch(id -> tenantAdminContinuity.isProtectedRole(adminBefore, id))) {
+                return SyncResultBuilder.fullSyncRejected(SyncResultBuilder.RETRY_NON_RETRYABLE,
+                    "TENANT_LAST_ADMIN: " + AccessErrorCode.TENANT_LAST_ADMIN.getMessage(), req.items().size(), List.of());
+            }
+
             String grantOriginDetail = grantOriginDomainService
                     .resolveGrantOriginReferenceDetail(tenantId, deactivateTargetIds);
             if (grantOriginDetail != null) {

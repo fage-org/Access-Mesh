@@ -475,11 +475,12 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 - **固定图稳定业务键（三状态幂等的判定依据）**：
   - 首管理员：`username=admin`（目标租户内唯一）；`abstract_user(user_type=LOCAL_USER, external_id=主体 ID)`（§12.2）；`sys_user.id=主体 ID`；`resource_entity(USER).code=主体 ID`（§12.3）。
   - 管理用功能角色：`roleTypeCode=BASIC_ROLE`、`domainCode=null`（全局域）、`externalId=bootstrap-admin`；首管理员经 `user_role` 绑定该角色。
+  - **交接后的身份检查（T-ACCESS-106）**：已有固定图按合格的现任保底成员验证，不再将初始 admin 账号、其角色绑定或其默认根组织绑定作为永久身份锚点；允许交接后停用/删除原账号。无合格成员仍拒绝初始化，不重新创建原管理员、不自动补权、不重置接班人密码。其余固定图结构与授权来源检查保留。
   - `resource_entity(SERVICE, code=access-service)`（固定图对象 1）。
   - `service_config(service_code=access-service)`：空库初始化为启用，配置身份纳入固定图检查；T-ACCESS-062 删除模式字段，统一操作准入。名称与状态由可信管理面维护，不在重启时覆盖。旧库按退役手册先备份迁移。
   - 管理 API 与目标接口的 API 资源：`resource_entity(API).code = {METHOD}:{外部路径}`（如 `POST:/api/access/role/my-info`、`POST:/api/access/abstract-role/tree`；T-ACCESS-042 起外部路径=服务路径），`code_type=default`；`resource_api_mapping.serviceCode=access-service`、`httpMethod/pathPattern` 与外部路径的方法和路径一致。
   - 幂等三状态的「完整匹配」按上述键定位对象后比对身份、角色、关联与授权；「业务键被占用」= 任一键被非本图数据持有（fail-fast 报告具体冲突）。
-- **幂等三状态**：① 固定图完全不存在——单事务创建完整固定图；② 完整存在且身份、角色、关联与授权行齐全——整体 no-op，绝不重置密码；③ 部分存在（含授权行缺失；授权缺行处置例外见下方「收缩通道」条）、关联缺失或固定业务键被其他数据占用——初始化失败并报告具体冲突，不自动修复、不补权、不扩权。**固定图种子来源（T-PERM-106）**：新库授权行标 BOOTSTRAP_SEED，管理 API 不可改删或挂子权限（20074），仅转授出去的 MANUAL 行可正常维护。旧库未标记固定图拒绝初始化，先备份后重建，不自动将 MANUAL 行认作种子。已标记种子的离线属性漂移仍仅 warn、不重种覆盖；墓碑收缩只接受已标记 BOOTSTRAP_SEED 的历史行，离线恢复走部署手册。原管理端可修改固定图属性的范围由本任务取代；成员移除与停用等最后管理员风险仍未被本保护覆盖（Q-059）。不新增 ownership 字段、种子版本表或通用 bootstrap 框架；唯一约束仅并发兜底（同编码开通由全局唯一索引拒绝重复）。
+- **幂等三状态**：① 固定图完全不存在——单事务创建完整固定图；② 完整存在且身份、角色、关联与授权行齐全——整体 no-op，绝不重置密码；③ 部分存在（含授权行缺失；授权缺行处置例外见下方「收缩通道」条）、关联缺失或固定业务键被其他数据占用——初始化失败并报告具体冲突，不自动修复、不补权、不扩权。**固定图种子来源（T-PERM-106）**：新库授权行标 BOOTSTRAP_SEED，管理 API 不可改删或挂子权限（20074），仅转授出去的 MANUAL 行可正常维护。旧库未标记固定图拒绝初始化，先备份后重建，不自动将 MANUAL 行认作种子。已标记种子的离线属性漂移仍仅 warn、不重种覆盖；墓碑收缩只接受已标记 BOOTSTRAP_SEED 的历史行，离线恢复走部署手册。原管理端可修改固定图属性的范围由本任务取代；保底成员连续性由 T-ACCESS-106 的独立写守卫承担，规则见[租户生命周期](tenant-lifecycle.md#tenant-admin-continuity)，不由种子行只读机制代替。不新增 ownership 字段、种子版本表或通用 bootstrap 框架；唯一约束仅并发兜底（同编码开通由全局唯一索引拒绝重复）。
   - **收缩通道**：缺行 + 同身份键已标记 BOOTSTRAP_SEED 墓碑 → WARN 放行、不补回；无已标记墓碑 → fail-fast。种子不可经授权页撤销，离线维护造成的属性漂移与墓碑按本条判断；误删与故意撤销无法从墓碑区分，恢复按部署手册人工核对。墓碑仅供 bootstrap 诊断，不开放通用查询。新增固定图行无墓碑时仍拒绝初始化，旧开发库先备份再重建；资源重建换 ID 后不复用旧身份墓碑。
 
 - 标准类型、操作与配置种子唯一来源为权威 DDL 内参数化函数；Java 负责其余固定图，无租户自定义模板，不复制其他租户实时数据。docker-compose 默认档仅基建（PostgreSQL/Redis/Nacos），全栈预览经 `--profile app`（T-ACCESS-047）——启动顺序与外部使用者路径见 docs/quickstart.md、部署基线见 docs/ops/deployment.md。
@@ -583,6 +584,12 @@ bootstrap 的 §14.4 最小集（`RESOURCE:VIEW`/`OPERATION:VIEW` scopeAll + `RO
 - **自动化轨**：`BasicRoleGrantVerticalSliceE2EIT`（e2e 独立模块——T-ACCESS-031 自 gateway 测试域迁出；模块整轨随 `mvn test` 执行，`-DskipE2E=true` 日常跳过/收口必跑）——8 步授权主链 + 管理三入口验收：PG/Redis Testcontainers + 双服务子进程（独立 JVM、随机端口、重启=kill+respawn），Gateway 免 Nacos（`spring.cloud.discovery.client.simple.instances` 静态实例直连，路由与回源 WebClient 同源解析），验证码 Redis 读码，fail-closed 503 与步骤⑦合并；⑥的 30 秒窗口自⑤授权响应到达时刻单调起算、以目标状态响应到达时刻判定（与⑧撤权同口径）；放行路径信封级断言（HTTP 200 + code=200 + 目标用户数据结构）。落位与测试域约束见 `docs/design/services/gateway.md` §测试域。
 - **页面轨**：授权页 GUI 授予场景经真实浏览器操作验收（compose 真实环境 + 真实 Nacos；变更暂存→apply-grant-plan 保存→0.4s 生效 200），截图与响应证据归档 `docs/archive/2026-08-27/tasks/evidence/t-access-021/`。
 - **E2E 修复的四处缺陷**（均为自动化轨/API 轨或页面轨暴露的真实产品缺陷）：① `resource-api-mapping/create` 缺省 matchOrder 显式 null 写库违例（缺省 0 对齐 DDL）；② 用户创建 status 两侧不同源（缺省一次解析同源，DDL 权威语义 1=启用；DTO javadoc 与 admin 契约 create 段表述同步更正）；③ 授权页资源矩阵恒空（前端 capability 门控用了 user-menu 权限串白名单必然排除的 RESOURCE:VIEW/OPERATION:VIEW；改为直接请求、后端类型级 VIEW 门禁为权威）；④ `operation-permission/list` 补齐 api-contract §5.3 `includeGlobalFallback` 后端实现（「专属优先、全局回退」合并；该参数已随全局操作概念退役删除，2026-08-30 T-PERM-049）。
+
+### 保底成员写事务（T-ACCESS-106）
+
+`TenantAdminContinuityDomainService` 复用 SubjectDomainService 原始关系读取与用户能力批量读取，在写前取得租户级 PostgreSQL 事务咨询锁（命名空间 106，租户 ID hash 为第二键；哈希碰撞仅额外串行，不混读数据）。查询显式带 tenantId，锁语句清理 MyBatis 会话缓存；同事务按固定评估时刻比较写前/写后资格，拒绝有合格成员到零成员的变化，内置角色停用/删除同样受限。空库没有内置角色时不制造成员或豁免操作者门禁；已有坏数据不会由本守卫自动修复，初始化继续拒绝无合格成员。
+
+已有 ABSTRACT_ROLE 树锁的入口先取树锁、再取成员事务锁；锁随事务提交/回滚释放。校验使用持久化事实，不依赖权限结果缓存；登录失败计数和强制改密标记不进入资格判断。成员操作、原生用户状态/删除以及角色写入在同一锁范围内完成，防并发各自基于旧成员集合放行。错误形态及审计见契约 §10.4。
 
 ## 15. 文件存储单实例本地盘约束（T-ADMIN-023 登记，2026-08-25）
 

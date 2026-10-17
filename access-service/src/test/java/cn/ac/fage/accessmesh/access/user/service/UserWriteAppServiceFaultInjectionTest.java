@@ -70,7 +70,7 @@ class UserWriteAppServiceFaultInjectionTest {
             localProjectionDomainService,
             auditDomainService,
             treeWriteLockSupport
-        );
+        , org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.user.service.domain.TenantAdminContinuityDomainService.class));
         TenantContextHolder.setTenantId(TENANT);
         AccessRequestContext.bind(RequestContext.user(TENANT, OPERATOR));
     }

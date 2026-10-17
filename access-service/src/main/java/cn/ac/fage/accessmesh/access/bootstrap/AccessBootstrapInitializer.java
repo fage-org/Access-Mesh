@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.bootstrap;
 
+import cn.ac.fage.accessmesh.access.user.service.domain.TenantAdminContinuityDomainService;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtil;
@@ -107,6 +108,7 @@ public class AccessBootstrapInitializer {
     private final SubjectDomainService subjectDomainService;
     private final TypeResolutionService typeResolutionService;
     private final BootstrapSeedWriter seedWriter;
+    private final TenantAdminContinuityDomainService tenantAdminContinuity;
 
     public AccessBootstrapInitializer(UserDomainService userDomainService,
                                       MenuDomainService menuDomainService,
@@ -116,7 +118,8 @@ public class AccessBootstrapInitializer {
                                       LocalProjectionDomainService localProjectionDomainService,
                                       SubjectDomainService subjectDomainService,
                                       TypeResolutionService typeResolutionService,
-                                      BootstrapSeedWriter seedWriter) {
+                                      BootstrapSeedWriter seedWriter, TenantAdminContinuityDomainService tenantAdminContinuity) {
+        this.tenantAdminContinuity = tenantAdminContinuity;
         this.userDomainService = userDomainService;
         this.menuDomainService = menuDomainService;
         this.orgDomainService = orgDomainService;
@@ -142,6 +145,7 @@ public class AccessBootstrapInitializer {
             var scope = RequestContext.task(tenantId);
             if (previous != null) scope = scope.withRequestId(previous.requestId());
             AccessRequestContext.bind(scope);
+            tenantAdminContinuity.begin(tenantId);
             initializeFixedGraph(tenantId, adminPassword);
         } finally {
             AccessRequestContext.restore(previous);
@@ -213,34 +217,40 @@ public class AccessBootstrapInitializer {
         boolean adminPresent = false;
         Long adminSubjectId = null;
 
-        // —— 首管理员主体链 ——
+        // —— 现任保底管理员主体链（允许交接） ——
         SysUser admin = userDomainService.findByUsername(tenantId, BootstrapGraphDefinition.ADMIN_USERNAME);
+        var adminState = tenantAdminContinuity.snapshot(tenantId, LocalDateTime.now());
+        if (!adminState.qualifiedUserIds().isEmpty()
+            && (admin == null || !adminState.qualifiedUserIds().contains(admin.getId()))) {
+            Long successorId = adminState.qualifiedUserIds().stream().min(Long::compareTo).orElseThrow();
+            admin = userDomainService.selectValidById(tenantId, successorId);
+        }
         if (admin != null) {
             adminPresent = true;
             adminSubjectId = admin.getId();
             if (admin.getStatus() == null || admin.getStatus() != 1) {
-                conflicts.add("sys_user 'admin' 存在但已停用 (status=" + admin.getStatus() + ")");
+                conflicts.add("保底管理员账号已停用 (status=" + admin.getStatus() + ")");
             }
             // 禁用主体引擎侧有效角色置空（T-ACCESS-019 DDL 语义）——no-op 判定必须将其视为冲突；
             // 身份键 user_type=LOCAL_USER / external_id=主体 ID（§14.2 固定图身份）漂移同样构成冲突
             AbstractUser subject = subjectDomainService.selectValidUserById(tenantId, adminSubjectId);
             if (subject == null) {
-                conflicts.add("sys_user 'admin' 存在但 abstract_user(LOCAL_USER) 主体缺失（主体链断裂）");
+                conflicts.add("保底管理员账号 " + adminSubjectId + " 的 abstract_user(LOCAL_USER) 主体缺失（主体链断裂）");
             } else if (!Objects.equals(subject.getUserType(), localUserType)) {
-                conflicts.add("admin 主体身份漂移: abstract_user.user_type=" + subject.getUserType()
+                conflicts.add("保底管理员主体身份漂移: abstract_user.user_type=" + subject.getUserType()
                     + "（固定图要求 LOCAL_USER=" + localUserType + "）");
             } else if (!String.valueOf(adminSubjectId).equals(subject.getExternalId())) {
-                conflicts.add("admin 主体身份漂移: abstract_user.external_id=" + subject.getExternalId()
+                conflicts.add("保底管理员主体身份漂移: abstract_user.external_id=" + subject.getExternalId()
                     + "（固定图要求主体 ID " + adminSubjectId + "）");
             } else if (!Boolean.TRUE.equals(subject.getEnabled())) {
-                conflicts.add("admin 主体 (abstract_user) 已禁用——禁用主体有效角色置空，权限不可用");
+                conflicts.add("保底管理员主体 (abstract_user) 已禁用——禁用主体有效角色置空，权限不可用");
             }
             List<ResourceEntity> userResources = seedWriter.findResources(
                 tenantId, resourceTypes.get(ResourceTypeCode.USER), Set.of(String.valueOf(adminSubjectId)));
             if (userResources.isEmpty()) {
-                conflicts.add("sys_user 'admin' 存在但 resource_entity(USER) 投影缺失");
+                conflicts.add("保底管理员账号 " + adminSubjectId + " 的 resource_entity(USER) 投影缺失");
             } else if (userResources.get(0).getStatus() == null || userResources.get(0).getStatus() != 1) {
-                conflicts.add("admin 的 resource_entity(USER) 投影已停用 (status="
+                conflicts.add("保底管理员的 resource_entity(USER) 投影已停用 (status="
                     + userResources.get(0).getStatus() + ")");
             }
         }
@@ -271,13 +281,9 @@ public class AccessBootstrapInitializer {
             }
         }
 
-        // —— 绑定（双方齐全才可比；relation_id 必须为 null——组角色关联等 relation 绑定不算固定图直绑） ——
-        if (adminPresent && rolePresent) {
-            boolean directBindingExists = seedWriter.findValidBindings(tenantId, adminSubjectId, roleId).stream()
-                .anyMatch(binding -> binding.getRelationId() == null);
-            if (!directBindingExists) {
-                conflicts.add("首管理员与 bootstrap 管理角色的 user_role 直绑缺失（关联缺失或仅存 relation 绑定）");
-            }
+        // 成员可交接，不再要求最初 admin 账号的固定直绑。
+        if (rolePresent && adminState.qualifiedUserIds().isEmpty()) {
+            conflicts.add("缺少启用且永久有效的保底管理员成员，不能自动补权");
         }
 
         // —— SERVICE 资源 ——
@@ -498,13 +504,7 @@ public class AccessBootstrapInitializer {
                     conflicts.add("默认组织树根组织 parentId=" + rootOrg.getParentId()
                         + " 与固定图期望 0 不符（根组织必须直挂顶层）");
                 }
-                if (adminPresent && adminSubjectId != null) {
-                    boolean adminBound = userOrgDomainService.findByUserId(tenantId, adminSubjectId).stream()
-                        .anyMatch(uo -> rootOrg.getId().equals(uo.getOrgId()));
-                    if (!adminBound) {
-                        conflicts.add("首管理员未挂默认树根组织（身份目录开箱可见 admin 的固定图绑定缺失）");
-                    }
-                }
+
             }
         }
 

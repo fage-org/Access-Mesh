@@ -101,6 +101,7 @@ public enum AccessErrorCode {
     PASSWORD_UNCHANGED(10011, "强制改密时新密码不能与当前密码相同"),
     PASSWORD_RESET_REQUIRED(10012, "请先修改自己的初始密码"),
     PASSWORD_TOO_LONG(10013, "密码UTF-8字节长度不能超过72（约24个汉字），请缩短"),
+    TENANT_LAST_ADMIN(10014, "至少保留一名启用且永久有效的保底管理员，请先完成管理员交接"),
 
     // ===== 组织相关错误（10101-10199） =====
 

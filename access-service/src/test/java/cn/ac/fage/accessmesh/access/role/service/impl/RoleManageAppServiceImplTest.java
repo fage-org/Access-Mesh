@@ -80,7 +80,7 @@ class RoleManageAppServiceImplTest {
             grantOriginDomainService,
             engine,
             treeWriteLockSupport
-        );
+        , org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.user.service.domain.TenantAdminContinuityDomainService.class));
     }
 
     @Test

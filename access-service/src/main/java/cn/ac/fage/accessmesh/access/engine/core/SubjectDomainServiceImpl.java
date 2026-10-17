@@ -48,6 +48,16 @@ import java.util.stream.Collectors;
 @Service
 public class SubjectDomainServiceImpl implements SubjectDomainService {
 
+    @Override
+    public AbstractRole findRoleByIdentity(Long tenantId, Integer roleType, String externalId) {
+        return abstractRoleMapper.selectByTypeAndExternalId(tenantId, roleType, externalId);
+    }
+
+    @Override
+    public List<UserRole> findRoleBindings(Long tenantId, Long roleId) {
+        return userRoleMapper.selectValidByTargetIdAndType(tenantId, roleId, PermConstants.TargetType.ROLE);
+    }
+
     private static final Logger log = LoggerFactory.getLogger(SubjectDomainServiceImpl.class);
 
     private final AbstractUserMapper abstractUserMapper;
