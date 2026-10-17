@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-098
 title: SDK 凭证拦截器端点匹配与装配边界收口
 status: done
-plan: docs/plans/scenario-audit-remediation-plan.md
+plan: docs/archive/2026-10-17/scenario-audit-remediation-plan.md
 domain: access-service
 design_refs:
   - docs/design/service-authentication.md

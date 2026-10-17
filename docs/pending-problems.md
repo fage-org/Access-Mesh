@@ -145,7 +145,7 @@ last_updated: 2026-10-15
 - **状态**：open
 - **登记**：2026-10-14
 - **来源**：2026-10-12~14 外部持续审查（过度设计候选），外部模型核实（2026-10-13）+ 主代理亲核（2026-10-14）
-- **关联**：[scenario-audit-remediation-plan](plans/scenario-audit-remediation-plan.md)（同批修复计划）
+- **关联**：[scenario-audit-remediation-plan](archive/2026-10-17/scenario-audit-remediation-plan.md)（同批修复计划）
 
 **现象与证据**：`frontend/src/utils/sso.ts:14-57` 为 URL 传 username/roles/accessToken 的自执行示例，唯一引用（`router/index.ts:2`）已注释；`store/modules/user.ts:83-88` 两个设置动作无调用方；login 设计明确无「记住我」UI，`utils/auth.ts:69-87`（setToken）仍消费 isRemembered/loginDay 携带可变记住天数分支。
 
@@ -159,7 +159,7 @@ last_updated: 2026-10-15
 - **状态**：open
 - **登记**：2026-10-14
 - **来源**：2026-10-12~14 外部持续审查（过度设计候选），外部模型核实与主代理亲核成立
-- **关联**：[scenario-audit-remediation-plan](plans/scenario-audit-remediation-plan.md)
+- **关联**：[scenario-audit-remediation-plan](archive/2026-10-17/scenario-audit-remediation-plan.md)
 
 **现象与证据**：`layout/components/lay-notice/data.ts:21-107` 硬编码「李白回复你」等示例消息/待办；`lay-notice/index.vue:3-11` 直接计算红点，两种导航布局均实际渲染；无 notice API 封装。
 
@@ -173,7 +173,7 @@ last_updated: 2026-10-15
 - **状态**：open
 - **登记**：2026-10-14
 - **来源**：2026-10-12~14 外部持续审查（原缺陷候选经核实降级为条件性裁剪候选：现役 initRouter 不传 frameSrc、后端固定 keepAlive=false，无启用入口）
-- **关联**：[scenario-audit-remediation-plan](plans/scenario-audit-remediation-plan.md)
+- **关联**：[scenario-audit-remediation-plan](archive/2026-10-17/scenario-audit-remediation-plan.md)
 
 **现象与证据**：`layout/frame.vue:68-70` 先 `new URL` 解析又弃用，直接在原字符串尾部拼 `?t=`/`&t=`——URL 含 hash 时刷新参数落入 fragment，按 HTML 导航标准为同文档导航，不重新加载文档（探针实证 `document-url-changed=false`）。
 
@@ -187,7 +187,7 @@ last_updated: 2026-10-15
 - **状态**：open
 - **登记**：2026-10-14
 - **来源**：2026-10-12~14 外部持续审查（设计边界），探针实证行为 + 主代理核实
-- **关联**：[T-ACCESS-102](tasks/T-ACCESS-102.md)（同示例服务相邻修复，不含本项）
+- **关联**：[T-ACCESS-102](archive/2026-10-17/tasks/T-ACCESS-102.md)（同示例服务相邻修复，不含本项）
 
 **现象与证据**：example-service `ReportController` export/status 仅核对作业归属（tenant+user）返回 DONE 内容，不重查该报表当前 EXPORT 权限（探针：撤权后 `returned-content-after-revocation=true`）。契约 §25.7 一般规则要求返回实际数据前检查并禁止异步永久复用准入，但示例落地描述只明确提交/执行时点检查——规则与实现间的生命周期边界未定。
 
@@ -270,8 +270,8 @@ last_updated: 2026-10-15
 
 - **状态**：open
 - **登记**：2026-10-15
-- **来源**：[T-PERM-110](tasks/T-PERM-110.md) 双轨评审类推发现（同批已修 HttpMessageNotReadable 日志脱敏；用户拍板本条登记待盘点）
-- **关联**：[T-PERM-110](tasks/T-PERM-110.md)（同根日志通道）
+- **来源**：[T-PERM-110](archive/2026-10-17/tasks/T-PERM-110.md) 双轨评审类推发现（同批已修 HttpMessageNotReadable 日志脱敏；用户拍板本条登记待盘点）
+- **关联**：[T-PERM-110](archive/2026-10-17/tasks/T-PERM-110.md)（同根日志通道）
 
 **现象与证据**：`common/.../exception/GlobalExceptionHandler.java:130`（handleIllegalArgumentException）将 `e.getMessage()` 原样写入 WARN 日志。框架路径的该类异常消息可能携带用户提交的原始值（典型形态 `No enum constant com.x.Type '原始值'`）。本仓库业务代码抛 IllegalArgumentException 多为固定文案，但未逐点盘点是否存在把请求输入拼进消息的写法。
 
@@ -284,8 +284,8 @@ last_updated: 2026-10-15
 
 - **状态**：open
 - **登记**：2026-10-15
-- **来源**：[T-PERM-110](tasks/T-PERM-110.md) codex sol 外评存量观察（主代理核实 DTO 无上限属实）
-- **关联**：[T-PERM-110](tasks/T-PERM-110.md)（同根 BCrypt 72 字节静默截断面；密码写入口已收口，本条为 clientSecret 面）
+- **来源**：[T-PERM-110](archive/2026-10-17/tasks/T-PERM-110.md) codex sol 外评存量观察（主代理核实 DTO 无上限属实）
+- **关联**：[T-PERM-110](archive/2026-10-17/tasks/T-PERM-110.md)（同根 BCrypt 72 字节静默截断面；密码写入口已收口，本条为 clientSecret 面）
 
 **现象与证据**：`Oauth2ClientCreateReq`/`Oauth2ClientUpdateReq` 的 `clientSecret` 仅非空白 `@Pattern` 校验、无长度上限；`Oauth2ClientAppServiceImpl.java:92/:142` 对其直接 `BCrypt.hashpw`——超 72 字节的 clientSecret 尾部被静默截断（与 T-PERM-110 已修的用户密码面同型）。
 
@@ -297,8 +297,8 @@ last_updated: 2026-10-15
 
 - **状态**：open
 - **登记**：2026-10-15
-- **来源**：[T-FE-068](tasks/T-FE-068.md) 用户拍板登记待盘点（缺陷探针场景的跨 tab 形态核实）
-- **关联**：[T-FE-068](tasks/T-FE-068.md)（同 tab 互斥已随卡收口；本条为跨 tab/跨操作员残余面）
+- **来源**：[T-FE-068](archive/2026-10-17/tasks/T-FE-068.md) 用户拍板登记待盘点（缺陷探针场景的跨 tab 形态核实）
+- **关联**：[T-FE-068](archive/2026-10-17/tasks/T-FE-068.md)（同 tab 互斥已随卡收口；本条为跨 tab/跨操作员残余面）
 
 **现象与证据**：`POST /api/access/user/reset-password` 每次调用生成新密码并整体覆盖（无代际/版本语义）；前端 T-FE-068 的 pending 登记是组件内状态，仅挡同一标签页的重复触发。两个操作员（或同浏览器两标签页）在几秒窗口内对同一用户重置：A 先写（密码 P1）响应慢、B 后写（P2）响应快，A 的迟到响应弹出的 P1 已失效——A 若把 P1 交付用户，用户登录必失败（服务端真密码是 P2）。
 

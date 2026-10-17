@@ -2,8 +2,8 @@
 doc_type: task
 id: T-ACCESS-105
 title: 存量依赖漏洞核实与高危扫描阻断清理
-status: review
-plan: docs/plans/scenario-audit-remediation-plan.md
+status: done
+plan: docs/archive/2026-10-17/scenario-audit-remediation-plan.md
 domain: cross-service
 design_refs:
   - .claude/rules/security-standards.md
@@ -28,7 +28,7 @@ last_updated: 2026-10-17
 
 ## 背景
 
-T-ACCESS-103 接入扫描前执行 `pnpm audit --json`，2026-10-17 当前锁文件报告 high=77、critical=2；计数为公告报告口径，不等同于独立包数或可利用漏洞数。示例包括 tinypool（GHSA-85c8-ppgw-ccpr）与 @vue/server-renderer（GHSA-g2v6-rqmx-r4w6）。原始报告见 [pnpm 扫描报告](evidence/T-ACCESS-105/pnpm-audit-2026-10-17.json)。Maven 阻断以实际扫描报告补充核实。
+T-ACCESS-103 接入扫描前执行 `pnpm audit --json`，2026-10-17 升级前锁文件报告 high=77、critical=2；计数为公告报告口径，不等同于独立包数或可利用漏洞数。示例包括 tinypool（GHSA-85c8-ppgw-ccpr）与 @vue/server-renderer（GHSA-g2v6-rqmx-r4w6）。原始报告见 [pnpm 扫描报告](evidence/T-ACCESS-105/pnpm-audit-2026-10-17.json)。Maven 基线、修复与扫描结果见 [Maven 证据](evidence/T-ACCESS-105/maven-remediation.md)。
 
 ## 范围
 
@@ -36,11 +36,11 @@ T-ACCESS-103 接入扫描前执行 `pnpm audit --json`，2026-10-17 当前锁文
 
 ## 当前口径
 
-本地依赖修复、扫描与完整回归已完成，等待真实 CI 验收。前端测试采用 Vitest 5.0.5 正式版，Node 开发支持调整为 `^22.13.0 || ^24.0.0 || >=26.0.0`，Node 类型声明采用 24.x，本地、CI 与镜像使用 Node 24。
+依赖修复、扫描、完整本地回归与真实 CI 验收均已完成。前端测试采用 Vitest 5.0.5 正式版，Node 开发支持调整为 `^22.13.0 || ^24.0.0 || >=26.0.0`，Node 类型声明采用 24.x，本地、CI 与镜像使用 Node 24。
 
 后端采用 Boot 4.0.8 / Cloud 2025.1.3 / Alibaba 2025.1.0.0 正式组合，继续使用 Java 21。自有 HTTP/SDK/缓存/审计 JSON 链路迁移 Jackson 3，保留现有 JSON 外部格式，第三方内部 Jackson 2 不作为平台 HTTP mapper。Redisson 4.8.0 使用 Spring Data Redis 4.0 适配器；测试采用 Boot 管理的 JUnit 6.0.3 / Testcontainers 2.0.5，保留 ItInfra、进程隔离及 E2E/heavy 验收。OAuth2 JWT 底层采用 Nimbus JOSE + JWT 10.10，移除 sa-token-jwt/Hutool 依赖，保留 Sa-Token 原生会话与既有 HS256/eff/撤销/代际语义。现有 API、权限和缓存失效契约保持，额外迁移取舍明确后实施。
 
-保持安全规范的高危阻断；T-ACCESS-103 与所属计划在阻断清理和 CI 验收前不标完成。其他大版本升级、工具替换或风险接受须先明确决策，不降低阈值。braces 与 Docker 测试依赖的限定风险例外、Maven 精确误报清单见[安全规范](../../.claude/rules/security-standards.md#6-依赖安全扫描)，不扩大到生产路径或其他公告。
+保持安全规范的高危阻断与已批准例外边界。其他大版本升级、工具替换或风险接受须先明确决策，不降低阈值。braces 与 Docker 测试依赖的限定风险例外、Maven 精确误报清单见[安全规范](../../../../.claude/rules/security-standards.md#6-依赖安全扫描)，不扩大到生产路径或其他公告。
 
 ## 验收对照
 
@@ -48,7 +48,7 @@ T-ACCESS-103 接入扫描前执行 `pnpm audit --json`，2026-10-17 当前锁文
 - [x] Vitest 大版本及 Node 支持变更已明确；braces 的开发路径风险已获限定批准，门禁与原始报告保留。
 - [x] Maven 完整扫描、依赖修复与批准例外的精确门禁；[报告与核实证据](evidence/T-ACCESS-105/maven-remediation.md)保留。
 - [x] 后端完整收口回归：`mvn -B test -T 1C` 2870 项，0 失败/错误/跳过（2026-10-17）；含 E2E / heavy，[分模块报告](evidence/T-ACCESS-105/backend-verification-2026-10-17.json)可核对。
-- [ ] GitHub Actions 真实运行及报告工件验收；本地通过不代替 CI。
+- [x] [GitHub Actions 真实运行](https://github.com/fage-org/Access-Mesh/actions/runs/39008776796)通过，安全报告工件已下载并核对 SHA-256；[CI 验收记录](evidence/T-ACCESS-105/ci-verification-2026-10-17.json)及原始报告保存。
 
 ## 非目标 / 遗留
 

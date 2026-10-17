@@ -180,7 +180,7 @@ CI 的 NVD 初始化使用官方年度压缩文件与 modified 文件（2026-10-
 
 ### Maven 精确误报排除
 
-2026-10-17 用户批准（T-ACCESS-105）：`tools/security/dependency-check-suppressions.xml` 仅排除以下已核实不适用的匹配，原始报告及核实依据见 [Maven 证据](../../docs/tasks/evidence/T-ACCESS-105/maven-remediation.md)。这不是接受可利用漏洞，不按整个 CPE 或严重等级忽略。
+2026-10-17 用户批准（T-ACCESS-105）：`tools/security/dependency-check-suppressions.xml` 仅排除以下已核实不适用的匹配，原始报告及核实依据见 [Maven 证据](../../docs/archive/2026-10-17/tasks/evidence/T-ACCESS-105/maven-remediation.md)。这不是接受可利用漏洞，不按整个 CPE 或严重等级忽略。
 
 | 限定对象 | CVE | 不适用依据 |
 |---|---|---|

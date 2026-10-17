@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-101
 title: 文件能力收口批（fileUrl 字段语义与下载文件名编码）
 status: done
-plan: docs/plans/scenario-audit-remediation-plan.md
+plan: docs/archive/2026-10-17/scenario-audit-remediation-plan.md
 domain: access-service
 design_refs:
   - docs/design/access-service-api-contract.md

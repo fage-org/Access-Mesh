@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.4.xsd">
     <!-- User-approved false positives, 2026-10-17. Evidence and review triggers:
-         docs/tasks/evidence/T-ACCESS-105/maven-remediation.md. Never suppress a whole CPE. -->
+         docs/archive/2026-10-17/tasks/evidence/T-ACCESS-105/maven-remediation.md. Never suppress a whole CPE. -->
     <suppress>
         <notes><![CDATA[MyBatis-Flex is neither MyBatis-Plus nor MyBatis 1.11.8.
 Actual MyBatis is 3.5.19. Reassess on package/version changes.]]></notes>

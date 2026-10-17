@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-111
 title: explain 与声明诊断修正批（空目标身份/码类型丢失/发布代次序列化）
 status: done
-plan: docs/plans/scenario-audit-remediation-plan.md
+plan: docs/archive/2026-10-17/scenario-audit-remediation-plan.md
 domain: access-service
 design_refs:
   - docs/design/dependency-auto-grant.md

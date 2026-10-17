@@ -1,7 +1,7 @@
 ---
 doc_type: plan
 title: 架构与使用场景持续审查问题修复
-status: active
+status: archived
 domain: cross-service
 design_refs:
   - docs/design/access-service-api-contract.md
@@ -44,30 +44,30 @@ last_updated: 2026-10-17
 
 ## 任务清单
 
-状态快照见 [任务看板](../tasks/README.md)。
+状态快照见 [任务看板](../../tasks/README.md)。
 
 | ID | 标题 | 优先级 | 状态 |
 |---|---|---|---|
-| [T-GW-014](../tasks/T-GW-014.md) | Gateway 内部密钥出站收窄 | P1 | ✅ |
-| [T-ACCESS-098](../tasks/T-ACCESS-098.md) | SDK 凭证拦截器端点匹配与装配边界收口 | P1 | ✅ |
-| [T-ACCESS-099](../tasks/T-ACCESS-099.md) | 预览 Compose 文件持久化卷 | P1 | ✅ |
-| [T-PERM-109](../tasks/T-PERM-109.md) | 条件 CIDR 参数校验收口 | P2（安全面，建议首梯队） | ✅ |
-| [T-ACCESS-100](../tasks/T-ACCESS-100.md) | SDK 公共依赖宿主侵入收口 | P2×4 族 | ✅ |
-| [T-PERM-110](../tasks/T-PERM-110.md) | 认证与登录安全细节批 | P2×4 族 | ✅ |
-| [T-FE-068](../tasks/T-FE-068.md) | 前端迟响应与竞态批 | P2×4+P3 族 | ✅ |
-| [T-FE-069](../tasks/T-FE-069.md) | 前端选择器与表单可用性批 | P2×4 族 | ✅ |
-| [T-ACCESS-101](../tasks/T-ACCESS-101.md) | 文件能力收口批 | P2×2 族 | ✅ |
-| [T-PERM-111](../tasks/T-PERM-111.md) | explain 与声明诊断修正批 | P2×2+P3 族 | ✅ |
-| [T-PERM-112](../tasks/T-PERM-112.md) | 互斥审计请求关联与主体补全 | P2 | ✅ |
-| [T-ACCESS-102](../tasks/T-ACCESS-102.md) | example-service 子报表真实父关系核对 | P2 | ✅ |
-| [T-ACCESS-103](../tasks/T-ACCESS-103.md) | 文档与流程对齐批 | P2×3+P3 族 | 👀 |
-| [T-ACCESS-104](../tasks/T-ACCESS-104.md) | 无权删除全拒反馈修正（角色与资源批删链） | P2 | ✅ |
-| [T-ACCESS-105](../tasks/T-ACCESS-105.md) | 存量依赖漏洞核实与高危扫描阻断清理 | 安全扫描阻断 | 👀 |
+| [T-GW-014](tasks/T-GW-014.md) | Gateway 内部密钥出站收窄 | P1 | ✅ |
+| [T-ACCESS-098](tasks/T-ACCESS-098.md) | SDK 凭证拦截器端点匹配与装配边界收口 | P1 | ✅ |
+| [T-ACCESS-099](tasks/T-ACCESS-099.md) | 预览 Compose 文件持久化卷 | P1 | ✅ |
+| [T-PERM-109](tasks/T-PERM-109.md) | 条件 CIDR 参数校验收口 | P2（安全面，建议首梯队） | ✅ |
+| [T-ACCESS-100](tasks/T-ACCESS-100.md) | SDK 公共依赖宿主侵入收口 | P2×4 族 | ✅ |
+| [T-PERM-110](tasks/T-PERM-110.md) | 认证与登录安全细节批 | P2×4 族 | ✅ |
+| [T-FE-068](tasks/T-FE-068.md) | 前端迟响应与竞态批 | P2×4+P3 族 | ✅ |
+| [T-FE-069](tasks/T-FE-069.md) | 前端选择器与表单可用性批 | P2×4 族 | ✅ |
+| [T-ACCESS-101](tasks/T-ACCESS-101.md) | 文件能力收口批 | P2×2 族 | ✅ |
+| [T-PERM-111](tasks/T-PERM-111.md) | explain 与声明诊断修正批 | P2×2+P3 族 | ✅ |
+| [T-PERM-112](tasks/T-PERM-112.md) | 互斥审计请求关联与主体补全 | P2 | ✅ |
+| [T-ACCESS-102](tasks/T-ACCESS-102.md) | example-service 子报表真实父关系核对 | P2 | ✅ |
+| [T-ACCESS-103](tasks/T-ACCESS-103.md) | 文档与流程对齐批 | P2×3+P3 族 | ✅ |
+| [T-ACCESS-104](tasks/T-ACCESS-104.md) | 无权删除全拒反馈修正（角色与资源批删链） | P2 | ✅ |
+| [T-ACCESS-105](tasks/T-ACCESS-105.md) | 存量依赖漏洞核实与高危扫描阻断清理 | 安全扫描阻断 | ✅ |
 
 ## 归档条件
 
 全部任务 done（或 cancelled 并登记去向）；各项缺陷对应回归锁进仓；设计文档回写完成；与本计划相关的待解决问题条目（Q-070~Q-077 中转出项）完成收敛或明确仍开放。
 
-## 当前进度
+## 完成记录
 
-T-ACCESS-103 与 T-ACCESS-105 的本地实现、扫描及回归已完成，均保持 review，等待真实 CI 验收；其余任务已完成。批准例外与验证证据按任务卡及安全规范保存，计划保持 active，不归档。
+全部任务已完成并回写设计，完整本地回归含容器/E2E/heavy 通过；[真实 CI](https://github.com/fage-org/Access-Mesh/actions/runs/39008776796)及安全报告工件验收通过。批准风险例外继续按安全规范执行，不因任务完成而解除。原先未纳入计划的 Q-070~Q-080 条目保持开放，继续由待解决问题清单承接。

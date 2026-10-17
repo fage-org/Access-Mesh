@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-102
 title: example-service 子报表真实父关系核对
 status: done
-plan: docs/plans/scenario-audit-remediation-plan.md
+plan: docs/archive/2026-10-17/scenario-audit-remediation-plan.md
 domain: access-service
 design_refs:
   - docs/design/access-service-api-contract.md

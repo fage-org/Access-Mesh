@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-109
 title: 条件 CIDR 参数校验收口（负前缀/超界退化为放行）
 status: done
-plan: docs/plans/scenario-audit-remediation-plan.md
+plan: docs/archive/2026-10-17/scenario-audit-remediation-plan.md
 domain: access-service
 design_refs:
   - docs/design/access-service-api-contract.md

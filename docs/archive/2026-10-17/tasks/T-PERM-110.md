@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-110
 title: 认证与登录安全细节批（敏感日志/授权页切换签码/密码长度上限/等成本比对）
 status: done
-plan: docs/plans/scenario-audit-remediation-plan.md
+plan: docs/archive/2026-10-17/scenario-audit-remediation-plan.md
 domain: access-service
 design_refs:
   - docs/design/access-service-api-contract.md

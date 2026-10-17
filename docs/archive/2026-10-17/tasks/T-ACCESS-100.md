@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-100
 title: SDK 公共依赖宿主侵入收口（日志实现/默认时区/全局异常处理/Web 栈传递）
 status: done
-plan: docs/plans/scenario-audit-remediation-plan.md
+plan: docs/archive/2026-10-17/scenario-audit-remediation-plan.md
 domain: access-service
 design_refs:
   - docs/design/project-rules.md

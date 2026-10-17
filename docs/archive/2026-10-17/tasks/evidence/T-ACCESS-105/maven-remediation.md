@@ -60,9 +60,9 @@ CI 初始化校验：Python 完整性测试 4 项通过，原仅核对 SHA 的�
 
 代码轨先独立核对迁移工作树：HS256 限定/错误密钥/到期及 loginType 拒绝、独立 HMAC 和原签发器夹具、撤销/租户/密码代际调用、缓存键/TTL/提交后失效、JSON 大整数与 ISO 日期、SDK 子上下文及宿主隔离、Maven/Pnpm 阈值及例外范围；当前无未处理的静态评审 P0–P2 缺陷，行为由下述完整回归独立验证。实际测试已暴露并修正 mapper 条件装配、SDK IOException 契约及网关断言观察对象，未删测试或放宽授权断言。无新增待决策项或无真实调用方的抽象。
 
-文档轨随后独立核对工程规范、架构、API、Gateway/接入指南、安全规则、AGENTS/README 与任务卡：发现旧 Gateway 配置前缀和 SDK 编解码注释残留（P3），已改为当前装配方式；Unreleased 补充迁移及风险接受说明。历史 superseded 契约和旧版本 CHANGELOG 保留历史事实。任务/计划未提前标终态，完整收口回归已通过，GitHub Actions 仍待真实执行。
+文档轨随后独立核对工程规范、架构、API、Gateway/接入指南、安全规则、AGENTS/README 与任务卡：发现旧 Gateway 配置前缀和 SDK 编解码注释残留（P3），已改为当前装配方式；Unreleased 补充迁移及风险接受说明。历史 superseded 契约和旧版本 CHANGELOG 保留历史事实。任务/计划未提前标终态，完整收口回归已通过，GitHub Actions 已按下述记录完成真实验收。
 
-## 本地验收与 CI 待办
+## 本地与 CI 验收
 
 双轨已处理发现（位置为当前实现）：
 
@@ -79,4 +79,8 @@ CI 初始化校验：Python 完整性测试 4 项通过，原仅核对 SHA 的�
 
 后端单测、定向 PG、跨服务主线及失败隔离证据如上；前端 562 项、类型检查/lint/构建和 44 组 DTO 对账通过。Maven 与 pnpm 本地安全门禁均通过，保留批准的 braces 开发依赖风险和 Docker 测试依赖风险，不声称漏洞清零。
 
-GitHub Actions 真实执行和报告工件仍待完成。T-ACCESS-105 / T-ACCESS-103 保持 review，计划保持 active；本地验证不能替代该项 CI 验收。
+[GitHub Actions 39008776796](https://github.com/fage-org/Access-Mesh/actions/runs/39008776796) 对应提交 `f8f5ecbff30c930623ca54243e28aab46500b1eb`，2026-10-17 14:13:28 已完成并成功。前端 562 项及质量检查、后端单测 2314 项通过；安全流程验证官方文件 26 份，导入成功后强制 API 补齐 297 条（100%），再完成 Maven/pnpm 扫描与例外门禁。Maven 未批准 CVSS≥7 匹配为 0；pnpm 原始 high=1、critical=0，只有已批准 braces 例外，moderate=11/low=4 保留。
+
+工件 `dependency-security-reports`（ID `12092321203`，347407 字节）已下载，SHA-256=`f1f5f73450015160f3588129f9d805152802825cc82466ab150c58a956dd2aa5` 与 GitHub 元数据一致；包含下载/导入/API/扫描日志、NVD 元数据、HTML/JSON 和两类例外判定。CI 的 [Maven 原始 JSON](maven-ci-audit-2026-10-17.json.gz)、[pnpm 原始 JSON](pnpm-ci-audit-2026-10-17.json.gz) 与 [验收记录](ci-verification-2026-10-17.json) 已持久保存。GitHub 工件按规范保留 30 天。
+
+push 档按原策略跳过专用 Testcontainers job；容器/E2E/heavy 由上述完整本地回归证明，不把 CI skip 当作执行通过。T-ACCESS-105 / T-ACCESS-103 验收条件已满足。

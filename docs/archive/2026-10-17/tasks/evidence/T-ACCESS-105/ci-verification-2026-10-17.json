@@ -1,0 +1,340 @@
+{
+  "repository": "fage-org/Access-Mesh",
+  "commit": "f8f5ecbff30c930623ca54243e28aab46500b1eb",
+  "runId": 39008776796,
+  "url": "https://github.com/fage-org/Access-Mesh/actions/runs/39008776796",
+  "event": "push",
+  "status": "completed",
+  "conclusion": "success",
+  "completedAt": "2026-10-17T06:13:28Z",
+  "checks": {
+    "backendUnit": {
+      "tests": 2314,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "frontend": {
+      "files": 50,
+      "tests": 562,
+      "dtoGroups": 44,
+      "lint": "passed",
+      "typecheck": "passed",
+      "build": "passed"
+    },
+    "localFullRegression": {
+      "commit": "94cb672099e3ebe516122073488dbd102e870042",
+      "tests": 2870,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "e2eAndHeavy": "included",
+      "evidence": "backend-verification-2026-10-17.json"
+    },
+    "security": {
+      "scanner": "Dependency Check 12.2.2",
+      "officialFeedCount": 26,
+      "forcedApiIncrementalRecords": 297,
+      "mavenUnsuppressedCvssAtLeast7": 0,
+      "mavenAcceptedRisk": "CVE-2026-54399",
+      "pnpmCounts": {
+        "low": 4,
+        "moderate": 11,
+        "high": 1,
+        "critical": 0
+      },
+      "pnpmAcceptedRisk": "GHSA-vfj7-8cjw-p6xm",
+      "pnpmUnapprovedHighOrCritical": 0,
+      "reports": [
+        "maven-ci-audit-2026-10-17.json.gz",
+        "pnpm-ci-audit-2026-10-17.json.gz"
+      ]
+    }
+  },
+  "containerJobPolicy": "CI push skips the dedicated PR/manual Testcontainers job; local full regression includes containers, E2E and heavy with no skips.",
+  "artifact": {
+    "id": 12092321203,
+    "name": "dependency-security-reports",
+    "size": 347407,
+    "digest": "sha256:f1f5f73450015160f3588129f9d805152802825cc82466ab150c58a956dd2aa5",
+    "downloadDigestVerified": true,
+    "expired": false,
+    "expiresAt": "2026-11-16T06:13:24Z",
+    "archiveUrl": "https://api.github.com/repos/fage-org/Access-Mesh/actions/artifacts/12092321203/zip",
+    "files": [
+      "maven/dependency-check-report.html",
+      "maven/dependency-check-report.json",
+      "maven/dependency-check-report.json.decision.json",
+      "maven/nvd-api-update.log",
+      "maven/nvd-feed-download.log",
+      "maven/nvd-feed-manifest.json",
+      "maven/nvd-import.log",
+      "maven/scan.log",
+      "pnpm/audit.json",
+      "pnpm/audit.json.decision.json"
+    ]
+  },
+  "jobs": [
+    {
+      "id": 117326602185,
+      "name": "依赖安全扫描（高危阻断）",
+      "status": "completed",
+      "conclusion": "success",
+      "run_id": 39008776796,
+      "logs_url": null,
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1
+        },
+        {
+          "name": "Run actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2
+        },
+        {
+          "name": "Run actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3
+        },
+        {
+          "name": "Run pnpm/action-setup@7088e561eb65bb68695d245aa206f005ef30921d",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4
+        },
+        {
+          "name": "Run actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5
+        },
+        {
+          "name": "解析并安装 reactor 依赖",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6
+        },
+        {
+          "name": "下载并校验 NVD 官方压缩数据",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7
+        },
+        {
+          "name": "导入 NVD 快照并强制 API 增量更新",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8
+        },
+        {
+          "name": "Maven 已解析依赖扫描（包含 test/provided）",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9
+        },
+        {
+          "name": "pnpm 锁定依赖扫描（包含开发依赖）",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10
+        },
+        {
+          "name": "保存安全报告（包括阻断结果）",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11
+        },
+        {
+          "name": "Post Run actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 19
+        },
+        {
+          "name": "Post Run pnpm/action-setup@7088e561eb65bb68695d245aa206f005ef30921d",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 20
+        },
+        {
+          "name": "Post Run actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 21
+        },
+        {
+          "name": "Post Run actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 22
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 23
+        }
+      ]
+    },
+    {
+      "id": 117326602312,
+      "name": "单元测试（强制）",
+      "status": "completed",
+      "conclusion": "success",
+      "run_id": 39008776796,
+      "logs_url": null,
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2
+        },
+        {
+          "name": "设置 JDK 21",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3
+        },
+        {
+          "name": "全量单测（排除 Testcontainers 与 E2E）",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4
+        },
+        {
+          "name": "Post 设置 JDK 21",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9
+        }
+      ]
+    },
+    {
+      "id": 117326602475,
+      "name": "前端（lint / typecheck / Vitest / DTO）",
+      "status": "completed",
+      "conclusion": "success",
+      "run_id": 39008776796,
+      "logs_url": null,
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2
+        },
+        {
+          "name": "Run pnpm/action-setup@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3
+        },
+        {
+          "name": "Run actions/setup-node@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4
+        },
+        {
+          "name": "Run pnpm install --frozen-lockfile",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5
+        },
+        {
+          "name": "Run pnpm lint:check",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6
+        },
+        {
+          "name": "Run pnpm typecheck",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7
+        },
+        {
+          "name": "Run pnpm test:run",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8
+        },
+        {
+          "name": "Run pnpm contracts:check",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9
+        },
+        {
+          "name": "Run pnpm build",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10
+        },
+        {
+          "name": "Post Run actions/setup-node@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 18
+        },
+        {
+          "name": "Post Run pnpm/action-setup@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 19
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 20
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 21
+        }
+      ]
+    },
+    {
+      "id": 117326603343,
+      "name": "Testcontainers（PR / 手动触发）",
+      "status": "completed",
+      "conclusion": "skipped",
+      "run_id": 39008776796,
+      "logs_url": null,
+      "steps": null
+    }
+  ]
+}

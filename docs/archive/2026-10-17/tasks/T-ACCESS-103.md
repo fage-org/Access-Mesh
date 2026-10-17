@@ -2,8 +2,8 @@
 doc_type: task
 id: T-ACCESS-103
 title: 文档与流程对齐批（入门多租户口径/接入路由说明/CI 依赖扫描/时间条件时区提示）
-status: review
-plan: docs/plans/scenario-audit-remediation-plan.md
+status: done
+plan: docs/archive/2026-10-17/scenario-audit-remediation-plan.md
 domain: access-service
 design_refs:
   - docs/design/extension-guide.md
@@ -46,14 +46,14 @@ README/CHANGELOG/extension-guide/security-standards 对齐；ci.yml 扫描 job�
 - [x] 指南区分准入映射与转发路由，给出与现役配置一致的显式路由例子。
 - [x] 扫描 job、周计划、固定工具版本与 Actions SHA、失败报告保存已接入源码；工作流 YAML 解析通过。
 - [x] 时间条件输入直接提示 UTC 与不自动换算。
-- [ ] GitHub Actions 真实运行通过并保存报告工件：待 T-ACCESS-105 清理依赖阻断后执行。前后端本地扫描已完成（包含批准例外），报告与边界见 [T-ACCESS-105 证据](evidence/T-ACCESS-105/maven-remediation.md)；本地结果不代替真实 CI。
+- [x] [GitHub Actions 真实运行](https://github.com/fage-org/Access-Mesh/actions/runs/39008776796)通过，Maven/pnpm 安全报告及元数据工件已保存并核对摘要；[验收证据](evidence/T-ACCESS-105/ci-verification-2026-10-17.json)可追溯。
 
 ## 非目标 / 遗留
 
-存量依赖修复由 T-ACCESS-105 后续承接，保持真实高危阻断；本卡与计划在依赖修复及 CI 验收完成前不标 done。显式 Gateway 拓扑定案不变；Dependabot 等仓外告警承接方式在卡内注明（若组织级已配，注明入口即可）。
+存量依赖修复由 T-ACCESS-105 完成；批准风险例外继续受安全规范限制。显式 Gateway 拓扑定案不变。本任务的扫描入口为仓库 CI 的 push/PR/手动/每周计划，失败通过 CI 状态报告；未新增 Dependabot 等仓外流程。
 
 ## 完成记录
 
-2026-10-17：源码实现与设计回写已准备，工作流 YAML 解析和固定 Actions 标签 SHA 核对通过；前端 `pnpm test` 50 文件、562 项通过，typecheck/lint:check/build 与 DTO 对账通过。`pnpm audit --json` 实际返回失败，原报告已保存到 T-ACCESS-105 证据目录。Maven 本地完整扫描已由 T-ACCESS-105 完成，GitHub Actions 尚未运行，不将本地解析、扫描或业务回归通过当作 CI 安全验收。
+2026-10-17：实现与设计回写完成；[CI](https://github.com/fage-org/Access-Mesh/actions/runs/39008776796)对应提交 `f8f5ecbff30c930623ca54243e28aab46500b1eb`，前端 562 项与类型/lint/构建/44 组 DTO 对账、后端单测 2314 项及 Maven/pnpm 安全门禁均通过。报告工件 `12092321203` 已下载并核对 SHA-256，保留批准例外，不声称漏洞清零。完整后端容器/E2E/heavy 的本地 2870 项验收见 T-ACCESS-105 证据。
 
-代码轨核对扫描包含 Maven 解析依赖与 pnpm 锁定依赖、失败不吞、报告失败时仍上传、每周调度与 UTC 提示；文档轨核对 README/Unreleased 当前多租户能力、历史版本记录保持、转发路由与准入映射职责。剩余验收由 T-ACCESS-105 与真实 CI 报告承接，保持 review。
+代码轨核对扫描范围、失败阻断、报告保存、每周调度与 UTC 提示；文档轨核对当前多租户能力、历史版本记录保留、转发路由与准入映射职责。无未处理的任务验收项。
