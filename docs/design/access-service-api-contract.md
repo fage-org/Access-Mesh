@@ -476,6 +476,8 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 <a id="contract-section-6-4"></a>
 ### 6.4 租户登录端点族
 
+验证码替代通道继续暂缓，当前无法读图用户的限制与重启边界见[登录页设计](frontend/login.md#captcha-accessibility-status)（2026-10-17 确认，Q-068）。
+
 | POST 路径 | 请求 | 响应 data |
 |---|---|---|
 | `/api/access/auth/captcha` | `{}` | `{captchaId,image}` |
