@@ -43,7 +43,7 @@ last_updated: 2026-10-17
 
 **影响与边界**：取证交付形态与增长上限无答案；长期运行 operation_log 是仅次于业务表的膨胀源。预览期数据量小，无真实合规需求支撑保留窗口参数选型。
 
-**处理入口**：同批范围、到期处理、期限配置/默认行为、配置归属、导出权限与交付形态已确认，见[契约 §16.7](design/access-service-api-contract.md#contract-section-16-7)；清理执行、配置生效及 location 字段处置等边界尚待确定，范围可执行后转任务。
+**处理入口**：导出与保留策略主要边界已确认，见[契约 §16.7](design/access-service-api-contract.md#contract-section-16-7)；location 字段处置仍待确定，范围可执行后转任务。
 
 <a id="q-062"></a>
 ## Q-062 未成册五族契约补册（等接口完全稳定）
