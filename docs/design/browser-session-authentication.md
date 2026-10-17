@@ -12,6 +12,8 @@ last_reviewed: 2026-10-17
 
 2026-10-17 用户选择 P2：启动独立改造，先确定覆盖范围、Cookie/CSRF 方案及现有调用兼容，再实施。此决定取代 Q-068 中 HttpOnly 事项的延期安排，不改变强制下线 K1、验证码替代通道 L1 的继续暂缓。
 
+**覆盖范围（2026-10-17 用户选择 R1）**：自带租户管理台与独立平台运营网页登录一起改造；两类 Cookie/会话及退出行为继续隔离，不将一个身份的登录或退出传播为另一身份的登录或退出。此范围决定不等于把 SDK、服务凭证或第三方 OAuth2 调用统一改为 Cookie，其调用兼容边界另行确认。
+
 目前仍执行既有 Bearer 认证。本文未定案部分不作为直接开启 Cookie 读取的授权或实现契约；正式实现与验收前，不把草案表述为已交付。
 
 ## 当前行为与依据
@@ -19,7 +21,7 @@ last_reviewed: 2026-10-17
 - 租户管理台：`/login`，租户原生登录返回 accessToken，前端保存在 JavaScript 可读 Cookie，显式加入 Authorization 请求头。
 - 独立平台运营：`/platform/login`，平台令牌存于 localStorage 的 platform-operator-session，显式加入 Authorization 请求头。平台与租户身份独立，可以同时登录。
 - 网关 AuthTokenFilter 仅提取 Bearer，Sa-Token Cookie 读取关闭；现行安全边界见 [security-standards §3](../../.claude/rules/security-standards.md#3-csrf-保护)。
-- 登录接口令牌响应也被非浏览器测试/调用链消费，不能只删除前端存储而不处理响应和调用契约；E2eTenantSupport 从 accessToken 响应构造 Bearer。
+- 登录接口令牌响应也被非浏览器测试/调用链消费，不能只删除前端存储而不处理响应和调用契约；E2eTenantSupport 从 accessToken 响应构造 Bearer；quickstart 也明确以 `/api/access/auth/login` 的响应令牌调用 example-service。现有登录返回体为 LoginResp/PlatformLoginResp，均暴露 accessToken。
 - 原生登录、独立平台、OAuth2 委托与服务凭证的现有入口及边界以[API 契约](access-service-api-contract.md)、[服务认证](service-authentication.md)为准。
 
 ## 必须保留的既有保证
@@ -30,10 +32,9 @@ HttpOnly 不等于全部脚本注入风险已解决，也不允许保留同一�
 
 ## 待用户决定
 
-1. 覆盖租户管理台、独立平台运营，还是两者。
-2. 浏览器登录与既有 Bearer/API 调用的兼容边界，以及令牌响应如何交付。
-3. 支持的部署形态及浏览器访问边界，再确定 Cookie 属性、路径与 CSRF 方案。
-4. 影响现有用户行为或升级支持边界的取舍。纯实现细节在已确认范围内解决，不重复提问。
+1. 浏览器登录与既有 Bearer/API 调用的兼容边界，以及令牌响应如何交付。
+2. 支持的部署形态及浏览器访问边界，再确定 Cookie 属性、路径与 CSRF 方案。
+3. 影响现有用户行为或升级支持边界的取舍。纯实现细节在已确认范围内解决，不重复提问。
 
 ## 实施与验收入口
 
