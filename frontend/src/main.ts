@@ -1,3 +1,9 @@
+import { startTenantSessionSync } from "@/utils/tenant-session";
+import { getToken, userKey } from "@/utils/auth";
+import { useUserStoreHook } from "@/store/modules/user";
+import { usePermissionStoreHook } from "@/store/modules/permission";
+import { closeAllDialog } from "@/components/ReDialog/store";
+import { ElMessage, ElMessageBox } from "element-plus";
 import App from "./App.vue";
 import router from "./router";
 import { setupStore } from "@/store";
@@ -54,6 +60,27 @@ app.use(VueTippy);
 
 getPlatformConfig(app).then(async config => {
   setupStore(app);
+  startTenantSessionSync({
+    read: () => {
+      const session = getToken();
+      return {
+        token: session?.accessToken ?? null,
+        expires: session?.expires == null ? null : Number(session.expires)
+      };
+    },
+    storageKey: userKey,
+    window,
+    document,
+    invalidate: () => {
+      useUserStoreHook().clearLocalSessionState();
+      usePermissionStoreHook().clearAllCachePage();
+      if (!router.currentRoute.value.path.startsWith("/platform")) {
+        closeAllDialog();
+        ElMessageBox.close();
+        ElMessage.closeAll();
+      }
+    }
+  });
   app.use(router);
   await router.isReady();
   injectResponsiveStorage(app, config);

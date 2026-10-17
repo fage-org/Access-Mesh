@@ -1,3 +1,10 @@
+import {
+  captureTenantRequest,
+  assertTenantRequest,
+  TenantSessionChangedError
+} from "@/utils/tenant-session";
+const isTenantLogout = (url?: string) =>
+  url?.endsWith("/api/access/auth/logout");
 import Axios, {
   type AxiosInstance,
   type AxiosRequestConfig,
@@ -108,6 +115,9 @@ class PureHttp {
           config.headers.Authorization = formatToken(session.accessToken);
           return config;
         }
+        // Logout already carries the verified old token: it must still be sent after local token removal.
+        if (!isTenantLogout(config.url))
+          assertTenantRequest(config.tenantSessionStamp);
         // 优先判断post/get等方法是否传入回调，否则执行初始化设置等回调
         if (typeof config.beforeRequestCallback === "function") {
           config.beforeRequestCallback(config);
@@ -141,7 +151,13 @@ class PureHttp {
                 // logOut 同步清令牌后，后续请求不得无头放行再跑一次必然 401 的往返
                 terminateLocalSession();
               } else {
-                config.headers["Authorization"] = formatToken(data.accessToken);
+                const token =
+                  config.tenantSessionStamp === undefined
+                    ? data.accessToken
+                    : config.tenantSessionStamp.token;
+                if (!token) throw new TenantSessionChangedError();
+                // Never reread a replacement identity into an already-created request.
+                config.headers["Authorization"] = formatToken(token);
                 resolve(config);
               }
             });
@@ -158,6 +174,9 @@ class PureHttp {
     instance.interceptors.response.use(
       (response: PureHttpResponse) => {
         const $config = response.config;
+        if ($config.authRealm !== "platform" && !isTenantLogout($config.url)) {
+          assertTenantRequest($config.tenantSessionStamp);
+        }
         // 优先判断post/get等方法是否传入回调，否则执行初始化设置等回调
         if (typeof $config.beforeResponseCallback === "function") {
           $config.beforeResponseCallback(response);
@@ -188,6 +207,18 @@ class PureHttp {
             );
           }
           return Promise.reject($error);
+        }
+        if (
+          $error instanceof TenantSessionChangedError ||
+          isTenantLogout($error.config?.url)
+        )
+          return Promise.reject($error);
+        try {
+          assertTenantRequest(
+            ($error.config as PureHttpRequestConfig)?.tenantSessionStamp
+          );
+        } catch (changed) {
+          return Promise.reject(changed);
         }
         // HTTP 401 统一窄处理（T-FE-041）：收到 401 即清除本地会话并跳转登录页；
         // 不增加 refresh-token、自动续期或重试体系。后端业务失败为 HTTP 200 + code≠200，
@@ -235,6 +266,14 @@ class PureHttp {
       method
     } as PureHttpRequestConfig;
 
+    // Capture synchronously, before Axios schedules its asynchronous interceptor chain.
+    if (config.authRealm !== "platform") {
+      try {
+        config.tenantSessionStamp = captureTenantRequest();
+      } catch (error) {
+        return Promise.reject(error);
+      }
+    }
     // 单独处理自定义请求/响应回调
     return new Promise((resolve, reject) => {
       PureHttp.axiosInstance

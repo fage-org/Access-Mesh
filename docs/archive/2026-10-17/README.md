@@ -13,3 +13,5 @@
 独立任务 [T-ACCESS-106](tasks/T-ACCESS-106.md) 同日完成归档：租户保底管理员连续性与成员变更审计，Q-059 已收敛；[验收记录](tasks/evidence/T-ACCESS-106/verification.md)。
 
 [审计日志生命周期计划](audit-log-lifecycle-plan.md) 同日完成：T-ACCESS-107、T-ACCESS-108、T-FE-070 随计划归档，Q-061 已收敛；[验收记录](tasks/evidence/audit-log-lifecycle/verification.md)分别保留首次全量结果、初始化复验、E2E 补跑和最终兼容性验证。
+
+独立任务 [T-FE-071](tasks/T-FE-071.md) 完成租户跨标签会话同步，按 N1 清理旧界面并确认重载；[浏览器及测试验收](tasks/evidence/T-FE-071/verification.md)。Q-068 的延期子项与 Q-082 平台同类范围仍待各自处置。

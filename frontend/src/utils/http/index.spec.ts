@@ -440,3 +440,151 @@ describe("platform request realm isolation", () => {
     expect(mockLogOut).not.toHaveBeenCalled();
   });
 });
+
+describe("cross-tab HTTP ownership", () => {
+  let stop: () => void;
+  let boundary: typeof import("@/utils/tenant-session");
+  beforeEach(async () => {
+    boundary = await import("@/utils/tenant-session");
+    stop = boundary.startTenantSessionSync({
+      read: () => {
+        const value = mockGetToken();
+        return {
+          token: value?.accessToken ?? null,
+          expires: value?.expires ?? null
+        };
+      },
+      invalidate: vi.fn(),
+      storageKey: "user-info",
+      window: new EventTarget() as Window,
+      document: new EventTarget() as Document
+    });
+  });
+  afterEach(() => stop());
+  function instance() {
+    return (
+      Object.getPrototypeOf(http).constructor as {
+        axiosInstance: AxiosInstance;
+      }
+    ).axiosInstance;
+  }
+  it("blocks old-page calls before the storage notification without logging out the new identity", async () => {
+    installAdapter(() => 403);
+    mockGetToken.mockReturnValue({
+      accessToken: "new-user",
+      expires: Date.now() + 60000
+    });
+    await expect(http.post("/api/access/user/page")).rejects.toThrow(
+      "登录状态已改变"
+    );
+    expect(adapterCalls).toEqual([]);
+    expect(mockLogOut).not.toHaveBeenCalled();
+    expect(mockRefreshUserMenu).not.toHaveBeenCalled();
+  });
+  it("rejects a queued request after this tab changes its own session", async () => {
+    installAdapter(() => 403);
+    const request = http.post("/api/access/user/page");
+    mockGetToken.mockReturnValue({
+      accessToken: "new-user",
+      expires: Date.now() + 60000
+    });
+    boundary.acceptLocalTenantSession("new-user");
+    await expect(request).rejects.toThrow("登录状态已改变");
+    expect(adapterCalls).toEqual([]);
+    expect(boundary.tenantSessionBlocked.value).toBe(false);
+  });
+  it.each([200, 401, 403])(
+    "discards late %i before callbacks, logout or capability refresh",
+    async status => {
+      let finish: () => void = () => {};
+      instance().defaults.adapter = config =>
+        new Promise((resolve, reject) => {
+          finish = () => {
+            const response = {
+              status,
+              data: { code: status, data: "old-private-data" },
+              config,
+              headers: {},
+              statusText: ""
+            };
+            if (status === 200) resolve(response);
+            else
+              reject(
+                Object.assign(new Error("old failure"), { config, response })
+              );
+          };
+        });
+      const callback = vi.fn();
+      const request = http.post("/api/access/user/page", {
+        beforeResponseCallback: callback
+      });
+      await drainMicrotasks();
+      mockGetToken.mockReturnValue({
+        accessToken: "new-user",
+        expires: Date.now() + 60000
+      });
+      finish();
+      await expect(request).rejects.toThrow("登录状态已改变");
+      expect(callback).not.toHaveBeenCalled();
+      expect(mockLogOut).not.toHaveBeenCalled();
+      expect(mockRefreshUserMenu).not.toHaveBeenCalled();
+    }
+  );
+  it("still sends explicit logout of the old token after local credentials are removed", async () => {
+    const sent: unknown[] = [];
+    instance().defaults.adapter = async config => {
+      sent.push(config.headers.Authorization);
+      return {
+        status: 200,
+        data: { code: 200 },
+        config,
+        headers: {},
+        statusText: ""
+      };
+    };
+    const request = http.post("/api/access/auth/logout", {
+      headers: { Authorization: "Bearer token-1" }
+    });
+    mockGetToken.mockReturnValue(null);
+    boundary.acceptLocalTenantSession(null);
+    await expect(request).resolves.toEqual({ code: 200 });
+    expect(sent).toEqual(["Bearer token-1"]);
+    expect(boundary.tenantSessionBlocked.value).toBe(false);
+  });
+  it("pins the outgoing identity even if shared storage changes between guard and header assignment", async () => {
+    let reads = 0;
+    mockGetToken.mockImplementation(() => ({
+      accessToken: ++reads < 3 ? "token-1" : "new-user",
+      expires: Date.now() + 60000
+    }));
+    const sent: unknown[] = [];
+    instance().defaults.adapter = async config => {
+      sent.push(config.headers.Authorization);
+      return { status: 200, data: {}, config, headers: {}, statusText: "" };
+    };
+    await expect(http.post("/api/access/user/page")).rejects.toThrow(
+      "登录状态已改变"
+    );
+    expect(sent).toEqual(["Bearer token-1"]);
+  });
+  it("keeps the platform realm usable while tenant UI is blocked", async () => {
+    mockGetToken.mockReturnValue({
+      accessToken: "new-user",
+      expires: Date.now() + 60000
+    });
+    expect(() => boundary.captureTenantRequest()).toThrow();
+    mockPlatformSession.mockReturnValue({
+      accessToken: "operator-token",
+      expires: Date.now() + 60000
+    });
+    const sent: unknown[] = [];
+    instance().defaults.adapter = async config => {
+      sent.push(config.headers.Authorization);
+      return { status: 200, data: {}, config, headers: {}, statusText: "" };
+    };
+    await expect(
+      http.post("/api/access/tenant/page", { authRealm: "platform" })
+    ).resolves.toEqual({});
+    expect(sent).toEqual(["Bearer operator-token"]);
+  });
+});

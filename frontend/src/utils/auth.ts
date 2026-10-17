@@ -1,3 +1,7 @@
+import {
+  assertTenantSessionCurrent,
+  acceptLocalTenantSession
+} from "@/utils/tenant-session";
 import Cookies from "js-cookie";
 import { useUserStoreHook } from "@/store/modules/user";
 import { storageLocal, isString, isIncludeAllChildren } from "@pureadmin/utils";
@@ -64,6 +68,7 @@ export function isSessionTerminated(data = getToken()): boolean {
  * 将`avatar`、`username`、`nickname`、`roles`、`permissions`、`refreshToken`、`expires`这七条信息放在key值为`user-info`的localStorage里（利用`multipleTabsKey`当浏览器完全关闭后自动销毁）
  */
 export function setToken(data: DataInfo<Date>) {
+  assertTenantSessionCurrent();
   let expires = 0;
   const { accessToken, refreshToken } = data;
   const { isRemembered, loginDay } = useUserStoreHook();
@@ -75,6 +80,8 @@ export function setToken(data: DataInfo<Date>) {
         expires: (expires - Date.now()) / 86400000
       })
     : Cookies.set(TokenKey, cookieString);
+
+  acceptLocalTenantSession(accessToken);
 
   Cookies.set(
     multipleTabsKey,
@@ -135,8 +142,10 @@ export function setToken(data: DataInfo<Date>) {
 
 /** 删除`token`以及key值为`user-info`的localStorage信息 */
 export function removeToken() {
+  assertTenantSessionCurrent();
   Cookies.remove(TokenKey);
   Cookies.remove(multipleTabsKey);
+  acceptLocalTenantSession(null);
   storageLocal().removeItem(userKey);
 }
 

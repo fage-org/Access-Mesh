@@ -720,3 +720,26 @@ describe("forced password change login continuation", () => {
     }
   );
 });
+
+it("cross-tab cleanup clears local identity without revoking or deleting the shared new session", () => {
+  const store = useUserStore();
+  store.$patch({
+    username: "old-user",
+    nickname: "old-name",
+    avatar: "old-avatar",
+    roles: ["old-role"],
+    permissions: ["ROLE:MANAGE"],
+    menuGateStatus: "loaded"
+  });
+  store.menus = [{ path: "/system/role" }];
+  store.clearLocalSessionState();
+  expect([store.username, store.nickname, store.avatar]).toEqual(["", "", ""]);
+  expect(store.roles).toEqual([]);
+  expect(store.permissions).toEqual([]);
+  expect(store.menus).toEqual([]);
+  expect(mockLogout).not.toHaveBeenCalled();
+  expect(mockRemoveToken).not.toHaveBeenCalled();
+  expect(mockStorage.setItem).not.toHaveBeenCalled();
+  expect(mockStorage.removeItem).not.toHaveBeenCalled();
+  expect(mockRouterPush).not.toHaveBeenCalled();
+});

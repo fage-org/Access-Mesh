@@ -1,3 +1,17 @@
+import {
+  startTenantSessionSync,
+  TenantSessionChangedError
+} from "./tenant-session";
+const { cookieJar } = vi.hoisted(() => ({
+  cookieJar: new Map<string, string>()
+}));
+vi.mock("js-cookie", () => ({
+  default: {
+    get: (key: string) => cookieJar.get(key),
+    set: (key: string, value: string) => cookieJar.set(key, value),
+    remove: (key: string) => cookieJar.delete(key)
+  }
+}));
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
 const { memStorage } = vi.hoisted(() => ({
@@ -28,10 +42,14 @@ import {
   setPlatformSession,
   removePlatformSession,
   userKey,
+  TokenKey,
   platformSessionKey
 } from "@/utils/auth";
 import { readDraftOwner } from "@/views/perm/grant/utils/draft-storage";
-beforeEach(() => memStorage.clear());
+beforeEach(() => {
+  memStorage.clear();
+  cookieJar.clear();
+});
 const platform = {
   accessToken: "operator-token",
   expires: Date.now() + 60000,
@@ -70,4 +88,31 @@ describe("independent identity storage", () => {
     memStorage.set(userKey, JSON.stringify({ userId: 1 }));
     expect(readDraftOwner()).toBeNull();
   });
+});
+
+it("stale tab cannot remove the cookie or metadata belonging to a new tenant session", () => {
+  const expires = Date.now() + 60000;
+  cookieJar.set(TokenKey, JSON.stringify({ accessToken: "A", expires }));
+  const stop = startTenantSessionSync({
+    read: () => ({
+      token: getToken()?.accessToken ?? null,
+      expires: getToken()?.expires ?? null
+    }),
+    invalidate: vi.fn(),
+    storageKey: userKey,
+    window: new EventTarget() as Window,
+    document: new EventTarget() as Document
+  });
+  try {
+    cookieJar.set(TokenKey, JSON.stringify({ accessToken: "B", expires }));
+    memStorage.set(
+      userKey,
+      JSON.stringify({ tenantId: 2, userId: 22, expires })
+    );
+    expect(() => removeToken()).toThrow(TenantSessionChangedError);
+    expect(getToken()?.accessToken).toBe("B");
+    expect(readDraftOwner()).toEqual({ tenantId: "2", userId: "22" });
+  } finally {
+    stop();
+  }
 });

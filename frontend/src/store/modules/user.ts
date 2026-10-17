@@ -1,3 +1,4 @@
+import { assertTenantSessionCurrent } from "@/utils/tenant-session";
 import { oauthReturnTarget } from "@/views/oauth-consent/flow";
 import { closeAllDialog } from "@/components/ReDialog/store";
 import { defineStore } from "pinia";
@@ -56,6 +57,17 @@ export const useUserStore = defineStore("pure-user", {
     loginDay: 7
   }),
   actions: {
+    /** Clear this tab's tenant UI only; shared credentials and platform state remain owned by their writers. */
+    clearLocalSessionState() {
+      this.avatar = "";
+      this.nickname = "";
+      this.username = "";
+      this.roles = [];
+      this.permissions = [];
+      this.menus = [];
+      this.menuLoadFailed = false;
+      this.menuGateStatus = "uninitialized";
+    },
     /** 存储头像 */
     SET_AVATAR(avatar: string) {
       this.avatar = avatar;
@@ -223,6 +235,7 @@ export const useUserStore = defineStore("pure-user", {
      *    重复触发（连点/拦截器程序化调用）的实际防护由 getToken() 无令牌幂等分支承担。
      */
     async logOut(returnTo?: unknown) {
+      assertTenantSessionCurrent();
       if (logoutInFlight) return;
       logoutInFlight = true;
       try {
@@ -232,12 +245,7 @@ export const useUserStore = defineStore("pure-user", {
             console.warn("[logOut] 服务端注销失败（不阻断本地清理）", err);
           });
         }
-        this.username = "";
-        this.roles = [];
-        this.permissions = [];
-        this.menus = [];
-        this.menuLoadFailed = false;
-        this.menuGateStatus = "uninitialized";
+        this.clearLocalSessionState();
         removeToken();
         // 会话终结清全局编辑弹窗（T-FE-068）：ReDialog 挂 App 层（router-view 之外）、
         // dialogStore 为模块级全局——登出不清则旧上下文弹窗浮在登录页，重登后旧对象

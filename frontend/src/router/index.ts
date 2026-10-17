@@ -1,3 +1,7 @@
+import {
+  assertTenantSessionCurrent,
+  TenantSessionChangedError
+} from "@/utils/tenant-session";
 import { oauthReturnTarget } from "@/views/oauth-consent/flow";
 // import "@/utils/sso";
 import Cookies from "js-cookie";
@@ -194,6 +198,15 @@ router.beforeEach((to: ToRouteType, _from, next) => {
     next();
     return;
   }
+  try {
+    assertTenantSessionCurrent();
+  } catch (error) {
+    if (!(error instanceof TenantSessionChangedError)) throw error;
+    // Commit only the location; App renders the blocked notice instead of the target route.
+    next();
+    return;
+  }
+
   if (to.meta?.keepAlive) {
     handleAliveRoute(to, "add");
     // 页面整体刷新和点击标签页刷新

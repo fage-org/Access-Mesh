@@ -1,3 +1,4 @@
+import type { TenantRequestStamp } from "@/utils/tenant-session";
 import type { AxiosError, AxiosResponse, AxiosRequestConfig } from "axios";
 
 export type resultType = {
@@ -16,6 +17,7 @@ export interface PureHttpResponse extends AxiosResponse {
 
 export interface PureHttpRequestConfig<D = any> extends AxiosRequestConfig<D> {
   authRealm?: "tenant" | "platform";
+  tenantSessionStamp?: TenantRequestStamp;
   beforeRequestCallback?: (request: PureHttpRequestConfig) => void;
   beforeResponseCallback?: (response: PureHttpResponse) => void;
 }
