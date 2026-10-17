@@ -166,6 +166,8 @@ public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
 现行入口为 `.github/workflows/ci.yml` 的 `dependency-security` job（push / PR / 手动 / 每周一 02:00 UTC）。Maven 先解析并安装 reactor 依赖，再用固定 `org.owasp:dependency-check-maven:12.2.2:aggregate` 扫描，JDK 21，包含 test/provided，`failBuildOnCVSS=7.0`、`failOnError=true`；NVD API key 可通过仓库 secret `NVD_API_KEY` 加速，没有 key 不豁免扫描失败。12.2.2 修复 NVD 参考链接超出旧数据库 URL 字段长度时的导入错误；出现逐条 CVE 导入错误时，即使工具继续运行也不能视为完整数据验收。OSS Index 补充源关闭以避免依赖另一个账户认证，Maven CVE 主检查使用 NVD；前端由 pnpm 单独扫描，不使用 Dependency Check 的 Node 审计适配器。
 
+CI 的 NVD 初始化使用官方年度压缩文件与 modified 文件（2026-10-17 用户批准）：`tools/security/download_nvd_feed.py` 核对官方 metadata、压缩/解压长度及 SHA-256；完整导入后，必须执行 `update-only -DnvdValidForHours=0` 强制官方 API 增量更新，两段成功才进入 aggregate。始终保留自动更新；不以快照时间代替 API 补齐。数据目录位于当前 runner 的临时目录，不发布或共享数据库缓存。下载、导入、增量、扫描各自保存完整日志并流式输出；任一步非零退出或 Maven `[ERROR]` 均阻断，不能把继续执行当作完整数据验收。原始 NVD metadata 清单随报告保存。
+
 前端固定 pnpm 11.5.0，按锁文件安装后执行 `pnpm audit --audit-level high --json`，包括生产与开发依赖；保留原始报告，再经 `tools/security/check-pnpm-audit.mjs` 执行高危门禁和下述唯一例外判断。不忽略 registry 错误或泛化豁免无修复版本。新增 Actions 固定到经标签核实的 commit SHA，报告即使失败也上传并保留 30 天。扫描失败、未执行、漏洞阻断与批准例外须分别报告；存量依赖修复由 T-ACCESS-105 承接，不以关闭扫描、调低门槛或未批准的忽略项获得绿色。
 
 ### braces 开发依赖临时例外

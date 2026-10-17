@@ -4,13 +4,15 @@
 
 2026-10-17，Dependency Check 12.1.9 导入 NVD 时对 CVE-2026-6785 / CVE-2026-6786 报 URL 超出 1000 字符字段长度。该工具会记录逐条错误后继续运行，不能以其继续执行推导为完整导入。[官方修复](https://github.com/dependency-check/DependencyCheck/issues/8466) 已在同一大版本的 12.2.2 发布，CI 与本地均固定到 12.2.2。
 
-本地首次初始化使用 NVD 官方年度压缩文件及 modified 文件；全部按官方 metadata 的 gzip 长度与解压后 SHA-256 核验，清单见 [官方文件元数据](nvd-feed-manifest-2026-10-17.json)。本地缓存只复用校验通过的原始文件，不修改 CVE 内容。12.2.2 的 `update-only` 完整导入通过，再执行 `update-only -DnvdValidForHours=0` 强制 API 增量更新，补齐 229 条更新，退出码 0、零逐条导入错误。CI 保持 NVD API 更新方式，不依赖本地缓存。
+本地首次初始化使用 NVD 官方年度压缩文件及 modified 文件；全部按官方 metadata 的 gzip 长度与解压后 SHA-256 核验，清单见 [官方文件元数据](nvd-feed-manifest-2026-10-17.json)。本地缓存只复用校验通过的原始文件，不修改 CVE 内容。12.2.2 的 `update-only` 完整导入通过，再执行 `update-only -DnvdValidForHours=0` 强制 API 增量更新，补齐 229 条更新，退出码 0、零逐条导入错误。该同源初始化流程已获准用于 CI：独立 runner 临时目录内校验并导入官方压缩文件，再强制 API 补齐；扫描器、更新标准和高危阈值保持。
 
 `mvn -B org.owasp:dependency-check-maven:12.2.2:aggregate -DfailBuildOnCVSS=7.0 -DfailOnError=true -DskipTestScope=false -DskipProvidedScope=false -Dformats=HTML,JSON -DossIndexAnalyzerEnabled=false -DnodeAuditAnalyzerEnabled=false`（本地另指定独立 dataDirectory 和报告目录）完成分析并因漏洞阈值退出 1。原始 [JSON 报告（gzip）](maven-audit-before-2026-10-17.json.gz) 的数据时间：NVD API Last Checked=`2026-10-17T11:39:37+08`，Last Modified=`2026-10-17T03:16:28Z`。
 
 基线报告：16 个报告条目存在 CVSS ≥ 7 匹配，共 131 个匹配项、127 个不同 CVE。计数不是已证实可利用的业务问题数；存在跨产品/语言的 CPE 错配，核实后按下述批准范围精确处置。
 
 CI 将完整扫描日志保存为 `reports/maven/scan.log`，保留 Maven 退出码，并额外拒绝任何 `[ERROR]` 日志。按工作流原样提取 Bash 片段，用命令替身验证：正常退出 0 → 0；逐条导入错误但命令退出 0 → 1；漏洞退出 1 → 1；工具失败退出 2 → 2。该验证是门禁接线行为证据，不等于 GitHub Actions 真实运行。
+
+CI 初始化校验：Python 完整性测试 4 项通过，原仅核对 SHA 的行为在长度/非法 metadata 用例中先失败；随后全部官方文件清单校验通过，并在空目录实际下载 modified 压缩包（12475853 字节）核验成功。按当前工作流提取导入/API Bash 片段验证 5 种组合：全成功、导入非零、导入记录错误但退出 0、API 非零、API 记录错误但退出 0；失败均阻断，导入失败时 API 不执行。aggregate 的 5 种失败保持用例也在 `pipefail + tee` 形式下通过，完整日志与退出码同时保留。
 
 ## 当前核实
 
@@ -61,6 +63,17 @@ CI 将完整扫描日志保存为 `reports/maven/scan.log`，保留 Maven 退出
 文档轨随后独立核对工程规范、架构、API、Gateway/接入指南、安全规则、AGENTS/README 与任务卡：发现旧 Gateway 配置前缀和 SDK 编解码注释残留（P3），已改为当前装配方式；Unreleased 补充迁移及风险接受说明。历史 superseded 契约和旧版本 CHANGELOG 保留历史事实。任务/计划未提前标终态，完整收口回归已通过，GitHub Actions 仍待真实执行。
 
 ## 本地验收与 CI 待办
+
+双轨已处理发现（位置为当前实现）：
+
+| 轨道/级别 | 位置 | 实证与处置 |
+|---|---|---|
+| 代码 P2 | `gateway/src/main/java/cn/ac/fage/accessmesh/gateway/filter/ClientIpHeadersFilter.java:14` | 实际装配的出站链把 XFF 清空；`GatewayApplicationConfigTest:142` 先失败，再验证仅按 socket 对端重建成功 |
+| 代码 P2 | `common/src/main/java/cn/ac/fage/accessmesh/common/cache/CacheAutoConfiguration.java:63` | 宿主以 ObjectMapper 声明 bean 时产生双 mapper；明确按 ObjectMapper 类型回退后，宿主复用测试通过 |
+| 代码 P2 | `perm-sdk/perm-registration-spring-boot-starter/src/main/java/cn/ac/fage/accessmesh/perm/registration/PermissionRegistrationPublisher.java:55` | 原严格 JSON 用例捕获到异常类型变化；保留 IOException 契约后原断言通过 |
+| 文档 P3 | `docs/design/project-rules.md:387`、`docs/design/extension-guide.md:68` | SDK 编解码装配与 Gateway 配置示例已同步到当前实现；本地链接检查无缺失目标 |
+
+实证通过项：代码轨确认无弱化授权断言、无删除测试、JWT 独立签名验证与旧签发器夹具通过、SDK 宿主隔离及缓存/HTTP/PG/E2E 链路通过；文档轨确认设计/任务/计划状态一致、批准例外未扩围、未用本地测试替代 CI 验收。存疑待用户决策项：无；已批准风险边界继续有效。过度设计可裁剪项：无，出站 IP 适配和测试范围门禁均有实际失败信号与调用链。
 
 2026-10-17 13:24:25，`mvn -B test -T 1C` 全 reactor 成功，**2870 项、0 失败、0 错误、0 跳过，17:30 min**；容器 execution 523 项、E2E 模块 33 项均执行，包含两种 heavy 验证，65540 行资源清理用例耗时 393.8 秒。整份日志落盘后解析 Maven execution 汇总，并与本次新生成 XML 中的 testcase 元素交叉核对一致；旧报告不计入。[分模块及测试类汇总](backend-verification-2026-10-17.json) 保留命令、结束时间和完整日志 SHA-256。
 

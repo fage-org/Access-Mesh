@@ -68,3 +68,5 @@ reference/
 .claude/worktrees/
 .reasonix
 .zcode/
+# Python security tooling bytecode
+/tools/security/__pycache__/

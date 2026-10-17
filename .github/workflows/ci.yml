@@ -37,21 +37,47 @@ jobs:
           cache-dependency-path: frontend/pnpm-lock.yaml
       - name: 解析并安装 reactor 依赖
         run: mvn -B install -DskipTests -Dspring-boot.repackage.skip=true
+      - name: 下载并校验 NVD 官方压缩数据
+        run: |
+          set -o pipefail
+          mkdir -p reports/maven
+          python3 -m unittest discover -s tools/security -p test_nvd_feed.py
+          python3 tools/security/download_nvd_feed.py "$RUNNER_TEMP/nvd-feed" \
+            --manifest reports/maven/nvd-feed-manifest.json \
+            2>&1 | tee reports/maven/nvd-feed-download.log
+      - name: 导入 NVD 快照并强制 API 增量更新
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: |
+          set -o pipefail
+          mvn -B -N org.owasp:dependency-check-maven:12.2.2:update-only \
+            -Dstyle.color=never -DfailOnError=true \
+            "-DdataDirectory=$RUNNER_TEMP/odc-data" \
+            "-DnvdDatafeedUrl=file://$RUNNER_TEMP/nvd-feed/nvdcve-2.0-{0}.json.gz" \
+            2>&1 | tee reports/maven/nvd-import.log
+          if grep -q '^\[ERROR\]' reports/maven/nvd-import.log; then exit 1; fi
+          mvn -B -N org.owasp:dependency-check-maven:12.2.2:update-only \
+            -Dstyle.color=never -DfailOnError=true -DnvdValidForHours=0 \
+            "-DdataDirectory=$RUNNER_TEMP/odc-data" \
+            -DnvdApiKeyEnvironmentVariable=NVD_API_KEY \
+            2>&1 | tee reports/maven/nvd-api-update.log
+          if grep -q '^\[ERROR\]' reports/maven/nvd-api-update.log; then exit 1; fi
       - name: Maven 已解析依赖扫描（包含 test/provided）
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
         run: |
+          set -o pipefail
           mkdir -p reports/maven
           scan_status=0
           mvn -B org.owasp:dependency-check-maven:12.2.2:aggregate \
             -Dstyle.color=never -DfailBuildOnCVSS=7.0 -DfailOnError=true \
+            "-DdataDirectory=$RUNNER_TEMP/odc-data" \
             -DsuppressionFiles=tools/security/dependency-check-suppressions.xml \
             -DskipTestScope=false -DskipProvidedScope=false \
             -Dformats=HTML,JSON -Dodc.outputDirectory=reports/maven \
             -DnvdApiKeyEnvironmentVariable=NVD_API_KEY \
             -DossIndexAnalyzerEnabled=false -DnodeAuditAnalyzerEnabled=false \
-            > reports/maven/scan.log 2>&1 || scan_status=$?
-          cat reports/maven/scan.log
+            2>&1 | tee reports/maven/scan.log || scan_status=$?
           # Dependency Check can log individual CVE import errors and continue.
           risk_status=0
           node --test tools/security/check-maven-audit.test.mjs || risk_status=$?
