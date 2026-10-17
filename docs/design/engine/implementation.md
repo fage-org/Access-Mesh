@@ -3,7 +3,7 @@ doc_type: design
 title: 权限中心 — 核心功能实现设计
 status: adopted
 domain: access-service
-last_reviewed: 2026-10-14
+last_reviewed: 2026-10-17
 ---
 
 # 权限中心 — 核心功能实现设计
@@ -487,6 +487,9 @@ scopeAll 条目不参与展开；query-resources 的树扩展（原 `expandResou
 ### 3.5 条件评估、互斥与审计证据
 
 **TRACE 访问边界（T-PERM-102，2026-10-04 确认）**：外部查询不开放 TRACE；生产适配层固定 `OutputSpec.trace=false`，外部 DTO 不透传 trace。引擎内部的显式诊断规格供可信内部代码与测试验证真实执行阶段，不增加无调用方的身份/诊断授权机制。未来新增对外或运维诊断入口，必须先定义身份来源和诊断授权后再启用 TRACE；当前没有此入口，不宣称已有诊断门禁。
+
+<a id="permission-diagnostics-status"></a>
+**管理诊断交付状态（Q-060，2026-10-17 用户明确暂缓）**：当前权限诊断入口与授权变更时间线暂不启动，继续保留问题跟踪；后续须由用户明确重启并确定交付范围及诊断授权。既有运行时查询、解释字段与上述 TRACE 边界保持不变；暂缓不代表该能力已交付或问题已关闭。
 
 - **条件评估模式**（`Evaluation`）：EVALUATE（运行时/门禁面默认，含拉平后的管理面写门禁）/
   PRESERVE（配置/转授资格面看原始授权行——条件身份保留、不下发评估结论）/ PRESERVE+SKIP

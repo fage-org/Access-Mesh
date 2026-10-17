@@ -18,7 +18,7 @@ last_updated: 2026-10-17
 <a id="q-060"></a>
 ## Q-060 权限排障能力新形态重做待重启
 
-- **状态**：open
+- **状态**：open（用户明确暂缓，2026-10-17）
 - **登记**：2026-10-05
 - **来源**：使用者视角评审立项拍板（D16=B 只做 G2/G3 小改，重做待重启；G4/G5 首次归属重做面）
 - **关联**：[T-PERM-107](archive/2026-10-06/tasks/T-PERM-107.md)（已承接的解释字段小修）；既有安排载体=[T-PERM-059](archive/2026-09-12/tasks/T-PERM-059.md)（done，「新设计方向另立任务」定案）与 [T-FE-043](archive/2026-09-12/tasks/T-FE-043.md)（cancelled，重做考虑事项随卡归档）；同事项旧登记 [Q-005](#q-005)（已收敛）；[计划](archive/2026-10-06/usage-review-remediation-plan.md)
@@ -29,6 +29,8 @@ last_updated: 2026-10-17
 
 **设想方向（未定案）**：单用户单资源「说人话」诊断入口+实例粒度+授权时间线；真实排障痛点积累后立项。
 
+**处理入口**：暂缓与重启边界见[管理诊断交付状态](design/engine/implementation.md#permission-diagnostics-status)。
+
 <a id="q-061"></a>
 ## Q-061 审计三表导出与保留策略（含 location 死列）
 
@@ -37,7 +39,7 @@ last_updated: 2026-10-17
 - **来源**：使用者视角评审立项拍板（D11=维持现状永久保留，导出/分区/TTL 后续考虑）
 - **关联**：[T-ACCESS-085](archive/2026-10-06/tasks/T-ACCESS-085.md)（已承接的门禁与留痕）；[计划](archive/2026-10-06/usage-review-remediation-plan.md)
 
-**现象与证据**：operation_log/change_log/sys_login_log 三表 DDL 注释「永久保留」，全文 0 处 PARTITION、无清理作业、无导出端点（audit 包 grep export/csv/download 零命中）——「把三个月审计交给合规」只能分页 API 手动翻页或直连库导。`sys_login_log.location` 列 DDL 有、代码从不写入（死列）。
+**现象与证据**：`operation_log` / `permission_change_log` / `sys_login_log` 无自动清理与导出端点；DDL 中操作日志和登录日志明确标注「永久保留」，权限变更日志记录 before/after/diff，现有保留口径见本条来源。当前可分页查询，操作与权限变更日志支持 since/until 时间过滤；「把三个月审计交给合规」仍需分页 API 拼接或直连库导出。`sys_login_log.location` 列及响应字段存在，当前代码不写入。上述表名与接口形态于 2026-10-17 核对。
 
 **影响与边界**：取证交付形态与增长上限无答案；长期运行 operation_log 是仅次于业务表的膨胀源。预览期数据量小，无真实合规需求支撑保留窗口参数选型。
 
