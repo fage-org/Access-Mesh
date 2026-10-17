@@ -140,4 +140,9 @@
           AND (status = 'FAILED' OR lease_until &lt; now())
     </update>
 
+    <select id="lockActiveAttempt" resultType="long" useCache="false" flushCache="true">
+        SELECT id FROM sys_task_execution WHERE tenant_id = #{tenantId} AND execution_key = #{executionKey}
+          AND attempt_count = #{attempt} AND status = 'RUNNING' AND delete_flag = 0
+          AND lease_until &gt; clock_timestamp() FOR UPDATE
+    </select>
 </mapper>

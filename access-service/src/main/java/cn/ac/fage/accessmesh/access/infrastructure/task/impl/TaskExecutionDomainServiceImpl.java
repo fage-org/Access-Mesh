@@ -123,4 +123,11 @@ public class TaskExecutionDomainServiceImpl implements TaskExecutionDomainServic
     public SysTaskExecution findByExecutionKey(Long tenantId, String executionKey) {
         return taskExecutionMapper.selectByTenantAndExecutionKey(tenantId, executionKey);
     }
+    @Override
+    public void lockActiveAttempt(cn.ac.fage.accessmesh.access.infrastructure.task.TaskExecutionContext context) {
+        if (!org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive())
+            throw new IllegalStateException("Task side effects require a transaction");
+        if (taskExecutionMapper.lockActiveAttempt(context.tenantId(), context.executionKey(), context.attemptCount()) == null)
+            throw new IllegalStateException("Task execution lease lost");
+    }
 }

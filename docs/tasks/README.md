@@ -10,17 +10,27 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| access-service 归并（跨服务） | `T-ACCESS` | 107 |
+| access-service 归并（跨服务） | `T-ACCESS` | 109 |
 | permission-center | `T-PERM` | 113 |
 | admin-service | `T-ADMIN` | 036 |
 | gateway | `T-GW` | 015 |
 | 组织/用户（跨 admin+perm） | `T-ORG` | 006 |
 | 跨服务 API 契约 | `T-API` | 014 |
-| 前端 | `T-FE` | 070 |
+| 前端 | `T-FE` | 071 |
 
 > 新建任务时从对应领域取下一编号，计数器 +1。
 
 ## 任务总表
+
+### 审计日志导出与保留策略
+
+[执行计划](../archive/2026-10-17/audit-log-lifecycle-plan.md)
+
+| ID | 标题 | 状态 | 直接依赖 | 回写 |
+|---|---|---|---|---|
+| [T-ACCESS-107](../archive/2026-10-17/tasks/T-ACCESS-107.md) | 有界审计 CSV 导出与登录日志字段清理 | ✅ | — | ✓ |
+| [T-ACCESS-108](../archive/2026-10-17/tasks/T-ACCESS-108.md) | 部署控制的审计期限清理 | ✅ | — | ✓ |
+| [T-FE-070](../archive/2026-10-17/tasks/T-FE-070.md) | 审计日志导出交互 | ✅ | T-ACCESS-107 | ✓ |
 
 ### 租户保底管理员连续性
 

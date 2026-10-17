@@ -61,4 +61,17 @@
         AND tenant_id = #{tenantId}
     </update>
 
+    <insert id="upsertAuditRetentionJobs">
+        INSERT INTO sys_job (tenant_id, job_name, job_group, invoke_target, cron_expression, status, remark)
+        VALUES <foreach collection="tenantIds" item="tenantId" separator=",">
+            (#{tenantId}, '审计日志保留清理', 'DEPLOYMENT', 'auditRetentionTask.cleanup', #{cron}, 1, '由部署配置管理，租户停用时暂停')
+        </foreach>
+        ON CONFLICT (tenant_id, invoke_target) WHERE delete_flag = 0 AND invoke_target = 'auditRetentionTask.cleanup'
+        DO UPDATE SET cron_expression = EXCLUDED.cron_expression, status = 1, updated_at = now()
+        WHERE sys_job.cron_expression IS DISTINCT FROM EXCLUDED.cron_expression OR sys_job.status != 1
+    </insert>
+    <update id="disableAuditRetentionJobs">
+        UPDATE sys_job SET status = 0, updated_at = now()
+        WHERE invoke_target = 'auditRetentionTask.cleanup' AND delete_flag = 0 AND status != 0
+    </update>
 </mapper>

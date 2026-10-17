@@ -1,3 +1,4 @@
+import { useAuditExport } from "@/utils/audit-export";
 import { reactive, onMounted } from "vue";
 import {
   getChangeLogList,
@@ -22,6 +23,22 @@ import { formatToWallClockIso } from "@/utils/wall-clock";
 export function usePermissionChangeLog() {
   const searchForm = reactive(createEmptySearchForm());
 
+  const filters = () => ({
+    entityType: searchForm.entityType || undefined,
+    entityId: searchForm.entityId ?? undefined,
+    eventType: searchForm.eventType || undefined,
+    changeSource: searchForm.changeSource || undefined,
+    affectedUserId: searchForm.affectedUserId ?? undefined,
+    affectedRoleId: searchForm.affectedRoleId ?? undefined,
+    since: searchForm.timeRange?.[0]
+      ? formatToWallClockIso(searchForm.timeRange[0])
+      : undefined,
+    until: searchForm.timeRange?.[1]
+      ? formatToWallClockIso(searchForm.timeRange[1])
+      : undefined
+  });
+  const { exporting, download } = useAuditExport("change", filters);
+
   const {
     tableData,
     loading,
@@ -35,22 +52,7 @@ export function usePermissionChangeLog() {
     fetcher: (page, size) =>
       // 后端 /api/access/log/change/list 返回 PageResp（服务端分页 + 全维度过滤）。
       // 前端不做本地过滤/切片——服务端已分页。
-      getChangeLogList({
-        entityType: searchForm.entityType || undefined,
-        entityId: searchForm.entityId ?? undefined,
-        eventType: searchForm.eventType || undefined,
-        changeSource: searchForm.changeSource || undefined,
-        affectedUserId: searchForm.affectedUserId ?? undefined,
-        affectedRoleId: searchForm.affectedRoleId ?? undefined,
-        since: searchForm.timeRange?.[0]
-          ? formatToWallClockIso(searchForm.timeRange[0])
-          : undefined,
-        until: searchForm.timeRange?.[1]
-          ? formatToWallClockIso(searchForm.timeRange[1])
-          : undefined,
-        pageNum: page,
-        pageSize: size
-      })
+      getChangeLogList({ ...filters(), pageNum: page, pageSize: size })
   });
 
   function onReset() {
@@ -69,6 +71,8 @@ export function usePermissionChangeLog() {
   });
 
   return {
+    exporting,
+    download,
     tableData,
     loading,
     searchForm,

@@ -48,7 +48,7 @@ RolePermissionItemResp 与其列表信封已由 perm-common 单源供服务端�
 | `ServiceCredentialCreateResp` | credentialId, expiresAt, id, secret, serviceCode, status |
 | `ServiceCredentialCreateReq` | expiresAt, serviceCode |
 | `ServiceCredentialUpdateReq` | expiresAt, id, status |
-| `LoginLogResp` | clientId, failReason, id, ipAddress, location, loginAt, loginType, status, userAgent, username |
+| `LoginLogResp` | clientId, failReason, id, ipAddress, loginAt, loginType, status, userAgent, username |
 | `SyncStatusResp` | entityKind, lastFullGeneration, lastFullStatus, maxGeneration, scopeKey, sourceService, trackedItems, updatedAt |
 | `SyncStatusListReq` | pageNum, pageSize, sourceService |
 | `PlatformAccountResp` | createdAt, forceResetPwd, id, name, status, updatedAt, username |

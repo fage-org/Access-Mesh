@@ -1,3 +1,4 @@
+import { useAuditExport } from "@/utils/audit-export";
 import { ref, reactive, onMounted } from "vue";
 import {
   getOperationLogList,
@@ -27,6 +28,21 @@ export function useOperationLog() {
     []
   );
 
+  const filters = () => ({
+    requestId: searchForm.requestId?.trim() || undefined,
+    module: searchForm.module || undefined,
+    action: searchForm.action || undefined,
+    operatorId: searchForm.operatorId ?? undefined,
+    since: searchForm.timeRange?.[0]
+      ? formatToWallClockIso(searchForm.timeRange[0])
+      : undefined,
+    until: searchForm.timeRange?.[1]
+      ? formatToWallClockIso(searchForm.timeRange[1])
+      : undefined,
+    targetType: searchForm.targetType || undefined
+  });
+  const { exporting, download } = useAuditExport("operation", filters);
+
   const {
     tableData,
     loading,
@@ -38,21 +54,7 @@ export function useOperationLog() {
   } = usePagedList<OperationLogResp>({
     errorText: "加载操作日志失败",
     fetcher: (page, size) =>
-      getOperationLogList({
-        requestId: searchForm.requestId?.trim() || undefined,
-        module: searchForm.module || undefined,
-        action: searchForm.action || undefined,
-        operatorId: searchForm.operatorId ?? undefined,
-        since: searchForm.timeRange?.[0]
-          ? formatToWallClockIso(searchForm.timeRange[0])
-          : undefined,
-        until: searchForm.timeRange?.[1]
-          ? formatToWallClockIso(searchForm.timeRange[1])
-          : undefined,
-        targetType: searchForm.targetType || undefined,
-        pageNum: page,
-        pageSize: size
-      })
+      getOperationLogList({ ...filters(), pageNum: page, pageSize: size })
   });
 
   async function loadActionOptions() {
@@ -84,6 +86,8 @@ export function useOperationLog() {
   });
 
   return {
+    exporting,
+    download,
     tableData,
     loading,
     searchForm,

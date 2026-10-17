@@ -17,6 +17,10 @@ vi.mock("@/api/permission-change-log", () => ({
   getChangeLogList: (...args: unknown[]) => mockGetChangeLogList(...args)
 }));
 
+vi.mock("@/utils/audit-export", () => ({
+  useAuditExport: () => ({ exporting: false, download: vi.fn() })
+}));
+
 import { usePermissionChangeLog } from "./hook";
 
 describe("权限变更日志页列表加载收敛（T-FE-051）", () => {

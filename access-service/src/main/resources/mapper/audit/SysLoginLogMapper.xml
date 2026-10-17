@@ -8,6 +8,8 @@
     <select id="selectByTenantIdPaged" resultType="cn.ac.fage.accessmesh.access.audit.entity.SysLoginLog">
         SELECT * FROM sys_login_log
         WHERE tenant_id = #{tenantId}
+        <if test="since != null">AND login_at &gt;= #{since}</if>
+        <if test="until != null">AND login_at &lt;= #{until}</if>
         ORDER BY login_at DESC, id DESC
         LIMIT #{limit} OFFSET #{offset}
     </select>
@@ -15,6 +17,15 @@
     <select id="countByTenantId" resultType="long">
         SELECT COUNT(*) FROM sys_login_log
         WHERE tenant_id = #{tenantId}
+        <if test="since != null">AND login_at &gt;= #{since}</if>
+        <if test="until != null">AND login_at &lt;= #{until}</if>
     </select>
 
+    <select id="exportByCondition" resultType="cn.ac.fage.accessmesh.access.audit.entity.SysLoginLog"
+            fetchSize="32" resultSetType="FORWARD_ONLY" useCache="false">
+        SELECT * FROM sys_login_log WHERE tenant_id = #{tenantId}
+        <if test="since != null">AND login_at &gt;= #{since}</if>
+        <if test="until != null">AND login_at &lt;= #{until}</if>
+        ORDER BY login_at DESC, id DESC LIMIT #{limit}
+    </select>
 </mapper>

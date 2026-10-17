@@ -31,10 +31,13 @@ public interface SysLoginLogMapper extends BaseMapper<SysLoginLog> {
      */
     List<SysLoginLog> selectByTenantIdPaged(@Param("tenantId") Long tenantId,
                                             @Param("offset") int offset,
-                                            @Param("limit") int limit);
+                                            @Param("limit") int limit, @Param("since") java.time.LocalDateTime since, @Param("until") java.time.LocalDateTime until);
 
     /**
      * 统计指定租户的登录日志数（用于分页计算）
      */
-    long countByTenantId(@Param("tenantId") Long tenantId);
+    long countByTenantId(@Param("tenantId") Long tenantId, @Param("since") java.time.LocalDateTime since, @Param("until") java.time.LocalDateTime until);
+    org.apache.ibatis.cursor.Cursor<SysLoginLog> exportByCondition(@Param("tenantId") Long tenantId,
+        @Param("since") java.time.LocalDateTime since, @Param("until") java.time.LocalDateTime until,
+        @Param("limit") int limit);
 }

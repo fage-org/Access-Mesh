@@ -3,7 +3,7 @@ doc_type: ops
 title: 生产部署基线
 status: adopted
 domain: cross-service
-last_reviewed: 2026-10-14
+last_reviewed: 2026-10-17
 ---
 
 # 生产部署基线（Deployment Baseline）
@@ -212,3 +212,12 @@ OAuth2 链签发时间容忍窗 `access.oauth2.clock-skew-tolerance-seconds`（�
 
 - [快速开始](../quickstart.md) / [rebuild runbook](../design/access-service-rebuild-runbook.md)（开发/验收环境重建）
 - [Gateway 设计](../design/services/gateway.md) / [架构设计](../design/architecture.md)
+
+
+## 审计日志保留与导出
+
+三类租户日志策略见[API 契约 §16.7](../design/access-service-api-contract.md#contract-section-16-7)。默认不清理，保留天数不设默认值。部署方在 access-service 的部署配置或 Nacos 中明确设置 `access.audit.retention.enabled` 和需要清理类别的 `operation-days` / `change-days` / `login-days`；未设置的类别继续保留。不要把这些键写入租户 `system_config`，该表不参与部署策略读取。
+
+配置在启动时读取，变更后统一更新并重启所有 access-service 实例；旧实例停止前仍可按旧期限执行。清理会直接永久删除在线记录，启用前按部署方需要完成备份。默认每天 UTC 18:00 执行；停用租户暂停，恢复后下一次执行处理已到期历史数据。任务执行、失败和删除计数沿用既有任务日志，部署任务不允许从租户任务接口编辑或手动触发。
+
+本版本按当前权威 DDL 备份/重建升级；`sys_login_log.location` 已退出，不提供原地迁移脚本。代码与测试的实施不会自动修改既有业务库。

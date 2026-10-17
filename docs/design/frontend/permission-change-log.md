@@ -178,3 +178,6 @@ T-PERM-032 起独立 `PERMISSION_CHANGE_LOG:VIEW`，mock/login.ts 四账号按�
 - diff_snapshot 含 permission/role/resource/before-after 组合，验证 diff 面板结构化渲染
 - createdAt 固定字符串（脚本禁用 Date.now），按 DESC 排序验证分页
 - 服务端分页 + 全维度过滤（T-PERM-032 筛选全集，对齐后端 Req；时间闭区间字符串可比）+ 全条目补 createdBy
+
+
+审计 CSV 导出：工具栏“导出筛选结果”复用当前筛选字段和本页 VIEW 权限，不受当前分页限制。后端行数或字节超限时显示拒绝提示，要求缩小筛选；JSON 错误响应不能保存为文件。离开页面取消请求，切换登录会话后丢弃旧结果。文件字段、脱敏和容量边界见[契约 §16.7](../access-service-api-contract.md#contract-section-16-7)。

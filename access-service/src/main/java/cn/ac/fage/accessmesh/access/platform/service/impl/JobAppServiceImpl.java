@@ -213,6 +213,7 @@ public class JobAppServiceImpl implements JobAppService {
         Long tenantId = TenantContextHolder.getTenantId();
 
         permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_JOB, OperationCode.CREATE);
+        requireTenantManaged(req.invokeTarget());
         validateCron(req.cronExpression());
 
         SysJob job = new SysJob();
@@ -260,6 +261,8 @@ public class JobAppServiceImpl implements JobAppService {
             throw new BizException(AccessErrorCode.JOB_NOT_FOUND.getCode(), AccessErrorCode.JOB_NOT_FOUND.getMessage());
         }
 
+        requireTenantManaged(existing.getInvokeTarget());
+        requireTenantManaged(req.invokeTarget());
         if (req.cronExpression() != null) {
             validateCron(req.cronExpression());
         }
@@ -305,13 +308,9 @@ public class JobAppServiceImpl implements JobAppService {
         List<String> resourceCodes = req.ids().stream().map(String::valueOf).toList();
         permissionValidator.checkBatchInstanceLevel(ResourceTypeCode.ADMIN_JOB, resourceCodes, OperationCode.DELETE);
 
-        // 先取消调度（必须循环执行调度器操作）
-        for (Long id : req.ids()) {
-            unscheduleJob(id);
-        }
-
-        // 批量查询有效任务（性能优化：避免 N+1 SELECT 查询）
         List<SysJob> jobs = jobMapper.selectValidByIds(tenantId, req.ids());
+        jobs.forEach(job -> requireTenantManaged(job.getInvokeTarget()));
+        for (Long id : req.ids()) unscheduleJob(id);
 
         // 批量软删除（性能优化：单次 SQL 替代循环）
         if (!jobs.isEmpty()) {
@@ -347,6 +346,7 @@ public class JobAppServiceImpl implements JobAppService {
             throw new BizException(AccessErrorCode.JOB_NOT_FOUND.getCode(), AccessErrorCode.JOB_NOT_FOUND.getMessage());
         }
 
+        requireTenantManaged(job.getInvokeTarget());
         job.setStatus(status);
         job.setUpdatedAt(LocalDateTime.now());
         jobMapper.update(job);
@@ -379,6 +379,7 @@ public class JobAppServiceImpl implements JobAppService {
         if (job == null) {
             throw new BizException(AccessErrorCode.JOB_NOT_FOUND.getCode(), AccessErrorCode.JOB_NOT_FOUND.getMessage());
         }
+        requireTenantManaged(job.getInvokeTarget());
         executeJob(job, null);
     }
 
@@ -820,6 +821,11 @@ public class JobAppServiceImpl implements JobAppService {
         /** 本轮计划触发时间（统一 UTC 表示；极端情况下未被调用时返回 null 走手动键） */
         LocalDateTime lastComputedFireTime() {
             return lastComputed;
+        }
+    }
+    private void requireTenantManaged(String target) {
+        if (cn.ac.fage.accessmesh.access.infrastructure.task.DeploymentJobTargets.isManaged(target)) {
+            throw new BizException(AccessErrorCode.DEPLOYMENT_JOB_READONLY.getCode(), AccessErrorCode.DEPLOYMENT_JOB_READONLY.getMessage());
         }
     }
 }

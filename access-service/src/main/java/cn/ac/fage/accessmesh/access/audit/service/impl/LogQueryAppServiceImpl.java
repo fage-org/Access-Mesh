@@ -214,16 +214,7 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
      * @return 变更日志响应对象
      */
     private ChangeLogResp toChangeLogResp(PermissionChangeLog c) {
-        return new ChangeLogResp(
-            c.getId(), c.getTenantId(), c.getEntityType(),
-            c.getEntityId(), c.getOperation(),
-            cn.ac.fage.accessmesh.access.infrastructure.util.SensitiveDataUtils.maskAuditSnapshot(c.getOldSnapshot()),
-            cn.ac.fage.accessmesh.access.infrastructure.util.SensitiveDataUtils.maskAuditSnapshot(c.getNewSnapshot()),
-            cn.ac.fage.accessmesh.access.infrastructure.util.SensitiveDataUtils.maskAuditSnapshot(c.getDiffSnapshot()),
-            c.getAffectedAbstractUserIds(), c.getAffectedAbstractRoleIds(),
-            cn.ac.fage.accessmesh.access.infrastructure.util.SensitiveDataUtils.maskText(c.getChangeReason()),
-            c.getChangeSource(), c.getCreatedBy(), c.getRequestId(), c.getCreatedAt()
-        );
+        return ChangeLogResp.from(c);
     }
 
     /**
@@ -233,13 +224,7 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
      * @return 操作日志响应对象
      */
     private OperationLogResp toOperationLogResp(OperationLog l) {
-        return new OperationLogResp(
-            l.getId(), l.getTenantId(), l.getModule(), l.getAction(),
-            l.getTargetType(), l.getTargetId(),
-            cn.ac.fage.accessmesh.access.infrastructure.util.SensitiveDataUtils.maskText(l.getSummary()), l.getOperatorId(),
-            cn.ac.fage.accessmesh.access.infrastructure.util.SensitiveDataUtils.maskText(l.getOperatorName()),
-            l.getIpAddress(), l.getRequestId(), l.getCreatedAt()
-        );
+        return OperationLogResp.from(l);
     }
 
 }

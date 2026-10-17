@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.audit.dto.resp;
 
 import java.time.LocalDateTime;
+import cn.ac.fage.accessmesh.access.audit.entity.PermissionChangeLog;
 
 /**
  * 变更日志响应体
@@ -41,4 +42,17 @@ public record ChangeLogResp(
     Long createdBy,
     String requestId,
     LocalDateTime createdAt
-) {}
+) {
+    public static ChangeLogResp from(PermissionChangeLog c) {
+        return new ChangeLogResp(
+            c.getId(), c.getTenantId(), c.getEntityType(),
+            c.getEntityId(), c.getOperation(),
+            cn.ac.fage.accessmesh.access.infrastructure.util.SensitiveDataUtils.maskAuditSnapshot(c.getOldSnapshot()),
+            cn.ac.fage.accessmesh.access.infrastructure.util.SensitiveDataUtils.maskAuditSnapshot(c.getNewSnapshot()),
+            cn.ac.fage.accessmesh.access.infrastructure.util.SensitiveDataUtils.maskAuditSnapshot(c.getDiffSnapshot()),
+            c.getAffectedAbstractUserIds(), c.getAffectedAbstractRoleIds(),
+            cn.ac.fage.accessmesh.access.infrastructure.util.SensitiveDataUtils.maskText(c.getChangeReason()),
+            c.getChangeSource(), c.getCreatedBy(), c.getRequestId(), c.getCreatedAt()
+        );
+    }
+}

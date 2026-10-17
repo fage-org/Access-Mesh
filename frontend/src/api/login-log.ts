@@ -10,15 +10,18 @@ export type LoginLog = {
   status: number;
   ipAddress: string | null;
   userAgent: string | null;
-  location: string | null;
   failReason: string | null;
   loginAt: string;
 };
-export const pageLoginLogs = async (pageNum: number, pageSize: number) =>
+export const pageLoginLogs = async (
+  pageNum: number,
+  pageSize: number,
+  filters: { since?: string; until?: string } = {}
+) =>
   unwrap(
     await http.request<R<PageResp<LoginLog>>>(
       "post",
       "/api/access/login-log/page",
-      { data: { pageNum, pageSize } }
+      { data: { ...filters, pageNum, pageSize } }
     )
   );

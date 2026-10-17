@@ -96,4 +96,6 @@ public interface SysJobMapper extends BaseMapper<SysJob> {
     int softDeleteBatch(@Param("tenantId") Long tenantId,
                         @Param("ids") List<Long> ids,
                         @Param("deletedAt") LocalDateTime deletedAt);
+    int upsertAuditRetentionJobs(@Param("tenantIds") List<Long> tenantIds, @Param("cron") String cron);
+    int disableAuditRetentionJobs();
 }

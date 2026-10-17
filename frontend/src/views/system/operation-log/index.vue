@@ -17,6 +17,8 @@ defineOptions({
 });
 
 const {
+  exporting,
+  download,
   tableData,
   loading,
   searchForm,
@@ -167,6 +169,11 @@ const columns = [
               </el-button>
             </el-form-item>
           </el-form>
+        </template>
+        <template #buttons>
+          <el-button v-if="canView" :loading="exporting" @click="download"
+            >导出筛选结果</el-button
+          >
         </template>
         <template v-slot="{ size, dynamicColumns }">
           <pure-table

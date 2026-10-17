@@ -2111,7 +2111,7 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
 
 POST + JSON，门禁为 OPERATION_LOG:VIEW 类型级，租户仅取可信上下文。Gateway 已登记该接口；管理页为 /system/login-log。
 
-请求使用 PageReq：pageNum/pageSize 可选，缺省 1/20、上限 200，超限 HTTP 400；sort 当前不参与排序，固定按登录时间降序。响应为 R<PageResp<LoginLogResp>>，含 items/total/pageNum/pageSize/hasNext。
+请求使用 LoginLogListReq：pageNum/pageSize 可选，缺省 1/20、上限 200，超限 HTTP 400；since/until 为可选 UTC 时间闭区间；sort 沿用接受但不参与排序的行为，固定按 loginAt、id 降序。响应为 R<PageResp<LoginLogResp>>，含 items/total/pageNum/pageSize/hasNext。
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
@@ -2122,7 +2122,6 @@ POST + JSON，门禁为 OPERATION_LOG:VIEW 类型级，租户仅取可信上下�
 | status | Integer | 1 成功 / 0 失败 |
 | ipAddress | String? | 原始 IP，按本计划展示口径保留 |
 | userAgent | String? | 客户端信息，明确敏感文本掩码 |
-| location | String? | 现有写入口未填充，不能推断地理位置 |
 | failReason | String? | 失败原因，读取时脱敏 |
 | loginAt | LocalDateTime | UTC 时间 |
 
@@ -2131,21 +2130,31 @@ POST + JSON，门禁为 OPERATION_LOG:VIEW 类型级，租户仅取可信上下�
 <a id="contract-section-16-7"></a>
 ### 16.7 审计日志导出与保留策略
 
-**已采纳范围，尚未实施（Q-061，2026-10-17 用户选择 B）**：租户操作日志 `operation_log`、权限变更日志 `permission_change_log`、登录日志 `sys_login_log` 的导出与保留策略同批推进，不仅补下载入口。执行以下已采纳边界，`location` 字段处置尚待确定；未配置期限并启用清理前不删除历史记录。
+**当前实现（Q-061）**：租户操作日志 `operation_log`、权限变更日志 `permission_change_log`、登录日志 `sys_login_log` 的导出与保留策略同批推进。执行以下已采纳边界；未配置期限并启用清理前不删除历史记录。实施见[计划](../archive/2026-10-17/audit-log-lifecycle-plan.md)。
 
-**到期处理（2026-10-17 用户选择 B2，尚未实施）**：超过配置的保留期限后直接删除在线日志，不以归档成功为前提，不增加审计归档存储与归档恢复机制。清理完成后，本功能不再提供被删记录的查询或导出；另行保存的导出文件或运维备份仍按各自既有方式管理，不因清理在线记录而被删除。
+**到期处理（2026-10-17 用户选择 B2）**：超过配置的保留期限后直接删除在线日志，不以归档成功为前提，不增加审计归档存储与归档恢复机制。清理完成后，本功能不再提供被删记录的查询或导出；另行保存的导出文件或运维备份仍按各自既有方式管理，不因清理在线记录而被删除。
 
-**期限与默认行为（2026-10-17 用户选择 C1，尚未实施）**：三类日志分别配置保留天数，不预设正数保留期；清理默认不启用。只有明确配置期限并启用清理后，对应类别才按期限删除；未配置期限的类别继续永久保留。部署新版本本身不触发历史记录清理。日志文件轮转的 90/180 天规则不作为数据库审计表的默认期限。
+**期限与默认行为（2026-10-17 用户选择 C1）**：三类日志分别配置保留天数，不预设正数保留期；清理默认不启用。只有明确配置期限并启用清理后，对应类别才按期限删除；未配置期限的类别继续永久保留。部署新版本本身不触发历史记录清理。日志文件轮转的 90/180 天规则不作为数据库审计表的默认期限。
 
-**配置归属与作用域（2026-10-17 用户选择 D1，尚未实施）**：清理开关和各类日志保留天数由部署方通过部署配置／Nacos 统一管理，整个部署的所有租户使用同一套策略。不增加租户侧或平台侧的策略管理界面，不支持租户覆盖部署策略；租户 `SYSTEM_CONFIG:MANAGE` 不因此获得修改审计保留策略的能力。本项不扩大平台运营人员读取租户日志的权限。
+**配置归属与作用域（2026-10-17 用户选择 D1）**：清理开关和各类日志保留天数由部署方通过部署配置／Nacos 统一管理，整个部署的所有租户使用同一套策略。不增加租户侧或平台侧的策略管理界面，不支持租户覆盖部署策略；租户 `SYSTEM_CONFIG:MANAGE` 不因此获得修改审计保留策略的能力。本项不扩大平台运营人员读取租户日志的权限。
 
-**导出权限与数据口径（2026-10-17 用户选择 E1，尚未实施）**：导出沿用对应查看权限：操作日志与登录日志为 `OPERATION_LOG:VIEW`，权限变更日志为 `PERMISSION_CHANGE_LOG:VIEW`，不新增独立 `EXPORT` 授权。仅导出可信当前租户内、调用者有权查询的结果，沿用现有查询响应字段及脱敏口径，不增加原始数据库字段或未脱敏数据出口。部署方拥有清理策略配置权，不因此获得产品接口中的租户日志读取或导出权限。
+**导出权限与数据口径（2026-10-17 用户选择 E1）**：导出沿用对应查看权限：操作日志与登录日志为 `OPERATION_LOG:VIEW`，权限变更日志为 `PERMISSION_CHANGE_LOG:VIEW`，不新增独立 `EXPORT` 授权。仅导出可信当前租户内、调用者有权查询的结果，沿用现有查询响应字段及脱敏口径，不增加原始数据库字段或未脱敏数据出口。部署方拥有清理策略配置权，不因此获得产品接口中的租户日志读取或导出权限。
 
-**导出交付与容量（2026-10-17 用户选择 F1，尚未实施）**：当次请求直接下载 CSV，不创建后台导出任务或待领取文件。默认单次上限为 10000 条、20 MiB，部署方可调整；任一上限超出均明确拒绝并要求缩小筛选范围，不静默截断为部分结果。导出对应筛选结果，不限定为列表当前页；文件沿用上段的字段与脱敏边界。
+**导出交付与容量（2026-10-17 用户选择 F1）**：当次请求直接下载 CSV，不创建后台导出任务或待领取文件。默认单次上限为 10000 条、20 MiB，部署方可调整；任一上限超出均明确拒绝并要求缩小筛选范围，不静默截断为部分结果。导出对应筛选结果，不限定为列表当前页；文件沿用上段的字段与脱敏边界。
 
-**清理调度与配置生效（2026-10-17 用户选择 G1，尚未实施）**：清理配置在服务启动时读取，部署配置／Nacos 变更后通过重启对应实例生效，不增加运行时热刷新；旧实例停止前仍按旧配置运行，多实例部署须统一更新。启用后的清理默认每天 UTC 18:00（北京时间次日 02:00）执行，时刻由部署方配置；到期记录在后续清理执行时处理，不承诺到期瞬间删除。继续遵守默认关闭及未配置期限的类别不清理。
+**清理调度与配置生效（2026-10-17 用户选择 G1）**：清理配置在服务启动时读取，部署配置／Nacos 变更后通过重启对应实例生效，不增加运行时热刷新；旧实例停止前仍按旧配置运行，多实例部署须统一更新。启用后的清理默认每天 UTC 18:00（北京时间次日 02:00）执行，时刻由部署方配置；到期记录在后续清理执行时处理，不承诺到期瞬间删除。继续遵守默认关闭及未配置期限的类别不清理。
 
-新策略确定并完成实施验收前，当前永久保留口径继续适用。平台独立审计 `platform_audit_log` 不在 Q-061 原有三表范围内，其现行永久保留及平台身份边界不随本范围选择改变。`sys_login_log.location` 的后续处置仍待确定。
+**空字段退出（2026-10-17 用户选择 H1）**：移除 `sys_login_log.location` 的权威 DDL 列定义、实体、响应、前端类型与契约声明，CSV 不包含该字段；IP 地址及其他审计字段保留。不新增地理定位能力，旧环境沿现有备份/重建流程升级。
+
+**停用租户（2026-10-17 用户选择 I1）**：租户停用期间暂停清理，恢复后按当前保留期限处理。清理任务保留租户即时门禁；每个删除批次在租户状态锁内检查状态，避免停用已经提交后仍开始新一批删除。停用动作本身不删除日志。
+
+平台独立审计 `platform_audit_log` 不在本次三表范围内，其永久保留及平台身份边界不变。
+
+**接口与文件协议**：三个 POST JSON 端点分别为 `/api/access/log/operation/export`、`/api/access/log/change/export`、`/api/access/login-log/export`。请求分别为 OperationLogExportReq、ChangeLogExportReq、LoginLogExportReq：前两者沿用对应 list 筛选字段但不含 pageNum/pageSize，后者为 since/until。成功响应为 `text/csv;charset=UTF-8` 文件（统一 R 信封的文件下载例外），失败仍沿用现有 HTTP/业务错误信封；超限为 `11201 AUDIT_EXPORT_LIMIT_EXCEEDED`。文件为 UTF-8 BOM、双引号包围各单元格、CRLF 行分隔，文本公式前缀加单引号中和；列名对应现有响应字段，时间为 UTC。生成完整文件后才写 HTTP 响应，查询在事务中通过单条游标 SELECT 的固定语句快照读取，按时间/id 降序，最多读取上限加一条；行数不含表头，字节数包含 BOM、表头、转义与换行。
+
+**部署参数**（均为启动快照）：`access.audit.export.max-rows=10000`、`access.audit.export.max-bytes=20971520`；`access.audit.retention.enabled=false`、`access.audit.retention.cron=0 0 18 * * *`；`access.audit.retention.operation-days` / `change-days` / `login-days` 缺省为空，配置时必须为正整数天。导出行数须为正数且小于 Integer.MAX_VALUE，字节上限至少容纳 BOM；无效配置拒绝启动。
+
+**执行边界**：部署任务调用目标固定为 `auditRetentionTask.cleanup`，每租户最多一条有效任务，由启动及每 60 秒批量对账同步，新租户下次对账进入。默认关闭时不创建任务并停用已有该任务。租户任务 create/update/remove/toggle/trigger 不得创建、改变或手动执行该目标，拒绝码为 `10603 DEPLOYMENT_JOB_READONLY`；JobResp.deploymentManaged 标识只读归属。定时执行沿用数据库租约、续租及接管，按原计划时刻减保留天数固定截止线，只删除时间严格小于截止线的行，每批最多 500 条、独立短事务。批次按租户行锁→当前任务尝试行锁的顺序检查租户启用及有效租约，拒绝过期尝试，锁持续到删除提交；因此停用提交后不能开始新批，恢复后在下一次调度按当前策略清理。失败重试可继续删除剩余到期行，不重复产生归档副本。执行计数/失败由既有任务日志记录；不为每条删除生成新审计日志。
 
 <a id="contract-section-17"></a>
 ## 17. platform 能力（文件与系统配置）
@@ -2256,7 +2265,7 @@ POST + JSON，门禁为 OPERATION_LOG:VIEW 类型级，租户仅取可信上下�
 
 **job 写入与注册观测（T-ADMIN-032，2026-10-04 确认）**：create/update 的 cron 使用 Spring `CronExpression` 同源解析；非法表达式返回 `10602 JOB_CRON_INVALID`，拒绝写入且不取消当前调度。update 缺省 cron 保留原值。运行时注册失败保留启用配置，由现有 60 秒对账重试；detail/page 增加本实例注册状态及实例标识，数据库 `status` 仍仅表示启停配置。本实例结果不代表其他实例或集群整体，不新增持久化注册状态或告警框架。
 
-响应新增 `localScheduled`（本实例存在未取消且未完成的调度）、`localCronExpression`（实际注册的 cron，未注册为 null）、`scheduleInstanceId`（进程内稳定、重启变化的不透明标识）。将数据库 `status`/`cronExpression` 与本地字段对照，可识别未注册及对账窗口内的配置差异；不返回内部主机名、执行目标或异常细节。空调度句柄及已完成/取消句柄均视为未注册，后续对账重试。
+响应包含 `deploymentManaged`（部署方管理任务只读归属，见 §16.7）、`localScheduled`（本实例存在未取消且未完成的调度）、`localCronExpression`（实际注册的 cron，未注册为 null）、`scheduleInstanceId`（进程内稳定、重启变化的不透明标识）。将数据库 `status`/`cronExpression` 与本地字段对照，可识别未注册及对账窗口内的配置差异；不返回内部主机名、执行目标或异常细节。空调度句柄及已完成/取消句柄均视为未注册，后续对账重试。
 
 公告 update 受众省略时沿当前全量语义。当前 my-notices 不分页、targetUserIds 未设 @Size，这是现状说明，不是永久不分页或不设容量上限的决定；权限引擎的 1000 项上限未覆盖公告端点。损坏受众数据反序列化失败上抛，门禁先于内容读取；新增分页/容量限制须定义兼容边界。[来源](../archive/2026-09-26/decision-registry-history.md)（原第 37 行）。
 
@@ -3099,6 +3108,8 @@ schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正�
 | 10801-10899 | OAuth2 客户端相关错误 |
 | 10901-10999 | 认证/外部服务相关错误 |
 | 11001-11099 | 组织树配置相关错误 |
+| 11101-11199 | 平台运营与租户生命周期错误 |
+| 11201-11299 | 审计日志交付相关错误 |
 | 20001-29999 | 权限域（角色/授权/资源/类型/条件/域/同步投影等）错误；20070-20079 操作准入协议 OPERATION_ADMISSION（契约总册 §25，T-ACCESS-056） |
 
 分段与单册 `AccessErrorCode` 类注释权威一致（T-ACCESS-038 合一后唯一权威；2026-10-06 逐任务评审修正旧表与枚举错位——本节是 §20.3 数值索引 57/140 行的分段落点，旧表虚构子段已删）。历史退役码以 ErrorCodeContractTest 退役登记为准。
@@ -3178,6 +3189,8 @@ schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正�
 | `10507` | FILE_READ_FAILED | [§17.1.4](#contract-section-17-1-4)、[§17.1.6](#contract-section-17-1-6) | [源码](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/enums/AccessErrorCode.java) |
 | `10601` | JOB_NOT_FOUND | [§20.1](#contract-section-20-1) | [源码](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/enums/AccessErrorCode.java) |
 | `10602` | JOB_CRON_INVALID | [§17.3](#contract-section-17-3) | [源码](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/enums/AccessErrorCode.java) |
+| `10603` | DEPLOYMENT_JOB_READONLY | [§16.7](#contract-section-16-7) | [源码](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/enums/AccessErrorCode.java) |
+| `11201` | AUDIT_EXPORT_LIMIT_EXCEEDED | [§16.7](#contract-section-16-7) | [源码](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/enums/AccessErrorCode.java) |
 | `10801` | CLIENT_ID_EXISTS | [§20.1](#contract-section-20-1) | [源码](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/enums/AccessErrorCode.java) |
 | `10802` | CLIENT_NOT_FOUND | [§20.1](#contract-section-20-1) | [源码](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/enums/AccessErrorCode.java) |
 | `10900` | EXTERNAL_SERVICE_ERROR | [§20.1](#contract-section-20-1) | [源码](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/enums/AccessErrorCode.java) |

@@ -31,20 +31,6 @@ last_updated: 2026-10-17
 
 **处理入口**：暂缓与重启边界见[管理诊断交付状态](design/engine/implementation.md#permission-diagnostics-status)。
 
-<a id="q-061"></a>
-## Q-061 审计三表导出与保留策略（含 location 死列）
-
-- **状态**：open
-- **登记**：2026-10-05
-- **来源**：使用者视角评审立项拍板（D11=维持现状永久保留，导出/分区/TTL 后续考虑）
-- **关联**：[T-ACCESS-085](archive/2026-10-06/tasks/T-ACCESS-085.md)（已承接的门禁与留痕）；[计划](archive/2026-10-06/usage-review-remediation-plan.md)
-
-**现象与证据**：`operation_log` / `permission_change_log` / `sys_login_log` 无自动清理与导出端点；DDL 中操作日志和登录日志明确标注「永久保留」，权限变更日志记录 before/after/diff，现有保留口径见本条来源。当前可分页查询，操作与权限变更日志支持 since/until 时间过滤；「把三个月审计交给合规」仍需分页 API 拼接或直连库导出。`sys_login_log.location` 列及响应字段存在，当前代码不写入。上述表名与接口形态于 2026-10-17 核对。
-
-**影响与边界**：取证交付形态与增长上限无答案；长期运行 operation_log 是仅次于业务表的膨胀源。预览期数据量小，无真实合规需求支撑保留窗口参数选型。
-
-**处理入口**：导出与保留策略主要边界已确认，见[契约 §16.7](design/access-service-api-contract.md#contract-section-16-7)；location 字段处置仍待确定，范围可执行后转任务。
-
 <a id="q-062"></a>
 ## Q-062 未成册五族契约补册（等接口完全稳定）
 
@@ -300,6 +286,7 @@ last_updated: 2026-10-17
 
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
+| <a id="q-061"></a>Q-061 | 审计三表导出与保留策略、location 退出 | 已收敛：有界 CSV 与默认关闭的部署清理已实施；停用租户暂停 | [T-ACCESS-107/108、T-FE-070](archive/2026-10-17/audit-log-lifecycle-plan.md) | 2026-10-17 |
 | <a id="q-059"></a>Q-059 | 管理员治理：能力守卫与最后管理员保护 | 已收敛：保底成员连续性与成员审计已实施；成员管理保留既有门禁，规则见租户生命周期 | [T-ACCESS-106](archive/2026-10-17/tasks/T-ACCESS-106.md) | 2026-10-17 |
 | <a id="q-064"></a>Q-064 | 不存在的 MVC 资源被兜底映射为 HTTP 500 | 已修复（2026-10-07 轻量清扫批）：common `GlobalExceptionHandler` 补 `NoResourceFoundException` 映射——HTTP 404 + 信封 code=404（与 SecurityException→403 映射形态一致），不再落 `Exception` 兜底 500；`ExampleServiceApplicationTest` 恢复业务端口未知路径断言（404+code=404 实跑绿；旧实现 500 已有 2026-10-06 实跑记录实证）。边界核对随批闭合：`NoHandlerFoundException` 需 `throwExceptionIfNoHandlerFound` 显式开启（默认关）本栈不可达不处理；`HttpRequestMethodNotSupportedException`（405 族）仍走兜底 500，非本条登记面不扩。架构册 `/actuator/**` 行同批订正 | —（2026-10-07 轻量清扫批，无任务卡载体） | 2026-10-07 |
 | <a id="q-058"></a>Q-058 | MenuDomainService 两个零调用树写方法（deleteWithChildren/insertBatch） | 已删除（2026-10-07 轻量清扫批）：接口+实现整体删除，全仓零调用复核（含测试）；消除无锁树批量软删 API 未来误用绕过菜单树写互斥的通道（Q-048 同型；Q-010 死方法清理先例）；menu 定向测试 28 项绿 | [T-ADMIN-031](archive/2026-10-04/tasks/T-ADMIN-031.md)（发现载体） | 2026-10-07 |

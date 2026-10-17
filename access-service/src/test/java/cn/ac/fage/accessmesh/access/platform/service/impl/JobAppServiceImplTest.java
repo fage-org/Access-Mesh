@@ -124,6 +124,44 @@ class JobAppServiceImplTest {
         return job;
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"auditRetentionTask.cleanup", " auditRetentionTask.cleanup. "})
+    void deploymentTargetCannotBeClonedOrChangedByTenant(String target) {
+        TenantContextHolder.setTenantId(TENANT_ID);
+        try {
+            var service = newService();
+            assertThatThrownBy(() -> service.createJob(new JobCreateReq("cleanup", null, target, "0 0 0 * * *", null, 1, null)))
+                .isInstanceOf(BizException.class).extracting("errorCode").isEqualTo(10603);
+            verifyNoInteractions(jobMapper, taskScheduler);
+        } finally { TenantContextHolder.clear(); }
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"update", "toggle", "trigger", "delete"})
+    void deploymentJobRejectsTenantWritesBeforeAnySchedulingSideEffect(String action) {
+        TenantContextHolder.setTenantId(TENANT_ID);
+        try {
+            var job = enabledJob(1L, TENANT_ID, "0 0 18 * * *");
+            job.setInvokeTarget("auditRetentionTask.cleanup");
+            var service = newService();
+            Runnable operation;
+            if (action.equals("delete")) {
+                when(jobMapper.selectValidByIds(TENANT_ID, List.of(1L))).thenReturn(List.of(job));
+                operation = () -> service.deleteJobs(new cn.ac.fage.accessmesh.access.infrastructure.dto.IdsReq(List.of(1L)));
+            } else {
+                when(jobMapper.selectValidById(TENANT_ID, 1L)).thenReturn(job);
+                operation = switch (action) {
+                    case "update" -> () -> service.updateJob(new JobUpdateReq(1L, null, null, null, null, null, null, null));
+                    case "toggle" -> () -> service.toggleJobStatus(1L, 0);
+                    default -> () -> service.triggerJob(1L);
+                };
+            }
+            assertThatThrownBy(operation::run).isInstanceOf(BizException.class).extracting("errorCode").isEqualTo(10603);
+            verifyNoInteractions(taskScheduler, taskExecutor, taskExecutionDomainService);
+            assertThat(job.getStatus()).isEqualTo(1);
+        } finally { TenantContextHolder.clear(); }
+    }
+
     @Test
     void invalidCronCannotBeSavedEvenWhenDisabled() {
         TenantContextHolder.setTenantId(TENANT_ID);

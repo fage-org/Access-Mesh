@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.audit.dto.resp;
 
 import java.time.LocalDateTime;
+import cn.ac.fage.accessmesh.access.audit.entity.OperationLog;
 
 /**
  * 操作日志响应体
@@ -36,4 +37,14 @@ public record OperationLogResp(
     String ipAddress,
     String requestId,
     LocalDateTime createdAt
-) {}
+) {
+    public static OperationLogResp from(OperationLog l) {
+        return new OperationLogResp(
+            l.getId(), l.getTenantId(), l.getModule(), l.getAction(),
+            l.getTargetType(), l.getTargetId(),
+            cn.ac.fage.accessmesh.access.infrastructure.util.SensitiveDataUtils.maskText(l.getSummary()), l.getOperatorId(),
+            cn.ac.fage.accessmesh.access.infrastructure.util.SensitiveDataUtils.maskText(l.getOperatorName()),
+            l.getIpAddress(), l.getRequestId(), l.getCreatedAt()
+        );
+    }
+}

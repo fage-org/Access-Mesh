@@ -61,10 +61,6 @@ public class SysLoginLog {
      */
     private String userAgent;
 
-    /**
-     * 登录地点
-     */
-    private String location;
 
     /**
      * 登录状态（0=失败，1=成功）

@@ -140,4 +140,5 @@ public interface SysTaskExecutionMapper extends BaseMapper<SysTaskExecution> {
                          @Param("expectedAttempt") int expectedAttempt,
                          @Param("maxAttempts") int maxAttempts,
                          @Param("reason") String reason);
+    Long lockActiveAttempt(@Param("tenantId") Long tenantId, @Param("executionKey") String executionKey, @Param("attempt") int attempt);
 }

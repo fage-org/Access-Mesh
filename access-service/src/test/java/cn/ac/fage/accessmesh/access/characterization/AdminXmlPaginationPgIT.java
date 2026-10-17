@@ -232,10 +232,10 @@ class AdminXmlPaginationPgIT {
                 + "VALUES (?, 'PASSWORD', now() - interval '" + (i * 10) + " minutes')", tenant);
         }
 
-        assertThat(loginLogMapper.countByTenantId(tenant)).isEqualTo(5L);
-        assertThat(loginLogMapper.selectByTenantIdPaged(tenant, 0, 2)).hasSize(2);
-        assertThat(loginLogMapper.selectByTenantIdPaged(tenant, 4, 2)).hasSize(1);
-        assertThat(loginLogMapper.selectByTenantIdPaged(tenant, 6, 2)).isEmpty();
+        assertThat(loginLogMapper.countByTenantId(tenant, null, null)).isEqualTo(5L);
+        assertThat(loginLogMapper.selectByTenantIdPaged(tenant, 0, 2, null, null)).hasSize(2);
+        assertThat(loginLogMapper.selectByTenantIdPaged(tenant, 4, 2, null, null)).hasSize(1);
+        assertThat(loginLogMapper.selectByTenantIdPaged(tenant, 6, 2, null, null)).isEmpty();
     }
 
     @Test

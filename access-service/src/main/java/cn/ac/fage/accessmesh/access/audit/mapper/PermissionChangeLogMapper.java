@@ -61,4 +61,14 @@ public interface PermissionChangeLogMapper extends BaseMapper<PermissionChangeLo
                           @Param("until") LocalDateTime until,
                           @Param("eventTypes") List<String> eventTypes,
                           @Param("changeSource") String changeSource);
+    org.apache.ibatis.cursor.Cursor<PermissionChangeLog> exportByCondition(@Param("tenantId") Long tenantId,
+                                                    @Param("entityType") String entityType,
+                                                    @Param("entityId") Long entityId,
+                                                    @Param("userId") Long userId,
+                                                    @Param("roleId") Long roleId,
+                                                    @Param("since") LocalDateTime since,
+                                                    @Param("until") LocalDateTime until,
+                                                    @Param("eventTypes") List<String> eventTypes,
+                                                    @Param("changeSource") String changeSource,
+                                                    @Param("limit") int limit);
 }

@@ -33,6 +33,8 @@ import lombok.Getter;
  *   <li>10801-10899：OAuth2客户端相关错误</li>
  *   <li>10901-10999：认证/外部服务相关错误</li>
  *   <li>11001-11099：组织树配置相关错误</li>
+ *   <li>11101-11199：平台运营与租户生命周期错误</li>
+ *   <li>11201-11299：审计日志交付相关错误</li>
  *   <li>20001-29999：权限域（角色/授权/资源/类型/条件/域/同步投影等）错误；
  *       20070-20079 操作准入协议 OPERATION_ADMISSION（契约总册 §25，T-ACCESS-056）</li>
  * </ul>
@@ -49,6 +51,9 @@ public enum AccessErrorCode {
     TENANT_CODE_EXISTS(11111, "租户编码已存在且不可复用"),
     TENANT_DISABLED(11112, "租户已停用"),
     TENANT_GATE_NOT_READY(11113, "租户状态尚未就绪，请稍后重试"),
+
+
+    AUDIT_EXPORT_LIMIT_EXCEEDED(11201, "导出超过行数或文件大小上限，请缩小筛选范围"),
 
     // ===== 管理段 1xxxx（原 AdminErrorCode 平移；三组碰撞常量带 ADMIN_ 前缀） =====
 
@@ -265,6 +270,9 @@ public enum AccessErrorCode {
     JOB_NOT_FOUND(10601, "定时任务不存在"),
 
     JOB_CRON_INVALID(10602, "Cron表达式无效"),
+
+    DEPLOYMENT_JOB_READONLY(10603, "部署方管理的任务不可通过租户接口修改或触发"),
+
 
     // ===== OAuth2客户端相关错误（10801-10899） =====
 

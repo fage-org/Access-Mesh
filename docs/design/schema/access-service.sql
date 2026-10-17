@@ -132,7 +132,7 @@ COMMENT ON COLUMN sys_oauth2_client.delete_flag IS '逻辑删除：0=未删除�
 -- OAuth2 客户端由各租户自行注册，不随建表或开通预置。
 
 -- -----------------------------------------------------------------------------
--- 2. sys_login_log - 登录日志（不做软删除，永久保留）
+-- 2. sys_login_log - 登录日志（不软删除，默认永久保留；可配置期限清理）
 -- -----------------------------------------------------------------------------
 CREATE TABLE sys_login_log (
     id          BIGSERIAL PRIMARY KEY,
@@ -143,7 +143,6 @@ CREATE TABLE sys_login_log (
     client_id   VARCHAR(128),
     ip_address  VARCHAR(64),
     user_agent  VARCHAR(512),
-    location    VARCHAR(256),
     status      SMALLINT NOT NULL DEFAULT 0,
     fail_reason VARCHAR(256),
     login_at    TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -152,7 +151,7 @@ CREATE TABLE sys_login_log (
 CREATE INDEX idx_login_log_tenant_time ON sys_login_log (tenant_id, login_at DESC);
 CREATE INDEX idx_login_log_username ON sys_login_log (tenant_id, username);
 
-COMMENT ON TABLE sys_login_log IS '登录日志，不做软删除，永久保留';
+COMMENT ON TABLE sys_login_log IS '登录日志，不软删除，默认永久保留；可配置期限清理';
 COMMENT ON COLUMN sys_login_log.login_type IS '登录方式：PASSWORD/SMS/OAUTH2';
 COMMENT ON COLUMN sys_login_log.status IS '结果：0=失败，1=成功';
 
@@ -488,6 +487,9 @@ CREATE TABLE sys_job (
     delete_flag     BIGINT NOT NULL DEFAULT 0
 );
 
+CREATE UNIQUE INDEX uk_job_audit_retention ON sys_job (tenant_id, invoke_target)
+    WHERE delete_flag = 0 AND invoke_target = 'auditRetentionTask.cleanup';
+
 CREATE INDEX idx_job_tenant_status ON sys_job (tenant_id, status) WHERE delete_flag = 0;
 
 COMMENT ON TABLE sys_job IS '定时任务配置';
@@ -586,7 +588,7 @@ CREATE INDEX idx_operation_log_target ON operation_log (tenant_id, target_type, 
 CREATE INDEX idx_operation_log_tenant_module_time ON operation_log (tenant_id, module, created_at DESC);  -- T-ACCESS-007：module 三值化后按模块边界分页过滤
 CREATE INDEX idx_operation_log_request ON operation_log (request_id);  -- 原 permission（T-PERM-021 F1.d：列 NOT NULL 后谓词冗余去除）
 
-COMMENT ON TABLE operation_log IS '操作日志：轻量全量记录所有写操作，不做软删除，永久保留；与 permission_change_log 区分：本表记所有操作，permission_change_log 只记权限变更详情';
+COMMENT ON TABLE operation_log IS '操作日志：轻量全量记录所有写操作，不软删除，默认永久保留，可配置期限清理；与 permission_change_log 区分：本表记所有操作，permission_change_log 只记权限变更详情';
 COMMENT ON COLUMN operation_log.module IS '所属模块，模块标识约定：ADMIN=管理面写 / PERMISSION=权限面写 / ACCESS=跨面写编排（T-ACCESS-041 措辞，枚举值不变）';
 COMMENT ON COLUMN operation_log.action IS '操作类型，`{业务对象}_{动作}` 大写事件码，如 USER_CREATE / CONFIG_UPDATE / ROLE_RESOURCE_PERMISSION_GRANT 等（各业务 @OperationLog 维护）';
 COMMENT ON COLUMN operation_log.target_type IS '操作目标类型';

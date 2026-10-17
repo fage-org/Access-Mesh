@@ -50,4 +50,10 @@
 
     <!-- T-ACCESS-002 归并自原 admin SysAuditLogMapper.xml 的 paginateByTenantId 因无调用方删除（T-ADMIN-026） -->
 
+    <select id="exportByCondition" fetchSize="32" resultSetType="FORWARD_ONLY" useCache="false" resultType="cn.ac.fage.accessmesh.access.audit.entity.OperationLog">
+        SELECT * FROM operation_log
+        <include refid="listCondition"/>
+        ORDER BY created_at DESC, id DESC
+        LIMIT #{limit}
+    </select>
 </mapper>

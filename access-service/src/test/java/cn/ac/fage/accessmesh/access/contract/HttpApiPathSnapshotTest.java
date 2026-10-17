@@ -107,8 +107,10 @@ class HttpApiPathSnapshotTest {
 /api/access/domain-config/list
 /api/access/domain-config/remove
 /api/access/domain-config/save
+/api/access/log/change/export
 /api/access/log/change/list
 /api/access/log/operation/action-options
+/api/access/log/operation/export
 /api/access/log/operation/list
 /api/access/operation-permission/create
 /api/access/operation-permission/detail
@@ -202,6 +204,7 @@ class HttpApiPathSnapshotTest {
 /api/access/job/trigger
 /api/access/job/update
 /api/access/internal-audit/gateway-denial
+/api/access/login-log/export
 /api/access/login-log/page
 /api/access/sync-status/list
 /api/access/menu/create
@@ -309,8 +312,10 @@ class HttpApiPathSnapshotTest {
 /api/access/domain-config/list|access.domain.dto.req.DomainConfigListReq|common.model.R<perm.common.dto.resp.ItemsResp<access.domain.dto.resp.DomainConfigResp>>
 /api/access/domain-config/remove|perm.common.dto.req.IdsReq|common.model.R<Void>
 /api/access/domain-config/save|access.domain.dto.req.DomainConfigReq|common.model.R<access.domain.dto.resp.DomainConfigResp>
+/api/access/log/change/export|access.audit.dto.req.ChangeLogExportReq|org.springframework.http.ResponseEntity<byte[]>
 /api/access/log/change/list|access.audit.dto.req.ChangeLogListReq|common.model.R<perm.common.dto.resp.PageResp<access.audit.dto.resp.ChangeLogResp>>
 /api/access/log/operation/action-options|access.audit.dto.req.LogActionOptionsReq|common.model.R<perm.common.dto.resp.ItemsResp<String>>
+/api/access/log/operation/export|access.audit.dto.req.OperationLogExportReq|org.springframework.http.ResponseEntity<byte[]>
 /api/access/log/operation/list|access.audit.dto.req.OperationLogListReq|common.model.R<perm.common.dto.resp.PageResp<access.audit.dto.resp.OperationLogResp>>
 /api/access/operation-permission/create|access.type.dto.req.OperationCreateReq|common.model.R<access.type.dto.resp.OperationPermissionResp>
 /api/access/operation-permission/detail|access.type.dto.req.OperationKeyReq|common.model.R<access.type.dto.resp.OperationPermissionResp>
@@ -404,7 +409,8 @@ class HttpApiPathSnapshotTest {
 /api/access/job/trigger|common.model.IdReq|common.model.R<Void>
 /api/access/job/update|access.platform.dto.req.JobUpdateReq|common.model.R<Void>
 /api/access/internal-audit/gateway-denial|common.model.GatewayDenialAuditReq|common.model.R<Void>
-/api/access/login-log/page|common.model.PageReq|common.model.R<perm.common.dto.resp.PageResp<access.audit.dto.resp.LoginLogResp>>
+/api/access/login-log/export|access.audit.dto.req.LoginLogExportReq|org.springframework.http.ResponseEntity<byte[]>
+/api/access/login-log/page|access.audit.dto.req.LoginLogListReq|common.model.R<perm.common.dto.resp.PageResp<access.audit.dto.resp.LoginLogResp>>
 /api/access/sync-status/list|access.sync.dto.SyncStatusListReq|common.model.R<perm.common.dto.resp.PageResp<access.sync.dto.SyncStatusResp>>
 /api/access/menu/create|access.menu.dto.req.MenuCreateReq|common.model.R<Long>
 /api/access/menu/delete|common.model.IdReq|common.model.R<Void>
@@ -456,7 +462,8 @@ class HttpApiPathSnapshotTest {
 """.strip().split("\n"));
 
     /** 统一响应包装的唯一白名单：二进制文件流直出（void）。 */
-    private static final Set<String> NON_WRAPPER_WHITELIST = Set.of("/api/access/file/download");
+    private static final Set<String> NON_WRAPPER_WHITELIST = Set.of("/api/access/file/download",
+        "/api/access/log/operation/export", "/api/access/log/change/export", "/api/access/login-log/export");
 
     /** 已按设计决策退役的路径前缀/路径（快照必须不含；负向防回归）。 */
     private static final List<String> RETIRED_PATHS = List.of(
@@ -589,7 +596,7 @@ class HttpApiPathSnapshotTest {
     }
 
     @Test
-    @DisplayName("统一响应：除 /file/download 文件流白名单外，全部返回 R 包装")
+    @DisplayName("统一响应：除文件下载与审计 CSV 白名单外，全部返回 R 包装")
     void allMappingsUseUnifiedResponseWrapper() throws Exception {
         List<String> violations = new ArrayList<>();
         for (String sig : scanSignatures()) {

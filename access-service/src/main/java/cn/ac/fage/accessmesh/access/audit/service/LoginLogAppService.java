@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.audit.service;
 
-import cn.ac.fage.accessmesh.common.model.PageReq;
+import cn.ac.fage.accessmesh.access.audit.dto.req.LoginLogListReq;
 import cn.ac.fage.accessmesh.access.audit.entity.SysLoginLog;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 
@@ -22,5 +22,5 @@ public interface LoginLogAppService {
      * @param pageReq 分页请求参数
      * @return 分页登录日志结果
      */
-    PageResp<SysLoginLog> pageLoginLogs(PageReq pageReq);
+    PageResp<SysLoginLog> pageLoginLogs(LoginLogListReq pageReq);
 }

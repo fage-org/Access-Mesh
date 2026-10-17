@@ -309,6 +309,9 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 
 ### 8.2 审计事务分级
 
+审计生命周期由 audit 能力包承载：三类租户日志的有界 CSV 导出复用响应脱敏；期限清理复用任务租约，经平台 DomainService 批量登记部署任务，租户域行锁与任务尝试行锁共同保护每批删除。配置默认关闭、启动读取，停用租户暂停；完整契约与部署参数见[API 契约 §16.7](access-service-api-contract.md#contract-section-16-7)。不增加归档存储，平台审计不纳入清理。
+
+
 互斥证据提交器 QueryAuditCollector 在异步提交之前复制可信请求上下文的 requestId，保留与业务请求的关联。摘要固定段含 User 查询的 subjectUserId；Roles 查询仅标 subject=ROLES，不虚构用户或将被判定用户写成操作者。没有上下文时保留审计服务 UUID 兜底，M2M operator=null、尽力异步与角色对一小时去重语义保持（T-PERM-112）。
 
 - `permission_change_log` 与权限事实变更位于同一事务，日志失败则权限变更回滚。

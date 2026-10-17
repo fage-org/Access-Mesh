@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.audit.controller;
 
-import cn.ac.fage.accessmesh.common.model.PageReq;
+import cn.ac.fage.accessmesh.access.audit.dto.req.LoginLogListReq;
 import cn.ac.fage.accessmesh.access.audit.dto.resp.LoginLogResp;
 import cn.ac.fage.accessmesh.access.audit.entity.SysLoginLog;
 import cn.ac.fage.accessmesh.access.audit.service.LoginLogAppService;
@@ -49,7 +49,7 @@ public class LoginLogController {
      * @return 分页登录日志列表结果
      */
     @PostMapping("/page")
-    public R<PageResp<LoginLogResp>> pageLoginLogs(@Valid @RequestBody PageReq pageReq) {
+    public R<PageResp<LoginLogResp>> pageLoginLogs(@Valid @RequestBody LoginLogListReq pageReq) {
         PageResp<SysLoginLog> result = loginLogService.pageLoginLogs(pageReq);
         List<LoginLogResp> items = result.items().stream()
             .map(LoginLogResp::from)

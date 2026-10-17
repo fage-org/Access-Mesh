@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.access.audit.service.impl;
 
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.infrastructure.util.PageUtil;
-import cn.ac.fage.accessmesh.common.model.PageReq;
+import cn.ac.fage.accessmesh.access.audit.dto.req.LoginLogListReq;
 import cn.ac.fage.accessmesh.access.audit.entity.SysLoginLog;
 import cn.ac.fage.accessmesh.access.audit.mapper.SysLoginLogMapper;
 import cn.ac.fage.accessmesh.access.audit.service.LoginLogAppService;
@@ -51,7 +51,7 @@ public class LoginLogAppServiceImpl implements LoginLogAppService {
      * @return 分页登录日志列表结果
      */
     @Override
-    public PageResp<SysLoginLog> pageLoginLogs(PageReq pageReq) {
+    public PageResp<SysLoginLog> pageLoginLogs(LoginLogListReq pageReq) {
         Long tenantId = TenantContextHolder.getTenantId();
         // 判定主体=抽象投影主体（QueryGate 契约 subjectId=abstract_user.id）：先经
         // TypeResolutionService.resolveUserId 解析投影（AdminPermissionValidatorImpl 同款），
@@ -72,9 +72,9 @@ public class LoginLogAppServiceImpl implements LoginLogAppService {
         int offset = PageUtil.offset(pageNum, pageSize);
 
         // XML 分页统一 offset/limit + count 双查询（MyBatis-Flex Page 参数在 XML 映射下不生效）
-        long total = loginLogMapper.countByTenantId(tenantId);
+        long total = loginLogMapper.countByTenantId(tenantId, pageReq.since(), pageReq.until());
         List<SysLoginLog> items = total == 0 ? List.of()
-            : loginLogMapper.selectByTenantIdPaged(tenantId, offset, pageSize);
+            : loginLogMapper.selectByTenantIdPaged(tenantId, offset, pageSize, pageReq.since(), pageReq.until());
 
         return new PageResp<>(items, total, pageNum, pageSize,
             PageUtil.hasNext(offset, items.size(), total));

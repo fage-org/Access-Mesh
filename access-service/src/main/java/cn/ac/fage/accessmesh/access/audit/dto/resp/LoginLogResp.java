@@ -19,7 +19,6 @@ import java.time.LocalDateTime;
  * @param status     登录状态（0=失败，1=成功）
  * @param ipAddress  IP地址
  * @param userAgent  用户代理（浏览器信息）
- * @param location   登录地点
  * @param failReason 失败原因
  * @param loginAt    登录时间
  */
@@ -60,11 +59,6 @@ public record LoginLogResp(
     String userAgent,
 
     /**
-     * 登录地点
-     */
-    String location,
-
-    /**
      * 失败原因
      */
     String failReason,
@@ -89,7 +83,6 @@ public record LoginLogResp(
             entity.getStatus(),
             entity.getIpAddress(),
             SensitiveDataUtils.maskText(entity.getUserAgent()),
-            entity.getLocation(),
             SensitiveDataUtils.maskText(entity.getFailReason()),
             entity.getLoginAt()
         );

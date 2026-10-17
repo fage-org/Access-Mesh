@@ -128,4 +128,6 @@ public interface TaskExecutionDomainService {
      * 按租户与执行键查询执行记录
      */
     SysTaskExecution findByExecutionKey(Long tenantId, String executionKey);
+    /** Lock the still-active attempt for one side-effect transaction; requires an existing transaction. */
+    void lockActiveAttempt(TaskExecutionContext context);
 }

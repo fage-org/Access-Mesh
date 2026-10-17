@@ -1,7 +1,22 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
+import { onMounted, ref, computed } from "vue";
 import { pageLoginLogs, type LoginLog } from "@/api/login-log";
 import { usePagedList } from "@/utils/list-load";
+import { useAuditExport } from "@/utils/audit-export";
+import { formatToWallClockIso } from "@/utils/wall-clock";
+import { hasPerms } from "@/utils/auth";
+import { PERMISSION_CODE } from "@/constants/access";
+const timeRange = ref<[Date, Date] | null>(null);
+const filters = () => ({
+  since: timeRange.value?.[0]
+    ? formatToWallClockIso(timeRange.value[0])
+    : undefined,
+  until: timeRange.value?.[1]
+    ? formatToWallClockIso(timeRange.value[1])
+    : undefined
+});
+const canView = computed(() => hasPerms(PERMISSION_CODE.OPERATION_LOG_VIEW));
+const { exporting, download } = useAuditExport("login", filters);
 defineOptions({ name: "SystemLoginLog" });
 const {
   tableData,
@@ -9,10 +24,11 @@ const {
   error,
   pagination,
   loadTable,
+  onSearch,
   onPageChange,
   onPageSizeChange
 } = usePagedList<LoginLog>({
-  fetcher: pageLoginLogs,
+  fetcher: (page, size) => pageLoginLogs(page, size, filters()),
   errorText: "登录日志加载失败"
 });
 onMounted(loadTable);
@@ -26,6 +42,22 @@ onMounted(loadTable);
         ><el-button :loading="loading" @click="loadTable">刷新</el-button>
       </div></template
     >
+    <el-form inline>
+      <el-form-item label="登录时间（UTC）">
+        <el-date-picker
+          v-model="timeRange"
+          type="datetimerange"
+          start-placeholder="开始时间"
+          end-placeholder="结束时间"
+        />
+      </el-form-item>
+      <el-form-item>
+        <el-button @click="onSearch">查询</el-button>
+        <el-button v-if="canView" :loading="exporting" @click="download"
+          >导出筛选结果</el-button
+        >
+      </el-form-item>
+    </el-form>
     <el-alert v-if="error" :title="error" type="error" :closable="false" />
     <el-table v-loading="loading" :data="tableData" row-key="id">
       <el-table-column prop="loginAt" label="登录时间（UTC）" min-width="180" />

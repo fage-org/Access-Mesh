@@ -11,3 +11,5 @@
 原先未纳入计划的 Q-070~Q-080 条目继续由[待解决问题清单](../../pending-problems.md)承接，不因本计划归档而自动关闭。
 
 独立任务 [T-ACCESS-106](tasks/T-ACCESS-106.md) 同日完成归档：租户保底管理员连续性与成员变更审计，Q-059 已收敛；[验收记录](tasks/evidence/T-ACCESS-106/verification.md)。
+
+[审计日志生命周期计划](audit-log-lifecycle-plan.md) 同日完成：T-ACCESS-107、T-ACCESS-108、T-FE-070 随计划归档，Q-061 已收敛；[验收记录](tasks/evidence/audit-log-lifecycle/verification.md)分别保留首次全量结果、初始化复验、E2E 补跑和最终兼容性验证。

@@ -61,6 +61,8 @@ last_reviewed: 2026-10-17
 
 > 响应壳构造统一使用 `R.ok(data)` / `R.fail(code, message)`；`requestId/traceId` 由 `RResponseAdvice` 在序列化前回填，业务代码不写入。
 
+已登记的文件下载与审计 CSV 成功响应直接返回文件字节，失败仍沿用错误信封；下载例外按 `HttpApiPathSnapshotTest` 精确路径白名单约束，审计导出边界见[契约 §16.7](access-service-api-contract.md#contract-section-16-7)（2026-10-17 确认）。
+
 > **禁止**直接将 `data` 设计为 `List`，必须包装为对象（如分页结构），保留扩展空间。
 
 响应信封 `R<T>` 与引擎内部查询结果（`DecisionResult`/`GrantSetResult`）职责不同，不合并类型；前者负责统一 HTTP 响应，后者承载鉴权结果。[来源](../archive/2026-09-26/decision-registry-before.md)（原第 46 行）。

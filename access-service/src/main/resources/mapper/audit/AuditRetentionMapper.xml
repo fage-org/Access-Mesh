@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.ac.fage.accessmesh.access.audit.mapper.AuditRetentionMapper">
+    <delete id="deleteOperations">
+        WITH expired AS (
+            SELECT id FROM operation_log WHERE tenant_id = #{tenantId} AND created_at &lt; #{cutoff}
+            ORDER BY created_at, id LIMIT 500 FOR UPDATE
+        ) DELETE FROM operation_log WHERE tenant_id = #{tenantId} AND id IN (SELECT id FROM expired)
+    </delete>
+    <delete id="deleteChanges">
+        WITH expired AS (
+            SELECT id FROM permission_change_log WHERE tenant_id = #{tenantId} AND created_at &lt; #{cutoff}
+            ORDER BY created_at, id LIMIT 500 FOR UPDATE
+        ) DELETE FROM permission_change_log WHERE tenant_id = #{tenantId} AND id IN (SELECT id FROM expired)
+    </delete>
+    <delete id="deleteLogins">
+        WITH expired AS (
+            SELECT id FROM sys_login_log WHERE tenant_id = #{tenantId} AND login_at &lt; #{cutoff}
+            ORDER BY login_at, id LIMIT 500 FOR UPDATE
+        ) DELETE FROM sys_login_log WHERE tenant_id = #{tenantId} AND id IN (SELECT id FROM expired)
+    </delete>
+</mapper>

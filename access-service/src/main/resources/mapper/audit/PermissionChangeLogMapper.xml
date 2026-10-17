@@ -52,4 +52,10 @@
         <include refid="listCondition"/>
     </select>
 
+    <select id="exportByCondition" fetchSize="32" resultSetType="FORWARD_ONLY" useCache="false" resultType="cn.ac.fage.accessmesh.access.audit.entity.PermissionChangeLog">
+        SELECT * FROM permission_change_log
+        <include refid="listCondition"/>
+        ORDER BY created_at DESC, id DESC
+        LIMIT #{limit}
+    </select>
 </mapper>

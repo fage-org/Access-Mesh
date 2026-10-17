@@ -63,7 +63,10 @@ public record JobResp(
     String localCronExpression,
 
     /** 进程内稳定、重启变化的不透明实例标识。 */
-    String scheduleInstanceId
+    String scheduleInstanceId,
+
+    /** 部署配置管理，租户仅能查看。 */
+    boolean deploymentManaged
 ) {
     /**
      * 从实体转换为响应DTO（隐藏敏感字段）
@@ -86,7 +89,8 @@ public record JobResp(
             entity.getUpdatedAt(),
             localScheduled,
             localCronExpression,
-            scheduleInstanceId
+            scheduleInstanceId,
+            cn.ac.fage.accessmesh.access.infrastructure.task.DeploymentJobTargets.isManaged(entity.getInvokeTarget())
         );
     }
 }

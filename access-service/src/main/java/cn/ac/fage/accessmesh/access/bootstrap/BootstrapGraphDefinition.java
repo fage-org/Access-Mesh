@@ -150,6 +150,7 @@ public final class BootstrapGraphDefinition {
     public static List<ApiRoute> apiRoutes() {
         return List.of(
             ApiRoute.route("POST", "/api/access/sync-status/list", "bootstrap:同步已应用状态", ResourceTypeCode.DEPENDENCY, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/login-log/export", "bootstrap:登录日志导出", ResourceTypeCode.OPERATION_LOG, OperationCode.VIEW),
             ApiRoute.route("POST", "/api/access/login-log/page", "bootstrap:登录日志查询", ResourceTypeCode.OPERATION_LOG, OperationCode.VIEW),
             ApiRoute.route("POST", "/api/access/abstract-role/tree", "bootstrap:授权页角色树", ResourceTypeCode.ROLE, OperationCode.VIEW),
             ApiRoute.route("POST", "/api/access/type-definition/list", "bootstrap:授权页类型定义列表", ResourceTypeCode.TYPE_DEFINITION, OperationCode.VIEW),
@@ -254,8 +255,10 @@ public final class BootstrapGraphDefinition {
             ApiRoute.route("POST", "/api/access/resource-api-mapping/list", "bootstrap:接口映射列表", ResourceTypeCode.SERVICE, OperationCode.VIEW),
             ApiRoute.route("POST", "/api/access/resource-api-mapping/update", "bootstrap:更新接口映射", ResourceTypeCode.SERVICE, OperationCode.MANAGE_API_MAPPING),
             ApiRoute.route("POST", "/api/access/resource-api-mapping/remove", "bootstrap:删除接口映射", ResourceTypeCode.SERVICE, OperationCode.MANAGE_API_MAPPING),
+            ApiRoute.route("POST", "/api/access/log/operation/export", "bootstrap:操作日志导出", ResourceTypeCode.OPERATION_LOG, OperationCode.VIEW),
             ApiRoute.route("POST", "/api/access/log/operation/list", "bootstrap:操作日志列表", ResourceTypeCode.OPERATION_LOG, OperationCode.VIEW),
             ApiRoute.route("POST", "/api/access/log/operation/action-options", "bootstrap:操作类型字典", ResourceTypeCode.OPERATION_LOG, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/log/change/export", "bootstrap:权限变更日志导出", ResourceTypeCode.PERMISSION_CHANGE_LOG, OperationCode.VIEW),
             ApiRoute.route("POST", "/api/access/log/change/list", "bootstrap:权限变更日志列表", ResourceTypeCode.PERMISSION_CHANGE_LOG, OperationCode.VIEW),
             // T-FE-044：资源依赖页消费端点（引用数据 resource-entity/tree、operation-permission/list
             // 已在上方清单）。管理面仅保留 DEPENDENCY:VIEW；写入由独立 MANIFEST 通道承担。

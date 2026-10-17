@@ -34,11 +34,11 @@ class AuditReadMaskingTest {
         try {
             when(gate.hasPermissionByCode(1L, 9L, "OPERATION_LOG", null, "VIEW")).thenReturn(allowed);
             if (allowed) {
-                assertThat(service.pageLoginLogs(cn.ac.fage.accessmesh.common.model.PageReq.defaults()).items()).isEmpty();
-                verify(mapper).countByTenantId(1L);
+                assertThat(service.pageLoginLogs(new cn.ac.fage.accessmesh.access.audit.dto.req.LoginLogListReq(null, null, null, null, null)).items()).isEmpty();
+                verify(mapper).countByTenantId(1L, null, null);
             } else {
                 org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.pageLoginLogs(
-                    cn.ac.fage.accessmesh.common.model.PageReq.defaults())).isInstanceOf(SecurityException.class);
+                    new cn.ac.fage.accessmesh.access.audit.dto.req.LoginLogListReq(null, null, null, null, null))).isInstanceOf(SecurityException.class);
                 verifyNoInteractions(mapper);
             }
         } finally {

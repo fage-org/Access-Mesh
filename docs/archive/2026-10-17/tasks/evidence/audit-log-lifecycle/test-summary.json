@@ -1,0 +1,31 @@
+{
+  "date": "2026-10-17",
+  "finalDistinctBackendCoverage": {
+    "tests": 2910,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "e2e": 33,
+  "frontend": 568,
+  "runs": {
+    "full": {
+      "tests": 2876,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0
+    },
+    "closure": {
+      "tests": 53,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "final": {
+      "tests": 21,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  }
+}

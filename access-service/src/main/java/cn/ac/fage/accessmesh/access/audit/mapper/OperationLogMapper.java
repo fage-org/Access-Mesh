@@ -73,4 +73,12 @@ public interface OperationLogMapper extends BaseMapper<OperationLog> {
      */
     List<String> selectDistinctActions(@Param("tenantId") Long tenantId,
                                         @Param("module") String module);
+    org.apache.ibatis.cursor.Cursor<OperationLog> exportByCondition(@Param("tenantId") Long tenantId,
+                                              @Param("module") String module,
+                                              @Param("action") String action,
+                                              @Param("operatorId") Long operatorId,
+                                              @Param("since") LocalDateTime since,
+                                              @Param("until") LocalDateTime until,
+                                              @Param("targetType") String targetType,
+                                              @Param("limit") int limit, @Param("requestId") String requestId);
 }

@@ -3,7 +3,7 @@ doc_type: design
 title: 7.1 操作日志页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-10-06
+last_reviewed: 2026-10-17
 ---
 
 # 7.1 操作日志页 前端设计
@@ -18,10 +18,10 @@ last_reviewed: 2026-10-06
 
 操作日志页查询 `operation_log` 表的**轻量全量操作日志**（记录所有写操作，与 `permission_change_log` 区分：后者只记权限变更详情）。
 
-- **只读查询页**：无 CRUD 写操作，仅 list 查询 + 详情查看。无新增/编辑/删除按钮。
+- **只读查询页**：无 CRUD 写操作，list 查询、详情查看与按筛选导出 CSV。无新增/编辑/删除按钮。
 - **服务端分页**：后端 `OperationLogListReq` 支持 `pageNum/pageSize`（`@NotNull`），返回 `PageResp`。**非** system-config 的全量本地过滤——前端不做本地切片。
 - **筛选五维（T-PERM-025 收口）**：module/action/操作者 ID/时间范围/目标类型，全部服务端精确匹配（原仅 module/action 两维，2026-08-28 扩展）。
-- **无 detail 接口**：后端有 list 与 action-options 两端点（均无 detail），`OperationLogResp` 已含全部字段。详情由前端抽屉展示（无需单独 detail 接口）。
+- **无 detail 接口**：后端有 list、action-options 与 export（无 detail），`OperationLogResp` 已含全部字段。详情由前端抽屉展示（无需单独 detail 接口）。
 - **独立 OPERATION_LOG:VIEW 门禁（T-PERM-025 审计分离，2026-08-28）**：后端操作日志查询（list/action-options）以独立 `OPERATION_LOG:VIEW` 校验（资源类型 OPERATION_LOG=30），不再复用 `SYSTEM_CONFIG:VIEW`。
 
 ## 2. 布局结构
@@ -32,7 +32,7 @@ PureTableBar 表格列表范式（遵循 `frontend-layout-patterns`），与 6.1
 ┌─ operation-log-page（main-content）─────────────────────────┐
 │ PureTableBar                                                 │
 │  ├─ #title：module 下拉 + action 下拉 + 搜索/重置            │
-│  └─ #buttons：（空——只读页无新增按钮）                       │
+│  └─ #buttons：导出筛选结果（沿用 VIEW 权限）                       │
 │ pure-table（adaptive 分页表格）                               │
 │  列：时间 / 模块(tag) / 操作(tag) / 操作人 / 目标类型         │
 │      / 摘要(tooltip 截断) / 操作(查看)                        │
@@ -189,3 +189,6 @@ Phase 1 登记的 🔧 项处置终态：
 可输入 requestId 精确筛选，最大64字符，重置同时清空。Gateway拒绝与服务层失败共用既有列表；Gateway事件为 ACCESS/GATEWAY_PERMISSION_DENIED，摘要含拒绝原因，失败摘要含公开信封错误码。读取端仅掩码明确敏感值，保留普通用户名与IP；原始审计不在前端改写。
 
 快照脱敏在 JSON 树上处理敏感键与文本值（含内嵌 JSON），保持数字节点、字段名及 JSON 可解析性；不对序列化后的整段快照做替换。普通用户名与完整 IP 保留，手机号/邮箱等明确敏感文本掩码。数据库原始记录不变。
+
+
+审计 CSV 导出：工具栏“导出筛选结果”复用当前筛选字段和本页 VIEW 权限，不受当前分页限制。后端行数或字节超限时显示拒绝提示，要求缩小筛选；JSON 错误响应不能保存为文件。离开页面取消请求，切换登录会话后丢弃旧结果。文件字段、脱敏和容量边界见[契约 §16.7](../access-service-api-contract.md#contract-section-16-7)。
