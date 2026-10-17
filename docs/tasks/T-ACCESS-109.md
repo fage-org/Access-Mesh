@@ -28,7 +28,7 @@ last_updated: 2026-10-17
 
 ## 当前口径
 
-当前处于[方案定案](../design/browser-session-authentication.md)阶段，已确认租户与平台网页登录一起覆盖（R1）、新增网页专用 Cookie 入口并保留原 Bearer 登录（S1）、拒绝对应身份域 Cookie 与 Bearer 混用（T1）、保留立即重新登录并增加旧注销与新会话隔离（U2）；升级时已有网页会话的切换等剩余取舍待决定；不得先行修改既有认证通道。
+当前处于[方案定案](../design/browser-session-authentication.md)阶段，已确认租户与平台网页登录一起覆盖（R1）、新增网页专用 Cookie 入口并保留原 Bearer 登录（S1）、拒绝对应身份域 Cookie 与 Bearer 混用（T1）、保留立即重新登录并增加旧注销与新会话隔离（U2）、新版清理旧认证存储并要求分别重新登录（V1）。继续核对 Cookie/CSRF 与会话隔离机制；涉及新行为取舍时由用户决定，不先行改变未确认的认证边界。
 
 ## 验收对照
 
