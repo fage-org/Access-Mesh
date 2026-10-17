@@ -55,13 +55,13 @@ last_updated: 2026-10-17
 - **来源**：逐任务三通道评审 P3 处置时发现的任务卡登记缺口——T-ACCESS-082（两条延期项）、T-ACCESS-083（验证码延后）、T-FE-064（C10）各自声称「登记/延后」但本清单此前零对应条目（2026-10-06 逐任务评审补录合并）
 - **关联**：[T-ACCESS-082](archive/2026-10-06/tasks/T-ACCESS-082.md)、[T-ACCESS-083](archive/2026-10-06/tasks/T-ACCESS-083.md)、[T-FE-064](archive/2026-10-06/tasks/T-FE-064.md)
 
-**现象与证据**：三项延后能力在任务卡「非目标/遗留」节声明但无登记载体：①**强制下线**——管理员主动终结指定租户用户原生会话的能力（现仅重置密码链路顺带 logout，无独立入口）；②**验证码替代通道**——图形验证码的无障碍/行为式/音频替代（当前唯一形态 4 位纯数字，见 Q-067 关联的验证码强度议题）；③**跨标签同步与令牌承载**（T-FE-064 C10）——两项独立事项：租户同步已由 T-FE-071 实施；HttpOnly Cookie 改造仍待决定，启用 Cookie 认证须先满足 security-standards §3 的 CSRF 前置约束。独立平台运营页同类状态问题见 Q-082。
+**现象与证据**：三项延后能力在任务卡「非目标/遗留」节声明但无登记载体：①**强制下线**——管理员主动终结指定租户用户原生会话的能力（现仅重置密码链路顺带 logout，无独立入口）；②**验证码替代通道**——图形验证码的无障碍/行为式/音频替代（当前唯一形态 4 位纯数字，见 Q-067 关联的验证码强度议题）；③**跨标签同步与令牌承载**（T-FE-064 C10）——两项独立事项：租户同步已由 T-FE-071 实施；HttpOnly Cookie 改造仍待决定，启用 Cookie 认证须先满足 security-standards §3 的 CSRF 前置约束。独立平台运营页同类状态问题已随 T-FE-072 收敛（Q-082）。
 
 **影响与边界**：强制下线及验证码替代属于延期能力；跨标签同步已处理租户旧界面与新身份不一致窗口，不能与 HttpOnly 改造混为同一交付。此前预览期需求压力较小，不代表现有边界不存在。另：T-ACCESS-082 卡内「并发窗口已由 085e1d5fa 行锁实施闭合」的后续补丁指针缺失（卡为归档时点快照不回改，本条为指针补录载体）。
 
 **设想方向（未定案）**：按需求优先级逐项立项；②启动时与 Q-067 修法评估联动（验证码形态影响计数锁与限流设计）；③启动时按 security-standards §3 前置补 CSRF 面。
 
-**处理入口**：强制下线继续暂缓，边界见[会话吊销契约](design/access-service-api-contract.md#admin-force-logout-status)；验证码替代通道继续暂缓，已明确[无法读图用户的限制](design/frontend/login.md#captcha-accessibility-status)；跨标签租户会话同步已完成，由 [T-FE-071](archive/2026-10-17/tasks/T-FE-071.md) 承接，范围见[登录设计](design/frontend/login.md#cross-tab-session-status)；HttpOnly 改造另行决定。
+**处理入口**：强制下线继续暂缓，边界见[会话吊销契约](design/access-service-api-contract.md#admin-force-logout-status)；验证码替代通道继续暂缓，已明确[无法读图用户的限制](design/frontend/login.md#captcha-accessibility-status)；跨标签租户会话同步已完成，由 [T-FE-071](archive/2026-10-17/tasks/T-FE-071.md) 承接，范围见[登录设计](design/frontend/login.md#cross-tab-session-status)；平台同步由 [T-FE-072](archive/2026-10-17/tasks/T-FE-072.md) 完成；HttpOnly 改造另行决定。
 
 <a id="q-069"></a>
 ## Q-069 OAuth2 client_id 跨租户命名冲突与存在性泄露
@@ -284,26 +284,13 @@ last_updated: 2026-10-17
 
 **设想方向（未定案）**：服务端响应带代际/重置序号供前端丢弃迟到凭据，或重置前校验「自请求发出起的会话代际」，或登记为接受边界（窗口极窄+自愈）——拍板后转任务或 closed。
 
-<a id="q-082"></a>
-## Q-082 独立平台运营页的跨标签会话状态滞留
-
-- **状态**：open
-- **登记**：2026-10-17
-- **来源**：T-FE-071 同类模式核查；已确认实施范围为租户管理台，平台自身同步尚未获得范围决定
-- **关联**：[T-FE-071](archive/2026-10-17/tasks/T-FE-071.md)、[Q-068](#q-068)
-
-**现象与证据**：`frontend/src/store/modules/platform.ts` 初始化时读取 account，`views/platform/layout.vue` 挂载时 refresh，但没有跨标签监听；`utils/http/index.ts` 的 platform 请求分支每次读取共享 `platform-operator-session`。另一页换平台账号后，旧页可能保留旧 account/表单，却在后续操作中读取新平台令牌。当前证明为源码路径核对，尚未做平台双标签浏览器复现。
-
-**影响与边界**：后端仍按实际令牌做平台认证，并非已证明权限绕过；前端显示身份与请求身份可能不一致。租户同步不能代替平台自身同步，也不能用清除租户会话解决。单标签、刷新页面或重新进入布局时会重读身份，使该窗口不易显现。
-
-**处理入口**：是否扩展到平台运营由用户决定；若启动，应独立检测和清理平台上下文，不联动租户身份，并明确未保存输入和一次性凭据弹窗的处置。
-
 ## 已收敛（含合并索引；详情在关联问题/任务或历史来源）
 
 > closed（合并）只关闭旧登记编号，实际问题由关联 open 条目继续承载；修复、重复与合并分别注明，不回收编号。合并依据为 2026-09-30 本次“重复或类似问题精练合并”要求，原证据见 [合并前快照](archive/2026-09-30/pending-problems-before-consolidation.md)。
 
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
+| <a id="q-082"></a>Q-082 | 独立平台运营页跨标签状态滞留 | 已收敛：独立会话保护及一次性密码弹窗清理已实施 | [T-FE-072](archive/2026-10-17/tasks/T-FE-072.md) | 2026-10-17 |
 | <a id="q-061"></a>Q-061 | 审计三表导出与保留策略、location 退出 | 已收敛：有界 CSV 与默认关闭的部署清理已实施；停用租户暂停 | [T-ACCESS-107/108、T-FE-070](archive/2026-10-17/audit-log-lifecycle-plan.md) | 2026-10-17 |
 | <a id="q-059"></a>Q-059 | 管理员治理：能力守卫与最后管理员保护 | 已收敛：保底成员连续性与成员审计已实施；成员管理保留既有门禁，规则见租户生命周期 | [T-ACCESS-106](archive/2026-10-17/tasks/T-ACCESS-106.md) | 2026-10-17 |
 | <a id="q-064"></a>Q-064 | 不存在的 MVC 资源被兜底映射为 HTTP 500 | 已修复（2026-10-07 轻量清扫批）：common `GlobalExceptionHandler` 补 `NoResourceFoundException` 映射——HTTP 404 + 信封 code=404（与 SecurityException→403 映射形态一致），不再落 `Exception` 兜底 500；`ExampleServiceApplicationTest` 恢复业务端口未知路径断言（404+code=404 实跑绿；旧实现 500 已有 2026-10-06 实跑记录实证）。边界核对随批闭合：`NoHandlerFoundException` 需 `throwExceptionIfNoHandlerFound` 显式开启（默认关）本栈不可达不处理；`HttpRequestMethodNotSupportedException`（405 族）仍走兜底 500，非本条登记面不扩。架构册 `/actuator/**` 行同批订正 | —（2026-10-07 轻量清扫批，无任务卡载体） | 2026-10-07 |

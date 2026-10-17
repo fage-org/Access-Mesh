@@ -588,3 +588,162 @@ describe("cross-tab HTTP ownership", () => {
     expect(sent).toEqual(["Bearer operator-token"]);
   });
 });
+
+it("platform request must not reread a different identity after it has been created", async () => {
+  mockPlatformSession.mockReturnValue({
+    accessToken: "operator-A",
+    expires: Date.now() + 60000
+  });
+  const sent: unknown[] = [];
+  const ctor = Object.getPrototypeOf(http).constructor as {
+    axiosInstance: AxiosInstance;
+  };
+  ctor.axiosInstance.defaults.adapter = async config => {
+    sent.push(config.headers.Authorization);
+    return { status: 200, data: {}, config, headers: {}, statusText: "" };
+  };
+  const boundary = await import("@/utils/platform-session");
+  const stop = boundary.startPlatformSessionSync({
+    read: () => {
+      const session = mockPlatformSession();
+      return {
+        token: session?.accessToken ?? null,
+        expires: session?.expires ?? null
+      };
+    },
+    invalidate: vi.fn(),
+    storageKey: "platform-operator-session",
+    window: new EventTarget() as Window,
+    document: new EventTarget() as Document
+  });
+  const request = http.post("/api/access/tenant/page", {
+    authRealm: "platform"
+  });
+  mockPlatformSession.mockReturnValue({
+    accessToken: "operator-B",
+    expires: Date.now() + 60000
+  });
+  await request.catch(() => {});
+  expect(sent).not.toContain("Bearer operator-B");
+  expect(sent).toEqual([]);
+  stop();
+});
+
+describe("platform response and tenant isolation", () => {
+  let stop: () => void;
+  let boundary: typeof import("@/utils/platform-session");
+  beforeEach(async () => {
+    mockPlatformSession.mockReturnValue({
+      accessToken: "operator-A",
+      expires: Date.now() + 60000
+    });
+    boundary = await import("@/utils/platform-session");
+    stop = boundary.startPlatformSessionSync({
+      read: () => {
+        const session = mockPlatformSession();
+        return {
+          token: session?.accessToken ?? null,
+          expires: session?.expires ?? null
+        };
+      },
+      invalidate: vi.fn(),
+      storageKey: "platform-operator-session",
+      window: new EventTarget() as Window,
+      document: new EventTarget() as Document
+    });
+  });
+  afterEach(() => stop());
+  function instance() {
+    return (
+      Object.getPrototypeOf(http).constructor as {
+        axiosInstance: AxiosInstance;
+      }
+    ).axiosInstance;
+  }
+  it.each([200, 401, 403])(
+    "drops old operator %i before callbacks or shared credential removal",
+    async status => {
+      let finish: () => void = () => {};
+      instance().defaults.adapter = config =>
+        new Promise((resolve, reject) => {
+          finish = () => {
+            const response = {
+              status,
+              config,
+              data: { initialPassword: "one-time-old-result" },
+              headers: {},
+              statusText: ""
+            };
+            if (status === 200) resolve(response);
+            else
+              reject(
+                Object.assign(new Error("old error"), { config, response })
+              );
+          };
+        });
+      const callback = vi.fn();
+      const request = http.post("/api/access/platform-account/create", {
+        authRealm: "platform",
+        beforeResponseCallback: callback
+      });
+      await drainMicrotasks();
+      mockPlatformSession.mockReturnValue({
+        accessToken: "operator-B",
+        expires: Date.now() + 60000
+      });
+      finish();
+      await expect(request).rejects.toThrow("登录状态已改变");
+      expect(callback).not.toHaveBeenCalled();
+      expect(mockRemovePlatformSession).not.toHaveBeenCalled();
+      expect(mockLogOut).not.toHaveBeenCalled();
+      expect(mockRefreshUserMenu).not.toHaveBeenCalled();
+    }
+  );
+  it("sends explicit old platform logout even after own local removal", async () => {
+    const sent: unknown[] = [];
+    instance().defaults.adapter = async config => {
+      sent.push(config.headers.Authorization);
+      return { status: 200, data: {}, config, headers: {}, statusText: "" };
+    };
+    const request = http.post("/api/access/platform-auth/logout", {
+      authRealm: "platform",
+      headers: { Authorization: "Bearer operator-A" }
+    });
+    mockPlatformSession.mockReturnValue(null);
+    boundary.acceptLocalPlatformSession(null);
+    await expect(request).resolves.toEqual({});
+    expect(sent).toEqual(["Bearer operator-A"]);
+    expect(boundary.platformSessionBlocked.value).toBe(false);
+  });
+  it("pins platform headers across a shared-state race", async () => {
+    let reads = 0;
+    mockPlatformSession.mockImplementation(() => ({
+      accessToken: ++reads < 3 ? "operator-A" : "operator-B",
+      expires: Date.now() + 60000
+    }));
+    const sent: unknown[] = [];
+    instance().defaults.adapter = async config => {
+      sent.push(config.headers.Authorization);
+      return { status: 200, data: {}, config, headers: {}, statusText: "" };
+    };
+    await expect(
+      http.post("/api/access/tenant/page", { authRealm: "platform" })
+    ).rejects.toThrow("登录状态已改变");
+    expect(sent).toEqual(["Bearer operator-A"]);
+  });
+  it("keeps tenant requests working when only platform is blocked", async () => {
+    mockPlatformSession.mockReturnValue({
+      accessToken: "operator-B",
+      expires: Date.now() + 60000
+    });
+    expect(() => boundary.capturePlatformRequest()).toThrow();
+    const sent: unknown[] = [];
+    instance().defaults.adapter = async config => {
+      sent.push(config.headers.Authorization);
+      return { status: 200, data: {}, config, headers: {}, statusText: "" };
+    };
+    await expect(http.post("/api/access/user/page")).resolves.toEqual({});
+    expect(sent).toEqual(["Bearer token-1"]);
+    expect(mockRemovePlatformSession).not.toHaveBeenCalled();
+  });
+});

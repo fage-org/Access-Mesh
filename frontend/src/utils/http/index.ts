@@ -1,8 +1,14 @@
 import {
+  capturePlatformRequest,
+  assertPlatformRequest
+} from "@/utils/platform-session";
+import {
   captureTenantRequest,
   assertTenantRequest,
   TenantSessionChangedError
 } from "@/utils/tenant-session";
+const isPlatformLogout = (url?: string) =>
+  url === "/api/access/platform-auth/logout";
 const isTenantLogout = (url?: string) =>
   url?.endsWith("/api/access/auth/logout");
 import Axios, {
@@ -98,6 +104,8 @@ class PureHttp {
     PureHttp.axiosInstance.interceptors.request.use(
       async (config: PureHttpRequestConfig): Promise<any> => {
         if (config.authRealm === "platform") {
+          if (!isPlatformLogout(config.url))
+            assertPlatformRequest(config.platformSessionStamp);
           const publicPaths = [
             "/api/access/platform-auth/captcha",
             "/api/access/platform-auth/login",
@@ -112,7 +120,12 @@ class PureHttp {
             );
             throw new Error("平台会话已过期，请重新登录");
           }
-          config.headers.Authorization = formatToken(session.accessToken);
+          const token =
+            config.platformSessionStamp === undefined
+              ? session.accessToken
+              : config.platformSessionStamp.token;
+          if (!token) throw new TenantSessionChangedError();
+          config.headers.Authorization = formatToken(token);
           return config;
         }
         // Logout already carries the verified old token: it must still be sent after local token removal.
@@ -174,6 +187,12 @@ class PureHttp {
     instance.interceptors.response.use(
       (response: PureHttpResponse) => {
         const $config = response.config;
+        if (
+          $config.authRealm === "platform" &&
+          !isPlatformLogout($config.url)
+        ) {
+          assertPlatformRequest($config.platformSessionStamp);
+        }
         if ($config.authRealm !== "platform" && !isTenantLogout($config.url)) {
           assertTenantRequest($config.tenantSessionStamp);
         }
@@ -194,6 +213,15 @@ class PureHttp {
         if (
           ($error.config as PureHttpRequestConfig)?.authRealm === "platform"
         ) {
+          if (isPlatformLogout($error.config?.url))
+            return Promise.reject($error);
+          try {
+            assertPlatformRequest(
+              ($error.config as PureHttpRequestConfig)?.platformSessionStamp
+            );
+          } catch (changed) {
+            return Promise.reject(changed);
+          }
           const session = getPlatformSession();
           if (
             $error.response?.status === 401 &&
@@ -267,12 +295,12 @@ class PureHttp {
     } as PureHttpRequestConfig;
 
     // Capture synchronously, before Axios schedules its asynchronous interceptor chain.
-    if (config.authRealm !== "platform") {
-      try {
-        config.tenantSessionStamp = captureTenantRequest();
-      } catch (error) {
-        return Promise.reject(error);
-      }
+    try {
+      if (config.authRealm === "platform")
+        config.platformSessionStamp = capturePlatformRequest();
+      else config.tenantSessionStamp = captureTenantRequest();
+    } catch (error) {
+      return Promise.reject(error);
     }
     // 单独处理自定义请求/响应回调
     return new Promise((resolve, reject) => {

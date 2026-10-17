@@ -15,3 +15,5 @@
 [审计日志生命周期计划](audit-log-lifecycle-plan.md) 同日完成：T-ACCESS-107、T-ACCESS-108、T-FE-070 随计划归档，Q-061 已收敛；[验收记录](tasks/evidence/audit-log-lifecycle/verification.md)分别保留首次全量结果、初始化复验、E2E 补跑和最终兼容性验证。
 
 独立任务 [T-FE-071](tasks/T-FE-071.md) 完成租户跨标签会话同步，按 N1 清理旧界面并确认重载；[浏览器及测试验收](tasks/evidence/T-FE-071/verification.md)。Q-068 的延期子项与 Q-082 平台同类范围仍待各自处置。
+
+独立任务 [T-FE-072](tasks/T-FE-072.md) 将同源保护扩展到平台认证域，Q-082 已收敛；[测试与浏览器验收](tasks/evidence/T-FE-072/verification.md)确认一次性密码弹窗清理与两域互不联动。

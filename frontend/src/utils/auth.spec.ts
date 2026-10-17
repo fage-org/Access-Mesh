@@ -116,3 +116,31 @@ it("stale tab cannot remove the cookie or metadata belonging to a new tenant ses
     stop();
   }
 });
+
+it("stale platform cleanup cannot remove either new platform credentials or tenant credentials", async () => {
+  const { startPlatformSessionSync } = await import("./platform-session");
+  const expires = Date.now() + 60000;
+  cookieJar.set(TokenKey, JSON.stringify({ accessToken: "tenant-A", expires }));
+  setPlatformSession({ ...platform, accessToken: "operator-A" });
+  const stop = startPlatformSessionSync({
+    read: () => ({
+      token: getPlatformSession()?.accessToken ?? null,
+      expires: getPlatformSession()?.expires ?? null
+    }),
+    invalidate: vi.fn(),
+    storageKey: platformSessionKey,
+    window: new EventTarget() as Window,
+    document: new EventTarget() as Document
+  });
+  try {
+    memStorage.set(
+      platformSessionKey,
+      JSON.stringify({ ...platform, accessToken: "operator-B" })
+    );
+    expect(() => removePlatformSession()).toThrow(TenantSessionChangedError);
+    expect(getPlatformSession()?.accessToken).toBe("operator-B");
+    expect(getToken()?.accessToken).toBe("tenant-A");
+  } finally {
+    stop();
+  }
+});

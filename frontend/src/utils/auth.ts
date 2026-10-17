@@ -1,4 +1,8 @@
 import {
+  assertPlatformSessionCurrent,
+  acceptLocalPlatformSession
+} from "@/utils/platform-session";
+import {
   assertTenantSessionCurrent,
   acceptLocalTenantSession
 } from "@/utils/tenant-session";
@@ -184,8 +188,12 @@ export function getPlatformSession(): PlatformSession | null {
   return storageLocal().getItem<PlatformSession>(platformSessionKey) ?? null;
 }
 export function setPlatformSession(session: PlatformSession) {
+  assertPlatformSessionCurrent();
   storageLocal().setItem(platformSessionKey, session);
+  acceptLocalPlatformSession(session.accessToken);
 }
 export function removePlatformSession() {
+  assertPlatformSessionCurrent();
   storageLocal().removeItem(platformSessionKey);
+  acceptLocalPlatformSession(null);
 }

@@ -1,5 +1,12 @@
+import { startPlatformSessionSync } from "@/utils/platform-session";
+import { usePlatformStoreHook } from "@/store/modules/platform";
 import { startTenantSessionSync } from "@/utils/tenant-session";
-import { getToken, userKey } from "@/utils/auth";
+import {
+  getToken,
+  userKey,
+  getPlatformSession,
+  platformSessionKey
+} from "@/utils/auth";
 import { useUserStoreHook } from "@/store/modules/user";
 import { usePermissionStoreHook } from "@/store/modules/permission";
 import { closeAllDialog } from "@/components/ReDialog/store";
@@ -75,6 +82,26 @@ getPlatformConfig(app).then(async config => {
       useUserStoreHook().clearLocalSessionState();
       usePermissionStoreHook().clearAllCachePage();
       if (!router.currentRoute.value.path.startsWith("/platform")) {
+        closeAllDialog();
+        ElMessageBox.close();
+        ElMessage.closeAll();
+      }
+    }
+  });
+  startPlatformSessionSync({
+    read: () => {
+      const session = getPlatformSession();
+      return {
+        token: session?.accessToken ?? null,
+        expires: session?.expires ?? null
+      };
+    },
+    storageKey: platformSessionKey,
+    window,
+    document,
+    invalidate: () => {
+      usePlatformStoreHook().clearLocalSessionState();
+      if (router.currentRoute.value.path.startsWith("/platform")) {
         closeAllDialog();
         ElMessageBox.close();
         ElMessage.closeAll();

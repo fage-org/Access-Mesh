@@ -1,3 +1,4 @@
+import { assertPlatformSessionCurrent } from "@/utils/platform-session";
 import {
   assertTenantSessionCurrent,
   TenantSessionChangedError
@@ -178,6 +179,13 @@ router.beforeEach((to: ToRouteType, _from, next) => {
   }
 
   if (to.meta.platform) {
+    try {
+      assertPlatformSessionCurrent();
+    } catch (error) {
+      if (!(error instanceof TenantSessionChangedError)) throw error;
+      next();
+      return;
+    }
     const session = getPlatformSession();
     if (to.path === "/platform/login") {
       next();
