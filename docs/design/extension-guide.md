@@ -6,7 +6,7 @@ domain: common
 design_refs:
   - docs/design/architecture.md
   - docs/design/access-service-api-contract.md
-last_reviewed: 2026-10-06
+last_reviewed: 2026-10-17
 ---
 
 # AccessMesh 扩展指南（接入与二次开发全景）
@@ -42,7 +42,7 @@ last_reviewed: 2026-10-06
 
 ```text
 ① 注册服务（service-config/save）
-② 声明接口（service-config/sync-v2 FULL——登记 API、路由映射与业务操作要求）
+② 声明接口（service-config/sync-v2 FULL——登记 API、接口操作准入映射与业务操作要求）
 ③ 服务身份（§2.2：查询与同步统一使用 per-service 凭证）
 ④ 授予业务权限（§2.1 步 3；网关操作准入与业务最终检查见 §2.4）
 ⑤ 实际调用（§2.1 步 4；业务前端持会话令牌经 Gateway 访问；未授权 403 → 授权后 30 秒内 200）
@@ -52,11 +52,32 @@ last_reviewed: 2026-10-06
 ### 2.1 接入步骤
 
 1. **注册服务**：管理台「服务+接口映射」页（`POST /api/access/service-config/save`）登记 `serviceCode`/`name`/`status=1`。
-2. **声明接口**：`POST /api/access/service-config/sync-v2`（FULL 模式）上报接口清单，每个 ApiItem 必填 `requiredPermission`（如 REPORT:VIEW，业务类型及操作须先存在）——一步创建 **API 资源**与 **Gateway 路由映射**（`pathPattern = basePath + path`，行归属标记 `maintainSource=SERVICE_SYNC`）。API 类型由系统种子声明 SYNC+access-service（T-PERM-069），本通道与 bootstrap 固定图即唯一事实入口——**不要**走 `resource-entity/sync` 通道（外部来源不匹配，会被 `RESOURCE_TYPE_OWNERSHIP_DENIED` 拒绝；资源管理面手工 CRUD 亦 20055）。
+2. **声明接口**：`POST /api/access/service-config/sync-v2`（FULL 模式）上报接口清单，每个 ApiItem 必填 `requiredPermission`（如 REPORT:VIEW，业务类型及操作须先存在）——一步创建 **API 资源**与 **接口操作准入映射**（`pathPattern = basePath + path`，行归属标记 `maintainSource=SERVICE_SYNC`）。API 类型由系统种子声明 SYNC+access-service（T-PERM-069），本通道与 bootstrap 固定图即唯一事实入口——**不要**走 `resource-entity/sync` 通道（外部来源不匹配，会被 `RESOURCE_TYPE_OWNERSHIP_DENIED` 拒绝；资源管理面手工 CRUD 亦 20055）。
 3. **授权**：经管理台授权页对目标角色授予路由要求对应的业务资源权限（例如 REPORT 实例的 VIEW）。API 类型仅用于接口登记，不单独授权。授权写入口仍须用户身份与 ROLE:MANAGE，不收服务身份。
 4. **请求链路**：业务前端持平台会话令牌（`Authorization: Bearer <token>`，sa-token）经 **Gateway (8080)** 访问业务接口；Gateway 做**操作准入快照本地判定**（T-ACCESS-059：路由要求→候选分支，条件不可本地评估回源 `interface-admission` 在线判定）并对可下发条件做本地重评。准入 MAY_ENTER 不等于允许——业务服务必须以实际目标做完整实例鉴权；授权生效受 Gateway 快照刷新窗口约束（上界 30s）。
 5. **服务侧防直调**：Servlet 业务服务引入 perm-client starter 即自动装配 GatewaySignatureFilter；携带用户/租户身份头而签名缺失、错误、超窗或密钥未配置时拒绝（HTTP 200 + 30003）。无身份头的请求仍由业务入口身份检查与实际对象鉴权拒绝；验签不替代这些检查或网络隔离。
 6. **撤销与恢复**（T-ACCESS-053 补全，与授权同源）：撤销=授权页删除该条授权行（唯一删除语义 `apply-grant-plan` 的 `removes` 段；旧 `revoke` 端点已物理删除）——撤权生效受与授权相同的 30 秒陈旧窗口约束，窗口内接口回到 403；恢复=对同一业务资源重授对应操作（撤销为软删，重授即新建行），同样 30 秒内生效。回归锁：`ExampleProtectedApiE2EIT` 第⑧步（撤销→403→重授→200）。
+
+#### 显式配置 Gateway 转发路由
+
+接口操作准入映射告诉网关“请求需要什么权限”；Gateway 转发路由告诉网关“请求发到哪个服务”。sync-v2 只登记前者，不会创建后者，服务发现自动路由保持关闭。
+
+以现有 example-service 为例，服务登记 basePath 为 `/api/example`，接口声明 path 为 `/report/view`，准入映射的完整 pathPattern 为 `/api/example/report/view`。Gateway 还必须配置以下路由：
+
+```yaml
+spring:
+  cloud:
+    gateway:
+      routes:
+        - id: example-service
+          uri: lb://example-service
+          predicates:
+            - Path=/api/example/**
+          metadata:
+            serviceCode: example-service
+```
+
+Path 覆盖登记的 basePath；metadata.serviceCode 与登记的 serviceCode 一致，供准入按服务定位。uri 指向实际目的服务，此处 `lb://` 要求服务发现中存在同名实例；固定地址部署可使用对应服务根地址。没有 StripPrefix，服务收到的路径与外部路径相同。接入新服务时完成接口登记、显式转发路由与服务可达性配置，才能进行授权后的调用验收。
 
 ### 2.2 服务身份：业务凭证与平台内部互信
 
@@ -97,6 +118,9 @@ perm:
 URL 指向服务根地址，不附加 /api/access（方法映射已包含完整路径）。此方式不需要 Nacos/loadbalancer；Servlet SDK 自动装配测试同时验证直连 URL 可创建 Feign 客户端。凭证只自动注入 common 的 M2mCredentialEndpoints 方法+路径精确清单，服务端、Gateway 与 SDK 同源。perm-common 对 common/OpenFeign 使用 provided 编译依赖，两个 SDK starter 已提供实际运行依赖；仅引用 DTO 的程序无需因此引入服务端 Web/cache 实现。
 
 ### 2.4 接口权限与业务权限是两层（易混点）
+
+子权限上下文必须来自业务对象。`/api/example/report/sub-view` 先在可信租户内读取子报表，用 `DemoReport.parentCode()` 取得真实父，核对请求的 parentReportCode 后，再把同一子对象的 code 和真实父传给 `Target.childOf`。例如 report-1-detail 实际属于 report-1，即使授权把该子权限合法绑定在 report-2 的 VIEW 行下，请求 parentReportCode=report-2 仍返回既有 30004 拒绝。引擎校验授权行绑定，业务服务负责真实归属，两者都必须满足；成功响应回显真实父并返回同一对象。
+
 
 接入方最常问的「我给角色授了业务资源权限，为什么调接口还是 403」——**同一份业务授权，两层判定职责不同**：
 

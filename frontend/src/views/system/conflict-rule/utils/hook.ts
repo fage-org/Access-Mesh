@@ -1,3 +1,4 @@
+import { loadAllTypeDefs } from "@/api/type-def-options";
 import { ENUM_PAGE_SIZE } from "@/constants/access";
 import { ref, reactive, computed, onMounted } from "vue";
 import { message } from "@/utils/message";
@@ -21,7 +22,7 @@ import {
   getOperationList,
   type OperationPermissionResp
 } from "@/api/resource-operation";
-import { getTypeDefList, type TypeDefResp, TYPE_KEY } from "@/api/type-def";
+import { type TypeDefResp, TYPE_KEY } from "@/api/type-def";
 import { CONFLICT_RULE_PERMS } from "./perms";
 import type { ConflictFormData } from "./types";
 
@@ -76,14 +77,14 @@ export async function loadConflictRefData(): Promise<{
   const [roles, operations, typeDefs] = await Promise.allSettled([
     loadAllRoles(),
     getOperationList({}),
-    getTypeDefList({ typeKey: TYPE_KEY.RESOURCE_TYPE })
+    loadAllTypeDefs({ typeKey: TYPE_KEY.RESOURCE_TYPE })
   ]);
   return {
     roles: roles.status === "fulfilled" ? roles.value : [],
     operations: operations.status === "fulfilled" ? operations.value.items : [],
     typeDefs:
       typeDefs.status === "fulfilled"
-        ? typeDefs.value.items.filter(t => t.typeKey === TYPE_KEY.RESOURCE_TYPE)
+        ? typeDefs.value.filter(t => t.typeKey === TYPE_KEY.RESOURCE_TYPE)
         : []
   };
 }

@@ -12,6 +12,7 @@ const mockUpdateRole = vi.fn();
 const mockMoveRole = vi.fn();
 const mockConfirm = vi.fn();
 const mockMessage = vi.fn();
+const mockRemoveRoles = vi.fn();
 
 // 阻断 hook 模块级链（同 user hook.spec 范式：api/message/element-plus 全 mock；
 // MANAGEABLE_ROLE_TYPES 须随 mock 提供——./types 顶部从本模块导入消费）
@@ -27,11 +28,27 @@ vi.mock("@/api/role-manage", () => ({
   createRole: vi.fn(),
   updateRole: (...args: unknown[]) => mockUpdateRole(...args),
   moveRole: (...args: unknown[]) => mockMoveRole(...args),
-  removeRoles: vi.fn()
+  removeRoles: (...args: unknown[]) => mockRemoveRoles(...args)
 }));
 
 import { useRoleManage } from "./hook";
 import type { RoleTreeNode } from "@/api/role-manage";
+
+it("角色删除全不存在时显示实际零删除结果", async () => {
+  vi.clearAllMocks();
+  mockConfirm.mockResolvedValue(undefined);
+  mockGetRoleTree.mockResolvedValue([]);
+  mockRemoveRoles.mockResolvedValue({
+    deleted: [],
+    denied: [],
+    notFound: [123]
+  });
+  await useRoleManage().handleDelete(node({ id: 123, name: "角色" }));
+  expect(mockMessage).toHaveBeenCalledWith(
+    "已删除 0 项，无权跳过 0 项，不存在 1 项",
+    { type: "info" }
+  );
+});
 
 function node(partial: Partial<RoleTreeNode>): RoleTreeNode {
   return {

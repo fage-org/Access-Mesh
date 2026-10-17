@@ -57,8 +57,14 @@ class RoleManageAppServiceImplTest {
 
     private RoleManageAppServiceImpl service;
 
+    @org.junit.jupiter.api.AfterEach
+    void clearOperationLogContext() {
+        cn.ac.fage.accessmesh.access.audit.aop.OperationLogRuntimeContext.clear();
+    }
+
     @BeforeEach
     void setUp() {
+        cn.ac.fage.accessmesh.access.audit.aop.OperationLogRuntimeContext.clear();
         service = new RoleManageAppServiceImpl(
             abstractRoleMapper,
             subjectDomainService,
@@ -588,6 +594,44 @@ class RoleManageAppServiceImplTest {
         verify(localProjectionDomainService).softDeleteRoleResources(1L, java.util.Set.of(123L));
         // 角色事实 BATCH_DELETE + 投影 DELETE 各一次
         verify(auditDomainService, org.mockito.Mockito.times(2)).recordChangeLog(any(), any());
+    }
+
+    @Test
+    void shouldRejectDeleteWhenAllExistingRolesDenied() {
+        AbstractRole role = new AbstractRole();
+        role.setId(123L); role.setTenantId(1L); role.setRoleType(6);
+        when(subjectDomainService.selectValidRolesByIds(1L, java.util.Set.of(123L))).thenReturn(List.of(role));
+        when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE), any(), eq(OperationCode.MANAGE)))
+            .thenReturn(java.util.Set.of("123"));
+        assertThrows(SecurityException.class, () -> service.deleteRoles(1L, List.of(123L), 100L));
+        verify(subjectDomainService, org.mockito.Mockito.never()).softDeleteRoleBatch(any(), any());
+        org.assertj.core.api.Assertions.assertThat(cn.ac.fage.accessmesh.access.audit.aop.OperationLogRuntimeContext.snapshot().skip()).isFalse();
+    }
+
+    @Test
+    void shouldReportMissingRoleTargetsWithoutDeleting() {
+        var result = service.deleteRoles(1L, List.of(123L, 123L), 100L);
+        assertEquals(List.of(123L), result.notFound());
+        assertEquals(List.of(), result.deleted());
+        assertEquals(List.of(), result.denied());
+        verify(subjectDomainService, org.mockito.Mockito.never()).softDeleteRoleBatch(any(), any());
+    }
+
+    @Test
+    void shouldReportMixedRoleDeletionByRequestedTarget() {
+        AbstractRole allowed = new AbstractRole();
+        allowed.setId(123L); allowed.setTenantId(1L); allowed.setRoleType(6);
+        AbstractRole denied = new AbstractRole();
+        denied.setId(456L); denied.setTenantId(1L); denied.setRoleType(6);
+        when(subjectDomainService.selectValidRolesByIds(1L, java.util.Set.of(123L, 456L, 789L)))
+            .thenReturn(List.of(allowed, denied));
+        when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE), any(), eq(OperationCode.MANAGE)))
+            .thenReturn(java.util.Set.of("456"));
+        var result = service.deleteRoles(1L, List.of(123L, 456L, 789L), 100L);
+        assertEquals(List.of(123L), result.deleted());
+        assertEquals(List.of(456L), result.denied());
+        assertEquals(List.of(789L), result.notFound());
+        verify(subjectDomainService).softDeleteRoleBatch(1L, java.util.Set.of(123L));
     }
 
     /** codex 复评 P1：moveRole 移到根（parentId=null）须显式清 parent 列，事实侧与投影侧同时清父。 */

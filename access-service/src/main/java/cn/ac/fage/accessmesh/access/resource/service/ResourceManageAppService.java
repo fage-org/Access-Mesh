@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.resource.service;
 
+import cn.ac.fage.accessmesh.access.infrastructure.dto.BatchDeleteResp;
+
 import cn.ac.fage.accessmesh.access.resource.dto.req.ApiMappingAddReq;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ApiMappingUpdateReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceCreateReq;
@@ -97,7 +99,7 @@ public interface ResourceManageAppService {
      * @param keys       资源业务键列表
      * @param operatorId 操作者ID
      */
-    void deleteResources(Long tenantId, List<ResourceKeyReq> keys, Long operatorId);
+    BatchDeleteResp<ResourceKeyReq> deleteResources(Long tenantId, List<ResourceKeyReq> keys, Long operatorId);
 
     /**
      * 获取资源树

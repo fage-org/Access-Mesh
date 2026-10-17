@@ -130,6 +130,20 @@ class AutoGrantInsightPgIT {
         });
     }
 
+    @Test void shouldPreserveIdentityOfValidTargetWithoutGrantsOrDependencies() {
+        Fixture f = fixture();
+        AutoGrantExplainResp resp = explain(f, target(f, "d", "VIEW", null));
+        assertThat(resp.nodes()).singleElement().satisfies(node -> {
+            assertThat(node.fact().resource().resourceTypeCode()).isEqualTo(f.code());
+            assertThat(node.fact().resource().resourceCode()).isEqualTo("d");
+            assertThat(node.fact().resource().codeType()).isEqualTo("default");
+            assertThat(node.fact().operationCode()).isEqualTo("VIEW");
+            assertThat(node.desired()).isFalse();
+            assertThat(node.actualPermissionIds()).isEmpty();
+        });
+        assertThat(resp.driftDetected()).isFalse();
+    }
+
     @Test void shouldExcludeNonParticipatingSeedsFromFullView() {
         // 定案 B（2026-09-21）：无 target 全集仅含参与推导的种子——d:VIEW 无任何依赖边，
         // 不进解释视图（防大授权量角色孤点淹没推导链并吃掉 maxNodes 预算）

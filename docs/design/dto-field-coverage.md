@@ -59,3 +59,4 @@ RolePermissionItemResp 与其列表信封已由 perm-common 单源供服务端�
 | `IssuedPasswordResp` | password |
 | `TenantCreatedResp` | adminUsername, initialPassword, tenant |
 | `PlatformAccountCreatedResp` | account, initialPassword |
+| `BatchDeleteResp` | deleted, denied, notFound |

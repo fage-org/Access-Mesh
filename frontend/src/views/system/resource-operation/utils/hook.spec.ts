@@ -82,6 +82,22 @@ describe("资源与操作定义页共享列表上下文（T-FE-059 / F011 同模
     hasPermsValue = true;
   });
 
+  it("资源不存在时不会提示已删除", async () => {
+    const hook = useResourceOperation();
+    hook.selectedResourceTypeCode.value = "DATA";
+    mockRemoveResources.mockResolvedValue({
+      deleted: [],
+      denied: [],
+      notFound: [{ resourceTypeCode: "DATA", code: "c1", codeType: "default" }]
+    });
+    const ok = await hook.deleteResource(nodeOf(1, "DATA"));
+    expect(ok).toBe(false);
+    expect((await import("@/utils/message")).message).toHaveBeenCalledWith(
+      "已删除 0 项，无权跳过 0 项，不存在 1 项",
+      { type: "info" }
+    );
+  });
+
   it("切资源类型 B 树/操作表加载失败：双双清空（旧实现保留 A 树必失败）", async () => {
     mockGetResourceTree
       .mockResolvedValueOnce({ items: [{ root: nodeOf(1, "type-a") }] })

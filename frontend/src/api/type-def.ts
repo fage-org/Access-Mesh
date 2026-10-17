@@ -71,8 +71,8 @@ export type TypeDefResp = {
 };
 
 /** 类型定义列表查询参数（T-PERM-023 收口：服务端 typeKey/keyword 过滤 + 分页）。
- *  keyword 匹配 name/typeCode（LIKE，大小写敏感）；pageNum/pageSize 均不传 = 字典全量
- *  （后端上限 200，先例 /system-config/list——授权页/冲突规则/资源操作等下拉数据源走该模式）。 */
+ *  keyword 匹配 name/typeCode（LIKE，大小写敏感）；单页上限 200。
+ *  完整候选使用 loadAllTypeDefs 按 hasNext 续页，不将缺省分页视为全量。 */
 export type TypeDefListQuery = {
   typeKey?: string | null;
   keyword?: string | null;
@@ -119,7 +119,7 @@ export type TypeDefUpdateReq = {
 
 /** 查询类型定义列表（POST /api/access/type-definition/list）。
  *  T-PERM-023 收口：服务端 typeKey/keyword 过滤 + 分页，返回 PageResp
- *  （ORDER BY sortOrder,id）；不传分页参数 = 字典全量（上限 200）。 */
+ *  （ORDER BY sortOrder,id）；缺省分页只返回首批，完整候选仍须按 hasNext 续页。 */
 export const getTypeDefList = async (
   params: TypeDefListQuery
 ): Promise<PageResp<TypeDefResp>> => {

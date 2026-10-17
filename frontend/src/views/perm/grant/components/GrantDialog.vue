@@ -9,6 +9,7 @@
  * - 子权限配置器单父上下文（父 = 聚焦记录），按 SUB_PERM 允许集过滤候选。
  */
 import { computed, nextTick, ref, watch } from "vue";
+import { PREVIEW_BOUNDARY_NOTES } from "../utils/preview-impact";
 import type { ResourceTreeNode } from "@/api/resource-operation";
 import type { ConditionResp } from "@/api/permission-condition";
 import type {
@@ -1189,6 +1190,13 @@ function handleClose() {
     :close-on-click-modal="false"
     @update:model-value="handleClose"
   >
+    <el-alert
+      :title="PREVIEW_BOUNDARY_NOTES[1]"
+      :description="PREVIEW_BOUNDARY_NOTES[2]"
+      type="info"
+      :closable="false"
+      show-icon
+    />
     <div v-show="editorMode === 'main'" class="dialog-content">
       <div class="field-block operation-field">
         <div class="field-label">操作权限</div>

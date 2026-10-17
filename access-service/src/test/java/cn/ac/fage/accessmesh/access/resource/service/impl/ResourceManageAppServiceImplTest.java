@@ -57,8 +57,14 @@ class ResourceManageAppServiceImplTest {
 
     private ResourceManageAppServiceImpl service;
 
+    @org.junit.jupiter.api.AfterEach
+    void clearOperationLogContext() {
+        cn.ac.fage.accessmesh.access.audit.aop.OperationLogRuntimeContext.clear();
+    }
+
     @BeforeEach
     void setUp() {
+        cn.ac.fage.accessmesh.access.audit.aop.OperationLogRuntimeContext.clear();
         // 测试简化：投影主体 = 传入 operatorId
         service = new ResourceManageAppServiceImpl(
             resourceEntityMapper,
@@ -1072,5 +1078,50 @@ class ResourceManageAppServiceImplTest {
 
         verify(resourceEntityDomainService, org.mockito.Mockito.never())
             .softDeleteBatch(anyLong(), any(), any());
+    }
+
+    @Test
+    void shouldRejectDeleteWhenAllExistingResourcesDenied() {
+        ResourceEntity resource = resourceWithTriple(77L, 4, "report", "default");
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("DATA")))
+            .thenReturn(java.util.Map.of("DATA", 4));
+        when(resourceEntityMapper.selectByTypesAndCodesAndCodeTypes(eq(1L), eq(Set.of(4)), anySet(), anySet()))
+            .thenReturn(List.of(resource));
+        when(engine.getDeniedEntityIds(eq(1L), eq(99L), eq(ResourceTypeCode.RESOURCE), anySet(), eq(OperationCode.MANAGE)))
+            .thenReturn(Set.of(77L));
+        assertThrows(SecurityException.class, () -> service.deleteResources(1L, List.of(
+            new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeyReq("DATA", "report", null)), 99L));
+        verify(resourceEntityDomainService, org.mockito.Mockito.never()).softDeleteBatch(anyLong(), any(), any());
+        org.assertj.core.api.Assertions.assertThat(cn.ac.fage.accessmesh.access.audit.aop.OperationLogRuntimeContext.snapshot().skip()).isFalse();
+    }
+
+    @Test
+    void shouldReportMissingResourceTargetsWithoutDeleting() {
+        var key = new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeyReq("DATA", "missing", null);
+        var result = service.deleteResources(1L, List.of(key, key), 99L);
+        assertEquals(List.of(new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeyReq("DATA", "missing", "default")), result.notFound());
+        assertEquals(List.of(), result.deleted());
+        assertEquals(List.of(), result.denied());
+        verify(resourceEntityDomainService, org.mockito.Mockito.never()).softDeleteBatch(anyLong(), any(), any());
+    }
+
+    @Test
+    void shouldReportMixedResourceDeletionByCompleteBusinessKey() {
+        ResourceEntity allowed = resourceWithTriple(77L, 4, "report", "BIZ");
+        ResourceEntity denied = resourceWithTriple(78L, 4, "report", "default");
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("DATA")))
+            .thenReturn(java.util.Map.of("DATA", 4));
+        when(resourceEntityMapper.selectByTypesAndCodesAndCodeTypes(eq(1L), eq(Set.of(4)), anySet(), anySet()))
+            .thenReturn(List.of(allowed, denied));
+        when(engine.getDeniedEntityIds(eq(1L), eq(99L), eq(ResourceTypeCode.RESOURCE), anySet(), eq(OperationCode.MANAGE)))
+            .thenReturn(Set.of(78L));
+        var a = new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeyReq("DATA", "report", "BIZ");
+        var b = new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeyReq("DATA", "report", "default");
+        var c = new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeyReq("DATA", "missing", "default");
+        var result = service.deleteResources(1L, List.of(a, b, c), 99L);
+        assertEquals(List.of(a), result.deleted());
+        assertEquals(List.of(b), result.denied());
+        assertEquals(List.of(c), result.notFound());
+        verify(resourceEntityDomainService).softDeleteBatch(eq(1L), eq(List.of(77L)), any());
     }
 }

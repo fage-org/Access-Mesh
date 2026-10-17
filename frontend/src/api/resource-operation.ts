@@ -1,3 +1,4 @@
+import type { BatchDeleteResp } from "@/api/batch-delete";
 /**
  * 资源与操作定义 API
  * 经 @/utils/http 使用 POST + JSON 调用 /api/access/**；Gateway 外部路径与服务路径一致。
@@ -242,11 +243,17 @@ export const moveResource = async (data: ResourceMoveReq): Promise<void> => {
 };
 
 /** 删除资源，支持批量（POST /api/access/resource-entity/remove，业务键集合）。 */
-export const removeResources = async (keys: ResourceKey[]): Promise<void> => {
-  unwrap(
-    await http.request<R<void>>("post", "/api/access/resource-entity/remove", {
-      data: { items: keys }
-    })
+export const removeResources = async (
+  keys: ResourceKey[]
+): Promise<BatchDeleteResp<ResourceKey>> => {
+  return unwrap(
+    await http.request<R<BatchDeleteResp<ResourceKey>>>(
+      "post",
+      "/api/access/resource-entity/remove",
+      {
+        data: { items: keys }
+      }
+    )
   );
 };
 

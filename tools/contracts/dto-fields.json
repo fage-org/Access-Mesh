@@ -873,5 +873,25 @@
         "name": "PlatformAccountCreatedResp"
       }
     ]
+  },
+  {
+    "name": "BatchDeleteResp",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/dto/BatchDeleteResp.java",
+        "name": "BatchDeleteResp"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/batch-delete.ts",
+        "name": "BatchDeleteResp"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "BatchDeleteResp"
+      }
+    ]
   }
 ]

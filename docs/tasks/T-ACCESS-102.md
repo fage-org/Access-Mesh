@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-102
 title: example-service 子报表真实父关系核对
-status: proposed
+status: done
 plan: docs/plans/scenario-audit-remediation-plan.md
 domain: access-service
 design_refs:
@@ -13,11 +13,11 @@ blocks: []
 acceptance:
   - "/sub-view 读取子对象后核对业务真实父（复用 DemoReport.parentCode 派生或等价核对），请求父与真实父不符按既有拒绝语义处理；通过后返回同一对象并回显真实父"
   - "最终权限检查消费真实父上下文；错父用例覆盖「授权绑定 report-2、业务明细属 report-1」的合法授权组合（探针已实证当前实现会返回实际明细内容）"
-  - "extension-guide.md §8.6 最终检查接线示例同步修正"
+  - "extension-guide.md §2.4 最终检查接线示例同步修正"
 design_writeback:
   required: true
-  status: pending
-last_updated: 2026-10-14
+  status: done
+last_updated: 2026-10-17
 ---
 
 ## 背景
@@ -34,8 +34,17 @@ example-service /sub-view 控制器与最终检查接线；错父测试补全；
 
 ## 验收对照
 
-见 frontmatter `acceptance`；探针（ObjectContextProbe，真实 Controller→BusinessPermChecker→引擎）可转正，错父合法组合用例须旧实现下失败。
+- [x] 读取可信租户内的实际子对象后核对真实父，不匹配按既有 30004 拒绝。
+- [x] 最终检查与成功响应消费同一子对象和真实父。
+- [x] E2E 先证明错业务父的授权组合在引擎中允许，再证明业务端拒绝；接入指南 §2.4 已同步。
 
 ## 非目标 / 遗留
 
 权限引擎判定逻辑不动；DECISION-001（导出领取边界，见待解决问题清单 Q-073）不在本卡范围。
+
+## 完成记录
+
+2026-10-17：`mvn test -T 1C` 全 reactor 通过，包含 E2E 与 heavy；本次生成的 Surefire XML 共 2860 个 testcase，失败/错误/跳过均为 0（按 XML 实际 testcase 计数，避免嵌套测试汇总行差异）。
+错业务父且权限检查返回允许的单测在旧行为下失败；ReportControllerTest 20 项与 ExampleBusinessFinalCheckE2EIT 12 项通过。
+
+代码轨核对可信租户取数、业务父核对顺序、同一对象检查及返回、引擎允许而业务拒绝的 E2E 反例；文档轨核对最终检查职责、指南 §2.4 与既有跨类型子授权边界。两轨无未解决 P0–P2 或待决策项；未引入无调用方机制。

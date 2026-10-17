@@ -277,7 +277,7 @@ class HttpApiPathSnapshotTest {
 /api/access/abstract-role/full-sync|access.sync.dto.AbstractRoleFullSyncReq|common.model.R<perm.common.dto.resp.SyncResultResp>
 /api/access/abstract-role/list|perm.common.dto.req.RoleListReq|common.model.R<perm.common.dto.resp.PageResp<access.role.dto.resp.RoleResp>>
 /api/access/abstract-role/move|access.role.dto.req.RoleMoveReq|common.model.R<Void>
-/api/access/abstract-role/remove|perm.common.dto.req.IdsReq|common.model.R<Void>
+/api/access/abstract-role/remove|perm.common.dto.req.IdsReq|common.model.R<access.infrastructure.dto.BatchDeleteResp<Long>>
 /api/access/abstract-role/sync|access.sync.dto.AbstractRoleSyncReq|common.model.R<perm.common.dto.resp.SyncResultResp>
 /api/access/abstract-role/tree|access.role.dto.req.RoleTreeReq|common.model.R<perm.common.dto.resp.ItemsResp<access.role.dto.resp.RoleTreeResp>>
 /api/access/abstract-role/update|access.role.dto.req.RoleUpdateReq|common.model.R<access.role.dto.resp.RoleResp>
@@ -339,7 +339,7 @@ class HttpApiPathSnapshotTest {
 /api/access/resource-entity/full-sync|access.sync.dto.ResourceEntityFullSyncReq|common.model.R<perm.common.dto.resp.SyncResultResp>
 /api/access/resource-entity/list|access.resource.dto.req.ResourceListReq|common.model.R<perm.common.dto.resp.PageResp<access.resource.dto.resp.ResourceResp>>
 /api/access/resource-entity/move|access.resource.dto.req.ResourceMoveReq|common.model.R<Void>
-/api/access/resource-entity/remove|perm.common.dto.req.ResourceKeysReq|common.model.R<Void>
+/api/access/resource-entity/remove|perm.common.dto.req.ResourceKeysReq|common.model.R<access.infrastructure.dto.BatchDeleteResp<perm.common.dto.req.ResourceKeyReq>>
 /api/access/resource-entity/sync|access.sync.dto.ResourceEntitySyncReq|common.model.R<perm.common.dto.resp.SyncResultResp>
 /api/access/resource-entity/tree|access.resource.dto.req.ResourceTreeReq|common.model.R<perm.common.dto.resp.ItemsResp<access.resource.dto.resp.ResourceTreeResp>>
 /api/access/resource-entity/update|perm.common.dto.req.ResourceUpdateReq|common.model.R<access.resource.dto.resp.ResourceResp>

@@ -4,7 +4,7 @@ title: 权限依赖声明与自动授权（简化方案）
 status: adopted
 domain: access-service
 supersedes: docs/archive/2026-09-20/dependency-auto-grant-path-design.md
-last_reviewed: 2026-10-06
+last_reviewed: 2026-10-17
 ---
 
 # 权限依赖声明与自动授权（简化方案）
@@ -34,7 +34,7 @@ last_reviewed: 2026-10-06
 
 ### 1.2 保持的边界
 
-实例级、同 owner 服务、单操作触发、条件直传与多条件 OR、同步物化保持。类型级 scope_all/AUTHORITY_ROOT/BOOTSTRAP_SEED 不作种子；父实例继承得到的权限不展开为种子。授权页直接说明边界。
+实例级、同 owner 服务、单操作触发、条件直传与多条件 OR、同步物化保持。类型级 scope_all/AUTHORITY_ROOT/BOOTSTRAP_SEED 不作种子；父实例继承得到的权限不展开为种子。授权弹窗与存在草稿的保存区直接展示「自动权限独立可用」和「类型级/父继承不作种子」说明，复用预览文案，不依赖预览成功或要求先预览。
 
 API 与操作关联派生仍归 T-PERM-054，不通过依赖图授 API 绕过启动门禁；菜单可见性走既有投影。跨系统 export、类型级依赖、注解扫描、异步重建、多操作 AND 触发不进入本次范围。动态 SQL 消费仍归 T-PERM-036。
 
@@ -308,6 +308,8 @@ manifest 不需要用户 API 快照/固定图授权行；管理 explain 仍需�
 ## 11. 按需来源解释
 
 计划 POST /api/access/resource-dependency/explain 仅解释“为什么生成该角色的自动权限”。角色使用业务键，维持 DEPENDENCY:VIEW 类型级管理门禁，不开放服务凭证，不恢复已删除的通用用户排查端点族。
+
+有效 target 即使不在授权行与依赖图中，也保留入口已解析的完整 FactKey（资源类型/编码/码类型/操作/条件）。desired=false 且 actual 为空的目标显示中性「未生成自动权限」；仅 actual 非空而 desired=false 才标为无来源存量。目标选择值携带完整资源业务键，非默认 codeType 在事实标签中显式区分。
 
 一致性视图读取种子、编译图、操作定义与 actual AUTO_DEP，同一推导/精确去重函数输出 desired 的共享关系、显式来源、条件与操作触发说明，并对比实际存储；操作覆盖解释用于说明为何满足触发，不用于说明删行压制。漂移必须标识，不能把“应生成”当成“已生效”。
 

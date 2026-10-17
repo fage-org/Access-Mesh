@@ -1,3 +1,4 @@
+import { deleteResultNotice } from "@/utils/delete-result";
 import { ref, onMounted } from "vue";
 import { message } from "@/utils/message";
 import { ElMessageBox } from "element-plus";
@@ -212,9 +213,13 @@ export function useRoleManage() {
       return; // 取消
     }
     try {
-      await removeRoles([node.id]);
-      message("删除成功", { type: "success" });
-      if (selectedRole.value?.id === node.id) {
+      const result = await removeRoles([node.id]);
+      const notice = deleteResultNotice(result);
+      message(notice.text, { type: notice.type });
+      if (
+        selectedRole.value?.id === node.id &&
+        !result.denied.includes(node.id)
+      ) {
         selectedRole.value = null;
       }
       await loadTree();

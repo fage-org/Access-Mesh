@@ -33,7 +33,33 @@ function role(id: number) {
 
 describe("冲突规则页引用数据装载", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+  });
+
+  it("类型候选按 hasNext 续页，第 201 个类型仍可选", async () => {
+    getRoleList.mockResolvedValue({ items: [], hasNext: false });
+    getOperationList.mockResolvedValue({ items: [] });
+    getTypeDefList
+      .mockResolvedValueOnce({
+        items: Array.from({ length: 200 }, (_, i) => ({
+          id: i + 1,
+          typeKey: "resource_type",
+          typeCode: `TYPE_${i + 1}`
+        })),
+        hasNext: true
+      })
+      .mockResolvedValueOnce({
+        items: [{ id: 201, typeKey: "resource_type", typeCode: "TYPE_201" }],
+        hasNext: false
+      });
+    const { typeDefs } = await loadConflictRefData();
+    expect(typeDefs).toHaveLength(201);
+    expect(typeDefs.at(-1)?.typeCode).toBe("TYPE_201");
+    expect(getTypeDefList).toHaveBeenLastCalledWith({
+      typeKey: "resource_type",
+      pageNum: 2,
+      pageSize: 200
+    });
   });
 
   it("loadAllRoles 按 hasNext 循环拉全分页（旧实现只取首页必失败）", async () => {

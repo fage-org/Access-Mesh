@@ -140,7 +140,7 @@ class OperationLogRuntimeContextAppServiceTest {
     }
 
     @Test
-    void shouldSkipResourceDeleteLogWhenAllRequestedResourcesDenied() {
+    void shouldKeepResourceDeleteFailureAuditWhenAllRequestedResourcesDenied() {
         ResourceManageAppServiceImpl service = new ResourceManageAppServiceImpl(
             resourceEntityMapper,
             resourceApiMappingMapper,
@@ -173,12 +173,12 @@ class OperationLogRuntimeContextAppServiceTest {
         when(engine.getDeniedEntityIds(1L, 99L, ResourceTypeCode.RESOURCE, Set.of(10L, 20L), OperationCode.MANAGE))
             .thenReturn(Set.of(10L, 20L));
 
-        service.deleteResources(1L, List.of(
+        org.junit.jupiter.api.Assertions.assertThrows(SecurityException.class, () -> service.deleteResources(1L, List.of(
             new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeyReq("MENU", "a", null),
-            new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeyReq("MENU", "b", null)), 99L);
+            new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeyReq("MENU", "b", null)), 99L));
 
         OperationLogRuntimeContext.Snapshot snapshot = OperationLogRuntimeContext.snapshot();
-        assertTrue(snapshot.skip());
+        assertTrue(!snapshot.skip());
         verify(resourceEntityDomainService, never()).softDeleteBatch(eq(1L), anyList(), any(LocalDateTime.class));
         verify(roleResourcePermissionMapper, never()).softDeleteBatch(eq(1L), anyList(), any(LocalDateTime.class));
     }

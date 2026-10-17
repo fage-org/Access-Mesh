@@ -163,7 +163,7 @@ public class ReportController {
 
     /**
      * 上下文子权限查看（§8.6 上下文子权限行）：depend_on 子资源 + 真实父资源/父操作，
-     * 引擎验证父授权记录绑定——无父/错父由引擎拒绝（DEPENDENT_NOT_IN_PARENT_CONTEXT）。
+     * 先核对业务对象真实父，再由引擎验证父授权记录绑定；错父返回既有拒绝语义。
      */
     @PostMapping("/sub-view")
     public R<SubViewResp> subView(@Valid @RequestBody SubViewReq req,
@@ -171,16 +171,20 @@ public class ReportController {
                                   @RequestHeader(name = "X-Tenant-Id", required = false) String tenantId,
                                   @RequestHeader(name = "X-Forwarded-For", required = false) String clientIp) {
         requireIdentity(userId, tenantId);
-        Decision decision = permChecker.check(tenantId, userId, clientIp,
-            Target.childOf(TYPE_EXAMPLE, req.subReportCode(), OP_SUB_VIEW,
-                TYPE_EXAMPLE, req.parentReportCode(), List.of(OP_VIEW)));
-        if (!decision.allowed()) {
-            throw denied(decision);
-        }
         DemoReport sub = reportStore.find(tenantId, req.subReportCode())
             .orElseThrow(() -> new BizException(ExampleErrorCode.DEMO_PARAM_INVALID.getCode(),
                 "子权限报表不存在: " + req.subReportCode()));
-        return R.ok(new SubViewResp(sub.code(), req.parentReportCode(), sub.name(), sub.content()));
+        String parentCode = sub.parentCode();
+        if (parentCode == null || !parentCode.equals(req.parentReportCode())) {
+            throw denied(new Decision(false, "DEPENDENT_NOT_IN_PARENT_CONTEXT"));
+        }
+        Decision decision = permChecker.check(tenantId, userId, clientIp,
+            Target.childOf(TYPE_EXAMPLE, sub.code(), OP_SUB_VIEW,
+                TYPE_EXAMPLE, parentCode, List.of(OP_VIEW)));
+        if (!decision.allowed()) {
+            throw denied(decision);
+        }
+        return R.ok(new SubViewResp(sub.code(), parentCode, sub.name(), sub.content()));
     }
 
     /** 提交异步导出（§8.6 异步作业行·提交时点）：提交时检查 EXPORT；执行时点重查在 ExportJobRunner。 */

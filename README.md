@@ -4,7 +4,7 @@
 
 ## 特性
 
-- **多租户数据隔离**：tenant_id 行级隔离（可信上下文 + Flex 生成 SQL 自动条件 + 自定义 SQL 显式租户约束）；租户开通/运营能力未交付（首期固定单租户试运行）
+- **多租户数据隔离**：tenant_id 行级隔离（可信上下文 + Flex 生成 SQL 自动条件 + 自定义 SQL 显式租户约束）；支持独立平台运营账号开通、停用与恢复租户，租户用户以 tenantCode 登录
 - **树形角色模型**：ORG/POSITION/PERSONAL/GROUP_ROLE/BASIC_ROLE 五种角色类型已建模；角色管理页维护 BASIC_ROLE，PERSONAL 支持 API 与分配，GROUP_ROLE 写入冻结
 - **RBAC 权限引擎**：资源-操作-角色三位一体，支持条件权限和范围权限
 - **网关级鉴权**：Spring Cloud Gateway + Sa-Token，接口级白名单模式（快照本地匹配 + 30 秒撤权边界）
@@ -31,7 +31,7 @@
 Gateway (8080)
   ├── access-service (9100)    能力包单体：管理面（用户/组织/菜单/认证/字典等）+ 权限面（权限事实 + 鉴权引擎）
   │                             （18 顶层包 = 13 能力包 + sync/engine/projection/bootstrap/infrastructure）
-  └── example-service (9300)    对接演示（单受保护接口 /api/example/demo/hello 已随 T-API-001 交付，经 Gateway 鉴权）
+  └── example-service (9300)    对接演示（问候接口与报表路由，经 Gateway 准入并在业务侧做最终检查）
 ```
 
 `admin-service` 与 `permission-center` 已归并为 `access-service`（单库 `access_db`），详见 [架构设计](docs/design/architecture.md) 与 [归并后目标架构](docs/design/access-service-architecture.md)。
@@ -40,7 +40,7 @@ Gateway (8080)
 
 **v0.1.0 预览版**——核心产品链路（空库 bootstrap → 登录 → 建角色授权 → 网关级鉴权生效 → 撤权 30 秒内回收）已由跨服务 E2E 测试钉死并通过；全部管理页面已切换真实接口。版本变更与已知限制见 [CHANGELOG](CHANGELOG.md)；开发历史与任务口径见 [docs/README.md](docs/README.md)。
 
-**已知限制（预览版边界）**：单租户试运行（租户开通/运营未交付）；角色管理页仅维护 BASIC_ROLE（PERSONAL 支持 API 与分配，GROUP_ROLE 写入冻结）；通用 SQL 自动改写未交付（依赖自动授权与报表范围查询已可用）；DDL 无迁移框架（变更=销毁重建）；bootstrap 与文件存储单实例。
+**已知限制（预览版边界）**：旧 tenantId 登录已退役，租户登录使用 tenantCode；角色管理页仅维护 BASIC_ROLE（PERSONAL 支持 API 与分配，GROUP_ROLE 写入冻结）；通用 SQL 自动改写未交付（依赖自动授权与报表范围查询已可用）；DDL 无迁移框架（变更=销毁重建）；bootstrap 与文件存储单实例。
 
 ## 文档
 

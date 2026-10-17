@@ -217,7 +217,7 @@ export const explainAutoGrant = async (
 /** 服务依赖发布状态（tenant+service 单行） */
 export type ManifestSyncItem = {
   sourceService: string;
-  publicationGeneration: number;
+  publicationGeneration: string;
   revision: string | null;
   syncStatus: string | null;
   isDirty: boolean | null;

@@ -136,7 +136,9 @@ class FileAppServiceImplTest {
     void getFileAllowedWithFolderViewPermission() {
         when(fileMapper.selectValidById(TENANT, 1L)).thenReturn(fileRow(1L, "default/2026/08/25/uuid.txt"));
 
-        assertThat(service.getFile(1L).id()).isEqualTo(1L);
+        var result = service.getFile(1L);
+        assertThat(result.id()).isEqualTo(1L);
+        assertThat(new com.fasterxml.jackson.databind.ObjectMapper().valueToTree(result).has("fileUrl")).isFalse();
         verify(permissionValidator).checkInstanceLevel(
             ResourceTypeCode.ADMIN_FILE, "default", OperationCode.VIEW);
     }
@@ -285,6 +287,23 @@ class FileAppServiceImplTest {
     }
 
     @Test
+    void shouldEncodeChineseDownloadNameWithAsciiFallback() throws Exception {
+        Files.writeString(storageRoot.resolve("uuid.txt"), "abc");
+        SysFile row = fileRow(1L, "uuid.txt");
+        row.setOriginalName("报表 2026.txt");
+        when(fileMapper.selectValidById(TENANT, 1L)).thenReturn(row);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        assertThat(service.downloadFile(1L, response)).isEqualTo("abc".getBytes());
+        String disposition = response.getHeader("Content-Disposition");
+        assertThat(disposition).contains("filename=\"__ 2026.txt\"",
+            "filename*=UTF-8''%E6%8A%A5%E8%A1%A8%202026.txt");
+        assertThat(disposition.chars().allMatch(c -> c >= 32 && c < 127)).isTrue();
+        assertThat(org.springframework.http.ContentDisposition.parse(disposition).getFilename())
+            .isEqualTo("报表 2026.txt");
+    }
+
+    @Test
     @DisplayName("uploadFile bizType 路径注入（a/b、../x、含空格、超长）→ 拒绝 10506 且不登记投影")
     void uploadFileRejectsIllegalBizType() {
         List<String> illegal = List.of("a/b", "../x", "a b", "a".repeat(33), "a.b", "..");
@@ -391,7 +410,7 @@ class FileAppServiceImplTest {
 
         assertThat(data).isEqualTo("abc".getBytes());
         assertThat(response.getHeader("Content-Disposition"))
-            .isEqualTo("attachment; filename=\"poisoned.txt\"");
+            .isEqualTo("attachment; filename=\"poisoned.txt\"; filename*=UTF-8''poisoned.txt");
     }
 
     // ===== ③ 删除顺序反转（先软删提交、afterCommit 物理清理、失败容忍孤儿） =====

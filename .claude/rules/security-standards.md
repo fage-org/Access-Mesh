@@ -164,27 +164,14 @@ public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
 **MUST** CI 管道集成依赖安全扫描。
 
-```yaml
-# GitHub Actions OWASP 扫描
-- name: OWASP Dependency Check
-  uses: dependency-check/Dependency-Check_Action@main
-  with:
-    project: 'AccessMesh'
-    path: '.'
-    format: 'HTML'
-    out: 'reports'
-  env:
-    JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17/64
+现行入口为 `.github/workflows/ci.yml` 的 `dependency-security` job（push / PR / 手动 / 每周一 02:00 UTC）。Maven 先解析并安装 reactor 依赖，再用固定 `org.owasp:dependency-check-maven:12.1.9:aggregate` 扫描，JDK 21，包含 test/provided，`failBuildOnCVSS=7.0`、`failOnError=true`；NVD API key 可通过仓库 secret `NVD_API_KEY` 加速，没有 key 不豁免扫描失败。OSS Index 补充源关闭以避免依赖另一个账户认证，Maven CVE 主检查使用 NVD；前端由 pnpm 单独扫描，不使用 Dependency Check 的 Node 审计适配器。
 
-- name: Upload Report
-  uses: actions/upload-artifact@v4
-  with:
-    name: dependency-check-report
-    path: reports/
-```
+前端固定 pnpm 11.5.0，按锁文件安装后执行 `pnpm audit --audit-level high --json`，包括生产与开发依赖；high/critical 阻断，不忽略 registry 错误或无修复版本。新增 Actions 固定到经标签核实的 commit SHA，报告即使失败也上传并保留 30 天。扫描失败、未执行和漏洞阻断须与通过分开报告；存量依赖修复由 T-ACCESS-105 承接，不以关闭扫描、调低门槛或未批准的忽略项获得绿色。
+
+工具参数依据：[Dependency Check Maven](https://dependency-check.github.io/DependencyCheck/dependency-check-maven/configuration.html)、[pnpm audit](https://pnpm.io/cli/audit)。
 
 要求：
-- **高危漏洞阻断**: CVE ≥ 7.0 必须修复后方可合并
+- **高危漏洞阻断**: CVSS ≥ 7.0 必须修复后方可合并
 - **定期扫描**: 每周全量扫描，新漏洞及时告警
 - **禁止黑名单依赖**: 即使扫描通过也禁止使用团队规定的黑名单依赖（如 FastJSON）
 

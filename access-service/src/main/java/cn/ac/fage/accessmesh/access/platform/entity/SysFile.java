@@ -47,7 +47,7 @@ public class SysFile {
     private String filePath;
 
     /**
-     * 文件访问URL
+     * 历史保留字段；不再写入或对外返回，访问统一走鉴权下载
      */
     private String fileUrl;
 

@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.role.service.impl;
 
+import cn.ac.fage.accessmesh.access.infrastructure.dto.BatchDeleteResp;
+
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLogRuntimeContext;
@@ -341,7 +343,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "PERMISSION", action = "ABSTRACT_ROLE_REMOVE", targetType = "abstract_role", targetId = "", summary = "'batch remove roles'")
     @PermissionChange
-    public void deleteRoles(Long tenantId, List<Long> roleIds, Long operatorId) {
+    public BatchDeleteResp<Long> deleteRoles(Long tenantId, List<Long> roleIds, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // 树写锁先于首次读取（与 updateRole/moveRole 同把，T-PERM-044 先例；codex 四轮 P2）：
@@ -351,23 +353,23 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
 
         if (roleIds == null || roleIds.isEmpty()) {
             OperationLogRuntimeContext.markSkip();
-            return;
+            return new BatchDeleteResp<>(List.of(), List.of(), List.of());
         }
 
         Set<Long> validRoleIds = roleIds.stream()
             .filter(id -> id != null)
-            .collect(Collectors.toSet());
+            .collect(Collectors.toCollection(LinkedHashSet::new));
 
         if (validRoleIds.isEmpty()) {
             OperationLogRuntimeContext.markSkip();
-            return;
+            return new BatchDeleteResp<>(List.of(), List.of(), List.of());
         }
 
         List<AbstractRole> roles = subjectDomainService.selectValidRolesByIds(tenantId, validRoleIds);
 
         if (roles.isEmpty()) {
             OperationLogRuntimeContext.markSkip();
-            return;
+            return new BatchDeleteResp<>(List.of(), List.of(), List.copyOf(validRoleIds));
         }
         roles.forEach(localProjectionGuard::rejectIfLocalRole);
 
@@ -390,8 +392,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         }
 
         if (permittedIds.isEmpty()) {
-            OperationLogRuntimeContext.markSkip();
-            return;
+            throw new SecurityException("无权删除请求中的角色");
         }
 
         Set<Long> allIdsToDelete = new LinkedHashSet<>(permittedIds);
@@ -492,6 +493,10 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
                 roleArr
             ))
         );
+        return new BatchDeleteResp<>(
+            validRoleIds.stream().filter(allIdsToDelete::contains).toList(),
+            validRoleIds.stream().filter(id -> existingRoles.containsKey(id) && !allIdsToDelete.contains(id)).toList(),
+            validRoleIds.stream().filter(id -> !existingRoles.containsKey(id)).toList());
     }
 
     /**

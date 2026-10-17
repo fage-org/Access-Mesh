@@ -2,6 +2,7 @@ import { ref, reactive } from "vue";
 import { ElMessageBox } from "element-plus";
 import type { UserItem } from "./types";
 import {
+  type CreateUserResult,
   getUserPage,
   createUser,
   updateUser,
@@ -65,7 +66,11 @@ export function useUserManage() {
     phone?: string;
     email?: string;
     orgId?: number;
-  }): Promise<{ initialPassword: string } | null> {
+  }): Promise<CreateUserResult | null> {
+    if (form.orgId == null) {
+      message("请选择默认组织树中的所属组织", { type: "warning" });
+      return null;
+    }
     try {
       const result = await createUser(form);
       loadTable();

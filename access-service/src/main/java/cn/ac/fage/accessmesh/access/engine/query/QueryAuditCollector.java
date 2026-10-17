@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.engine.query;
 
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
+import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.engine.core.BatchPermMutexEvaluator;
 import cn.ac.fage.accessmesh.access.engine.query.ConflictEvidence.PermRuleId;
 import cn.ac.fage.accessmesh.access.engine.query.ConflictEvidence.RolePair;
@@ -90,11 +91,13 @@ final class QueryAuditCollector {
     }
 
     private void submit(RunState run, ConflictEvidence evidence) {
+        String subject = run.request().subject() instanceof User user
+            ? "subjectUserId=" + user.userId() : "subject=ROLES";
         audit.asyncRecordLog(new AuditDomainService.OperationLogEntry(
             run.request().tenantId(), "PERMISSION", "CONFLICT_DETECTED", "permission_conflict_rule", null,
             (run.request().items().getFirst().selection() instanceof OperationAdmission
-                ? "authorizationStage=OPERATION_ADMISSION, " : "") + summary(evidence),
-            null, null, null, null, null, null, null));
+                ? "authorizationStage=OPERATION_ADMISSION, " : "") + subject + ", " + summary(evidence),
+            null, null, null, OperatorContext.getRequestId(), null, null, null));
     }
 
     /** 单行单规则的结构化摘要（角色/授权 ID 仅入内部审计行）。固定字段全部前移、变长 affected

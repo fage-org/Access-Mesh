@@ -63,7 +63,14 @@ const rules: FormRules = {
   phone: [
     { pattern: /^1[3-9]\d{9}$/, message: "请输入有效手机号", trigger: "blur" }
   ],
-  email: [{ type: "email", message: "请输入有效邮箱", trigger: "blur" }]
+  email: [{ type: "email", message: "请输入有效邮箱", trigger: "blur" }],
+  orgId: [
+    {
+      required: true,
+      message: "请选择默认组织树中的所属组织",
+      trigger: "change"
+    }
+  ]
 };
 
 async function validate(): Promise<boolean> {
@@ -104,7 +111,7 @@ defineExpose({ validate });
       <el-input v-model="emailModel" placeholder="请输入邮箱" clearable />
     </el-form-item>
 
-    <el-form-item v-if="mode === 'create'" label="所属组织">
+    <el-form-item v-if="mode === 'create'" label="所属组织" prop="orgId">
       <ReOrgTreePanel
         :show-config="false"
         :tree-config-id="treeConfigId"

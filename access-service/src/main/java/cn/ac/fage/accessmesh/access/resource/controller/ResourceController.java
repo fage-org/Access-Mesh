@@ -1,5 +1,8 @@
 package cn.ac.fage.accessmesh.access.resource.controller;
 
+import cn.ac.fage.accessmesh.access.infrastructure.dto.BatchDeleteResp;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeyReq;
+
 import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceBatchCreateReq;
@@ -131,9 +134,8 @@ public class ResourceController {
      * @return 操作成功结果
      */
     @PostMapping("/remove")
-    public R<Void> deleteResource(@Valid @RequestBody ResourceKeysReq req) {
-        resourceManageAppService.deleteResources(TenantContextHolder.getTenantId(), req.items(), null);
-        return R.ok();
+    public R<BatchDeleteResp<ResourceKeyReq>> deleteResource(@Valid @RequestBody ResourceKeysReq req) {
+        return R.ok(resourceManageAppService.deleteResources(TenantContextHolder.getTenantId(), req.items(), null));
     }
 
     /**

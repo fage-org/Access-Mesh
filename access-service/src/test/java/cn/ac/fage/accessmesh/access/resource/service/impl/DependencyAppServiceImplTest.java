@@ -30,6 +30,16 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class DependencyAppServiceImplTest {
 
+    @Test
+    void shouldSerializePublicationGenerationAsExactDecimalString() throws Exception {
+        var value = new cn.ac.fage.accessmesh.access.resource.dto.resp.DependencyDeclarationStatusResp.ManifestSyncItem(
+            "report-svc", 9007199254740993L, "v1", "SUCCESS", false, null);
+        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        var json = mapper.readTree(mapper.writeValueAsString(value));
+        assertThat(json.get("publicationGeneration").isTextual()).isTrue();
+        assertThat(json.get("publicationGeneration").asText()).isEqualTo("9007199254740993");
+    }
+
     private static final Long TENANT = 1L;
     private static final Long OPERATOR = 100L;
     private static final Long SOURCE_ID = 11L;

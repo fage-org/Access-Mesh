@@ -22,8 +22,9 @@ tasks:
   - T-ACCESS-102
   - T-ACCESS-103
   - T-ACCESS-104
+  - T-ACCESS-105
 acceptance: "33 项核实成立缺陷（P1×3、P2×27、P3×3）全部被任务验收覆盖或显式登记待拍板；密钥出站与 CIDR 退化放行优先收口；全量回归绿（收口形态含 E2E 与 heavy）"
-last_updated: 2026-10-15
+last_updated: 2026-10-17
 ---
 
 ## 目标
@@ -54,13 +55,14 @@ last_updated: 2026-10-15
 | [T-ACCESS-100](../tasks/T-ACCESS-100.md) | SDK 公共依赖宿主侵入收口 | P2×4 族 | ✅ |
 | [T-PERM-110](../tasks/T-PERM-110.md) | 认证与登录安全细节批 | P2×4 族 | ✅ |
 | [T-FE-068](../tasks/T-FE-068.md) | 前端迟响应与竞态批 | P2×4+P3 族 | ✅ |
-| [T-FE-069](../tasks/T-FE-069.md) | 前端选择器与表单可用性批 | P2×5 族 | ⚙️ |
-| [T-ACCESS-101](../tasks/T-ACCESS-101.md) | 文件能力收口批 | P2×2 族 | ⚙️ |
-| [T-PERM-111](../tasks/T-PERM-111.md) | explain 与声明诊断修正批 | P2×2+P3 族 | ⚙️ |
-| [T-PERM-112](../tasks/T-PERM-112.md) | 互斥审计请求关联与主体补全 | P2 | ⚙️ |
-| [T-ACCESS-102](../tasks/T-ACCESS-102.md) | example-service 子报表真实父关系核对 | P2 | ⚙️ |
-| [T-ACCESS-103](../tasks/T-ACCESS-103.md) | 文档与流程对齐批 | P2×3+P3 族 | ⚙️ |
-| [T-ACCESS-104](../tasks/T-ACCESS-104.md) | 无权删除全拒反馈修正（角色与资源批删链） | P2 | ⚙️ |
+| [T-FE-069](../tasks/T-FE-069.md) | 前端选择器与表单可用性批 | P2×4 族 | ✅ |
+| [T-ACCESS-101](../tasks/T-ACCESS-101.md) | 文件能力收口批 | P2×2 族 | ✅ |
+| [T-PERM-111](../tasks/T-PERM-111.md) | explain 与声明诊断修正批 | P2×2+P3 族 | ✅ |
+| [T-PERM-112](../tasks/T-PERM-112.md) | 互斥审计请求关联与主体补全 | P2 | ✅ |
+| [T-ACCESS-102](../tasks/T-ACCESS-102.md) | example-service 子报表真实父关系核对 | P2 | ✅ |
+| [T-ACCESS-103](../tasks/T-ACCESS-103.md) | 文档与流程对齐批 | P2×3+P3 族 | 👀 |
+| [T-ACCESS-104](../tasks/T-ACCESS-104.md) | 无权删除全拒反馈修正（角色与资源批删链） | P2 | ✅ |
+| [T-ACCESS-105](../tasks/T-ACCESS-105.md) | 存量依赖漏洞核实与高危扫描阻断清理 | 安全扫描阻断 | ⚙️ |
 
 ## 归档条件
 
@@ -68,4 +70,4 @@ last_updated: 2026-10-15
 
 ## 当前进度
 
-2026-10-14 立项并经外部评审修订：33 项缺陷已全部映射到 14 张任务卡（33 = 35 项发现 − 1 项核实撤销〔OAuth2 JSON 线协议与全仓 POST+JSON 契约一致，非缺陷〕 − 1 项降级为裁剪候选〔iframe 缓存 hash 刷新，Q-072〕）。同日用户确认按默认优先序启动（T-GW-014 → T-ACCESS-098 → T-ACCESS-099 → T-PERM-109，随后按批次推进），计划转 active。首梯队四张已全部收口（2026-10-14）：T-GW-014（网关密钥出站按路由目的收窄，红跑 2/4）、T-ACCESS-098（SDK 拦截器完整值匹配 + per-client 装配隔离，红跑 6 项）、T-ACCESS-099（compose 命名卷 + 真实容器重建后下载逐字节一致；发现文件能力三层不可达登记 Q-078）、T-PERM-109（CIDR 参数校验单源收口，红跑判定器 6 + 写入口 4）；四张均 e2e reactor 回归 0 失败。P1×3 与安全面首梯队完成，余 10 张 P2/P3 批次卡按看板序推进。T-ACCESS-100 已收口（2026-10-14）：common 零注册外溢+Web 栈 optional+SDK 日志零参与（探针 4 锁红跑转绿）；过程中实证缓存装配注册外溢可炸宿主启动（第五面，随整文件退出收口）与 E2E 共享类路径泄漏/排除校验互斥（定案「注册以排除」）；全量 -T 1C 三轮（r1/r2 为修复轮）终态 2817/0/0 含 E2E。T-PERM-110 已收口（2026-10-15）：敏感日志脱敏/oauth-consent 切换重核（model.ts 代际守卫）/密码 72 字节边界（10013，用户拍板独立错误码）/未知账号等成本 dummy 比对四点全落地；红跑 5 败实证+前端双变异验证；双轨评审 P0-P2 零发现、IllegalArgumentException 同型日志通道登记 Q-079；全量 -T 1C 含 E2E/heavy 零失败。T-FE-068 已收口（2026-10-15）：迟到 401 代际守卫（401 只终结其所属会话）/会话终结清全局编辑弹窗+returnTo 缺省继承（拍板 A，续接规则单源 logOut）/ReOrgTreePanel 代际+配置身份守卫（抽出 model.ts）/重置密码同用户互斥（抽出 reset-password.ts）五点全落地；红跑 7 败实证；纯前端卡四件套（550/550+typecheck/lint/build）收口，跨 tab 重置互斥登记 Q-081。余 7 张批次卡按看板序推进（下一张 T-FE-069）。
+原任务中除 T-ACCESS-103 外均已完成。T-ACCESS-103 实现与回写已准备，保持 review，等待 T-ACCESS-105 清理存量依赖阻断并完成真实 CI 验收。各卡保存验收与验证证据；计划保持 active，不归档。

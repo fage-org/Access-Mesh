@@ -266,10 +266,10 @@ class ReportControllerTest {
     }
 
     @Test
-    @DisplayName("sub-view 反向拒绝：错父（引擎 DEPENDENT_NOT_IN_PARENT_CONTEXT）→ 30004")
+    @DisplayName("sub-view 反向拒绝：即使权限检查会放行，业务真实父不匹配仍返回 30004")
     void subView_wrongParent_denied() {
         when(permChecker.check(anyString(), anyString(), any(), any(Target.class)))
-            .thenReturn(new Decision(false, "DEPENDENT_NOT_IN_PARENT_CONTEXT"));
+            .thenReturn(new Decision(true, null));
 
         assertThatThrownBy(() -> controller.subView(
                 new SubViewReq("report-1-detail", "report-2"), USER, TENANT, null))

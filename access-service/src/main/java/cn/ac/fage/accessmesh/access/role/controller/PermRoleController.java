@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.role.controller;
 
+import cn.ac.fage.accessmesh.access.infrastructure.dto.BatchDeleteResp;
+
 import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.perm.common.dto.req.IdsReq;
@@ -104,9 +106,8 @@ public class PermRoleController {
      * @return 操作成功结果
      */
     @PostMapping("/remove")
-    public R<Void> deleteRole(@Valid @RequestBody IdsReq req) {
-        roleManageAppService.deleteRoles(TenantContextHolder.getTenantId(), req.ids(), null);
-        return R.ok();
+    public R<BatchDeleteResp<Long>> deleteRole(@Valid @RequestBody IdsReq req) {
+        return R.ok(roleManageAppService.deleteRoles(TenantContextHolder.getTenantId(), req.ids(), null));
     }
 
     /**

@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.resource.dto.resp;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -21,7 +23,7 @@ public record DependencyDeclarationStatusResp(
     /** 服务依赖发布状态（tenant+service 单行）。 */
     public record ManifestSyncItem(
         String sourceService,
-        Long publicationGeneration,
+        @JsonSerialize(using = ToStringSerializer.class) Long publicationGeneration,
         String revision,
         String syncStatus,
         Boolean isDirty,

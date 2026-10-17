@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { PREVIEW_BOUNDARY_NOTES } from "./utils/preview-impact";
 /**
  * 4.1 权限授予页（v3，T-FE-036）。
  * 查看为主：左栏主体树 + 中栏矩阵（el-table-v2 虚拟滚动）+ 右栏变更清单 + 底部保存条；
@@ -198,6 +199,14 @@ function onCellDetail(target: NonNullable<typeof drawerTarget.value>) {
       </div>
 
       <!-- 底部固定条：放弃全部 / 保存全部 (N) -->
+      <el-alert
+        v-if="hasSubject && grantStore.isDirty"
+        :title="PREVIEW_BOUNDARY_NOTES[1]"
+        :description="PREVIEW_BOUNDARY_NOTES[2]"
+        type="info"
+        :closable="false"
+        show-icon
+      />
       <footer
         v-if="
           hasSubject &&

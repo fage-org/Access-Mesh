@@ -459,7 +459,7 @@ COMMENT ON TABLE sys_file IS '文件元信息，实际文件存储在本地磁�
 COMMENT ON COLUMN sys_file.original_name IS '原始文件名';
 COMMENT ON COLUMN sys_file.file_name IS '存储文件名（UUID）';
 COMMENT ON COLUMN sys_file.file_path IS '存储相对路径（{bizType}/yyyy/MM/dd/{uuid}{ext}，读取时经路径安全校验必须位于存储根内）';
-COMMENT ON COLUMN sys_file.file_url IS '访问URL';
+COMMENT ON COLUMN sys_file.file_url IS '历史保留字段，不再写入或对外返回；文件访问统一走鉴权下载';
 COMMENT ON COLUMN sys_file.file_size IS '文件大小（字节）';
 COMMENT ON COLUMN sys_file.file_type IS 'MIME 类型';
 COMMENT ON COLUMN sys_file.bucket_name IS '业务类型（文件夹）= resource_entity(ADMIN_FILE).code，文件夹实例级授权判定键（T-ADMIN-025）：投影由 bootstrap 预置 + 上传惰性登记产出，无投影的历史脏桶实例级校验 fail-closed 拒绝';

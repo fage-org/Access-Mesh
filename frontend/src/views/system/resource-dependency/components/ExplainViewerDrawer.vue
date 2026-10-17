@@ -7,7 +7,7 @@
  * 关系+声明引用）。选中节点沿直接边本地展开（未截断时无需再请求）；截断/漂移显式提示，
  * 不把「应生成」当「已生效」，读取失败不解释为「无来源」。
  */
-import { computed, reactive, ref } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import { message } from "@/utils/message";
 import { toErrorMessage } from "@/api/_envelope";
 import {
@@ -22,13 +22,11 @@ import {
   nodeIndex,
   declarationLabel
 } from "../utils/explain-view";
-
-interface ResourceOption {
-  id: number;
-  code: string;
-  name: string | null;
-  resourceTypeCode: string;
-}
+import {
+  explainResourceKey,
+  explainTarget,
+  type ExplainResourceOption
+} from "../utils/explain-view";
 
 interface OperationOption {
   code: string;
@@ -39,7 +37,7 @@ interface OperationOption {
 const props = defineProps<{
   modelValue: boolean;
   resourceTypeOptions: Array<{ value: string; label: string }>;
-  resourceList: ResourceOption[];
+  resourceList: ExplainResourceOption[];
   operationList: OperationOption[];
 }>();
 
@@ -57,7 +55,7 @@ const form = reactive({
   roleExternalId: "",
   useTarget: false,
   targetResourceTypeCode: "",
-  targetResourceCode: "",
+  targetResourceKey: "",
   targetOperationCode: ""
 });
 
@@ -77,6 +75,14 @@ const targetOperationCandidates = computed(() => {
   return props.operationList.filter(op => op.resourceTypeCode === type);
 });
 
+watch(
+  () => form.targetResourceTypeCode,
+  () => {
+    form.targetResourceKey = "";
+    form.targetOperationCode = "";
+  }
+);
+
 const nodes = computed(() => resp.value?.nodes ?? []);
 const edges = computed(() => resp.value?.edges ?? []);
 const nodeByKey = computed(() =>
@@ -89,6 +95,9 @@ const selectedEdges = computed(() =>
 );
 
 async function runExplain() {
+  const selectedResource = targetResourceCandidates.value.find(
+    resource => explainResourceKey(resource) === form.targetResourceKey
+  );
   if (!form.roleExternalId.trim()) {
     message("请输入角色 externalId", { type: "warning" });
     return;
@@ -96,8 +105,10 @@ async function runExplain() {
   if (form.useTarget) {
     if (
       !form.targetResourceTypeCode ||
-      !form.targetResourceCode ||
-      !form.targetOperationCode
+      !selectedResource ||
+      !targetOperationCandidates.value.some(
+        op => op.code === form.targetOperationCode
+      )
     ) {
       message("目标事实需完整选择资源类型 / 资源 / 操作", { type: "warning" });
       return;
@@ -112,13 +123,7 @@ async function runExplain() {
       roleTypeCode: form.roleTypeCode,
       roleExternalId: form.roleExternalId.trim(),
       target: form.useTarget
-        ? {
-            resourceTypeCode: form.targetResourceTypeCode,
-            resourceCode: form.targetResourceCode,
-            codeType: "default",
-            operationCode: form.targetOperationCode,
-            conditionId: null
-          }
+        ? explainTarget(selectedResource!, form.targetOperationCode)
         : null
     });
   } catch (e) {
@@ -191,7 +196,7 @@ function edgeLabel(nodeKey: string): string {
           />
         </el-select>
         <el-select
-          v-model="form.targetResourceCode"
+          v-model="form.targetResourceKey"
           class="w-56!"
           placeholder="目标资源"
           clearable
@@ -199,9 +204,9 @@ function edgeLabel(nodeKey: string): string {
         >
           <el-option
             v-for="resource in targetResourceCandidates"
-            :key="resource.id"
-            :label="`${resource.name ?? resource.code} (${resource.code})`"
-            :value="resource.code"
+            :key="explainResourceKey(resource)"
+            :label="`${resource.name ?? resource.code} (${resource.code} / ${resource.codeType})`"
+            :value="explainResourceKey(resource)"
           />
         </el-select>
         <el-select

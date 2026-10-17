@@ -1,3 +1,4 @@
+import type { BatchDeleteResp } from "@/api/batch-delete";
 /**
  * 角色管理 API
  * 经 @/utils/http 使用 POST + JSON 调用 /api/access/**；Gateway 外部路径与服务路径一致。
@@ -215,11 +216,17 @@ export const moveRole = async (data: RoleMoveReq): Promise<void> => {
 };
 
 /** 删除角色，支持批量（POST /api/access/abstract-role/remove） */
-export const removeRoles = async (ids: number[]): Promise<void> => {
-  unwrap(
-    await http.request<R<void>>("post", "/api/access/abstract-role/remove", {
-      data: { ids }
-    })
+export const removeRoles = async (
+  ids: number[]
+): Promise<BatchDeleteResp<number>> => {
+  return unwrap(
+    await http.request<R<BatchDeleteResp<number>>>(
+      "post",
+      "/api/access/abstract-role/remove",
+      {
+        data: { ids }
+      }
+    )
   );
 };
 

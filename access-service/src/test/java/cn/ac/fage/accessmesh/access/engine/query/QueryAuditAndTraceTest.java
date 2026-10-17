@@ -69,7 +69,7 @@ class QueryAuditAndTraceTest {
     private final PermissionConditionMapper conditionMapper = mock(PermissionConditionMapper.class);
     private final SubjectDomainService subjects = mock(SubjectDomainService.class);
     private final CacheService cache = mock(CacheService.class);
-    private final AuditDomainService audit = mock(AuditDomainService.class);
+    private AuditDomainService audit = mock(AuditDomainService.class);
     private final RecordingMetrics metrics = new RecordingMetrics();
     private final List<OperationPermission> definitions = new ArrayList<>();
     private final List<RoleResourcePermission> scopeRows = new ArrayList<>();
@@ -201,6 +201,34 @@ class QueryAuditAndTraceTest {
     }
 
     // ===== A01：未触发规则不进证据 =====
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {true, false})
+    void shouldPersistOriginalRequestAndJudgementSubject(boolean userSubject) {
+        var mapper = mock(cn.ac.fage.accessmesh.access.audit.mapper.OperationLogMapper.class);
+        audit = new cn.ac.fage.accessmesh.access.audit.service.domain.impl.AuditDomainServiceImpl(
+            mock(cn.ac.fage.accessmesh.access.audit.mapper.PermissionChangeLogMapper.class), mapper);
+        engine = newEngine(metrics);
+        permMutexRules(permRule(90L, 11L, 12L));
+        instanceRows.add(grant(101, 1, 100L, 2));
+        instanceRows.add(grant(102, 1, 100L, 4));
+        if (userSubject) when(subjects.resolveEffectiveRoles(1L, 500L)).thenReturn(Set.of(10L));
+        try (var context = org.mockito.Mockito.mockStatic(cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext.class)) {
+            context.when(cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext::getRequestId)
+                .thenReturn("request-conflict-112");
+            var item = QueryItem.decision("a", target(clause(100)), OutputSpec.minimal());
+            if (userSubject) executeAsUser(500L, item); else execute(item);
+        }
+        var captor = org.mockito.ArgumentCaptor.forClass(cn.ac.fage.accessmesh.access.audit.entity.OperationLog.class);
+        verify(mapper).insert(captor.capture());
+        assertThat(captor.getValue().getRequestId()).isEqualTo("request-conflict-112");
+        assertThat(captor.getValue().getOperatorId()).isNull();
+        if (userSubject) {
+            assertThat(captor.getValue().getSummary()).contains("subjectUserId=500");
+        } else {
+            assertThat(captor.getValue().getSummary()).contains("subject=ROLES").doesNotContain("subjectUserId");
+        }
+    }
 
     @Test
     void should_collectOnlyTriggeredRules_whenMultipleRulesLoadedButOneEndAbsent() {

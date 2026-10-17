@@ -125,7 +125,7 @@ public class AutoGrantInsightDomainService {
                                 RenderContext render) {}
 
     /** explain 目标事实（AppService 解析业务键后传入；conditionId=null 表示无条件变体）。 */
-    public record ExplainTargetFact(Long resourceEntityId, long operationBit, Long conditionId) {}
+    public record ExplainTargetFact(Long resourceEntityId, long operationBit, Long conditionId, FactKey factKey) {}
 
     /** explain 输出限额（契约 §12.3.1：只限制输出，不影响完整推导）。 */
     public record ExplainLimits(int maxDepth, int maxNodes, int maxEdges) {}
@@ -298,7 +298,7 @@ public class AutoGrantInsightDomainService {
         truncated = truncated || outputEdges.size() < candidateEdges.size();
 
         return renderExplain(view, derived, universe, outputNodes, outputEdges,
-            totalEdgeCount, truncated, seedFacts);
+            totalEdgeCount, truncated, seedFacts, target);
     }
 
     /** 反向闭包：目标 + 沿直接前驱可达的全部祖先（孤立目标闭包=自身）。 */
@@ -364,7 +364,7 @@ public class AutoGrantInsightDomainService {
     /** explain 渲染：nodeKey 按输出节点 FactKey 元组排序分配；边引用节点键；声明引用排序去重。 */
     private AutoGrantExplainResp renderExplain(AutoGrantView view, AutoGrantDerivation.Result derived,
             Set<Fact> universe, List<Fact> outputNodes, List<Map.Entry<Fact, Fact>> outputEdges,
-            long totalEdgeCount, boolean truncated, List<Fact> seedFacts) {
+            long totalEdgeCount, boolean truncated, List<Fact> seedFacts, ExplainTargetFact target) {
         Set<Fact> desired = new HashSet<>(derived.desiredFacts());
         Set<Fact> seedFactSet = new HashSet<>(seedFacts);
         // 操作有效位索引（触发判定与推导核心同口径：NULL 触发=任意；定义缺失回退位本身）
@@ -378,7 +378,10 @@ public class AutoGrantInsightDomainService {
         // nodeKey：输出节点按渲染元组排序分配 n1..（响应内引用；全集总数另报）
         Map<Fact, FactKey> rendered = new HashMap<>();
         for (Fact fact : outputNodes) {
-            rendered.put(fact, renderFact(view, null, fact));
+            // 目标可能不在授权行或依赖图中；沿用 AppService 已解析的完整身份。
+            boolean isTarget = target != null && fact.equals(
+                new Fact(target.resourceEntityId(), target.operationBit(), target.conditionId()));
+            rendered.put(fact, isTarget ? target.factKey() : renderFact(view, null, fact));
         }
         List<Fact> ordered = new ArrayList<>(outputNodes);
         ordered.sort(Comparator.comparing(rendered::get, FACT_KEY_ORDER));

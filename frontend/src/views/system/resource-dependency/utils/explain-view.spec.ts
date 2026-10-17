@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  explainResourceKey,
+  explainTarget,
   explainConditionLabel,
   explainFactLabel,
   nodeStatus,
@@ -38,6 +40,28 @@ function nodeOf(
 }
 
 describe("explain 事实标签", () => {
+  it("同码不同 codeType 的候选键与请求目标互不混淆", () => {
+    const resource = {
+      id: 106,
+      resourceTypeCode: "REPORT",
+      code: "shared",
+      codeType: "BIZ",
+      name: "共享报表"
+    };
+    expect(explainResourceKey(resource)).not.toBe(
+      explainResourceKey({ ...resource, codeType: "default" })
+    );
+    expect(explainTarget(resource, "VIEW")).toEqual({
+      resourceTypeCode: "REPORT",
+      resourceCode: "shared",
+      codeType: "BIZ",
+      operationCode: "VIEW",
+      conditionId: null
+    });
+    const fact = nodeOf("n1", "shared", false, false).fact;
+    fact.resource.codeType = "BIZ";
+    expect(explainFactLabel(fact)).toContain("shared [BIZ]");
+  });
   it("条件身份 NONE/EXISTING 展示", () => {
     expect(
       explainConditionLabel({
@@ -100,10 +124,19 @@ describe("nodeStatus（desired/actual 四象限，不把应生成当已生效）
     expect(nodeStatus(node)).toEqual({ label: "应有未落库", type: "warning" });
   });
 
-  it("无来源存量 = 非 desired 非 actual 支持（孤立行，不伪造来源）", () => {
-    expect(nodeStatus(nodeOf("n3", "orphan", false, false))).toEqual({
+  it("无来源存量 = 非 desired 且 actual 非空（孤立行，不伪造来源）", () => {
+    const node = nodeOf("n3", "orphan", false, false);
+    node.actualPermissionIds = [99];
+    expect(nodeStatus(node)).toEqual({
       label: "无来源存量",
       type: "danger"
+    });
+  });
+
+  it("有效空目标显示中性未生成状态", () => {
+    expect(nodeStatus(nodeOf("n3", "empty", false, false))).toEqual({
+      label: "未生成自动权限",
+      type: "info"
     });
   });
 });

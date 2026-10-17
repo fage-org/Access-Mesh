@@ -182,6 +182,12 @@ defineExpose({ validate });
       </div>
 
       <!-- DATE_RANGE -->
+      <el-alert
+        v-if="item.type === 'DATE_RANGE' || item.type === 'TIME_RANGE'"
+        title="时间按 UTC 解释，系统不自动转换时区。请将本地日期或时段换算为 UTC 后填写。"
+        type="info"
+        :closable="false"
+      />
       <div v-if="item.type === 'DATE_RANGE'" class="rule-params">
         <el-date-picker
           v-model="item.params.start"

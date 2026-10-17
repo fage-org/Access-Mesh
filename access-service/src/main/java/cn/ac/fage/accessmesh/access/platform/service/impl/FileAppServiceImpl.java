@@ -25,8 +25,11 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.http.ContentDisposition;
+import org.springframework.web.util.UriUtils;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -319,7 +322,6 @@ public class FileAppServiceImpl implements FileAppService {
         sysFile.setOriginalName(originalName);
         sysFile.setFileName(fileName);
         sysFile.setFilePath(filePath);
-        sysFile.setFileUrl("/files/" + filePath);
         sysFile.setFileSize(file.getSize());
         sysFile.setFileType(contentType);
         sysFile.setBucketName(normalizedBizType);
@@ -409,7 +411,7 @@ public class FileAppServiceImpl implements FileAppService {
      * 获取文件详情
      * <p>
      * 按文件所属文件夹实例级 VIEW 门禁（T-ADMIN-025）后根据文件ID查询文件完整信息，
-     * 包含文件名、URL、大小等。门禁键=元数据 bucket_name，须先取行；无投影文件夹
+     * 包含文件名、存储路径、大小等。门禁键=元数据 bucket_name，须先取行；无投影文件夹
      * （含白名单前落库的历史脏桶）fail-closed 拒绝。
      * </p>
      *
@@ -494,7 +496,7 @@ public class FileAppServiceImpl implements FileAppService {
     private FileResp toResp(SysFile f) {
         return new FileResp(
             f.getId(), f.getFileName(), f.getOriginalName(),
-            f.getFileType(), f.getFileUrl(),
+            f.getFileType(),
             f.getFileSize() != null ? f.getFileSize().toString() : null,
             f.getFileType(), f.getFilePath(), f.getCreatedAt()
         );
@@ -532,9 +534,12 @@ public class FileAppServiceImpl implements FileAppService {
         try {
             // originalName 源于 DB（可能早于控制字符剥离落库），响应头拼接前防御性剥离
             // 控制字符，阻断 CRLF 类 header 污染
-            String safeOriginalName = f.getOriginalName() == null ? "" : f.getOriginalName();
-            response.setHeader("Content-Disposition",
-                "attachment; filename=\"" + safeOriginalName.replaceAll("\\p{Cntrl}", "") + "\"");
+            String safeOriginalName = (f.getOriginalName() == null ? "" : f.getOriginalName())
+                .replaceAll("\\p{Cntrl}", "");
+            String fallbackName = safeOriginalName.replaceAll("[^\\x20-\\x7E]", "_");
+            String disposition = ContentDisposition.attachment().filename(fallbackName).build().toString();
+            response.setHeader("Content-Disposition", disposition + "; filename*=UTF-8''"
+                + UriUtils.encode(safeOriginalName, StandardCharsets.UTF_8));
             response.setContentType(f.getFileType() != null ? f.getFileType() : "application/octet-stream");
             return Files.readAllBytes(filePath);
         } catch (IOException e) {

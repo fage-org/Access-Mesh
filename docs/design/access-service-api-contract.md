@@ -6,7 +6,7 @@ domain: cross-service
 supersedes:
   - docs/design/permission-center/api-contract.md
   - docs/design/services/admin-service-api-contract.md
-last_reviewed: 2026-10-15
+last_reviewed: 2026-10-17
 ---
 
 # access-service API 契约总册
@@ -596,6 +596,8 @@ OAuth2 授权码、刷新记录携带签发时租户代次；JWT 使用字符串
 带 orgId 的一步挂载使用目标组织/岗位的成员管理操作（MANAGE_MEMBER / ASSIGN_POSITION_USER），并保留 USER:CREATE；不再额外要求组织编辑 UPDATE。默认树范围、事务和投影约束保持（T-ORG-005，2026-10-04 确认）。
 
 **目的**: 在默认组织树身份目录中新建用户; 可选一步完成组织挂载. 系统生成随机初始密码, 仅本次响应返回.
+
+管理台新增用户表单必须明确选择默认树普通组织，再携带 orgId 一步创建并挂载；未选组织不发送创建请求，避免成功后用户落在身份目录外。API orgId 可选的边界保持。
 
 **请求 DTO**: `UserCreateReq` (现有)
 
@@ -1286,6 +1288,11 @@ PERSONAL 的后端创建/维护/授权与用户详情角色分配入口可用；
 - 两者同时传入时按并集去重后过滤；任一显式类型编码无法解析时返回空分页。
 - 不传 `roleTypeCode/roleTypeCodes` 时不按角色类型过滤。
 
+<a id="batch-delete-result"></a>
+**角色与资源批删结果（T-ACCESS-104）**：`abstract-role/remove` 与 `resource-entity/remove` 分别返回 `R<BatchDeleteResp<Long>>`、`R<BatchDeleteResp<ResourceKeyReq>>`，字段为 `deleted`（实际删除的请求目标）、`denied`（无权跳过的请求目标）、`notFound`（不存在或已删除的请求目标）。列表按请求首次出现顺序去重，资源键 codeType 归一为 default 或去首尾空白后的值；全部不存在仍成功返回 notFound 明细。存在有效目标且全部无权时抛 SecurityException（HTTP 403 / code 403），不标记审计跳过，拒绝进入现行入口操作日志。
+
+混合请求仍删除有权部分。结果以最终级联删除集核实请求目标；未请求的级联子孙不逐项扩入响应，原级联、来源所有权与类型所有者守卫保持。前端显示实际删除/无权跳过/不存在数量，零删除不显示“删除成功”。
+
 **角色管理契约要点**（T-PERM-022 收口，2026-08-28）：
 
 - `detail`：业务键二元组定位 `{roleTypeCode, roleExternalId}`（tenantId 走上下文，不含 domainCode；原 `IdReq{id}` 内部主键废弃）。依据唯一索引 `uk_abstract_role_external (tenant_id, role_type, external_id)`（`external_id` 非空部分索引——`externalId` 为空的角色不可经本接口定位，管理端新建表单已强制必填）；未命中返回 `data=null`（未知 roleTypeCode 与 list 空分页同口径，不抛错）。
@@ -1650,6 +1657,8 @@ PERSONAL 的后端创建/维护/授权与用户详情角色分配入口可用；
 | `POST /api/access/resource-entity/sync`         | 资源实体专用幂等同步 |
 | `POST /api/access/resource-entity/full-sync`    | 按 scope 全量校准资源 |
 
+资源批删响应与全拒语义见[角色与资源批删结果](#batch-delete-result)。
+
 **业务键定位（T-PERM-028 定稿）**：`resource-entity` 的 `detail/update/move/remove` 与 `operation-permission` 的 `detail/update/remove` 以业务键定位，不再接受内部 id（schema `uk_resource_entity` / `uk_operation_permission_typed` + `ck_operation_permission_resource_type_required` 非空 CHECK 共同保证唯一（原 `uk_operation_permission_global` 已随全局操作退役删除，T-PERM-049）；混合形态——detail/update 键字段平铺、move 嵌套、remove items 数组）：
 
 ```json
@@ -1788,7 +1797,7 @@ PERSONAL 的后端创建/维护/授权与用户详情角色分配入口可用；
 
 所有读入口执行 DEPENDENCY:VIEW 类型级门禁。list 保持全量不分页，关键词过滤由前端完成；graph 不含角色来源解释，角色解释见 §12.3.1。check 缺失资源返回既有 RESOURCE_NOT_FOUND，自依赖返回 hasCycle=true。
 
-**declaration-status（T-PERM-073，2026-09-21 已落地）**：依赖声明只读诊断面——`manifestSyncs[]`（tenant+service 单行：`sourceService/publicationGeneration/revision/syncStatus(SUCCESS|PARTIAL|FAILED)/isDirty/lastSyncedAt`）+ `declarations[]`（声明行：`id/sourceService/declarationKey/compileStatus(RESOLVED|REJECTED)/rejectReason(RESOURCE_MISSING|TYPE_MISSING|OPERATION_INVALID|CROSS_OWNER|SELF_DEPENDENCY|CYCLE)/description` 与声明载荷业务键回显 `source*/target*` + `sourceOperationCode`（null=任意触发）/`requiredOperationCodes/updatedAt`）。声明载荷损坏（DB 直写/历史脏数据）时业务键字段防御性降级 null，诊断行仍可见状态与拒绝原因。REJECTED 行保留用于诊断，由所属服务重新发布恢复。
+**declaration-status（T-PERM-073，2026-09-21 已落地）**：依赖声明只读诊断面——`manifestSyncs[]`（tenant+service 单行：`sourceService/publicationGeneration/revision/syncStatus(SUCCESS|PARTIAL|FAILED)/isDirty/lastSyncedAt`）+ `declarations[]`（声明行：`id/sourceService/declarationKey/compileStatus(RESOLVED|REJECTED)/rejectReason(RESOURCE_MISSING|TYPE_MISSING|OPERATION_INVALID|CROSS_OWNER|SELF_DEPENDENCY|CYCLE)/description` 与声明载荷业务键回显 `source*/target*` + `sourceOperationCode`（null=任意触发）/`requiredOperationCodes/updatedAt`）。声明载荷损坏（DB 直写/历史脏数据）时业务键字段防御性降级 null，诊断行仍可见状态与拒绝原因。REJECTED 行保留用于诊断，由所属服务重新发布恢复。`manifestSyncs[].publicationGeneration` 按十进制字符串序列化，前端保持 string 原样显示，避免超过 2^53 时精度丢失。
 
 ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编码/类型/名称、sourceOperationBits、requiredOperationBits、description、ownerServiceCode、maintainSource、createdAt/updatedAt。操作位沿字符串线格式保持 63 位精度，null 触发位为任意操作；前端按资源类型的操作定义拆解显示。聚合边 description 取诊断声明的描述，不代表全部来源。autoGrant 已从后端实体、响应、新 schema 与前端移除；历史开关仅随原表保全，不再决定新编译图是否生效。旧错误码 20048 退役且不复用。
 
@@ -1801,7 +1810,7 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
 
 `nodes[]` 元素为 `{nodeKey: string, fact: FactKey, explicitSeed: boolean, seedRefs: SeedRef[], desired: boolean, actualPermissionIds: long[]}`；FactKey/SeedRef 沿 §11.4.1，explain 不出现 PREVIEW_INLINE。nodeKey 是本次完整结果按 FactKey 元组排序分配的展示 ID（如 n1），仅在本响应内引用；节点身份始终来自 fact，不跨请求按 n1 合并。`edges[]` 为 `{fromNodeKey: string, toNodeKey: string, triggerOperationCode: string, declarationRefs: [{declarationId: long, declarationKey: string, sourceService: string}]}`（triggerOperationCode 防御路径可空），引用数组排序去重。
 
-有 target 时从目标反向遍历直接来源；无 target 时遍历全集为推导图与未被 desired 支持的 actual AUTO_DEP 节点的并集，参与推导的种子（命中依赖边的显式根，2026-09-21 用户定案 B——未参与推导的显式授权不进解释视图，防孤点淹没推导链；完整授权清单走授权页 list）及孤立 actual 节点共同作为展示起点，按逻辑键排序后广度优先输出至 maxDepth/maxNodes；target 模式下选定目标事实保底入选输出节点——截断只挤祖先，不把查询目标本身挤出输出（2026-09-21 贴回外评定案，设计 §11 同批）。孤立 actual 节点也计入总数与预算，desired=false 且没有来源边，不伪造支持关系；只返回两个端点都已输出的边，再按起点/终点逻辑键排序取前 maxEdges 条，超限省略边也必须置 truncated。totalNodeCount/totalEdgeCount 是选定目标子图（无 target 为推导图与孤立 actual 节点的并集）的完整数量，不是已输出数量。actualPermissionIds 仅列对应 AUTO_DEP 行；显式 MANUAL 来源另由 seedRefs 表示。空数组表示无实际自动行，不能用 null 表示读取失败。
+有 target 时从目标反向遍历直接来源；无 target 时遍历全集为推导图与未被 desired 支持的 actual AUTO_DEP 节点的并集，参与推导的种子（命中依赖边的显式根，2026-09-21 用户定案 B——未参与推导的显式授权不进解释视图，防孤点淹没推导链；完整授权清单走授权页 list）及孤立 actual 节点共同作为展示起点，按逻辑键排序后广度优先输出至 maxDepth/maxNodes；target 模式下选定目标事实保底入选输出节点——截断只挤祖先，不把查询目标本身挤出输出（2026-09-21 贴回外评定案，设计 §11 同批）。孤立 actual 节点也计入总数与预算，desired=false 且没有来源边，不伪造支持关系；只返回两个端点都已输出的边，再按起点/终点逻辑键排序取前 maxEdges 条，超限省略边也必须置 truncated。totalNodeCount/totalEdgeCount 是选定目标子图（无 target 为推导图与孤立 actual 节点的并集）的完整数量，不是已输出数量。有效但无授权/依赖关系的目标仍回显入口解析的完整 FactKey；前端候选必须携带资源码类型，不能把 BIZ 目标改查 default。desired=false 且 actualPermissionIds 为空时显示中性「未生成自动权限」，仅非空 actual 才显示「无来源存量」。actualPermissionIds 仅列对应 AUTO_DEP 行；显式 MANUAL 来源另由 seedRefs 表示。空数组表示无实际自动行，不能用 null 表示读取失败。
 
 单次只读一致视图生成共享 DAG，源事实权限不表示用户当前必然 allowed。达到输出限额时显式截断，不能影响完整推导；界面选择节点按直接边逐段展开来源，不持久化或枚举所有完整路径。不存在跨请求冻结承诺；读取失败、角色不存在与权限不足沿正常错误信封处理。
 
@@ -1839,7 +1848,7 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
 
 - `create`：`{typeKey, typeCode?, name, description?, sortOrder?, extra?, ownerRoleTypeCode?, ownerRoleExternalId?}`——`typeValue` 由服务端在 tenant+typeKey 内自动分配（全量行含软删行 max+1，软删不复用）；`typeCode` 留空按 `<TYPEKEY大写>_<typeValue>` 生成（如 `RESOURCE_TYPE_12`），显式提供时查重（重复 20049；DB 唯一索引对并发窗口与生成码被显式码抢占的场景兜底，同映射 20049）；`isSystem` 不可由 API 创建（固定 false，系统预置仅走租户初始化种子）。`ownerRole*` 仅 `typeKey=resource_type` 消费（T-PERM-062，2026-09-12 定案）：类型所有者角色业务键（与授权页同一套键），必须成对提供、缺省 `BASIC_ROLE/bootstrap-admin`；`roleTypeCode` 值域仅 `BASIC_ROLE` 功能角色——容器角色（ORG/POSITION/GROUP_ROLE）携带拒绝 **20044**（授权根是「该类型全部实例可转授」的类型级行，挂容器角色等于给全体容器成员发转授权，且种子行 20061 只读无逐行移除通道；2026-09-12 claude 外评定案）；所有者角色不存在（**20001**）/停用（**20003**）整单回滚，不存在「已建类型但无所有者」中间态。
 - `update` 补显式清空（T-API-004，§2.7 统一协议）：`descriptionClear` true 经 UpdateEntity 真实落 NULL（与 `description` 同传 400、description 空白 400）；**`extraClear` 任何非 null 值拒绝 20044 `PERM_INVALID_PARAM`**——type extra 含服务端管理键（所有权声明 `managedMode`/`syncSourceService` + 授权根指针 `grantOriginRole`，指针无清除语义），不支持整体清空（U006 拍板 2026-09-24）；移除业务键（如 `max_depth`）= 提交编辑后的 extra。前端编辑表单对「原 extra 非空且表单清空」提交前拦截提示。
-- `list`：`{typeKey?, keyword?, pageNum?, pageSize?}` → 分页结构（§2.3）；`keyword` 匹配 name/typeCode（LIKE，大小写敏感），排序 `sort_order, id`；分页参数均不传 = 字典首批（上限 200，更多数据按 hasNext 翻页；先例 `/system-config/list`），供下拉数据源消费。
+- `list`：`{typeKey?, keyword?, pageNum?, pageSize?}` → 分页结构（§2.3）；`keyword` 匹配 name/typeCode（LIKE，大小写敏感），排序 `sort_order, id`；分页参数均不传 = 字典首批（上限 200，更多数据按 hasNext 翻页；先例 `/system-config/list`），供下拉数据源消费。资源与操作、接口映射、授权页和冲突规则的完整类型候选统一由前端 loadAllTypeDefs 按 hasNext 续页；后续页失败不提交部分候选。
 
 **resource_type 类型所有权声明（T-PERM-052，2026-09-05 定案）**：`create`/`update` 的 `extra` 可携带类型级所有权声明，约定键 `managedMode`（`MANAGED`=缺省，管理面维护 / `SYNC`=外部同步维护）与 `syncSourceService`（`mode=SYNC` 时必填，须为已注册、未软删且 `status=1` 启用的服务——与运行时同步入口同规则（codex 外评 P2 对齐，仅查注册非空会保存出无人可写的锁死类型）；保留内部来源（如 `admin-service`）拒绝声明（运行时拒绝其冒充）；`type_key` 非 resource_type 携带此二键保存拒绝 20044）。规则：SYNC 类型归声明来源服务独占同步（§19.1 门禁），管理面 create/update/move/remove 只读（§12，20055）；声明有效值变更（含删键隐式切回 MANAGED——extra 为整串替换语义）：**系统预置类型（is_system=true）所有权声明钉死不可变更**（**20056** `TYPE_OWNERSHIP_CHANGE_CONFLICT`，2026-09-05 codex 外评定案——事实链路类型空行翻转后事实写入方照旧写即双 writer，无需并发）；自定义类型在类型下存在有效资源行时拒绝（无有效行才可改，2026-09-05 用户定案）；读取侧 extra 损坏按 MANAGED 处理（fail-closed）。外部服务接入流程：`service-config/save` 注册服务 → `type-definition/create` 建自有类型并声明 `managedMode=SYNC` + 来源 → 调 `resource-entity/sync|full-sync`。内部来源：`syncSourceService=access-service` 仅 is_system 预置类型可声明（豁免服务注册校验）——USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION 七类事实链路类型由种子声明（前四类行经用户/组织/菜单/角色管理自动维护；ADMIN_FILE 文件夹实例（code=sys_file.bucket_name）由 bootstrap 预置四文件夹+上传惰性登记产出，T-ADMIN-025；TYPE_DEFINITION 类型定义实例（code=`{typeKey}:{typeCode}` 复合业务键）由 type-definition 写路径同事务投影 + bootstrap 自愈补种产出，T-PERM-051；CONDITION 管理页条件实例（code=条件 code，租户内唯一）由条件写路径同事务投影 + bootstrap 自愈补种产出（仅 source=MANAGED——INLINE 内联条件不投影，无资源身份消费者，T-PERM-048 定案⑤）；外部同步与管理面资源 CRUD 均拒绝，20055 message 指向事实链路管理入口）；来源编码禁止首尾空白（校验按 trim、运行时按原值精确匹配，空白会造出无人可同步的锁死类型，保存拒绝 20044）；已知键显式 null 保存拒绝 20044（与「清除声明=删除键」语义歧义，fail-closed）；未知键开放不视为声明（extra 是通用扩展位，拼错键=无声明按缺省 MANAGED——codex 外评定案）；`API` 类型禁止经本接口声明 SYNC（T-PERM-069，2026-09-18 Q-008「仅 API 收紧」定案：所有权由种子钉死 SYNC+access-service——唯一事实入口=service-config 接口声明通道（§19.8）+bootstrap 固定图，管理面资源 CRUD 20055、外部 resource-entity/sync 一律拒绝；SERVICE 维持 MANAGED——新 SERVICE 行唯一通道=管理面手工建行，做按服务实例级授权目标行，收紧即零 writer）。`remove`：类型下存在有效资源行时不可删除（20056，与声明变更守卫同款——软删类型会让其行成为外部源与管理面都无法触达的永久孤儿；评审批次补齐）。**T-PERM-050（2026-09-09 定案级联）**：`remove` 同事务级联软删被删 resource_type 的全部有效操作定义行（含创建联动预置的 CRUD 四操作位，对称于创建语义——根治「删类型留 4 条永久孤儿操作行、列表过滤后不可见且无清理入口」）与该类型下有效授权行（正常流仅剩 scope_all 类型级行：资源行已被行数守卫拒绝、实例级授权随资源删除级联；防御性含引用已软删资源行的残留实例行），markRoles 提交后失效受影响角色快照、OPERATION_PERMISSIONS_BY_TYPE 按被删类型集合 per-type 失效（T-PERM-047 终态复用）；级联面限定 `type_key=resource_type`（type_value 仅 tenant+type_key 内唯一，user_type/role_type 同值删除不得误伤 resource_type 空间）。存量孤儿订正语句登记 rebuild-runbook。**T-PERM-056（2026-09-09 用户定案删除保护）**：`remove` 对主体类型补引用面守卫——user_type/role_type 下存在有效 `abstract_user`/`abstract_role` 行时整批拒绝（20056，message 列冲突 typeCode；管理员须先删/迁走该类型用户/角色再删类型——用户/角色是业务主体数据不级联，对齐 resource_entity 面=守卫先例而非操作位/投影=级联先例）。并发语义：role_type 面与角色写入口共持 ABSTRACT_ROLE 树写锁并锁内重读（管理面 updateRole/moveRole 与角色 sync/full-sync 均持同锁；自定义 role_type 角色行的唯一**创建**入口是角色 sync/full-sync——管理面 createRole 经 RoleType 枚举校验只接受种子类型），闭合「守卫查零行→并发建该类型角色→删除落库」交错；user_type 面用户写入口无锁可复用，为 best-effort 守卫（对齐 T-PERM-050 级联并发先例），极窄交错残留由 typeValue 软删不复用兜底（孤儿 user_type 值永不撞新类型，后果同存量孤儿=列表反解缺项，无越权通道），存量孤儿检测语句登记 rebuild-runbook。门禁（2026-09-03 放宽定案，用户决策）：类型级 TYPE_DEFINITION:VIEW **或任一实例级 VIEW** 均可查询——与登录权限串投影口径对齐（权限串全集含实例级授权；此前仅认类型级，出现「前端 hasPerms 探查通过、后端拒绝」的口径不一致，T-FE-018 评审发现）；`detail` 维持按目标实例校验 VIEW、写操作维持类型级/实例级 MANAGE 不变。**T-PERM-051（2026-09-07 收口）**：实例业务键统一为复合键 `{typeKey}:{typeCode}`（typeCode 仅 tenant+type_key 内唯一，种子 user_type 与 resource_type 均有 USER/SERVICE 同名行，裸 code 跨族撞 uk_resource_entity，2026-09-05 定案）——四处门禁消费方全部迁移：`list`/`count` 实例判定、`detail`/`update` 编码轨（原 type_definition.id 字符串系 ID 空间错位）、`remove` 批量编码轨（原 id 直传实体轨，同款错位）；投影行由写路径同事务维护（create 联动 / name 变更同步 / 软删级联投影行与投影行下授权行，deleteResources 同款级联语义）+ bootstrap 自愈补种存量行（幂等，2026-09-07 用户定案启动自愈对齐 T-ADMIN-025 先例；runbook 登记订正语句兜底）；授权页 TYPE_DEFINITION 实例按资源选择器既有模式呈现（类型已声明 SYNC+access-service，资源管理面只读 20055）。全拒判定按去重复合键集比较 fail-closed 拒绝（跨 type_key 重码曾致 fail-open，2026-09-03 修复；复合键行级唯一后去重语义不变，2026-09-07 随 T-PERM-051 迁移）。
 
@@ -1969,6 +1978,8 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
 三类日志读取时统一掩码手机号、邮箱与 JSON 明确敏感键；普通用户名、完整 IP、对象 ID/requestId 保留。数据库原始审计列不变，不恢复 request_body。JSON 与文本规则是明确格式匹配，不推断任意自然语言中的姓名或地址。
 
 <a id="contract-section-16-1"></a>
+互斥审计 CONFLICT_DETECTED 在异步提交前复制 OperatorContext 的 requestId；没有请求上下文时仍由既有审计落库兜底生成。摘要固定段写明 subjectUserId（User 查询）或 subject=ROLES（角色集合查询）；判定主体不是操作者，M2M operatorId=null 保持。请求关联不改变尽力异步提交、一小时角色对去重或摘要截断边界。
+
 ### 16.1 端点清单（/api/access/log/*）
 
 | 接口                                                   | 说明                                                   |
@@ -2116,6 +2127,8 @@ POST + JSON，门禁为 OPERATION_LOG:VIEW 类型级，租户仅取可信上下�
 ### 17.1 文件管理（/file）🔧（T-ADMIN-023 安全加固补记, 2026-08-25 契约从实现反向登记）
 
 > 本模块先于契约存在（代码即事实），T-ADMIN-023 安全加固时反向登记契约；前端暂无消费方。
+> 标准部署可达性仍受[Q-078](../pending-problems.md#q-078)所列准入路由、授权种子与消费面缺口约束；文件字段/下载头修正不代表该产品边界已收口。
+> **文件访问方式（2026-10-17，T-ACCESS-101）**：当前没有接入方，FileResp 删除无可用访问通道的 `fileUrl`，无需保留字段兼容；数据库历史列暂不删除。文件访问统一走鉴权 POST 下载，浏览器接收字节生成 Blob URL，使用后释放；不新增公开 `/files/**` 静态入口。
 > **资源类型**: `ADMIN_FILE`（type_definition `resource_type=25`）。**存储**: 本地磁盘单实例
 > （默认 `${user.home}/accessmesh-files`，多实例部署下本地盘不可共享为已知限制，见
 > `access-service-architecture.md` §15；不建对象存储抽象层）。
@@ -2137,7 +2150,7 @@ POST + JSON，门禁为 OPERATION_LOG:VIEW 类型级，租户仅取可信上下�
 <a id="contract-section-17-1-2"></a>
 #### 17.1.2 `POST /api/access/file/detail` 🔧
 
-**请求 DTO**: `IdReq`。**响应**: `R<FileResp>`（字段序：`id/fileName/originalName/fileSuffix/fileUrl/fileSize/fileType/storagePath(=file_path)/createdAt`；既有实现将 MIME 同时填入 `fileSuffix` 与 `fileType` 两位置，消费方按 `fileType` 取 MIME）。
+**请求 DTO**: `IdReq`。**响应**: `R<FileResp>`（字段序：`id/fileName/originalName/fileSuffix/fileSize/fileType/storagePath(=file_path)/createdAt`；既有实现将 MIME 同时填入 `fileSuffix` 与 `fileType` 两位置，消费方按 `fileType` 取 MIME）。
 **错误**: `10501`。**门禁**: `ADMIN_FILE:VIEW` 文件所属文件夹实例级（T-ADMIN-025；resourceCode = 元数据 `bucket_name`，须先取行——文件不存在先报 `10501`，再做文件夹判定）。无投影文件夹（含白名单前落库的历史脏桶）fail-closed 拒绝（403）。
 
 <a id="contract-section-17-1-3"></a>
@@ -2148,6 +2161,8 @@ POST + JSON，门禁为 OPERATION_LOG:VIEW 类型级，租户仅取可信上下�
 
 <a id="contract-section-17-1-4"></a>
 #### 17.1.4 `POST /api/access/file/download` 🔧
+
+下载文件名通过 `filename*=UTF-8''...` 回显 UTF-8 原名，并提供仅 ASCII 的 `filename` 回退；原名中的控制字符剥离，引号与反斜杠按响应头规则转义。
 
 **请求 DTO**: `IdReq`。**响应**: 文件字节流直接写 HTTP 响应（`Content-Disposition: attachment`；全仓唯一绕过 `R` 包装的文件流白名单端点，T-ACCESS-011 登记）。
 **错误**: `10501`（元数据或物理文件不存在）/ `10506`（路径非法）/ `10507`（读取 IO 失败；原裸 `10504/10505` 硬编码已归位，T-ADMIN-023）。

@@ -372,6 +372,25 @@ class ExampleBusinessFinalCheckE2EIT {
             "{\"subReportCode\":\"report-1-detail\",\"parentReportCode\":\"report-2\"}",
             b -> b.path("code").asInt() == 30004, "错父必须被业务最终检查拒绝");
         assertThat(wrong.path("data").isNull()).isTrue();
+
+        // 授权绑定允许跨业务父：引擎可放行 report-2 上下文，业务仍须拒绝错父。
+        grant("VIEW", "INSTANCE", "report-2");
+        insertSubViewChildGrant("report-1-detail", "report-2");
+        String checkBody = JSON.writeValueAsString(Map.of(
+            "subjectTypeCode", "LOCAL_USER", "subjectExternalId", Long.toString(targetUserId),
+            "resourceTypeCode", TYPE, "resourceCode", "report-1-detail", "operationCode", "SUB_VIEW",
+            "parentResourceTypeCode", TYPE, "parentResourceCode", "report-2", "parentOperationCodes", List.of("VIEW")));
+        org.awaitility.Awaitility.await().atMost(STALE_WINDOW).untilAsserted(() -> {
+            JsonNode check = parseEnvelope(postEnvelope("http://localhost:" + accessService.port()
+                + "/api/access/auth/check", null, checkBody,
+                Map.of("X-Credential-Id", "sc-example-e2e-1", "X-Credential-Secret", "sk-example-e2e-1")));
+            assertThat(check.path("code").asInt()).isEqualTo(200);
+            assertThat(check.path("data").path("allowed").asBoolean()).isTrue();
+        });
+        JsonNode wrongBusinessParent = parseEnvelope(postEnvelope(gateway() + "/api/example/report/sub-view", targetToken,
+            "{\"subReportCode\":\"report-1-detail\",\"parentReportCode\":\"report-2\"}"));
+        assertThat(wrongBusinessParent.path("code").asInt()).isEqualTo(30004);
+        assertThat(wrongBusinessParent.path("data").isNull()).isTrue();
     }
 
     @Test

@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.resource.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
+import cn.ac.fage.accessmesh.access.grant.dto.resp.GrantPlanPreviewResp;
 import cn.ac.fage.accessmesh.access.resource.dto.req.AutoGrantExplainReq;
 import cn.ac.fage.accessmesh.access.resource.dto.req.DependencyDeclarationStatusReq;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceDependencyCheckReq;
@@ -243,13 +244,20 @@ public class DependencyAppServiceImpl implements DependencyAppService {
                 "target operationCode does not resolve: " + target.operationCode());
         }
         Long conditionId = target.conditionId();
-        if (conditionId != null && conditionDomainService
-                .selectValidConditionsByIds(tenantId, Set.of(conditionId)).isEmpty()) {
-            throw new BizException(AccessErrorCode.CONDITION_NOT_FOUND.getCode(),
-                "target conditionId not found: " + conditionId);
+        var conditionRef = GrantPlanPreviewResp.ConditionRef.none();
+        if (conditionId != null) {
+            var conditions = conditionDomainService.selectValidConditionsByIds(tenantId, Set.of(conditionId));
+            if (conditions.isEmpty()) {
+                throw new BizException(AccessErrorCode.CONDITION_NOT_FOUND.getCode(),
+                    "target conditionId not found: " + conditionId);
+            }
+            conditionRef = GrantPlanPreviewResp.ConditionRef.existing(conditionId, conditions.getFirst().getCode());
         }
+        var factKey = new GrantPlanPreviewResp.FactKey(
+            new GrantPlanPreviewResp.ResourceKey(target.resourceTypeCode(), target.resourceCode(), codeType),
+            operation.getCode(), conditionRef);
         return new AutoGrantInsightDomainService.ExplainTargetFact(
-            resourceId, operation.getBinaryBit(), conditionId);
+            resourceId, operation.getBinaryBit(), conditionId, factKey);
     }
 
     /**

@@ -2,13 +2,15 @@
 doc_type: task
 id: T-ACCESS-103
 title: 文档与流程对齐批（入门多租户口径/接入路由说明/CI 依赖扫描/时间条件时区提示）
-status: proposed
+status: review
 plan: docs/plans/scenario-audit-remediation-plan.md
 domain: access-service
 design_refs:
   - docs/design/extension-guide.md
   - docs/design/access-service-api-contract.md
-depends_on: []
+  - .claude/rules/security-standards.md
+depends_on:
+  - T-ACCESS-105
 blocks: []
 acceptance:
   - "README 现行特性/限制段与现行多租户能力一致（支持运营开通、旧 tenantId 登录退役、升级按重建边界），不再同时宣称「只支持固定单租户」与「可开通租户」；Unreleased 段描述核对；CHANGELOG 历史版本段（v0.1.0）保留版本事实不改写，如需加历史说明仅以不改变原记录的方式标注"
@@ -17,8 +19,8 @@ acceptance:
   - "时间条件输入界面补 UTC 语义说明（管理面与契约条件章一致措辞）"
 design_writeback:
   required: true
-  status: pending
-last_updated: 2026-10-14
+  status: done
+last_updated: 2026-10-17
 ---
 
 ## 背景
@@ -40,8 +42,18 @@ README/CHANGELOG/extension-guide/security-standards 对齐；ci.yml 扫描 job�
 
 ## 验收对照
 
-见 frontmatter `acceptance`；扫描 job 在 CI 真实跑通一次并留报告工件。
+- [x] README 与 Unreleased 核对，历史 v0.1.0 记录保持；当前租户能力与重建边界一致。
+- [x] 指南区分准入映射与转发路由，给出与现役配置一致的显式路由例子。
+- [x] 扫描 job、周计划、固定工具版本与 Actions SHA、失败报告保存已接入源码；工作流 YAML 解析通过。
+- [x] 时间条件输入直接提示 UTC 与不自动换算。
+- [ ] GitHub Actions 真实运行通过并保存报告工件：待 T-ACCESS-105 清理依赖阻断后执行。当前仅完成本地 pnpm 报告，不能视为 Maven 或 CI 扫描通过。
 
 ## 非目标 / 遗留
 
-显式 Gateway 拓扑定案不变；Dependabot 等仓外告警承接方式在卡内注明（若组织级已配，注明入口即可）。
+存量依赖修复由 T-ACCESS-105 后续承接，保持真实高危阻断；本卡与计划在依赖修复及 CI 验收完成前不标 done。显式 Gateway 拓扑定案不变；Dependabot 等仓外告警承接方式在卡内注明（若组织级已配，注明入口即可）。
+
+## 完成记录
+
+2026-10-17：源码实现与设计回写已准备，工作流 YAML 解析和固定 Actions 标签 SHA 核对通过；前端 `pnpm test` 50 文件、562 项通过，typecheck/lint:check/build 与 DTO 对账通过。`pnpm audit --json` 实际返回失败，原报告已保存到 T-ACCESS-105 证据目录。GitHub Actions 与 Maven 漏洞扫描未运行，不将本地解析或业务回归通过当作 CI 安全验收。
+
+代码轨核对扫描包含 Maven 解析依赖与 pnpm 锁定依赖、失败不吞、报告失败时仍上传、每周调度与 UTC 提示；文档轨核对 README/Unreleased 当前多租户能力、历史版本记录保持、转发路由与准入映射职责。剩余验收由 T-ACCESS-105 与真实 CI 报告承接，保持 review。

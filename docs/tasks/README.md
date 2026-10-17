@@ -10,7 +10,7 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| access-service 归并（跨服务） | `T-ACCESS` | 105 |
+| access-service 归并（跨服务） | `T-ACCESS` | 106 |
 | permission-center | `T-PERM` | 113 |
 | admin-service | `T-ADMIN` | 036 |
 | gateway | `T-GW` | 015 |
@@ -39,13 +39,14 @@
 | [T-ACCESS-100](T-ACCESS-100.md) | SDK 公共依赖宿主侵入收口（P2×4 族） | ✅ | — | ✓ |
 | [T-PERM-110](T-PERM-110.md) | 认证与登录安全细节批（P2×4 族） | ✅ | — | ✓ |
 | [T-FE-068](T-FE-068.md) | 前端迟响应与竞态批（P2×4+P3 族） | ✅ | — | ✓ |
-| [T-FE-069](T-FE-069.md) | 前端选择器与表单可用性批（P2×4 族） | ⚙️ | — | ⏳ |
-| [T-ACCESS-101](T-ACCESS-101.md) | 文件能力收口批（P2×2 族） | ⚙️ | — | ⏳ |
-| [T-PERM-111](T-PERM-111.md) | explain 与声明诊断修正批（P2×2+P3 族） | ⚙️ | — | ⏳ |
-| [T-PERM-112](T-PERM-112.md) | 互斥审计请求关联与主体补全（P2） | ⚙️ | — | ⏳ |
-| [T-ACCESS-102](T-ACCESS-102.md) | example-service 子报表真实父关系核对（P2） | ⚙️ | — | ⏳ |
-| [T-ACCESS-103](T-ACCESS-103.md) | 文档与流程对齐批（P2×3+P3 族） | ⚙️ | — | ⏳ |
-| [T-ACCESS-104](T-ACCESS-104.md) | 无权删除全拒反馈修正（P2） | ⚙️ | — | ⏳ |
+| [T-FE-069](T-FE-069.md) | 前端选择器与表单可用性批（P2×4 族） | ✅ | — | ✓ |
+| [T-ACCESS-101](T-ACCESS-101.md) | 文件能力收口批（P2×2 族） | ✅ | — | ✓ |
+| [T-PERM-111](T-PERM-111.md) | explain 与声明诊断修正批（P2×2+P3 族） | ✅ | — | ✓ |
+| [T-PERM-112](T-PERM-112.md) | 互斥审计请求关联与主体补全（P2） | ✅ | — | ✓ |
+| [T-ACCESS-102](T-ACCESS-102.md) | example-service 子报表真实父关系核对（P2） | ✅ | — | ✓ |
+| [T-ACCESS-103](T-ACCESS-103.md) | 文档与流程对齐批（P2×3+P3 族） | 👀 | T-ACCESS-105 | ✓ |
+| [T-ACCESS-104](T-ACCESS-104.md) | 无权删除全拒反馈修正（P2） | ✅ | — | ✓ |
+| [T-ACCESS-105](T-ACCESS-105.md) | 存量依赖漏洞核实与高危扫描阻断清理 | ⚙️ | — | ⏳ |
 
 ### OAuth2 客户端租户内唯一（待启动，Q-069 承接）
 

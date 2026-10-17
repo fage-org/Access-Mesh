@@ -1,8 +1,9 @@
 <script setup lang="ts">
+import { loadAllTypeDefs } from "@/api/type-def-options";
 import { computed, reactive, ref, watch } from "vue";
 import type { FormInstance, FormRules } from "element-plus";
 import type { ApiMappingResp } from "@/api/service-interface";
-import { getTypeDefList, TYPE_KEY, type TypeDefResp } from "@/api/type-def";
+import { TYPE_KEY, type TypeDefResp } from "@/api/type-def";
 import {
   getResourceTree,
   getOperationList,
@@ -94,8 +95,8 @@ function toTreeSelectNodes(nodes: ResourceTreeNode[]): TreeSelectNode[] {
 
 async function loadResourceTypes() {
   try {
-    const res = await getTypeDefList({ typeKey: TYPE_KEY.RESOURCE_TYPE });
-    resourceTypes.value = res.items
+    const res = await loadAllTypeDefs({ typeKey: TYPE_KEY.RESOURCE_TYPE });
+    resourceTypes.value = res
       // API 类型仅用于接口登记，不作准入要求（作要求恒无候选=T-ACCESS-062 后死配置）
       .filter(t => t.typeKey === TYPE_KEY.RESOURCE_TYPE && t.typeCode !== "API")
       .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);

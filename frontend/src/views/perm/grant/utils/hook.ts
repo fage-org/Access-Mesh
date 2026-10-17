@@ -1,3 +1,4 @@
+import { loadAllTypeDefs } from "@/api/type-def-options";
 /**
  * 权限授予页（4.1 v3）编排 composable。
  * 职责：只读依赖加载（资源树/操作/条件）→ 门控派生 → 生效视图/来源链计算 →
@@ -34,7 +35,7 @@ import {
   getConditionList,
   type ConditionResp
 } from "@/api/permission-condition";
-import { getTypeDefList, TYPE_KEY, type TypeDefResp } from "@/api/type-def";
+import { TYPE_KEY, type TypeDefResp } from "@/api/type-def";
 import { getRolePermissionList } from "@/api/permission-grant";
 import { PERMISSION_GRANT_PERMS } from "./perms";
 import { useGrantStore } from "./grant-store";
@@ -286,9 +287,9 @@ export function usePermissionGrant() {
       // 防御层（覆盖未来门禁变化）——权限拒绝进入降级块（可重试），不落「暂无资源类型
       // 配置」空态、不弹通用错误；其余错误（含资源树/操作列 403——二者无前端前置为
       // 既定口径）维持原路径。
-      let typeResp: Awaited<ReturnType<typeof getTypeDefList>>;
+      let typeResp: Awaited<ReturnType<typeof loadAllTypeDefs>>;
       try {
-        typeResp = await getTypeDefList({ typeKey: TYPE_KEY.RESOURCE_TYPE });
+        typeResp = await loadAllTypeDefs({ typeKey: TYPE_KEY.RESOURCE_TYPE });
       } catch (error: any) {
         if (error?.response?.status === 403 || error?.appCode === 403) {
           typePermDenied.value = true;
@@ -308,7 +309,7 @@ export function usePermissionGrant() {
       // 🔧 T-FE-040 v3.1（S5）：条件查看全租户开放（2026-08-08 产品确认），条件列表始终加载；
       // 🔧 T-PERM-048：includeInline=true 含内联条件（回显内联名称/规则；选择器侧过滤 INLINE）
       await refreshConditions();
-      typeCandidates.value = (typeResp.items ?? [])
+      typeCandidates.value = typeResp
         .filter(
           t => t.typeKey === TYPE_KEY.RESOURCE_TYPE && t.typeCode !== "API"
         )

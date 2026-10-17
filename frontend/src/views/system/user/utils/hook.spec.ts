@@ -106,7 +106,7 @@ describe("列表加载错误反馈与请求代际（T-FE-051 回归锁①②）"
     mockConfirm.mockResolvedValue(undefined);
     mockGetUserPage.mockResolvedValue({ items: [], total: 0 });
     mockDeleteUser.mockResolvedValue(undefined);
-    mockCreateUser.mockResolvedValue({ initialPassword: "P@ssw0rd!" });
+    mockCreateUser.mockResolvedValue({ id: 7, initialPassword: "P@ssw0rd!" });
     mockUpdateUser.mockResolvedValue(undefined);
     mockEnableUsers.mockResolvedValue(undefined);
   });
@@ -157,7 +157,7 @@ describe("写操作与启停 catch+message 一致性（T-FE-051）", () => {
     mockConfirm.mockResolvedValue(undefined);
     mockGetUserPage.mockResolvedValue({ items: [], total: 0 });
     mockDeleteUser.mockResolvedValue(undefined);
-    mockCreateUser.mockResolvedValue({ initialPassword: "P@ssw0rd!" });
+    mockCreateUser.mockResolvedValue({ id: 7, initialPassword: "P@ssw0rd!" });
     mockUpdateUser.mockResolvedValue(undefined);
     mockEnableUsers.mockResolvedValue(undefined);
   });
@@ -168,7 +168,8 @@ describe("写操作与启停 catch+message 一致性（T-FE-051）", () => {
     // 旧实现 handleCreate 无 catch：rejection 上抛——此 await 在旧实现下失败
     const result = await handleCreate({
       username: "zhang",
-      name: "张三"
+      name: "张三",
+      orgId: 10
     });
 
     expect(result).toBeNull();
@@ -176,11 +177,32 @@ describe("写操作与启停 catch+message 一致性（T-FE-051）", () => {
     expect(mockGetUserPage).not.toHaveBeenCalled(); // 失败不刷新
   });
 
-  it("创建成功：返回结果（initialPassword 供弹窗展示）并刷新列表", async () => {
+  it("未选组织时不创建孤立用户", async () => {
     const { handleCreate } = useUserManage();
     const result = await handleCreate({ username: "zhang", name: "张三" });
+    expect(result).toBeNull();
+    expect(mockCreateUser).not.toHaveBeenCalled();
+    expect(mockGetUserPage).not.toHaveBeenCalled();
+    expect(mockMessage).toHaveBeenCalledWith("请选择默认组织树中的所属组织", {
+      type: "warning"
+    });
+  });
+
+  it("创建成功：返回结果（initialPassword 供弹窗展示）并刷新列表", async () => {
+    const { handleCreate } = useUserManage();
+    const result = await handleCreate({
+      username: "zhang",
+      name: "张三",
+      orgId: 10
+    });
 
     expect(result?.initialPassword).toBe("P@ssw0rd!");
+    expect(result?.id).toBe(7);
+    expect(mockCreateUser).toHaveBeenCalledWith({
+      username: "zhang",
+      name: "张三",
+      orgId: 10
+    });
     expect(mockGetUserPage).toHaveBeenCalledTimes(1);
   });
 

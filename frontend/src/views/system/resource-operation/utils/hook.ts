@@ -1,3 +1,5 @@
+import { deleteResultNotice } from "@/utils/delete-result";
+import { loadAllTypeDefs } from "@/api/type-def-options";
 import { ref, reactive, computed, onMounted } from "vue";
 import { message } from "@/utils/message";
 import { ElMessageBox } from "element-plus";
@@ -20,7 +22,7 @@ import {
   type ResourceResp,
   type OperationPermissionResp
 } from "@/api/resource-operation";
-import { getTypeDefList, TYPE_KEY, type TypeDefResp } from "@/api/type-def";
+import { TYPE_KEY, type TypeDefResp } from "@/api/type-def";
 import { RESOURCE_OPERATION_PERMS } from "./perms";
 import type {
   ResourceFormData,
@@ -59,8 +61,8 @@ export function useResourceOperation() {
 
   async function loadResourceTypes() {
     try {
-      const res = await getTypeDefList({ typeKey: TYPE_KEY.RESOURCE_TYPE });
-      resourceTypes.value = res.items
+      const res = await loadAllTypeDefs({ typeKey: TYPE_KEY.RESOURCE_TYPE });
+      resourceTypes.value = res
         .filter(t => t.typeKey === TYPE_KEY.RESOURCE_TYPE)
         .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
     } catch (e) {
@@ -264,11 +266,13 @@ export function useResourceOperation() {
         });
         return false;
       }
-      await removeResources([keyOfNode(node)]);
-      message("资源已删除", { type: "success" });
-      if (selectedNode.value?.id === node.id) selectedNode.value = null;
+      const result = await removeResources([keyOfNode(node)]);
+      const notice = deleteResultNotice(result);
+      message(notice.text, { type: notice.type });
+      if (selectedNode.value?.id === node.id && result.denied.length === 0)
+        selectedNode.value = null;
       await loadTree();
-      return true;
+      return result.deleted.length > 0;
     } catch (e) {
       message(toErrorMessage(e, "删除失败"), { type: "error" });
       return false;

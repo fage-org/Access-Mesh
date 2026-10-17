@@ -6,6 +6,7 @@
  * desired=false 不伪造支持关系。选中节点沿直接边逐段展开（本地过滤，未截断时无需再请求）。
  */
 import type {
+  AutoGrantExplainReq,
   AutoGrantExplainResp,
   ExplainEdge,
   ExplainFactKey,
@@ -13,6 +14,36 @@ import type {
   ExplainSeedRef,
   ExplainDeclarationRef
 } from "@/api/resource-dependency";
+
+export type ExplainResourceOption = {
+  id: number;
+  code: string;
+  codeType: string;
+  name: string | null;
+  resourceTypeCode: string;
+};
+
+/** 下拉值携带完整业务键，避免同码不同编码类型的资源互相覆盖。 */
+export function explainResourceKey(resource: ExplainResourceOption): string {
+  return JSON.stringify([
+    resource.resourceTypeCode,
+    resource.code,
+    resource.codeType
+  ]);
+}
+
+export function explainTarget(
+  resource: ExplainResourceOption,
+  operationCode: string
+): AutoGrantExplainReq["target"] {
+  return {
+    resourceTypeCode: resource.resourceTypeCode,
+    resourceCode: resource.code,
+    codeType: resource.codeType,
+    operationCode,
+    conditionId: null
+  };
+}
 
 /** 条件身份展示（explain 无 PREVIEW_INLINE） */
 export function explainConditionLabel(fact: ExplainFactKey): string {
@@ -26,7 +57,7 @@ export function explainConditionLabel(fact: ExplainFactKey): string {
 /** 事实展示：TYPE/code · OP · 条件 */
 export function explainFactLabel(fact: ExplainFactKey): string {
   const r = fact.resource;
-  return `${r.resourceTypeCode ?? "?"}/${r.resourceCode ?? "?"} · ${
+  return `${r.resourceTypeCode ?? "?"}/${r.resourceCode ?? "?"}${r.codeType && r.codeType !== "default" ? ` [${r.codeType}]` : ""} · ${
     fact.operationCode ?? "组合位"
   } · ${explainConditionLabel(fact)}`;
 }
@@ -46,7 +77,9 @@ export function nodeStatus(node: ExplainNode): {
     return { label: "已生效", type: "success" };
   }
   if (node.desired) return { label: "应有未落库", type: "warning" };
-  return { label: "无来源存量", type: "danger" };
+  return node.actualPermissionIds.length > 0
+    ? { label: "无来源存量", type: "danger" }
+    : { label: "未生成自动权限", type: "info" };
 }
 
 /** 选中节点时沿直接边逐段展开：返回与该节点直接相连的边（本地过滤）。 */

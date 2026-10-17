@@ -11,8 +11,58 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * 1'
 
 jobs:
+  dependency-security:
+    name: 依赖安全扫描（高危阻断）
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - uses: pnpm/action-setup@7088e561eb65bb68695d245aa206f005ef30921d # v4.1.0
+        with:
+          version: 11.5.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: 解析并安装 reactor 依赖
+        run: mvn -B install -DskipTests -Dspring-boot.repackage.skip=true
+      - name: Maven 已解析依赖扫描（包含 test/provided）
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: >-
+          mvn -B org.owasp:dependency-check-maven:12.1.9:aggregate
+          -DfailBuildOnCVSS=7.0 -DfailOnError=true
+          -DskipTestScope=false -DskipProvidedScope=false
+          -Dformats=HTML,JSON -Dodc.outputDirectory=reports/maven
+          -DnvdApiKeyEnvironmentVariable=NVD_API_KEY
+          -DossIndexAnalyzerEnabled=false -DnodeAuditAnalyzerEnabled=false
+      - name: pnpm 锁定依赖扫描（包含开发依赖）
+        if: always()
+        working-directory: frontend
+        run: |
+          mkdir -p ../reports/pnpm
+          pnpm install --frozen-lockfile --ignore-scripts
+          pnpm audit --audit-level high --json > ../reports/pnpm/audit.json
+      - name: 保存安全报告（包括阻断结果）
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dependency-security-reports
+          path: reports/
+          retention-days: 30
+          if-no-files-found: error
+
   unit-tests:
     name: 单元测试（强制）
     runs-on: ubuntu-latest

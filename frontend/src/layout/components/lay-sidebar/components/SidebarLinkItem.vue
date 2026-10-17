@@ -1,17 +1,18 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { isUrl } from "@pureadmin/utils";
-import { menuType } from "@/layout/types";
+import type { menuType } from "@/layout/types";
+import { externalMenuHref } from "./sidebar-link";
 
 const props = defineProps<{
   to: menuType;
 }>();
 
-const isExternalLink = computed(() => isUrl(props.to.name));
+const externalHref = computed(() => externalMenuHref(props.to));
+const isExternalLink = computed(() => externalHref.value !== undefined);
 const getLinkProps = (item: menuType) => {
   if (isExternalLink.value) {
     return {
-      href: item.name,
+      href: externalHref.value,
       target: "_blank",
       rel: "noopener"
     };

@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.role.service;
 
+import cn.ac.fage.accessmesh.access.infrastructure.dto.BatchDeleteResp;
+
 import cn.ac.fage.accessmesh.perm.common.dto.req.RoleCreateReq;
 import cn.ac.fage.accessmesh.access.role.dto.resp.RoleResp;
 import cn.ac.fage.accessmesh.access.role.dto.resp.RoleTreeResp;
@@ -85,7 +87,7 @@ public interface RoleManageAppService {
      * @param roleIds   角色ID列表
      * @param operatorId 操作者ID
      */
-    void deleteRoles(Long tenantId, List<Long> roleIds, Long operatorId);
+    BatchDeleteResp<Long> deleteRoles(Long tenantId, List<Long> roleIds, Long operatorId);
 
     /**
      * 获取角色树

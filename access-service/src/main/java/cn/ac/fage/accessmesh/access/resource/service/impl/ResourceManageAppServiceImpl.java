@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.resource.service.impl;
 
+import cn.ac.fage.accessmesh.access.infrastructure.dto.BatchDeleteResp;
+
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.resource.dto.RequiredPermission;
 import cn.ac.fage.accessmesh.access.resource.enums.ApiMappingSource;
@@ -100,6 +102,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 
 import java.util.List;
+import java.util.LinkedHashMap;
 
 import java.util.Map;
 
@@ -617,12 +620,12 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
     @Transactional(rollbackFor = Exception.class)
     @PermissionChange
     @OperationLog(module = "PERMISSION", action = "RESOURCE_ENTITY_REMOVE", targetType = "resource_entity", targetId = "", summary = "'batch remove resources'")
-    public void deleteResources(Long tenantId, List<ResourceKeyReq> keys, Long operatorId) {
+    public BatchDeleteResp<ResourceKeyReq> deleteResources(Long tenantId, List<ResourceKeyReq> keys, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         if (keys == null || keys.isEmpty()) {
             OperationLogRuntimeContext.markSkip();
-            return;
+            return new BatchDeleteResp<>(List.of(), List.of(), List.of());
         }
 
         // T-PERM-052 评审批次（2026-09-05）：remove 与 update/move/sync 同持树写锁——后代展开与
@@ -631,10 +634,14 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
         // T-PERM-028：业务键批量解析为实体（按 resourceTypeCode 分组批量查询，避免N+1；
         // 未命中的键静默跳过，对齐原 ids 批删语义）
-        List<ResourceEntity> entities = resolveResourcesByKeys(tenantId, keys);
+        List<ResourceKeyReq> requested = keys.stream().filter(Objects::nonNull)
+            .map(key -> new ResourceKeyReq(key.resourceTypeCode(), key.code(), key.normalizedCodeType()))
+            .distinct().toList();
+        Map<ResourceKeyReq, ResourceEntity> resolved = resolveResourcesByKeys(tenantId, requested);
+        List<ResourceEntity> entities = List.copyOf(resolved.values());
         if (entities.isEmpty()) {
             OperationLogRuntimeContext.markSkip();
-            return;
+            return new BatchDeleteResp<>(List.of(), List.of(), requested);
         }
         Set<Long> existingResourceIds = entities.stream()
             .map(ResourceEntity::getId)
@@ -648,8 +655,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
         if (permittedIds.isEmpty()) {
             log.info("操作者{}无权删除任何请求的资源: denied={}", operatorId, deniedIds.size());
-            OperationLogRuntimeContext.markSkip();
-            return;
+            throw new SecurityException("无权删除请求中的资源");
         }
 
         Map<Long, List<Long>> descendantsMap = resourceEntityDomainService.batchGetDescendantIds(tenantId, permittedIds);
@@ -704,6 +710,10 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
             "soft-deleted " + allIdsToDelete.size() + " resource(s), rootPermitted="
                 + permittedIds.size() + ", denied=" + deniedIds.size()
         );
+        return new BatchDeleteResp<>(
+            requested.stream().filter(key -> resolved.containsKey(key) && allIdsToDelete.contains(resolved.get(key).getId())).toList(),
+            requested.stream().filter(key -> resolved.containsKey(key) && !allIdsToDelete.contains(resolved.get(key).getId())).toList(),
+            requested.stream().filter(key -> !resolved.containsKey(key)).toList());
     }
 
     /**
@@ -716,9 +726,9 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
      *
      * @param tenantId 租户ID
      * @param keys     资源业务键列表
-     * @return 命中的有效实体列表（未命中的键静默跳过，对齐原 ids 批删语义）
+     * @return 归一化请求业务键到有效实体的映射，未命中的键不入映射
      */
-    private List<ResourceEntity> resolveResourcesByKeys(Long tenantId, List<ResourceKeyReq> keys) {
+    private Map<ResourceKeyReq, ResourceEntity> resolveResourcesByKeys(Long tenantId, List<ResourceKeyReq> keys) {
         // resourceTypeCode → (code → codeType 集合)
         Map<String, Map<String, Set<String>>> grouped = new HashMap<>();
         for (ResourceKeyReq key : keys) {
@@ -731,24 +741,25 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
                 .add(key.normalizedCodeType());
         }
         if (grouped.isEmpty()) {
-            return List.of();
+            return Map.of();
         }
 
         Map<String, Integer> typeValues = typeResolutionService.batchResolveTypeValues(tenantId, "resource_type", grouped.keySet());
         Set<Integer> resolvedTypes = typeValues.values().stream()
             .filter(Objects::nonNull).collect(Collectors.toSet());
         if (resolvedTypes.isEmpty()) {
-            return List.of();
+            return Map.of();
         }
 
         // 请求三元组集合（TripleKey 元组键，未知类型码的键静默跳过；同 batchCreate 查重键——
         // claude 外评 P3-1：拼接串非单射会把未请求行塌缩进删除集合，此处语义面更重）
-        Set<TripleKey> triples = new HashSet<>();
+        Map<TripleKey, ResourceKeyReq> triples = new HashMap<>();
         for (Map.Entry<String, Integer> entry : typeValues.entrySet()) {
             Map<String, Set<String>> codes = grouped.getOrDefault(entry.getKey(), Map.of());
             for (Map.Entry<String, Set<String>> codeEntry : codes.entrySet()) {
                 for (String codeType : codeEntry.getValue()) {
-                    triples.add(new TripleKey(entry.getValue(), codeEntry.getKey(), codeType));
+                    triples.put(new TripleKey(entry.getValue(), codeEntry.getKey(), codeType),
+                        new ResourceKeyReq(entry.getKey(), codeEntry.getKey(), codeType));
                 }
             }
         }
@@ -758,11 +769,10 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         Set<String> allCodeTypes = grouped.values().stream()
             .flatMap(m -> m.values().stream().flatMap(Set::stream)).collect(Collectors.toSet());
 
-        List<ResourceEntity> entities = new ArrayList<>();
+        Map<ResourceKeyReq, ResourceEntity> entities = new LinkedHashMap<>();
         for (ResourceEntity entity : resourceEntityMapper.selectByTypesAndCodesAndCodeTypes(tenantId, resolvedTypes, allCodes, allCodeTypes)) {
-            if (triples.contains(new TripleKey(entity.getResourceType(), entity.getCode(), entity.getCodeType()))) {
-                entities.add(entity);
-            }
+            ResourceKeyReq key = triples.get(new TripleKey(entity.getResourceType(), entity.getCode(), entity.getCodeType()));
+            if (key != null) entities.put(key, entity);
         }
         return entities;
     }
