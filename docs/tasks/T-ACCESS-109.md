@@ -28,7 +28,7 @@ last_updated: 2026-10-17
 
 ## 当前口径
 
-当前处于[方案定案](../design/browser-session-authentication.md)阶段，已确认租户与平台网页登录一起覆盖（R1），调用兼容及具体方案尚待决定；不得先行修改既有认证通道。
+当前处于[方案定案](../design/browser-session-authentication.md)阶段，已确认租户与平台网页登录一起覆盖（R1），已确认新增网页专用 Cookie 入口并保留原 Bearer 登录（S1）；双凭据并存等剩余取舍待决定；不得先行修改既有认证通道。
 
 ## 验收对照
 
