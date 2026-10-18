@@ -10,7 +10,7 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| access-service 归并（跨服务） | `T-ACCESS` | 131 |
+| access-service 归并（跨服务） | `T-ACCESS` | 136 |
 | permission-center | `T-PERM` | 113 |
 | admin-service | `T-ADMIN` | 036 |
 | gateway | `T-GW` | 015 |
@@ -22,15 +22,30 @@
 
 ## 当前待办入口
 
-[后端并发缺口修复与公共 Redis 事务锁](../archive/2026-10-18/backend-concurrency-hardening.md) 已完成归档。[锁内类型身份写入核实与修复](../archive/2026-10-18/tasks/T-ACCESS-129.md) 亦已完成。当前仅保留原有暂缓事项。
+[当前候选版本独立环境部署与首次接入验收](../plans/candidate-deployment-acceptance-plan.md)已登记，待实施；从 T-ACCESS-131 开始。原有暂缓事项保持原状态。
 
 | ID | 标题 | 状态 | 直接依赖 |
 |---|---|---|---|
+| [T-ACCESS-131](T-ACCESS-131.md) | 候选版本冻结与隔离部署 | ⚙️ | — |
+| [T-ACCESS-132](T-ACCESS-132.md) | 租户与管理台使用验收 | ⚙️ | T-ACCESS-131 |
+| [T-ACCESS-133](T-ACCESS-133.md) | 首次业务接入与授权闭环验收 | ⚙️ | T-ACCESS-132 |
+| [T-ACCESS-134](T-ACCESS-134.md) | 重启持久化与备份恢复验收 | ⚙️ | T-ACCESS-133 |
+| [T-ACCESS-135](T-ACCESS-135.md) | 候选版本验收收口 | ⚙️ | T-ACCESS-134 |
 | [T-PERM-036](T-PERM-036.md) | scopeMode → 业务 SQL 端到端验证（暂缓） | ⚙️ | T-FE-013、T-PERM-033 |
 
 T-PERM-036 继续暂缓，需用户明确解除门禁。历史批次只供追溯，不重新启动。
 
 ## 任务总表
+
+### 当前候选版本独立环境部署与首次接入验收
+
+| ID | 标题 | 状态 | 直接依赖 |
+|---|---|---|---|
+| [T-ACCESS-131](T-ACCESS-131.md) | 候选版本冻结与隔离部署 | ⚙️ | — |
+| [T-ACCESS-132](T-ACCESS-132.md) | 租户与管理台使用验收 | ⚙️ | T-ACCESS-131 |
+| [T-ACCESS-133](T-ACCESS-133.md) | 首次业务接入与授权闭环验收 | ⚙️ | T-ACCESS-132 |
+| [T-ACCESS-134](T-ACCESS-134.md) | 重启持久化与备份恢复验收 | ⚙️ | T-ACCESS-133 |
+| [T-ACCESS-135](T-ACCESS-135.md) | 候选版本验收收口 | ⚙️ | T-ACCESS-134 |
 
 ### 后端并发与公共 Redis 锁规范入口
 

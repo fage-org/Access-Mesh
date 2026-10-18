@@ -105,6 +105,10 @@ docs/
 
 ## 执行计划
 
+| 计划 | 状态 | 直接依赖 |
+|---|---|---|
+| [当前候选版本独立环境部署与首次接入验收](plans/candidate-deployment-acceptance-plan.md) | proposed | — |
+
 [登录审计事务边界收敛](archive/2026-10-18/login-audit-transaction-plan.md)已完成归档，Q-067 已收敛。
 
 [顶栏裁剪与标准文件能力补齐](archive/2026-10-18/standard-capability-completion-plan.md)已完成归档，Q-071/Q-078 已收敛；当前待办与暂缓状态见[任务看板](tasks/README.md)。 后续 [T-ACCESS-118](archive/2026-10-18/tasks/T-ACCESS-118.md) 外评核实与修复也已完成归档。
