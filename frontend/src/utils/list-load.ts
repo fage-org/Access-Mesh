@@ -145,7 +145,8 @@ export function usePagedList<T>(opts: PagedListOptions<T>) {
     list: latestPage,
     loading,
     error,
-    load
+    load,
+    clear
   } = useListLoad<{ items: T[]; total: number }>({
     errorText: opts.errorText,
     fetcher: async () => [await opts.fetcher(pagination.page, pagination.size)],
@@ -192,6 +193,7 @@ export function usePagedList<T>(opts: PagedListOptions<T>) {
     error,
     pagination,
     loadTable,
+    clear,
     onSearch,
     onPageChange,
     onPageSizeChange

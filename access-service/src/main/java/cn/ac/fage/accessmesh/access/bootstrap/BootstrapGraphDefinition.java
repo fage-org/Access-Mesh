@@ -87,7 +87,8 @@ public final class BootstrapGraphDefinition {
      * @param canGrant         是否可转授（bootstrap 固定图业务门禁默认不可转授；T-ACCESS-052
      *                         最小集四条例外——SERVICE:MANAGE/MANAGE_API_MAPPING、
      *                         ORG:MANAGE_MEMBER、USER:VIEW 可转授，解锁内置类型实例委派的
-     *                         首授构造，其余维持不可转授）
+     *                         首授构造；T-ACCESS-116 增 ADMIN_FILE:CREATE/VIEW/DELETE，
+     *                         支持文件分类委派，其余维持不可转授）
      */
     public record GrantSpec(String resourceTypeCode, String operationCode,
                             String resourceCode, boolean canGrant) {}
@@ -320,6 +321,11 @@ public final class BootstrapGraphDefinition {
             ApiRoute.route("POST", "/api/access/job/detail", "bootstrap:任务详情", ResourceTypeCode.ADMIN_JOB, OperationCode.VIEW),
             ApiRoute.route("POST", "/api/access/job/page", "bootstrap:任务分页", ResourceTypeCode.ADMIN_JOB, OperationCode.VIEW),
             ApiRoute.route("POST", "/api/access/job/log/page", "bootstrap:任务日志分页", ResourceTypeCode.ADMIN_JOB, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/file/upload", "bootstrap:文件上传", ResourceTypeCode.ADMIN_FILE, OperationCode.CREATE),
+            ApiRoute.route("POST", "/api/access/file/download", "bootstrap:文件下载", ResourceTypeCode.ADMIN_FILE, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/file/detail", "bootstrap:文件详情", ResourceTypeCode.ADMIN_FILE, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/file/page", "bootstrap:文件分页", ResourceTypeCode.ADMIN_FILE, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/file/delete", "bootstrap:文件删除", ResourceTypeCode.ADMIN_FILE, OperationCode.DELETE),
             // 目标接口（§14.6）：仅预建资源，不建映射（无准入要求）
             new ApiRoute("POST", "/api/access/role/my-info", "bootstrap:目标接口(my-info)", false, null, null));
     }
@@ -437,6 +443,10 @@ public final class BootstrapGraphDefinition {
             new GrantSpec(ResourceTypeCode.ADMIN_JOB, OperationCode.VIEW, null, false),
             new GrantSpec(ResourceTypeCode.ADMIN_JOB, OperationCode.TRIGGER, null, false),
             new GrantSpec(ResourceTypeCode.ADMIN_JOB, OperationCode.ENABLE, null, false),
+            // T-ACCESS-116：文件全分类操作可转授，作为租户内分类委派的起点。
+            new GrantSpec(ResourceTypeCode.ADMIN_FILE, OperationCode.CREATE, null, true),
+            new GrantSpec(ResourceTypeCode.ADMIN_FILE, OperationCode.VIEW, null, true),
+            new GrantSpec(ResourceTypeCode.ADMIN_FILE, OperationCode.DELETE, null, true),
             // 2026-10-06 逐任务评审 P1-4（用户拍板「全档补齐」，ADMIN_NOTICE 先例）：OAuth2 客户端
             // 管理面四档类型级——固定图不持则空库上客户端注册/更新/删除无授予起点（死锁，同款
             // 机制；VIEW 供 detail/page 网关准入）。客户端无资源投影，实例级授权不可构造，
@@ -478,6 +488,7 @@ public final class BootstrapGraphDefinition {
             new MenuSeed("MENU", "资源依赖", "/system", "/system/resource-dependency", "ep/share", 11, ResourceTypeCode.DEPENDENCY, null),
             new MenuSeed("MENU", "服务凭证", "/system", "/system/service-credential", "ep/key", 13, ResourceTypeCode.SERVICE, null),
             new MenuSeed("MENU", "登录日志", "/system", "/system/login-log", "ep/document", 14, ResourceTypeCode.OPERATION_LOG, null),
+            new MenuSeed("MENU", "文件管理", "/system", "/system/file", "ep/folder-opened", 16, ResourceTypeCode.ADMIN_FILE, null),
             new MenuSeed("MENU", "同步已应用状态", "/system", "/system/sync-status", "ep/refresh", 15, ResourceTypeCode.DEPENDENCY, null),
             new MenuSeed("MENU", "权限变更日志", "/system", "/system/permission-change-log", "ep/history", 12, ResourceTypeCode.PERMISSION_CHANGE_LOG, null));
     }

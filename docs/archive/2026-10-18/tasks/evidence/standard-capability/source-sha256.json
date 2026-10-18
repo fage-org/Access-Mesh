@@ -1,0 +1,28 @@
+{
+  "maven_checked_source_count": 1617,
+  "maven_sources_unchanged": true,
+  "changed_final_inputs": {
+    "access-service/pom.xml": "3f6aabd4b4751684b8bfaa4f15af86380af221e083f5fb9a259f7090a79474b6",
+    "access-service/src/main/java/cn/ac/fage/accessmesh/access/bootstrap/AccessBootstrapInitializer.java": "5a2986bf7c4ec929ff8b627ab182943cc4aea40966f6e7f57f9594aad87627c6",
+    "access-service/src/main/java/cn/ac/fage/accessmesh/access/bootstrap/BootstrapGraphDefinition.java": "6a08c464cc06360c0008ba3d9361749f9287808c9a989b70b398d8a4b726eccf",
+    "access-service/src/main/java/cn/ac/fage/accessmesh/access/platform/dto/resp/FileResp.java": "c89825227b403fb9f83f5c9fefdd8bbe96887145e39b521c75fa99b8260791d1",
+    "access-service/src/main/java/cn/ac/fage/accessmesh/access/platform/service/impl/FileAppServiceImpl.java": "369a562eca3d76a723d7258af60e15ede3e9e0c8253dad50832d4eb349be809e",
+    "access-service/src/test/java/cn/ac/fage/accessmesh/access/bootstrap/AccessBootstrapPgIT.java": "00bc1a28e5db4c4372acbb35f3ff6c99623016b7760119a95216795fc31c29e7",
+    "access-service/src/test/java/cn/ac/fage/accessmesh/access/bootstrap/TenantOpeningPgIT.java": "68639a1bc0c67cb0f6da119bf156e0a6103e986e767070a1140a4b57f459c328",
+    "access-service/src/test/java/cn/ac/fage/accessmesh/access/platform/service/impl/FileAppServiceImplTest.java": "a0714428739ebeb2fdae2975aa830c686aa35ab8ce21e01441bed00510694d47",
+    "e2e/src/test/java/cn/ac/fage/accessmesh/e2e/ExampleProtectedApiE2EIT.java": "6f966112d6de7032c0a3fbf2b8c26df2ac85585ae4b8302e15f77faa5491662f",
+    "frontend/src/constants/access.ts": "898b3240a78c72fc8bf4ccdf6d1da2b5049fd15788b5cc4e1a105b73051a8f59",
+    "frontend/src/layout/components/lay-navbar/index.vue": "6db30c29fe472afff328fccd92ee086d25a5612762ff3c5e9c70c10b10415667",
+    "frontend/src/layout/components/lay-sidebar/NavHorizontal.vue": "f76eca6e9a755788333f93c956b1657360df76b3e4e18f97e9fb429fd9c0e7ac",
+    "frontend/src/layout/components/lay-sidebar/NavMix.vue": "d751aa85ae24adde5c34ab0cd9a36c600f7abf55ceda96629f1fd992bb0167f9",
+    "frontend/src/router/modules/system.ts": "dff798570b57443eea267dafb5edcbdd3f5321aaaa442a8c4b81048a33ea519c",
+    "frontend/src/utils/list-load.ts": "bf3e4ec7d973bd5330835626141347cb36f67cd51a6c4e9910dbaaed1649652e",
+    "gateway/pom.xml": "2f5e3e3d595e53408839ef5a10d2d359ae415acecbf5a46df668b08f48d7f14a",
+    "e2e/src/test/java/cn/ac/fage/accessmesh/e2e/FileCapabilityE2eScenario.java": "8304482407972b4a58205a39cb6a6980d6f320da51187048f067b2b90ddf413d",
+    "frontend/src/api/file.spec.ts": "b229f5b7cca90478124ef62e141a9b5d882fcda30ac68849f606df4ab9f4cbe1",
+    "frontend/src/api/file.ts": "3a8b28bfb1e0e148b9cae0527379c2b8624f0a1eae80f2106f088cd644014950",
+    "frontend/src/views/system/file/index.vue": "4b75a83289c3c503598fdbe95bad72f93c661d54becbed510bbac0c44d25f52f",
+    "frontend/src/views/system/file/useFileManager.spec.ts": "e09221e73b8cc374894406a25ac6d2aed85ee4072954add061d963da4e570e79",
+    "frontend/src/views/system/file/useFileManager.ts": "6244eebd4ae6320cf5adf4279d2acc661f5d5d253a16eb0dddaf6c2a15a8cf39"
+  }
+}

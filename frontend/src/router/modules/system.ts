@@ -37,6 +37,20 @@ export default {
   },
   children: [
     {
+      path: "/system/file",
+      name: "SystemFile",
+      component: () => import("@/views/system/file/index.vue"),
+      meta: {
+        title: "文件管理",
+        icon: "ep/folder-opened",
+        auths: [
+          PERMISSION_CODE.FILE_VIEW,
+          PERMISSION_CODE.FILE_CREATE,
+          PERMISSION_CODE.FILE_DELETE
+        ]
+      }
+    },
+    {
       path: "/system/service-credential",
       name: "SystemServiceCredential",
       component: () => import("@/views/system/service-credential/index.vue"),

@@ -10,9 +10,9 @@ last_reviewed: 2026-10-18
 
 ## 目标与交付状态
 
-2026-10-18 确认：移除未接入真实通知的铃铛及无消费者模板代码，不保留“暂无消息”或“未接入”空入口。此为已采纳目标，尚未实施，由 [T-FE-077](../../tasks/T-FE-077.md) 承接。
+2026-10-18 确认：移除未接入真实通知的铃铛及无消费者模板代码，不保留“暂无消息”或“未接入”空入口。由 [T-FE-077](../../archive/2026-10-18/tasks/T-FE-077.md) 实施：三种布局均已移除入口及专用模板代码。
 
-当前 `lay-notice/data.ts` 的消息与待办是硬编码演示数据，红点由其条目数生成；竖向 `lay-navbar/index.vue`、横向 `NavHorizontal.vue`、混合 `NavMix.vue` 都挂载 `LayNotice`。它与后台公告 API 没有接线，不能作为用户通知事实。
+原 `lay-notice` 的硬编码消息、红点和专用组件已删除。竖向 `lay-navbar/index.vue`、横向 `NavHorizontal.vue`、混合 `NavMix.vue` 不再挂载通知入口。后台公告 API 未因此退役。
 
 ## 页面与组件边界
 

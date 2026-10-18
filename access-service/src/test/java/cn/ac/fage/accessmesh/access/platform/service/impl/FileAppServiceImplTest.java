@@ -140,6 +140,8 @@ class FileAppServiceImplTest {
 
         var result = service.getFile(1L);
         assertThat(result.id()).isEqualTo(1L);
+        assertThat(JsonMapper.builder().configureForJackson2().build().valueToTree(result).path("bizType").asText())
+            .isEqualTo("default");
         assertThat(JsonMapper.builder().configureForJackson2().build().valueToTree(result).has("fileUrl")).isFalse();
         verify(permissionValidator).checkInstanceLevel(
             ResourceTypeCode.ADMIN_FILE, "default", OperationCode.VIEW);

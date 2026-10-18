@@ -90,7 +90,7 @@ public class AccessBootstrapInitializer {
         // T-ACCESS-059：org-tree-config/page 开放读绑定（准入要求候选来源）
         ResourceTypeCode.ADMIN_ORG_TREE_CONFIG,
         // 2026-10-06 逐任务评审 P1-4：OAuth2 客户端管理面四档类型级授权（VIEW/CREATE/UPDATE/DELETE）
-        ResourceTypeCode.ADMIN_OAUTH2_CLIENT);
+        ResourceTypeCode.ADMIN_OAUTH2_CLIENT, ResourceTypeCode.ADMIN_FILE);
 
     /** sys_user.user_type：本地用户管理展示值（与 createUser 链一致；权限域类型由投影链解析） */
     private static final int SYS_USER_TYPE_PERSON = 1;

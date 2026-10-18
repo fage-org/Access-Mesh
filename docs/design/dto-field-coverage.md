@@ -3,7 +3,7 @@ doc_type: design
 title: DTO 字段对账覆盖
 status: adopted
 domain: cross-service
-last_reviewed: 2026-10-06
+last_reviewed: 2026-10-18
 ---
 
 # DTO 字段对账覆盖
@@ -61,3 +61,4 @@ RolePermissionItemResp 与其列表信封已由 perm-common 单源供服务端�
 | `TenantCreatedResp` | adminUsername, initialPassword, tenant |
 | `PlatformAccountCreatedResp` | account, initialPassword |
 | `BatchDeleteResp` | deleted, denied, notFound |
+| `FileResp` | bizType, createdAt, fileName, fileSize, fileSuffix, fileType, id, originalName, storagePath |

@@ -102,9 +102,9 @@
 
 Claude 按需技能位于 `.claude/skills/`。
 
-## 待实施能力边界
+## 标准能力交付边界
 
-已采纳[顶栏通知入口裁剪](frontend/topbar-notifications.md)与[标准文件页面](frontend/file-management.md)目标；对应[执行计划](../plans/standard-capability-completion-plan.md)为 proposed。文件准入和默认权限仍未补通，不能将目标描述为现状。
+[顶栏通知入口裁剪](frontend/topbar-notifications.md)与[标准文件页面](frontend/file-management.md)已实现，对应[计划与验收](../archive/2026-10-18/standard-capability-completion-plan.md)已归档。标准新租户已有文件准入、默认管理员授权和页面；旧库不自动补权，升级按部署与备份重建规程处理。
 
 ## 归档记录
 

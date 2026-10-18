@@ -103,20 +103,6 @@ last_updated: 2026-10-18
 
 **处理入口**：SSO 部分已由 [T-ACCESS-109](archive/2026-10-17/tasks/T-ACCESS-109.md) 收敛；其余记住我字段、动作与期限分支保留，待单独评估后决定是否裁剪。
 
-<a id="q-071"></a>
-## Q-071 顶栏虚构消息与待办红点裁剪评估
-
-- **状态**：converted
-- **登记**：2026-10-14
-- **来源**：2026-10-12~14 外部持续审查（过度设计候选），外部模型核实与主代理亲核成立
-- **关联**：[scenario-audit-remediation-plan](archive/2026-10-17/scenario-audit-remediation-plan.md)
-
-**现象与证据**：`layout/components/lay-notice/data.ts:21-107` 硬编码「李白回复你」等示例消息/待办；`lay-notice/index.vue:3-11` 直接计算红点，竖向、横向、混合三种导航布局均实际渲染；无 notice API 封装。
-
-**影响**：新租户登录即见无关消息、过期任务与红点，无法据此完成真实工作；亦模糊「前端为模板 mock」边界的具体产品表现。
-
-**处理入口**：已转任务，采用[顶栏入口设计](design/frontend/topbar-notifications.md)；当前仅方案已确认，待实施验收后收敛。
-
 <a id="q-072"></a>
 ## Q-072 iframe 缓存模板 hash 刷新缺陷（原审查 022 号降级项）
 
@@ -130,20 +116,6 @@ last_updated: 2026-10-18
 **影响**：仅二次开发者显式启用模板 iframe 缓存后成立：刷新动作对带 hash 的子应用不可靠。现役菜单不受影响。
 
 **设想方向（未定案）**：先按真实扩展需求决定保留与否；若启用，改用已创建 URL 对象经 searchParams 设参再输出 href。相邻闲置面（addAsyncRoutes 非空注入支路无生产输入）可同批评估裁剪。
-
-<a id="q-078"></a>
-## Q-078 文件能力标准部署下整体不可达（准入路由未登记 + ADMIN_FILE 授权无种子 + 前端无消费面）
-
-- **状态**：converted
-- **登记**：2026-10-14
-- **来源**：T-ACCESS-099 真实容器验证过程中发现并逐层核实（验证环境=全栈预览 Compose 档）
-- **关联**：[T-ACCESS-116](tasks/T-ACCESS-116.md)、[T-FE-078](tasks/T-FE-078.md)；T-ACCESS-099 仅负责物理卷持久化
-
-**现象与证据**：三层各自独立核实——①网关面：`resource_api_mapping` 中 access-service 222 条路由零 file 路由（`BootstrapGraphDefinition` 112 条 ApiRoute 同样零 file），Gateway 准入「未注册恒 DENY」，经网关 `POST /api/access/file/upload` 恒 403「无接口访问权限」（requestId bcef52af，2026-10-14 实测）；②服务面：全部租户 `role_resource_permission` 零 ADMIN_FILE 行（type_value=25），无任何角色可通过 ADMIN_FILE 门禁（实测 403「权限不足」；验证时按 `FileServiceSecurityPgIT` 同款夹具插四条单操作位 MANUAL 行后才放行）；③前端面：`frontend/src/api/` 无 file 消费文件。契约面 `HttpApiPathSnapshotTest` 含全部 5 个 file 端点（upload/download/delete/detail/page）。
-
-**影响**：文件夹级授权能力（T-ADMIN-025 全链）与文件上传下载在标准部署（Gateway 单入口 + 租户统一模板开通）下对任何人都不可用，仅测试可经服务层直连 + 夹具授权触达；契约册登记的端点实际不可达。
-
-**处理入口**：标准能力与页面范围已确认，见[文件交付状态](design/access-service-api-contract.md#file-capability-delivery-status)及[页面设计](design/frontend/file-management.md)。两张任务验收覆盖后共同收敛；目前不标记已修复。
 
 <a id="q-079"></a>
 ## Q-079 IllegalArgumentException 处理器整段记录异常消息的泄露面待盘点
@@ -178,6 +150,8 @@ last_updated: 2026-10-18
 
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
+| <a id="q-071"></a>Q-071 | 顶栏虚构消息与红点 | 已收敛：三种布局移除演示入口，删除无消费者模板代码并完成页面验证 | [T-FE-077](archive/2026-10-18/tasks/T-FE-077.md) | 2026-10-18 |
+| <a id="q-078"></a>Q-078 | 标准文件能力不可达 | 已收敛：标准租户路由、可转授文件权限与最小页面交付，Gateway、分类委派、隔离和持久卷验收通过；旧库按备份重建边界处理 | [计划与验收](archive/2026-10-18/standard-capability-completion-plan.md) | 2026-10-18 |
 | <a id="q-067"></a>Q-067 | 登录事务内同步独立审计的连接池双重占用 | 已收敛：登录事务结束后同步独立写审计，保留密码重置行锁、失败日志与异常隔离；生产池配置未变 | [T-ACCESS-117](archive/2026-10-18/tasks/T-ACCESS-117.md) | 2026-10-18 |
 | <a id="q-069"></a>Q-069 | OAuth2 client_id 跨租户命名冲突与注册面存在性泄露 | 已收敛：租户内唯一索引及按凭据租户解析已交付，注册面不再泄露他租户占用；完成于 2026-10-08，本次补齐索引与归档 | [T-ACCESS-097](archive/2026-10-18/tasks/T-ACCESS-097.md) | 2026-10-18 |
 | <a id="q-076"></a>Q-076 | 服务凭证验密成本 | 已收敛：SHA-256 替换逐请求 BCrypt，保留实时状态检查；旧凭证重新签发，无兼容。部署吞吐不作本任务承诺 | [T-ACCESS-114](archive/2026-10-18/tasks/T-ACCESS-114.md) | 2026-10-18 |

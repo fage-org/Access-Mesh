@@ -154,6 +154,12 @@
             <groupId>cn.dev33</groupId>
             <artifactId>sa-token-redis-jackson</artifactId>
         </dependency>
+        <!-- sa-token-jackson 的 optional Java Time 支持必须由运行宿主提供；Boot 4 Jackson 3 不替代它。 -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+            <scope>runtime</scope>
+        </dependency>
 
         <!-- Tools -->
         <dependency>

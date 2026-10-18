@@ -10,9 +10,9 @@ last_reviewed: 2026-10-18
 
 ## 目标与交付状态
 
-2026-10-18 确认：文件作为标准能力补通，并交付最小文件管理页面。此为已采纳目标，尚未实施；后端接通由 [T-ACCESS-116](../../tasks/T-ACCESS-116.md) 承接，页面由 [T-FE-078](../../tasks/T-FE-078.md) 承接。当前前端无文件 API 消费面；初始化路由和授权缺口仍存在，不能把本文当作已交付证明。
+2026-10-18 确认：文件作为标准能力补通，并交付最小文件管理页面。后端接通由 [T-ACCESS-116](../../archive/2026-10-18/tasks/T-ACCESS-116.md) 实施，页面由 [T-FE-078](../../archive/2026-10-18/tasks/T-FE-078.md) 实施。新建标准租户已有菜单、文件 API 准入及管理员授权；`/system/file` 消费真实接口。
 
-接口、字段和安全语义以[文件契约 §17.1](../access-service-api-contract.md#contract-section-17-1)为唯一详细来源；默认授权目标见[固定图文件能力](../access-service-architecture.md#file-bootstrap-target)。
+接口、字段和安全语义以[文件契约 §17.1](../access-service-api-contract.md#contract-section-17-1)为唯一详细来源；默认授权见[固定图文件能力](../access-service-architecture.md#file-bootstrap-target)。
 
 ## 页面范围与布局
 
@@ -33,7 +33,7 @@ last_reviewed: 2026-10-18
 
 - 在 `frontend/src/api/` 增加文件 API 封装，复用公共 HTTP 客户端。上传使用 FormData，由客户端正确生成 multipart boundary，避免继承 JSON Content-Type；保留 Cookie、页面会话标记和 CSRF 头。
 - 文件响应新增的 `bizType` 从真实 `bucket_name` 映射；登记前后端 DTO 对账。文件名和类型展示使用契约字段，不通过解析存储路径猜测分类。
-- 下载使用鉴权 POST 和 Blob；文件名来自已授权元数据或响应头，使用后释放 Object URL。JSON 类型错误通过公共错误处理，不下载成伪文件；401、90002 及迟到响应遵循现有会话边界。
+- 下载使用鉴权 POST 和 Blob；文件名来自已授权元数据；下载链接临时挂入 DOM，触发后移除，在下一事件任务释放 Object URL，避免下载导航尚未读取时释放。JSON 类型错误通过公共错误处理，不下载成伪文件；401、90002 及迟到响应遵循现有会话边界。
 - 上传采用显式请求超时并保留取消能力，不增加自动重试。网络中断或取消不能被描述成服务端必然回滚；结果未知时提示刷新检查。
 - 删除前确认，成功后重新读取当前分页；失败保留现有行并显示后端错误。越权、跨租户、文件不存在、大小/类型不符不伪装为成功或空列表。
 - 切换筛选、账号、租户或离开页面后，旧列表和下载结果不得回写新上下文；复用现有请求代际、取消与页面生命周期模式。

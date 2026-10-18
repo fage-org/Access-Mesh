@@ -698,6 +698,14 @@ class ExampleProtectedApiE2EIT {
     // 子进程服务管理
     // ------------------------------------------------------------------
 
+    @Test
+    @Order(12)
+    @DisplayName("标准租户文件能力：真实网关 CRUD、分类转授、跨租户与撤权")
+    void standardFileCapability() throws Exception {
+        FileCapabilityE2eScenario.verify(gateway(), BOOTSTRAP_ADMIN_PASSWORD,
+            ExampleProtectedApiE2EIT::readCaptchaFromRedis);
+    }
+
     private static List<String> accessServiceArgs(int port) {
         return List.of(
             "--server.port=" + port,

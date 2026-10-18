@@ -498,7 +498,7 @@ public class FileAppServiceImpl implements FileAppService {
             f.getId(), f.getFileName(), f.getOriginalName(),
             f.getFileType(),
             f.getFileSize() != null ? f.getFileSize().toString() : null,
-            f.getFileType(), f.getFilePath(), f.getCreatedAt()
+            f.getFileType(), f.getFilePath(), f.getCreatedAt(), f.getBucketName()
         );
     }
 

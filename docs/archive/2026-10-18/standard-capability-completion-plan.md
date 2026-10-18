@@ -1,7 +1,7 @@
 ---
 doc_type: plan
 title: 顶栏裁剪与标准文件能力补齐
-status: proposed
+status: archived
 domain: cross-service
 design_refs:
   - docs/design/frontend/topbar-notifications.md
@@ -34,9 +34,9 @@ last_updated: 2026-10-18
 
 | ID | 标题 | 状态 | 直接依赖 |
 |---|---|---|---|
-| [T-FE-077](../tasks/T-FE-077.md) | 移除顶栏虚构通知入口 | ⚙️ | — |
-| [T-ACCESS-116](../tasks/T-ACCESS-116.md) | 标准文件接口与默认授权接通 | ⚙️ | — |
-| [T-FE-078](../tasks/T-FE-078.md) | 最小文件管理页面 | ⚙️ | T-ACCESS-116 |
+| [T-FE-077](tasks/T-FE-077.md) | 移除顶栏虚构通知入口 | ✅ | — |
+| [T-ACCESS-116](tasks/T-ACCESS-116.md) | 标准文件接口与默认授权接通 | ✅ | — |
+| [T-FE-078](tasks/T-FE-078.md) | 最小文件管理页面 | ✅ | T-ACCESS-116 |
 
 ## 归档条件
 
@@ -44,6 +44,6 @@ last_updated: 2026-10-18
 
 标准能力验收必须使用正常初始化及租户开通链，经 Gateway 完成上传→分页/详情→下载→删除；不得用直连服务或手工插路由/默认授权替代。另验证普通角色分类委派、跨租户拒绝、撤权最终拒绝与文件持久卷重建容器后的内容保留；部署验证在隔离环境完成。
 
-## 当前进度
+## 验收结果
 
-方案已制定，任务均为 proposed，未修改业务代码。建议先完成 T-FE-077，再实施 T-ACCESS-116，后接 T-FE-078，最后做统一验收。T-PERM-036 继续暂缓。
+三张任务均已完成，Q-071/Q-078 已收敛。实现、真实 Gateway/浏览器、文件卷重建及完整回归见[统一验收](tasks/evidence/standard-capability/verification.md)。T-PERM-036 继续暂缓。计划与任务卡随 2026-10-18 批次归档。

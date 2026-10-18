@@ -2195,9 +2195,9 @@ POST + JSON，门禁为 OPERATION_LOG:VIEW 类型级，租户仅取可信上下�
 <a id="contract-section-17-1"></a>
 ### 17.1 文件管理（/file）🔧（T-ADMIN-023 安全加固补记, 2026-08-25 契约从实现反向登记）
 
-> 本模块先于契约存在（代码即事实），T-ADMIN-023 安全加固时反向登记契约；前端暂无消费方。
-> 当前标准部署仍受[Q-078](../pending-problems.md#q-078)所列缺口约束；已采纳的补通范围与实施状态见[标准文件能力交付状态](#file-capability-delivery-status)。字段/下载头修正与方案采纳都不代表产品边界已经交付。
-> **文件访问方式（2026-10-17，T-ACCESS-101）**：当前没有接入方，FileResp 删除无可用访问通道的 `fileUrl`，无需保留字段兼容；数据库历史列暂不删除。文件访问统一走鉴权 POST 下载，浏览器接收字节生成 Blob URL，使用后释放；不新增公开 `/files/**` 静态入口。
+> 本模块先于契约存在，T-ADMIN-023 安全加固时登记契约；管理台文件页为现行消费方。
+> 标准初始化、默认授权与页面消费已接通，范围与升级边界见[标准文件能力交付状态](#file-capability-delivery-status)。
+> **文件访问方式**：FileResp 不提供 `fileUrl`；该字段已于 T-ACCESS-101 无接入方阶段删除，数据库历史列暂不删除。文件访问统一走鉴权 POST 下载，浏览器接收字节生成 Blob URL，使用后释放；不新增公开 `/files/**` 静态入口。
 > **资源类型**: `ADMIN_FILE`（type_definition `resource_type=25`）。**存储**: 本地磁盘单实例
 > （默认 `${user.home}/accessmesh-files`，多实例部署下本地盘不可共享为已知限制，见
 > `access-service-architecture.md` §15；不建对象存储抽象层）。
@@ -2205,12 +2205,12 @@ POST + JSON，门禁为 OPERATION_LOG:VIEW 类型级，租户仅取可信上下�
 <a id="file-capability-delivery-status"></a>
 #### 标准文件能力交付状态
 
-**已采纳目标，待实施（2026-10-18）**：文件能力纳入标准租户初始化，并提供最小管理页面。当前代码仍存在 Q-078 的准入、默认授权与页面缺口；由 [T-ACCESS-116](../tasks/T-ACCESS-116.md) 和 [T-FE-078](../tasks/T-FE-078.md) 联合交付，不能据本段宣称已可用。
+**现行实现（2026-10-18）**：文件能力纳入标准租户初始化，并提供最小管理页面，由 [T-ACCESS-116](../archive/2026-10-18/tasks/T-ACCESS-116.md) 和 [T-FE-078](../archive/2026-10-18/tasks/T-FE-078.md) 联合交付。旧库不自动补写固定图；以下可用性以本版正常初始化与租户开通为前提。
 
 - 固定图登记 `upload/download/delete/detail/page`，方法均为 POST，分别要求 `ADMIN_FILE:CREATE/VIEW/DELETE/VIEW/VIEW`。不加入登录白名单，不绕过 Gateway；服务层继续按文件夹实例判定，列表继续按可见文件夹裁剪。
 - 内置租户管理员获得 `ADMIN_FILE:CREATE/VIEW/DELETE` 的 ALL 范围、`canGrant=true` 授权，覆盖本租户已有和后续分类，并可通过现有授权页分配较窄分类/操作给其他角色；普通用户无默认文件授权。此项只扩充文件能力的转授例外，不改变其他内置权限。
 - 文件权限粒度仍是 bizType 文件夹；授予 document VIEW 意味着可读取本租户该分类的文件，不增加按上传者限定的“我的文件”语义。平台运营身份不因此获得租户文件读取权。
-- 为文件页面显示真实分类，`FileResp` 增补 `bizType: String`，直接来源为 `sys_file.bucket_name`，同时用于 detail/page。现有字段保持；前端不解析 storagePath 猜测分类，不把 storagePath 当下载链接。该字段尚未进入实现，需随 T-ACCESS-116 同步字段表与 DTO 对账。
+- 为文件页面显示真实分类，`FileResp` 增补 `bizType: String`，直接来源为 `sys_file.bucket_name`，同时用于 detail/page。现有字段保持；前端不解析 storagePath 猜测分类，不把 storagePath 当下载链接。该字段已进入 detail/page 实现，并登记 DTO 字段对账。
 - 上传与下载继续既有 multipart/鉴权 POST 协议及本地盘单实例约束，保持原有文件安全校验、审计和删除事务语义。前端目标见[文件管理页面](frontend/file-management.md)。
 - 固定图新增项采用正常新库与租户开通链；已初始化旧库仍按现行部分图 fail-fast 与备份重建规程处理，不增加自动补权或在线迁移。本段不授权实际销毁数据库或文件卷。
 
@@ -2231,7 +2231,7 @@ POST + JSON，门禁为 OPERATION_LOG:VIEW 类型级，租户仅取可信上下�
 <a id="contract-section-17-1-2"></a>
 #### 17.1.2 `POST /api/access/file/detail` 🔧
 
-**请求 DTO**: `IdReq`。**响应**: `R<FileResp>`（字段序：`id/fileName/originalName/fileSuffix/fileSize/fileType/storagePath(=file_path)/createdAt`；既有实现将 MIME 同时填入 `fileSuffix` 与 `fileType` 两位置，消费方按 `fileType` 取 MIME）。
+**请求 DTO**: `IdReq`。**响应**: `R<FileResp>`（字段序：`id/fileName/originalName/fileSuffix/fileSize/fileType/storagePath(=file_path)/createdAt/bizType(=bucket_name)`；既有实现将 MIME 同时填入 `fileSuffix` 与 `fileType` 两位置，消费方按 `fileType` 取 MIME，`fileSize` 为字节数十进制字符串）。
 **错误**: `10501`。**门禁**: `ADMIN_FILE:VIEW` 文件所属文件夹实例级（T-ADMIN-025；resourceCode = 元数据 `bucket_name`，须先取行——文件不存在先报 `10501`，再做文件夹判定）。无投影文件夹（含白名单前落库的历史脏桶）fail-closed 拒绝（403）。
 
 <a id="contract-section-17-1-3"></a>
@@ -2245,7 +2245,7 @@ POST + JSON，门禁为 OPERATION_LOG:VIEW 类型级，租户仅取可信上下�
 
 下载文件名通过 `filename*=UTF-8''...` 回显 UTF-8 原名，并提供仅 ASCII 的 `filename` 回退；原名中的控制字符剥离，引号与反斜杠按响应头规则转义。
 
-**请求 DTO**: `IdReq`。**响应**: 文件字节流直接写 HTTP 响应（`Content-Disposition: attachment`；全仓唯一绕过 `R` 包装的文件流白名单端点，T-ACCESS-011 登记）。
+**请求 DTO**: `IdReq`。**响应**: 文件字节流直接写 HTTP 响应（`Content-Disposition: attachment`；文件流响应例外，和审计导出端点一样不包装 `R`）。
 **错误**: `10501`（元数据或物理文件不存在）/ `10506`（路径非法）/ `10507`（读取 IO 失败；原裸 `10504/10505` 硬编码已归位，T-ADMIN-023）。
 **门禁**: `ADMIN_FILE:VIEW` 文件所属文件夹实例级（T-ADMIN-025，同 detail 口径：先取行、resourceCode=`bucket_name`、无投影 fail-closed）。
 

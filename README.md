@@ -9,6 +9,7 @@
 - **RBAC 权限引擎**：资源-操作-角色三位一体，支持条件权限和范围权限
 - **网关级鉴权**：Spring Cloud Gateway + Sa-Token，接口级白名单模式（快照本地匹配 + 30 秒撤权边界）
 - **OAuth2 认证**：授权码 + PKCE / 刷新令牌模式
+- **文件管理**：标准租户提供分类上传、查询、下载与删除页面；管理员可向角色转授分类权限，普通用户默认无文件权限（[使用边界](docs/design/frontend/file-management.md)）
 - **SDK**：perm-client 提供 Feign 查询与 Servlet Gateway 身份验签；可选 perm-registration 负责依赖发布。Gateway 准入逻辑在 gateway 服务中，空壳 perm-gateway 已退役；SQL 自动改写模块仍未提供
 - **接入示例**：example-service 提供问候接口与报表七路由，演示 Gateway 准入、实际对象检查、范围查询、父权限上下文与异步执行时重查；通用 SQL 自动改写仍未交付
 

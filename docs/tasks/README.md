@@ -22,18 +22,23 @@
 
 ## 当前待办入口
 
-[登录审计事务边界收敛](../archive/2026-10-18/login-audit-transaction-plan.md)已完成归档，当前无实施中或评审中任务。待启动方案为[顶栏裁剪与标准文件能力补齐](../plans/standard-capability-completion-plan.md)；[最近变更核实修复与状态校准](../archive/2026-10-18/recent-change-review-remediation.md)已完成归档。未成任务的问题见[待解决问题](../pending-problems.md)。
+[顶栏裁剪与标准文件能力补齐](../archive/2026-10-18/standard-capability-completion-plan.md)已完成归档，Q-071/Q-078 已收敛；登录审计及最近变更校准也已归档。目前没有已获准启动的新实施任务。未成任务事项见[待解决问题](../pending-problems.md)，需先核实真实影响与过度设计，再由用户决定范围。
 
 | ID | 标题 | 状态 | 直接依赖 |
 |---|---|---|---|
-| [T-FE-077](T-FE-077.md) | 移除顶栏虚构通知入口 | ⚙️ | — |
-| [T-ACCESS-116](T-ACCESS-116.md) | 标准文件接口与默认授权接通 | ⚙️ | — |
-| [T-FE-078](T-FE-078.md) | 最小文件管理页面 | ⚙️ | T-ACCESS-116 |
 | [T-PERM-036](T-PERM-036.md) | scopeMode → 业务 SQL 端到端验证（暂缓） | ⚙️ | T-FE-013、T-PERM-033 |
 
-T-PERM-036 继续暂缓，需用户明确解除门禁。下方已完成批次及历史执行顺序只用于追溯，不重新启动。
+T-PERM-036 继续暂缓，需用户明确解除门禁。历史批次只供追溯，不重新启动。
 
 ## 任务总表
+
+### 顶栏裁剪与标准文件能力补齐（已归档）
+
+| ID | 标题 | 状态 | 直接依赖 |
+|---|---|---|---|
+| [T-FE-077](../archive/2026-10-18/tasks/T-FE-077.md) | 移除顶栏虚构通知入口 | ✅ | — |
+| [T-ACCESS-116](../archive/2026-10-18/tasks/T-ACCESS-116.md) | 标准文件接口与默认授权接通 | ✅ | — |
+| [T-FE-078](../archive/2026-10-18/tasks/T-FE-078.md) | 最小文件管理页面 | ✅ | T-ACCESS-116 |
 
 ### 登录审计事务边界收敛（已归档）
 

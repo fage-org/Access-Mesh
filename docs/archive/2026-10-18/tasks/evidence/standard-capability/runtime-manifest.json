@@ -1,0 +1,31 @@
+{
+  "access-service": {
+    "sha256": "66b0ab4930faaf9d643417dba11ee9e8ace2a73a7250f3b2172573716a89197a",
+    "session_libraries": [
+      "jackson-datatype-jsr310-2.21.5.jar",
+      "sa-token-core-1.46.0.jar",
+      "sa-token-jackson-1.46.0.jar",
+      "sa-token-jackson3-1.46.0.jar",
+      "sa-token-jakarta-servlet-1.46.0.jar",
+      "sa-token-redis-jackson-1.46.0.jar",
+      "sa-token-redis-template-1.46.0.jar",
+      "sa-token-spring-boot-webmvc-reactor-v2v3v4-common-1.46.0.jar",
+      "sa-token-spring-boot-webmvc-v3v4-common-1.46.0.jar",
+      "sa-token-spring-boot4-starter-1.46.0.jar"
+    ]
+  },
+  "gateway": {
+    "sha256": "a142086526a6c8fa24aaef4393e49383aa226fd9a63b442576360d11d4e984b7",
+    "session_libraries": [
+      "jackson-datatype-jsr310-2.21.5.jar",
+      "sa-token-core-1.46.0.jar",
+      "sa-token-jackson-1.46.0.jar",
+      "sa-token-jackson3-1.46.0.jar",
+      "sa-token-reactor-spring-boot4-starter-1.46.0.jar",
+      "sa-token-redis-jackson-1.46.0.jar",
+      "sa-token-redis-template-1.46.0.jar",
+      "sa-token-spring-boot-reactor-v3v4-common-1.46.0.jar",
+      "sa-token-spring-boot-webmvc-reactor-v2v3v4-common-1.46.0.jar"
+    ]
+  }
+}

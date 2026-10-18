@@ -913,5 +913,25 @@
         "name": "BrowserLoginResp"
       }
     ]
+  },
+  {
+    "name": "FileResp",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/platform/dto/resp/FileResp.java",
+        "name": "FileResp"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/file.ts",
+        "name": "FileResp"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "FileResp"
+      }
+    ]
   }
 ]

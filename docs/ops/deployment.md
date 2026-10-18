@@ -71,6 +71,13 @@ Nacos(8848)：服务注册/配置（三服务共同依赖）
 - 空库首启顺序：DDL → access-service（bootstrap 建首管理员与固定图）→ gateway → 注册服务/签发凭证 → 配置业务服务并启动。
 - 文件存储（ADMIN_FILE）落在 access-service 本机 `${user.home}/accessmesh-files`——**单实例限制**，多实例需保持单写者（共享存储为非目标）。容器化部署须挂载持久卷：全栈预览档已固定 `FILE_STORAGE_PATH=/var/lib/accessmesh/files` 并挂命名卷 `accessmesh-files`（T-ACCESS-099）——常规 `--profile app up -d --build` 重建容器后既有文件仍可下载；备份见 §8（含该卷），`down -v` 会连带删除该卷。
 
+### 标准文件能力（T-ACCESS-116 / T-FE-078）
+
+- 本版新建租户自动登记五条 `/api/access/file/*` 准入路由及 `/system/file` 菜单，内置管理员获得本租户全部分类 CREATE/VIEW/DELETE 并可转授；普通用户默认无权。管理员可在现有授权页仅委派 `document` 的 VIEW，授权粒度为分类而非上传者。
+- 对已初始化库不自动补路由或权限：缺固定图仍按现行校验拒绝；先备份数据库与文件卷、验证旧版本可恢复，再由环境负责人按重建手册决定处置。不得把“新版本启动”当作旧库已升级，也不得自行清理文件卷。
+- 上线验收使用正常开通的租户经 Gateway 上传、查询、下载和删除，再检验分类委派与跨租户拒绝。原业务默认大小上限 10 MiB；multipart/nginx 的 100MB 仅为请求信封上限。文件卷和业务数据库必须成套备份。
+- Gateway 与 access-service 使用现有 `sa-token-redis-jackson` 时，正式运行包必须包含其 optional Java Time 依赖 `jackson-datatype-jsr310`（Jackson 2，版本由统一 BOM 管理）。Boot 4 的 Jackson 3 不能提供这个类。两个服务已显式补齐 runtime 依赖；发布前须启动正式 JAR 验证，不能只凭测试类路径启动成功判断打包完整。不更换现有会话序列化器或迁移 Redis 数据。
+
 ### 固定图种子来源切换（T-PERM-106）
 
 新库固定图授权来源为 BOOTSTRAP_SEED。旧库的 MANUAL 种子与运营授权无法可靠追溯区分，不自动补标。防护形态（2026-10-06 bootstrap 校验方案 A 拍板）：①**写路径全形态守卫**——种子行撤/改/挂子权限拒 **20074**、固定图墓碑身份的孪生行撤/改/挂子权限拒 **20075**（不依赖 bootstrap 开关，任意实例生效）；②**启动检查**（随 bootstrap 开关装配）——未标记且无种子墓碑的真旧库维持拒启；「种子墓碑+同键 MANUAL 孪生」并存态 WARN 放行不补回（孪生行已由 20075 置为只读）。真旧库按 §8 备份并验证旧版本可恢复，再按重建手册新建库；这是既定开发期重建路径，不是保数据迁移方案。转授出的普通 MANUAL 行不因来源收紧而锁定。

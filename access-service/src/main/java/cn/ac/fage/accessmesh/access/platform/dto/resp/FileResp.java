@@ -57,5 +57,8 @@ public record FileResp(
     /**
      * 创建时间
      */
-    LocalDateTime createdAt
+    LocalDateTime createdAt,
+
+    /** 业务分类（文件夹编码），直接来自 sys_file.bucket_name。 */
+    String bizType
 ) {}

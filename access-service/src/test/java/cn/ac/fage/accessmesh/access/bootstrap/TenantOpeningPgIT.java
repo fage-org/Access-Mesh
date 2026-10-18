@@ -35,6 +35,20 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
     "spring.cloud.nacos.discovery.enabled=false","accessmesh.sync.scheduler.enabled=false",
     "access.platform.bootstrap.enabled=false","access.tenant.gate-repair.enabled=false"})
 class TenantOpeningPgIT {
+    @Test
+    void normalTenantOpeningProvidesFileRoutesMenuAndDelegableFolderPermissions() throws Exception {
+        String code = "files-" + UUID.randomUUID().toString().substring(0,8);
+        JsonNode opened = call("/api/access/tenant/create", Map.of("code",code,"name","Files tenant"));
+        assertThat(opened.path("code").asInt()).isEqualTo(200);
+        long tenant = opened.path("data").path("tenant").path("id").asLong();
+        assertThat(jdbc.queryForList("SELECT path_pattern FROM resource_api_mapping WHERE tenant_id=? AND delete_flag=0 AND enabled=true AND path_pattern LIKE '/api/access/file/%'", String.class, tenant))
+            .containsExactlyInAnyOrder("/api/access/file/upload", "/api/access/file/download", "/api/access/file/detail", "/api/access/file/delete", "/api/access/file/page");
+        assertThat(jdbc.queryForList("SELECT p.granted_bits FROM role_resource_permission p JOIN abstract_role r ON r.id=p.abstract_role_id AND r.tenant_id=p.tenant_id "
+            + "JOIN type_definition t ON t.tenant_id=p.tenant_id AND t.type_key='resource_type' AND t.type_code='ADMIN_FILE' AND t.type_value=p.resource_type "
+            + "WHERE p.tenant_id=? AND r.external_id='bootstrap-admin' AND p.delete_flag=0 AND p.scope_all=true AND p.can_grant=true AND p.grant_source='BOOTSTRAP_SEED'", Long.class, tenant))
+            .containsExactlyInAnyOrder(1L,2L,8L);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM sys_menu WHERE tenant_id=? AND path='/system/file' AND delete_flag=0", Integer.class, tenant)).isEqualTo(1);
+    }
     @DynamicPropertySource static void configure(DynamicPropertyRegistry registry) { ItInfra.register(registry,TenantOpeningPgIT.class); }
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
