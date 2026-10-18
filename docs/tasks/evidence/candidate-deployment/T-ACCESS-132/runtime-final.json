@@ -1,0 +1,47 @@
+{
+  "verifiedAt": "2026-10-18T20:04:57.9936207+08:00",
+  "candidateImagesUnchanged": true,
+  "containers": [
+    {
+      "image": "sha256:e9ecdf6055d3b51b1c669e40affa645cb75e09beabfba3f1213a56f273a0caf2",
+      "restartCount": 0,
+      "health": "healthy",
+      "name": "am-candidate-20261018-44e178a-frontend"
+    },
+    {
+      "image": "sha256:6e9a60312a3b848ecd0c84be87ae2c51e6294b10833234ec84c43ae81b213f1e",
+      "restartCount": 0,
+      "health": "healthy",
+      "name": "am-candidate-20261018-44e178a-gateway"
+    },
+    {
+      "image": "sha256:0908abe5626e430108f850a2170c8ce1fb334deabd4c0bb2cdc9b99bcaa4c797",
+      "restartCount": 0,
+      "health": "healthy",
+      "name": "am-candidate-20261018-44e178a-access"
+    },
+    {
+      "image": "sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685",
+      "restartCount": 0,
+      "health": "healthy",
+      "name": "am-candidate-20261018-44e178a-pg"
+    },
+    {
+      "image": "sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf",
+      "restartCount": 0,
+      "health": "healthy",
+      "name": "am-candidate-20261018-44e178a-redis"
+    },
+    {
+      "image": "sha256:d70b20546fe59aeb86add0754db1dbc3a3067363e18599329c5163d0d8cd9cd8",
+      "restartCount": 0,
+      "health": "healthy",
+      "name": "am-candidate-20261018-44e178a-nacos"
+    }
+  ],
+  "deletedFile": {
+    "physicalFileAbsent": true,
+    "id": 2
+  },
+  "noProductionCodeChanges": true
+}

@@ -1,0 +1,206 @@
+{
+  "tenants": [
+    {
+      "id": 1,
+      "code": "qa-132-a",
+      "name": "验收租户 A",
+      "status": 1
+    },
+    {
+      "id": 2,
+      "code": "qa-132-b",
+      "name": "验收租户 B",
+      "status": 1
+    }
+  ],
+  "users": [
+    {
+      "tenant_id": 1,
+      "id": 1,
+      "username": "admin",
+      "force_reset_pwd": false,
+      "status": 1
+    },
+    {
+      "tenant_id": 1,
+      "id": 3,
+      "username": "qareader",
+      "force_reset_pwd": false,
+      "status": 1
+    },
+    {
+      "tenant_id": 2,
+      "id": 2,
+      "username": "admin",
+      "force_reset_pwd": false,
+      "status": 1
+    }
+  ],
+  "roles": [
+    {
+      "id": 6,
+      "tenant_id": 1,
+      "parent_id": null,
+      "role_type": 6,
+      "external_id": "qa-file-reader",
+      "name": "验收文件只读角色",
+      "status": 1
+    }
+  ],
+  "bindings": [
+    {
+      "tenant_id": 1,
+      "abstract_user_id": 3,
+      "target_type": "ROLE",
+      "target_id": 5,
+      "relation_id": 5
+    },
+    {
+      "tenant_id": 1,
+      "abstract_user_id": 3,
+      "target_type": "ROLE",
+      "target_id": 6,
+      "relation_id": null
+    }
+  ],
+  "grants": [
+    {
+      "id": 123,
+      "tenant_id": 1,
+      "abstract_role_id": 6,
+      "resource_type": 25,
+      "resource_entity_id": 3,
+      "granted_bits": 2,
+      "scope_all": false,
+      "can_grant": false,
+      "condition_id": null
+    }
+  ],
+  "files": [
+    {
+      "id": 1,
+      "tenant_id": 1,
+      "original_name": "验收文档-保留.txt",
+      "bucket_name": "document",
+      "file_size": 59,
+      "file_path": "document/2026/10/18/012cf02d968a4b1aa6b773d7465bbf08.txt",
+      "delete_flag": 0
+    },
+    {
+      "id": 2,
+      "tenant_id": 1,
+      "original_name": "验收文档-删除.txt",
+      "bucket_name": "document",
+      "file_size": 53,
+      "file_path": "document/2026/10/18/348fe2e0af82406fbb8446b37bb16585.txt",
+      "delete_flag": 2
+    },
+    {
+      "id": 3,
+      "tenant_id": 1,
+      "original_name": "其他分类-隔离.txt",
+      "bucket_name": "default",
+      "file_size": 60,
+      "file_path": "default/2026/10/18/7dd05d23ad064c6383bd7b2f321c0fe3.txt",
+      "delete_flag": 0
+    }
+  ],
+  "loginEvents": [
+    {
+      "tenant_id": 1,
+      "user_id": null,
+      "username": "admin",
+      "status": 0,
+      "fail_reason": "验证码错误",
+      "login_at": "2026-10-18T19:23:36.527814+08:00"
+    },
+    {
+      "tenant_id": 1,
+      "user_id": 1,
+      "username": "admin",
+      "status": 1,
+      "fail_reason": null,
+      "login_at": "2026-10-18T19:23:43.325224+08:00"
+    },
+    {
+      "tenant_id": 1,
+      "user_id": 1,
+      "username": "admin",
+      "status": 1,
+      "fail_reason": null,
+      "login_at": "2026-10-18T19:25:20.608291+08:00"
+    },
+    {
+      "tenant_id": 1,
+      "user_id": 3,
+      "username": "qareader",
+      "status": 1,
+      "fail_reason": null,
+      "login_at": "2026-10-18T19:39:56.249974+08:00"
+    },
+    {
+      "tenant_id": 1,
+      "user_id": 3,
+      "username": "qareader",
+      "status": 1,
+      "fail_reason": null,
+      "login_at": "2026-10-18T19:43:29.749738+08:00"
+    },
+    {
+      "tenant_id": 1,
+      "user_id": 1,
+      "username": "admin",
+      "status": 1,
+      "fail_reason": null,
+      "login_at": "2026-10-18T19:47:36.238159+08:00"
+    },
+    {
+      "tenant_id": 1,
+      "user_id": null,
+      "username": "qareader",
+      "status": 0,
+      "fail_reason": "验证码错误",
+      "login_at": "2026-10-18T19:53:28.642481+08:00"
+    },
+    {
+      "tenant_id": 1,
+      "user_id": 3,
+      "username": "qareader",
+      "status": 1,
+      "fail_reason": null,
+      "login_at": "2026-10-18T19:55:06.720107+08:00"
+    },
+    {
+      "tenant_id": 1,
+      "user_id": 3,
+      "username": "qareader",
+      "status": 1,
+      "fail_reason": null,
+      "login_at": "2026-10-18T19:56:41.919193+08:00"
+    },
+    {
+      "tenant_id": 2,
+      "user_id": 2,
+      "username": "admin",
+      "status": 1,
+      "fail_reason": null,
+      "login_at": "2026-10-18T19:58:37.664405+08:00"
+    },
+    {
+      "tenant_id": 2,
+      "user_id": 2,
+      "username": "admin",
+      "status": 1,
+      "fail_reason": null,
+      "login_at": "2026-10-18T20:01:16.961318+08:00"
+    },
+    {
+      "tenant_id": 2,
+      "user_id": 2,
+      "username": "admin",
+      "status": 1,
+      "fail_reason": null,
+      "login_at": "2026-10-18T20:02:17.484323+08:00"
+    }
+  ]
+}

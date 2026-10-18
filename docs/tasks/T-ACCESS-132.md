@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-132
 title: 租户与管理台使用验收
-status: in-progress
+status: done
 plan: docs/plans/candidate-deployment-acceptance-plan.md
 domain: cross-service
 design_refs:
@@ -18,7 +18,7 @@ acceptance:
   - 问题与证据可追溯且设计和使用文档反映实际交付范围
 design_writeback:
   required: true
-  status: pending
+  status: done
 last_updated: 2026-10-18
 ---
 
@@ -36,7 +36,7 @@ last_updated: 2026-10-18
 
 ## 当前口径
 
-当前已通过平台页面开通 qa-132-a 与 qa-132-b，并核对列表刷新和开通审计；租户 A 停在首次登录接管点，等待用户在浏览器完成验证码登录、强制改密及重新登录。进度与待验范围见[验收记录](evidence/candidate-deployment/T-ACCESS-132/verification.md)。任务保持 in-progress，不以平台开通替代后续租户使用验收。
+qa-132-a 与 qa-132-b 的开通、首次改密和重新登录已完成；组织用户角色、管理员文件主线、document VIEW 委派、跨租户拒绝、租户停用恢复及会话边界已取得实际证据，见[验收记录](evidence/candidate-deployment/T-ACCESS-132/verification.md)。本卡未修改应用源码，完整回归仍由 T-ACCESS-135 承担。
 
 本卡要求真实浏览器和 Gateway 接线证据，不能以 mock 或服务直连成功代替。失败证据同时记录 HTTP 状态、响应信封、requestId（实际存在时）与页面表现；按[部署取证说明](../ops/deployment.md)核对登录日志及可归属租户的操作日志，不要求契约未承诺的故障零丢失。
 
@@ -44,11 +44,15 @@ last_updated: 2026-10-18
 
 ## 验收对照
 
-- [ ] 两租户正常开通、首次改密和重新登录完成，测试身份明确。
-- [ ] 组织、用户、角色及文件主线通过真实页面和 Gateway 验证。
-- [ ] 分类委派、跨租户拒绝、租户停用恢复与会话边界按当前契约通过。
-- [ ] 取证可关联，恢复用文件样本保留，文档回写完成。
+- [x] 两租户正常开通、首次改密和重新登录完成，测试身份明确。
+- [x] 组织、用户、角色及文件主线通过真实页面和 Gateway 验证。
+- [x] 分类委派、跨租户拒绝、租户停用恢复与会话边界按当前契约通过。
+- [x] 取证可关联，恢复用文件样本保留，文档回写完成。
 
 ## 非目标 / 遗留
 
 不扩建文件平台，不引入独立强制下线或验证码替代通道，不承诺全页面排列组合覆盖。Q-068 与其他原有暂缓事项保持不变。
+
+## 完成记录
+
+2026-10-18：浏览器验收及公开 API 反例通过，本地代码轨、文档轨完成；实际身份、截图、HTTP/信封、requestId、数据和文件摘要见[验收记录](evidence/candidate-deployment/T-ACCESS-132/verification.md)。补充脚本经 pwsh -NoProfile -File 执行 check-reader-api.ps1（7 个检查）与 check-cross-tenant.ps1（3 个检查），均通过，密码和验证码参数不落入证据。应用源码与镜像未修改，未运行全量 Maven/Vitest；完整回归由 T-ACCESS-135 承担。隔离栈和恢复用文件保留，下一任务为 T-ACCESS-133。

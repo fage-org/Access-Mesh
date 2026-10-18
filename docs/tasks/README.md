@@ -22,12 +22,12 @@
 
 ## 当前待办入口
 
-[当前候选版本独立环境部署与首次接入验收](../plans/candidate-deployment-acceptance-plan.md)已启动，T-ACCESS-131 已完成；当前执行 T-ACCESS-132。原有暂缓事项保持原状态。
+[当前候选版本独立环境部署与首次接入验收](../plans/candidate-deployment-acceptance-plan.md)已启动，T-ACCESS-131、T-ACCESS-132 已完成；下一项 T-ACCESS-133。原有暂缓事项保持原状态。
 
 | ID | 标题 | 状态 | 直接依赖 |
 |---|---|---|---|
 | [T-ACCESS-131](T-ACCESS-131.md) | 候选版本冻结与隔离部署 | ✅ | — |
-| [T-ACCESS-132](T-ACCESS-132.md) | 租户与管理台使用验收 | 🔨 | T-ACCESS-131 |
+| [T-ACCESS-132](T-ACCESS-132.md) | 租户与管理台使用验收 | ✅ | T-ACCESS-131 |
 | [T-ACCESS-133](T-ACCESS-133.md) | 首次业务接入与授权闭环验收 | ⚙️ | T-ACCESS-132 |
 | [T-ACCESS-134](T-ACCESS-134.md) | 重启持久化与备份恢复验收 | ⚙️ | T-ACCESS-133 |
 | [T-ACCESS-135](T-ACCESS-135.md) | 候选版本验收收口 | ⚙️ | T-ACCESS-134 |
@@ -42,7 +42,7 @@ T-PERM-036 继续暂缓，需用户明确解除门禁。历史批次只供追溯
 | ID | 标题 | 状态 | 直接依赖 |
 |---|---|---|---|
 | [T-ACCESS-131](T-ACCESS-131.md) | 候选版本冻结与隔离部署 | ✅ | — |
-| [T-ACCESS-132](T-ACCESS-132.md) | 租户与管理台使用验收 | 🔨 | T-ACCESS-131 |
+| [T-ACCESS-132](T-ACCESS-132.md) | 租户与管理台使用验收 | ✅ | T-ACCESS-131 |
 | [T-ACCESS-133](T-ACCESS-133.md) | 首次业务接入与授权闭环验收 | ⚙️ | T-ACCESS-132 |
 | [T-ACCESS-134](T-ACCESS-134.md) | 重启持久化与备份恢复验收 | ⚙️ | T-ACCESS-133 |
 | [T-ACCESS-135](T-ACCESS-135.md) | 候选版本验收收口 | ⚙️ | T-ACCESS-134 |

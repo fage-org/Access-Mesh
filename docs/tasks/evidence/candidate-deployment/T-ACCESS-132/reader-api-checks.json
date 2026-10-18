@@ -1,0 +1,66 @@
+{
+  "identity": {
+    "tenantCode": "qa-132-a",
+    "username": "qareader"
+  },
+  "channel": "native Bearer login through nginx/Gateway; separate from browser UI evidence",
+  "checks": [
+    {
+      "case": "document detail allowed",
+      "path": "/api/access/file/detail",
+      "http": 200,
+      "code": 200,
+      "requestId": "20a98dc6-c526-46da-88ae-c8352c3d85db",
+      "passed": true
+    },
+    {
+      "case": "default detail denied",
+      "path": "/api/access/file/detail",
+      "http": 403,
+      "code": 403,
+      "requestId": "6dc436cf-f71e-4ed3-ae8d-58a602c66101",
+      "passed": true
+    },
+    {
+      "case": "default page filtered empty",
+      "path": "/api/access/file/page",
+      "http": 200,
+      "code": 200,
+      "requestId": "33d68c82-3fb1-4fab-b4ee-344d24ac8ddf",
+      "passed": true
+    },
+    {
+      "case": "delete denied without DELETE",
+      "path": "/api/access/file/delete",
+      "http": 403,
+      "code": 403,
+      "requestId": "85283d7c-7c71-401e-996a-d24c14d123e8",
+      "passed": true
+    },
+    {
+      "case": "upload denied without CREATE",
+      "path": "/api/access/file/upload",
+      "http": 403,
+      "code": 403,
+      "requestId": "3eafeb14-7cbe-4f75-b6af-49bec9e67d22",
+      "passed": true
+    },
+    {
+      "case": "document download bytes",
+      "http": 200,
+      "attachment": "attachment; filename=\"____-__.txt\"; filename*=UTF-8''%E9%AA%8C%E6%94%B6%E6%96%87%E6%A1%A3-%E4%BF%9D%E7%95%99.txt",
+      "bytesMatch": true,
+      "passed": true
+    },
+    {
+      "case": "default download denied",
+      "path": "/api/access/file/download",
+      "http": 403,
+      "code": 403,
+      "requestId": "464697a9-9355-4816-8b09-17c542729da8",
+      "passed": true
+    }
+  ],
+  "recordedAt": "2026-10-18T19:56:42.2879809+08:00",
+  "credentialsExcluded": true
+}

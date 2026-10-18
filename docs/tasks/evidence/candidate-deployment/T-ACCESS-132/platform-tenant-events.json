@@ -1,0 +1,30 @@
+[
+  {
+    "target_tenant_id": 1,
+    "action": "TENANT_CREATE",
+    "outcome": "SUCCESS",
+    "request_id": "eaeb4524-6e56-4ee3-8233-745686595964",
+    "created_at": "2026-10-18T11:14:50.056229+00:00"
+  },
+  {
+    "target_tenant_id": 2,
+    "action": "TENANT_CREATE",
+    "outcome": "SUCCESS",
+    "request_id": "16609f46-a975-4bdc-9cd2-78b12e06f702",
+    "created_at": "2026-10-18T11:15:46.769854+00:00"
+  },
+  {
+    "target_tenant_id": 1,
+    "action": "TENANT_DISABLE",
+    "outcome": "SUCCESS",
+    "request_id": "f24a29ec-99ee-4bdb-8dff-ed7b8cad6560",
+    "created_at": "2026-10-18T11:36:46.439694+00:00"
+  },
+  {
+    "target_tenant_id": 1,
+    "action": "TENANT_ENABLE_REQUESTED",
+    "outcome": "SUCCESS",
+    "request_id": "566bd66f-a32e-4541-92a8-14e3ddcd4120",
+    "created_at": "2026-10-18T11:37:26.408123+00:00"
+  }
+]

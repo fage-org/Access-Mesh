@@ -1,0 +1,156 @@
+[
+  {
+    "tenant_id": 1,
+    "action": "USER_PASSWORD_RESET",
+    "target_type": "sys_user",
+    "target_id": "1",
+    "operator_id": 1,
+    "request_id": "77033fb9-338d-4a0c-8010-405c501c1f65",
+    "request_url": "/api/access/user/reset-password",
+    "response_code": 200,
+    "created_at": "2026-10-18T11:24:00.674156+00:00"
+  },
+  {
+    "tenant_id": 1,
+    "action": "ORG_CREATE",
+    "target_type": "sys_org",
+    "target_id": "3",
+    "operator_id": 1,
+    "request_id": "cf70054e-7933-43bc-bca7-f77cf13d0d4f",
+    "request_url": "/api/access/org/create",
+    "response_code": 200,
+    "created_at": "2026-10-18T11:25:52.909453+00:00"
+  },
+  {
+    "tenant_id": 1,
+    "action": "USER_CREATE",
+    "target_type": "sys_user",
+    "target_id": "3",
+    "operator_id": 1,
+    "request_id": "ec14411a-5495-4816-9b49-7794060dcc93",
+    "request_url": "/api/access/user/create",
+    "response_code": 200,
+    "created_at": "2026-10-18T11:26:35.724117+00:00"
+  },
+  {
+    "tenant_id": 1,
+    "action": "ABSTRACT_ROLE_CREATE",
+    "target_type": "abstract_role",
+    "target_id": "6",
+    "operator_id": 1,
+    "request_id": "45fb818e-2646-47a9-9319-8c5e993bcba3",
+    "request_url": "/api/access/abstract-role/create",
+    "response_code": 200,
+    "created_at": "2026-10-18T11:27:43.15772+00:00"
+  },
+  {
+    "tenant_id": 1,
+    "action": "USER_ROLE_ASSIGN",
+    "target_type": "user_role",
+    "target_id": "",
+    "operator_id": 1,
+    "request_id": "a8abf0df-698c-4a85-aa87-f7dedd5b0fa8",
+    "request_url": "/api/access/user-role/assign",
+    "response_code": 200,
+    "created_at": "2026-10-18T11:29:19.445336+00:00"
+  },
+  {
+    "tenant_id": 1,
+    "action": "FILE_UPLOAD",
+    "target_type": "sys_file",
+    "target_id": "1",
+    "operator_id": 1,
+    "request_id": "ac50fc2b-4c34-4f73-87d6-8cabc0e945ac",
+    "request_url": "/api/access/file/upload",
+    "response_code": 200,
+    "created_at": "2026-10-18T11:31:32.938563+00:00"
+  },
+  {
+    "tenant_id": 1,
+    "action": "FILE_UPLOAD",
+    "target_type": "sys_file",
+    "target_id": "2",
+    "operator_id": 1,
+    "request_id": "8b011d82-ba57-4a84-a18e-31138a57c863",
+    "request_url": "/api/access/file/upload",
+    "response_code": 200,
+    "created_at": "2026-10-18T11:31:53.296861+00:00"
+  },
+  {
+    "tenant_id": 1,
+    "action": "FILE_UPLOAD",
+    "target_type": "sys_file",
+    "target_id": "3",
+    "operator_id": 1,
+    "request_id": "e36304cf-1578-4bd2-9de5-0225c11ebccd",
+    "request_url": "/api/access/file/upload",
+    "response_code": 200,
+    "created_at": "2026-10-18T11:32:24.665144+00:00"
+  },
+  {
+    "tenant_id": 1,
+    "action": "FILE_DELETE",
+    "target_type": "sys_file",
+    "target_id": "",
+    "operator_id": 1,
+    "request_id": "b6763a57-cfe2-475d-8586-8eeb61844c5b",
+    "request_url": "/api/access/file/delete",
+    "response_code": 200,
+    "created_at": "2026-10-18T11:33:53.377578+00:00"
+  },
+  {
+    "tenant_id": 1,
+    "action": "USER_PASSWORD_RESET",
+    "target_type": "sys_user",
+    "target_id": "3",
+    "operator_id": 3,
+    "request_id": "5a883f7d-d8a2-45d9-83a2-a4e9650f28be",
+    "request_url": "/api/access/user/reset-password",
+    "response_code": 200,
+    "created_at": "2026-10-18T11:40:34.409019+00:00"
+  },
+  {
+    "tenant_id": 1,
+    "action": "ROLE_RESOURCE_PERMISSION_APPLY_PLAN",
+    "target_type": "abstract_role",
+    "target_id": "qa-file-reader",
+    "operator_id": 1,
+    "request_id": "0854d804-dcbc-41da-b779-0edd15b42339",
+    "request_url": "/api/access/role-resource-permission/apply-grant-plan",
+    "response_code": 200,
+    "created_at": "2026-10-18T11:51:14.357618+00:00"
+  },
+  {
+    "tenant_id": 1,
+    "action": "GATEWAY_PERMISSION_DENIED",
+    "target_type": "service_config",
+    "target_id": "access-service",
+    "operator_id": 3,
+    "request_id": "85283d7c-7c71-401e-996a-d24c14d123e8",
+    "request_url": "/api/access/file/delete",
+    "response_code": 403,
+    "created_at": "2026-10-18T11:56:42.135488+00:00"
+  },
+  {
+    "tenant_id": 1,
+    "action": "GATEWAY_PERMISSION_DENIED",
+    "target_type": "service_config",
+    "target_id": "access-service",
+    "operator_id": 3,
+    "request_id": "3eafeb14-7cbe-4f75-b6af-49bec9e67d22",
+    "request_url": "/api/access/file/upload",
+    "response_code": 403,
+    "created_at": "2026-10-18T11:56:42.164561+00:00"
+  },
+  {
+    "tenant_id": 2,
+    "action": "USER_PASSWORD_RESET",
+    "target_type": "sys_user",
+    "target_id": "2",
+    "operator_id": 2,
+    "request_id": "1b49c3d5-b309-4f89-af0d-209fdc0ad281",
+    "request_url": "/api/access/user/reset-password",
+    "response_code": 200,
+    "created_at": "2026-10-18T11:58:52.606642+00:00"
+  }
+]

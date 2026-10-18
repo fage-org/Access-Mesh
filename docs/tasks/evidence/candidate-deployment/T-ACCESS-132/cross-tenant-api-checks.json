@@ -1,0 +1,40 @@
+{
+  "identity": {
+    "tenantCode": "qa-132-b",
+    "tenantId": 2,
+    "username": "admin"
+  },
+  "target": {
+    "fileId": 1,
+    "ownerTenantId": 1
+  },
+  "checks": [
+    {
+      "case": "tenant B cannot read tenant A detail",
+      "path": "/api/access/file/detail",
+      "http": 200,
+      "code": 10501,
+      "requestId": "27d48a11-7f5e-4b84-a09a-7fd87221716d",
+      "passed": true
+    },
+    {
+      "case": "tenant B cannot download tenant A bytes",
+      "path": "/api/access/file/download",
+      "http": 200,
+      "code": 10501,
+      "requestId": "8b782238-b4ca-447e-84e0-345ddba4f0d9",
+      "passed": true
+    },
+    {
+      "case": "tenant B list excludes tenant A files",
+      "path": "/api/access/file/page",
+      "http": 200,
+      "code": 200,
+      "requestId": "7751de22-0ec8-4af9-8410-e9c7a7bb77d0",
+      "passed": true
+    }
+  ],
+  "channel": "native Bearer via nginx and Gateway",
+  "recordedAt": "2026-10-18T20:02:17.6509057+08:00",
+  "credentialsExcluded": true
+}

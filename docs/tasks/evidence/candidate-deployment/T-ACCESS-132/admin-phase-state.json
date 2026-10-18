@@ -1,0 +1,135 @@
+{
+  "users": [
+    {
+      "tenant_id": 1,
+      "id": 1,
+      "username": "admin",
+      "force_reset_pwd": false,
+      "status": 1
+    },
+    {
+      "tenant_id": 1,
+      "id": 3,
+      "username": "qareader",
+      "force_reset_pwd": true,
+      "status": 1
+    },
+    {
+      "tenant_id": 2,
+      "id": 2,
+      "username": "admin",
+      "force_reset_pwd": true,
+      "status": 1
+    }
+  ],
+  "readerRole": [
+    {
+      "id": 6,
+      "tenant_id": 1,
+      "parent_id": null,
+      "role_type": 6,
+      "external_id": "qa-file-reader",
+      "name": "验收文件只读角色",
+      "status": 1
+    }
+  ],
+  "readerBindings": [
+    {
+      "tenant_id": 1,
+      "abstract_user_id": 3,
+      "target_type": "ROLE",
+      "target_id": 5,
+      "relation_id": 5
+    },
+    {
+      "tenant_id": 1,
+      "abstract_user_id": 3,
+      "target_type": "ROLE",
+      "target_id": 6,
+      "relation_id": null
+    }
+  ],
+  "readerDirectGrantCount": 0,
+  "files": [
+    {
+      "id": 1,
+      "tenant_id": 1,
+      "original_name": "验收文档-保留.txt",
+      "bucket_name": "document",
+      "file_size": 59,
+      "delete_flag": 0
+    },
+    {
+      "id": 2,
+      "tenant_id": 1,
+      "original_name": "验收文档-删除.txt",
+      "bucket_name": "document",
+      "file_size": 53,
+      "delete_flag": 2
+    },
+    {
+      "id": 3,
+      "tenant_id": 1,
+      "original_name": "其他分类-隔离.txt",
+      "bucket_name": "default",
+      "file_size": 60,
+      "delete_flag": 0
+    }
+  ],
+  "platformTenantEvents": [
+    {
+      "target_tenant_id": 1,
+      "action": "TENANT_CREATE",
+      "outcome": "SUCCESS",
+      "request_id": "eaeb4524-6e56-4ee3-8233-745686595964",
+      "created_at": "2026-10-18T19:14:50.056229+08:00"
+    },
+    {
+      "target_tenant_id": 2,
+      "action": "TENANT_CREATE",
+      "outcome": "SUCCESS",
+      "request_id": "16609f46-a975-4bdc-9cd2-78b12e06f702",
+      "created_at": "2026-10-18T19:15:46.769854+08:00"
+    },
+    {
+      "target_tenant_id": 1,
+      "action": "TENANT_DISABLE",
+      "outcome": "SUCCESS",
+      "request_id": "f24a29ec-99ee-4bdb-8dff-ed7b8cad6560",
+      "created_at": "2026-10-18T19:36:46.439694+08:00"
+    },
+    {
+      "target_tenant_id": 1,
+      "action": "TENANT_ENABLE_REQUESTED",
+      "outcome": "SUCCESS",
+      "request_id": "566bd66f-a32e-4541-92a8-14e3ddcd4120",
+      "created_at": "2026-10-18T19:37:26.408123+08:00"
+    }
+  ],
+  "loginEvents": [
+    {
+      "tenant_id": 1,
+      "user_id": null,
+      "username": "admin",
+      "status": 0,
+      "fail_reason": "验证码错误",
+      "login_at": "2026-10-18T19:23:36.527814+08:00"
+    },
+    {
+      "tenant_id": 1,
+      "user_id": 1,
+      "username": "admin",
+      "status": 1,
+      "fail_reason": null,
+      "login_at": "2026-10-18T19:23:43.325224+08:00"
+    },
+    {
+      "tenant_id": 1,
+      "user_id": 1,
+      "username": "admin",
+      "status": 1,
+      "fail_reason": null,
+      "login_at": "2026-10-18T19:25:20.608291+08:00"
+    }
+  ]
+}
