@@ -29,6 +29,8 @@ Thumbs.db
 *.env
 *.env.local
 *.env.production
+# 前端公开构建默认值需随源码交付；真实密钥与本地覆盖仍由上述规则忽略。
+!frontend/.env
 application-local.yml
 application-prod.yml
 credentials.properties

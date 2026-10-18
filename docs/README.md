@@ -107,7 +107,7 @@ docs/
 
 | 计划 | 状态 | 直接依赖 |
 |---|---|---|
-| [当前候选版本独立环境部署与首次接入验收](plans/candidate-deployment-acceptance-plan.md) | proposed | — |
+| [当前候选版本独立环境部署与首次接入验收](plans/candidate-deployment-acceptance-plan.md) | active | — |
 
 [登录审计事务边界收敛](archive/2026-10-18/login-audit-transaction-plan.md)已完成归档，Q-067 已收敛。
 

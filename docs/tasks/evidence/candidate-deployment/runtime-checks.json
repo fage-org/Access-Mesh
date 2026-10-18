@@ -1,0 +1,162 @@
+{
+  "recordedAt": "2026-10-18T19:03:45.4690806+08:00",
+  "containers": [
+    {
+      "name": "am-candidate-20261018-44e178a-frontend",
+      "id": "dbf25daf1ef6e1228437f963f4df2f1e6a76a4a9bc94537ddf818c47c6fa9ae7",
+      "image": "sha256:e9ecdf6055d3b51b1c669e40affa645cb75e09beabfba3f1213a56f273a0caf2",
+      "health": "healthy",
+      "restartCount": 0,
+      "startedAt": "2026-10-18T11:01:30.349888358Z",
+      "ports": {
+        "80/tcp": [
+          {
+            "HostIp": "127.0.0.1",
+            "HostPort": "18080"
+          }
+        ]
+      },
+      "mounts": [],
+      "network": [
+        "am-candidate-20261018-44e178a_default"
+      ]
+    },
+    {
+      "name": "am-candidate-20261018-44e178a-gateway",
+      "id": "9c9b40c7209a7de88faf0f7db83dd1d0c979137a58c7954bce134185a7935f00",
+      "image": "sha256:6e9a60312a3b848ecd0c84be87ae2c51e6294b10833234ec84c43ae81b213f1e",
+      "health": "healthy",
+      "restartCount": 0,
+      "startedAt": "2026-10-18T10:57:54.863487501Z",
+      "ports": {
+        "8080/tcp": [
+          {
+            "HostIp": "127.0.0.1",
+            "HostPort": "18081"
+          }
+        ]
+      },
+      "mounts": [],
+      "network": [
+        "am-candidate-20261018-44e178a_default"
+      ]
+    },
+    {
+      "name": "am-candidate-20261018-44e178a-access",
+      "id": "24c52e741fc6ebbd1d4bbde7b4b1913a8354b63ffa8c30cb110d5164357bcc75",
+      "image": "sha256:0908abe5626e430108f850a2170c8ce1fb334deabd4c0bb2cdc9b99bcaa4c797",
+      "health": "healthy",
+      "restartCount": 0,
+      "startedAt": "2026-10-18T10:57:34.073896417Z",
+      "ports": {},
+      "mounts": [
+        {
+          "Type": "volume",
+          "Name": "am-candidate-20261018-44e178a_files",
+          "Source": "/var/lib/docker/volumes/am-candidate-20261018-44e178a_files/_data",
+          "Destination": "/var/lib/accessmesh/files",
+          "RW": true
+        }
+      ],
+      "network": [
+        "am-candidate-20261018-44e178a_default"
+      ]
+    },
+    {
+      "name": "am-candidate-20261018-44e178a-pg",
+      "id": "0390e0c2e5aea9e5bc112557ee7d32a98e7e0cc071a9d9e46bd59945ddf176df",
+      "image": "sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685",
+      "health": "healthy",
+      "restartCount": 0,
+      "startedAt": "2026-10-18T10:55:58.094845528Z",
+      "ports": {},
+      "mounts": [
+        {
+          "Type": "volume",
+          "Name": "am-candidate-20261018-44e178a_pgdata",
+          "Source": "/var/lib/docker/volumes/am-candidate-20261018-44e178a_pgdata/_data",
+          "Destination": "/var/lib/postgresql/data",
+          "RW": true
+        },
+        {
+          "Type": "bind",
+          "Name": null,
+          "Source": "/run/desktop/mnt/host/d/codespace/Access-Mesh/.tmp/candidate-deployment-acceptance/source/docs/design/schema/access-service.sql",
+          "Destination": "/docker-entrypoint-initdb.d/01-access-schema.sql",
+          "RW": false
+        }
+      ],
+      "network": [
+        "am-candidate-20261018-44e178a_default"
+      ]
+    },
+    {
+      "name": "am-candidate-20261018-44e178a-redis",
+      "id": "53a9633e69d07f6294a589d0293aab6c4a2148bf2a6e13a29b73e7dd88e16d57",
+      "image": "sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf",
+      "health": "healthy",
+      "restartCount": 0,
+      "startedAt": "2026-10-18T10:55:58.083151505Z",
+      "ports": {},
+      "mounts": [
+        {
+          "Type": "volume",
+          "Name": "am-candidate-20261018-44e178a_redisdata",
+          "Source": "/var/lib/docker/volumes/am-candidate-20261018-44e178a_redisdata/_data",
+          "Destination": "/data",
+          "RW": true
+        }
+      ],
+      "network": [
+        "am-candidate-20261018-44e178a_default"
+      ]
+    },
+    {
+      "name": "am-candidate-20261018-44e178a-nacos",
+      "id": "2547767130b2a50e558308a92623b465a238362daefe86b03dd7bd425ea5704f",
+      "image": "sha256:d70b20546fe59aeb86add0754db1dbc3a3067363e18599329c5163d0d8cd9cd8",
+      "health": "healthy",
+      "restartCount": 0,
+      "startedAt": "2026-10-18T10:55:58.071356777Z",
+      "ports": {},
+      "mounts": [
+        {
+          "Type": "volume",
+          "Name": "am-candidate-20261018-44e178a_nacosdata",
+          "Source": "/var/lib/docker/volumes/am-candidate-20261018-44e178a_nacosdata/_data",
+          "Destination": "/home/nacos/data",
+          "RW": true
+        }
+      ],
+      "network": [
+        "am-candidate-20261018-44e178a_default"
+      ]
+    }
+  ],
+  "exampleService": "image built; not started pending T-ACCESS-133",
+  "databaseCounts": [
+    "tenant_count=0",
+    "platform_account_count=1"
+  ],
+  "nacosRemoteConfiguration": [
+    {
+      "http": 404,
+      "dataId": "access-service.yml"
+    },
+    {
+      "http": 404,
+      "dataId": "gateway.yml"
+    }
+  ],
+  "httpRoot": 200,
+  "entryScript": "/static/js/index-Cn3sh9To.js",
+  "entryScriptHttp": 200,
+  "frontendAssetsManifestSha256": "38e4159e89c22f798a1e5e3583876813788719406300abdad865a873474d14a1",
+  "frontendAssetCount": 181,
+  "runtimeJava": "openjdk version \"21.0.12.1\" 2026-08-18 LTS\nOpenJDK Runtime Environment Temurin-21.0.12.1+1 (build 21.0.12.1+1-LTS)\nOpenJDK 64-Bit Server VM Temurin-21.0.12.1+1 (build 21.0.12.1+1-LTS, mixed mode, sharing)",
+  "runtimeNginx": "nginx version: nginx/1.30.6",
+  "preExistingContainerCount": 53,
+  "preExistingContainerChanges": [],
+  "removedPreExistingVolumes": [],
+  "changedPreExistingImageReferences": []
+}

@@ -6,7 +6,7 @@
 
 | 计划 | 状态 | 直接依赖 |
 |---|---|---|
-| [当前候选版本独立环境部署与首次接入验收](candidate-deployment-acceptance-plan.md) | proposed | — |
+| [当前候选版本独立环境部署与首次接入验收](candidate-deployment-acceptance-plan.md) | active | — |
 
 任务状态以[任务看板](../tasks/README.md)为准；原有暂缓事项保持。
 

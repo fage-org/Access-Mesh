@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-131
 title: 候选版本冻结与隔离部署
-status: proposed
+status: done
 plan: docs/plans/candidate-deployment-acceptance-plan.md
 domain: cross-service
 design_refs:
@@ -16,7 +16,7 @@ acceptance:
   - 记录真实拓扑与未验证边界并回写设计及部署说明
 design_writeback:
   required: true
-  status: pending
+  status: done
 last_updated: 2026-10-18
 ---
 
@@ -42,11 +42,15 @@ last_updated: 2026-10-18
 
 ## 验收对照
 
-- [ ] 冻结候选来源与产物清单，确认没有不可追溯构建输入。
-- [ ] 渲染后资源隔离核对通过，启动前后既有环境未被改动。
-- [ ] 新数据资源完成初始化，正式包健康、网页可访问，平台登录链路可用。
-- [ ] 配置与证据脱敏，部署命令可复现，实际边界回写完成。
+- [x] 冻结候选来源与产物清单，确认没有不可追溯构建输入。
+- [x] 渲染后资源隔离核对通过，启动前后既有环境未被改动。
+- [x] 新数据资源完成初始化，正式包健康、网页可访问，平台登录链路可用。
+- [x] 配置与证据脱敏，部署命令可复现，实际边界回写完成。
 
 ## 非目标 / 遗留
 
 不采购或申请远端环境，不操作现有开发库，不发布版本，不建立新 CI/CD 流水线。恢复环境另由 T-ACCESS-134 创建，不能把本任务的空库启动算作备份恢复通过。
+
+## 完成记录
+
+2026-10-18：候选基线 44e178a1b 加公开前端默认值补丁，正式产物、隔离部署、页面渲染及平台认证 HTTP 链路已实测通过，见[验收记录](evidence/candidate-deployment/verification.md)。干净检出构建暴露的默认环境文件缺失已修复，保留失败与通过证据。后端 mvn -B clean install -DskipTests 成功，前端 Docker 内 pnpm build 成功；这些是构建结果，不计作测试通过。完整回归按计划留在 T-ACCESS-135。原有环境未改动，专用栈保留供后续任务；当前尚未开通租户。

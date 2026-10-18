@@ -1,0 +1,175 @@
+{
+  "candidate": "44e178a1bc953f3488819376f3bbe2fd24081a49 + candidate-source.patch",
+  "sourcePatchSha256": "b6a168e054c5d72b9ba04c70c3094103a4414ba9ac1767cf4cf87ddfaed88b87",
+  "sourcePatchFiles": [
+    {
+      "path": ".gitignore",
+      "sha256": "d39f2cc7c548c6f9364093b14acc6691ade5eb528bc953fbe1410c915cea7d24"
+    },
+    {
+      "path": "frontend/.env",
+      "sha256": "a9a1dc7ffd7a23579ad4321674f5ea0cd52fbfc633b4b75fc72c2a604ca037ee"
+    }
+  ],
+  "versions": {
+    "maven": "Apache Maven 3.10.0 (c43a36b8d67be7e0805a411bc0898af1a51f5472)\nMaven home: C:\\Users\\li\\scoop\\apps\\maven\\current\nJava version: 21.0.12.1, vendor: Azul Systems, Inc., runtime: C:\\Users\\li\\scoop\\apps\\zulu21-jdk\\current\nDefault locale: zh_CN, platform encoding: UTF-8, time zone: Asia/Shanghai\nOS name: \"windows 10\", version: \"10.0\", arch: \"amd64\", family: \"windows\"",
+    "node": "v24.22.0",
+    "pnpm": "11.5.0",
+    "dockerClient": "29.7.2",
+    "dockerServer": "29.7.2",
+    "compose": "5.4.0"
+  },
+  "buildCommand": "mvn -B clean install -DskipTests",
+  "buildResult": "passed",
+  "tests": "not run: intentionally deferred to T-ACCESS-135",
+  "jars": [
+    {
+      "module": "access-service",
+      "file": "access-service/target/access-service-0.2.0-SNAPSHOT.jar",
+      "bytes": 105131783,
+      "sha256": "a9d46eb9a1de72ad6a787459d26f4babb8c3a5ed2c493a5402b450135e1545ca",
+      "bootManifest": true,
+      "javaTimeLibraries": [
+        "BOOT-INF/lib/jackson-datatype-jsr310-2.21.5.jar"
+      ]
+    },
+    {
+      "module": "gateway",
+      "file": "gateway/target/gateway-0.2.0-SNAPSHOT.jar",
+      "bytes": 90990389,
+      "sha256": "009313a769f6a93295a798bb060f5a88dc8592f6ddda9447ff2005c3f687d1a1",
+      "bootManifest": true,
+      "javaTimeLibraries": [
+        "BOOT-INF/lib/jackson-datatype-jsr310-2.21.5.jar"
+      ]
+    },
+    {
+      "module": "example-service",
+      "file": "example-service/target/example-service-0.2.0-SNAPSHOT.jar",
+      "bytes": 64760000,
+      "sha256": "0ab47e50e06b683d33bc05bd5db90fd6c529bf43c91db369e52dfb740a1018d1",
+      "bootManifest": true,
+      "javaTimeLibraries": []
+    }
+  ],
+  "images": [
+    {
+      "tag": "accessmesh/access-service:candidate-44e178a1b",
+      "id": "sha256:0908abe5626e430108f850a2170c8ce1fb334deabd4c0bb2cdc9b99bcaa4c797",
+      "repoDigests": [
+        "accessmesh/access-service@sha256:0908abe5626e430108f850a2170c8ce1fb334deabd4c0bb2cdc9b99bcaa4c797"
+      ],
+      "os": "linux",
+      "architecture": "amd64",
+      "created": "2026-10-18T10:57:19.305043966Z"
+    },
+    {
+      "tag": "accessmesh/gateway:candidate-44e178a1b",
+      "id": "sha256:6e9a60312a3b848ecd0c84be87ae2c51e6294b10833234ec84c43ae81b213f1e",
+      "repoDigests": [
+        "accessmesh/gateway@sha256:6e9a60312a3b848ecd0c84be87ae2c51e6294b10833234ec84c43ae81b213f1e"
+      ],
+      "os": "linux",
+      "architecture": "amd64",
+      "created": "2026-10-18T10:57:19.328437971Z"
+    },
+    {
+      "tag": "accessmesh/example-service:candidate-44e178a1b",
+      "id": "sha256:b8303b515f35b20d87ad5d01f653583af2055757d7fd6860a00ace8a5183d6a8",
+      "repoDigests": [
+        "accessmesh/example-service@sha256:b8303b515f35b20d87ad5d01f653583af2055757d7fd6860a00ace8a5183d6a8"
+      ],
+      "os": "linux",
+      "architecture": "amd64",
+      "created": "2026-10-18T10:57:15.81653897Z"
+    },
+    {
+      "tag": "accessmesh/frontend:candidate-44e178a1b-fe1",
+      "id": "sha256:e9ecdf6055d3b51b1c669e40affa645cb75e09beabfba3f1213a56f273a0caf2",
+      "repoDigests": [
+        "accessmesh/frontend@sha256:e9ecdf6055d3b51b1c669e40affa645cb75e09beabfba3f1213a56f273a0caf2"
+      ],
+      "os": "linux",
+      "architecture": "amd64",
+      "created": "2026-10-18T11:00:23.612800639Z"
+    },
+    {
+      "tag": "postgres:16-alpine",
+      "id": "sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685",
+      "repoDigests": [
+        "postgres@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685"
+      ],
+      "os": "linux",
+      "architecture": "amd64",
+      "created": "2026-08-13T19:18:09.513955733Z"
+    },
+    {
+      "tag": "redis:7-alpine",
+      "id": "sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf",
+      "repoDigests": [
+        "redis@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf"
+      ],
+      "os": "linux",
+      "architecture": "amd64",
+      "created": "2026-08-18T16:56:46.926554149Z"
+    },
+    {
+      "tag": "nacos/nacos-server:v2.3.2",
+      "id": "sha256:d70b20546fe59aeb86add0754db1dbc3a3067363e18599329c5163d0d8cd9cd8",
+      "repoDigests": [
+        "nacos/nacos-server@sha256:d70b20546fe59aeb86add0754db1dbc3a3067363e18599329c5163d0d8cd9cd8"
+      ],
+      "os": "linux",
+      "architecture": "amd64",
+      "created": "2024-04-03T07:40:00.593569723Z"
+    }
+  ],
+  "ddlSha256": "ec2725e9e6c8c2addc05dcc2c78a2e18e28de72ca5e498065e47b691462cab29",
+  "composeOverrideSha256": "9b95f3eb3bd3161e2bd80f4c204e6d075ed7cafbdc55bb925a18facb5f1a0ab9",
+  "baseInputChanges": [
+    ".gitignore"
+  ],
+  "logs": [
+    {
+      "name": "maven-build.log",
+      "bytes": 38257,
+      "sha256": "e287d0c854e47c1638dffa73dd46a418653a5982a14d5d16ffbf5c49ac20a4df"
+    },
+    {
+      "name": "backend-images.log",
+      "bytes": 5528,
+      "sha256": "c65c74517a0cf7e05a55811fee3d65a9f2b4544f49948025da98694b843de480"
+    },
+    {
+      "name": "frontend-build.log",
+      "bytes": 35645,
+      "sha256": "5f06b514166faa29ecc6261a84d0ca0d3e61022f0c83862d04535bbb5af5e8b8"
+    },
+    {
+      "name": "frontend-build-fixed.log",
+      "bytes": 24646,
+      "sha256": "da43936017661b70e5b53b7dcadf59a1325de9117c72df007516f380d374c91e"
+    },
+    {
+      "name": "frontend-redeploy.log",
+      "bytes": 1327,
+      "sha256": "e5e0d37ee40002f977e548dfcd6be71a58c0def52480650452e1ef4c5f05710b"
+    },
+    {
+      "name": "infrastructure-start.log",
+      "bytes": 1598,
+      "sha256": "bced1b3b254c3e4302e40c2ea3fae049508aa89e40b8d2704c695cbae1e17efd"
+    },
+    {
+      "name": "application-start.log",
+      "bytes": 1898,
+      "sha256": "25ef1deb3b08af16fd978a9dc72e234dcdf858f5301baecbd76f247849780d15"
+    }
+  ],
+  "recordedAt": "2026-10-18T19:02:52.5836835+08:00",
+  "buildBaseImages": [
+    "docker.io/library/eclipse-temurin:21-jre-alpine@sha256:51ab5e3302e7141ce665ca3ea85e8b5cd648eafbc3c0c90dd79d6537684e4555",
+    "docker.io/library/nginx:stable-alpine@sha256:970364228b1e4f932abc22d321932816782cca8a20b85a77552a7cfe9acfb3b5",
+    "docker.io/library/node:24-alpine@sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f"
+  ]
+}

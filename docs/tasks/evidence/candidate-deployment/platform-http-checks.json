@@ -1,0 +1,71 @@
+{
+  "transport": "HTTP protocol checks against formal containers through nginx and Gateway; not a completed browser form login",
+  "origin": "http://127.0.0.1:18080",
+  "recordedAt": "2026-10-18T19:01:27.3833649+08:00",
+  "checks": [
+    {
+      "case": "platform browser-login via nginx and Gateway",
+      "http": 200,
+      "code": 200,
+      "requestId": "3b03523d-6bd9-4a36-8113-5dd0118e72bf",
+      "account": "admin",
+      "credentialAbsentFromJson": true,
+      "sessionMarkerPresent": true,
+      "cookieName": "am-local-platform",
+      "httpOnly": true,
+      "sameSiteStrict": true,
+      "hostOnly": true,
+      "secureForLoopback": false,
+      "cacheControl": "no-store"
+    },
+    {
+      "case": "platform me with Cookie and session marker",
+      "http": 200,
+      "code": 200,
+      "requestId": "2338cb0f-a006-447e-a24b-55a452c8391a",
+      "passed": true
+    },
+    {
+      "case": "Cookie request without session marker rejected",
+      "http": 409,
+      "code": 90002,
+      "requestId": "2bd4619b-00a6-408e-84b4-8c3670a3afde",
+      "passed": true
+    },
+    {
+      "case": "Cookie request without Origin rejected",
+      "http": 403,
+      "code": 403,
+      "requestId": "0a83e28b-955b-4fd6-9070-0fb661ce7409",
+      "passed": true
+    },
+    {
+      "case": "Cookie request with foreign Origin rejected",
+      "http": 403,
+      "code": null,
+      "requestId": null,
+      "passed": true
+    },
+    {
+      "case": "platform browser logout",
+      "http": 200,
+      "code": 200,
+      "requestId": "638509b9-d037-4608-b4be-d0b42aa6c676",
+      "passed": true
+    },
+    {
+      "case": "logged out Cookie rejected",
+      "http": 409,
+      "code": 90002,
+      "requestId": "76700ce3-ee5d-497a-928a-870244d14cb0",
+      "passed": true
+    },
+    {
+      "case": "non-default port Origin preflight",
+      "http": 200,
+      "allowOrigin": "http://127.0.0.1:18080",
+      "passed": true
+    }
+  ],
+  "passwordsAndTokensExcluded": true
+}

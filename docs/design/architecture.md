@@ -3,7 +3,7 @@ doc_type: design
 title: 微服务架构设计
 status: adopted
 domain: common
-last_reviewed: 2026-10-17
+last_reviewed: 2026-10-18
 ---
 
 # 微服务架构设计
@@ -91,7 +91,7 @@ last_reviewed: 2026-10-17
 ### 1.5 管理端前后端交互原则
 
 - 管理端前端统一通过 Gateway 访问 access-service（`/api/access/**` 单命名空间路由，T-ACCESS-042），由 access-service 作为前端唯一后端聚合入口；前端不直接调用后端服务。
-- 认证链采用“最小登录返回 + 后续聚合拉取”模型：前端调用 `/api/access/auth/login` 获取 token 与最小身份信息后，再调用 `/api/access/auth/userinfo` 与 `/api/access/auth/user-menu` 获取用户上下文、菜单、角色和权限结果。
+- 认证链采用“最小登录返回 + 后续聚合拉取”模型：自带网页调用浏览器专用登录入口，由 HttpOnly Cookie 承载凭据，JSON 仅返回会话标记和必要元数据；租户页面随后调用 `/api/access/auth/userinfo` 与 `/api/access/auth/user-menu` 获取用户上下文、菜单、角色和权限结果。原 `/api/access/auth/login` 保留给 Bearer 工具调用，两类通道的边界见[浏览器认证设计](browser-session-authentication.md)。
 - 业务路由、菜单和按钮权限的真实来源是后端聚合结果。其中菜单和路由由 access-service 管理面聚合下发，按钮权限由稳定 `permissions` 权限码表达。
 - 前端本地 mock 可以保留并改造，用于基础前端验证、联调兜底和组件级演示，但不作为长期生产契约或路由权限事实源。
 - 管理端前端最终只保留一套权限呈现模型；模板式 `auths`、`meta.roles` 等逻辑仅允许作为过渡兼容，不再作为新增设计的基准。
@@ -106,6 +106,12 @@ last_reviewed: 2026-10-17
 - 对外交付分层建设：核心主线稳定后，example-service 作为真实接入示例补齐；SDK 交付目标分为 Spring Boot starter、普通 Java client SDK 和其他语言对接文档三层。
 
 ---
+
+### 1.7 隔离部署验证边界
+
+正式交付使用服务 fat JAR 与前端镜像；干净检出的前端由受版本管理的 frontend/.env 提供公开构建默认值，不依赖开发者本地忽略文件。敏感部署配置仍放在根 .env 或受保护的外部配置中，不写入 VITE 变量。
+
+同机独立验收必须隔离容器名、宿主端口、网络、所有数据卷及服务发现；现有 Compose 固定名称与文件卷意味着仅更换 project name 不充分。T-ACCESS-131 已验证回环 HTTP、非默认端口的 nginx → Gateway → access-service 正式部署、平台初始化、登录页渲染与平台认证 HTTP 链路，见[候选部署证据](../tasks/evidence/candidate-deployment/verification.md)。该证据不扩展为生产 HTTPS、多代理、租户业务接入或恢复能力已验收。
 
 ## 2. Gateway 网关服务
 

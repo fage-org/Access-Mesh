@@ -1,0 +1,7 @@
+{
+  "url": "http://127.0.0.1:18080/#/platform/login",
+  "verifiedAt": "2026-10-18T11:02:03.290Z",
+  "observed": "平台运营登录、平台账号、密码、验证码、登录平台及租户登录入口均可见",
+  "errors": [],
+  "formSubmission": "not performed; HTTP protocol checks recorded separately"
+}

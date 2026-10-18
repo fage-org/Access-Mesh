@@ -1,0 +1,207 @@
+{
+  "candidateCommit": "44e178a1bc953f3488819376f3bbe2fd24081a49",
+  "sourceTree": "1a0ca1c4f1e972c8eac9650f1512a8bb71b757de",
+  "sourceArchiveSha256": "deb501a4cb5b8d5eda720ace381462d3c9220d7f3a63f089d03a41aa7c3b4aa7",
+  "sourceInputManifestSha256": "55dee7c15ca20bdc10bd2e5b7a9cae28b2ba3259ccfa42bd598d2c419f5bdfae",
+  "sourceFileCount": 2467,
+  "platform": "Windows / Docker Desktop Linux",
+  "project": "am-candidate-20261018-44e178a",
+  "services": [
+    {
+      "service": "access-service",
+      "container": "am-candidate-20261018-44e178a-access",
+      "image": "accessmesh/access-service:candidate-44e178a1b",
+      "ports": null,
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "accessmesh-files",
+          "target": "/var/lib/accessmesh/files",
+          "volume": {}
+        }
+      ],
+      "networks": [
+        "default"
+      ],
+      "environmentKeys": [
+        "ACCESSMESH_SIGNATURE_SECRET",
+        "ACCESS_BROWSER_ALLOWED_ORIGINS",
+        "ACCESS_PLATFORM_ADMIN_PASSWORD",
+        "ACCESS_PLATFORM_ADMIN_USERNAME",
+        "ACCESS_PLATFORM_BOOTSTRAP_ENABLED",
+        "DB_HOST",
+        "DB_PASSWORD",
+        "DB_PORT",
+        "DB_USERNAME",
+        "FILE_STORAGE_PATH",
+        "JWT_SECRET_KEY",
+        "NACOS_SERVER_ADDR",
+        "PERM_INTERNAL_SECRET",
+        "REDIS_HOST",
+        "REDIS_PASSWORD",
+        "REDIS_PORT"
+      ]
+    },
+    {
+      "service": "example-service",
+      "container": "am-candidate-20261018-44e178a-example",
+      "image": "accessmesh/example-service:candidate-44e178a1b",
+      "ports": null,
+      "volumes": null,
+      "networks": [
+        "default"
+      ],
+      "environmentKeys": [
+        "ACCESSMESH_SIGNATURE_SECRET",
+        "NACOS_SERVER_ADDR",
+        "SPRING_APPLICATION_JSON"
+      ]
+    },
+    {
+      "service": "frontend",
+      "container": "am-candidate-20261018-44e178a-frontend",
+      "image": "accessmesh/frontend:candidate-44e178a1b",
+      "ports": [
+        {
+          "mode": "ingress",
+          "host_ip": "127.0.0.1",
+          "target": 80,
+          "published": "18080",
+          "protocol": "tcp"
+        }
+      ],
+      "volumes": null,
+      "networks": [
+        "default"
+      ],
+      "environmentKeys": [
+        null
+      ]
+    },
+    {
+      "service": "gateway",
+      "container": "am-candidate-20261018-44e178a-gateway",
+      "image": "accessmesh/gateway:candidate-44e178a1b",
+      "ports": [
+        {
+          "mode": "ingress",
+          "host_ip": "127.0.0.1",
+          "target": 8080,
+          "published": "18081",
+          "protocol": "tcp"
+        }
+      ],
+      "volumes": null,
+      "networks": [
+        "default"
+      ],
+      "environmentKeys": [
+        "ACCESSMESH_SIGNATURE_SECRET",
+        "ACCESS_BROWSER_ALLOWED_ORIGINS",
+        "GATEWAY_CORS_ALLOWED_ORIGINS",
+        "NACOS_SERVER_ADDR",
+        "PERM_INTERNAL_SECRET",
+        "REDIS_HOST",
+        "REDIS_PASSWORD",
+        "REDIS_PORT"
+      ]
+    },
+    {
+      "service": "nacos",
+      "container": "am-candidate-20261018-44e178a-nacos",
+      "image": "nacos/nacos-server:v2.3.2",
+      "ports": null,
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "accessmesh-nacosdata",
+          "target": "/home/nacos/data",
+          "volume": {}
+        }
+      ],
+      "networks": [
+        "default"
+      ],
+      "environmentKeys": [
+        "MODE"
+      ]
+    },
+    {
+      "service": "postgresql",
+      "container": "am-candidate-20261018-44e178a-pg",
+      "image": "postgres:16-alpine",
+      "ports": null,
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "accessmesh-pgdata",
+          "target": "/var/lib/postgresql/data",
+          "volume": {}
+        },
+        {
+          "type": "bind",
+          "source": "D:\\codespace\\Access-Mesh\\.tmp\\candidate-deployment-acceptance\\source\\docs\\design\\schema\\access-service.sql",
+          "target": "/docker-entrypoint-initdb.d/01-access-schema.sql",
+          "read_only": true,
+          "bind": {}
+        }
+      ],
+      "networks": [
+        "default"
+      ],
+      "environmentKeys": [
+        "POSTGRES_DB",
+        "POSTGRES_INITDB_ARGS",
+        "POSTGRES_PASSWORD",
+        "POSTGRES_USER"
+      ]
+    },
+    {
+      "service": "redis",
+      "container": "am-candidate-20261018-44e178a-redis",
+      "image": "redis:7-alpine",
+      "ports": null,
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "accessmesh-redisdata",
+          "target": "/data",
+          "volume": {}
+        }
+      ],
+      "networks": [
+        "default"
+      ],
+      "environmentKeys": [
+        "REDIS_PASSWORD"
+      ]
+    }
+  ],
+  "volumes": {
+    "accessmesh-files": {
+      "name": "am-candidate-20261018-44e178a_files"
+    },
+    "accessmesh-nacosdata": {
+      "name": "am-candidate-20261018-44e178a_nacosdata"
+    },
+    "accessmesh-pgdata": {
+      "name": "am-candidate-20261018-44e178a_pgdata"
+    },
+    "accessmesh-redisdata": {
+      "name": "am-candidate-20261018-44e178a_redisdata"
+    }
+  },
+  "networks": {
+    "default": {
+      "name": "am-candidate-20261018-44e178a_default",
+      "ipam": {}
+    }
+  },
+  "secretValuesExcluded": true,
+  "existingResourceCollision": false,
+  "hostPortsAvailable": [
+    18080,
+    18081
+  ],
+  "executionStarted": "2026-10-18T18:54:36.4623646+08:00"
+}

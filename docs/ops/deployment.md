@@ -25,6 +25,8 @@ Nacos(8848)：服务注册/配置（三服务共同依赖）
 - API 外部路径 = 服务路径（单命名空间 `/api/access/**`、`/api/example/**`，Gateway 无 StripPrefix）——LB/nginx 反代**不得改写路径**。
 - 信任边界：业务服务（如 example-service）应**仅 Gateway 可达**（网络隔离是根本保障，身份签名校验是纵深防御）。
 
+同机独立候选部署不能仅指定另一个 Compose project name：仓库编排包含固定容器名、宿主端口和文件卷名。使用覆盖配置时须检查合并后的全部资源和服务发现地址，避免列表合并保留原端口；数据库、Redis、Nacos 与文件卷均使用新资源。回环非默认端口的正式包实测、脱敏配置及复现命令见 [T-ACCESS-131](../tasks/evidence/candidate-deployment/verification.md)。此记录仅覆盖实际预览拓扑，不替代前述 TLS 终结和多代理部署验证。
+
 ## 2. 密钥与敏感配置（强制）
 
 | 密钥 | 作用 | 约束 |

@@ -1,0 +1,8 @@
+[
+  {
+    "level": "error",
+    "message": "TypeError: Cannot read properties of undefined (reading 'split')\n    at Fge (http://127.0.0.1:18080/static/js/index-CQV4BCEl.js:38:57534)\n    at http://127.0.0.1:18080/static/js/index-CQV4BCEl.js:38:61155",
+    "timestamp": "2026-10-18T10:58:30.888Z",
+    "url": "http://127.0.0.1:18080/static/js/index-CQV4BCEl.js"
+  }
+]

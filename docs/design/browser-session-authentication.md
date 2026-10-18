@@ -3,7 +3,7 @@ doc_type: design
 title: 浏览器 HttpOnly 会话认证改造
 status: adopted
 domain: auth
-last_reviewed: 2026-10-17
+last_reviewed: 2026-10-18
 ---
 
 # 浏览器 HttpOnly 会话认证改造
@@ -70,3 +70,5 @@ HttpOnly 不等于全部脚本注入风险已解决，也不允许保留同一�
 ## 实施与验收入口
 
 由 [T-ACCESS-109](../archive/2026-10-17/tasks/T-ACCESS-109.md) 完成；接口、部署与前端生命周期已回写，验证见任务验收记录。
+
+候选正式包的回环非默认端口验证见 [T-ACCESS-131 部署证据](../tasks/evidence/candidate-deployment/verification.md)：平台 browser-login 经 nginx/Gateway 返回 HttpOnly、SameSite=Strict、host-only 的本地 Cookie，JSON 不交付 accessToken；对应会话标记可读取身份，缺标记、缺失/不可信 Origin 和退出后的旧会话均拒绝。公开 Origin 同时配置于 Gateway 与 access-service，并验证预检响应。该次浏览器证据覆盖登录页渲染，认证成功证据来自独立 HTTP 协议检查；完整浏览器表单旅程、租户开通以及生产 Secure Cookie 不由该记录代证。

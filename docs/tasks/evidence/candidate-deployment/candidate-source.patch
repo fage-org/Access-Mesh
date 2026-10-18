@@ -1,0 +1,32 @@
+diff --git a/.gitignore b/.gitignore
+index e084334b7..73bf8c405 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -29,6 +29,8 @@ Thumbs.db
+ *.env
+ *.env.local
+ *.env.production
++# 前端公开构建默认值需随源码交付；真实密钥与本地覆盖仍由上述规则忽略。
++!frontend/.env
+ application-local.yml
+ application-prod.yml
+ credentials.properties
+diff --git a/frontend/.env b/frontend/.env
+new file mode 100644
+index 000000000..5b3ed21cb
+--- /dev/null
++++ b/frontend/.env
+@@ -0,0 +1,13 @@
++# 平台本地运行端口号
++VITE_PORT = 8848
++
++# 是否隐藏首页 隐藏 true 不隐藏 false （勿删除，VITE_HIDE_HOME只需在.env文件配置）
++VITE_HIDE_HOME = false
++
++# 公开构建默认值，保证干净检出可直接构建生产前端；此文件不得放密钥。
++# 特定环境可覆盖，个人部署差异使用被忽略的 .env.*.local。
++VITE_PUBLIC_PATH = /
++VITE_ROUTER_HISTORY = "hash"
++VITE_CDN = false
++VITE_COMPRESSION = "none"
++VITE_ENABLE_PROD_MOCK = false
