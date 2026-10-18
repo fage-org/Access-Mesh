@@ -2194,11 +2194,23 @@ POST + JSON，门禁为 OPERATION_LOG:VIEW 类型级，租户仅取可信上下�
 ### 17.1 文件管理（/file）🔧（T-ADMIN-023 安全加固补记, 2026-08-25 契约从实现反向登记）
 
 > 本模块先于契约存在（代码即事实），T-ADMIN-023 安全加固时反向登记契约；前端暂无消费方。
-> 标准部署可达性仍受[Q-078](../pending-problems.md#q-078)所列准入路由、授权种子与消费面缺口约束；文件字段/下载头修正不代表该产品边界已收口。
+> 当前标准部署仍受[Q-078](../pending-problems.md#q-078)所列缺口约束；已采纳的补通范围与实施状态见[标准文件能力交付状态](#file-capability-delivery-status)。字段/下载头修正与方案采纳都不代表产品边界已经交付。
 > **文件访问方式（2026-10-17，T-ACCESS-101）**：当前没有接入方，FileResp 删除无可用访问通道的 `fileUrl`，无需保留字段兼容；数据库历史列暂不删除。文件访问统一走鉴权 POST 下载，浏览器接收字节生成 Blob URL，使用后释放；不新增公开 `/files/**` 静态入口。
 > **资源类型**: `ADMIN_FILE`（type_definition `resource_type=25`）。**存储**: 本地磁盘单实例
 > （默认 `${user.home}/accessmesh-files`，多实例部署下本地盘不可共享为已知限制，见
 > `access-service-architecture.md` §15；不建对象存储抽象层）。
+
+<a id="file-capability-delivery-status"></a>
+#### 标准文件能力交付状态
+
+**已采纳目标，待实施（2026-10-18）**：文件能力纳入标准租户初始化，并提供最小管理页面。当前代码仍存在 Q-078 的准入、默认授权与页面缺口；由 [T-ACCESS-116](../tasks/T-ACCESS-116.md) 和 [T-FE-078](../tasks/T-FE-078.md) 联合交付，不能据本段宣称已可用。
+
+- 固定图登记 `upload/download/delete/detail/page`，方法均为 POST，分别要求 `ADMIN_FILE:CREATE/VIEW/DELETE/VIEW/VIEW`。不加入登录白名单，不绕过 Gateway；服务层继续按文件夹实例判定，列表继续按可见文件夹裁剪。
+- 内置租户管理员获得 `ADMIN_FILE:CREATE/VIEW/DELETE` 的 ALL 范围、`canGrant=true` 授权，覆盖本租户已有和后续分类，并可通过现有授权页分配较窄分类/操作给其他角色；普通用户无默认文件授权。此项只扩充文件能力的转授例外，不改变其他内置权限。
+- 文件权限粒度仍是 bizType 文件夹；授予 document VIEW 意味着可读取本租户该分类的文件，不增加按上传者限定的“我的文件”语义。平台运营身份不因此获得租户文件读取权。
+- 为文件页面显示真实分类，`FileResp` 增补 `bizType: String`，直接来源为 `sys_file.bucket_name`，同时用于 detail/page。现有字段保持；前端不解析 storagePath 猜测分类，不把 storagePath 当下载链接。该字段尚未进入实现，需随 T-ACCESS-116 同步字段表与 DTO 对账。
+- 上传与下载继续既有 multipart/鉴权 POST 协议及本地盘单实例约束，保持原有文件安全校验、审计和删除事务语义。前端目标见[文件管理页面](frontend/file-management.md)。
+- 固定图新增项采用正常新库与租户开通链；已初始化旧库仍按现行部分图 fail-fast 与备份重建规程处理，不增加自动补权或在线迁移。本段不授权实际销毁数据库或文件卷。
 
 <a id="contract-section-17-1-1"></a>
 #### 17.1.1 `POST /api/access/file/upload` 🔧

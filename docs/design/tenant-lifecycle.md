@@ -3,7 +3,7 @@ doc_type: design
 title: 租户开通与独立平台运营
 status: adopted
 domain: cross-service
-last_reviewed: 2026-10-17
+last_reviewed: 2026-10-18
 ---
 
 # 租户开通与独立平台运营
@@ -94,6 +94,8 @@ last_reviewed: 2026-10-17
 重复 tenantCode 拒绝创建；响应丢失先查询是否已开通，再经首管理员密码重置恢复交付，不将重试解释为覆盖存量租户。沿用仓库空库重建政策，不新增存量库在线迁移或模板版本升级工具；实际环境重建仍由环境负责人按备份与重建规程执行，任务实现本身不删除部署数据。
 
 <a id="tenant-seed-storage"></a>
+标准文件能力的初始化增补已于 2026-10-18 确认、尚未实施，范围见[固定图文件能力目标](access-service-architecture.md#file-bootstrap-target)。新租户必须复用同一模板获得文件路由、管理员权限和菜单；该确认不改变既有租户的数据或平台运营身份边界。
+
 ## 初始化种子的技术落点
 
 基础类型、操作与系统配置种子保留在同一权威 DDL，改成接收租户 ID 的 PostgreSQL 初始化函数 `initialize_tenant_baseline(tenantId)`。建表时仅定义函数、不执行种子；Java 开通事务调用函数后复用参数化固定图建立管理员、组织、角色、菜单及映射。函数仅承载静态基础种子插入，不承载平台鉴权或业务编排；不另建服务内种子副本。

@@ -10,22 +10,25 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| access-service 归并（跨服务） | `T-ACCESS` | 116 |
+| access-service 归并（跨服务） | `T-ACCESS` | 117 |
 | permission-center | `T-PERM` | 113 |
 | admin-service | `T-ADMIN` | 036 |
 | gateway | `T-GW` | 015 |
 | 组织/用户（跨 admin+perm） | `T-ORG` | 006 |
 | 跨服务 API 契约 | `T-API` | 015 |
-| 前端 | `T-FE` | 077 |
+| 前端 | `T-FE` | 079 |
 
 > 新建任务时从对应领域取下一编号，计数器 +1。
 
 ## 当前待办入口
 
-当前无实施中或评审中任务；[最近变更核实修复与状态校准](../archive/2026-10-18/recent-change-review-remediation.md)已完成归档。未成任务的问题见[待解决问题](../pending-problems.md)。
+当前待启动方案为[顶栏裁剪与标准文件能力补齐](../plans/standard-capability-completion-plan.md)，尚无实施中或评审中任务；[最近变更核实修复与状态校准](../archive/2026-10-18/recent-change-review-remediation.md)已完成归档。未成任务的问题见[待解决问题](../pending-problems.md)。
 
 | ID | 标题 | 状态 | 直接依赖 |
 |---|---|---|---|
+| [T-FE-077](T-FE-077.md) | 移除顶栏虚构通知入口 | ⚙️ | — |
+| [T-ACCESS-116](T-ACCESS-116.md) | 标准文件接口与默认授权接通 | ⚙️ | — |
+| [T-FE-078](T-FE-078.md) | 最小文件管理页面 | ⚙️ | T-ACCESS-116 |
 | [T-PERM-036](T-PERM-036.md) | scopeMode → 业务 SQL 端到端验证（暂缓） | ⚙️ | T-FE-013、T-PERM-033 |
 
 T-PERM-036 继续暂缓，需用户明确解除门禁。下方已完成批次及历史执行顺序只用于追溯，不重新启动。

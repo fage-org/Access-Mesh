@@ -3,7 +3,7 @@ doc_type: design
 title: IAM 核心正确性与用户任务闭环方案
 status: draft
 domain: cross-service
-last_reviewed: 2026-10-03
+last_reviewed: 2026-10-18
 ---
 
 # IAM 核心正确性与用户任务闭环方案
@@ -111,7 +111,7 @@ A的scope=read、audience=aud-a，B的scope=other、audience=aud-b：A的合法�
 
 **U003，已拍板（2026-09-23）**：**菜单任意操作／目录 VIEW**——菜单入口=该类型有任一直接实例授权即显示（维持 v3.5 §4.1 任意操作语义，含 CREATE-only）；目录列表内容=按 VIEW（含继承覆盖）过滤，不自动创建“管理即查看”新隐含规则；CREATE-only 者入口可见，但没有可见 VIEW 实例时目录请求返回 403；以[契约目录门禁](access-service-api-contract.md)为准。service-a负责人可看a不能看b；部门成员管理员可选可见人员但不能看其他部门名单。
 
-**首次委派（U004），已拍板（2026-09-23）**：**最小集四条**——bootstrap 固定图既有行 canGrant 翻 true：SERVICE:MANAGE、SERVICE:MANAGE_API_MAPPING、ORG:MANAGE_MEMBER、USER:VIEW（USER:VIEW 为部门管理员「用户目录门票」——类型级 VIEW 门票+内容按组织可见性裁剪兜底，「门票+裁剪」同批拍板）；其余内置类型维持不可转授；禁全局 canGrant=true 维持；存量已初始化库登记 runbook 订正语句（幂等种子 canGrant 属可变属性仅 warn 放行不重种）。
+**首次委派（U004），已拍板（2026-09-23）**：**最小集四条**——bootstrap 固定图既有行 canGrant 翻 true：SERVICE:MANAGE、SERVICE:MANAGE_API_MAPPING、ORG:MANAGE_MEMBER、USER:VIEW（USER:VIEW 为部门管理员「用户目录门票」——类型级 VIEW 门票+内容按组织可见性裁剪兜底，「门票+裁剪」同批拍板）；其余内置类型在本批交付基线中维持不可转授；后续已确认的 ADMIN_FILE 增补目标与尚未交付状态见[标准文件固定图目标](access-service-architecture.md#file-bootstrap-target)。禁全局 canGrant=true 维持；存量已初始化库登记 runbook 订正语句（幂等种子 canGrant 属可变属性仅 warn 放行不重种）。
 
 先以service-a负责人、部门成员管理员完成端到端，再类推角色／类型／资源目录；发现不同资源的合理差异要列明，不能留下其他同模式页面假称支持实例委派。接口响应仍沿现有分页信封；是否扩展目录端点由实际可复用性决定，不另建全局“能力目录”服务。
 

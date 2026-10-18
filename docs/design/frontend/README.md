@@ -17,6 +17,8 @@
 
 | 页面 | 文档 | 任务 | 状态 |
 |---|---|---|---|
+| 顶栏通知入口 | [topbar-notifications.md](topbar-notifications.md) | T-FE-077 | adopted 目标，待实施 |
+| 文件管理 | [file-management.md](file-management.md) | T-FE-078 | adopted 目标，待实施 |
 | 登录页 | `login.md` | T-FE-041 | ✅ adopted（2026-08-24 真实登录链路实现回写） |
 | 2.1 组织与用户 | （已归档至 `docs/archive/2026-06-21/org-user-page-impl-plan.md`，权威契约见 org-user-permission-contract.md） | — | ✅ |
 | 2.2 角色管理 | `role-manage.md` | T-FE-002 | ✅ |

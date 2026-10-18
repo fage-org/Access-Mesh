@@ -556,7 +556,16 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 | `ADMIN_NOTICE:VIEW/CREATE/UPDATE/DELETE/PUBLISH` | ALL | 公告管理面五档（T-ADMIN-029：ADMIN_NOTICE 无资源投影，实例级授权不可构造，类型级即终态形态） |
 | `ADMIN_JOB:VIEW/TRIGGER/ENABLE`       | ALL                | 定时任务管理面最小运营三档（T-ACCESS-054：T-PERM-073 对账任务按需手动触发/启用周期巡检的正规入口；CREATE/UPDATE/DELETE 无种子，改 cron 走运维通道） |
 
-可转授例外全集：T-ACCESS-052 最小集四条（`SERVICE:MANAGE`/`SERVICE:MANAGE_API_MAPPING`/`ORG:MANAGE_MEMBER`/`USER:VIEW`，2026-09-23 拍板）；API 类型授权已退役，其余业务门禁均不可转授。`resource-api-mapping/list` 全量列表对齐服务目录实例准入：类型级 VIEW 全量，否则持任一 SERVICE 实例 VIEW 进入并按可见服务裁剪，零可见实例 403。T-ACCESS-059 为 Gateway 操作准入补充 `CONDITION:VIEW` 与 `ADMIN_ORG_TREE_CONFIG:VIEW` 类型级种子，不可转授；业务层原有读语义不因此扩大或收紧。
+当前已交付的可转授例外：T-ACCESS-052 最小集四条（`SERVICE:MANAGE`/`SERVICE:MANAGE_API_MAPPING`/`ORG:MANAGE_MEMBER`/`USER:VIEW`，2026-09-23 拍板）；API 类型授权已退役，其余业务门禁均不可转授。`resource-api-mapping/list` 全量列表对齐服务目录实例准入：类型级 VIEW 全量，否则持任一 SERVICE 实例 VIEW 进入并按可见服务裁剪，零可见实例 403。T-ACCESS-059 为 Gateway 操作准入补充 `CONDITION:VIEW` 与 `ADMIN_ORG_TREE_CONFIG:VIEW` 类型级种子，不可转授；业务层原有读语义不因此扩大或收紧。
+
+<a id="file-bootstrap-target"></a>
+### 14.4.1 标准文件能力固定图目标
+
+2026-10-18 已确认、待 T-ACCESS-116 实施：正常初始化与租户开通增加文件接口准入、文件管理菜单，以及内置管理员 `ADMIN_FILE:CREATE/VIEW/DELETE` 的 ALL 范围可转授授权。默认授权只属于本租户内置管理员角色，不给普通角色、匿名调用或平台运营身份隐式放行。管理员可以管理本租户所有分类、沿已有首传登记链新增分类，并通过既有授权页向普通角色分配较窄的分类与操作。
+
+这是对现行可转授例外的文件能力增补，不撤销 T-ACCESS-052 的既有例外，也不开放其他内置类型的全局转授。固定图来源、种子写保护、租户隔离、现有初始化三状态与管理员连续性保持；实现时同步业务授权集合、固定图校验与代码注释，不能只补某个租户的数据库行。
+
+菜单固定路径为 `/system/file`、名称“文件管理”、所属系统管理、关联资源类型 ADMIN_FILE，页面交付由 T-FE-078 承接。具体路由要求与字段以[文件契约](access-service-api-contract.md#file-capability-delivery-status)为准。当前仍未交付，实际可用性须经标准初始化后的 Gateway 闭环验收。
 
 ### 14.5 授权页读接口 VIEW 门禁终态（随 T-PERM-042 补齐 3 项）
 

@@ -120,16 +120,16 @@ last_updated: 2026-10-18
 <a id="q-071"></a>
 ## Q-071 顶栏虚构消息与待办红点裁剪评估
 
-- **状态**：open
+- **状态**：converted
 - **登记**：2026-10-14
 - **来源**：2026-10-12~14 外部持续审查（过度设计候选），外部模型核实与主代理亲核成立
 - **关联**：[scenario-audit-remediation-plan](archive/2026-10-17/scenario-audit-remediation-plan.md)
 
-**现象与证据**：`layout/components/lay-notice/data.ts:21-107` 硬编码「李白回复你」等示例消息/待办；`lay-notice/index.vue:3-11` 直接计算红点，两种导航布局均实际渲染；无 notice API 封装。
+**现象与证据**：`layout/components/lay-notice/data.ts:21-107` 硬编码「李白回复你」等示例消息/待办；`lay-notice/index.vue:3-11` 直接计算红点，竖向、横向、混合三种导航布局均实际渲染；无 notice API 封装。
 
 **影响**：新租户登录即见无关消息、过期任务与红点，无法据此完成真实工作；亦模糊「前端为模板 mock」边界的具体产品表现。
 
-**设想方向（未定案）**：删示例数据并暂隐藏入口，或改明确空状态/演示标识；有真实受众需求后才接通，不为消红点实施消息中心。
+**处理入口**：已转任务，采用[顶栏入口设计](design/frontend/topbar-notifications.md)；当前仅方案已确认，待实施验收后收敛。
 
 <a id="q-072"></a>
 ## Q-072 iframe 缓存模板 hash 刷新缺陷（原审查 022 号降级项）
@@ -148,16 +148,16 @@ last_updated: 2026-10-18
 <a id="q-078"></a>
 ## Q-078 文件能力标准部署下整体不可达（准入路由未登记 + ADMIN_FILE 授权无种子 + 前端无消费面）
 
-- **状态**：open
+- **状态**：converted
 - **登记**：2026-10-14
 - **来源**：T-ACCESS-099 真实容器验证过程中发现并逐层核实（验证环境=全栈预览 Compose 档）
-- **关联**：—（拍板后转任务；T-ACCESS-099 仅修物理卷持久化，不含本条可达性）
+- **关联**：[T-ACCESS-116](tasks/T-ACCESS-116.md)、[T-FE-078](tasks/T-FE-078.md)；T-ACCESS-099 仅负责物理卷持久化
 
 **现象与证据**：三层各自独立核实——①网关面：`resource_api_mapping` 中 access-service 222 条路由零 file 路由（`BootstrapGraphDefinition` 112 条 ApiRoute 同样零 file），Gateway 准入「未注册恒 DENY」，经网关 `POST /api/access/file/upload` 恒 403「无接口访问权限」（requestId bcef52af，2026-10-14 实测）；②服务面：全部租户 `role_resource_permission` 零 ADMIN_FILE 行（type_value=25），无任何角色可通过 ADMIN_FILE 门禁（实测 403「权限不足」；验证时按 `FileServiceSecurityPgIT` 同款夹具插四条单操作位 MANUAL 行后才放行）；③前端面：`frontend/src/api/` 无 file 消费文件。契约面 `HttpApiPathSnapshotTest` 含全部 5 个 file 端点（upload/download/delete/detail/page）。
 
 **影响**：文件夹级授权能力（T-ADMIN-025 全链）与文件上传下载在标准部署（Gateway 单入口 + 租户统一模板开通）下对任何人都不可用，仅测试可经服务层直连 + 夹具授权触达；契约册登记的端点实际不可达。
 
-**设想方向（未定案）**：产品拍板三选一：A=补种子（file 路由入 bootstrap 固定图 + 统一模板给租户管理员 ADMIN_FILE 类型级或预置文件夹实例授权）→ 能力随标准开通可用；B=声明休眠（extension-only：文档明示需接入方自行登记路由与授权，契约册标注可达前提）；C=裁剪（若产品决定不做文件能力则整体退役，含 T-ADMIN-025 授权链与文档清扫）。拍板后转任务。
+**处理入口**：标准能力与页面范围已确认，见[文件交付状态](design/access-service-api-contract.md#file-capability-delivery-status)及[页面设计](design/frontend/file-management.md)。两张任务验收覆盖后共同收敛；目前不标记已修复。
 
 <a id="q-079"></a>
 ## Q-079 IllegalArgumentException 处理器整段记录异常消息的泄露面待盘点

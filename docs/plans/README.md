@@ -4,7 +4,7 @@
 
 ## 当前计划
 
-当前无活跃计划；最近变更核实修复与状态校准已完成归档，任务状态见[任务看板](../tasks/README.md)。
+[顶栏裁剪与标准文件能力补齐](standard-capability-completion-plan.md)为 proposed，方案已确认、未开始实施；任务状态见[任务看板](../tasks/README.md)。最近变更核实修复与状态校准已完成归档。
 
 ## 已归档计划
 

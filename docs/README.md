@@ -104,7 +104,9 @@ docs/
 
 ## 执行计划
 
-[最近变更核实修复与状态校准](archive/2026-10-18/recent-change-review-remediation.md)已完成归档，当前无活跃计划。当前待办以[任务看板顶部入口](tasks/README.md#当前待办入口)为准；T-PERM-036 保持暂缓。
+待启动：[顶栏裁剪与标准文件能力补齐](plans/standard-capability-completion-plan.md)，Q-071/Q-078 已转任务，方案已确认但尚未实施。
+
+[最近变更核实修复与状态校准](archive/2026-10-18/recent-change-review-remediation.md)已完成归档。当前待办以[任务看板顶部入口](tasks/README.md#当前待办入口)为准；T-PERM-036 保持暂缓。
 
 独立任务 [T-ACCESS-114](archive/2026-10-18/tasks/T-ACCESS-114.md) 已完成归档；实时任务状态见[任务看板](tasks/README.md)。
 

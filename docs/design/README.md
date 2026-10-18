@@ -102,6 +102,10 @@
 
 Claude 按需技能位于 `.claude/skills/`。
 
+## 待实施能力边界
+
+已采纳[顶栏通知入口裁剪](frontend/topbar-notifications.md)与[标准文件页面](frontend/file-management.md)目标；对应[执行计划](../plans/standard-capability-completion-plan.md)为 proposed。文件准入和默认权限仍未补通，不能将目标描述为现状。
+
 ## 归档记录
 
 [2026-10-18 批次](../archive/2026-10-18/README.md)包含服务凭证验收与 T-ACCESS-097 补归档；Q-069 已收敛。T-PERM-036 当前描述已按现行范围查询链路校准，继续暂缓。
