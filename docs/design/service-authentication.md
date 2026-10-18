@@ -159,7 +159,7 @@ example:
 
 映射不可变，配置缺少 secret/租户键非法/有映射而未声明信任域则启动失败；映射为空可以启动但拒绝全部业务最终检查。配置变更通过重启服务生效，不提供自动签发、存储、热刷新或轮换框架。SDK 的既有单 DTO 方法仍支持固定凭证调用方；新增重载只对 check/batch-check/query-resources/query-scopes 追加显式 `X-Credential-Id`/`X-Credential-Secret` 参数，HTTP JSON 请求体和端点不变。
 
-Compose 环境变量注入时，更新私密 env 后须 `up -d` 重建 example-service 容器；仅 `restart` 不更新容器的环境值。配置及身份分工的[首次接入操作示例](../../example-service/examples/first-access.md)已在 T-ACCESS-133 固定候选上走查：缺 B 映射拒绝、补齐后可用，停用 A 凭证使查询立即返回 403/20067、示例失败关闭为 200/30005，B 保持可用，重新启用 A 后恢复。凭证主体只解析所属租户，自报租户头不改变身份；[证据](../tasks/evidence/candidate-deployment/T-ACCESS-133/verification.md)属于代理执行验证。
+Compose 环境变量注入时，更新私密 env 后须 `up -d` 重建 example-service 容器；仅 `restart` 不更新容器的环境值。配置及身份分工的[首次接入操作示例](../../example-service/examples/first-access.md)已在 T-ACCESS-133 固定候选上走查：缺 B 映射拒绝、补齐后可用，停用 A 凭证使查询立即返回 403/20067、示例失败关闭为 200/30005，B 保持可用，重新启用 A 后恢复。凭证主体只解析所属租户，自报租户头不改变身份；[证据](../archive/2026-10-18/tasks/evidence/candidate-deployment/T-ACCESS-133/verification.md)属于代理执行验证。
 
 发布边界：当前无部署且已确认无仓外旧调用方（2026-10-04），查询和剩余同步端点、SDK、示例同批切换，取代原阶段一兼容窗口。验收节点为端点与 SDK 接线、仓内外旧业务调用清零、旧纯服务通道关闭、部署时轮换平台内部密钥。轮换操作见 [部署指南](../ops/deployment.md)，未执行真实轮换前不声称旧密钥副本已失效；Gateway/内部设施继续使用内部互信密钥，不以全仓密钥使用清零为退出标准。
 

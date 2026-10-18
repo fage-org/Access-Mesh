@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-133
 title: 首次业务接入与授权闭环验收
 status: done
-plan: docs/plans/candidate-deployment-acceptance-plan.md
+plan: docs/archive/2026-10-18/candidate-deployment-acceptance-plan.md
 domain: cross-service
 design_refs:
   - docs/design/extension-guide.md
@@ -29,7 +29,7 @@ last_updated: 2026-10-18
 
 ## 范围
 
-从服务未登记、凭证未签发的状态开始，按[接入指南](../design/extension-guide.md)和[快速开始](../quickstart.md)，由租户管理员创建业务类型、操作及实例，登记 example-service、声明 sync-v2 FULL 接口，并签发所属租户的 per-service 凭证。核对 Gateway 显式转发路由、服务发现与接口准入映射分别生效；不把 sync-v2 当作转发路由创建器。
+从服务未登记、凭证未签发的状态开始，按[接入指南](../../../design/extension-guide.md)和[快速开始](../../../quickstart.md)，由租户管理员创建业务类型、操作及实例，登记 example-service、声明 sync-v2 FULL 接口，并签发所属租户的 per-service 凭证。核对 Gateway 显式转发路由、服务发现与接口准入映射分别生效；不把 sync-v2 当作转发路由创建器。
 
 将凭证按实际 tenantId 注入共享示例实例，再启动 T-ACCESS-131 固定的 example-service 产物。用户管理与授权写入使用用户身份，查询与同步使用服务身份。工具调用使用原生登录取得的 Bearer；网页使用现行 Cookie/CSRF 链路，不要求从浏览器存储读取 HttpOnly 令牌。沿本路径发现的文档漂移直接修正并验证，接口形状仍引用契约总册。
 
@@ -58,6 +58,6 @@ last_updated: 2026-10-18
 
 2026-10-18 沿 T-ACCESS-131 固定镜像在原隔离栈完成两租户首次接入，启动 example-service 并配置租户独立凭证。原生用户身份执行管理写入，服务身份执行 FULL 同步与运行时查询；普通用户 qareader 的 EXAMPLE/report-1 VIEW 允许、report-2 拒绝，撤销与重授分别在首次 30ms/36ms 探测生效。租户缺凭证映射、凭证停用/恢复、主体与实际业务数据隔离、Gateway 身份清洗及 SDK 直连拒绝均已验证。
 
-[验收证据](evidence/candidate-deployment/T-ACCESS-133/verification.md)保留 61 条脱敏 HTTP 观察、授撤轮询、直连反例、数据库只读终态、运行镜像与服务发现信息。临时执行命令及适用边界见证据；公开 [接入操作示例](../../example-service/examples/first-access.md)与 FULL 清单已重验。修正 quickstart 的浏览器取令牌提示，补齐报表固定资源码与错误分层，并完成 design_refs 回写。
+[验收证据](evidence/candidate-deployment/T-ACCESS-133/verification.md)保留 61 条脱敏 HTTP 观察、授撤轮询、直连反例、数据库只读终态、运行镜像与服务发现信息。临时执行命令及适用边界见证据；公开 [接入操作示例](../../../../example-service/examples/first-access.md)与 FULL 清单已重验。修正 quickstart 的浏览器取令牌提示，补齐报表固定资源码与错误分层，并完成 design_refs 回写。
 
 代理执行，不宣称独立新人验收；无产品代码变动或镜像重建，本地代码轨与文档轨核对通过。完整回归仍由 T-ACCESS-135 承载。运行环境、凭证映射、服务登记、普通用户授权及原有文件样本保留给 T-ACCESS-134；example 运行期内存对象不纳入持久化要求。

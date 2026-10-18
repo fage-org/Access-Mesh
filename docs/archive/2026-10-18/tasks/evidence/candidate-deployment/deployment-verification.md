@@ -50,7 +50,7 @@
 
 ## 复现入口与材料
 
-在独立检出目录使用上述基线提交并应用 candidate-source.patch；也可使用包含本修复的后续提交，但须重记候选输入。复制 .env.example 到受保护的本地运行目录，独立生成必填密钥。完整复现仍以 [quickstart](../../../quickstart.md) 和 [部署基线](../../../ops/deployment.md) 为使用入口。
+在独立检出目录使用上述基线提交并应用 candidate-source.patch；也可使用包含本修复的后续提交，但须重记候选输入。复制 .env.example 到受保护的本地运行目录，独立生成必填密钥。完整复现仍以 [quickstart](../../../../../quickstart.md) 和 [部署基线](../../../../../ops/deployment.md) 为使用入口。
 
 PowerShell 中明确填写仓库、源码和私有环境文件的绝对路径，复用本证据目录的覆盖配置：
 
@@ -58,7 +58,7 @@ PowerShell 中明确填写仓库、源码和私有环境文件的绝对路径，
 $candidateRepo = 'D:/codespace/Access-Mesh'
 $candidateSource = "$candidateRepo/.tmp/candidate-deployment-acceptance/source"
 $candidateEnv = "$candidateRepo/.tmp/candidate-deployment-acceptance/candidate.env"
-$candidateOverlay = "$candidateRepo/docs/tasks/evidence/candidate-deployment/compose.candidate.yml"
+$candidateOverlay = "$candidateRepo/docs/archive/2026-10-18/tasks/evidence/candidate-deployment/compose.candidate.yml"
 $candidateCompose = @('compose', '--project-name', 'am-candidate-20261018-44e178a',
   '--project-directory', $candidateSource, '--env-file', $candidateEnv,
   '-f', "$candidateSource/docker-compose.yml", '-f', $candidateOverlay, '--profile', 'app')

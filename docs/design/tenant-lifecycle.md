@@ -10,7 +10,7 @@ last_reviewed: 2026-10-18
 
 本文承接 [Q-063](../pending-problems.md#q-063)。设计与实施已完成，任务及验收见 [归档计划](../archive/2026-10-08/tenant-lifecycle-plan.md)。本文为当前权威契约，身份边界同时归位于 [Gateway 设计](services/gateway.md#platform-tenant-boundary)。
 
-当前候选的独立环境实测见 [T-ACCESS-132](../tasks/evidence/candidate-deployment/T-ACCESS-132/verification.md)：平台页面正常开通租户、首管理员首次改密后登录、开通与启停审计、停用后的新请求拒绝、恢复后的旧会话拒绝及新登录均得到验证；平台会话在租户身份切换期间保持独立。该证据不替代后续接入与恢复验收。
+当前候选的独立环境实测见 [T-ACCESS-132](../archive/2026-10-18/tasks/evidence/candidate-deployment/T-ACCESS-132/verification.md)：平台页面正常开通租户、首管理员首次改密后登录、开通与启停审计、停用后的新请求拒绝、恢复后的旧会话拒绝及新登录均得到验证；平台会话在租户身份切换期间保持独立。该证据不替代后续接入与恢复验收。
 
 ## 已确认边界
 

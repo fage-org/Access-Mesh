@@ -7,12 +7,12 @@ $sourceArgs = @('--project-name','am-candidate-20261018-44e178a',
   '--project-directory','.tmp/candidate-deployment-acceptance/source',
   '--env-file','.tmp/candidate-deployment-acceptance/candidate.env',
   '-f','.tmp/candidate-deployment-acceptance/source/docker-compose.yml',
-  '-f','docs/tasks/evidence/candidate-deployment/compose.candidate.yml','--profile','app')
+  '-f','docs/archive/2026-10-18/tasks/evidence/candidate-deployment/compose.candidate.yml','--profile','app')
 $restoreArgs = @('--project-name','am-restore-20261018-44e178a',
   '--project-directory','.tmp/candidate-deployment-acceptance/source',
   '--env-file','.tmp/candidate-deployment-acceptance/T-ACCESS-134/restore.env',
   '-f','.tmp/candidate-deployment-acceptance/source/docker-compose.yml',
-  '-f','docs/tasks/evidence/candidate-deployment/T-ACCESS-134/compose.restore.yml','--profile','app')
+  '-f','docs/archive/2026-10-18/tasks/evidence/candidate-deployment/T-ACCESS-134/compose.restore.yml','--profile','app')
 ```
 
 ## 重启与重建

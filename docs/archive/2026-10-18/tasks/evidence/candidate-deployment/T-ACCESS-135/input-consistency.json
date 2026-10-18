@@ -1,0 +1,31 @@
+{
+  "regressionCheckout": "dd7e1badc16aa438deb951df3d0816ea03ef79cd",
+  "beforeSha256": "bee574bd22a8d6cda5c576b094fc37938284e97c6d6423e331b23b7b9a425217",
+  "afterSha256": "bee574bd22a8d6cda5c576b094fc37938284e97c6d6423e331b23b7b9a425217",
+  "identical": true,
+  "inputFileCount": 1759,
+  "selection": "tracked non-Markdown build/test inputs, excluding docs and instruction directories, plus authoritative DDL and local frontend .env variants; generated target/dist/node_modules ignored",
+  "frontendEnvironmentFiles": [
+    {
+      "path": "frontend/.env",
+      "sha256": "a9a1dc7ffd7a23579ad4321674f5ea0cd52fbfc633b4b75fc72c2a604ca037ee"
+    },
+    {
+      "path": "frontend/.env.demo",
+      "sha256": "f4a2229c43b70706dd13b95e0f40e4a4179cfe0c66813087e77d42865f5f54dc"
+    },
+    {
+      "path": "frontend/.env.development",
+      "sha256": "33c5e04abe9eb64d61ce62404925b38f99ee53e66a74653839e6655e4e89de1d"
+    },
+    {
+      "path": "frontend/.env.production",
+      "sha256": "b4e2ff6251f7446d42cff337fca3d66474676f586d8905fcd6906e15c2fd194c"
+    },
+    {
+      "path": "frontend/.env.staging",
+      "sha256": "5247444f2c9836d5ced6410ad205118d844cf9791783b89005394c886eb8a082"
+    }
+  ],
+  "note": "Local frontend gates used existing public environment variants; the deployed frontend remains the frozen clean-export Docker build, independently checked byte for byte."
+}

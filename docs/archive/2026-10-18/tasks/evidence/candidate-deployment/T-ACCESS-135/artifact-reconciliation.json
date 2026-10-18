@@ -1,0 +1,65 @@
+{
+  "candidateSource": "44e178a1bc953f3488819376f3bbe2fd24081a49",
+  "candidatePatchSha256": "b6a168e054c5d72b9ba04c70c3094103a4414ba9ac1767cf4cf87ddfaed88b87",
+  "sourceArchiveVerified": true,
+  "ddlSha256": "ec2725e9e6c8c2addc05dcc2c78a2e18e28de72ca5e498065e47b691462cab29",
+  "regressionCheckout": "dd7e1badc16aa438deb951df3d0816ea03ef79cd",
+  "normalizedBuildAndTestFilesMatched": 1754,
+  "unexpectedSourceDifferences": [],
+  "stacks": {
+    "am-candidate-20261018-44e178a": [
+      {
+        "container": "am-candidate-20261018-44e178a-access",
+        "imageId": "sha256:0908abe5626e430108f850a2170c8ce1fb334deabd4c0bb2cdc9b99bcaa4c797",
+        "health": "healthy",
+        "jarSha256": "a9d46eb9a1de72ad6a787459d26f4babb8c3a5ed2c493a5402b450135e1545ca"
+      },
+      {
+        "container": "am-candidate-20261018-44e178a-gateway",
+        "imageId": "sha256:6e9a60312a3b848ecd0c84be87ae2c51e6294b10833234ec84c43ae81b213f1e",
+        "health": "healthy",
+        "jarSha256": "009313a769f6a93295a798bb060f5a88dc8592f6ddda9447ff2005c3f687d1a1"
+      },
+      {
+        "container": "am-candidate-20261018-44e178a-example",
+        "imageId": "sha256:b8303b515f35b20d87ad5d01f653583af2055757d7fd6860a00ace8a5183d6a8",
+        "health": "healthy",
+        "jarSha256": "0ab47e50e06b683d33bc05bd5db90fd6c529bf43c91db369e52dfb740a1018d1"
+      },
+      {
+        "container": "am-candidate-20261018-44e178a-frontend",
+        "imageId": "sha256:e9ecdf6055d3b51b1c669e40affa645cb75e09beabfba3f1213a56f273a0caf2",
+        "health": "healthy",
+        "assetsCount": 181,
+        "assetManifestSha256": "9b0c3bc6c0b56a006de1211569e0c0ba11c9a4f9bff4d96c4b9d586aebe23389"
+      }
+    ],
+    "am-restore-20261018-44e178a": [
+      {
+        "container": "am-restore-20261018-44e178a-access",
+        "imageId": "sha256:0908abe5626e430108f850a2170c8ce1fb334deabd4c0bb2cdc9b99bcaa4c797",
+        "health": "healthy",
+        "jarSha256": "a9d46eb9a1de72ad6a787459d26f4babb8c3a5ed2c493a5402b450135e1545ca"
+      },
+      {
+        "container": "am-restore-20261018-44e178a-gateway",
+        "imageId": "sha256:6e9a60312a3b848ecd0c84be87ae2c51e6294b10833234ec84c43ae81b213f1e",
+        "health": "healthy",
+        "jarSha256": "009313a769f6a93295a798bb060f5a88dc8592f6ddda9447ff2005c3f687d1a1"
+      },
+      {
+        "container": "am-restore-20261018-44e178a-example",
+        "imageId": "sha256:b8303b515f35b20d87ad5d01f653583af2055757d7fd6860a00ace8a5183d6a8",
+        "health": "healthy",
+        "jarSha256": "0ab47e50e06b683d33bc05bd5db90fd6c529bf43c91db369e52dfb740a1018d1"
+      },
+      {
+        "container": "am-restore-20261018-44e178a-frontend",
+        "imageId": "sha256:e9ecdf6055d3b51b1c669e40affa645cb75e09beabfba3f1213a56f273a0caf2",
+        "health": "healthy",
+        "assetsCount": 181,
+        "assetManifestSha256": "9b0c3bc6c0b56a006de1211569e0c0ba11c9a4f9bff4d96c4b9d586aebe23389"
+      }
+    ]
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "testFiles": 59,
+  "testsPassed": 639,
+  "testsFailed": 0,
+  "testsSkipped": 0,
+  "gates": [
+    {
+      "command": "pnpm -C frontend test:run",
+      "exitCode": 0,
+      "startedAt": "2026-10-18T20:52:29.9781204+08:00",
+      "finishedAt": "2026-10-18T20:52:53.5939412+08:00",
+      "durationSeconds": 23.6161468,
+      "log": "frontend-test-run.log",
+      "logSha256": "7372350d7fb839a1b711c75cd53ea0630dd84826a80ba984c7b717abbaba1f0d"
+    },
+    {
+      "command": "pnpm -C frontend typecheck",
+      "exitCode": 0,
+      "startedAt": "2026-10-18T20:52:53.6547932+08:00",
+      "finishedAt": "2026-10-18T20:53:45.3017817+08:00",
+      "durationSeconds": 51.6471079,
+      "log": "frontend-typecheck.log",
+      "logSha256": "64606c4e4789dd5c6f59174abb9a61c1c2dfa8349b847afe113d20f1c94e83b2"
+    },
+    {
+      "command": "pnpm -C frontend lint:check",
+      "exitCode": 0,
+      "startedAt": "2026-10-18T20:53:45.3103506+08:00",
+      "finishedAt": "2026-10-18T20:54:33.9910531+08:00",
+      "durationSeconds": 48.6807954,
+      "log": "frontend-lint-check.log",
+      "logSha256": "feba3e95ff3d98ebebf584c298190e53e0cf1ca621bfa9caef3fa2ee5b1c0c16"
+    },
+    {
+      "command": "pnpm -C frontend contracts:check",
+      "exitCode": 0,
+      "startedAt": "2026-10-18T20:54:33.9955184+08:00",
+      "finishedAt": "2026-10-18T20:54:39.1600882+08:00",
+      "durationSeconds": 5.1646326,
+      "log": "frontend-contracts-check.log",
+      "logSha256": "82d6e8296d8a9c039456dfc7e6684906ce0bd8c3eeba55a0917376a849245de9"
+    },
+    {
+      "command": "pnpm -C frontend build",
+      "exitCode": 0,
+      "startedAt": "2026-10-18T20:54:39.1655394+08:00",
+      "finishedAt": "2026-10-18T20:55:26.8112515+08:00",
+      "durationSeconds": 47.6458007,
+      "log": "frontend-build.log",
+      "logSha256": "b9c99c5178ed21c6ae34920e356940c077117590ce01b9b68cc8a11a0e4f0f3d"
+    }
+  ],
+  "buildOutput": "local quality-gate build; deployed frozen image not replaced"
+}

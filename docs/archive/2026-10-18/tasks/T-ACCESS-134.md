@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-134
 title: 重启持久化与备份恢复验收
 status: done
-plan: docs/plans/candidate-deployment-acceptance-plan.md
+plan: docs/archive/2026-10-18/candidate-deployment-acceptance-plan.md
 domain: cross-service
 design_refs:
   - docs/design/access-service-rebuild-runbook.md
@@ -24,7 +24,7 @@ last_updated: 2026-10-18
 
 ## 背景
 
-已有[部署基线](../ops/deployment.md)定义数据库和文件卷备份、恢复库验证及不可丢数据边界；本卡以当前候选实际执行，证明已有数据能够在支持形态下恢复。
+已有[部署基线](../../../ops/deployment.md)定义数据库和文件卷备份、恢复库验证及不可丢数据边界；本卡以当前候选实际执行，证明已有数据能够在支持形态下恢复。
 
 ## 范围
 

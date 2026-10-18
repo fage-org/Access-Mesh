@@ -53,7 +53,7 @@
 
 ## 可复现操作与材料
 
-公开操作入口：[first-access.md](../../../../../example-service/examples/first-access.md)，配套 [FULL JSON](../../../../../example-service/examples/first-access-interfaces.json)。原始请求日志提供本次完整非敏感参数及顺序；身份见上表。开发工具执行时间为 2026-10-18，本机 PowerShell 7/Python 3.14，真实 HTTP 经 nginx/Gateway，未用 mock。
+公开操作入口：[first-access.md](../../../../../../../example-service/examples/first-access.md)，配套 [FULL JSON](../../../../../../../example-service/examples/first-access-interfaces.json)。原始请求日志提供本次完整非敏感参数及顺序；身份见上表。开发工具执行时间为 2026-10-18，本机 PowerShell 7/Python 3.14，真实 HTTP 经 nginx/Gateway，未用 mock。
 
 固定镜像启动及配置变更后的重建命令（仓库根执行）：
 
@@ -62,7 +62,7 @@ docker compose --project-name am-candidate-20261018-44e178a `
   --project-directory .tmp/candidate-deployment-acceptance/source `
   --env-file .tmp/candidate-deployment-acceptance/candidate.env `
   -f .tmp/candidate-deployment-acceptance/source/docker-compose.yml `
-  -f docs/tasks/evidence/candidate-deployment/compose.candidate.yml `
+  -f docs/archive/2026-10-18/tasks/evidence/candidate-deployment/compose.candidate.yml `
   --profile app up -d --no-build --no-deps example-service
 ```
 

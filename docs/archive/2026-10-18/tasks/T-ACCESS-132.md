@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-132
 title: 租户与管理台使用验收
 status: done
-plan: docs/plans/candidate-deployment-acceptance-plan.md
+plan: docs/archive/2026-10-18/candidate-deployment-acceptance-plan.md
 domain: cross-service
 design_refs:
   - docs/design/tenant-lifecycle.md
@@ -24,7 +24,7 @@ last_updated: 2026-10-18
 
 ## 背景
 
-空库健康不等于租户可以使用。以 T-ACCESS-131 的正式部署为入口，复用[租户运营手册](../ops/tenant-operations.md)、[登录设计](../design/frontend/login.md)与已有文件验收资产，验证当前版本的用户可达链路。
+空库健康不等于租户可以使用。以 T-ACCESS-131 的正式部署为入口，复用[租户运营手册](../../../ops/tenant-operations.md)、[登录设计](../../../design/frontend/login.md)与已有文件验收资产，验证当前版本的用户可达链路。
 
 ## 范围
 
@@ -38,9 +38,9 @@ last_updated: 2026-10-18
 
 qa-132-a 与 qa-132-b 的开通、首次改密和重新登录已完成；组织用户角色、管理员文件主线、document VIEW 委派、跨租户拒绝、租户停用恢复及会话边界已取得实际证据，见[验收记录](evidence/candidate-deployment/T-ACCESS-132/verification.md)。本卡未修改应用源码，完整回归仍由 T-ACCESS-135 承担。
 
-本卡要求真实浏览器和 Gateway 接线证据，不能以 mock 或服务直连成功代替。失败证据同时记录 HTTP 状态、响应信封、requestId（实际存在时）与页面表现；按[部署取证说明](../ops/deployment.md)核对登录日志及可归属租户的操作日志，不要求契约未承诺的故障零丢失。
+本卡要求真实浏览器和 Gateway 接线证据，不能以 mock 或服务直连成功代替。失败证据同时记录 HTTP 状态、响应信封、requestId（实际存在时）与页面表现；按[部署取证说明](../../../ops/deployment.md)核对登录日志及可归属租户的操作日志，不要求契约未承诺的故障零丢失。
 
-执行时逐项登记操作者、租户、动作、预期、实际、时间和产物版本，存入计划共用证据目录。按[测试技能](../../.agents/skills/access-mesh-testing/SKILL.md)先复用既有证据；发现缺陷时定向补有效行为锁，禁止把浏览器走查机械复制为另一套巨型 E2E。实际会话与页面交付状态回写 design_refs；步骤修正写入 quickstart 或运营手册。
+执行时逐项登记操作者、租户、动作、预期、实际、时间和产物版本，存入计划共用证据目录。按[测试技能](../../../../.agents/skills/access-mesh-testing/SKILL.md)先复用既有证据；发现缺陷时定向补有效行为锁，禁止把浏览器走查机械复制为另一套巨型 E2E。实际会话与页面交付状态回写 design_refs；步骤修正写入 quickstart 或运营手册。
 
 ## 验收对照
 

@@ -1,0 +1,18 @@
+[
+  {
+    "target": "source",
+    "fileId": 1,
+    "bytes": 59,
+    "sha256": "7e92d23fd0f2eea2b24cb033a9e775f0dc334f482c71cbe44b14b775da8c21eb",
+    "http": 200,
+    "attachment": true
+  },
+  {
+    "target": "restore",
+    "fileId": 1,
+    "bytes": 59,
+    "sha256": "7e92d23fd0f2eea2b24cb033a9e775f0dc334f482c71cbe44b14b775da8c21eb",
+    "http": 200,
+    "attachment": true
+  }
+]

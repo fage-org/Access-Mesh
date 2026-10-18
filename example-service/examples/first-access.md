@@ -94,4 +94,4 @@ Post-Access '/api/example/report/list' @{pageNum=1;pageSize=20} $readerHeaders
 - Gateway 外部伪造 `X-User-Id/X-Tenant-Id/X-User-Signature/X-Signature-Timestamp` 不能覆盖用户会话。隔离网络内直连示例：hello 无身份头返回 200/30002；有身份但缺签名或错误签名返回 200/30003。错误签名探针应带当前秒级 `X-Signature-Timestamp`，避免把缺时间戳拒绝误当成签名比较证据。
 - 报表目标已授权但业务对象在当前租户不存在时返回 200/30001；这与 30004 权限拒绝不同。可在 A 创建一条内存报表，在两租户分别登记其同码权限资源：A 读取成功、B 仍不存在，验证业务数据按租户分区。
 
-以上步骤已由代理在固定候选隔离环境走查；不代表独立新人已完成接入。版本、原始响应、授权前提及实际边界见 [T-ACCESS-133 验收证据](../../docs/tasks/evidence/candidate-deployment/T-ACCESS-133/verification.md)。
+以上步骤已由代理在固定候选隔离环境走查；不代表独立新人已完成接入。版本、原始响应、授权前提及实际边界见 [T-ACCESS-133 验收证据](../../docs/archive/2026-10-18/tasks/evidence/candidate-deployment/T-ACCESS-133/verification.md)。

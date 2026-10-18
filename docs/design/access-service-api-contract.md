@@ -3527,7 +3527,7 @@ SDK 运行时查询方法保留单 DTO 入口，并增加 `(req, credentialId, c
 <a id="contract-section-25"></a>
 ## 25. 操作准入协议 OPERATION_ADMISSION（interface-admission 族，T-ACCESS-056 落账）
 
-**固定候选首次接入验证（T-ACCESS-133，2026-10-18）**：普通用户只授 EXAMPLE/report-1 VIEW 时，hello 经 Gateway 允许，report-2 进入业务层后以 200/30004 拒绝；撤销后 Gateway 真 403、重授恢复。接口 FULL 声明、显式转发路由及 Nacos 实例分别核对，不生成 API 授权。操作步骤见 [example 首次接入](../../example-service/examples/first-access.md)，[验收证据](../tasks/evidence/candidate-deployment/T-ACCESS-133/verification.md)明确代理执行身份及测量边界；不替代本章其他路由资格与全量回归要求。
+**固定候选首次接入验证（T-ACCESS-133，2026-10-18）**：普通用户只授 EXAMPLE/report-1 VIEW 时，hello 经 Gateway 允许，report-2 进入业务层后以 200/30004 拒绝；撤销后 Gateway 真 403、重授恢复。接口 FULL 声明、显式转发路由及 Nacos 实例分别核对，不生成 API 授权。操作步骤见 [example 首次接入](../../example-service/examples/first-access.md)，[验收证据](../archive/2026-10-18/tasks/evidence/candidate-deployment/T-ACCESS-133/verification.md)明确代理执行身份及测量边界；不替代本章其他路由资格与全量回归要求。
 
 > **章定位**：版本化新协议的契约登记面（沿 §24 服务凭证章先例的协议落账形态；**T-ACCESS-057~061 已全部落地（2026-09-28 收口），本章为该协议唯一权威落点**，设计稿 [r2-unified-query-and-admission.md](r2-unified-query-and-admission.md#operation-admission) §7/§8 的实施期权威已终结——落账时点原文「设计定稿后、实现任务前、端点未实现」仅存档义）。方向定案链：2026-09-09「API 不单独授权、接口权限由操作权限关联派生」→ 2026-09-25 R2 方案 A 设计定案（[历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日行，含 configGeneration 限定语义拍板）。协议口径（T-ACCESS-056，2026-09-27 确认）：①错误码随本卡进 `AccessErrorCode` 枚举（契约先行；20071 的引擎配置故障与接口信封映射由 T-ACCESS-057 实现）；②配置故障两族占数值码 20070/20071、准入拒绝走响应 reason 词表；③「技术错误 503」=网关→终端层语义（access-service 端点错误维持现行 HTTP 200 + body 数值码信封）；④端点命名 interface-admission 族；⑤快照条件候选内联 `conditionRules` 传输（§25.2，沿旧快照同构——缺失/解析失败＝不可用分支回源）。实现归属：准入阶段=T-ACCESS-057、映射模型/schema=T-ACCESS-058、端点/快照/SDK/网关=T-ACCESS-059、失效与 TTL=T-ACCESS-060、逐服务切换=T-ACCESS-061、legacy 协议退役=T-ACCESS-062。
 

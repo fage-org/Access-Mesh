@@ -2,6 +2,8 @@
 
 基于 Spring Cloud 微服务架构的通用访问控制平台。定位：**开源通用 IAM**——通用多租户访问控制平台（2026-08-28 定案）；下列能力按「当前可用 / 已规划 / 仅演进方向」三档口径表述，口径定义见 [docs/design/README.md](docs/design/README.md)。
 
+当前候选已完成本机隔离部署、租户使用、首次业务接入与同版本备份恢复验收，并通过本地完整回归；[验收结论与复现入口](docs/archive/2026-10-18/tasks/evidence/candidate-deployment/verification.md)列明实际版本及未验证边界。这是预览候选验收，不代表生产认证或正式发布。
+
 ## 特性
 
 - **多租户数据隔离**：tenant_id 行级隔离（可信上下文 + Flex 生成 SQL 自动条件 + 自定义 SQL 显式租户约束）；支持独立平台运营账号开通、停用与恢复租户，租户用户以 tenantCode 登录

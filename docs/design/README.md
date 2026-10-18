@@ -109,6 +109,8 @@ Claude 按需技能位于 `.claude/skills/`。
 
 ## 归档记录
 
+[候选独立部署与首次接入验收](../archive/2026-10-18/candidate-deployment-acceptance-plan.md)已完成；[最终证据](../archive/2026-10-18/tasks/evidence/candidate-deployment/verification.md)覆盖实际本地预览、同版本恢复与完整回归。当前架构、接入和示例设计已回写边界，不代表生产认证或正式发布。
+
 [登录审计事务边界](access-service-architecture.md#login-audit-transaction-boundary)已由 T-ACCESS-117 实施，验证见[2026-10-18 归档](../archive/2026-10-18/tasks/evidence/T-ACCESS-117/verification.md)。
 
 [2026-10-18 批次](../archive/2026-10-18/README.md)包含服务凭证验收与 T-ACCESS-097 补归档；Q-069 已收敛。T-PERM-036 当前描述已按现行范围查询链路校准，继续暂缓。

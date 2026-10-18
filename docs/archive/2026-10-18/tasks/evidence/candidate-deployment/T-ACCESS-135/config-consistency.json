@@ -1,0 +1,12 @@
+[
+  {
+    "file": "candidate.env",
+    "sha256": "f0c2d5780b597a915e5b8c67c04d5ca3d99fb6f5283b3f0832b1a8d58e56acbf",
+    "matchesBackupAndRestoredConfiguration": true
+  },
+  {
+    "file": "restore.env",
+    "sha256": "7a69ba88a05cc14e32df9160e4516f25f2b8e867b809090eb998178b8cfa7d17",
+    "matchesBackupAndRestoredConfiguration": true
+  }
+]

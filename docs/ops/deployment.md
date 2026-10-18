@@ -25,9 +25,9 @@ Nacos(8848)：服务注册/配置（三服务共同依赖）
 - API 外部路径 = 服务路径（单命名空间 `/api/access/**`、`/api/example/**`，Gateway 无 StripPrefix）——LB/nginx 反代**不得改写路径**。
 - 信任边界：业务服务（如 example-service）应**仅 Gateway 可达**（网络隔离是根本保障，身份签名校验是纵深防御）。
 
-同机独立候选部署不能仅指定另一个 Compose project name：仓库编排包含固定容器名、宿主端口和文件卷名。使用覆盖配置时须检查合并后的全部资源和服务发现地址，避免列表合并保留原端口；数据库、Redis、Nacos 与文件卷均使用新资源。回环非默认端口的正式包实测、脱敏配置及复现命令见 [T-ACCESS-131](../tasks/evidence/candidate-deployment/verification.md)。此记录仅覆盖实际预览拓扑，不替代前述 TLS 终结和多代理部署验证。
+同机独立候选部署不能仅指定另一个 Compose project name：仓库编排包含固定容器名、宿主端口和文件卷名。使用覆盖配置时须检查合并后的全部资源和服务发现地址，避免列表合并保留原端口；数据库、Redis、Nacos 与文件卷均使用新资源。回环非默认端口的正式包实测、脱敏配置及复现命令见 [T-ACCESS-131](../archive/2026-10-18/tasks/evidence/candidate-deployment/verification.md)。此记录仅覆盖实际预览拓扑，不替代前述 TLS 终结和多代理部署验证。
 
-**应用重启/重建顺序**：当前前端 nginx 的 `proxy_pass http://gateway:8080` 在启动时解析容器地址。并行重启应用可能改变 Gateway IP，前端仍访问旧 IP，即使全部容器健康也会返回 502。维护时先暂停前端入口，完成 access-service/Gateway/example-service 重启或重建并确认依赖就绪，再启动或重建前端，使 nginx 重新解析地址。Gateway 容器地址变动后也须刷新前端。最后从真实前端入口请求 `/api/access/auth/captcha` 并验证 HTTP/信封，再正常登录；静态首页和管理端健康不能替代该检查。[T-ACCESS-134](../tasks/evidence/candidate-deployment/T-ACCESS-134/verification.md)保留失败响应、顺序修正及重验结果；本次未改变 nginx 的解析机制。
+**应用重启/重建顺序**：当前前端 nginx 的 `proxy_pass http://gateway:8080` 在启动时解析容器地址。并行重启应用可能改变 Gateway IP，前端仍访问旧 IP，即使全部容器健康也会返回 502。维护时先暂停前端入口，完成 access-service/Gateway/example-service 重启或重建并确认依赖就绪，再启动或重建前端，使 nginx 重新解析地址。Gateway 容器地址变动后也须刷新前端。最后从真实前端入口请求 `/api/access/auth/captcha` 并验证 HTTP/信封，再正常登录；静态首页和管理端健康不能替代该检查。[T-ACCESS-134](../archive/2026-10-18/tasks/evidence/candidate-deployment/T-ACCESS-134/verification.md)保留失败响应、顺序修正及重验结果；本次未改变 nginx 的解析机制。
 
 ## 2. 密钥与敏感配置（强制）
 
@@ -156,7 +156,7 @@ docker compose exec -T postgresql rm "$tmp_restore"
 
 ### 8.3 同版本独立恢复的实测边界
 
-T-ACCESS-134 已使用固定候选应用，在停止全部应用写入后成套备份 PostgreSQL 与文件卷，并恢复到另一套独立 PG/Redis/Nacos/文件卷及网络。恢复端显式配置 `SPRING_DATASOURCE_URL=jdbc:postgresql://postgresql:5432/access_restore`；除配置核对，还用 `pg_stat_activity` 将 JDBC 会话的库名、客户端地址与恢复应用容器对应，防止误连源库。完整命令、备份摘要与耗时见[验收记录](../tasks/evidence/candidate-deployment/T-ACCESS-134/verification.md)。
+T-ACCESS-134 已使用固定候选应用，在停止全部应用写入后成套备份 PostgreSQL 与文件卷，并恢复到另一套独立 PG/Redis/Nacos/文件卷及网络。恢复端显式配置 `SPRING_DATASOURCE_URL=jdbc:postgresql://postgresql:5432/access_restore`；除配置核对，还用 `pg_stat_activity` 将 JDBC 会话的库名、客户端地址与恢复应用容器对应，防止误连源库。完整命令、备份摘要与耗时见[验收记录](../archive/2026-10-18/tasks/evidence/candidate-deployment/T-ACCESS-134/verification.md)。
 
 复用仓库 Compose 创建恢复 PostgreSQL 时，须移除空库自动执行 schema 的 initdb 挂载，先创建专用空恢复库，再用 `pg_restore --exit-on-error --single-transaction --no-owner` 恢复完整 dump；不在已灌 schema 的库上叠加全库恢复，也不自动删除同名库。应用启动前比较备份与恢复端全部表数据及序列，文件目录核对哈希；启动后以新登录重验允许、拒绝及文件下载。数据库备份、文件、匹配镜像版本和密钥配置须一起保管；Windows 本地备份目录本次使用当前用户/SYSTEM 专用 ACL，未制作离机副本。
 

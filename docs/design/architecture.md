@@ -111,9 +111,11 @@ last_reviewed: 2026-10-18
 
 正式交付使用服务 fat JAR 与前端镜像；干净检出的前端由受版本管理的 frontend/.env 提供公开构建默认值，不依赖开发者本地忽略文件。敏感部署配置仍放在根 .env 或受保护的外部配置中，不写入 VITE 变量。
 
-同机独立验收必须隔离容器名、宿主端口、网络、所有数据卷及服务发现；现有 Compose 固定名称与文件卷意味着仅更换 project name 不充分。T-ACCESS-131 已验证回环 HTTP、非默认端口的 nginx → Gateway → access-service 正式部署、平台初始化、登录页渲染与平台认证 HTTP 链路，见[候选部署证据](../tasks/evidence/candidate-deployment/verification.md)。该证据不扩展为生产 HTTPS、多代理、租户业务接入或恢复能力已验收。
+同机独立验收必须隔离容器名、宿主端口、网络、所有数据卷及服务发现；现有 Compose 固定名称与文件卷意味着仅更换 project name 不充分。T-ACCESS-131 已验证回环 HTTP、非默认端口的 nginx → Gateway → access-service 正式部署、平台初始化、登录页渲染与平台认证 HTTP 链路，见[候选部署证据](../archive/2026-10-18/tasks/evidence/candidate-deployment/verification.md)。该证据不扩展为生产 HTTPS、多代理、租户业务接入或恢复能力已验收。
 
-同版本重启与恢复范围另由 [T-ACCESS-134](../tasks/evidence/candidate-deployment/T-ACCESS-134/verification.md)验证：相同镜像重启/重建应用后持久化事实保持，停写后成套备份数据库与文件，恢复到独立 PG/Redis/Nacos/文件卷并核对实际 JDBC 目标；正常新登录后允许、拒绝和下载哈希通过。前端须在后端地址稳定后启动以刷新 nginx 上游解析。example 运行期报表为内存数据，不承诺重启持久化；不据此扩展为跨版本升级、生产容量或自动灾备能力。
+同版本重启与恢复范围另由 [T-ACCESS-134](../archive/2026-10-18/tasks/evidence/candidate-deployment/T-ACCESS-134/verification.md)验证：相同镜像重启/重建应用后持久化事实保持，停写后成套备份数据库与文件，恢复到独立 PG/Redis/Nacos/文件卷并核对实际 JDBC 目标；正常新登录后允许、拒绝和下载哈希通过。前端须在后端地址稳定后启动以刷新 nginx 上游解析。example 运行期报表为内存数据，不承诺重启持久化；不据此扩展为跨版本升级、生产容量或自动灾备能力。
+
+T-ACCESS-135 已核对冻结源码、JAR/镜像/前端静态文件与部署配置，完成包含 E2E/heavy 的后端全量回归、前端质量门禁及源/恢复栈最终组合冒烟。[候选验收结论](../archive/2026-10-18/tasks/evidence/candidate-deployment/verification.md)只证明实际本机回环预览和同版本恢复范围，不改变上述生产部署与持久化边界，也不代表已经发布。
 
 ## 2. Gateway 网关服务
 

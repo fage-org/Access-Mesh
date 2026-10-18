@@ -1,5 +1,7 @@
 # 2026-10-18 归档
 
+[候选版本独立部署与首次接入验收](candidate-deployment-acceptance-plan.md)及 T-ACCESS-131～135 已完成，任务与[最终验收证据](tasks/evidence/candidate-deployment/verification.md)同批归档。完整回归、前端门禁与两套栈组合冒烟通过；仅覆盖实际本地预览和同版本恢复。当前规范见[架构](../../design/architecture.md)、[接入指南](../../design/extension-guide.md)与[部署手册](../../ops/deployment.md)。原始位置为 docs/plans/candidate-deployment-acceptance-plan.md、docs/tasks/T-ACCESS-131～135.md 及 docs/tasks/evidence/candidate-deployment/，本目录保留历史证据，源/恢复环境与受限备份继续保留。
+
 [T-ACCESS-130](tasks/T-ACCESS-130.md) 将公共 Redis 事务锁接入工程规范 §9.4、AGENTS、开发与评审入口；仅文档与指引变更，场景、链接及技能镜像检查完成。
 
 [T-ACCESS-129](tasks/T-ACCESS-129.md) 完成公共锁外评及类型身份缓存写入的存量缺陷修复；[评审与验证](tasks/evidence/T-ACCESS-129/verification.md)保留原始 gpt-6.1-sol 报告、同类入口反例及完整回归证据。完整回归3025项全部通过，包含E2E/heavy。

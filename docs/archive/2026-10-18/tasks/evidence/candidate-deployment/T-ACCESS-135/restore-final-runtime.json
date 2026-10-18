@@ -1,0 +1,153 @@
+[
+  {
+    "name": "am-restore-20261018-44e178a-frontend",
+    "id": "be64aa549d0c1825b4b0d529cc998e5fa8fff3e2efac035d64b3043aab533e32",
+    "image": "sha256:e9ecdf6055d3b51b1c669e40affa645cb75e09beabfba3f1213a56f273a0caf2",
+    "status": "running",
+    "health": "healthy",
+    "startedAt": "2026-10-18T12:40:06.220954162Z",
+    "ports": {
+      "80/tcp": [
+        {
+          "HostIp": "127.0.0.1",
+          "HostPort": "18090"
+        }
+      ]
+    },
+    "networks": {
+      "am-restore-20261018-44e178a_default": "172.20.0.8"
+    },
+    "mounts": [],
+    "publicConfig": {}
+  },
+  {
+    "name": "am-restore-20261018-44e178a-example",
+    "id": "eb34b25d8f6b47329363cc3aefc6a7db29513be4f1f11f93e7ffa31f23a06ad0",
+    "image": "sha256:b8303b515f35b20d87ad5d01f653583af2055757d7fd6860a00ace8a5183d6a8",
+    "status": "running",
+    "health": "healthy",
+    "startedAt": "2026-10-18T12:40:04.867339011Z",
+    "ports": {},
+    "networks": {
+      "am-restore-20261018-44e178a_default": "172.20.0.7"
+    },
+    "mounts": [],
+    "publicConfig": {
+      "NACOS_SERVER_ADDR": "nacos:8848"
+    }
+  },
+  {
+    "name": "am-restore-20261018-44e178a-gateway",
+    "id": "8d97d02b9f0fda15f976e8f6f9856848075b76891e691fd25027db8f5c07bf99",
+    "image": "sha256:6e9a60312a3b848ecd0c84be87ae2c51e6294b10833234ec84c43ae81b213f1e",
+    "status": "running",
+    "health": "healthy",
+    "startedAt": "2026-10-18T12:39:48.503548894Z",
+    "ports": {
+      "8080/tcp": [
+        {
+          "HostIp": "127.0.0.1",
+          "HostPort": "18091"
+        }
+      ]
+    },
+    "networks": {
+      "am-restore-20261018-44e178a_default": "172.20.0.6"
+    },
+    "mounts": [],
+    "publicConfig": {
+      "REDIS_HOST": "redis",
+      "NACOS_SERVER_ADDR": "nacos:8848"
+    }
+  },
+  {
+    "name": "am-restore-20261018-44e178a-access",
+    "id": "03db3d368a4fdcb03d00173ff0da94abf0bef52ee64f4f15c9f655bc637db50b",
+    "image": "sha256:0908abe5626e430108f850a2170c8ce1fb334deabd4c0bb2cdc9b99bcaa4c797",
+    "status": "running",
+    "health": "healthy",
+    "startedAt": "2026-10-18T12:39:27.669204584Z",
+    "ports": {},
+    "networks": {
+      "am-restore-20261018-44e178a_default": "172.20.0.5"
+    },
+    "mounts": [
+      {
+        "Type": "volume",
+        "Name": "am-restore-20261018-44e178a_files",
+        "Destination": "/var/lib/accessmesh/files",
+        "RW": true
+      }
+    ],
+    "publicConfig": {
+      "SPRING_DATASOURCE_URL": "jdbc:postgresql://postgresql:5432/access_restore",
+      "DB_HOST": "postgresql",
+      "REDIS_HOST": "redis",
+      "NACOS_SERVER_ADDR": "nacos:8848",
+      "FILE_STORAGE_PATH": "/var/lib/accessmesh/files"
+    }
+  },
+  {
+    "name": "am-restore-20261018-44e178a-pg",
+    "id": "45aa4dab98d5f300ee1910a9113ec5eaccb84532c9b0424d464fc20219b4552a",
+    "image": "sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685",
+    "status": "running",
+    "health": "healthy",
+    "startedAt": "2026-10-18T12:36:39.809939339Z",
+    "ports": {},
+    "networks": {
+      "am-restore-20261018-44e178a_default": "172.20.0.4"
+    },
+    "mounts": [
+      {
+        "Type": "volume",
+        "Name": "am-restore-20261018-44e178a_pgdata",
+        "Destination": "/var/lib/postgresql/data",
+        "RW": true
+      }
+    ],
+    "publicConfig": {}
+  },
+  {
+    "name": "am-restore-20261018-44e178a-redis",
+    "id": "7b66ddf15c9f1286b0294f1f80c55d379951ec5cae5ae41a16f09d660c095306",
+    "image": "sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf",
+    "status": "running",
+    "health": "healthy",
+    "startedAt": "2026-10-18T12:36:39.765223049Z",
+    "ports": {},
+    "networks": {
+      "am-restore-20261018-44e178a_default": "172.20.0.2"
+    },
+    "mounts": [
+      {
+        "Type": "volume",
+        "Name": "am-restore-20261018-44e178a_redisdata",
+        "Destination": "/data",
+        "RW": true
+      }
+    ],
+    "publicConfig": {}
+  },
+  {
+    "name": "am-restore-20261018-44e178a-nacos",
+    "id": "86750a623463f57ee8dcd3c2b9c3c8561bf7b878406fbc92e368df98a7b4730a",
+    "image": "sha256:d70b20546fe59aeb86add0754db1dbc3a3067363e18599329c5163d0d8cd9cd8",
+    "status": "running",
+    "health": "healthy",
+    "startedAt": "2026-10-18T12:36:39.797083293Z",
+    "ports": {},
+    "networks": {
+      "am-restore-20261018-44e178a_default": "172.20.0.3"
+    },
+    "mounts": [
+      {
+        "Type": "volume",
+        "Name": "am-restore-20261018-44e178a_nacosdata",
+        "Destination": "/home/nacos/data",
+        "RW": true
+      }
+    ],
+    "publicConfig": {}
+  }
+]

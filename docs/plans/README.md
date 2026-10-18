@@ -4,9 +4,7 @@
 
 ## 当前计划
 
-| 计划 | 状态 | 直接依赖 |
-|---|---|---|
-| [当前候选版本独立环境部署与首次接入验收](candidate-deployment-acceptance-plan.md) | active | — |
+当前无活跃执行计划；候选部署与接入验收已完成归档。
 
 任务状态以[任务看板](../tasks/README.md)为准；原有暂缓事项保持。
 
@@ -14,6 +12,7 @@
 
 | 文档 | 类型 | 状态 | 说明 |
 |------|------|------|------|
+| [candidate-deployment-acceptance-plan](../archive/2026-10-18/candidate-deployment-acceptance-plan.md) | 当前候选独立部署与首次接入验收 | archived | [最终验收](../archive/2026-10-18/tasks/evidence/candidate-deployment/verification.md)；本地预览与同版本恢复范围 |
 | [standard-capability-completion-plan](../archive/2026-10-18/standard-capability-completion-plan.md) | 顶栏裁剪与标准文件能力补齐 | archived | [验收](../archive/2026-10-18/tasks/evidence/standard-capability/verification.md)，Q-071/Q-078 已收敛 |
 | [login-audit-transaction-plan](../archive/2026-10-18/login-audit-transaction-plan.md) | 登录审计事务边界收敛 | archived | [验收](../archive/2026-10-18/tasks/evidence/T-ACCESS-117/verification.md)，Q-067 已收敛 |
 | [recent-change-review-remediation](../archive/2026-10-18/recent-change-review-remediation.md) | 最近变更核实修复与状态校准 | archived | [核实与验收](../archive/2026-10-18/tasks/evidence/recent-change-review/verification.md) |
