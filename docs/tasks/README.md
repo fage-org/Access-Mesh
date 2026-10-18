@@ -10,7 +10,7 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| access-service 归并（跨服务） | `T-ACCESS` | 122 |
+| access-service 归并（跨服务） | `T-ACCESS` | 129 |
 | permission-center | `T-PERM` | 113 |
 | admin-service | `T-ADMIN` | 036 |
 | gateway | `T-GW` | 015 |
@@ -22,7 +22,7 @@
 
 ## 当前待办入口
 
-[T-ACCESS-121](../archive/2026-10-18/tasks/T-ACCESS-121.md) 已完成本次后端并发排查与方案工作；实施范围见[方案草案](../design/redis-transaction-locks.md)，未修复事项见[待解决问题](../pending-problems.md)。其他原暂缓边界保持。
+[后端并发缺口修复与公共 Redis 事务锁](../archive/2026-10-18/backend-concurrency-hardening.md) 已完成归档。当前只保留原有暂缓事项；问题与任务索引已收敛。
 
 | ID | 标题 | 状态 | 直接依赖 |
 |---|---|---|---|
@@ -31,6 +31,18 @@
 T-PERM-036 继续暂缓，需用户明确解除门禁。历史批次只供追溯，不重新启动。
 
 ## 任务总表
+
+### 后端并发缺口修复与公共 Redis 事务锁
+
+| ID | 标题 | 状态 | 直接依赖 |
+|---|---|---|---|
+| [T-ACCESS-122](../archive/2026-10-18/tasks/T-ACCESS-122.md) | 公共 Redis 事务锁能力提取 | ✅ | T-ACCESS-121 |
+| [T-ACCESS-123](../archive/2026-10-18/tasks/T-ACCESS-123.md) | 请求触达列与有效行更新 | ✅ | T-ACCESS-121 |
+| [T-ACCESS-124](../archive/2026-10-18/tasks/T-ACCESS-124.md) | 类型锁内新鲜读取 | ✅ | T-ACCESS-121 |
+| [T-ACCESS-125](../archive/2026-10-18/tasks/T-ACCESS-125.md) | 岗位成员锁内结构读取 | ✅ | T-ACCESS-121 |
+| [T-ACCESS-126](../archive/2026-10-18/tasks/T-ACCESS-126.md) | 主体生命周期与同步互斥 | ✅ | T-ACCESS-121 |
+| [T-ACCESS-127](../archive/2026-10-18/tasks/T-ACCESS-127.md) | 字典父子生命周期互斥 | ✅ | T-ACCESS-121 |
+| [T-ACCESS-128](../archive/2026-10-18/tasks/T-ACCESS-128.md) | Gateway 清理代际不回退 | ✅ | T-ACCESS-121 |
 
 ### 后端并发专项排查与公共 Redis 锁方案
 

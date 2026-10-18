@@ -380,7 +380,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
     @OperationLog(module = "PERMISSION", action = "CONFLICT_RULE_UPDATE", targetType = "permission_conflict_rule", targetId = "#req.id()", summary = "'update conflict rule ' + #req.id()")
     public ConflictRuleResp updateConflictRule(Long tenantId, ConflictRuleUpdateReq req, Long operatorId) {
         // 先解析后门禁（T-PERM-029 模式：未知键 20020 优先于权限拒绝，零副作用）
-        PermissionConflictRule rule = conflictRuleMapper.selectValidById(req.id(), tenantId);
+        PermissionConflictRule rule = conflictRuleMapper.selectValidByIdForUpdate(req.id(), tenantId);
         if (rule == null) {
             throw new BizException(AccessErrorCode.CONFLICT_RULE_NOT_FOUND.getCode(),
                 "Conflict rule not found: " + req.id());
@@ -452,7 +452,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
             throw e;
         }
 
-        // 极小并发窗口内（本事务外）规则被并发软删时 re-select 可为 null——按 20020 收口而非 NPE 500
+        // 行锁持有至提交；回读数据库规范化后的更新结果。
         PermissionConflictRule updated = conflictRuleMapper.selectValidById(req.id(), tenantId);
         if (updated == null) {
             throw new BizException(AccessErrorCode.CONFLICT_RULE_NOT_FOUND.getCode(),

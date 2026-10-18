@@ -13,7 +13,8 @@
         AND delete_flag = 0 AND tenant_id = #{tenantId}
     </update>
 
-    <select id="selectByTypeKeyAndCode" resultType="cn.ac.fage.accessmesh.access.type.entity.TypeDefinition">
+    <!-- 锁前预查与锁内复查可能使用同一 statement；显式清理会话缓存，保证查询访问数据库。 -->
+    <select id="selectByTypeKeyAndCode" flushCache="true" resultType="cn.ac.fage.accessmesh.access.type.entity.TypeDefinition">
         SELECT * FROM type_definition
         WHERE tenant_id = #{tenantId}
           AND type_key = #{typeKey}
@@ -51,14 +52,22 @@
           AND delete_flag = 0
     </select>
 
-    <select id="selectValidById" resultType="cn.ac.fage.accessmesh.access.type.entity.TypeDefinition">
+    <select id="selectValidById" flushCache="true" resultType="cn.ac.fage.accessmesh.access.type.entity.TypeDefinition">
         SELECT * FROM type_definition
         WHERE id = #{typeDefId}
           AND tenant_id = #{tenantId}
           AND delete_flag = 0
     </select>
 
-    <select id="selectValidByIds" resultType="cn.ac.fage.accessmesh.access.type.entity.TypeDefinition">
+    <select id="selectValidByIdForUpdate" flushCache="true" useCache="false" resultType="cn.ac.fage.accessmesh.access.type.entity.TypeDefinition">
+        SELECT * FROM type_definition
+        WHERE id = #{typeDefId}
+          AND tenant_id = #{tenantId}
+          AND delete_flag = 0
+        FOR UPDATE
+    </select>
+
+    <select id="selectValidByIds" flushCache="true" resultType="cn.ac.fage.accessmesh.access.type.entity.TypeDefinition">
         SELECT * FROM type_definition
         WHERE tenant_id = #{tenantId}
           AND delete_flag = 0

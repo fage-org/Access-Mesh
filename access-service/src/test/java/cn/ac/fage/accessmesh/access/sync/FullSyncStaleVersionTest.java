@@ -93,7 +93,7 @@ class FullSyncStaleVersionTest {
     void setUp() {
         service = new AbstractUserSyncAppServiceImpl(syncMetadataDomainService,
                 typeResolutionService, abstractUserMapper, JsonMapper.builder().configureForJackson2().build(),
-                new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(), syncTypeGuard);
+                new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(), syncTypeGuard, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.class));
         org.mockito.Mockito.lenient().when(syncTypeGuard.validate(org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any())).thenReturn(true);
         AccessRequestContext.bind(RequestContext.service(TENANT_ID, SOURCE_SERVICE));

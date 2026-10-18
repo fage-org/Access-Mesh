@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.infrastructure;
 
+import cn.ac.fage.accessmesh.common.lock.RedisTransactionLocks;
 import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Component;
 
@@ -73,7 +74,7 @@ public class TreeWriteLockSupport {
      * </p>
      */
     public void lockTreeWrites(Long tenantId, TreeLockTarget target) {
-        RedisTransactionLockSupport.acquire(redissonClient, lockKey(tenantId, target), true);
+        RedisTransactionLocks.lock(redissonClient, lockKey(tenantId, target));
     }
 
     /**

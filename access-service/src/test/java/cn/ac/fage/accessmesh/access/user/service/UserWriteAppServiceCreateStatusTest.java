@@ -164,9 +164,11 @@ class UserWriteAppServiceCreateStatusTest {
         // 默认树范围读取（validateOrgInDefaultTree→resolveDefaultTreeOrgIds）必须在 SYS_ORG
         // 树锁之后：否则与并发 setDefault 的归属守卫交错（守卫看不到未提交的新成员关系），
         // 切树放行后新用户只落在旧树——创建成功却不在默认身份目录
-        InOrder inOrder = inOrder(treeWriteLockSupport, orgTreeConfigDomainService);
+        InOrder inOrder = inOrder(treeWriteLockSupport, localProjectionDomainService, orgTreeConfigDomainService);
         inOrder.verify(treeWriteLockSupport)
             .lockTreeWrites(TENANT, TreeWriteLockSupport.TreeLockTarget.SYS_ORG);
+        inOrder.verify(localProjectionDomainService).lockUserWrites(TENANT);
+        inOrder.verify(localProjectionDomainService).createLocalUserSubject(TENANT, "评审测试用户", true);
         inOrder.verify(orgTreeConfigDomainService).resolveDefaultTreeOrgIds(TENANT);
     }
 

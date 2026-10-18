@@ -35,13 +35,13 @@
 | ~~admin 域对前端 API 契约~~ | 已 `status: superseded`（2026-09-13 T-ACCESS-040 并入契约总册；原文件在 services 目录保留原位作历史锚点，锚点对照见总册附录 C） |
 | 前端页面级设计 | [frontend/](frontend/)（UI 设计，随 T-FE 任务产出回写） |
 | 测试证据精简与维护成本优化 | [testing-simplification.md](testing-simplification.md)（adopted；当前处置、验证边界与归档验收） |
+| 公共 Redis 事务锁与后端并发 | [redis-transaction-locks.md](redis-transaction-locks.md)（adopted；当前实现与接入边界） |
 | PostgreSQL 表结构     | [schema/access-service.sql](schema/access-service.sql)（唯一权威 DDL）；[schema/example-service.sql](schema/example-service.sql)（演示库） |
 
 ## 待实施方案
 
 | 文档 | 状态 | 关联计划 |
 |---|---|---|
-| [公共 Redis 事务锁与后端并发接入](redis-transaction-locks.md) | draft；排查产物，尚未实施 | — |
 | [IAM核心正确性与用户任务闭环](iam-task-closure.md) | draft；非现役契约，取舍随任务启动确定 | [执行计划](../archive/2026-09-24/iam-task-closure-plan.md) |
 
 [历史简化评估](../archive/2026-09-20/auto-grant-assessment.md)仅作追溯，当前实施依据为上方已采纳的自动授权设计。

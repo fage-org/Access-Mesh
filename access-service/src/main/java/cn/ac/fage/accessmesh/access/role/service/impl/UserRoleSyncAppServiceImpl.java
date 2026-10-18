@@ -118,6 +118,7 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
             return SyncResultBuilder.nonRetryable("INVALID_OPERATION");
         }
         treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE);
+        subjectDomainService.lockUserWrites(tenantId);
         return applySingleSync(tenantId, req);
     }
 
@@ -182,6 +183,7 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
 
         // 在批量读取前串行化同步写入，锁延续到事务完成，避免旧预加载事实覆盖新版本。
         treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE);
+        subjectDomainService.lockUserWrites(tenantId);
 
         // ---- 阶段 B：批量解析 subject/role/relation IDs ----
         // subjectTypeCode -> (externalId -> userId)

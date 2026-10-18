@@ -62,6 +62,10 @@ class TypeDefinitionAppServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        // 新鲜行锁读取复用此单测的实体夹具；真实事务互斥由 PgIT 验证。
+        org.mockito.Mockito.lenient().when(typeDefinitionMapper.selectValidByIdForUpdate(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+            .thenAnswer(call -> typeDefinitionMapper.selectValidById(call.getArgument(0), call.getArgument(1)));
+
         // T-PERM-052：真实守卫实例（mapper mock）——声明校验与变更守卫在 AppService 路径真实执行
         cn.ac.fage.accessmesh.access.type.service.domain.ResourceTypeOwnershipGuard ownershipGuard =
             new cn.ac.fage.accessmesh.access.type.service.domain.ResourceTypeOwnershipGuard(

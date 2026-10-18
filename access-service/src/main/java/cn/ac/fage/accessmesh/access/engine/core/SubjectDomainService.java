@@ -18,6 +18,9 @@ import java.util.Set;
  */
 public interface SubjectDomainService {
 
+    /** 写事务内先锁后读；组织/角色树锁先取，本锁须先于 RESOURCE_ENTITY 锁，保护主体生命周期与同步预载。 */
+    void lockUserWrites(Long tenantId);
+
     /** 写守卫使用的角色身份新鲜读，不经权限结果缓存。 */
     AbstractRole findRoleByIdentity(Long tenantId, Integer roleType, String externalId);
 

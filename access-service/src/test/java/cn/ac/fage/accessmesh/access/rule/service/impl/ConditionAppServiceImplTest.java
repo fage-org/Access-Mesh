@@ -99,6 +99,10 @@ class ConditionAppServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        // 新鲜行锁读取复用此单测的实体夹具；真实事务互斥由 PgIT 验证。
+        org.mockito.Mockito.lenient().when(conditionMapper.selectValidByCodeForUpdate(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+            .thenAnswer(call -> conditionMapper.selectValidByCode(call.getArgument(0), call.getArgument(1)));
+
         // 真实 PermissionConditionDomainServiceImpl（条件规则写入口径校验双轨共享，T-PERM-048 收敛）——
         // 保留 T-PERM-017 C2.5 白名单/JSON 校验回归锁为真实行为（mock 会令校验用例空转）
         PermissionConditionDomainService conditionDomainService =

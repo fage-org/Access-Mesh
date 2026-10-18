@@ -104,12 +104,16 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
             throw new BizException(AccessErrorCode.DOMAIN_NOT_FOUND.getCode(), "Unknown domainCode: " + req.domainCode());
         }
         Long bizDomainId = domain.getId();
-        DomainConfig existing = domainConfigMapper.selectValidByTypeString(tenantId, bizDomainId, req.configType());
+        DomainConfig existing = domainConfigMapper.selectValidByTypeStringForUpdate(tenantId, bizDomainId, req.configType());
 
         if (existing != null) {
             existing.setExtra(req.extra());
             existing.setUpdatedAt(LocalDateTime.now());
-            domainConfigMapper.update(existing);
+            DomainConfig patch = com.mybatisflex.core.util.UpdateEntity.of(DomainConfig.class);
+            patch.setId(existing.getId());
+            if (req.extra() != null) patch.setExtra(existing.getExtra());
+            patch.setUpdatedAt(existing.getUpdatedAt());
+            domainConfigMapper.update(patch);
             return toDomainConfigResp(existing);
         } else {
             DomainConfig config = new DomainConfig();

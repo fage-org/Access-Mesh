@@ -14,6 +14,10 @@ import java.util.Set;
  */
 public interface LocalProjectionDomainService {
 
+    /** 在主体/成员事实首次读取前取得共享生命周期事务锁。 */
+    void lockUserWrites(Long tenantId);
+
+
     /**
      * 创建本地用户主体链（T-ORG-001，architecture §12.2）：预取主体 ID N 后显式写
      * abstract_user(id=N, external_id=N, LOCAL_USER) + resource_entity(USER, code=N)。

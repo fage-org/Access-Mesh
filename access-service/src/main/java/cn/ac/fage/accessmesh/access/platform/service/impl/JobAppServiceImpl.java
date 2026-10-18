@@ -256,7 +256,7 @@ public class JobAppServiceImpl implements JobAppService {
         // 权限检查 — 实例级 UPDATE。先门禁后存在（T-ACCESS-054 双轨评审处置，T-ADMIN-029
         // 公告族同型先例）：先查存在会让无权限用户凭 JOB_NOT_FOUND 与 403 的差异探测 id 存在性
         permissionValidator.checkInstanceLevel(ResourceTypeCode.ADMIN_JOB, req.id().toString(), OperationCode.UPDATE);
-        SysJob existing = jobMapper.selectValidById(tenantId, req.id());
+        SysJob existing = jobMapper.selectValidByIdForUpdate(tenantId, req.id());
         if (existing == null) {
             throw new BizException(AccessErrorCode.JOB_NOT_FOUND.getCode(), AccessErrorCode.JOB_NOT_FOUND.getMessage());
         }
@@ -280,7 +280,17 @@ public class JobAppServiceImpl implements JobAppService {
         if (req.status() != null) existing.setStatus(req.status());
         if (req.remark() != null) existing.setRemark(req.remark());
         existing.setUpdatedAt(LocalDateTime.now());
-        jobMapper.update(existing);
+        SysJob patch = com.mybatisflex.core.util.UpdateEntity.of(SysJob.class);
+        patch.setId(existing.getId());
+        if (req.jobName() != null) patch.setJobName(existing.getJobName());
+        if (req.jobGroup() != null) patch.setJobGroup(existing.getJobGroup());
+        if (req.invokeTarget() != null) patch.setInvokeTarget(existing.getInvokeTarget());
+        if (req.cronExpression() != null) patch.setCronExpression(existing.getCronExpression());
+        if (req.misfirePolicy() != null) patch.setMisfirePolicy(existing.getMisfirePolicy());
+        if (req.status() != null) patch.setStatus(existing.getStatus());
+        if (req.remark() != null) patch.setRemark(existing.getRemark());
+        patch.setUpdatedAt(existing.getUpdatedAt());
+        jobMapper.update(patch);
 
         if (existing.getStatus() == JOB_STATUS_ENABLED) {
             scheduleJob(existing);
@@ -341,7 +351,7 @@ public class JobAppServiceImpl implements JobAppService {
         // 权限检查 — 实例级 ENABLE（启用/禁用共用，toggle 语义，v1.4 合并）。
         // 先门禁后存在（T-ACCESS-054 双轨评审处置，同 updateJob/triggerJob 形态）
         permissionValidator.checkInstanceLevel(ResourceTypeCode.ADMIN_JOB, id.toString(), OperationCode.ENABLE);
-        SysJob job = jobMapper.selectValidById(tenantId, id);
+        SysJob job = jobMapper.selectValidByIdForUpdate(tenantId, id);
         if (job == null) {
             throw new BizException(AccessErrorCode.JOB_NOT_FOUND.getCode(), AccessErrorCode.JOB_NOT_FOUND.getMessage());
         }
@@ -349,7 +359,11 @@ public class JobAppServiceImpl implements JobAppService {
         requireTenantManaged(job.getInvokeTarget());
         job.setStatus(status);
         job.setUpdatedAt(LocalDateTime.now());
-        jobMapper.update(job);
+        SysJob patch = com.mybatisflex.core.util.UpdateEntity.of(SysJob.class);
+        patch.setId(job.getId());
+        patch.setStatus(status);
+        patch.setUpdatedAt(job.getUpdatedAt());
+        jobMapper.update(patch);
         if (status == JOB_STATUS_ENABLED) {
             scheduleJob(job);
         } else {

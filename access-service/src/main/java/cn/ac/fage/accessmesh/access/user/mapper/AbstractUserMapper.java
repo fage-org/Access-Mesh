@@ -21,6 +21,9 @@ import java.util.Set;
  */
 public interface AbstractUserMapper extends BaseMapper<AbstractUser> {
 
+    /** 主体生命周期与成员写共用的租户事务锁，沿用原连续性守卫键。 */
+    String lockUserWrites(@Param("tenantId") Long tenantId);
+
     /**
      * 显式 id 插入（T-ORG-001 本地主体创建专用）。
      * <p>

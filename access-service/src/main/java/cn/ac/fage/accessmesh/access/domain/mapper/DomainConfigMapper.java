@@ -41,6 +41,11 @@ public interface DomainConfigMapper extends BaseMapper<DomainConfig> {
                                           @Param("bizDomainId") Long bizDomainId,
                                           @Param("configType") String configType);
 
+    /** 写事务内新鲜行锁读取，保护读取至更新/删除完成。 */
+    DomainConfig selectValidByTypeStringForUpdate(@Param("tenantId") Long tenantId,
+                                          @Param("bizDomainId") Long bizDomainId,
+                                          @Param("configType") String configType);
+
     /**
      * 根据租户ID查询所有有效域配置列表
      *

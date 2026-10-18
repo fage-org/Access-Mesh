@@ -227,12 +227,17 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
             throw new SecurityException("No permission to update biz domain");
         }
 
-        BizDomain domain = bizDomainMapper.selectByCode(tenantId, req.domainCode());
+        BizDomain domain = bizDomainMapper.selectByCodeForUpdate(tenantId, req.domainCode());
         if (domain == null) throw new BizException(AccessErrorCode.DOMAIN_NOT_FOUND.getCode(), "BizDomain not found: " + req.domainCode());
         if (req.name() != null) domain.setName(req.name());
         if (req.description() != null) domain.setDescription(req.description());
         domain.setUpdatedAt(LocalDateTime.now());
-        bizDomainMapper.update(domain);
+        BizDomain patch = com.mybatisflex.core.util.UpdateEntity.of(BizDomain.class);
+        patch.setId(domain.getId());
+        if (req.name() != null) patch.setName(domain.getName());
+        if (req.description() != null) patch.setDescription(domain.getDescription());
+        patch.setUpdatedAt(domain.getUpdatedAt());
+        bizDomainMapper.update(patch);
         return toBizDomainResp(domain);
     }
 

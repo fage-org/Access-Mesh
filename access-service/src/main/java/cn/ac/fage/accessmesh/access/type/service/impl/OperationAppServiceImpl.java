@@ -130,28 +130,14 @@ public class OperationAppServiceImpl implements OperationAppService {
         }
         requireSingleOperationBit(binaryBit);
 
-        Integer resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
-        if (resourceType == null) {
-            throw new BizException(AccessErrorCode.TYPE_CODE_NOT_FOUND.getCode(), "Unknown resourceTypeCode: " + resourceTypeCode);
-        }
-        // T-PERM-062 评审批次（代码轨 P2-1）：操作创建目标恒属 resource_type 族，与类型生命周期
-        // 写路径（createType/updateType/deleteTypesByIds 均持 RESOURCE_ENTITY 树写锁）共持同锁——
-        // 闭合并发交错：无锁时「追加操作读旧 owner → 所有者变更先提交 → 补种落旧 owner」造成旧
-        // owner 持不可经 apply-grant-plan 移除的种子行、新 owner 缺该操作位；与类型删除交错亦会
-        // 漏级联在途操作行。锁内重读类型行（extra/isSystem 以锁内快照为准）
+        // 类型首次解析在共同资源树锁内完成，避免锁前缓存或旧身份参与创建。
         treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         TypeDefinition typeDef = typeDefinitionMapper.selectByTypeKeyAndCode(tenantId, "resource_type", resourceTypeCode);
-        // claude 外评 P2 附带缺陷：锁前 resolveTypeValue 命中但锁内重读为空=类型在取锁窗口内被并发
-        // 删除（删除入口持同锁，提交早于本事务取锁）——fail-closed 拒绝（20021），不得静默跳过
-        // 种子后把操作行插成「已删类型的永久孤儿」（T-PERM-050 前的旧缺陷形态）
         if (typeDef == null) {
             throw new BizException(AccessErrorCode.TYPE_CODE_NOT_FOUND.getCode(),
                 "Unknown resourceTypeCode: " + resourceTypeCode);
         }
-        // grok 外评 P2：锁内重绑 typeValue——锁前 resolveTypeValue 可走 TYPE_VALUE 缓存/在锁外读，
-        // 「删类型→同码重建（typeValue 全量行 max+1 不复用）」交错下旧值指向已级联清理的死号
-        //（操作行+种子落孤儿、活类型缺该操作死锁复发）；锁内 typeDef 是权威快照
-        resourceType = typeDef.getTypeValue();
+        Integer resourceType = typeDef.getTypeValue();
         OperationPermission op = new OperationPermission();
         op.setTenantId(tenantId);
         op.setResourceType(resourceType);
@@ -221,6 +207,10 @@ public class OperationAppServiceImpl implements OperationAppService {
      */
     private OperationPermission selectOperationByBusinessKey(Long tenantId, OperationKeyReq key) {
         Integer resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", key.resourceTypeCode());
+        return requireOperation(tenantId, key, resourceType);
+    }
+
+    private OperationPermission requireOperation(Long tenantId, OperationKeyReq key, Integer resourceType) {
         if (resourceType == null) {
             throw new BizException(AccessErrorCode.TYPE_CODE_NOT_FOUND.getCode(), "Unknown resourceTypeCode: " + key.resourceTypeCode());
         }
@@ -314,7 +304,10 @@ public class OperationAppServiceImpl implements OperationAppService {
         //（createType/createOperation/updateType/deleteTypesByIds）共持 RESOURCE_ENTITY 树写锁并
         // 锁内重读——位变更迁移种子与所有者迁移/类型删除的两两交错由此闭合
         treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
-        OperationPermission op = selectOperationByBusinessKey(tenantId, new OperationKeyReq(req.resourceTypeCode(), req.code()));
+        TypeDefinition currentType = typeDefinitionMapper.selectByTypeKeyAndCode(
+            tenantId, "resource_type", req.resourceTypeCode());
+        OperationPermission op = requireOperation(tenantId, new OperationKeyReq(req.resourceTypeCode(), req.code()),
+            currentType == null ? null : currentType.getTypeValue());
         Long fromBit = op.getBinaryBit();
         Long fromInheritMask = op.getInheritMask();
         // T-PERM-072 操作生命周期守卫（设计 §7）：位变更存在有效 MANUAL/AUTO_DEP/BOOTSTRAP_SEED 引用时拒绝（写库前零副作用）；
@@ -335,9 +328,7 @@ public class OperationAppServiceImpl implements OperationAppService {
         operationPermissionMapper.update(op);
         // 操作位变更联动迁移（grok 外评存量升级定案）：不迁则旧位成指向无定义位的永久死行
         //（20061 不可改删）、新位零种子令该操作回到无人能首授的死锁；is_system 类型无种子不联动
-        TypeDefinition typeDef = bitChanged
-            ? typeDefinitionMapper.selectByTypeKeyAndCode(tenantId, "resource_type", req.resourceTypeCode())
-            : null;
+        TypeDefinition typeDef = bitChanged ? currentType : null;
         if (bitChanged && typeDef != null && !Boolean.TRUE.equals(typeDef.getIsSystem())) {
             Long ownerRoleId = grantOriginDomainService.resolveOwnerRoleId(tenantId, typeDef.getExtra());
             Set<Long> affected = grantOriginDomainService.migrateOperationAuthorityRootGrants(

@@ -27,6 +27,9 @@ public interface SysNoticeMapper extends BaseMapper<SysNotice> {
      */
     SysNotice selectByIdSafe(@Param("tenantId") Long tenantId, @Param("id") Long id);
 
+    /** 事务内有效公告行锁读取。 */
+    SysNotice selectByIdForUpdate(@Param("tenantId") Long tenantId, @Param("id") Long id);
+
     /**
      * 批量查询未删除的通知（租户隔离）
      *

@@ -180,7 +180,7 @@ docs/
 
 ## 归档记录
 
-最近完成：[T-ACCESS-121 后端并发排查与公共锁方案](archive/2026-10-18/tasks/T-ACCESS-121.md)；[方案草案](design/redis-transaction-locks.md)与[未修复问题](pending-problems.md)已登记。此前 [T-ACCESS-120](archive/2026-10-18/tasks/T-ACCESS-120.md) 的锁中断修复及完整验收保持。
+最近完成：[后端并发加固与公共 Redis 事务锁](archive/2026-10-18/backend-concurrency-hardening.md)，[完整验收](archive/2026-10-18/tasks/evidence/backend-concurrency/verification.md)3018项全部通过；原始排查保留于[T-ACCESS-121](archive/2026-10-18/tasks/T-ACCESS-121.md)。
 
 | 归档批次              | 说明                                                                                                   | 入口                                                         |
 | --------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |

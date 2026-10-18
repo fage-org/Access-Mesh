@@ -53,6 +53,10 @@ public interface PermissionConflictRuleMapper extends BaseMapper<PermissionConfl
     PermissionConflictRule selectValidById(@Param("ruleId") Long ruleId,
                                             @Param("tenantId") Long tenantId);
 
+    /** 写事务内新鲜行锁读取，保护读取至更新/删除完成。 */
+    PermissionConflictRule selectValidByIdForUpdate(@Param("ruleId") Long ruleId,
+                                            @Param("tenantId") Long tenantId);
+
     /**
      * 根据租户ID查询所有有效冲突规则列表
      *

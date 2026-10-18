@@ -82,7 +82,6 @@ class OperationAppServiceImplTest {
     void should_preserveBitAndNegativeMask_whenCreatingValidOperation(long bit) {
         when(engine.hasPermissionByCode(1L, 100L, ResourceTypeCode.OPERATION, null, OperationCode.CREATE))
             .thenReturn(true);
-        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "USER")).thenReturn(7);
         when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "USER"))
             .thenReturn(customType(7, true));
         OperationPermissionResp result = service.createOperation(1L, "USER", "EXPORT", "导出", bit, -1L, 100L);
@@ -94,7 +93,7 @@ class OperationAppServiceImplTest {
     void should_preserveBit_whenUpdateOmitsBitAndChangesNegativeMask() {
         when(engine.hasPermissionByCode(1L, 100L, ResourceTypeCode.OPERATION, null, OperationCode.MANAGE))
             .thenReturn(true);
-        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "USER")).thenReturn(7);
+        when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "USER")).thenReturn(customType(7, true));
         OperationPermission existing = op(7, "EXPORT");
         existing.setBinaryBit(1L << 62);
         when(operationPermissionMapper.selectByResourceTypeAndCode(1L, 7, "EXPORT")).thenReturn(existing);
@@ -270,9 +269,11 @@ class OperationAppServiceImplTest {
     void shouldUpdateOperationByBusinessKey() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
             isNull(), eq(OperationCode.MANAGE))).thenReturn(true);
-        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "ROLE")).thenReturn(5);
+        org.mockito.Mockito.lenient().when(typeResolutionService.resolveTypeValue(1L, "resource_type", "ROLE")).thenReturn(4);
+        org.mockito.Mockito.lenient().when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "ROLE"))
+            .thenReturn(customType(5, true));
         OperationPermission entity = op(5, "MANAGE");
-        when(operationPermissionMapper.selectByResourceTypeAndCode(1L, 5, "MANAGE")).thenReturn(entity);
+        org.mockito.Mockito.lenient().when(operationPermissionMapper.selectByResourceTypeAndCode(1L, 5, "MANAGE")).thenReturn(entity);
 
         cn.ac.fage.accessmesh.access.type.dto.resp.OperationPermissionResp resp = service.updateOperation(1L,
             new cn.ac.fage.accessmesh.access.type.dto.req.OperationUpdateReq("ROLE", "MANAGE", "管理", 16L, 2L), 100L);
@@ -280,6 +281,7 @@ class OperationAppServiceImplTest {
         assertEquals("管理", resp.name());
         assertEquals(16L, resp.binaryBit());
         assertEquals(2L, resp.inheritMask());
+        verify(typeResolutionService, never()).resolveTypeValue(1L, "resource_type", "ROLE");
         verify(operationPermissionMapper).update(entity);
         // T-PERM-047 回归锁：旧实现（写路径无失效，靠 L1 60m/L2 120m TTL 兜底）下 verify 失败——
         // 位值变更后引擎最长 1-2 小时按旧位值判定
@@ -356,7 +358,6 @@ class OperationAppServiceImplTest {
     void shouldEvictOperationCacheAfterCreate() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
             isNull(), eq(OperationCode.CREATE))).thenReturn(true);
-        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "USER")).thenReturn(7);
         // T-PERM-062 后 createOperation 锁内重读类型行（is_system 系统类型不补种，只验证缓存失效接线）
         when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "USER"))
             .thenReturn(customType(7, true));
@@ -377,7 +378,6 @@ class OperationAppServiceImplTest {
     void shouldSeedAuthorityRootWhenAppendingOperationToCustomType() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
             isNull(), eq(OperationCode.CREATE))).thenReturn(true);
-        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "ORDER")).thenReturn(12);
         when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "ORDER"))
             .thenReturn(customType(12, false));
         when(grantOriginDomainService.resolveOwnerRoleId(eq(1L), any())).thenReturn(55L);
@@ -398,7 +398,6 @@ class OperationAppServiceImplTest {
     void shouldSkipSeedWhenAppendingOperationToSystemType() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
             isNull(), eq(OperationCode.CREATE))).thenReturn(true);
-        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "SERVICE")).thenReturn(4);
         when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "SERVICE"))
             .thenReturn(customType(4, true));
 
@@ -413,7 +412,6 @@ class OperationAppServiceImplTest {
     void shouldRollbackWhenOwnerUnresolvableOnOperationCreate() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
             isNull(), eq(OperationCode.CREATE))).thenReturn(true);
-        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "ORDER")).thenReturn(12);
         when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "ORDER"))
             .thenReturn(customType(12, false));
         when(grantOriginDomainService.resolveOwnerRoleId(eq(1L), any()))
@@ -430,7 +428,6 @@ class OperationAppServiceImplTest {
     void shouldFailClosedWhenTypeDeletedBeforeLockAcquired() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
             isNull(), eq(OperationCode.CREATE))).thenReturn(true);
-        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "ORDER")).thenReturn(12);
         when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "ORDER"))
             .thenReturn(null);
 
@@ -441,12 +438,10 @@ class OperationAppServiceImplTest {
     }
 
     @Test
-    @DisplayName("锁前解析值与锁内重读不一致（删类型→同码重建，typeValue 不复用）→ 写入必须落锁内值（grok 外评 P2）")
-    void shouldRebindValueFromInLockRereadWhenTypeRebuilt() {
-        // 旧实现用锁前 resourceType=12 落库（孤儿操作行+种子）而活类型 15 缺操作——本用例必红
+    @DisplayName("操作创建使用锁内类型身份，不读取缓存类型值")
+    void shouldReadTypeInsideLockWithoutConsultingCachedTypeValue() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
             isNull(), eq(OperationCode.CREATE))).thenReturn(true);
-        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "ORDER")).thenReturn(12);
         when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "ORDER"))
             .thenReturn(customType(15, false));
         when(grantOriginDomainService.resolveOwnerRoleId(eq(1L), any())).thenReturn(55L);
@@ -462,6 +457,12 @@ class OperationAppServiceImplTest {
         verify(cacheService).evictAfterCommit(
             eq(cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE),
             eq(1L), eq("op_perm:15"));
+        verify(typeResolutionService, never()).resolveTypeValue(1L, "resource_type", "ORDER");
+        var order = org.mockito.Mockito.inOrder(treeWriteLockSupport, typeDefinitionMapper);
+        order.verify(treeWriteLockSupport).lockTreeWrites(1L,
+            cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
+        order.verify(typeDefinitionMapper).selectByTypeKeyAndCode(1L, "resource_type", "ORDER");
+
     }
 
     @Test
@@ -475,7 +476,6 @@ class OperationAppServiceImplTest {
         op.setResourceType(12);
         op.setCode("EXPORT");
         op.setBinaryBit(16L);
-        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "ORDER")).thenReturn(12);
         when(operationPermissionMapper.selectByResourceTypeAndCode(1L, 12, "EXPORT")).thenReturn(op);
         when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "ORDER"))
             .thenReturn(customType(12, false));
@@ -500,15 +500,14 @@ class OperationAppServiceImplTest {
         op.setResourceType(12);
         op.setCode("EXPORT");
         op.setBinaryBit(16L);
-        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "ORDER")).thenReturn(12);
+        when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "ORDER"))
+            .thenReturn(customType(12, false), customType(12, true));
         when(operationPermissionMapper.selectByResourceTypeAndCode(1L, 12, "EXPORT")).thenReturn(op);
 
         // 位未变更（仅改名）：不触发
         service.updateOperation(1L, new cn.ac.fage.accessmesh.access.type.dto.req.OperationUpdateReq(
             "ORDER", "EXPORT", "改名", null, null), 100L);
         // 系统预置类型改位：无种子不联动
-        when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "ORDER"))
-            .thenReturn(customType(12, true));
         service.updateOperation(1L, new cn.ac.fage.accessmesh.access.type.dto.req.OperationUpdateReq(
             "ORDER", "EXPORT", null, 32L, null), 100L);
 
@@ -566,7 +565,6 @@ class OperationAppServiceImplTest {
     void shouldNormalizeOmittedInheritMaskToZeroOnCreate() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
             isNull(), eq(OperationCode.CREATE))).thenReturn(true);
-        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "ORDER")).thenReturn(12);
         when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "ORDER"))
             .thenReturn(customType(12, false));
         when(grantOriginDomainService.resolveOwnerRoleId(eq(1L), any())).thenReturn(55L);

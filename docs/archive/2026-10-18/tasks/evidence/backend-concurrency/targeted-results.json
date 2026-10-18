@@ -1,0 +1,103 @@
+{
+  "date": "2026-10-18",
+  "logResults": [
+    {
+      "log": ".tmp/concurrency-sol-20261018/common-install.log",
+      "sha256": "370538c41e4622ab438f5add491989018a08a39385bfeca4c6fc8d0ded1f12e7",
+      "executionSummaries": []
+    },
+    {
+      "log": ".tmp/concurrency-sol-20261018/gateway-red.log",
+      "sha256": "868313f3f72df7b8e9337815d9be03c42708267b9047df785944328096cf0a94",
+      "executionSummaries": [
+        "[ERROR] Tests run: 7, Failures: 2, Errors: 0, Skipped: 0"
+      ]
+    },
+    {
+      "log": ".tmp/concurrency-sol-20261018/gateway-green.log",
+      "sha256": "5a0ff15ee0c5bcfd71ffbbcc876dcb3329b8a40f86188ba7e8daa2625c789637",
+      "executionSummaries": [
+        "[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0"
+      ]
+    },
+    {
+      "log": ".tmp/concurrency-sol-20261018/locked-read-red.log",
+      "sha256": "8298ce814b2e681f256edd8389c8b8388c350d348169486101c6e47e0b2644af",
+      "executionSummaries": [
+        "[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0",
+        "[ERROR] Tests run: 5, Failures: 5, Errors: 0, Skipped: 0"
+      ]
+    },
+    {
+      "log": ".tmp/concurrency-sol-20261018/locked-read-green.log",
+      "sha256": "2ae641bee63c622bc828da394e4a44ac74570cf6fd7541536c3569fb43b78ce9",
+      "executionSummaries": [
+        "[INFO] Tests run: 13, Failures: 0, Errors: 0, Skipped: 0",
+        "[INFO] Tests run: 14, Failures: 0, Errors: 0, Skipped: 0"
+      ]
+    },
+    {
+      "log": ".tmp/concurrency-sol-20261018/stale-write-red.log",
+      "sha256": "1d4b35cad052b307e0a6f33ac19e3feb0555224a5794e7d68c9c3cf48cb5e648",
+      "executionSummaries": [
+        "[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0",
+        "[ERROR] Tests run: 2, Failures: 2, Errors: 0, Skipped: 0"
+      ]
+    },
+    {
+      "log": ".tmp/concurrency-sol-20261018/stale-write-green.log",
+      "sha256": "e72b5b2c7af5cadc6e125a12e7c8fcd0109b73e2a057870f511ca79cd6a59f77",
+      "executionSummaries": [
+        "[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0",
+        "[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0"
+      ]
+    },
+    {
+      "log": ".tmp/concurrency-sol-20261018/lifecycle-initial.log",
+      "sha256": "65d8bd9202b99efa135500119547a395ee52b05ec311a35c08697748492b5301",
+      "executionSummaries": [
+        "[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0",
+        "[ERROR] Tests run: 4, Failures: 4, Errors: 0, Skipped: 0"
+      ]
+    },
+    {
+      "log": ".tmp/concurrency-sol-20261018/dictionary-red.log",
+      "sha256": "303a49a5cea10616498b50d0e2c46547ba6edc40e156bb99f10f794f90a4465f",
+      "executionSummaries": [
+        "[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0",
+        "[ERROR] Tests run: 3, Failures: 2, Errors: 1, Skipped: 0"
+      ]
+    },
+    {
+      "log": ".tmp/concurrency-sol-20261018/lifecycle-green.log",
+      "sha256": "9fcaf7b679118f3036778e58b90ce6b54a8ac77e6789fe666493b2e887645236",
+      "executionSummaries": [
+        "[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0",
+        "[INFO] Tests run: 16, Failures: 0, Errors: 0, Skipped: 0"
+      ]
+    },
+    {
+      "log": ".tmp/concurrency-sol-20261018/access-unit.log",
+      "sha256": "c20e3d3619dbfbac7f9ffa4b0aa06d153b70c0a6f2964e8413dc7d1783d8c012",
+      "executionSummaries": [
+        "[ERROR] Tests run: 1982, Failures: 2, Errors: 10, Skipped: 0"
+      ]
+    },
+    {
+      "log": ".tmp/concurrency-sol-20261018/operation-write-cache-red.log",
+      "sha256": "742d2dbe5394e231e16dd799dcc34029433abe0c10babea181f2d71584d89529",
+      "executionSummaries": [
+        "[ERROR] Tests run: 1, Failures: 0, Errors: 1, Skipped: 0"
+      ]
+    },
+    {
+      "log": ".tmp/concurrency-sol-20261018/compatibility-green.log",
+      "sha256": "a4f70e284548f626ec174775d6b9fc5c7beedca1514a90d54ce98126f6c85f55",
+      "executionSummaries": [
+        "[INFO] Tests run: 83, Failures: 0, Errors: 0, Skipped: 0",
+        "[INFO] Tests run: 36, Failures: 0, Errors: 0, Skipped: 0"
+      ]
+    }
+  ],
+  "note": "expected red failures are proof, not passed tests; initial fixture failures described in verification.md"
+}

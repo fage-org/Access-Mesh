@@ -76,6 +76,10 @@ public interface TypeDefinitionMapper extends BaseMapper<TypeDefinition> {
     TypeDefinition selectValidById(@Param("tenantId") Long tenantId,
                                    @Param("typeDefId") Long typeDefId);
 
+    /** 写事务内新鲜行锁读取，保护读取至更新/删除完成。 */
+    TypeDefinition selectValidByIdForUpdate(@Param("tenantId") Long tenantId,
+                                   @Param("typeDefId") Long typeDefId);
+
     /**
      * 批量软删除类型定义
      * <p>

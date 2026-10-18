@@ -51,6 +51,10 @@ class BizDomainAppServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        // 新鲜行锁读取复用此单测的实体夹具；真实事务互斥由 PgIT 验证。
+        org.mockito.Mockito.lenient().when(bizDomainMapper.selectByCodeForUpdate(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+            .thenAnswer(call -> bizDomainMapper.selectByCode(call.getArgument(0), call.getArgument(1)));
+
         service = new BizDomainAppServiceImpl(bizDomainMapper, domainConfigMapper, engine);
     }
 
@@ -275,7 +279,7 @@ class BizDomainAppServiceImplTest {
         ArgumentCaptor<BizDomain> captor = ArgumentCaptor.forClass(BizDomain.class);
         verify(bizDomainMapper).update(captor.capture());
         // name=null 不更新；description="" 显式清空
-        assertEquals("旧名", captor.getValue().getName());
+        assertFalse(com.mybatisflex.core.update.UpdateWrapper.of(captor.getValue()).getUpdates().containsKey("name"));
         assertEquals("", captor.getValue().getDescription());
         assertEquals("旧名", result.name());
     }

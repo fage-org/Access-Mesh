@@ -59,6 +59,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
     private final PermissionConditionMapper permissionConditionMapper;
     private final UserRoleProjectionWriter userRoleProjectionWriter;
     private final BatchAdminUserProjectionWriter batchAdminUserProjectionWriter;
+    private final SubjectDomainService subjects;
 
     public LocalProjectionDomainServiceImpl(TypeResolutionService typeResolutionService,
                                             AbstractUserMapper abstractUserMapper,
@@ -70,6 +71,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
                                             SubjectDomainService subjectDomainService,
                                             ResourceEntityDomainService resourceEntityDomainService) {
         this.typeResolutionService = typeResolutionService;
+        this.subjects = subjectDomainService;
         this.abstractUserMapper = abstractUserMapper;
         this.abstractRoleMapper = abstractRoleMapper;
         this.resourceEntityMapper = resourceEntityMapper;
@@ -79,6 +81,11 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
             typeResolutionService, abstractRoleMapper, userRoleMapper);
         this.batchAdminUserProjectionWriter = new BatchAdminUserProjectionWriter(
             typeResolutionService, abstractUserMapper, resourceEntityDomainService, subjectDomainService);
+    }
+
+    @Override
+    public void lockUserWrites(Long tenantId) {
+        subjects.lockUserWrites(tenantId);
     }
 
     @Override

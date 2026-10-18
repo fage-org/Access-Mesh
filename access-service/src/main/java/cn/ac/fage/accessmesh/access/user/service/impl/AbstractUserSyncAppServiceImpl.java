@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.user.service.impl;
 
+import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
+
 import cn.ac.fage.accessmesh.common.exception.SystemException;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLog;
@@ -55,19 +57,22 @@ public class AbstractUserSyncAppServiceImpl implements AbstractUserSyncAppServic
     private final ObjectMapper objectMapper;
     private final LocalProjectionGuard localProjectionGuard;
     private final SyncTypeGuard syncTypeGuard;
+    private final SubjectDomainService subjects;
 
     public AbstractUserSyncAppServiceImpl(SyncMetadataDomainService syncMetadataDomainService,
                                           TypeResolutionService typeResolutionService,
                                           AbstractUserMapper abstractUserMapper,
                                           ObjectMapper objectMapper,
                                           LocalProjectionGuard localProjectionGuard,
-                                          SyncTypeGuard syncTypeGuard) {
+                                          SyncTypeGuard syncTypeGuard,
+                                          SubjectDomainService subjects) {
         this.syncMetadataDomainService = syncMetadataDomainService;
         this.typeResolutionService = typeResolutionService;
         this.abstractUserMapper = abstractUserMapper;
         this.objectMapper = objectMapper;
         this.localProjectionGuard = localProjectionGuard;
         this.syncTypeGuard = syncTypeGuard;
+        this.subjects = subjects;
     }
 
     @Override
@@ -94,6 +99,7 @@ public class AbstractUserSyncAppServiceImpl implements AbstractUserSyncAppServic
         }
 
         // 3. 解析 subjectTypeCode -> userType
+        subjects.lockUserWrites(tenantId);
         Integer userType = typeResolutionService.resolveTypeValue(tenantId, "user_type", req.subjectTypeCode());
         if (userType == null) {
             return SyncResultBuilder.nonRetryable("Unknown subjectTypeCode: " + req.subjectTypeCode());
@@ -171,6 +177,7 @@ public class AbstractUserSyncAppServiceImpl implements AbstractUserSyncAppServic
                     req.items().size(), List.of(denied));
         }
 
+        subjects.lockUserWrites(tenantId);
         Integer userType = typeResolutionService.resolveTypeValue(tenantId, "user_type", req.scope().subjectTypeCode());
         if (userType == null) {
             SyncResultResp.ItemResult denied = new SyncResultResp.ItemResult(
@@ -340,7 +347,13 @@ public class AbstractUserSyncAppServiceImpl implements AbstractUserSyncAppServic
             existing.setExtra(extra);
         }
         existing.setUpdatedAt(now);
-        abstractUserMapper.update(existing);
+        AbstractUser patch = com.mybatisflex.core.util.UpdateEntity.of(AbstractUser.class);
+        patch.setId(existing.getId());
+        if (name != null) patch.setName(existing.getName());
+        if (OP_DISABLE.equals(operation) || enabled != null) patch.setEnabled(existing.getEnabled());
+        if (extra != null) patch.setExtra(existing.getExtra());
+        patch.setUpdatedAt(existing.getUpdatedAt());
+        abstractUserMapper.update(patch);
         return existing.getId();
     }
 

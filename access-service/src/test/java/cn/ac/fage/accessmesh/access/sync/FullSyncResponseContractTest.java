@@ -131,7 +131,7 @@ class FullSyncResponseContractTest {
 
         AbstractUserSyncAppServiceImpl service = new AbstractUserSyncAppServiceImpl(
                 syncMetadataDomainService, typeResolutionService, abstractUserMapper, JsonMapper.builder().configureForJackson2().build(),
-                new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(), syncTypeGuard);
+                new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(), syncTypeGuard, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.class));
         AbstractUserFullSyncReq req = new AbstractUserFullSyncReq(
                 new AbstractUserSyncScope(SOURCE_SERVICE, "USER"),
                 List.of(new AbstractUserSyncItem("u1", "User One", true, null,
@@ -157,7 +157,7 @@ class FullSyncResponseContractTest {
 
         AbstractUserSyncAppServiceImpl service = new AbstractUserSyncAppServiceImpl(
                 syncMetadataDomainService, typeResolutionService, abstractUserMapper, JsonMapper.builder().configureForJackson2().build(),
-                new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(), syncTypeGuard);
+                new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(), syncTypeGuard, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.class));
         AbstractUserFullSyncReq req = new AbstractUserFullSyncReq(
                 new AbstractUserSyncScope(SOURCE_SERVICE, "USER"),
                 List.of(new AbstractUserSyncItem("u1", "User One", true, null,

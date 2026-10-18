@@ -77,103 +77,12 @@ last_updated: 2026-10-18
 
 **设想方向（未定案）**：后续真实功能改动时识别独立职责与复用单元，再决定是否抽取 DomainService；本计划不做大型重构。
 
-<a id="q-083"></a>
-## Q-083 P1：旧实体回写覆盖并发凭据、状态及删除
 
-- **状态**：open（静态核实成立，未实施修复）
-- **登记**：2026-10-18
-- **来源**：[T-ACCESS-121 排查核实](archive/2026-10-18/tasks/evidence/T-ACCESS-121/verification.md#q-083)
-- **关联**：[公共锁方案草案](design/redis-transaction-locks.md)
 
-**现象与证据**：只改 OAuth2 客户端名称的请求读取 H1 后，另一请求已轮换为 H2，前者仍可把 H1 整行写回；旧 delete_flag=0 也可能覆盖软删除。实际 MyBatis-Flex 1.11.8 普通 update 按非空列更新，仓库未为这些实体配置逻辑删除列。 位置：`Oauth2ClientAppServiceImpl.updateClient:141/205；UserManageAppServiceImpl.updateUser:289/338；ConditionAppServiceImpl.updateCondition:181/223；同族 Job、Dict、SystemConfig、DomainConfig、BizDomain、TypeDefinition、AbstractUserSync、ConflictRule 与 Notice 的完整位置见原报告。`
 
-**影响**：旧凭据、停用状态或已删除记录可能恢复；不能把 UPDATE 行锁或使用 UpdateEntity 本身当成保护。
 
-**设想方向（未定案）**：请求触达列、有租户与有效行条件的更新；跨字段校验和投影由领域共同事务守卫承载。
 
-<a id="q-084"></a>
-## Q-084 P1：类型锁后复读命中事务内旧缓存
 
-- **状态**：open（静态核实成立，未实施修复）
-- **登记**：2026-10-18
-- **来源**：[T-ACCESS-121 排查核实](archive/2026-10-18/tasks/evidence/T-ACCESS-121/verification.md#q-084)
-- **关联**：[公共锁方案草案](design/redis-transaction-locks.md)
-
-**现象与证据**：类型改名先读所有者 A；并发事务迁移指针与授权根到 B 后，改名请求取得 Redis 锁仍从 MyBatis SESSION 一级缓存读到 A，回写旧 extra 而不迁移授权根。冷缓存创建操作也可能继续使用已删除类型。 位置：`TypeDefinitionAppServiceImpl.updateType:482/492；OperationAppServiceImpl.createOperation:133/142/143；TypeDefinitionMapper.xml:54；TypeResolutionServiceImpl:92。`
-
-**影响**：所有者声明与授权根分叉，或创建属于已删除类型的操作；与已接受的所有者角色删除 best-effort 窗口不同。
-
-**设想方向（未定案）**：把首次业务解析移入锁内；必要复读使用明确 flushCache=true 的新鲜查询，不仅设置 useCache=false。
-
-<a id="q-085"></a>
-## Q-085 P1：岗位移动与成员撤回使用锁前所属组织
-
-- **状态**：open（静态核实成立，未实施修复）
-- **登记**：2026-10-18
-- **来源**：[T-ACCESS-121 排查核实](archive/2026-10-18/tasks/evidence/T-ACCESS-121/verification.md#q-085)
-- **关联**：[公共锁方案草案](design/redis-transaction-locks.md)
-
-**现象与证据**：移除先读岗位 P 属于 A，随后并发移动将既有关系迁到 B；移除取得 SYS_ORG 锁后按旧 A 解绑，sys_user_org 已删而 user_role(U,P,B) 未删。assign 同样可能写入旧组织上下文。 位置：`UserOrgWriteAppServiceImpl.assignUserToOrgs:77/108/143、removeUserFromOrg:180/189/218；OrgWriteAppServiceImpl.updateOrg:169；UserRoleProjectionWriter 的精确 relation 匹配。`
-
-**影响**：成员移除成功后仍保留岗位权限，或新增错归属投影。
-
-**设想方向（未定案）**：保留 SYS_ORG 锁，读取最新岗位结构后再构造绑定键；保留预查时须保证锁内查询不复用一级缓存。
-
-<a id="q-086"></a>
-## Q-086 P2：主体删除与成员绑定缺少共同生命周期守卫
-
-- **状态**：open（静态核实成立，未实施修复）
-- **登记**：2026-10-18
-- **来源**：[T-ACCESS-121 排查核实](archive/2026-10-18/tasks/evidence/T-ACCESS-121/verification.md#q-086)
-- **关联**：[公共锁方案草案](design/redis-transaction-locks.md)
-
-**现象与证据**：删除使用管理员连续性 PG 锁，组织绑定使用 SYS_ORG 锁。绑定已解析主体但关系未提交时，删除看不到该关系并完成清理；绑定随后提交孤儿关系。 位置：`UserWriteAppServiceImpl.deleteUser:289/304/328/334；UserOrgWriteAppServiceImpl:108/136/150；BatchAdminUserProjectionWriter:68；同族 UserManage 删除/分配、外部主体删除与 UserRoleSync BIND。`
-
-**影响**：已删除主体留下有效 sys_user_org/user_role 事实；无外键和唯一索引不能消除引用生命周期交错。
-
-**设想方向（未定案）**：共享领域协议覆盖所有绑定与删除；原生路径注意 SYS_ORG 在连续性锁之前，外部主体优先评估按 ID 排序行锁。
-
-<a id="q-087"></a>
-## Q-087 P2：主体 FULL 在版本互斥前预载导致新版本失败
-
-- **状态**：open（静态核实成立，未实施修复）
-- **登记**：2026-10-18
-- **来源**：[T-ACCESS-121 排查核实](archive/2026-10-18/tasks/evidence/T-ACCESS-121/verification.md#q-087)
-- **关联**：[公共锁方案草案](design/redis-transaction-locks.md)
-
-**现象与证据**：FULL v2 预载 U 不存在，single v1 创建 U 并提交；v2 在版本 CAS 中胜出后仍按旧预载 INSERT，触发唯一冲突。 位置：`AbstractUserSyncAppServiceImpl.fullSync:196/220/233、applyToTargetWithExisting:315/326；SyncMetadataMapper.xml:116；schema 的 uk_abstract_user。`
-
-**影响**：合法新版本整批技术失败并回滚；版本顺序正确不代表目标应用读取最新事实。
-
-**设想方向（未定案）**：与 Q-086 统一主体写入边界，覆盖 single/FULL/漂移清理；或在版本胜出后基于当前事实应用。
-
-<a id="q-088"></a>
-## Q-088 P2：字典类型删除与字典项写入可产生孤儿
-
-- **状态**：open（静态核实成立，未实施修复）
-- **登记**：2026-10-18
-- **来源**：[T-ACCESS-121 排查核实](archive/2026-10-18/tasks/evidence/T-ACCESS-121/verification.md#q-088)
-- **关联**：[公共锁方案草案](design/redis-transaction-locks.md)
-
-**现象与证据**：删除查无数据、新增查类型有效后分别提交，留下有效字典项指向已删类型；数据按 dict_type 编码关联，重建同码类型后旧数据又会挂入。 位置：`DictAppServiceImpl.deleteDictType:139/150、createDictData:265/280、updateDictData:315/333；SysDictTypeMapper.xml；schema sys_dict_data。`
-
-**影响**：字典数据不可正常访问，重建类型时附着旧数据。
-
-**设想方向（未定案）**：删除、创建和改绑统一锁有效类型行直至提交；批量固定锁序，优先复用现有 PG 领域模式。
-
-<a id="q-089"></a>
-## Q-089 P2：Gateway 清理失效标记使代际回退
-
-- **状态**：open（静态核实成立，未实施修复）
-- **登记**：2026-10-18
-- **来源**：[T-ACCESS-121 排查核实](archive/2026-10-18/tasks/evidence/T-ACCESS-121/verification.md#q-089)
-- **关联**：[公共锁方案草案](design/redis-transaction-locks.md)
-
-**现象与证据**：清理线程先取空 liveKeys；新回源取得 generation=0；已送达失效事件标记 generation=1；清理用旧集合删掉该代际，缺失又解释为0，旧 token 通过并回填。 位置：`InterfaceSnapshotCacheInvalidator.liveKeys/cleanupOrphanedMarkers:202/212；InvalidationMarker.retainLiveKeys/generationOf:91/124；PermissionFilter.loadSnapshot/putSnapshotIfCurrent:380/424。`
-
-**影响**：已经被失效事件作废的快照重新进入缓存，仍受 TTL 限制；此交错不属于广播丢失或跟踪索引过期的接受边界。
-
-**设想方向（未定案）**：在共同同步边界内取实时存活集合并清理，或清理时保守作废旧 token；保持代际不回退，不增加 Redis 锁。
 
 ## 已收敛（含合并索引；详情在关联问题/任务或历史来源）
 
@@ -181,6 +90,13 @@ last_updated: 2026-10-18
 
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
+| <a id="q-083"></a>Q-083 | 旧实体回写覆盖凭据、状态及删除 | 已修复：行锁/主体事务锁与请求触达列更新 | [T-ACCESS-123](archive/2026-10-18/tasks/T-ACCESS-123.md) | 2026-10-18 |
+| <a id="q-084"></a>Q-084 | 类型锁后旧缓存 | 已修复：Mapper新鲜读取与操作写路径数据库身份 | [T-ACCESS-124](archive/2026-10-18/tasks/T-ACCESS-124.md) | 2026-10-18 |
+| <a id="q-085"></a>Q-085 | 岗位成员使用锁前parent | 已修复：SYS_ORG锁内结构读取与投影写入 | [T-ACCESS-125](archive/2026-10-18/tasks/T-ACCESS-125.md) | 2026-10-18 |
+| <a id="q-086"></a>Q-086 | 主体删除与成员绑定孤儿 | 已修复：共享主体生命周期事务锁 | [T-ACCESS-126](archive/2026-10-18/tasks/T-ACCESS-126.md) | 2026-10-18 |
+| <a id="q-087"></a>Q-087 | 主体FULL使用旧预载 | 已修复：预载与版本应用纳入共同锁，保留CAS | [T-ACCESS-126](archive/2026-10-18/tasks/T-ACCESS-126.md) | 2026-10-18 |
+| <a id="q-088"></a>Q-088 | 字典父子生命周期 | 已修复：父行锁覆盖删除/创建/改绑，并补创建默认值 | [T-ACCESS-127](archive/2026-10-18/tasks/T-ACCESS-127.md) | 2026-10-18 |
+| <a id="q-089"></a>Q-089 | Gateway清理代际回退 | 已修复：删除代际同步提升epoch，拒绝旧token复活 | [T-ACCESS-128](archive/2026-10-18/tasks/T-ACCESS-128.md) | 2026-10-18 |
 | <a id="q-056"></a>Q-056 | API 路由复合键碰撞前提 | closed：正常声明入口的资源编码不允许分隔符，嵌套校验已验证；理论工具碰撞不等于可达缺陷，保留离线脏数据边界 | [T-ACCESS-119](archive/2026-10-18/tasks/T-ACCESS-119.md) | 2026-10-18 |
 | <a id="q-070"></a>Q-070 | 记住我死分支 | 已裁剪：删除未使用状态与动作，保留路由会话标记 | [T-ACCESS-119](archive/2026-10-18/tasks/T-ACCESS-119.md) | 2026-10-18 |
 | <a id="q-072"></a>Q-072 | iframe 模板 hash 刷新 | 已修复：查询参数正确设置并保留 hash，不启用模板入口 | [T-ACCESS-119](archive/2026-10-18/tasks/T-ACCESS-119.md) | 2026-10-18 |

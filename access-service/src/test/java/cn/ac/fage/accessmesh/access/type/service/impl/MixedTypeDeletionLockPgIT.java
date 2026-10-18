@@ -57,6 +57,27 @@ class MixedTypeDeletionLockPgIT {
     @Autowired private PlatformTransactionManager transactions;
     @MockitoSpyBean private TreeWriteLockSupport locks;
     @MockitoBean private QueryGate gate;
+    @Autowired private cn.ac.fage.accessmesh.access.type.mapper.TypeDefinitionMapper types;
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints = {0, 1, 2})
+    void lockProtectedTypeReadsMustObserveAnotherCommittedTransaction(int lookup) {
+        String code = "FRESH_TYPE_" + lookup;
+        long id = insertType("resource_type", code, 930 + lookup);
+        new TransactionTemplate(transactions).executeWithoutResult(status -> {
+            java.util.function.Supplier<cn.ac.fage.accessmesh.access.type.entity.TypeDefinition> read =
+                () -> switch (lookup) {
+                    case 0 -> types.selectValidById(1L, id);
+                    case 1 -> types.selectByTypeKeyAndCode(1L, "resource_type", code);
+                    default -> types.selectValidByIds(1L, Set.of(id)).getFirst();
+                };
+            assertThat(read.get().getName()).isEqualTo(code);
+            java.util.concurrent.CompletableFuture.runAsync(() -> jdbc.update(
+                "UPDATE type_definition SET name='committed-new-name' WHERE id=?", id)).join();
+            locks.lockTreeWrites(1L, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
+            assertThat(read.get().getName()).isEqualTo("committed-new-name");
+        });
+    }
 
     @Test
     void shouldAcquireRoleBeforeResource_whenRoleProjectionTransactionIsInFlight() throws Exception {

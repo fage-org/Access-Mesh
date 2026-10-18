@@ -88,6 +88,10 @@ class ConflictRuleAppServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        // 新鲜行锁读取复用此单测的实体夹具；真实事务互斥由 PgIT 验证。
+        org.mockito.Mockito.lenient().when(conflictRuleMapper.selectValidByIdForUpdate(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+            .thenAnswer(call -> conflictRuleMapper.selectValidById(call.getArgument(0), call.getArgument(1)));
+
         service = new ConflictRuleAppServiceImpl(conflictRuleMapper, engine, permissionConflictDomainService,
             subjectDomainService, typeResolutionService);
     }

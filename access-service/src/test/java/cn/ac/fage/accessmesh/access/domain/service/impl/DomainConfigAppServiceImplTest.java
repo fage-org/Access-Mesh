@@ -63,6 +63,10 @@ class DomainConfigAppServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        // 新鲜行锁读取复用此单测的实体夹具；真实事务互斥由 PgIT 验证。
+        org.mockito.Mockito.lenient().when(domainConfigMapper.selectValidByTypeStringForUpdate(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+            .thenAnswer(call -> domainConfigMapper.selectValidByTypeString(call.getArgument(0), call.getArgument(1), call.getArgument(2)));
+
         service = new DomainConfigAppServiceImpl(domainConfigMapper, bizDomainMapper, typeResolutionService, engine);
     }
 

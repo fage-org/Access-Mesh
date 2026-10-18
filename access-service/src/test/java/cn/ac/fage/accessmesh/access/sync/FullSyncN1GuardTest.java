@@ -133,7 +133,7 @@ class FullSyncN1GuardTest {
 
         AbstractUserSyncAppServiceImpl service = new AbstractUserSyncAppServiceImpl(
                 syncMetadataDomainService, typeResolutionService, abstractUserMapper, JsonMapper.builder().configureForJackson2().build(),
-                new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(), syncTypeGuard);
+                new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(), syncTypeGuard, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.class));
 
         List<AbstractUserSyncItem> items = new ArrayList<>(ITEM_COUNT);
         for (int i = 0; i < ITEM_COUNT; i++) {

@@ -178,7 +178,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
     @PermissionChange
     public ConditionResp updateCondition(Long tenantId, ConditionUpdateReq req, Long operatorId) {
         // 业务键 code 定位（T-PERM-029 从内部主键切换；selectValidByCode 已含租户 + delete_flag=0 过滤）
-        PermissionCondition condition = conditionMapper.selectValidByCode(tenantId, req.code());
+        PermissionCondition condition = conditionMapper.selectValidByCodeForUpdate(tenantId, req.code());
         if (condition == null) {
             throw new BizException(AccessErrorCode.CONDITION_NOT_FOUND.getCode(), "Condition not found: " + req.code());
         }
@@ -204,24 +204,19 @@ public class ConditionAppServiceImpl implements ConditionAppService {
             Boolean.TRUE.equals(condition.getGatewayEvaluable()), req.conditionRules() != null);
         condition.setUpdatedBy(operatorId);
         condition.setUpdatedAt(LocalDateTime.now());
-        if (Boolean.TRUE.equals(req.descriptionClear())) {
-            condition.setDescription(null);
-            // 内存实体已同步置空（响应/投影与库一致）；最小列 UpdateEntity：只写请求触达列 +
-            // description 显式 NULL，不回写读取快照的未触达列——防并发窗口覆盖其他调用方
-            // 已提交的字段（§2.7 null 不更新）
-            PermissionCondition patch = UpdateEntity.of(PermissionCondition.class);
-            patch.setId(condition.getId());
-            if (req.name() != null) patch.setName(condition.getName());
-            if (req.conditionRules() != null) patch.setConditionRules(condition.getConditionRules());
-            if (req.enabled() != null) patch.setEnabled(condition.getEnabled());
-            if (req.gatewayEvaluable() != null) patch.setGatewayEvaluable(condition.getGatewayEvaluable());
-            patch.setDescription(null);
-            patch.setUpdatedBy(condition.getUpdatedBy());
-            patch.setUpdatedAt(condition.getUpdatedAt());
-            conditionMapper.update(patch);
-        } else {
-            conditionMapper.update(condition);
+        if (Boolean.TRUE.equals(req.descriptionClear())) condition.setDescription(null);
+        PermissionCondition patch = UpdateEntity.of(PermissionCondition.class);
+        patch.setId(condition.getId());
+        if (req.name() != null) patch.setName(condition.getName());
+        if (req.conditionRules() != null) patch.setConditionRules(condition.getConditionRules());
+        if (req.enabled() != null) patch.setEnabled(condition.getEnabled());
+        if (req.gatewayEvaluable() != null) patch.setGatewayEvaluable(condition.getGatewayEvaluable());
+        if (req.description() != null || Boolean.TRUE.equals(req.descriptionClear())) {
+            patch.setDescription(condition.getDescription());
         }
+        patch.setUpdatedBy(condition.getUpdatedBy());
+        patch.setUpdatedAt(condition.getUpdatedAt());
+        conditionMapper.update(patch);
         // 投影镜像（T-PERM-048）：name/status(enabled) 随事实行同事务同步
         localProjectionDomainService.upsertConditionResource(tenantId, condition.getCode(),
             condition.getName(), Boolean.TRUE.equals(condition.getEnabled()));

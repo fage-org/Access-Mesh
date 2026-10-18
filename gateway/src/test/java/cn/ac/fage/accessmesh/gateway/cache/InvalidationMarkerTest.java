@@ -1,6 +1,8 @@
 package cn.ac.fage.accessmesh.gateway.cache;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -66,5 +68,24 @@ class InvalidationMarkerTest {
         assertThat(marker.contains("live")).isTrue();
         assertThat(marker.contains("orphan-1")).isFalse();
         assertThat(marker.contains("orphan-2")).isFalse();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void cleanupWithAnOldLiveSetMustNotReviveAnInvalidatedLoad(boolean oversized) {
+        Set<String> earlierLiveKeys = Set.of();
+        var token = marker.beginLoad("new-load");
+        marker.mark("new-load");
+        if (oversized) {
+            marker.mark("orphan");
+            marker.cleanupIfOversized(earlierLiveKeys);
+        } else {
+            marker.retainLiveKeys(earlierLiveKeys);
+        }
+
+        AtomicBoolean committed = new AtomicBoolean();
+        assertThat(marker.commitIfCurrent(token, () -> committed.set(true))).isFalse();
+        assertThat(committed).isFalse();
+        assertThat(marker.commitIfCurrent(marker.beginLoad("new-load"), () -> {})).isTrue();
     }
 }

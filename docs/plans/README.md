@@ -105,3 +105,7 @@
 - [ ] `docs/design/README.md` 的权威来源、目录说明和归档批次表已同步刷新。
 - [ ] 稳定结论已沉淀到 `docs/design/`；归档文档不再作为实现依据。
 - [ ] 旧目录若已无文件，已删除空目录或明确保留原因。
+
+## 后端并发加固
+
+[后端并发缺口修复与公共 Redis 事务锁](../archive/2026-10-18/backend-concurrency-hardening.md)已完成归档，任务状态以[任务看板](../tasks/README.md)为准。

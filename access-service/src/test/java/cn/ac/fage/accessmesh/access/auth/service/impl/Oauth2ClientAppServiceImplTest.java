@@ -46,7 +46,7 @@ class Oauth2ClientAppServiceImplTest {
 
         SysOauth2Client existing = existingClient();
         String original = existing.getClientSecret();
-        when(oauth2ClientMapper.selectByIdSafe(TENANT, CLIENT_ROW_ID)).thenReturn(existing);
+        when(oauth2ClientMapper.selectByIdForUpdate(TENANT, CLIENT_ROW_ID)).thenReturn(existing);
         var update = new Oauth2ClientUpdateReq(CLIENT_ROW_ID, secret,
             null, null, null, null, null, null, null, null, null, null, null);
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.updateClient(update))
@@ -72,7 +72,7 @@ class Oauth2ClientAppServiceImplTest {
                 assertThat(validator.validate(update).stream().anyMatch(v -> v.getMessage().contains("72"))).isEqualTo(tooLong);
                 if (!tooLong) {
                     service.createClient(create);
-                    when(oauth2ClientMapper.selectByIdSafe(TENANT, CLIENT_ROW_ID)).thenReturn(existingClient());
+                    when(oauth2ClientMapper.selectByIdForUpdate(TENANT, CLIENT_ROW_ID)).thenReturn(existingClient());
                     service.updateClient(update);
                 }
             }
@@ -102,7 +102,7 @@ class Oauth2ClientAppServiceImplTest {
     @DisplayName("scopesClear 最小列写入：仅 scopes=NULL 与 updatedAt，不回写未触达列")
     void scopesClear_writesOnlyTouchedColumns() {
         SysOauth2Client existing = existingClient();
-        when(oauth2ClientMapper.selectByIdSafe(TENANT, CLIENT_ROW_ID)).thenReturn(existing);
+        when(oauth2ClientMapper.selectByIdForUpdate(TENANT, CLIENT_ROW_ID)).thenReturn(existing);
 
         service.updateClient(new Oauth2ClientUpdateReq(CLIENT_ROW_ID,
             null, null, null, null, null, null, null, null, null,
@@ -119,7 +119,7 @@ class Oauth2ClientAppServiceImplTest {
     @DisplayName("清空与同请求新值并存：触达列=新值列+Clear 列+updatedAt")
     void clearWithNewValues_writesOnlyTouchedColumns() {
         SysOauth2Client existing = existingClient();
-        when(oauth2ClientMapper.selectByIdSafe(TENANT, CLIENT_ROW_ID)).thenReturn(existing);
+        when(oauth2ClientMapper.selectByIdForUpdate(TENANT, CLIENT_ROW_ID)).thenReturn(existing);
 
         service.updateClient(new Oauth2ClientUpdateReq(CLIENT_ROW_ID,
             null, "新名称", null, null, null, null, null, null, null,
@@ -157,7 +157,7 @@ class Oauth2ClientAppServiceImplTest {
         }
         var client = existingClient();
         client.setClientType("PUBLIC");
-        when(oauth2ClientMapper.selectByIdSafe(TENANT, CLIENT_ROW_ID)).thenReturn(client);
+        when(oauth2ClientMapper.selectByIdForUpdate(TENANT, CLIENT_ROW_ID)).thenReturn(client);
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.updateClient(new Oauth2ClientUpdateReq(
             CLIENT_ROW_ID, "secret", null, null, null, null, null, null, null, null, null, null, null)))
             .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class);

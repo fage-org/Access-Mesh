@@ -242,6 +242,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
     @PermissionChange
     @OperationLog(module = "PERMISSION", action = "ABSTRACT_USER_CREATE", targetType = "abstract_user", targetId = "#result.id()", summary = "'create user ' + #req.externalId()")
     public AbstractUserResp createUser(Long tenantId, AbstractUserCreateReq req) {
+        subjectDomainService.lockUserWrites(tenantId);
         Long operatorId = OperatorContext.getOperatorId();
 
         if (!queryGate.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.USER, null, OperationCode.CREATE)) {
@@ -284,6 +285,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
     @PermissionChange
     @OperationLog(module = "PERMISSION", action = "ABSTRACT_USER_UPDATE", targetType = "abstract_user", targetId = "#req.userId()", summary = "'update user ' + #req.userId()")
     public AbstractUserResp updateUser(Long tenantId, AbstractUserUpdateReq req) {
+        subjectDomainService.lockUserWrites(tenantId);
         Long operatorId = OperatorContext.getOperatorId();
 
         AbstractUser existing = subjectDomainService.selectValidUserById(tenantId, req.userId());
@@ -324,19 +326,13 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             existing.setExtra(req.extra());
         }
         existing.setUpdatedAt(LocalDateTime.now());
-        if (extraClear) {
-            // 清空须强制写列（T-API-004）：update(entity) 默认忽略 null 字段，
-            // UpdateEntity 代理记录 set(null) 为显式更新列（role extraClear 同款）
-            AbstractUser patch = UpdateEntity.of(AbstractUser.class);
-            patch.setId(existing.getId());
-            patch.setName(existing.getName());
-            patch.setEnabled(existing.getEnabled());
-            patch.setExtra(null);
-            patch.setUpdatedAt(existing.getUpdatedAt());
-            abstractUserMapper.update(patch);
-        } else {
-            abstractUserMapper.update(existing);
-        }
+        AbstractUser patch = UpdateEntity.of(AbstractUser.class);
+        patch.setId(existing.getId());
+        if (req.name() != null) patch.setName(existing.getName());
+        if (req.enabled() != null) patch.setEnabled(existing.getEnabled());
+        if (extraClear || req.extra() != null) patch.setExtra(existing.getExtra());
+        patch.setUpdatedAt(existing.getUpdatedAt());
+        abstractUserMapper.update(patch);
 
         // T-ACCESS-019：USER 资源投影同事务镜像 name/enabled；enabled 变更影响授权可用性（禁用主体
         // 有效角色置空），登记 markUsers 失效主体有效角色缓存（afterCommit 由 AOP 处理）
@@ -363,6 +359,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             return;
         }
 
+        subjectDomainService.lockUserWrites(tenantId);
         Long operatorId = OperatorContext.getOperatorId();
         LocalDateTime now = LocalDateTime.now();
 

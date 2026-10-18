@@ -9,6 +9,14 @@
           AND delete_flag = 0
     </select>
 
+    <select id="selectByConfigKeyForUpdate" flushCache="true" useCache="false" resultType="cn.ac.fage.accessmesh.access.platform.entity.SystemConfig">
+        SELECT * FROM system_config
+        WHERE tenant_id = #{tenantId}
+          AND config_key = #{configKey}
+          AND delete_flag = 0
+        FOR UPDATE
+    </select>
+
     <sql id="listCondition">
         WHERE tenant_id = #{tenantId}
           AND delete_flag = 0

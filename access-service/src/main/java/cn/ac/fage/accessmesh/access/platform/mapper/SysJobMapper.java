@@ -37,6 +37,9 @@ public interface SysJobMapper extends BaseMapper<SysJob> {
      */
     SysJob selectValidById(@Param("tenantId") Long tenantId, @Param("id") Long id);
 
+    /** 写事务内新鲜行锁读取，保护读取至更新/删除完成。 */
+    SysJob selectValidByIdForUpdate(@Param("tenantId") Long tenantId, @Param("id") Long id);
+
     /**
      * 查询全部租户下所有启用的有效任务（跨租户单条批量查询，T-ACCESS-009）
      * <p>

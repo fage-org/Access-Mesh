@@ -490,9 +490,9 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         // 落库」交错窗口；sync 入口门禁同样在锁后（见 ResourceEntitySyncAppServiceImpl）
         if ("resource_type".equals(type.getTypeKey())) {
             treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
-            type = typeDefinitionMapper.selectValidById(tenantId, req.typeId());
-            if (type == null) throw new BizException(AccessErrorCode.TYPE_DEFINITION_NOT_FOUND.getCode(), "Type not found: " + req.typeId());
         }
+        type = typeDefinitionMapper.selectValidByIdForUpdate(tenantId, req.typeId());
+        if (type == null) throw new BizException(AccessErrorCode.TYPE_DEFINITION_NOT_FOUND.getCode(), "Type not found: " + req.typeId());
         // T-PERM-052：extra 所有权声明结构校验 + 有效值变更守卫（类型下存在有效资源行时
         // managedMode/syncSourceService 不得变更，含删键隐式切回 MANAGED；20056）。
         // is_system 类型允许声明内部来源 access-service（事实链路类型种子同款，含 T-ADMIN-025 的 ADMIN_FILE）
@@ -555,20 +555,15 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
             }
         }
         type.setUpdatedAt(LocalDateTime.now());
-        if (descriptionClear) {
-            // 清空须强制写列（T-API-004）：update(entity) 默认忽略 null 字段，
-            // UpdateEntity 代理记录 set(null) 为显式更新列（role extraClear 同款）
-            TypeDefinition patch = UpdateEntity.of(TypeDefinition.class);
-            patch.setId(type.getId());
-            patch.setName(type.getName());
-            patch.setDescription(null);
-            patch.setSortOrder(type.getSortOrder());
-            patch.setExtra(type.getExtra());
-            patch.setUpdatedAt(type.getUpdatedAt());
-            typeDefinitionMapper.update(patch);
-        } else {
-            typeDefinitionMapper.update(type);
-        }
+        TypeDefinition patch = UpdateEntity.of(TypeDefinition.class);
+        patch.setId(type.getId());
+        if (req.name() != null) patch.setName(type.getName());
+        if (descriptionClear || req.description() != null) patch.setDescription(type.getDescription());
+        if (req.sortOrder() != null) patch.setSortOrder(type.getSortOrder());
+        // extra 含服务端维护的授权根指针，写入锁内验证/归一后的最终值。
+        patch.setExtra(type.getExtra());
+        patch.setUpdatedAt(type.getUpdatedAt());
+        typeDefinitionMapper.update(patch);
         if ("resource_type".equals(type.getTypeKey())
                 && !previousOwnership.equals(resourceTypeOwnershipGuard.parseOwnership(type.getExtra()))) {
             // 所有权变更触发面（§7/T-PERM-072）：声明按 CROSS_OWNER 降级重编译后同事务重算受影响角色 AUTO_DEP

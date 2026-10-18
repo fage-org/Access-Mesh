@@ -104,6 +104,10 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         if (req.status() != null && req.status() != 0 && req.status() != 1) {
             throw new BizException(AccessErrorCode.ADMIN_INVALID_PARAM.getCode(), "状态值无效，必须为0(停用)或1(启用)");
         }
+        if (req.orgId() != null) {
+            treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.SYS_ORG);
+        }
+        localProjectionDomainService.lockUserWrites(tenantId);
         if (userDomainService.existsByUsername(tenantId, req.username())) {
             throw new BizException(AccessErrorCode.ADMIN_USER_ALREADY_EXISTS.getCode(),
                 AccessErrorCode.ADMIN_USER_ALREADY_EXISTS.getMessage());
@@ -147,7 +151,6 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         PermissionChangeContext.markUsers(tenantId, Set.of(subjectId));
 
         if (req.orgId() != null) {
-            treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.SYS_ORG);
             SysOrg targetOrg = orgDomainService.selectValidById(tenantId, req.orgId());
             permissionValidator.checkInstanceLevel(
                 ResourceTypeCode.ORG, String.valueOf(req.orgId()),

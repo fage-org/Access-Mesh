@@ -28,6 +28,10 @@ public interface SysDictTypeMapper extends BaseMapper<SysDictType> {
     SysDictType selectByIdSafe(@Param("tenantId") Long tenantId,
                                @Param("id") Long id);
 
+    /** 父子生命周期写事务行锁；锁后检查和写入同事务完成。 */
+    SysDictType selectByIdForUpdate(@Param("tenantId") Long tenantId,
+                               @Param("id") Long id);
+
     /**
      * 根据ID列表和租户ID查询字典类型列表
      *
@@ -36,6 +40,10 @@ public interface SysDictTypeMapper extends BaseMapper<SysDictType> {
      * @return 字典类型列表
      */
     List<SysDictType> selectByIdsAndTenant(@Param("tenantId") Long tenantId,
+                                           @Param("ids") List<Long> ids);
+
+    /** 父子生命周期写事务行锁；锁后检查和写入同事务完成。 */
+    List<SysDictType> selectByIdsForUpdate(@Param("tenantId") Long tenantId,
                                            @Param("ids") List<Long> ids);
 
     /**

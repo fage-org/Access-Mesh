@@ -108,6 +108,8 @@ class JobAppServiceImplTest {
     private cn.ac.fage.accessmesh.access.tenant.service.TenantAccessGuard tenantAccess;
 
     private JobAppServiceImpl newService() {
+        org.mockito.Mockito.lenient().doAnswer(call -> jobMapper.selectValidById(call.getArgument(0), call.getArgument(1)))
+            .when(jobMapper).selectValidByIdForUpdate(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
         return new JobAppServiceImpl(jobMapper, jobLogMapper, taskScheduler, leaseRenewalScheduler,
             permissionValidator, taskExecutionDomainService,
             jobInvokeDomainService, jobLogDomainService, taskExecutor, tenantAccess);

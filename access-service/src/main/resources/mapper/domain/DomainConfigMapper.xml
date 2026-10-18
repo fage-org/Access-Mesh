@@ -21,6 +21,15 @@
           AND delete_flag = 0
     </select>
 
+    <select id="selectValidByTypeStringForUpdate" flushCache="true" useCache="false" resultType="cn.ac.fage.accessmesh.access.domain.entity.DomainConfig">
+        SELECT * FROM domain_config
+        WHERE tenant_id = #{tenantId}
+          AND biz_domain_id = #{bizDomainId}
+          AND config_type = #{configType}
+          AND delete_flag = 0
+        FOR UPDATE
+    </select>
+
     <select id="selectByTenantId" resultType="cn.ac.fage.accessmesh.access.domain.entity.DomainConfig">
         SELECT * FROM domain_config
         WHERE tenant_id = #{tenantId}

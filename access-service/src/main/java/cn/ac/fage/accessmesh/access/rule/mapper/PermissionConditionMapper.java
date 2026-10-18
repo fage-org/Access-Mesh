@@ -40,6 +40,10 @@ public interface PermissionConditionMapper extends BaseMapper<PermissionConditio
     PermissionCondition selectValidByCode(@Param("tenantId") Long tenantId,
                                            @Param("code") String code);
 
+    /** 写事务内新鲜行锁读取，保护读取至更新/删除完成。 */
+    PermissionCondition selectValidByCodeForUpdate(@Param("tenantId") Long tenantId,
+                                           @Param("code") String code);
+
     /**
      * 根据租户ID和条件编码集合批量查询有效权限条件
      *

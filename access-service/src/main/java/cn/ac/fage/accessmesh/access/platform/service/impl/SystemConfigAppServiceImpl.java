@@ -81,7 +81,7 @@ public class SystemConfigAppServiceImpl implements SystemConfigAppService {
         validateConfigKeyNamespace(req.configKey());
         JsonValidationUtils.validateJson(req.configValue());
 
-        SystemConfig existing = systemConfigMapper.selectByConfigKey(tenantId, req.configKey());
+        SystemConfig existing = systemConfigMapper.selectByConfigKeyForUpdate(tenantId, req.configKey());
 
         if (existing != null) {
             // 系统内置配置仅走种子，保存入口不可覆盖（契约 §17.2「系统内置仅走种子」的运行时强制，
@@ -93,17 +93,15 @@ public class SystemConfigAppServiceImpl implements SystemConfigAppService {
             existing.setConfigValue(req.configValue());
             if (req.description() != null) existing.setDescription(req.description());
             existing.setUpdatedAt(LocalDateTime.now());
-            if (Boolean.TRUE.equals(req.descriptionClear())) {
-                existing.setDescription(null);
-                SystemConfig patch = UpdateEntity.of(SystemConfig.class);
-                patch.setId(existing.getId());
-                patch.setConfigValue(existing.getConfigValue());
-                patch.setDescription(null);
-                patch.setUpdatedAt(existing.getUpdatedAt());
-                systemConfigMapper.update(patch);
-            } else {
-                systemConfigMapper.update(existing);
+            if (Boolean.TRUE.equals(req.descriptionClear())) existing.setDescription(null);
+            SystemConfig patch = UpdateEntity.of(SystemConfig.class);
+            patch.setId(existing.getId());
+            patch.setConfigValue(existing.getConfigValue());
+            if (req.description() != null || Boolean.TRUE.equals(req.descriptionClear())) {
+                patch.setDescription(existing.getDescription());
             }
+            patch.setUpdatedAt(existing.getUpdatedAt());
+            systemConfigMapper.update(patch);
             return toSystemConfigResp(existing);
         } else {
             if (Boolean.TRUE.equals(req.descriptionClear())) {

@@ -27,6 +27,10 @@ public interface SysDictDataMapper extends BaseMapper<SysDictData> {
     SysDictData selectByIdSafe(@Param("tenantId") Long tenantId,
                                @Param("id") Long id);
 
+    /** 写事务内新鲜行锁读取，保护读取至更新/删除完成。 */
+    SysDictData selectByIdForUpdate(@Param("tenantId") Long tenantId,
+                               @Param("id") Long id);
+
     /**
      * 根据租户ID和字典类型编码列表查询字典数据中存在的类型（去重）
      * <p>

@@ -25,6 +25,10 @@ public interface SystemConfigMapper extends BaseMapper<SystemConfig> {
     SystemConfig selectByConfigKey(@Param("tenantId") Long tenantId,
                                     @Param("configKey") String configKey);
 
+    /** 写事务内新鲜行锁读取，保护读取至更新/删除完成。 */
+    SystemConfig selectByConfigKeyForUpdate(@Param("tenantId") Long tenantId,
+                                    @Param("configKey") String configKey);
+
     /**
      * 按条件统计有效系统配置数量
      *

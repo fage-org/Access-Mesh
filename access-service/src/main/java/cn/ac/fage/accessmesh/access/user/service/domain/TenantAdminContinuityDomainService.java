@@ -57,12 +57,12 @@ public class TenantAdminContinuityDomainService {
         return roleId != null && roleId.equals(snapshot.roleId());
     }
 
-    /** 与有关写操作处于同一事务；已有树锁的入口先取树锁，再取本锁。 */
+    /** 与有关写操作同事务；组织/角色树锁先取，本锁先于 RESOURCE_ENTITY 树锁。 */
     public Snapshot begin(Long tenantId) {
         if (!TransactionSynchronizationManager.isActualTransactionActive()) {
             throw new IllegalStateException("保底管理员守卫必须在写事务中调用");
         }
-        users.lockAdminContinuity(tenantId);
+        roles.lockUserWrites(tenantId);
         return snapshot(tenantId, LocalDateTime.now());
     }
 

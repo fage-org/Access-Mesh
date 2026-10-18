@@ -298,3 +298,9 @@ user-org / user_role 同步链路上的 `treeRootExternalId` 必须由统一 res
 - 禁止在 `user-org` 非默认树操作中删除用户所有组织关系。
 - 禁止让添加成员候选集默认包含租户内所有用户。
 - 禁止在 user-org / user_role 同步链路上 fallback `treeRootExternalId="1"` 或其他静默默认值；缺失或解析失败必须以业务异常中断。
+
+
+<a id="member-write-concurrency"></a>
+## 成员写入的并发边界
+
+assign/remove 使用 SYS_ORG 锁内读取的岗位 parent 构造 relation；批量分配保持批量读取。主体删除与成员新增还共用[主体事务锁](redis-transaction-locks.md#subject-lifecycle-lock)，避免删除清理后补入孤儿关系。锁序与同步覆盖以该设计为准，默认树归属、保底管理员与岗位权限的既有业务判定不变。

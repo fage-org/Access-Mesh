@@ -46,6 +46,10 @@ public interface SysOauth2ClientMapper extends BaseMapper<SysOauth2Client> {
     SysOauth2Client selectByIdSafe(@Param("tenantId") Long tenantId,
                                    @Param("id") Long id);
 
+    /** 写事务内新鲜行锁读取，保护读取至更新/删除完成。 */
+    SysOauth2Client selectByIdForUpdate(@Param("tenantId") Long tenantId,
+                                   @Param("id") Long id);
+
     /**
      * 根据客户端ID查询客户端（租户隔离 + 未删除）
      *

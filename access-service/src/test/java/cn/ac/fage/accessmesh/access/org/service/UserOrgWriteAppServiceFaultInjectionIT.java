@@ -98,6 +98,63 @@ class UserOrgWriteAppServiceFaultInjectionIT {
     @MockitoBean
     private AdminPermissionValidator permissionValidator;
 
+    @MockitoSpyBean
+    private cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport treeLocks;
+    @Autowired
+    private org.springframework.transaction.PlatformTransactionManager transactions;
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void memberWriteMustUsePositionParentCommittedBeforeItsLock(boolean assign) {
+        long user = 30101L, oldOrg = 30201L, newOrg = 30202L, position = 30203L;
+        insertOrg(oldOrg, "old-org");
+        insertOrg(newOrg, "new-org");
+        insertOrg(position, "position");
+        jdbcTemplate.update("UPDATE sys_org SET org_type='2', parent_id=? WHERE id=?", oldOrg, position);
+        long subject = localProjectionDomainService.upsertAdminUser(TENANT, user, "member", true);
+        localProjectionDomainService.upsertAdminOrg(TENANT, oldOrg, "1", "old", null, null, 1);
+        localProjectionDomainService.upsertAdminOrg(TENANT, newOrg, "1", "new", null, null, 1);
+        localProjectionDomainService.upsertAdminOrg(TENANT, position, "2", "position", oldOrg, "1", 1);
+        if (!assign) {
+            insertUserOrg(user, position);
+            localProjectionDomainService.bindUserOrg(TENANT, user, position, "POSITION", oldOrg);
+        }
+        var moveOnce = new java.util.concurrent.atomic.AtomicBoolean(true);
+        org.mockito.Mockito.doAnswer(call -> {
+            if (moveOnce.compareAndSet(true, false)) {
+                java.util.concurrent.CompletableFuture.runAsync(() -> {
+                    TenantContextHolder.setTenantId(TENANT);
+                    try {
+                        new org.springframework.transaction.support.TransactionTemplate(transactions)
+                            .executeWithoutResult(status -> {
+                                treeLocks.lockTreeWrites(TENANT,
+                                    cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.SYS_ORG);
+                                jdbcTemplate.update("UPDATE sys_org SET parent_id=? WHERE id=?", newOrg, position);
+                                localProjectionDomainService.migratePositionRelation(TENANT, position, oldOrg, newOrg);
+                            });
+                    } finally {
+                        TenantContextHolder.clear();
+                    }
+                }).get(20, java.util.concurrent.TimeUnit.SECONDS);
+            }
+            return call.callRealMethod();
+        }).when(treeLocks).lockTreeWrites(anyLong(), any());
+
+        if (assign) {
+            userOrgWriteAppService.assignUserToOrgs(
+                new cn.ac.fage.accessmesh.access.org.dto.req.UserOrgAssignReq(user, java.util.List.of(position), null));
+            assertThat(jdbcTemplate.queryForObject("""
+                SELECT count(*) FROM user_role ur JOIN abstract_role relation ON relation.id=ur.relation_id
+                WHERE ur.tenant_id=? AND ur.abstract_user_id=? AND ur.delete_flag=0 AND relation.external_id=?
+                """, Integer.class, TENANT, subject, String.valueOf(newOrg))).isEqualTo(1);
+        } else {
+            userOrgWriteAppService.removeUserFromOrg(user, position);
+            assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM user_role WHERE tenant_id=? AND abstract_user_id=? AND delete_flag=0",
+                Integer.class, TENANT, subject)).isZero();
+        }
+    }
+
 
     @BeforeEach
     void setUp() {

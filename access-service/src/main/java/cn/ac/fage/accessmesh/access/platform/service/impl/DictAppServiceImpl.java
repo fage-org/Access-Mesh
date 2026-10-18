@@ -128,7 +128,7 @@ public class DictAppServiceImpl implements DictAppService {
         permissionValidator.checkBatchInstanceLevel(ResourceTypeCode.ADMIN_DICT, resourceCodes, OperationCode.DELETE);
 
         // 批量查询检查数据并过滤有效ID（性能优化：避免 N+1 查询）
-        List<SysDictType> types = dictTypeMapper.selectByIdsAndTenant(tenantId, req.ids());
+        List<SysDictType> types = dictTypeMapper.selectByIdsForUpdate(tenantId, req.ids());
 
         // 批量检查是否有类型关联数据（性能优化：单次 GROUP BY 查询）
         if (!types.isEmpty()) {
@@ -262,7 +262,7 @@ public class DictAppServiceImpl implements DictAppService {
         // 权限检查 — 字典数据类型级 CREATE
         permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_DICT_DATA, OperationCode.CREATE);
 
-        SysDictType type = dictTypeMapper.selectByIdSafe(tenantId, req.dictTypeId());
+        SysDictType type = dictTypeMapper.selectByIdForUpdate(tenantId, req.dictTypeId());
         if (type == null) {
             throw new BizException(AccessErrorCode.DICT_TYPE_NOT_FOUND.getCode(), AccessErrorCode.DICT_TYPE_NOT_FOUND.getMessage());
         }
@@ -271,7 +271,8 @@ public class DictAppServiceImpl implements DictAppService {
         data.setDictType(type.getDictType());
         data.setDictLabel(req.dictLabel());
         data.setDictValue(req.dictValue());
-        data.setSortOrder(req.sort());
+        data.setSortOrder(req.sort() != null ? req.sort() : 0);
+        data.setIsDefault(false);
         data.setStatus(req.status() != null ? req.status() : 1);
         data.setRemark(req.remark());
         data.setCreatedAt(LocalDateTime.now());
@@ -307,12 +308,12 @@ public class DictAppServiceImpl implements DictAppService {
         permissionValidator.checkInstanceLevel(ResourceTypeCode.ADMIN_DICT_DATA,
             String.valueOf(req.id()), OperationCode.UPDATE);
 
-        SysDictData data = dictDataMapper.selectByIdSafe(tenantId, req.id());
+        SysDictData data = dictDataMapper.selectByIdForUpdate(tenantId, req.id());
         if (data == null) {
             throw new BizException(AccessErrorCode.DICT_DATA_NOT_FOUND.getCode(), AccessErrorCode.DICT_DATA_NOT_FOUND.getMessage());
         }
 
-        SysDictType type = dictTypeMapper.selectByIdSafe(tenantId, req.dictTypeId());
+        SysDictType type = dictTypeMapper.selectByIdForUpdate(tenantId, req.dictTypeId());
         if (type == null) {
             throw new BizException(AccessErrorCode.DICT_TYPE_NOT_FOUND.getCode(), AccessErrorCode.DICT_TYPE_NOT_FOUND.getMessage());
         }
@@ -330,7 +331,16 @@ public class DictAppServiceImpl implements DictAppService {
             data.setRemark(req.remark());
         }
         data.setUpdatedAt(LocalDateTime.now());
-        dictDataMapper.update(data);
+        SysDictData patch = com.mybatisflex.core.util.UpdateEntity.of(SysDictData.class);
+        patch.setId(data.getId());
+        patch.setDictType(data.getDictType());
+        patch.setDictLabel(data.getDictLabel());
+        patch.setDictValue(data.getDictValue());
+        if (req.sort() != null) patch.setSortOrder(data.getSortOrder());
+        if (req.status() != null) patch.setStatus(data.getStatus());
+        if (req.remark() != null) patch.setRemark(data.getRemark());
+        patch.setUpdatedAt(data.getUpdatedAt());
+        dictDataMapper.update(patch);
 
         // 提交后失效缓存
         cacheService.evictAfterCommit(AccessCacheCatalog.DICT_TYPES, tenantId, "all");
@@ -360,11 +370,15 @@ public class DictAppServiceImpl implements DictAppService {
             OperationCode.DELETE
         );
 
-        SysDictData data = dictDataMapper.selectByIdSafe(tenantId, req.id());
+        SysDictData data = dictDataMapper.selectByIdForUpdate(tenantId, req.id());
         if (data == null) return;
         data.setDeleteFlag(data.getId());
         data.setDeletedAt(LocalDateTime.now());
-        dictDataMapper.update(data);
+        SysDictData patch = com.mybatisflex.core.util.UpdateEntity.of(SysDictData.class);
+        patch.setId(data.getId());
+        patch.setDeleteFlag(data.getDeleteFlag());
+        patch.setDeletedAt(data.getDeletedAt());
+        dictDataMapper.update(patch);
 
         // 提交后失效缓存
         cacheService.evictAfterCommit(AccessCacheCatalog.DICT_TYPES, tenantId, "all");

@@ -19,10 +19,6 @@ import java.util.Set;
 @Mapper
 public interface SysUserMapper extends BaseMapper<SysUser> {
 
-    /** 租户保底成员写事务锁；清理会话缓存，锁后重新读取已提交成员集合。 */
-    @org.apache.ibatis.annotations.Select("SELECT pg_advisory_xact_lock(106, hashtext(CAST(#{tenantId} AS text)))::text")
-    @org.apache.ibatis.annotations.Options(useCache = false, flushCache = org.apache.ibatis.annotations.Options.FlushCachePolicy.TRUE)
-    String lockAdminContinuity(@Param("tenantId") Long tenantId);
 
     /**
      * 分页查询用户列表（支持可选过滤条件）

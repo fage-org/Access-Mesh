@@ -29,6 +29,14 @@
           AND delete_flag = 0
     </select>
 
+    <select id="selectValidByIdForUpdate" flushCache="true" useCache="false" resultType="cn.ac.fage.accessmesh.access.rule.entity.PermissionConflictRule">
+        SELECT * FROM permission_conflict_rule
+        WHERE id = #{ruleId}
+          AND tenant_id = #{tenantId}
+          AND delete_flag = 0
+        FOR UPDATE
+    </select>
+
     <select id="selectByTenantId" resultType="cn.ac.fage.accessmesh.access.rule.entity.PermissionConflictRule">
         SELECT * FROM permission_conflict_rule
         WHERE tenant_id = #{tenantId}

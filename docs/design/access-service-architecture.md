@@ -613,7 +613,7 @@ bootstrap 的 §14.4 最小集（`RESOURCE:VIEW`/`OPERATION:VIEW` scopeAll + `RO
 
 `TenantAdminContinuityDomainService` 复用 SubjectDomainService 原始关系读取与用户能力批量读取，在写前取得租户级 PostgreSQL 事务咨询锁（命名空间 106，租户 ID hash 为第二键；哈希碰撞仅额外串行，不混读数据）。查询显式带 tenantId，锁语句清理 MyBatis 会话缓存；同事务按固定评估时刻比较写前/写后资格，拒绝有合格成员到零成员的变化，内置角色停用/删除同样受限。空库没有内置角色时不制造成员或豁免操作者门禁；已有坏数据不会由本守卫自动修复，初始化继续拒绝无合格成员。
 
-已有 ABSTRACT_ROLE 树锁的入口先取树锁、再取成员事务锁；锁随事务提交/回滚释放。校验使用持久化事实，不依赖权限结果缓存；登录失败计数和强制改密标记不进入资格判断。成员操作、原生用户状态/删除以及角色写入在同一锁范围内完成，防并发各自基于旧成员集合放行。错误形态及审计见契约 §10.4。
+成员连续性使用[共同主体事务锁](redis-transaction-locks.md#subject-lifecycle-lock)，原租户咨询键保持；已有 ABSTRACT_ROLE 树锁的入口先取树锁、再取主体事务锁，并在需要 RESOURCE_ENTITY 时先取得主体锁；锁随事务提交/回滚释放。校验使用持久化事实，不依赖权限结果缓存；登录失败计数和强制改密标记不进入资格判断。成员操作、原生用户状态/删除以及角色写入在同一锁范围内完成，防并发各自基于旧成员集合放行。错误形态及审计见契约 §10.4。
 
 ## 15. 文件存储单实例本地盘约束（T-ADMIN-023 登记，2026-08-25）
 
@@ -687,7 +687,7 @@ bootstrap 的 §14.4 最小集（`RESOURCE:VIEW`/`OPERATION:VIEW` scopeAll + `RO
   同线程回调 unlock），堵死「解锁先于提交」缝隙：unlock 若写在事务方法体内，与 AOP 代理的
   实际提交之间存在空隙，后进锁者校验读不到未提交数据，窗口复现。unlock 失败仅告警，由
   watchdog 停止后的 lease TTL 兜底释放。
-- 获取与释放通过 `RedisTransactionLockSupport` 处理；线程中断不取消可能迟到成功的获取结果，详见[公共事务锁中断边界](#transaction-lock-interruption)。树锁继续等待竞争锁，不增加等待超时。
+- 获取与释放通过 `common.lock.RedisTransactionLocks` 处理；线程中断不取消可能迟到成功的获取结果，详见[公共事务锁中断边界](#transaction-lock-interruption)。树锁继续等待竞争锁，不增加等待超时。
 - **已知边界（定案接受）**：①watchdog 依赖与 Redis 的连接——网络分区/JVM 长暂停超 30s
   无续期时锁被逐出而事务仍在跑，窗口复现（概率极低）；②Redis 不可用时取锁失败即写入口
   失败（fail-closed；跳锁等于窗口大开，不可选）。正确性依赖 READ_COMMITTED（PG 语句级
@@ -751,7 +751,7 @@ bootstrap 的 §14.4 最小集（`RESOURCE:VIEW`/`OPERATION:VIEW` scopeAll + `RO
 <a id="password-reset-lock"></a>
 ## 18. 密码重置请求互斥
 
-`PasswordResetLockSupport` 通过公共 `RedisTransactionLockSupport` 使用 Redisson 非等待获取，不指定固定 leaseTime，沿用 watchdog 自动续期。调用方必须在事务与同步回调有效时获取，基础设施统一在 `afterCompletion` 尝试解锁，覆盖提交、回滚及结果未知。解锁失败告警但不改写已确定的数据库结果。业务接口及错误码见[重置并发契约](access-service-api-contract.md#password-reset-concurrency)。
+`PasswordResetLockSupport` 通过公共 `common.lock.RedisTransactionLocks` 使用 Redisson 非等待获取，不指定固定 leaseTime，沿用 watchdog 自动续期。调用方必须在事务与同步回调有效时获取，基础设施统一在 `afterCompletion` 尝试解锁，覆盖提交、回滚及结果未知。解锁失败告警但不改写已确定的数据库结果。业务接口及错误码见[重置并发契约](access-service-api-contract.md#password-reset-concurrency)。
 
 锁键由 `BusinessKeyUtil.passwordResetLockKey` 唯一构造：租户用户按 tenantId/userId，独立平台账号按平台身份域/accountId 隔离。租户内重置与平台首管理员恢复共享同一目标键；平台恢复先解析固定首管理员 ID 并获取 Redis 锁，再获取租户和用户行锁，避免在数据库锁队列中等待后再次重置。平台账号恢复同样先获取目标重置锁再进入平台管理行锁。
 
@@ -765,3 +765,9 @@ T-ACCESS-120：密码重置锁与树写锁共同通过异步 Redisson 命令获�
 进入获取前已中断的线程直接失败，不发送取锁命令。等待中被中断时保留中断标记，等待该命令结果确定；若实际取得锁，先在原 owner 线程尝试释放并等待结果，再抛出技术异常，不能进入业务写入。未中断且成功时注册 afterCompletion；注册失败立即尝试释放。解锁也等待异步结果完成，不因线程已有中断标记丢弃结果；失败只告警，不覆盖原错误或已确定的事务结果。
 
 “非等待重置”只表示不排队竞争已被占用的锁，仍需等待 Redis 命令结果；树写锁继续等待前一持有者释放，包括获取过程中被中断时等待结果确定的阶段。此处不添加固定 TTL、超时保险丝、后台补偿队列或自动重试，不改变三个重置入口及树写入的键空间、门禁和正常事务释放时机。
+
+
+<a id="backend-write-concurrency"></a>
+## 19. 后端写入的并发边界
+
+公共 Redis 事务锁、类型锁内新鲜读取、请求字段更新、主体生命周期、字典父子关系与本地代际清理遵循[并发接入设计](redis-transaction-locks.md#write-guards)。不同机制按业务不变量选择；数据库咨询锁、行锁、版本 CAS 与任务租约不会被 Redis helper 替代。当前实施与验证状态见[并发加固计划](../archive/2026-10-18/backend-concurrency-hardening.md)。

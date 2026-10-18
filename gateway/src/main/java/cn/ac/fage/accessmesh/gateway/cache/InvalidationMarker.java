@@ -91,7 +91,11 @@ public class InvalidationMarker {
     public synchronized void retainLiveKeys(Set<String> liveKeys) {
         Set<String> safeLiveKeys = liveKeys == null ? Set.of() : liveKeys;
         invalidatedKeys.retainAll(safeLiveKeys);
-        keyGeneration.keySet().removeIf(key -> !safeLiveKeys.contains(key));
+        if (keyGeneration.keySet().removeIf(key -> !safeLiveKeys.contains(key))) {
+            // liveKeys 可能早于新回源取得；删除代际会把缺失值重新解释为0。
+            // 同步提升 epoch，保守作废清理前的 token，禁止已失效回源因此复活。
+            globalEpoch.incrementAndGet();
+        }
     }
 
     /**

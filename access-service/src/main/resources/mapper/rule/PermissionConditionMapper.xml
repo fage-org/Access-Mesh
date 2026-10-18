@@ -20,6 +20,14 @@
           AND delete_flag = 0
     </select>
 
+    <select id="selectValidByCodeForUpdate" flushCache="true" useCache="false" resultType="cn.ac.fage.accessmesh.access.rule.entity.PermissionCondition">
+        SELECT * FROM permission_condition
+        WHERE tenant_id = #{tenantId}
+          AND code = #{code}
+          AND delete_flag = 0
+        FOR UPDATE
+    </select>
+
     <select id="selectValidByCodes" resultType="cn.ac.fage.accessmesh.access.rule.entity.PermissionCondition">
         SELECT * FROM permission_condition
         WHERE tenant_id = #{tenantId}

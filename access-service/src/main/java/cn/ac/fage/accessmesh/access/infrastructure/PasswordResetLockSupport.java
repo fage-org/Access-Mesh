@@ -3,6 +3,7 @@ package cn.ac.fage.accessmesh.access.infrastructure;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtil;
+import cn.ac.fage.accessmesh.common.lock.RedisTransactionLocks;
 import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Component;
 
@@ -25,7 +26,7 @@ public class PasswordResetLockSupport {
     }
 
     private void acquire(String key) {
-        if (!RedisTransactionLockSupport.acquire(redisson, key, false)) {
+        if (!RedisTransactionLocks.tryLock(redisson, key)) {
             throw new BizException(AccessErrorCode.PASSWORD_RESET_IN_PROGRESS.getCode(),
                 AccessErrorCode.PASSWORD_RESET_IN_PROGRESS.getMessage());
         }

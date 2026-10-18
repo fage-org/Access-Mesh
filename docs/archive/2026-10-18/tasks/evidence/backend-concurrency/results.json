@@ -1,0 +1,147 @@
+{
+  "date": "2026-10-18",
+  "command": "mvn test -T 1C",
+  "exitCode": 0,
+  "backend": {
+    "tests": 3018,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "modules": {
+    "common": {
+      "tests": 119,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "gateway": {
+      "tests": 152,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "access-service": {
+      "tests": 2552,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "example-service": {
+      "tests": 53,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "perm-sdk/perm-common": {
+      "tests": 54,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "perm-sdk/perm-client-spring-boot-starter": {
+      "tests": 29,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "perm-sdk/perm-registration-spring-boot-starter": {
+      "tests": 19,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "sdk-host-probe": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "sdk-host-probe-log4j2": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "e2e": {
+      "tests": 35,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "fullTrackSentinels": [
+    {
+      "suite": "cn.ac.fage.accessmesh.access.engine.InterfaceAdmissionHeavyPgIT",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "cn.ac.fage.accessmesh.access.sync.ResourcePublicationHeavyPgIT",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "cn.ac.fage.accessmesh.e2e.BasicRoleGrantVerticalSliceE2EIT",
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "cn.ac.fage.accessmesh.e2e.E2eProcessSupportTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "cn.ac.fage.accessmesh.e2e.ExampleBusinessFinalCheckE2EIT",
+      "tests": 12,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "cn.ac.fage.accessmesh.e2e.ExampleProtectedApiE2EIT",
+      "tests": 12,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  ],
+  "duration": "21:22 min (Wall Clock)",
+  "reactor": "[INFO] Reactor Summary for AccessMesh 0.2.0-SNAPSHOT:\n[INFO] \n[INFO] AccessMesh ......................................... SUCCESS [  1.942 s]\n[INFO] Common Module ...................................... SUCCESS [ 12.908 s]\n[INFO] Permission SDK ..................................... SUCCESS [  0.005 s]\n[INFO] Perm Common ........................................ SUCCESS [  2.873 s]\n[INFO] Gateway Service .................................... SUCCESS [01:02 min]\n[INFO] Perm Registration Starter .......................... SUCCESS [ 17.336 s]\n[INFO] Access Service ..................................... SUCCESS [15:41 min]\n[INFO] Perm Client Starter ................................ SUCCESS [ 14.488 s]\n[INFO] Example Service .................................... SUCCESS [ 37.836 s]\n[INFO] SDK Host Probe ..................................... SUCCESS [ 16.285 s]\n[INFO] SDK Host Probe (Log4j2 host) ....................... SUCCESS [  4.013 s]\n[INFO] E2E Tests .......................................... SUCCESS [05:05 min]\n[INFO] ------------------------------------------------------------------------\n[INFO] BUILD SUCCESS\n[INFO] ------------------------------------------------------------------------\n[INFO] Total time:  21:22 min (Wall Clock)\n[INFO] Finished at: 2026-10-18T17:10:07+08:00\n[INFO] ------------------------------------------------------------------------\n",
+  "sourceIntegrity": {
+    "files": 2453,
+    "changed": 0,
+    "added": 0,
+    "removed": 0,
+    "manifest": ".tmp/concurrency-sol-20261018/source-before.json",
+    "sha256": "20ccbdca738a503874353b60a8ec5cf37131dd85d439d3b55e81e7dc435df7f6"
+  },
+  "log": {
+    "path": ".tmp/concurrency-sol-20261018/full-backend.log",
+    "sha256": "3c5537be157d3d01abd015e4f41f86bf568a4367ca3dee24832d2880c5b15d57"
+  },
+  "frontend": "not run: unchanged",
+  "deployment": "not run",
+  "externalReview": "one user-authorized gpt-6.1-sol/max audit; no automatic follow-up",
+  "counting": "Current-run XML testcase elements; JUnit nested-suite root tests counters can be zero. Cross-checked against reactor execution summaries.",
+  "excludedStaleReports": [
+    {
+      "file": "access-service/target/surefire-reports/TEST-cn.ac.fage.accessmesh.access.bootstrap.AccessBootstrapRunnerTest.xml",
+      "cases": 3,
+      "modified": "2026-10-07T00:24:56.594560"
+    },
+    {
+      "file": "access-service/target/surefire-reports/TEST-cn.ac.fage.accessmesh.access.user.TxDiagScratchPgIT.xml",
+      "cases": 1,
+      "modified": "2026-10-06T19:58:00.519329"
+    }
+  ]
+}

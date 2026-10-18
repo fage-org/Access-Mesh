@@ -1,18 +1,18 @@
 ---
 doc_type: design
 title: 公共 Redis 事务锁与后端并发接入方案
-status: draft
+status: adopted
 domain: common
 last_reviewed: 2026-10-18
 ---
 
 # 公共 Redis 事务锁与后端并发接入方案
 
-> 方案草案。现行树锁、重置锁、数据库租约与锁序仍以已有权威设计为准；本稿不表示迁移或问题修复已经实施。
+> 当前实现已完成，[实施计划](../archive/2026-10-18/backend-concurrency-hardening.md)与[验收记录](../archive/2026-10-18/tasks/evidence/backend-concurrency/verification.md)保存范围和证据。既有树锁、重置锁、数据库租约与接受边界保持。
 
 ## 目标与现状
 
-将 access-service 内的 RedisTransactionLockSupport 提取到 common，统一获取结果、事务结束释放与异常/中断清理。业务侧继续决定锁对象、竞争处理和需要保护的读取。提取公共类本身不会修复未参与互斥的写入口、锁前旧快照、MyBatis 一级缓存及整行旧值回写。
+`common.lock.RedisTransactionLocks` 承担原 access-service helper 的获取结果、事务结束释放与异常/中断清理。业务侧继续决定锁对象、竞争处理和需要保护的读取。提取公共类本身不会修复未参与互斥的写入口、锁前旧快照、MyBatis 一级缓存及整行旧值回写。
 
 现有使用者为 TreeWriteLockSupport（等待）和 PasswordResetLockSupport（非等待）；现行键空间和错误码保留。公共模块 Redis/Redisson 依赖保持 optional，不新增自动配置注册，不让 SDK、Gateway 或无 Redis 宿主被迫装配客户端。
 
@@ -58,7 +58,7 @@ public static boolean tryLock(RedissonClient client, String key);
 
 ## 验证与迁移顺序
 
-先提取现有公共实现并迁移树写/重置门面，既有真实 Redis 中断迟到成功、事务提交/回滚、重入、身份键隔离证据保持。随后按排查结论逐项修复业务覆盖，新增测试必须在旧实现下稳定失败；使用闩锁/提交闸门安排交错，不依靠裸 sleep。数据库行为使用既有 ItInfra，单元模拟不能代替持久化结果。
+现有公共实现与树写/重置门面迁移已完成，真实 Redis 中断迟到成功、事务提交/回滚、重入和身份键隔离证据保持。后续扩展同样应逐项验证业务覆盖，新增测试必须在旧实现下稳定失败；使用闩锁/提交闸门安排交错，不依靠裸 sleep。数据库行为使用既有 ItInfra，单元模拟不能代替持久化结果。
 
 common API 变化后先 install 刷新上游 SNAPSHOT；各批先定向验证，实施收口执行根 reactor 的 mvn test -T 1C（包含 E2E/heavy），输出整文件保存且运行时不得改源码。实现完成再按代码轨、文档轨独立本地评审；不会自动追加外部评审。
 
@@ -67,11 +67,11 @@ common API 变化后先 install 刷新上游 SNAPSHOT；各批先定向验证，
 Redis 互斥不是数据库提交或外部副作用的强一致证明。原有树锁续期丢失边界、重置提交后交付窗口保持在原适用范围内；新增业务不能自动继承未论证的例外。更强的故障隔离应使用对应数据库约束/条件更新/fencing，不通过任意延长 TTL 声称解决。
 
 
-## 排查来源与优先范围
+## 排查来源与处置
 
-本稿由 [T-ACCESS-121](../archive/2026-10-18/tasks/T-ACCESS-121.md) 产出；[原始报告与逐项核实](../archive/2026-10-18/tasks/evidence/T-ACCESS-121/verification.md)基于 8733a51c2 的后端现状。问题仍未修复，实施状态以任务看板与待解决问题为准。
+本方案由 [T-ACCESS-121](../archive/2026-10-18/tasks/T-ACCESS-121.md) 产出；[原始报告与逐项核实](../archive/2026-10-18/tasks/evidence/T-ACCESS-121/verification.md)基于 8733a51c2 的后端现状。排查项已由关联任务闭合，修复与验收见上述记录。
 
-| 优先级 | 问题入口 | 建议处置 |
+| 排查级别 | 问题入口 | 当前处理 |
 |---|---|---|
 | P1 | [Q-083 旧实体回写](../pending-problems.md#q-083) | 请求触达列 + 有效行条件；跨字段与投影放入共同事务守卫 |
 | P1 | [Q-084 类型锁后旧缓存](../pending-problems.md#q-084) | 锁内首次解析或明确 fresh Mapper；不把清理 MyBatis 缓存塞进 common 锁 |
@@ -81,4 +81,39 @@ Redis 互斥不是数据库提交或外部副作用的强一致证明。原有�
 | P2 | [Q-088 字典父子生命周期](../pending-problems.md#q-088) | 删除检查、创建、改绑共用父类型行锁，批量固定顺序 |
 | P2 | [Q-089 Gateway 代际清理](../pending-problems.md#q-089) | 保证清理与 token 校验间不发生代际回退，使用本地同步 |
 
-建议先修复 P1，再闭合主体与字典生命周期及 Gateway 清理。公共 helper 提取可以作为独立机械改动，但不能凭提取完成把上述条目关闭。较大范围的业务守卫实施应先明确调用点全集和各项验收，不恢复其他暂缓事项。
+这些入口已按下述共同协议接入，验收完成与问题关闭由关联任务及验证记录判定；不凭 helper 提取完成关闭缺陷，也不恢复其他暂缓事项。
+
+
+<a id="write-guards"></a>
+## 写入事实与生命周期的共同边界
+
+### 请求字段与有效行
+
+OAuth2 客户端、任务、条件、互斥规则、已有系统配置、域配置、字典项、公告以及类型编辑，在更新前通过 Mapper 的有效行锁查询取得当前事实，持锁至事务结束。查询显式带租户、身份与 delete_flag=0，flushCache=true 保证实际执行；原查询入口保留给只读调用。行锁保护读取后至更新期间的有效性，不能被并发软删除穿过；读到不存在沿用已有业务错误。业务域编辑复用既有域行锁。
+
+通常仅写请求触达列和必要审计字段；显式清空通过 UpdateEntity 记录 NULL。互斥规则的归一字段、条件组合校验及类型的服务端授权根指针使用锁内最新状态，不能仅改 patch 就省掉组合校验的互斥。主体及投影的部分更新在下述共同主体锁内完成，避免事实与投影各自拼接不同时间的值。
+
+### 类型与岗位的读取时机
+
+类型的 selectValidById/selectValidByIds/selectByTypeKeyAndCode 明确清理 MyBatis 会话缓存；类型编辑在所需树锁之后再锁定有效类型行。操作 create/update 在 RESOURCE_ENTITY 锁内直接读取类型身份，写入口不使用 TYPE_VALUE 缓存确定目标；只读查询仍可使用原解析缓存。所有者指针与授权根变更继续由原事务共同维护。
+
+岗位成员 assign/remove 在 SYS_ORG 锁内读取最新结构，再构造 relation。批量分配仍批量读取，不引入循环查询。锁前对象不能作为锁内投影写入的 parent 来源。
+
+<a id="subject-lifecycle-lock"></a>
+### 主体生命周期与同步
+
+`SubjectDomainService.lockUserWrites` 是共同领域入口，`LocalProjectionDomainService` 仅提供既有跨能力门面的委托。实际 SQL 单源为 `AbstractUserMapper.lockUserWrites`，沿用原管理员连续性锁的 PostgreSQL 事务咨询键 `(106, hashtext(tenantId))`；原 SysUserMapper 注解 SQL 入口删除。查询经 Mapper 执行并清理会话缓存，不能改为不参与 Flex 事务的裸 JdbcTemplate。事务外调用拒绝。
+
+同一租户的原生主体创建/更新/启停/删除、管理主体创建/更新/删除、用户组织 assign/remove、管理角色成员分配/撤回、主体 single/FULL 同步和 user-role single/FULL 同步共用此边界；已有管理员连续性 begin 委托该入口，资格判定与错误码不变。锁必须先于目标读取、FULL 预载及版本 CAS；FULL 与 single 不会在版本仲裁后继续应用旧预载。绑定与删除持有至事务结束，绑定不能在删除清理后依据旧主体身份补入新关联。初始固定图仍由原开通/初始化隔离机制保护。
+
+复用租户级锁覆盖尚不存在的主体及跨主体 FULL 预载，不只锁当前已存在的 ID。代价是同租户主体写入串行，FULL 期间其他主体写入会等待；本次不增加锁粒度配置。未来细化必须保留不存在目标、全部关系写者和 FULL 漂移清理的共同边界，不能删掉版本 CAS。
+
+联合锁序为 **SYS_ORG → ABSTRACT_ROLE → SYS_MENU → 主体事务锁 → RESOURCE_ENTITY**，只获取入口需要的部分。已有角色删除/sync 的角色树→主体事务锁→资源树顺序保持。原生创建带组织时先取 SYS_ORG，再取得主体锁，不得先写主体再等待组织锁；已持有 RESOURCE_ENTITY 的新入口不得首次反向请求主体锁。
+
+### 字典父子生命周期
+
+删除类型先按 ID 升序锁定有效父类型，再检查是否存在字典项；创建/改绑字典项也先锁定有效目标类型，检查与写入均在同一事务。字典项自身更新使用其行锁。两种方向的竞争分别收敛为类型不存在或类型仍有数据，沿用现有错误码；重建同编码不会附着旧孤儿数据。创建显式填写 schema 既有默认值 sort_order=0、is_default=false，避免显式 NULL 绕过数据库默认值。
+
+### Gateway 清理代际
+
+孤立清理删除 keyGeneration 时，在同一 marker 同步区内递增 globalEpoch，防止缺失代际被解释为0后复活旧 token。保守作废清理前的其他在途 token，沿既有同截止时间重试一次或503路径处理；后续新 token 正常工作。无代际被移除时不递增。保留 TTL、回源截止与本地协调，不接入 Redis 事务锁。

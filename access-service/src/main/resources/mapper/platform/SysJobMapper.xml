@@ -8,6 +8,12 @@
         WHERE id = #{id} AND tenant_id = #{tenantId} AND delete_flag = 0
     </select>
 
+    <select id="selectValidByIdForUpdate" flushCache="true" useCache="false" resultType="cn.ac.fage.accessmesh.access.platform.entity.SysJob">
+        SELECT * FROM sys_job
+        WHERE id = #{id} AND tenant_id = #{tenantId} AND delete_flag = 0
+        FOR UPDATE
+    </select>
+
     <!-- T-PERM-073：bootstrap 任务种子 insert-if-absent 定位（tenant+invokeTarget） -->
     <select id="selectValidByInvokeTarget" resultType="cn.ac.fage.accessmesh.access.platform.entity.SysJob">
         SELECT * FROM sys_job

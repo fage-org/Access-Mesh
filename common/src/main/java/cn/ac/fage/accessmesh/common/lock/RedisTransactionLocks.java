@@ -1,4 +1,4 @@
-package cn.ac.fage.accessmesh.access.infrastructure;
+package cn.ac.fage.accessmesh.common.lock;
 
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
@@ -7,13 +7,28 @@ import org.slf4j.LoggerFactory;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-/** 事务锁的获取结果与释放责任；不提供额外租约、重试或业务键策略。 */
-final class RedisTransactionLockSupport {
-    private static final Logger log = LoggerFactory.getLogger(RedisTransactionLockSupport.class);
+/**
+ * 同步 Spring 事务的 Redis 锁获取与释放责任。
+ * <p>在决定业务写入的首次读取前获取，持有至事务 afterCompletion；业务键和竞争错误留给调用方。
+ * 同线程同事务可重入，不用于跨线程释放或独立嵌套事务中的同 key 重入。
+ * 不提供固定租约、自动重试、业务锁序或数据库读取缓存清理。
+ */
+public final class RedisTransactionLocks {
+    private static final Logger log = LoggerFactory.getLogger(RedisTransactionLocks.class);
 
-    private RedisTransactionLockSupport() {}
+    private RedisTransactionLocks() {}
 
-    static boolean acquire(RedissonClient redis, String key, boolean waitForLock) {
+    /** 在当前同步事务内等待获取；实际提交或回滚后释放。 */
+    public static void lock(RedissonClient redis, String key) {
+        acquire(redis, key, true);
+    }
+
+    /** 在当前同步事务内立即尝试；竞争失败返回 false，技术异常继续上抛。 */
+    public static boolean tryLock(RedissonClient redis, String key) {
+        return acquire(redis, key, false);
+    }
+
+    private static boolean acquire(RedissonClient redis, String key, boolean waitForLock) {
         if (!TransactionSynchronizationManager.isActualTransactionActive()
             || !TransactionSynchronizationManager.isSynchronizationActive()) {
             throw new IllegalStateException("Redis lock requires a synchronized transaction");

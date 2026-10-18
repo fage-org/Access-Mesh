@@ -49,6 +49,15 @@ import java.util.stream.Collectors;
 public class SubjectDomainServiceImpl implements SubjectDomainService {
 
     @Override
+    public void lockUserWrites(Long tenantId) {
+        if (!org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+            throw new IllegalStateException("主体写守卫必须在事务中调用");
+        }
+        abstractUserMapper.lockUserWrites(tenantId);
+    }
+
+
+    @Override
     public AbstractRole findRoleByIdentity(Long tenantId, Integer roleType, String externalId) {
         return abstractRoleMapper.selectByTypeAndExternalId(tenantId, roleType, externalId);
     }

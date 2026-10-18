@@ -131,7 +131,7 @@ public class NoticeAppServiceImpl implements NoticeAppService {
         permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_NOTICE, OperationCode.UPDATE);
 
         Long tenantId = TenantContextHolder.getTenantId();
-        SysNotice notice = noticeMapper.selectByIdSafe(tenantId, req.id());
+        SysNotice notice = noticeMapper.selectByIdForUpdate(tenantId, req.id());
         if (notice == null) {
             throw noticeNotFound();
         }
@@ -142,7 +142,7 @@ public class NoticeAppServiceImpl implements NoticeAppService {
         patch.setId(notice.getId());
         patch.setTitle(req.title());
         patch.setContent(req.content());
-        patch.setNoticeType(req.noticeType() != null ? String.valueOf(req.noticeType()) : notice.getNoticeType());
+        if (req.noticeType() != null) patch.setNoticeType(String.valueOf(req.noticeType()));
         patch.setTargetType(targetType);
         patch.setTargetIds(TARGET_TYPE_USER.equals(targetType) ? serializeIds(req.targetUserIds()) : null);
         patch.setUpdatedAt(LocalDateTime.now());
