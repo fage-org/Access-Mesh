@@ -88,6 +88,7 @@ docs/
 | 主题                 | 权威文档                                                                                                                             |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | 项目工程规范         | [design/project-rules.md](design/project-rules.md)                                                                                   |
+| 后端并发与 Redis 事务锁 | [工程规范 §9.4](design/project-rules.md#backend-concurrency)、[公共锁规范](design/redis-transaction-locks.md) |
 | 待解决问题清单       | [pending-problems.md](pending-problems.md)（暂不足以立任务的问题登记；可执行即转任务，机制见 design-plan-task-lifecycle skill §2.5） |
 | 产品定位与能力叙事口径 | [design/README.md](design/README.md) §产品定位与能力叙事三档口径（开源通用 IAM，2026-08-28 定案）                                 |
 | 微服务整体架构       | [design/architecture.md](design/architecture.md)                                                                                     |

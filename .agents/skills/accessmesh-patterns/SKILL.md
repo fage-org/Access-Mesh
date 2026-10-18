@@ -4,11 +4,11 @@ description: >-
   AccessMesh 仓库级开发模式速查。
   TRIGGER when: 初次进入 AccessMesh 模块、需要确认 Controller/AppService/DomainService/Mapper 分层、
   API 路径与统一响应体、DTO/Entity 命名、审计字段、N+1 查询、禁止依赖、提交规范、
-  仓库通用实现约束；NOT for: 缓存细节（改看 dual-layer-cache-framework）、权限查询与授权传递细节（改看 permission-query-pipeline）。
+  后端并发写入、Redis 事务锁与仓库通用实现约束；NOT for: 缓存细节（改看 dual-layer-cache-framework）、权限查询与授权传递细节（改看 permission-query-pipeline）。
 origin: project
 metadata:
   project: AccessMesh
-  version: "1.2.0"
+  version: "1.3.0"
 ---
 
 # AccessMesh 通用开发模式
@@ -42,6 +42,10 @@ Mapper
 - 同层横向调用**允许**（2026-08-22 全局放开，见 project-rules.md §8.2）：调度层 Service 互调、DomainService 互调、跨能力 Service/AppService 注入复用；通用约束为仅限同层、禁循环依赖、复用优先于重实现、能力包 Mapper 边界（access-service 能力包之间不互读 Mapper，断言面=mapper 包，T-ACCESS-032 能力口径）
 - 新功能优先复用已有 DomainService，而不是在 AppService 里重写领域逻辑
 - 写操作事务边界默认在 AppService 入口声明；DomainService 默认不声明事务（事务由调用方声明），确需独立事务语义的领域组件可声明（如审计异步落库的 `REQUIRES_NEW` 独立短事务）——禁止的是编排级事务下沉，非领域层一律禁事务
+
+## 并发写入与事务锁
+
+涉及后端并发写入、Redis/Redisson 互斥或锁序时，必须读取[工程规范 §9.4](../../../docs/design/project-rules.md#backend-concurrency)与[公共锁规范](../../../docs/design/redis-transaction-locks.md)。优先复用领域守卫和业务锁门面；规范决定何时使用公共 Redis 事务锁、何时保留数据库原子保障，以及事务、新鲜读取和竞争入口的验收要求。本技能只作入口，不另行定义锁协议。
 
 ## 命名规范
 

@@ -1,5 +1,7 @@
 # 2026-10-18 归档
 
+[T-ACCESS-130](tasks/T-ACCESS-130.md) 将公共 Redis 事务锁接入工程规范 §9.4、AGENTS、开发与评审入口；仅文档与指引变更，场景、链接及技能镜像检查完成。
+
 [T-ACCESS-129](tasks/T-ACCESS-129.md) 完成公共锁外评及类型身份缓存写入的存量缺陷修复；[评审与验证](tasks/evidence/T-ACCESS-129/verification.md)保留原始 gpt-6.1-sol 报告、同类入口反例及完整回归证据。完整回归3025项全部通过，包含E2E/heavy。
 
 [后端并发加固](backend-concurrency-hardening.md)已完成，T-ACCESS-122～128 与[验收证据](tasks/evidence/backend-concurrency/verification.md)归档。公共 Redis 事务锁下沉 common，Q-083～Q-089 已闭合；完整回归3018项全部通过，包含E2E/heavy。

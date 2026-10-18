@@ -1,22 +1,25 @@
 ---
 doc_type: design
-title: 公共 Redis 事务锁与后端并发接入方案
+title: 公共 Redis 事务锁与后端并发接入规范
 status: adopted
 domain: common
 last_reviewed: 2026-10-18
 ---
 
-# 公共 Redis 事务锁与后端并发接入方案
+# 公共 Redis 事务锁与后端并发接入规范
 
 > 当前实现已完成，[实施计划](../archive/2026-10-18/backend-concurrency-hardening.md)、[验收记录](../archive/2026-10-18/tasks/evidence/backend-concurrency/verification.md)及[类型身份写入核实](../archive/2026-10-18/tasks/evidence/T-ACCESS-129/verification.md)保存范围和证据。既有树锁、重置锁、数据库租约与接受边界保持。
 
-## 目标与现状
+## 适用范围与现状
+
+本文件为生效的项目规范，工程总则入口为[project-rules §9.4](project-rules.md#backend-concurrency)。所有后端模块新增或修改同步 Spring 数据库事务的 Redis 互斥时，必须复用下述公共 API 或委托它的既有业务门面；不得在业务调用方复制获取、续期、释放逻辑。纯数据库原子操作、任务租约/fencing、缓存与进程内同步按各自协议处理。超出本组件支持范围的场景须明确独立的事务与释放协议，不能直接套用本 API。
 
 `common.lock.RedisTransactionLocks` 承担原 access-service helper 的获取结果、事务结束释放与异常/中断清理。业务侧继续决定锁对象、竞争处理和需要保护的读取。提取公共类本身不会修复未参与互斥的写入口、锁前旧快照、MyBatis 一级缓存及整行旧值回写。
 
 现有使用者为 TreeWriteLockSupport（等待）和 PasswordResetLockSupport（非等待）；现行键空间和错误码保留。公共模块 Redis/Redisson 依赖保持 optional，不新增自动配置注册，不让 SDK、Gateway 或无 Redis 宿主被迫装配客户端。
 
-## 最小公共 API
+<a id="transaction-lock-contract"></a>
+## 公共 API 与事务契约
 
 位置：common/src/main/java/cn/ac/fage/accessmesh/common/lock/RedisTransactionLocks.java。
 
@@ -30,9 +33,10 @@ public static boolean tryLock(RedissonClient client, String key);
 - lock 等待竞争锁；tryLock 仅在竞争失败时返回 false，Redis 故障不能伪装成业务冲突或本地无锁继续。
 - 不传固定 leaseTime，复用 watchdog。中断前置拒绝；获取过程中中断则等待异步结果确定，若成功先尝试释放，再以保留中断标记的技术异常退出。
 - 成功获取后注册 afterCompletion，提交、回滚或未知结果均尝试解锁；注册失败立即清理。解锁等待异步结果，失败记日志，不改写已确定的事务结果。
-- 同一同步事务重入沿用现有配平机制。不得把接口用于跨线程持有/释放、Reactive 事务或持锁后在独立 REQUIRES_NEW 事务中重入同 key；这些不是本稿拟支持的能力。
+- 同一同步事务重入沿用现有配平机制。不得把接口用于跨线程持有/释放、Reactive 事务或持锁后在独立 REQUIRES_NEW 事务中重入同 key；这些不在当前支持范围内。
 - 不提供 try-with-resources 方法体释放、注解/AOP/SpEL、自动重试、补偿队列、配置化锁目录或多锁自动排序；当前没有调用方需要这些能力。
 
+<a id="lock-integration"></a>
 ## 业务接入规范
 
 必须先识别共同不变量，再枚举所有写入口与竞争入口。锁从决定写入结果的第一次读取之前开始；必须预读以确定锁对象时，只能把不可变身份用作定位，锁内重新获取业务事实，且该查询必须实际访问数据库。READ_COMMITTED 不会清除 MyBatis 事务内一级缓存；是否使用 flushCache 查询或限定配置须以可失败的真实事务测试验证，不能仅把同一 mapper 方法再调用一次。
@@ -56,9 +60,10 @@ public static boolean tryLock(RedissonClient client, String key);
 | 服务凭证签发/退役 | 现有服务行锁 | 保护与数据库事务绑定，已覆盖双方 |
 | Gateway 与 SDK 进程内状态 | 原本地同步/代际机制 | 不扩大 Redis 依赖，不阻塞 Reactive 调用线程 |
 
-## 验证与迁移顺序
+<a id="lock-verification"></a>
+## 接入与验收
 
-现有公共实现与树写/重置门面迁移已完成，真实 Redis 中断迟到成功、事务提交/回滚、重入和身份键隔离证据保持。后续扩展同样应逐项验证业务覆盖，新增测试必须在旧实现下稳定失败；使用闩锁/提交闸门安排交错，不依靠裸 sleep。数据库行为使用既有 ItInfra，单元模拟不能代替持久化结果。
+现有公共实现与树写/重置门面迁移已完成，真实 Redis 中断迟到成功、事务提交/回滚、重入和身份键隔离证据保持。新增接入须覆盖相互竞争入口是否共用锁、锁是否持续到真实提交/回滚、锁内读取是否新鲜，以及所选竞争模式和适用异常路径；公共机制已有的证据优先复用，不为每个调用方重复整套底层测试。修复并发缺陷的新增用例必须在旧实现下稳定失败；使用闩锁/提交闸门安排交错，不依靠裸 sleep。数据库行为使用既有 ItInfra，单元模拟不能代替持久化结果。
 
 common API 变化后先 install 刷新上游 SNAPSHOT；各批先定向验证，实施收口执行根 reactor 的 mvn test -T 1C（包含 E2E/heavy），输出整文件保存且运行时不得改源码。实现完成再按代码轨、文档轨独立本地评审；不会自动追加外部评审。
 

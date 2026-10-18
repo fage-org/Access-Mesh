@@ -10,7 +10,7 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| access-service 归并（跨服务） | `T-ACCESS` | 130 |
+| access-service 归并（跨服务） | `T-ACCESS` | 131 |
 | permission-center | `T-PERM` | 113 |
 | admin-service | `T-ADMIN` | 036 |
 | gateway | `T-GW` | 015 |
@@ -31,6 +31,12 @@
 T-PERM-036 继续暂缓，需用户明确解除门禁。历史批次只供追溯，不重新启动。
 
 ## 任务总表
+
+### 后端并发与公共 Redis 锁规范入口
+
+| ID | 标题 | 状态 | 直接依赖 |
+|---|---|---|---|
+| [T-ACCESS-130](../archive/2026-10-18/tasks/T-ACCESS-130.md) | 后端并发与公共 Redis 锁规范入口 | ✅ | T-ACCESS-129 |
 
 ### 锁内类型身份写入核实与修复
 

@@ -42,6 +42,7 @@ Gateway (8080) -> access-service (9100)    能力包单体：管理面（用户/
 | ------------------ | ------------------------------------------ |
 | 文档入口与阅读顺序 | `docs/README.md`                           |
 | 工程规范           | `docs/design/project-rules.md`             |
+| 后端并发与 Redis 事务锁 | [工程规范 §9.4](docs/design/project-rules.md#backend-concurrency)、[公共锁规范](docs/design/redis-transaction-locks.md) |
 | 定案导航与治理 | `docs/design/decision-registry.md`（按任务范围定位当前规范与例外；写入、修订、评审及增量切换协议见 `project-rules.md` 文档治理） |
 | 整体架构           | `docs/design/architecture.md`              |
 | 归并后目标架构     | `docs/design/access-service-architecture.md` |
@@ -62,6 +63,7 @@ Gateway (8080) -> access-service (9100)    能力包单体：管理面（用户/
 - 所有业务 API **POST + JSON Request DTO**：禁 GET/PUT/DELETE、`@RequestParam`（文件上传除外）与 RESTful 路径参数。
 - Controller -> Service -> DomainService -> Mapper，禁止跳层；新逻辑先查 DomainService 可复用方法（§8.4）。
 - 循环内禁止单条数据库查询，必须批量（禁 N+1，§8.4.8）。
+- 后端并发写入先读[工程规范 §9.4](docs/design/project-rules.md#backend-concurrency)；Redis 事务互斥必须复用 `RedisTransactionLocks` / 既有业务门面，锁序、读取及适用边界见[公共锁规范](docs/design/redis-transaction-locks.md)。
 - DTO 优先 Java 21 Record；禁止 `@Data`/`@Value` 等隐式生成过多逻辑的 Lombok 注解。
 - 日期统一 `java.time.LocalDateTime`（禁 `java.util.Date`），时间语义全链路 UTC（TypeHandler 显式换算，§7.4）。
 - 权限校验必须走 `QueryGate`（T-PERM-089 起判定面唯一门面；check/batchCheck 经新 `QueryExecutionEngine.execute`），禁止绕过引擎直查 `rolePermMapper`；旧 `PermQueryEngine` 与四旧 DTO 已删除（T-PERM-092，X04 退役锁=架构测试断言主源码不得再现）。

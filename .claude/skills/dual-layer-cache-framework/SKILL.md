@@ -11,10 +11,12 @@ description: >-
 origin: project
 metadata:
   project: AccessMesh
-  version: "3.1.0"
+  version: "3.2.0"
 ---
 
 # 统一缓存框架规范
+
+涉及 Redis/Redisson **事务互斥锁**时，先读[工程规范 §9.4](../../../docs/design/project-rules.md#backend-concurrency)与[公共锁规范](../../../docs/design/redis-transaction-locks.md)。本技能的缓存故障回源规则不适用于取锁失败，不能据此继续无锁写入；锁规范由该入口统一维护。
 
 本技能描述 AccessMesh 当前生效的统一缓存方案。缓存基础设施已经从旧的 `GenericCacheManager` / `AbstractGenericCacheManager` 模型收敛为 `CacheService + CacheCatalogEntry + Store SPI`（T-ACCESS-008 起 TTL 全面 `java.time.Duration` 秒级精度，并新增剩余 TTL 回填与跨实例 L1 失效广播）。
 

@@ -12,7 +12,7 @@ origin: project
 metadata:
   project: AccessMesh
   module: access-service
-  version: "7.0.0"
+  version: "7.1.0"
 ---
 
 # 权限面（engine + 权限事实能力包）编码规范
@@ -185,6 +185,8 @@ public class UserManageController { }
 **SHOULD** 不设硬上限，逻辑内聚优先于依赖数量。当类职责过重时（逻辑分散、事务边界交叉、测试难以编写），考虑拆分类。
 
 ## 5. 事务边界
+
+并发写入必须遵守[工程规范 §9.4](../../docs/design/project-rules.md#backend-concurrency)与[公共 Redis 事务锁规范](../../docs/design/redis-transaction-locks.md)：按业务不变量选择共同保障，已有业务锁门面优先复用，核对真实事务结束点、跨 Redis/PG 锁序和全部竞争入口。
 
 **MUST** 事务边界默认在 AppService 入口声明（写路径单事务原子）。DomainService 默认不声明事务（事务由调用方声明，如 `SyncMetadataDomainService` 契约明示）；确需独立事务语义的领域组件可声明——如 `AuditDomainServiceImpl.asyncRecordLog` 的 `@Async + REQUIRES_NEW` 独立审计短事务、`SubjectDomainServiceImpl` 领域内写事务。禁止的是把编排级事务边界下沉到领域层，而非领域层一律禁事务。
 
@@ -386,6 +388,8 @@ role.getBizDomainId();           // 字段已删除
 - `DomainClassifyService` 仅负责查询与匹配，不承担全局域创建（biz-domain create 入口）
 
 ## 10. 类型解析
+
+需要把可删除/重建的类型身份写入事实时，使用 `TypeResolutionService.resolveTypeValueFromDatabase` 或既有返回当前类型行的领域入口；批量路径保持锁内批量数据库读取，不能循环调用单条解析。只读解析可沿用缓存。具体读取与生命周期边界见[公共锁规范](../../docs/design/redis-transaction-locks.md#write-guards)。
 
 **MUST** 通过 `TypeResolutionService` 的批量方法，**禁止**循环调用单个解析方法。
 

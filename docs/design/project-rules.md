@@ -777,6 +777,20 @@ public UserDetailResp getUserDetail(Long userId) { ... }
 
 > **跨服务数据操作**禁止使用本地事务，必须通过 TCC / Saga / 消息最终一致性实现分布式事务。
 
+<a id="backend-concurrency"></a>
+### 9.4 后端并发控制与公共 Redis 事务锁
+
+本节适用于所有后端模块新增或修改的并发写路径。公共机制与接入细节以[Redis 事务锁规范](redis-transaction-locks.md#transaction-lock-contract)为准，业务锁对象、等待策略和错误码由所属业务契约规定。
+
+- **MUST 先明确不变量和竞争入口**：列出管理、同步 single/FULL、批量、删除/清理及后台任务中会改写同一事实的入口，确认它们受同一保障覆盖。优先复用现有领域守卫；数据库唯一约束、条件 UPDATE/CAS、行锁、事务咨询锁能表达的原子性继续由数据库承担，任务租约和 fencing 不得用 Redis mutex 替换。
+- **MUST 统一 Redis 事务锁实现**：需要 Redis 互斥保护同步 Spring 数据库事务时，复用 `common.lock.RedisTransactionLocks`；已有业务门面如 `TreeWriteLockSupport`、`PasswordResetLockSupport` 必须优先复用。业务代码禁止直接获取/释放 `RLock`（含同步和异步 API）、自写 SET NX/Lua 锁或复制获取/释放 helper；此约束限定事务互斥，不把缓存、发布代次或租约协议视为锁替代品。
+- **MUST 对齐真实事务边界**：在实际事务及同步回调有效时、决定写入的首次读取之前获取，交由公共组件在 `afterCompletion` 释放；禁止在业务 `finally`、方法返回或 `afterCommit` 中提前解锁。支持范围、原线程责任和独立嵌套事务限制见公共规范，不得用该组件包裹跨线程或 Reactive 事务。
+- **MUST 明确竞争与故障语义**：按业务契约选择等待或非等待，锁键必须对应稳定业务身份及正确租户范围，同一对象的所有竞争入口共用同一键。取锁技术失败必须终止受保护写入，不能降级为无锁执行或伪装为竞争失败；续期和异常释放统一由公共组件负责。
+- **MUST 核查完整锁序与新鲜读取**：把 Redis、PG 咨询锁及 SQL 隐式行锁纳入同一等待关系，复用既有锁时遵守[联合锁序](redis-transaction-locks.md#subject-lifecycle-lock)，不得只检查 Redis key 顺序。预读只能用于不可变身份定位，锁内决定受保护不变量的读取须使用当前数据库事实；不得用 MyBatis 一级缓存或 Redis 读取缓存决定可变化的持久化身份。加锁不能替代请求触达列更新及有效行校验。
+- **MUST 提供行为证据**：按[接入与验收](redis-transaction-locks.md#lock-verification)验证相互竞争入口、提交/回滚及适用的异常路径；复用现有真实 PG/Redis 测试，时序使用闩锁或提交闸门。仅证明 helper 被调用不足以证明业务互斥闭合。
+
+原有 watchdog 故障边界、密码重置提交后交付窗口等接受范围仍以所属契约为准，不能自动推广到新业务。本节不要求所有并发问题都加 Redis 锁，也不通过新增锁撤销既有接受边界。规范接入来源：[T-ACCESS-130](../archive/2026-10-18/tasks/T-ACCESS-130.md)。
+
 ---
 
 ## 10. 数据校验规范

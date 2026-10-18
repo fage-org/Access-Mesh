@@ -8,7 +8,7 @@ description: >-
 origin: project
 metadata:
   project: AccessMesh
-  version: "1.3.0"
+  version: "1.4.0"
 ---
 
 # 任务本地评审与收口（双轨评审，主代理直跑）
@@ -48,6 +48,7 @@ metadata:
 
 ## 高频缺陷专项（评审与自审共用清单）
 
+- **并发写入与 Redis 事务锁**：按[工程规范 §9.4](../../../docs/design/project-rules.md#backend-concurrency)和[公共锁验收](../../../docs/design/redis-transaction-locks.md#lock-verification)核对统一组件、真实提交/回滚释放、包含 SQL 行锁的完整锁序、竞争入口覆盖及锁内新鲜读取；取得 Redis 锁本身不是持久化一致性的证据。
 - **持久层单测盲区**：Mapper 调用逐个核对实参序 vs 签名（同型参换序编译通过、mock 掩盖）；XML 列名误写；涉真实 SQL 的修复配 PgIT 锁。
 - **删除/退役/停用类**：被删符号与被删调用方类名在注释/Javadoc/@param 的**现在时残留**专项 grep（历史单任务 8 处）；清扫面含 mock 层、TS 响应模型、其他类同款 helper 副本、死 UI 分支。
 - **门禁分支化**：无条件门禁改为枚举条件分支时必须补 else 兜底 throw（fail-closed）+ DTO @Pattern + 非法值回归锁。
