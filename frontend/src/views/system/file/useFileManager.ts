@@ -27,11 +27,12 @@ export function useFileManager() {
   let uploadController: AbortController | undefined;
   let downloadController: AbortController | undefined;
   const stamp = () => ({ generation, session: getTenantSession()?.sessionId });
-  const current = (value: ReturnType<typeof stamp>) =>
+  const sameSession = (value: ReturnType<typeof stamp>) =>
     !disposed &&
-    value.generation === generation &&
     !!value.session &&
     value.session === getTenantSession()?.sessionId;
+  const current = (value: ReturnType<typeof stamp>) =>
+    value.generation === generation && sameSession(value);
 
   const list = usePagedList<FileResp>({
     errorText: "文件列表加载失败",
@@ -157,8 +158,9 @@ export function useFileManager() {
       }
       if (!current(context) || !canDelete.value) return;
       await deleteFile(file.id);
-      if (!current(context)) return;
-      message("文件已删除", { type: "success" });
+      if (!sameSession(context)) return;
+      if (current(context)) message("文件已删除", { type: "success" });
+      // 删除是已提交的事实；同会话下重新读取当前筛选，不回填旧筛选数据。
       await refresh();
     } catch (error) {
       if (current(context))

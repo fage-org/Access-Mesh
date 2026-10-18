@@ -62,21 +62,19 @@ export async function downloadFile(
     unwrap(JSON.parse(await blob.text()) as R<unknown>);
     throw new Error("文件下载响应格式不正确");
   };
-  let blob: Blob;
-  try {
-    blob = await http.request<Blob>("post", "/api/access/file/download", {
-      data: { id },
-      responseType: "blob",
-      timeout: 90000,
-      signal
-    });
-  } catch (error) {
-    const body = (error as { response?: { data?: unknown } })?.response?.data;
-    if (body instanceof Blob && body.type.includes("json"))
-      return rejectEnvelope(body);
-    throw error;
-  }
-  if (blob instanceof Blob && blob.type.includes("json"))
+  let attachment = false;
+  const blob = await http.request<Blob>("post", "/api/access/file/download", {
+    data: { id },
+    responseType: "blob",
+    timeout: 90000,
+    signal,
+    beforeResponseCallback: response => {
+      attachment = /^\s*attachment(?:\s*;|$)/i.test(
+        String(response.headers["content-disposition"] ?? "")
+      );
+    }
+  });
+  if (!attachment && blob instanceof Blob && blob.type.includes("json"))
     return rejectEnvelope(blob);
   if (!(blob instanceof Blob)) throw new Error("文件下载响应格式不正确");
   return blob;

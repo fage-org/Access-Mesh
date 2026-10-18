@@ -1,0 +1,78 @@
+已完成指定 53 文件 diff、关联调用链及第二轮入口反查。全程只读，未运行构建或测试，Git 状态未改变。
+
+### [P2] 上传失败后残留永久文件，标准开放放大既有问题
+
+**位置：** [FileAppServiceImpl.java:292、309、331](D:/codespace/Access-Mesh/access-service/src/main/java/cn/ac/fage/accessmesh/access/platform/service/impl/FileAppServiceImpl.java:309)、[BootstrapGraphDefinition.java:324、447](D:/codespace/Access-Mesh/access-service/src/main/java/cn/ac/fage/accessmesh/access/bootstrap/BootstrapGraphDefinition.java:324)、[access-service.sql:444](D:/codespace/Access-Mesh/docs/design/schema/access-service.sql:444)。
+
+**问题：** 上传先写入最终磁盘路径，再插入 `sys_file`；后续数据库失败没有清理已写文件。事务回滚只能撤销数据库记录。
+
+**触发条件：** 获得目标分类 CREATE 的用户上传合法 `.txt` 文件，文件部分的 Content-Type 超过 128 字符，例如 `"application/" + 117 个 a`。当前代码只告警，随后落盘；写入 `file_type VARCHAR(128)` 时失败。
+
+**影响：** 请求失败、元数据不存在，物理文件持续占用持久卷，无法通过文件管理接口查询或删除。重复提交会持续制造孤儿文件。属于**既有问题被本次新增准入和可委派上传权限放大**。
+
+**证据：** Content-Type 未做长度检查；`transferTo` 在 `fileMapper.insert` 之前，上传路径没有失败清理。Spring 的实现直接调用 `Part.write` 写入目标文件；PostgreSQL 明确拒绝超出 `varchar(n)` 的非空格内容。[Spring 源码](https://raw.githubusercontent.com/spring-projects/spring-framework/v7.0.9/spring-web/src/main/java/org/springframework/web/multipart/support/StandardMultipartHttpServletRequest.java)、[PostgreSQL 文档](https://www.postgresql.org/docs/16/datatype-character.html)。已追溯 T-ADMIN-025：原修复覆盖的是落盘前的文件夹登记冲突，未覆盖随后发生的元数据插入失败。
+
+**建议：** 在落盘前校验与 DDL 对应的字段约束，并在统一上传路径补齐数据库插入、事务失败时的文件清理，复用现有物理清理能力。补充元数据插入失败后无残留文件的反例。
+
+### [P2] 合法 JSON MIME 文件被下载封装当成错误响应
+
+**位置：** [frontend/src/api/file.ts:61、79](D:/codespace/Access-Mesh/frontend/src/api/file.ts:79)。
+
+**问题：** 成功响应只要 Blob MIME 包含 `json`，就被强制作为 `R` 错误信封解包，无法作为文件交付。
+
+**触发条件：** 经现有上传 API 保存 `.txt` 文件，文件 Content-Type 为 `application/json`，内容例如 `{"answer":42}`。后端允许该扩展名，对此 MIME 只告警，并在下载时原样设置响应类型。
+
+**影响：** 文件上传和权限校验均成功，管理页仍无法下载，显示“请求失败”或解析错误。属于本次新增消费面的功能缺陷。
+
+**证据：** `uploadFile` 第 292–296 行允许该 MIME；`downloadFile` 第 543 行回显它。公共 HTTP 成功分支返回原始 Blob，随后新增封装将所有 JSON MIME 都送入 `unwrap`。现有测试仅覆盖 JSON 错误信封和 `text/plain` 成功文件。
+
+**建议：** 根据成功文件响应的 `Content-Disposition` 等协议信息区分附件与错误信封，保留合法 JSON 文件内容；不能仅凭 MIME 子串拒绝。补充上述已成功上传文件的下载反例。
+
+### [P3] 删除在途时切换分类，会跳过删除后的列表刷新
+
+**位置：** [useFileManager.ts:59、159–162](D:/codespace/Access-Mesh/frontend/src/views/system/file/useFileManager.ts:159)、[index.vue:96](D:/codespace/Access-Mesh/frontend/src/views/system/file/index.vue:96)。
+
+**问题：** 分类变化会递增 `generation`，删除成功后因此直接返回，跳过刷新；删除期间分类选择器仍可操作。
+
+**触发条件：** 在“全部分类”删除 document 文件，请求发出后切换到 document；新列表查询先于删除提交完成，取得旧行。删除随后成功，但代际已变化，完成分支不再刷新。
+
+**影响：** 页面继续显示已经删除的文件及旧总数，没有删除完成反馈；再次查看或下载得到文件不存在，直至手动刷新。
+
+**证据：** 分类选择器仅受 `uploading` 禁用；分类 watcher 清空并立即查询，删除完成分支要求原分类代际仍有效。没有其他 watcher 在 `busy` 结束时重新加载。成熟用户删除实现则在成功后加载当前列表。
+
+**建议：** 区分会话有效性与筛选代际：同会话、页面仍存活的删除完成后，通过现有 `refresh()` 查询当前筛选；继续丢弃跨会话结果。补充“删除已发出后切换分类”的时序反例。
+
+## 过度设计可裁剪项
+
+- **位置：** [file.ts:73–78](D:/codespace/Access-Mesh/frontend/src/api/file.ts:73)。
+- **证据：** 公共 HTTP 错误拦截器已在 [http/index.ts:218–225](D:/codespace/Access-Mesh/frontend/src/utils/http/index.ts:218) 解析非 2xx JSON Blob。可解析内容到达 API 层时已经是对象；剩余 Blob 是公共层解析失败的内容，再次解析没有有效补救作用，还会丢失原运输错误。
+- **裁剪方向：** 非 2xx Blob 错误统一由公共 HTTP 层处理，删除新增重复支路。同类调用点全集为 `downloadFile`、`exportAuditLogs`；成功附件识别仍由各自协议决定。本项不计入缺陷数量。
+
+## 两轮覆盖与契约核对
+
+第二轮按全部新增可达入口反查了认证、授权、租户隔离及写入边界：
+
+| 入口 | 最终约束 | 数据库写入与事务 |
+|---|---|---|
+| upload | 目标分类 CREATE、可信租户 | 文件夹投影与文件元数据同事务；磁盘失败边界见 P2 |
+| detail / download | 租户内元数据、所属分类 VIEW | 无业务数据库写入 |
+| page | Gateway VIEW 准入、服务按可见分类裁剪 | 无业务数据库写入 |
+| delete | 租户内有效文件、分类批量 DELETE | 同事务软删，提交后清理 |
+| 标准租户开通 | 独立平台认证、目标租户上下文 | 新增 API、映射、授权、菜单及投影加入既有开通事务 |
+| 分类委派 | 既有授权页及授权传递校验 | 复用授权计划事务、审计与提交后失效 |
+
+五个文件入口均未加入白名单；Cookie/CSRF、原生会话、租户门禁、网关准入和服务最终检查链未发现新增绕过。
+
+已按当前定案核对：管理员三项 ALL/canGrant、分类而非上传者权限、新分类首传、旧库备份重建、单实例持久卷均符合确认范围。T-ADMIN-023 接受的孤儿文件边界是**已提交软删后的清理失败**，不覆盖上述上传元数据未提交的路径。
+
+Q-071 的三种布局裁剪、Q-078 的标准可达性与页面已有对应实现和验收证据；归档相对路径检查未发现缺失，T-PERM-036 仍暂缓。
+
+仅引用既有报告：后端 execution 汇总 **2976，失败/错误/跳过均为 0**；前端 **630 项通过**。初次 31 项 Docker 跳过和旧计数失败已与后续补齐结果区分，未视为本轮执行。
+
+## 存量观察
+
+无另行确认、且未被本次变更放大的生产缺陷。
+
+## 总结
+
+**P0：0；P1：0；P2：2；P3：1。** 另有过度设计可裁剪项 1 项，不计入分级总数。

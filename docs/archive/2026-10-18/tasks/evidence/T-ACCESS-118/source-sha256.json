@@ -1,0 +1,15 @@
+{
+  "frozen_input_count": 1617,
+  "unchanged_during_maven": true,
+  "changed_final_inputs": {
+    "access-service/src/main/java/cn/ac/fage/accessmesh/access/platform/service/impl/FileAppServiceImpl.java": "fde894ba5109dac063e0858e8168242c7e230b0a05de388856c999239a06a1b9",
+    "access-service/src/test/java/cn/ac/fage/accessmesh/access/characterization/FileServiceSecurityPgIT.java": "d40035311dee7b96235ccc73e057662701e6a8bdeab340938ad103bb562060de",
+    "access-service/src/test/java/cn/ac/fage/accessmesh/access/platform/service/impl/FileAppServiceImplTest.java": "2ddef27eca2b0aeda11f5c98619cbaeaf3c79f5bef7a8302645c089c598708aa",
+    "frontend/src/api/audit-export.spec.ts": "ca49ad5cd23d29b9227b04dff3025137ef1ae0923f6f650ab88b4e050c9e08cd",
+    "frontend/src/api/audit-export.ts": "2708bdedb5ac00413800e68c7cd0279713e2f3e36a5be33e54b0b7b4025cbde8",
+    "frontend/src/api/file.spec.ts": "70a56f0744a3144136a6c53732f76a1439b9e84d26e7c8594aaf281c0c393c13",
+    "frontend/src/api/file.ts": "17dd220d06a665fc54ce533fedf41cdd051f60a1cdd5147d6a0df1569d0edbd2",
+    "frontend/src/views/system/file/useFileManager.spec.ts": "96b3f07562e22f728816fd6bda556c8d73de5d340f6fd7cdfef9469622e42168",
+    "frontend/src/views/system/file/useFileManager.ts": "5188fbd2317d90dec1b6ae7bf0b9379f1336535c7324db76d914f38557619161"
+  }
+}

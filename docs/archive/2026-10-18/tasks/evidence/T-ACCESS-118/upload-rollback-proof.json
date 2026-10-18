@@ -1,0 +1,9 @@
+{
+  "httpStatus": 500,
+  "responseCode": 99999,
+  "responseMessage": "系统异常",
+  "metadataPresent": false,
+  "newPhysicalPaths": [
+    "/var/lib/accessmesh/files/document/2026/10/18/de65a36cab844f83adc29f59a626fb61.txt"
+  ]
+}

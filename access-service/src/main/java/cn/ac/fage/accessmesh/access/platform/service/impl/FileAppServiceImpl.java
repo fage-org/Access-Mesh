@@ -79,6 +79,9 @@ public class FileAppServiceImpl implements FileAppService {
      */
     private static final long DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024;
 
+    /** 与 sys_file.file_type VARCHAR(128) 对齐，不另设可配置限制。 */
+    private static final int MAX_CONTENT_TYPE_LENGTH = 128;
+
     /**
      * 默认允许的文件类型（白名单）
      * <p>
@@ -290,6 +293,11 @@ public class FileAppServiceImpl implements FileAppService {
 
         // 11. 检查 Content-Type（可选，作为额外验证）
         String contentType = file.getContentType();
+        if (contentType != null
+            && contentType.codePointCount(0, contentType.length()) > MAX_CONTENT_TYPE_LENGTH) {
+            throw new BizException(AccessErrorCode.FILE_UPLOAD_FAILED.getCode(),
+                "文件类型标识长度不能超过 " + MAX_CONTENT_TYPE_LENGTH + " 个字符");
+        }
         if (contentType != null && !DEFAULT_ALLOWED_TYPES.contains(contentType)) {
             log.warn("Suspicious content type: originalName={}, contentType={}", originalName, contentType);
             // 不直接拒绝，但记录警告，因为有些文件类型可能不在默认列表中
@@ -300,6 +308,8 @@ public class FileAppServiceImpl implements FileAppService {
 
         // 13. 构建存储路径（统一路径安全函数：目录与目标文件都必须位于存储根目录内）
         String dateDir = DateTimeFormatter.ofPattern("yyyy/MM/dd").format(LocalDateTime.now());
+        String filePath = normalizedBizType + "/" + dateDir + "/" + fileName;
+        boolean cleanupOnCompletion = registerUploadRollbackCleanup(filePath);
         try {
             Path dirPath = securePath(normalizedBizType, dateDir);
             Files.createDirectories(dirPath);
@@ -307,30 +317,47 @@ public class FileAppServiceImpl implements FileAppService {
 
             // 保存文件
             file.transferTo(targetPath.toFile());
-            log.info("File uploaded successfully: originalName={}, fileName={}, size={}, bizType={}",
+            log.info("File written: originalName={}, fileName={}, size={}, bizType={}",
                 originalName, fileName, file.getSize(), normalizedBizType);
 
+            // 14. 元数据与文件夹投影同事务；提交结果决定是否清理文件。
+            SysFile sysFile = new SysFile();
+            sysFile.setTenantId(tenantId);
+            sysFile.setOriginalName(originalName);
+            sysFile.setFileName(fileName);
+            sysFile.setFilePath(filePath);
+            sysFile.setFileSize(file.getSize());
+            sysFile.setFileType(contentType);
+            sysFile.setBucketName(normalizedBizType);
+            sysFile.setCreatedAt(LocalDateTime.now());
+            sysFile.setUpdatedAt(LocalDateTime.now());
+            sysFile.setDeleteFlag(0L);
+            fileMapper.insert(sysFile);
+            return sysFile.getId();
         } catch (IOException e) {
+            if (!cleanupOnCompletion) cleanupPhysicalFiles(List.of(filePath));
             log.error("Failed to save file: originalName={}, error={}", originalName, e.getMessage());
             throw new BizException(AccessErrorCode.FILE_UPLOAD_FAILED.getCode(), "文件保存失败: " + e.getMessage());
+        } catch (RuntimeException e) {
+            if (!cleanupOnCompletion) cleanupPhysicalFiles(List.of(filePath));
+            throw e;
         }
+    }
 
-        // 14. 记录文件信息到数据库
-        String filePath = normalizedBizType + "/" + dateDir + "/" + fileName;
-        SysFile sysFile = new SysFile();
-        sysFile.setTenantId(tenantId);
-        sysFile.setOriginalName(originalName);
-        sysFile.setFileName(fileName);
-        sysFile.setFilePath(filePath);
-        sysFile.setFileSize(file.getSize());
-        sysFile.setFileType(contentType);
-        sysFile.setBucketName(normalizedBizType);
-        sysFile.setCreatedAt(LocalDateTime.now());
-        sysFile.setUpdatedAt(LocalDateTime.now());
-        sysFile.setDeleteFlag(0L);
-        fileMapper.insert(sysFile);
-
-        return sysFile.getId();
+    /** 仅清理本次新建路径；结果未知时保留，避免误删可能已提交的文件。 */
+    private boolean registerUploadRollbackCleanup(String filePath) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) return false;
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_ROLLED_BACK) {
+                    cleanupPhysicalFiles(List.of(filePath));
+                } else if (status == STATUS_UNKNOWN) {
+                    log.warn("Upload transaction outcome unknown, file retained: filePath={}", filePath);
+                }
+            }
+        });
+        return true;
     }
 
     /**
@@ -532,6 +559,7 @@ public class FileAppServiceImpl implements FileAppService {
             throw new BizException(AccessErrorCode.FILE_NOT_FOUND.getCode(), "物理文件不存在");
         }
         try {
+            byte[] data = Files.readAllBytes(filePath);
             // originalName 源于 DB（可能早于控制字符剥离落库），响应头拼接前防御性剥离
             // 控制字符，阻断 CRLF 类 header 污染
             String safeOriginalName = (f.getOriginalName() == null ? "" : f.getOriginalName())
@@ -541,7 +569,7 @@ public class FileAppServiceImpl implements FileAppService {
             response.setHeader("Content-Disposition", disposition + "; filename*=UTF-8''"
                 + UriUtils.encode(safeOriginalName, StandardCharsets.UTF_8));
             response.setContentType(f.getFileType() != null ? f.getFileType() : "application/octet-stream");
-            return Files.readAllBytes(filePath);
+            return data;
         } catch (IOException e) {
             throw new BizException(AccessErrorCode.FILE_READ_FAILED.getCode(),
                 AccessErrorCode.FILE_READ_FAILED.getMessage() + ": " + e.getMessage());

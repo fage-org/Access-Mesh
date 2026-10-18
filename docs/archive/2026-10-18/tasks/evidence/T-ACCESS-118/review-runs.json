@@ -1,0 +1,47 @@
+{
+  "base": "31f84fffe6602cf198101a9cae92857aee501c26",
+  "head": "a1e98c72033677b110f0c59c11125ac9d702ea6b",
+  "clean_after_review": true,
+  "runs": {
+    "permission": {
+      "requested_model": "gpt-6.1-sol",
+      "reasoning_effort": "max",
+      "sandbox": "read-only",
+      "multi_agent": false,
+      "exit_code": 0,
+      "session_id": "01a14d3e-bed1-7610-875c-306c87b8baf8",
+      "prompt_sha256": "01dd965c2fa4f5bdc5a9db6bf850516684c9cdc294f70e66a27c89d256b07b6f",
+      "report_sha256": "4430f0211ad7c64d07bee7e4431bb5828ddca2e7848759f21c094f5e81569da9"
+    },
+    "frontend": {
+      "requested_model": "gpt-6.1-sol",
+      "reasoning_effort": "max",
+      "sandbox": "read-only",
+      "multi_agent": false,
+      "exit_code": 0,
+      "session_id": "01a14d3e-beec-73e2-a97f-5e53c99e8c11",
+      "prompt_sha256": "56a79190d28856d3bf9b146723147cb89f8f0004a1fb5dceb5649987fe987661",
+      "report_sha256": "a04a34de5c1d8b643a46cba56ddafba5b9cabafa2fa8e35f050d6ff7fbc34858"
+    },
+    "integration": {
+      "requested_model": "gpt-6.1-sol",
+      "reasoning_effort": "max",
+      "sandbox": "read-only",
+      "multi_agent": false,
+      "exit_code": 0,
+      "session_id": "01a14d3e-bfe8-71c1-b000-81c207fbcef5",
+      "prompt_sha256": "8007851b1533255e18f32a2dc654f80f24daeabb44e06de8e0be0e0f0d179a58",
+      "report_sha256": "d247e01d1fd68dded50e4fe05cf9deb4c545a0992c237c45bf7e7274b0fe8b23"
+    },
+    "design": {
+      "requested_model": "gpt-6.1-sol",
+      "reasoning_effort": "max",
+      "sandbox": "read-only",
+      "multi_agent": false,
+      "exit_code": 0,
+      "session_id": "01a14d3e-bf35-76a0-b628-d4ab2bc15cfc",
+      "prompt_sha256": "6e1fc6cb674f55fd8101bb87fa6f2861ac1cd727ba1e8c75bf4ad16d7061f89d",
+      "report_sha256": "5584e8ffdd25c3fe690de2dc26205cdac91772fba1ee59793bd7f0527353e226"
+    }
+  }
+}

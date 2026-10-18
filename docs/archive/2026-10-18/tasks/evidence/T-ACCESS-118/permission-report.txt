@@ -1,0 +1,57 @@
+两轮只读评审完成，发现 **1 项 P2：既有问题被本次变更放大**。未修改文件、Git 状态，未运行构建或测试，未使用子代理。
+
+### [P2] 上传落盘后元数据写入失败，会留下无法通过文件接口清理的文件
+
+**位置：**
+
+- [BootstrapGraphDefinition.java:324](D:/codespace/Access-Mesh/access-service/src/main/java/cn/ac/fage/accessmesh/access/bootstrap/BootstrapGraphDefinition.java:324)，以及第 447 行。
+- [FileAppServiceImpl.java#uploadFile](D:/codespace/Access-Mesh/access-service/src/main/java/cn/ac/fage/accessmesh/access/platform/service/impl/FileAppServiceImpl.java:292)：第 292、309、326、331 行。
+- [access-service.sql:444](D:/codespace/Access-Mesh/docs/design/schema/access-service.sql:444)。
+
+**问题：** 上传先执行 `transferTo`，再插入 `sys_file`。后续数据库异常只回滚元数据，没有清理本次已创建文件的补偿。客户端提供的 Content-Type 既不限制长度，也不因不在白名单而拒绝，存在明确可达的数据库失败分支。
+
+**触发条件：** 管理员或获委派某分类 CREATE 的普通角色，上传大小、后缀均合法的 `.txt` 文件，但文件分段的 Content-Type 超过 128 字符，例如 `text/plain; x=` 后接 160 个 `a`。该值通过当前上传检查，最终触发 `file_type VARCHAR(128)` 拒绝。
+
+**影响：** 接口返回失败，元数据及新分类投影回滚，文件却保留在持久卷中。由于没有文件记录 ID，文件分页、删除接口均无法发现或清理它；重复请求或失败重试会持续积累残留文件、消耗磁盘。
+
+**证据：**
+
+- 第 293 行对异常 Content-Type 仅告警；第 309 行落盘；第 326、331 行随后原样保存并插入数据库。
+- [Spring 7.0.9 源码](https://github.com/spring-projects/spring-framework/blob/v7.0.9/spring-web/src/main/java/org/springframework/web/multipart/support/StandardMultipartHttpServletRequest.java)显示 `getContentType()` 直接返回 Servlet Part 的值；本机对应 Spring/Tomcat 字节码也已核对，没有自动截断。
+- PostgreSQL 明确规定，普通写入超出 `varchar(n)` 长度会报错。[PostgreSQL 字符类型文档](https://www.postgresql.org/docs/16/datatype-character.html)
+- 本次新增标准上传准入和可转授 CREATE，使该存量分支可由正常开通租户及受委派用户直接触发。
+- 已复核契约 §17.1.5、架构 §15 和 T-ADMIN-023：接受的孤儿边界是**删除事务提交后物理清理失败**，不能覆盖本例上传失败产生的残留。
+
+**建议：** 落盘前完成元数据长度校验；在上传生命周期中统一封装失败、事务回滚时对本次 UUID 文件的补偿清理，覆盖插入失败及提交失败。复用现有文件安全 PG 测试，补充“元数据拒绝后磁盘无残留”的场景，无需引入自动回收调度或存储框架。
+
+### 两轮覆盖结果与实证通过项
+
+第一轮沿调用链检查；第二轮从入口及数据库写入点反查，覆盖如下：
+
+| 入口 | 核对结果 |
+|---|---|
+| `file/upload` | Gateway CREATE 准入、可信租户、目标分类 CREATE 均保留；物理回滚发现上述问题 |
+| `file/delete` | 按租户加载有效行，整批分类 DELETE 校验后软删，提交后清理物理文件 |
+| `file/page` | VIEW 准入后批量计算可见分类，分页、计数 SQL 均带租户及分类过滤 |
+| `file/detail` | 按租户取元数据，再检查所属分类 VIEW |
+| `file/download` | 同详情权限链，读取路径经过存储根校验 |
+| 租户开通／初始化 | 新增资源、映射、授权、菜单加入原开通事务，目标租户显式传递 |
+| 分类委派／撤权 | 保留 ROLE:MANAGE、`canGrant` 和目标范围检查；授权、审计同事务，提交后失效 |
+
+五条文件接口均未进入匿名或 M2M 白名单；浏览器 Cookie 通道继续检查来源及会话/CSRF 绑定。未发现新增跨租户访问、普通用户默认授权或平台身份读取租户文件的路径。
+
+文档轨已独立核对文件契约、固定图、前端设计及部署说明。单实例本地盘、旧库备份重建、新分类首传登记、删除清理失败容忍孤儿均按现行定案处理，未重复列为缺陷。存疑待用户决策项：无。
+
+仅引用既有结果：相关 Surefire 报告中初始化 20、租户开通 8、文件安全 11、文件单测 26 项均零失败、错误、跳过；历史完整回归为后端 2976、前端 630。最初 Docker 跳过及旧计数失败与后续补跑已区分，均非本轮执行结果。
+
+### 过度设计可裁剪项
+
+无。
+
+### 存量观察
+
+无另列项；上述上传问题已因本次可达性扩大纳入正式发现。
+
+### 总结
+
+**P0：0；P1：0；P2：1；P3：0。**

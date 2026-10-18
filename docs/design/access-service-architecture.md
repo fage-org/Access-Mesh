@@ -630,6 +630,7 @@ bootstrap 的 §14.4 最小集（`RESOURCE:VIEW`/`OPERATION:VIEW` scopeAll + `RO
 - **安全终态（同任务收口）**：全接口 `ADMIN_FILE` 门禁（upload=CREATE、detail/page/download=VIEW、delete=DELETE）；
   统一路径安全函数（规范化后必须位于存储根内）应用于上传目录/上传目标/下载/删除四条物理路径（`filePath` 源于 DB 仍校验，纵深防御）；
   bizType 格式白名单 `^[A-Za-z0-9_-]{1,32}$`；删除顺序=先同事务软删元数据、提交后 afterCommit 物理清理、失败容忍孤儿。
+- **上传失败补偿（T-ACCESS-118）**：落盘前校验元数据长度；对本次 UUID 文件在明确失败或事务明确回滚时尽力清理。正常提交保留，事务结果未知或清理失败时保留并告警；不覆盖原错误，不增加后台回收或跨存储强原子承诺。成功下载头在完整读取文件后设置，避免读失败被识别成附件。
 - **演进方向**：多实例/对象存储另立任务，不在本约束内承诺；「文件夹级授权」（bizType 即文件夹实例）已由
   `T-ADMIN-025` 落地（2026-09-06）：全链路 CREATE/VIEW/DELETE 按文件夹实例隔离、page 按可见文件夹过滤，
   实例由 bootstrap 预置 default/avatar/document/image 四文件夹 + 上传惰性登记两条事实链产出

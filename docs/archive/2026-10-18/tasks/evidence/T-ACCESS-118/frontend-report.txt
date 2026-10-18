@@ -1,0 +1,57 @@
+完成两轮只读评审：第一轮追踪调用链，第二轮反查写入口、API 认证授权及事务边界。未修改文件或 Git 状态，未运行构建或测试，未使用子代理。发现 **1 项 P2**。
+
+### [P2] 成功返回的 JSON MIME 文件被误判为错误信封
+
+**位置：** [frontend/src/api/file.ts:61](D:/codespace/Access-Mesh/frontend/src/api/file.ts:61)、[同文件:79](D:/codespace/Access-Mesh/frontend/src/api/file.ts:79)
+
+**问题：** 下载封装仅凭 `blob.type.includes("json")` 就调用 `rejectEnvelope()`；该函数无论解包结果如何都会抛错，因此真实文件只要携带 JSON MIME，就无法下载。
+
+**触发条件：** 获授权调用方上传分类为 `document` 的 `data.txt`，文件部分声明 `Content-Type: application/json`，内容例如 `{"ok":true}`；随后从新增文件页下载。
+
+**影响：** 上传、列表和详情均可成功，服务端也正常返回文件，但页面始终提示下载失败，重试不能恢复。这是**本次新增下载适配器引入的兼容性缺陷**。
+
+**证据：**
+
+- `.txt` 属于现有扩展名白名单；上传服务对未知 MIME [只记录警告](D:/codespace/Access-Mesh/access-service/src/main/java/cn/ac/fage/accessmesh/access/platform/service/impl/FileAppServiceImpl.java:291)，随后原样保存 MIME。
+- 下载服务[原样回显该 MIME 并返回文件字节](D:/codespace/Access-Mesh/access-service/src/main/java/cn/ac/fage/accessmesh/access/platform/service/impl/FileAppServiceImpl.java:543)，因此上述输入确实能走到误判分支。
+- 审计导出采用相似判断，但其成功响应[固定为 CSV](D:/codespace/Access-Mesh/docs/design/access-service-api-contract.md:2187)，这一前提不能直接用于文件下载。
+- 现有 [file.spec.ts](D:/codespace/Access-Mesh/frontend/src/api/file.spec.ts:8) 覆盖了 JSON 错误信封与普通文本文件，未覆盖携带 JSON MIME 的成功文件。
+
+**建议：** 在下载适配层保留响应元数据，用明确的成功文件标识区分文件与错误，避免仅按 MIME 判错。可复用 HTTP 的 `beforeResponseCallback` 获取下载头，并确保服务端仅在成功读取文件后设置成功下载标识。补充上述成功文件与真实错误信封的双向用例，保持现有上传限制。
+
+## 实证通过项与第二轮覆盖
+
+五个新接通端点均追踪了公共 HTTP、Cookie/会话标记、Gateway 准入及服务端租户上下文：
+
+| 端点 | 最终约束 |
+|---|---|
+| upload | 目标 bizType 的 CREATE；首次分类登记 |
+| detail、download | 租户内元数据定位，再校验所属分类 VIEW |
+| page | 租户条件及可见分类裁剪 |
+| delete | 租户内批量定位，再校验分类 DELETE |
+
+另已核对：
+
+- 上传、删除的全部前端生产调用方均经过对应 hook；取消、超时不自动重试，结果未知有提示。
+- 筛选、会话切换和卸载会作废旧结果；确认后发送删除前再次核对上下文。
+- 上传投影与元数据、删除软删、初始化路由/菜单/授权均已反查事务入口；物理删除位于提交之后。
+- `usePagedList` 仅新增暴露已有 `clear()`；三种导航均已移除铃铛，未发现被删除组件的活跃消费者残留。
+- “删除末页最后一行后无法回退”的候选已排除：[Element Plus 源码](D:/codespace/Access-Mesh/frontend/node_modules/element-plus/es/components/pagination/src/pagination.mjs:174)会在总页数缩小时触发页码调整，页面已接线重新取数。
+
+按当前文件契约、文件页设计、登录会话设计、架构 §14.4.1、schema、部署及文档治理复核，旧库备份重建、单实例本地盘、分类首传和删除清理边界未重复计为缺陷。
+
+仅引用既有结果：[最终 Vitest 报告](D:/codespace/Access-Mesh/.tmp/standard-capability/frontend-delivery.log)为 630 项通过；最终 Surefire execution 汇总为 2976 项、零失败/错误/跳过。早期 Docker 跳过和旧计数失败未计作通过；这些均非本轮执行。
+
+## 过度设计可裁剪项
+
+无。
+
+## 存量观察
+
+无额外报告项。
+
+存疑待用户决策项：无。
+
+## 总结
+
+**P0：0；P1：0；P2：1；P3：0。**

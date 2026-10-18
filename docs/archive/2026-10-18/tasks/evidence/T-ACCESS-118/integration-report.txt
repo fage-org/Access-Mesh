@@ -1,0 +1,48 @@
+完成指定 diff `31f84fffe..a1e98c720` 的两轮只读评审。本组发现 **1 项 P2：既有上传一致性问题被本次标准入口与授权补齐放大**。未修改文件、git 状态，未运行构建、测试或其他评审进程。
+
+### [P2] 上传落盘后元数据失败，缺少回滚清理
+
+**位置：** [BootstrapGraphDefinition.java:324](D:/codespace/Access-Mesh/access-service/src/main/java/cn/ac/fage/accessmesh/access/bootstrap/BootstrapGraphDefinition.java:324)；[FileAppServiceImpl.java:292](D:/codespace/Access-Mesh/access-service/src/main/java/cn/ac/fage/accessmesh/access/platform/service/impl/FileAppServiceImpl.java:292) 的 `uploadFile`（落盘在 309 行，数据库插入在 331 行）；[access-service.sql:444](D:/codespace/Access-Mesh/docs/design/schema/access-service.sql:444)。
+
+**问题：** 文件先写入持久卷，再插入 `sys_file`。插入或事务提交失败时，数据库回滚，但没有清理本次物理文件的补偿路径。此顺序是存量实现；本次新增标准上传路由及可委派 CREATE 权限，使其进入正常租户使用路径。
+
+**触发条件：** 有目标分类 CREATE 权限的用户上传大小、扩展名合规的 `.txt`，文件部分的 Content-Type 使用 `application/` 加 120 个 `x`，共 132 个字符。服务对未知 MIME 仅记录警告，随后落盘；但 `file_type` 是 `VARCHAR(128)`，插入必然失败。这不依赖数据库故障。
+
+**影响：** 请求失败却留下没有元数据的文件，列表和删除 API 均无法定位它。每次重试生成新的 UUID 文件，持续占用持久卷。
+
+**证据：** 292–296 行不拒绝该 MIME，309 行完成落盘，326 行原样赋值，331 行才插入；上传路径没有回滚清理。已核对 MyBatis 3.5.19 的 `StringTypeHandler` 源码，其使用 `setString` 绑定原值；PostgreSQL 对超长、非空格的 varchar 插入明确报错。[PostgreSQL 16 官方说明](https://www.postgresql.org/docs/16/datatype-character.html)。
+
+已按文档治理复核 [文件契约 §17.1.5](D:/codespace/Access-Mesh/docs/design/access-service-api-contract.md:2253) 及 T-ADMIN-023：已接受的是**删除提交后清理失败保留孤儿文件**，不覆盖这里的上传回滚。上述触发链依据代码、DDL 和官方语义确认，本轮未执行复现测试。
+
+**建议：** 在现有文件服务中统一补上事务回滚补偿，仅清理本次生成的路径，复用已有物理清理逻辑；可持久化字段的长度检查前置到落盘之前。补一条真实 PG 反例，断言元数据失败时物理文件也被清理，无需新增回收平台。
+
+### 实证通过项与覆盖边界
+
+- **运行依赖：** 两个 POM 的 runtime 依赖均由 Boot BOM 解析为 Jackson 2.21.5；两个正式 JAR 均包含日期模块，JAR 哈希与验收清单一致。已检查 Sa-Token 对该模块的直接引用，未发现新的 Jackson 2/3 装配冲突。
+- **固定图与 DTO：** 五条文件映射、三条 ALL/canGrant 授权、文件菜单及新租户共用初始化链一致；`bizType` 直接来自 `bucket_name`，detail/page 和 DTO 对账均已接通。
+- **既有验证：** 相关 Surefire 报告均零失败、错误、跳过；存档后端 execution 汇总为 2976，Vitest 交付日志为 630。首次 31 项 Docker 跳过及后续旧计数失败未计为通过，最终记录已补齐。22 个变更输入、16 份日志哈希均匹配。[验收记录](D:/codespace/Access-Mesh/docs/archive/2026-10-18/tasks/evidence/standard-capability/verification.md:7)。
+- **证据限制：** 文件 E2E 使用 Bearer 和共享测试类路径；Cookie/CSRF 文件操作与正式 JAR 启动依据静态接线核查及存档浏览器验收，本轮未重新执行。
+
+### 第二轮入口反查
+
+| 检查面 | 覆盖结果 |
+|---|---|
+| 写入口及调用方 | 已反查租户开通→固定图初始化、上传、删除，以及前端上传/删除调用方 |
+| 五个文件 API | 已逐个追踪认证→Gateway 准入→可信租户上下文→QueryGate→租户 SQL，未发现绕过 |
+| 数据库写入与失败路径 | 已核对固定图资源/映射/授权/菜单/投影、文件夹登记、文件插入与软删除；上传磁盘补偿缺口见上 |
+
+旧库不自动补权、分类首传、单实例持久卷及删除清理失败边界，与当前契约、架构 §14.4.1 和部署 §6 匹配，未作为缺陷。类型级菜单拒绝实例授权的候选已撤回：菜单服务按 T-ACCESS-052 支持该类型任一直接实例授权。
+
+### 过度设计可裁剪项
+
+无。
+
+### 存量观察
+
+无额外条目；上报问题已明确标注为存量问题被本次变更放大。
+
+存疑待用户决策项：无。
+
+### 总结
+
+P0：0；P1：0；**P2：1**；P3：0。

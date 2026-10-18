@@ -2227,6 +2227,7 @@ POST + JSON，门禁为 OPERATION_LOG:VIEW 类型级，租户仅取可信上下�
 - **bizType 格式白名单**: `^[A-Za-z0-9_-]{1,32}$`（null/空白归一 `default`）；bizType 是存储路径第一段，违规拒绝 `10506`（不排斥未来新增业务类型，仅消除路径注入面）。
 - **文件校验**: 大小上限（默认 10MB，`10503`）；危险扩展名黑名单 + 按 bizType 的扩展名白名单（`10504`）；原始文件名 sanitize；落盘文件名 = UUID + 扩展名；存储相对路径 `{bizType}/yyyy/MM/dd/{uuid}{ext}`。
 - **路径安全**: 目录与目标文件构造均经统一路径安全函数（规范化后必须位于存储根内，违规 `10506`）。
+- **上传失败清理（T-ACCESS-118）**：Content-Type 可选，长度须符合 `sys_file.file_type VARCHAR(128)`；超长在落盘前以 `10502` 拒绝，原 MIME 告警而非白名单拒绝的策略保持。上传明确失败或事务明确回滚时，尽力清理本次新建的 UUID 文件（含部分写入）；正常提交保留。事务结果未知或清理失败时保留并告警，不覆盖原异常。这是进程内补偿，不承诺数据库与磁盘强原子，也不增加后台回收系统。
 
 <a id="contract-section-17-1-2"></a>
 #### 17.1.2 `POST /api/access/file/detail` 🔧
@@ -2244,6 +2245,8 @@ POST + JSON，门禁为 OPERATION_LOG:VIEW 类型级，租户仅取可信上下�
 #### 17.1.4 `POST /api/access/file/download` 🔧
 
 下载文件名通过 `filename*=UTF-8''...` 回显 UTF-8 原名，并提供仅 ASCII 的 `filename` 回退；原名中的控制字符剥离，引号与反斜杠按响应头规则转义。
+
+成功附件头和原 MIME 在文件完整读取成功后才设置；读取失败不留下成功附件标识。消费者可结合 `Content-Disposition: attachment` 区分真实文件与 JSON 错误信封，不能仅按 MIME 包含 json 拒绝文件。
 
 **请求 DTO**: `IdReq`。**响应**: 文件字节流直接写 HTTP 响应（`Content-Disposition: attachment`；文件流响应例外，和审计导出端点一样不包装 `R`）。
 **错误**: `10501`（元数据或物理文件不存在）/ `10506`（路径非法）/ `10507`（读取 IO 失败；原裸 `10504/10505` 硬编码已归位，T-ADMIN-023）。

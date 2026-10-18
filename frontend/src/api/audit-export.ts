@@ -16,20 +16,12 @@ export async function exportAuditLogs(
   data: object,
   signal?: AbortSignal
 ): Promise<Blob> {
-  let blob: Blob;
-  try {
-    blob = await http.request<Blob>("post", paths[kind], {
-      data,
-      responseType: "blob",
-      timeout: 90000,
-      signal
-    });
-  } catch (error) {
-    const body = (error as { response?: { data?: unknown } })?.response?.data;
-    if (body instanceof Blob && body.type.includes("json"))
-      return rejectEnvelope(body);
-    throw error;
-  }
+  const blob = await http.request<Blob>("post", paths[kind], {
+    data,
+    responseType: "blob",
+    timeout: 90000,
+    signal
+  });
   if (blob instanceof Blob && blob.type.includes("json"))
     return rejectEnvelope(blob);
   if (!(blob instanceof Blob) || !blob.type.startsWith("text/csv"))

@@ -17,20 +17,26 @@ describe("audit export response boundary", () => {
       expect.objectContaining({ data: filters, responseType: "blob" })
     );
   });
-  it.each([200, 403])(
-    "never downloads a JSON error carried as Blob (HTTP %i)",
-    async status => {
-      const body = new Blob(
-        [
-          JSON.stringify({ code: 11201, message: "请缩小筛选范围", data: null })
-        ],
-        { type: "application/json" }
-      );
-      if (status === 200) request.mockResolvedValue(body);
-      else request.mockRejectedValue({ response: { status, data: body } });
-      await expect(exportAuditLogs("login", {})).rejects.toThrow(
-        "请缩小筛选范围"
-      );
+  it("never downloads a JSON business error carried as a successful HTTP Blob", async () => {
+    const body = new Blob(
+      [JSON.stringify({ code: 11201, message: "请缩小筛选范围", data: null })],
+      { type: "application/json" }
+    );
+    request.mockResolvedValue(body);
+    await expect(exportAuditLogs("login", {})).rejects.toThrow(
+      "请缩小筛选范围"
+    );
+  });
+  it.each(["decoded", "malformed"])(
+    "preserves the HTTP client's %s transport error",
+    async kind => {
+      const data =
+        kind === "decoded"
+          ? { code: 403, message: "无日志读取权限" }
+          : new Blob(['{"broken"'], { type: "application/json" });
+      const failure = { response: { status: 403, data } };
+      request.mockRejectedValue(failure);
+      await expect(exportAuditLogs("login", {})).rejects.toBe(failure);
     }
   );
 });

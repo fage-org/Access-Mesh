@@ -20,6 +20,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -145,6 +147,83 @@ class FileAppServiceImplTest {
         assertThat(JsonMapper.builder().configureForJackson2().build().valueToTree(result).has("fileUrl")).isFalse();
         verify(permissionValidator).checkInstanceLevel(
             ResourceTypeCode.ADMIN_FILE, "default", OperationCode.VIEW);
+    }
+
+    @Test
+    void downloadReadFailureDoesNotLeaveSuccessHeaders() throws Exception {
+        Files.createDirectory(storageRoot.resolve("unreadable-directory"));
+        when(fileMapper.selectValidById(TENANT, 1L)).thenReturn(fileRow(1L, "unreadable-directory"));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        assertThatThrownBy(() -> service.downloadFile(1L, response))
+            .isInstanceOf(BizException.class)
+            .satisfies(error -> assertThat(((BizException) error).getErrorCode())
+                .isEqualTo(AccessErrorCode.FILE_READ_FAILED.getCode()));
+        assertThat(response.getHeader("Content-Disposition")).isNull();
+        assertThat(response.getContentType()).isNull();
+    }
+
+    @Test
+    void uploadRejectsUnpersistableMimeBeforeWritingFile() throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", "a.txt", "application/" + "x".repeat(150), "abc".getBytes());
+        assertThatThrownBy(() -> service.uploadFile(file, "default"))
+            .isInstanceOf(BizException.class)
+            .satisfies(error -> assertThat(((BizException) error).getErrorCode())
+                .isEqualTo(AccessErrorCode.FILE_UPLOAD_FAILED.getCode()));
+        verifyNoInteractions(fileMapper);
+        try (var paths = Files.walk(storageRoot)) {
+            assertThat(paths.filter(Files::isRegularFile).toList()).isEmpty();
+        }
+    }
+
+    @Test
+    void uploadPreservesMimeAtColumnLengthLimit() {
+        String contentType = "application/" + "x".repeat(116);
+        service.uploadFile(new MockMultipartFile("file", "a.txt", contentType, "abc".getBytes()), "default");
+        var captor = org.mockito.ArgumentCaptor.forClass(SysFile.class);
+        verify(fileMapper).insert(captor.capture());
+        assertThat(captor.getValue().getFileType()).isEqualTo(contentType);
+    }
+
+    @ParameterizedTest(name = "upload completion {0} retains file={2}")
+    @CsvSource({"committed,0,true", "rolled-back,1,false", "unknown,2,true"})
+    void uploadCleanupFollowsDefiniteTransactionOutcome(String label, int status, boolean retained) throws Exception {
+        TransactionSynchronizationManager.initSynchronization();
+        service.uploadFile(new MockMultipartFile("file", "a.txt", "text/plain", "abc".getBytes()), "default");
+        var captor = org.mockito.ArgumentCaptor.forClass(SysFile.class);
+        verify(fileMapper).insert(captor.capture());
+        Path created = storageRoot.resolve(captor.getValue().getFilePath());
+        assertThat(Files.exists(created)).isTrue();
+        TransactionSynchronizationManager.getSynchronizations().forEach(sync -> sync.afterCompletion(status));
+        assertThat(Files.exists(created)).isEqualTo(retained);
+    }
+
+    @Test
+    void directUploadFailureCleansOnlyItsOwnFileAndKeepsOriginalError() throws Exception {
+        Path existing = Files.writeString(storageRoot.resolve("existing.txt"), "existing");
+        var failure = new org.springframework.dao.DataAccessResourceFailureException("insert failed");
+        when(fileMapper.insert(any(SysFile.class))).thenThrow(failure);
+        assertThatThrownBy(() -> service.uploadFile(
+            new MockMultipartFile("file", "a.txt", "text/plain", "abc".getBytes()), "default"))
+            .isSameAs(failure);
+        try (var paths = Files.walk(storageRoot)) {
+            assertThat(paths.filter(Files::isRegularFile).toList()).containsExactly(existing);
+        }
+    }
+
+    @Test
+    void partialTransferFailureDoesNotLeaveBytes() throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", "a.txt", "text/plain", "abc".getBytes()) {
+            @Override
+            public void transferTo(java.io.File target) throws java.io.IOException {
+                Files.writeString(target.toPath(), "partial");
+                throw new java.io.IOException("transfer interrupted");
+            }
+        };
+        assertThatThrownBy(() -> service.uploadFile(file, "default")).isInstanceOf(BizException.class);
+        verifyNoInteractions(fileMapper);
+        try (var paths = Files.walk(storageRoot)) {
+            assertThat(paths.filter(Files::isRegularFile).toList()).isEmpty();
+        }
     }
 
     // ===== ①' page 过滤语义（T-ADMIN-025：过滤非门禁，不 403） =====

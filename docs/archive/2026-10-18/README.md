@@ -1,5 +1,7 @@
 # 2026-10-18 归档
 
+[T-ACCESS-118](tasks/T-ACCESS-118.md) 完成标准文件能力四组外评核实与修复；[记录](tasks/evidence/T-ACCESS-118/verification.md)保留外评原文、反例、用户确认的边界与完整回归。
+
 [顶栏裁剪与标准文件能力补齐](standard-capability-completion-plan.md)及三张任务卡已完成，Q-071/Q-078 已收敛；[验收记录](tasks/evidence/standard-capability/verification.md)保存正式 JAR、真实页面、分类授权与完整回归证据。
 
 [登录审计事务边界收敛](login-audit-transaction-plan.md)与 T-ACCESS-117 已完成，Q-067 已收敛；[验收记录](tasks/evidence/T-ACCESS-117/verification.md)保存单连接池、行锁与完整回归证据。

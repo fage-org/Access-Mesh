@@ -5,16 +5,37 @@ import { downloadFile, uploadFile } from "./file";
 beforeEach(() => {
   request.mockReset();
 });
-it.each([200, 403])(
-  "rejects JSON error blobs at HTTP %i instead of downloading them",
-  async status => {
-    const body = new Blob(
-      [JSON.stringify({ code: 403, message: "无文件读取权限", data: null })],
-      { type: "application/json" }
-    );
-    if (status === 200) request.mockResolvedValue(body);
-    else request.mockRejectedValue({ response: { status, data: body } });
-    await expect(downloadFile(1)).rejects.toThrow("无文件读取权限");
+it("rejects a JSON business error without attachment headers", async () => {
+  const body = new Blob(
+    [JSON.stringify({ code: 403, message: "无文件读取权限", data: null })],
+    { type: "application/json" }
+  );
+  request.mockResolvedValue(body);
+  await expect(downloadFile(1)).rejects.toThrow("无文件读取权限");
+});
+it("downloads JSON attachment bytes even when the contents resemble an error", async () => {
+  const body = new Blob(['{"code":403,"message":"file contents"}'], {
+    type: "application/json"
+  });
+  request.mockImplementation(async (_method, _path, config) => {
+    config.beforeResponseCallback?.({
+      data: body,
+      headers: { "content-disposition": 'attachment; filename="data.txt"' }
+    });
+    return body;
+  });
+  expect(await downloadFile(1)).toBe(body);
+});
+it.each(["decoded", "malformed"])(
+  "preserves the HTTP client's %s transport error",
+  async kind => {
+    const data =
+      kind === "decoded"
+        ? { code: 403, message: "无文件读取权限" }
+        : new Blob(['{"broken"'], { type: "application/json" });
+    const failure = { response: { status: 403, data } };
+    request.mockRejectedValue(failure);
+    await expect(downloadFile(1)).rejects.toBe(failure);
   }
 );
 it("keeps real binary content", async () => {

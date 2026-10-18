@@ -346,6 +346,32 @@ class FileServiceSecurityPgIT {
     // ===== ② 统一路径安全函数 =====
 
     @Test
+    void uploadMetadataFailureRollsBackProjectionAndCleansOnlyNewFile() throws Exception {
+        long userId = insertFileAdminUser("upload-rollback");
+        login(userId);
+        String category = "rollback-" + UUID.randomUUID().toString().substring(0, 8);
+        List<Path> before;
+        try (var paths = Files.walk(STORAGE_ROOT)) {
+            before = paths.filter(Files::isRegularFile).sorted().toList();
+        }
+        jdbc.execute("ALTER TABLE sys_file ADD CONSTRAINT upload_metadata_failure_probe CHECK (original_name <> 'rollback-upload.txt')");
+        try {
+            mockMvc.perform(gatewayHeaders(multipart("/api/access/file/upload"), userId)
+                .file(new MockMultipartFile("file", "rollback-upload.txt", "text/plain", "content".getBytes()))
+                .param("bizType", category))
+                .andExpect(status().isInternalServerError());
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM sys_file WHERE tenant_id=? AND bucket_name=?",
+                Long.class, TENANT, category)).isZero();
+            assertThat(countFolderProjection(category)).isZero();
+            try (var paths = Files.walk(STORAGE_ROOT)) {
+                assertThat(paths.filter(Files::isRegularFile).sorted().toList()).isEqualTo(before);
+            }
+        } finally {
+            jdbc.execute("ALTER TABLE sys_file DROP CONSTRAINT upload_metadata_failure_probe");
+        }
+    }
+
+    @Test
     @DisplayName("DB filePath 路径穿越（../evil.txt）：download 拒绝 10506，纵深防御")
     void downloadRejectsTraversalFilePathFromDb() throws Exception {
         long userId = insertFileAdminUser("文件安全-穿越用例");

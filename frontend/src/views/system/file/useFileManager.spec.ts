@@ -155,3 +155,38 @@ it("a failed delete retains rows; context changes while confirming prevent sendi
   expect(mocks.deleteFile).not.toHaveBeenCalled();
   scope.stop();
 });
+it("refreshes the current category after a pending delete commits", async () => {
+  const deletion = defer<void>();
+  mocks.deleteFile.mockReturnValue(deletion.promise);
+  mocks.pageFiles.mockResolvedValue({ items: [file], total: 1 });
+  const { hook, scope } = setup();
+  await hook.refresh();
+  const running = hook.remove(file, async () => true);
+  await vi.waitFor(() => expect(mocks.deleteFile).toHaveBeenCalledOnce());
+  hook.category.value = "document";
+  await vi.waitFor(() => expect(hook.tableData.value).toEqual([file]));
+  mocks.pageFiles.mockResolvedValue({ items: [], total: 0 });
+  deletion.resolve();
+  await running;
+  expect(hook.tableData.value).toEqual([]);
+  expect(hook.pagination.total).toBe(0);
+  expect(mocks.pageFiles).toHaveBeenLastCalledWith(1, 20, "document");
+  scope.stop();
+});
+it.each(["session", "unmount"])(
+  "does not refresh or notify after a pending delete completes in an old %s",
+  async change => {
+    const deletion = defer<void>();
+    mocks.deleteFile.mockReturnValue(deletion.promise);
+    const { hook, scope } = setup();
+    const running = hook.remove(file, async () => true);
+    await vi.waitFor(() => expect(mocks.deleteFile).toHaveBeenCalledOnce());
+    if (change === "session") mocks.session.id = "session-b";
+    else scope.stop();
+    deletion.resolve();
+    await running;
+    expect(mocks.pageFiles).not.toHaveBeenCalled();
+    expect(mocks.message).not.toHaveBeenCalled();
+    scope.stop();
+  }
+);
