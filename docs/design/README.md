@@ -41,6 +41,7 @@
 
 | 文档 | 状态 | 关联计划 |
 |---|---|---|
+| [公共 Redis 事务锁与后端并发接入](redis-transaction-locks.md) | draft；排查产物，尚未实施 | — |
 | [IAM核心正确性与用户任务闭环](iam-task-closure.md) | draft；非现役契约，取舍随任务启动确定 | [执行计划](../archive/2026-09-24/iam-task-closure-plan.md) |
 
 [历史简化评估](../archive/2026-09-20/auto-grant-assessment.md)仅作追溯，当前实施依据为上方已采纳的自动授权设计。

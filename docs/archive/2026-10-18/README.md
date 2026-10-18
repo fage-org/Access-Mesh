@@ -1,5 +1,7 @@
 # 2026-10-18 归档
 
+[T-ACCESS-121](tasks/T-ACCESS-121.md) 完成后端并发专项排查及[公共 Redis 锁草案](../../design/redis-transaction-locks.md)；[核实证据](tasks/evidence/T-ACCESS-121/verification.md)保留 gpt-6.1-sol 原报告与问题映射。排查发现未修复，不能把本卡终态当作实现完成。
+
 [T-ACCESS-120](tasks/T-ACCESS-120.md) 完成 Codex 外评确认的 Redis 事务锁取锁中断修复；密码重置和树写锁统一处理获取结果与释放责任，[原始评审与验收](tasks/evidence/T-ACCESS-120/verification.md)已归档。
 
 [T-ACCESS-119](tasks/T-ACCESS-119.md) 完成测试环境待解决问题校准与最小修复；[验收记录](tasks/evidence/T-ACCESS-119/verification.md)保存定向反例、完整回归与本地双轨结论。Q-056/Q-070/Q-072/Q-079/Q-081 已按验证结果及已确认边界收敛，其他事项继续暂缓。

@@ -1,0 +1,31 @@
+{
+  "head": "8733a51c24adfe64b1ff4cb9a75594a1b324a3d6",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "max",
+  "multiAgent": false,
+  "sandbox": "read-only",
+  "scope": "backend-current-state",
+  "statusBefore": "",
+  "exitCode": 0,
+  "statusAfter": "",
+  "finishedDate": "2026-10-18",
+  "sessionId": "01a14dcf-f8b1-7c00-94b6-a1f58b1028ae",
+  "modelIdentityVerified": false,
+  "counts": {
+    "P0": 0,
+    "P1": 3,
+    "P2": 4,
+    "P3": 0
+  },
+  "tests": "not run",
+  "hashes": {
+    "prompt.md": "e2decfffaa4066a422b9bec946af4f78fdf8e1c6152929a36fc54f70cb38ee10",
+    "report.md": "a34347913787a9ef345dd46ea34f835270943dabc2c3ef1089dc8f254e92faf1",
+    "run.log": "1004aeb4721da2d54b50294a067d9a4639e6e8080bdc2efc65fcc6bc9a536392"
+  },
+  "runLog": ".tmp/concurrency-sol-20261018/run.log",
+  "frameworks": {
+    "mybatis-flex-core-1.11.8": "6ab127bdd8f78b1c7c93576315cc6fbeb974c2e7d6a8bf731dee1a64c4924397",
+    "mybatis-3.5.19": "93eea616ae355751bd5fbabb57f0732713fbe79f3196f33c51a0aeeb4255862a"
+  }
+}
