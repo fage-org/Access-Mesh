@@ -20,8 +20,6 @@ const { memStorage } = vi.hoisted(() => ({
 
 vi.mock("@/store/modules/user", () => ({
   useUserStoreHook: () => ({
-    isRemembered: false,
-    loginDay: 7,
     SET_AVATAR: vi.fn(),
     SET_USERNAME: vi.fn(),
     SET_NICKNAME: vi.fn(),

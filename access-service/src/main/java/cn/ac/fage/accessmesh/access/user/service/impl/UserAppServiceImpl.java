@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.user.service.impl;
 
+import cn.ac.fage.accessmesh.access.infrastructure.PasswordResetLockSupport;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.infrastructure.dto.IdsReq;
@@ -78,6 +79,7 @@ public class UserAppServiceImpl implements UserAppService {
     private final UserWriteAppService userWriteAppService;
     private final AdminPermissionValidator permissionValidator;
     private final OrgVisibilityQueryAppService orgVisibilityQueryService;
+    private final PasswordResetLockSupport passwordResetLocks;
 
     /**
      * 构造函数注入依赖
@@ -96,7 +98,8 @@ public class UserAppServiceImpl implements UserAppService {
                            OrgDomainService orgDomainService,
                            UserWriteAppService userWriteAppService,
                            AdminPermissionValidator permissionValidator,
-                           OrgVisibilityQueryAppService orgVisibilityQueryService) {
+                           OrgVisibilityQueryAppService orgVisibilityQueryService,
+                           PasswordResetLockSupport passwordResetLocks) {
         this.userMapper = userMapper;
         this.userDomainService = userDomainService;
         this.userOrgDomainService = userOrgDomainService;
@@ -105,6 +108,7 @@ public class UserAppServiceImpl implements UserAppService {
         this.userWriteAppService = userWriteAppService;
         this.permissionValidator = permissionValidator;
         this.orgVisibilityQueryService = orgVisibilityQueryService;
+        this.passwordResetLocks = passwordResetLocks;
     }
 
     /**
@@ -373,7 +377,8 @@ public class UserAppServiceImpl implements UserAppService {
 
         Long tenantId = TenantContextHolder.getTenantId();
 
-        // 使用 DomainService 获取用户
+        // 门禁完成后先非等待取锁，避免在行锁队列中等待后再次重置。
+        passwordResetLocks.lockTenantUser(tenantId, userId);
         SysUser user = userDomainService.lockValidById(tenantId, userId);
         if (user == null) {
             throw new BizException(AccessErrorCode.ADMIN_USER_NOT_FOUND.getCode(), AccessErrorCode.ADMIN_USER_NOT_FOUND.getMessage());

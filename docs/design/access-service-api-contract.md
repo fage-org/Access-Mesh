@@ -790,6 +790,11 @@ name、phone、email 长度上限分别为 128、32、128；null 保留原值，
 
 **会话吊销（T-ACCESS-082）**：非自身重置在写事务内调用 `StpUtil.logout(userId)` 吊销目标的全部租户原生会话；调用失败则数据库事务回滚，不返回重置成功。普通自身改密保留租户原生会话；强制首次改密必须使用不同密码并撤销旧原生会话。OAuth2 旧链仍因密码代际变化而失效。Redis 吊销与数据库并非分布式事务：若后续数据库提交失败，已吊销会话不恢复，用户重新登录即可。
 
+<a id="password-reset-concurrency"></a>
+**重置并发边界（T-ACCESS-119，2026-10-18 确认）**：通过身份及原有权限门禁后，重置入口对目标账号获取 Redis 非等待锁；锁已被其他请求持有时返回 HTTP 200 + `10015 PASSWORD_RESET_IN_PROGRESS`，不修改密码、不吊销会话。锁先于可能阻塞的目标行锁获取，持有至事务提交或回滚。租户内本端点与平台 `tenant/reset-admin-password` 对同一租户用户共用锁；`platform-account/reset-password` 使用独立平台账号命名空间。Redis 取锁异常不得跳锁继续写，仍按技术异常处理，不伪装成重置冲突。原有数据库行锁和会话吊销语义保持。
+
+**密码交付限制**：事务完成后允许再次重置；后一次成功重置会使前次密码失效，包括前次响应仍在网络传输的情况。响应不保证交付时仍为最新密码，不引入领取确认、冷却窗口或自动重试。前端保留同页面防重入，冲突显示服务端原因，密码展示说明再次重置会使该密码失效。Redis 故障/锁续期边界见[服务架构](access-service-architecture.md#password-reset-lock)。
+
 <a id="admin-force-logout-status"></a>
 **独立强制下线交付边界（2026-10-17 用户确认 K1）**：继续暂缓管理员“不修改密码、单独终结目标用户登录”的入口（Q-068）。现有非自身重置密码的全部租户原生会话吊销与 OAuth2 密码代际失效保持；本次不新增会话列表、指定设备或全设备强制下线接口。将来启动时，须先明确会话范围、OAuth2 凭据处置及操作者权限。
 
@@ -3209,6 +3214,7 @@ schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正�
 | `10008` | ADMIN_INVALID_PARAM | [§2.5](#contract-section-2-5)、[§8.1](#contract-section-8-1) | [源码](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/enums/AccessErrorCode.java) |
 | `10009` | CANNOT_DISABLE_SELF | [§20.1](#contract-section-20-1) | [源码](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/enums/AccessErrorCode.java) |
 | `10014` | TENANT_LAST_ADMIN | [§10.4](#contract-section-10-4) | [源码](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/enums/AccessErrorCode.java) |
+| `10015` | PASSWORD_RESET_IN_PROGRESS | [重置并发边界](#password-reset-concurrency) | [源码](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/enums/AccessErrorCode.java) |
 | `10010` | PASSWORD_TOO_WEAK | [§7.7](#contract-section-7-7) | [源码](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/enums/AccessErrorCode.java) |
 | `10101` | ORG_NOT_FOUND | [§4](#contract-section-4)、[§7.2](#contract-section-7-2) | [源码](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/enums/AccessErrorCode.java) |
 | `10102` | ORG_CODE_EXISTS | [§20.1](#contract-section-20-1) | [源码](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/enums/AccessErrorCode.java) |
@@ -3770,6 +3776,8 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
 
 `PlatformAccountResp={id,username,name,status,forceResetPwd,createdAt,updatedAt}`。账号名最多 64 字符，名称最多 128 字符。新账号及重置密码使用随机初始密码，仅本次响应返回，强制改密；强制标记账号仅可访问自身认证／改密端点。新密码 8–32 位且含字母、数字，UTF-8 字节长度不超过 72（超限 `10013 PASSWORD_TOO_LONG`，T-PERM-110），强制改密还要求与当前密码不同。停用、重置和自助改密使旧平台令牌代次失效；最后一个启用的平台管理员不能被停用；保护只按数据库启用状态计数，临时登录失败锁定不计入。重置在数据库与审计提交后解除该账号临时登录失败锁定。
 
+平台账号重置的并发拒绝与交付边界见[重置并发契约](#password-reset-concurrency)。
+
 ### 26.2 租户运营
 
 | 路径（均以 `/api/access/` 开头） | 请求 | 响应 data |
@@ -3783,7 +3791,7 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
 
 `TenantResp={id,code,name,status,adminUserId,accessState,createdAt,updatedAt}`；`accessState` 为 `ENABLED / DISABLED / UNAVAILABLE`，与数据库状态或代次不一致也显示未就绪。编码不可修改、不可复用，无租户删除端点。首租户与其他租户一样自由指定编码。开通使用统一模板，在同一事务内创建注册表、标准种子、管理员与权限图、审计；成功后返回一次密码。开通响应丢失时先查询编码，再重置凭据恢复交付，不能盲目认为数据库未提交。
 
-首管理员重置只改密码并强制改密、撤销其会话、解除临时登录失败锁定；不恢复状态或角色，原账号已删除则拒绝。停用成功后阻断新请求／任务，恢复要求用户重新登录。Redis 发布失败返回 503，此时数据库可能已提交；刷新详情核对登记状态与访问状态，自动修复完成前拒绝访问。
+首管理员重置与租户内重置共用目标用户的[非等待锁](#password-reset-concurrency)。首管理员重置只改密码并强制改密、撤销其会话、解除临时登录失败锁定；不恢复状态或角色，原账号已删除则拒绝。停用成功后阻断新请求／任务，恢复要求用户重新登录。Redis 发布失败返回 503，此时数据库可能已提交；刷新详情核对登记状态与访问状态，自动修复完成前拒绝访问。
 
 ### 26.3 平台审计与错误
 

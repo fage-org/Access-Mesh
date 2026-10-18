@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.auth.service.impl;
 
+import cn.ac.fage.accessmesh.access.infrastructure.PasswordResetLockSupport;
 import cn.ac.fage.accessmesh.access.audit.service.domain.PlatformAuditDomainService;
 import cn.ac.fage.accessmesh.access.auth.dto.PlatformStatusReq;
 import cn.ac.fage.accessmesh.access.auth.dto.PlatformAccountCreateReq;
@@ -34,15 +35,18 @@ public class PlatformAccountAppServiceImpl implements PlatformAccountAppService 
     private final PlatformAccountGuard guard;
     private final PlatformAuditDomainService audit;
     private final LoginFailureStore failures;
+    private final PasswordResetLockSupport passwordResetLocks;
     private final TransactionTemplate recoveryTransaction;
 
     public PlatformAccountAppServiceImpl(PlatformAccountDomainService accounts, PlatformAccountGuard guard,
                                          PlatformAuditDomainService audit, LoginFailureStore failures,
-                                         PlatformTransactionManager transactionManager) {
+                                         PlatformTransactionManager transactionManager,
+                                         PasswordResetLockSupport passwordResetLocks) {
         this.accounts = accounts;
         this.guard = guard;
         this.audit = audit;
         this.failures = failures;
+        this.passwordResetLocks = passwordResetLocks;
         this.recoveryTransaction = new TransactionTemplate(transactionManager);
         this.recoveryTransaction.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
     }
@@ -112,6 +116,8 @@ public class PlatformAccountAppServiceImpl implements PlatformAccountAppService 
             throw new IllegalStateException("password recovery must own its commit boundary");
         }
         var result = recoveryTransaction.execute(status -> {
+            guard.requireOperator();
+            passwordResetLocks.lockPlatformAccount(accountId);
             var actor = lockAndRequireOperator();
             PlatformAccount target = requireTarget(accountId);
             String password = CredentialPasswords.generate();

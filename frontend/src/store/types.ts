@@ -59,6 +59,4 @@ export type userType = {
    * 不持久化（F5 重取后自然推进）；logOut 重置 uninitialized
    */
   menuGateStatus?: "uninitialized" | "loading" | "loaded" | "failed";
-  isRemembered?: boolean;
-  loginDay?: number;
 };

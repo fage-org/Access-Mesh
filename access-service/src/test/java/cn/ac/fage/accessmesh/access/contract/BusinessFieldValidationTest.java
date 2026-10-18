@@ -66,4 +66,23 @@ class BusinessFieldValidationTest {
     void omittedOrganizationNameStillMeansNoUpdate() {
         assertThat(FACTORY.getValidator().validate(new OrgUpdateReq(1L, null, null, null, null, null))).isEmpty();
     }
+
+    @Test
+    void interfaceSyncRejectsAmbiguousResourceCodeThroughNestedValidation() {
+        var permission = new cn.ac.fage.accessmesh.access.resource.dto.RequiredPermission("EXAMPLE", "VIEW");
+        var valid = new cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigSyncV2Req.ApiItem(
+            "report", "POST", "/report", "report:view", null, permission);
+        var invalid = new cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigSyncV2Req.ApiItem(
+            "report", "POST", "/report", "report|view", null, permission);
+        for (var api : java.util.List.of(valid, invalid)) {
+            var request = new cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigSyncV2Req(
+                "example-service", "/api|prefix", "FULL", java.util.List.of(
+                    new cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigSyncV2Req.GroupItem(
+                        "reports", "Reports", java.util.List.of(api))));
+            var violations = FACTORY.getValidator().validate(request);
+            if (api == valid) assertThat(violations).isEmpty();
+            else assertThat(violations).singleElement().satisfies(v ->
+                assertThat(v.getPropertyPath().toString()).isEqualTo("groups[0].apis[0].resourceCode"));
+        }
+    }
 }

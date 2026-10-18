@@ -218,7 +218,7 @@ onMounted(list.loadTable);
   >
     <template v-if="delivery">
       <el-alert
-        title="请妥善交付给客户。关闭后无法再次查看；客户首次登录必须更换密码。"
+        title="请妥善交付给客户。关闭后无法再次查看；客户首次登录必须更换密码，再次重置会使此密码失效。"
         type="warning"
         :closable="false"
       />

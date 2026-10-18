@@ -71,11 +71,7 @@ export function setTenantSession(data: DataInfo<Date>) {
   store.SET_NICKNAME(session.nickname);
   store.SET_ROLES(session.roles);
   store.SET_PERMS(session.permissions);
-  Cookies.set(
-    multipleTabsKey,
-    "true",
-    store.isRemembered ? { expires: store.loginDay } : {}
-  );
+  Cookies.set(multipleTabsKey, "true");
 }
 /** Removing metadata prevents refresh from reviving a pending/failed logout via its residual Cookie. */
 export function removeTenantSession() {

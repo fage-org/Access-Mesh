@@ -55,8 +55,19 @@ class PlatformAccountsPgIT {
     @EnableTransactionManagement
     @Import({PlatformAccountDomainServiceImpl.class, PlatformAccountGuard.class,
         PlatformAuditDomainServiceImpl.class, PlatformAccountAppServiceImpl.class, PlatformBootstrapInitializer.class,
-        LoginFailureStore.class})
+        LoginFailureStore.class, cn.ac.fage.accessmesh.access.infrastructure.PasswordResetLockSupport.class})
     static class Config {
+        @Bean(destroyMethod = "shutdown")
+        org.redisson.api.RedissonClient redisson(Environment env) {
+            var config = new org.redisson.config.Config();
+            config.useSingleServer()
+                .setAddress("redis://" + env.getRequiredProperty("spring.data.redis.host") + ":"
+                    + env.getRequiredProperty("spring.data.redis.port"))
+                .setPassword(env.getRequiredProperty("spring.data.redis.password"))
+                .setDatabase(env.getRequiredProperty("spring.data.redis.database", Integer.class));
+            return org.redisson.Redisson.create(config);
+        }
+
         @Bean DataSource dataSource(Environment env) {
             return new DriverManagerDataSource(env.getRequiredProperty("spring.datasource.url"),
                 env.getRequiredProperty("spring.datasource.username"), env.getRequiredProperty("spring.datasource.password"));

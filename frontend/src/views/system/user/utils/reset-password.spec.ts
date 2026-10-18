@@ -6,8 +6,7 @@
  *
  * 锁①：同用户二次触发入口被拒——第一流在途（请求未回）时再 reset 同一用户：
  *      零二次请求 + warning 提示（旧实现照发第二次请求必红）。
- * 锁②：迟到交付只剩最新——同 tab 互斥下唯一在途流的响应即该用户最新凭据，
- *      pending 复位后才可再触发（顺序触发语义特征锁）。
+ * pending 复位后可再次触发；跨操作员后续重置仍可能使已返回密码失效。
  * 特征锁：不同用户不互斥 / 取消路径（confirm reject "cancel"）清理 pending 且无
  *         错误提示 / 上下文漂移守卫（T-FE-059）语义保持。
  */
@@ -135,15 +134,21 @@ describe("重置密码同用户互斥（T-FE-068）", () => {
     expect(h.flow.isPending(TARGET.id)).toBe(false);
   });
 
-  it("特征锁：请求失败——弹「重置密码失败」、pending 复位", async () => {
+  it("服务端拒绝重叠重置时展示具体原因，释放本页 pending 且不交付密码", async () => {
     const h = createHarness();
-    h.requestReset.mockRejectedValueOnce(new Error("server down"));
+    h.requestReset.mockRejectedValueOnce(
+      new Error("该用户的密码重置正在进行中，请稍后重试")
+    );
 
     await h.flow.reset(TARGET);
 
-    expect(mockMessage).toHaveBeenCalledWith("重置密码失败", {
-      type: "error"
-    });
+    expect(mockMessage).toHaveBeenCalledWith(
+      "该用户的密码重置正在进行中，请稍后重试",
+      {
+        type: "error"
+      }
+    );
     expect(h.flow.isPending(TARGET.id)).toBe(false);
+    expect(h.deliverPassword).not.toHaveBeenCalled();
   });
 });

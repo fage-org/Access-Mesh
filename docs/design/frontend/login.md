@@ -174,4 +174,8 @@ OAuth2 授权续接 query 为 returnTo，仅允许本地 /oauth2/authorize 路�
 <a id="legacy-sso-template-status"></a>
 ## 未启用 SSO 模板处置
 
-2026-10-17 用户确认：随 T-ACCESS-109 删除未挂载的 URL username/roles/accessToken 登录示例及其注释导入；不恢复脚本写入原生令牌的旧函数，不影响现有登录或标准 OAuth2 授权。Q-070 的 isRemembered/loginDay 分支及设置动作本次不裁剪；实际使用的 multipleTabsKey 标记继续保留，剩余裁剪另行评估。
+未挂载的 URL username/roles/accessToken 登录示例已随 T-ACCESS-109 删除；不恢复脚本写入原生令牌的旧函数，不影响现有登录或标准 OAuth2 授权。T-ACCESS-119 按 2026-10-18 确认范围删除未使用的 isRemembered/loginDay 状态及设置动作；multipleTabsKey 仍作为路由守卫消费的会话标记，使用浏览器会话 Cookie，不提供“记住我”期限选项。认证凭据仍由 HttpOnly Cookie 承载，不能由此标记取得登录身份。
+
+### 保留的 iframe 模板刷新
+
+iframe 缓存模板仍未由现役动态路由启用。保留模板的刷新动作通过 URL.searchParams 设置 t 查询参数，保留已有查询参数及 hash 路由；重复刷新替换 t，不累积参数。此修正不新增动态路由或嵌入页面入口（T-ACCESS-119）。

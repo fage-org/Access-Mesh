@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.tenant.service.impl;
 
+import cn.ac.fage.accessmesh.access.infrastructure.PasswordResetLockSupport;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.audit.service.domain.PlatformAuditDomainService;
 import cn.ac.fage.accessmesh.access.auth.security.LoginFailureStore;
@@ -63,12 +64,14 @@ public class TenantAppServiceImpl implements TenantAppService {
     private final PlatformAuditDomainService audit;
     private final RedisTenantGateStore gates;
     private final LoginFailureStore failures;
+    private final PasswordResetLockSupport passwordResetLocks;
     private final TransactionTemplate transaction;
 
     public TenantAppServiceImpl(TenantDomainService tenants, PlatformAccountGuard guard, UserDomainService users,
                                 TenantBaselineInitializer baseline, AccessBootstrapInitializer graph,
                                 PlatformAuditDomainService audit, RedisTenantGateStore gates,
-                                LoginFailureStore failures, PlatformTransactionManager manager) {
+                                LoginFailureStore failures, PlatformTransactionManager manager,
+                                PasswordResetLockSupport passwordResetLocks) {
         this.tenants = tenants;
         this.guard = guard;
         this.users = users;
@@ -77,6 +80,7 @@ public class TenantAppServiceImpl implements TenantAppService {
         this.audit = audit;
         this.gates = gates;
         this.failures = failures;
+        this.passwordResetLocks = passwordResetLocks;
         this.transaction = new TransactionTemplate(manager);
         this.transaction.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
     }
@@ -194,6 +198,10 @@ public class TenantAppServiceImpl implements TenantAppService {
         requireOwnTransaction();
         guard.requireOperator();
         var reset = Objects.requireNonNull(transaction.execute(status -> {
+            SysTenant before = requireTenant(id);
+            if (before.getAdminUserId() == null) throw error(AccessErrorCode.ADMIN_USER_NOT_FOUND);
+            // 与租户内重置共用目标用户锁，先于可能阻塞的租户/用户行锁。
+            passwordResetLocks.lockTenantUser(id, before.getAdminUserId());
             tenants.lock(id);
             var actor = guard.requireOperator();
             SysTenant tenant = requireTenant(id);

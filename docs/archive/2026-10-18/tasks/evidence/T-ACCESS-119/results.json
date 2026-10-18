@@ -1,0 +1,58 @@
+{
+  "date": "2026-10-18",
+  "baseline": "3ff4d2300",
+  "backend": {
+    "command": "mvn test -T 1C",
+    "exit": 0,
+    "tests": 3000,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "duration": "11:52 min (Wall Clock)"
+  },
+  "frontend": {
+    "testFiles": 59,
+    "tests": 639,
+    "test": 0,
+    "typecheck": 0,
+    "lint:check": 0,
+    "contracts:check": 0,
+    "build": 0,
+    "dtoGroups": 46
+  },
+  "sourceIntegrity": {
+    "inputs": 1643,
+    "changedDuringFinalRun": [],
+    "addedDuringFinalRun": [],
+    "manifestSha256": "794154d40cb439a72c0dd8cfe46cc7a48a36efe928abf9f64bdf7d0b27e2a3fa"
+  },
+  "keySuites": [
+    "[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.112 s -- in cn.ac.fage.accessmesh.access.infrastructure.PasswordResetLockSupportTest",
+    "[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.304 s -- in cn.ac.fage.accessmesh.access.auth.service.PlatformAccountsPgIT",
+    "[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 6.175 s -- in cn.ac.fage.accessmesh.access.engine.InterfaceAdmissionHeavyPgIT",
+    "[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 5.079 s -- in cn.ac.fage.accessmesh.access.user.UserLoginRowLockPgIT",
+    "[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 110.5 s -- in cn.ac.fage.accessmesh.access.sync.ResourcePublicationHeavyPgIT",
+    "[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 98.78 s -- in cn.ac.fage.accessmesh.e2e.BasicRoleGrantVerticalSliceE2EIT",
+    "[INFO] Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 86.11 s -- in cn.ac.fage.accessmesh.e2e.ExampleBusinessFinalCheckE2EIT",
+    "[INFO] Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 63.94 s -- in cn.ac.fage.accessmesh.e2e.ExampleProtectedApiE2EIT"
+  ],
+  "logHashes": {
+    "backend-targeted.log": "8e04b682b87551cbfb67fa6c0d427c8e2d75e74a041055cf039bff1e3bfbf7e9",
+    "frame-red.log": "a95fdfc59d2713a576b85be38a4b65886849da2705f2b00d43ba77661b8f4e8e",
+    "frontend-build.log": "bc6f44a48150e354e1428a236fb75503e8432356f270769f36c2791258bf6d43",
+    "frontend-contracts-check.log": "82d6e8296d8a9c039456dfc7e6684906ce0bd8c3eeba55a0917376a849245de9",
+    "frontend-lint-check.log": "feba3e95ff3d98ebebf584c298190e53e0cf1ca621bfa9caef3fa2ee5b1c0c16",
+    "frontend-targeted.log": "926e1100bdf6bd15d1137b0c486bce7f47d984672f2b1829f1dbc8ceae66188a",
+    "frontend-test.log": "90a5511a67cf202d355ca501cb72336175f967089d6f50aea5316a64df0b77a5",
+    "frontend-typecheck.log": "64606c4e4789dd5c6f59174abb9a61c1c2dfa8349b847afe113d20f1c94e83b2",
+    "full-backend-final.log": "b498afdc458d88f3b7c19c11dacedbfe13d3b2ea0cc094177ac3e4af812b6f38",
+    "full-backend.log": "091fb55b969b9c9f34a744d7b66c368f8919240182df108ed055dffa2c7469f7",
+    "logging-red.log": "f43b370836ad36946fb40c049ccbe0662939e15a5aea0de963792f2c01cd182c",
+    "platform-slice-green.log": "56a1f636cde25ba6ad0383721a240334daa6b49e077841ddb65f71f33d33083a",
+    "prettier.log": "2ec7795520c07e99aac203484f281a89d6673359a92db8bcc09facfd30f5e05a",
+    "reset-pg-green.log": "5cd3c598b94638a429e49889ee3e83886019f37e72092cbf2d4c4c75a0bd49db",
+    "reset-pg.log": "fe85aa5b5c0f8b43f0dd3e6d0a3cc77580043de3e83f8280208bf66930f49ee1",
+    "reset-red.log": "f3f5bbb64939a82e27f919d951feda7e82a3ea37f7a627e2216c0e1f08b45970",
+    "upstream-install.log": "bfdabdc7b6c71cc6a04cba3e7392d1640d4fe1bd68308f276f39a1368321b42e"
+  }
+}

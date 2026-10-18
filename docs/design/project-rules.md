@@ -256,6 +256,7 @@ RuntimeException
 
 ### 3.4 注意事项
 
+- 技术参数异常 `IllegalArgumentException` 的兜底日志只记录请求关联与异常类型，不输出 message、cause 或堆栈；消息可能携带原始输入。请求体解析错误继续按脱敏日志处理。此规则不改变已定义的业务错误响应（T-ACCESS-119）。
 - **禁止**在业务代码中 `catch (Exception e) { }` 静默吞掉异常。
 - **禁止**将 `SystemException` 的 cause 堆栈输出到 `msg` 字段（防止信息泄露）。
 - 日志中记录 `traceId`、`userId`、`tenantId` 上下文，便于排查。

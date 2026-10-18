@@ -127,7 +127,8 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public R<Void> handleIllegalArgumentException(IllegalArgumentException e, HttpServletRequest request) {
         String requestId = request.getHeader("X-Request-Id");
-        log.warn("IllegalArgumentException [requestId={}]: {}", requestId, e.getMessage());
+        // 技术异常消息可能包含原始输入；保留异常类型与请求关联，不输出消息或 cause。
+        log.warn("IllegalArgumentException [requestId={}, type={}]", requestId, e.getClass().getName());
         return R.fail(400, "参数错误", requestId);
     }
 

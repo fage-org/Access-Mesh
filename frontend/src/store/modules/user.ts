@@ -50,11 +50,7 @@ export const useUserStore = defineStore("pure-user", {
     /** 最近一次 /user-menu 拉取是否失败（T-FE-049，区分「加载失败」与「成功但无菜单」两态空侧栏） */
     menuLoadFailed: false,
     /** 会话门禁状态机（T-FE-056）：迁移唯一入口 refreshUserMenu，见 types.ts 字注视 */
-    menuGateStatus: "uninitialized",
-    // 是否勾选了登录页的免登录
-    isRemembered: false,
-    // 登录页的免登录存储几天，默认7天
-    loginDay: 7
+    menuGateStatus: "uninitialized"
   }),
   actions: {
     /** Clear this tab's tenant UI only; shared credentials and platform state remain owned by their writers. */
@@ -91,14 +87,6 @@ export const useUserStore = defineStore("pure-user", {
     /** 存储后端下发的菜单树（v1.4） */
     SET_MENUS(menus: Array<UserMenuRoute>) {
       this.menus = menus;
-    },
-    /** 存储是否勾选了登录页的免登录 */
-    SET_ISREMEMBERED(bool: boolean) {
-      this.isRemembered = bool;
-    },
-    /** 设置登录页的免登录存储几天 */
-    SET_LOGINDAY(value: number) {
-      this.loginDay = Number(value);
     },
     /**
      * 登入（T-FE-041 真实链路，对齐 R 信封）。

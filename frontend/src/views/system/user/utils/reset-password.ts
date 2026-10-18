@@ -33,8 +33,8 @@ export interface ResetPasswordFlow {
  * 同用户互斥（探针实证：确认→请求→弹密码全程无防重入，两请求并发写服务端时
  * 迟到响应交付已失效密码）：pending 覆盖整条流程（入口登记/finally 复位），
  * 在途期间同用户再触发入口即拒——同 tab 内任一时刻至多一条在途请求，其响应
- * 必为该用户最新凭据。跨标签页/跨操作员形态超出前端可检测范围（服务端响应
- * 不含代际标识），登记 Q 待盘点。
+ * 不与本页的另一重置竞争。服务端按用户拒绝事务期间的重叠重置；事务完成后的
+ * 再次重置仍会使前次密码失效，前端不能承诺交付时始终是最新凭据。
  */
 export function createResetPasswordFlow(
   options: ResetPasswordFlowOptions
@@ -63,7 +63,9 @@ export function createResetPasswordFlow(
       await options.deliverPassword(result.newPassword);
     } catch (e) {
       if (e !== "cancel") {
-        message("重置密码失败", { type: "error" });
+        message(e instanceof Error ? e.message : "重置密码失败", {
+          type: "error"
+        });
       }
     } finally {
       pendingUserIds.delete(target.id);

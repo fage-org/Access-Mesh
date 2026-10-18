@@ -11,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.mock.web.MockHttpServletRequest;
 
 import java.util.stream.Collectors;
 
@@ -88,5 +89,21 @@ class GlobalExceptionHandlerLogMaskingTest {
         return appender.list.stream()
             .map(ILoggingEvent::getFormattedMessage)
             .collect(Collectors.joining("\n"));
+    }
+
+    @Test
+    void illegalArgumentFallbackMustNotLogInputOrItsCause() {
+        var request = new MockHttpServletRequest();
+        request.addHeader("X-Request-Id", "request-119");
+        var exception = new IllegalArgumentException("Invalid value: " + SECRET_MARKER,
+            new RuntimeException("password=" + SECRET_MARKER));
+
+        var response = new GlobalExceptionHandler().handleIllegalArgumentException(exception, request);
+
+        assertThat(response.getCode()).isEqualTo(400);
+        assertThat(response.getMessage()).isEqualTo("参数错误");
+        assertThat(formattedLogs()).contains("request-119", "IllegalArgumentException")
+            .doesNotContain(SECRET_MARKER);
+        assertThat(appender.list).allSatisfy(event -> assertThat(event.getThrowableProxy()).isNull());
     }
 }

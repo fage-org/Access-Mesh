@@ -106,6 +106,8 @@ class PlatformSessionAbsoluteTimeoutTest {
     @MockitoBean
     private cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator permissionValidator;
     @MockitoBean
+    private cn.ac.fage.accessmesh.access.infrastructure.PasswordResetLockSupport passwordResetLocks;
+    @MockitoBean
     private cn.ac.fage.accessmesh.access.org.service.domain.OrgTreeConfigDomainService orgTreeConfigDomainService;
 
 

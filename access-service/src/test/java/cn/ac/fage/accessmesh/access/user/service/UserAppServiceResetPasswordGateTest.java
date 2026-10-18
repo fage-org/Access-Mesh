@@ -49,6 +49,7 @@ class UserAppServiceResetPasswordGateTest {
     @Mock private UserWriteAppService userWriteAppService;
     @Mock private AdminPermissionValidator permissionValidator;
     @Mock private OrgVisibilityQueryAppService orgVisibilityQueryService;
+    @Mock private cn.ac.fage.accessmesh.access.infrastructure.PasswordResetLockSupport passwordResetLocks;
 
     private UserAppServiceImpl service;
 
@@ -57,7 +58,7 @@ class UserAppServiceResetPasswordGateTest {
         service = new UserAppServiceImpl(
             userMapper, userDomainService, userOrgDomainService,
             orgTreeConfigDomainService, orgDomainService, userWriteAppService,
-            permissionValidator, orgVisibilityQueryService);
+            permissionValidator, orgVisibilityQueryService, passwordResetLocks);
     }
 
     private SysUser user(long id) {
@@ -66,6 +67,20 @@ class UserAppServiceResetPasswordGateTest {
         user.setUsername("u" + id);
         user.setStatus(1);
         return user;
+    }
+
+    @Test
+    void overlappingResetIsRejectedBeforeRowLockOrPasswordWrite() {
+        Mockito.doThrow(new BizException(10015, "重置进行中"))
+            .when(passwordResetLocks).lockTenantUser(Mockito.any(), eq(OPERATOR));
+        try (MockedStatic<StpUtil> stp = Mockito.mockStatic(StpUtil.class)) {
+            stp.when(StpUtil::getLoginIdAsLong).thenReturn(OPERATOR);
+            assertThatThrownBy(() -> service.resetPassword(OPERATOR, "new-pass-123"))
+                .isInstanceOf(BizException.class).extracting("errorCode").isEqualTo(10015);
+            stp.verify(() -> StpUtil.logout(OPERATOR), never());
+        }
+        verify(userDomainService, never()).lockValidById(any(), any());
+        verify(userMapper, never()).update(any(SysUser.class));
     }
 
     @Test

@@ -16,6 +16,46 @@ import static org.mockito.Mockito.*;
 
 class PlatformAccountAppServiceTest {
     @Test
+    void overlappingPlatformResetIsRejectedBeforeTheManagementRowLock() {
+        var accounts = mock(PlatformAccountDomainService.class);
+        var guard = mock(PlatformAccountGuard.class);
+        var audit = mock(PlatformAuditDomainService.class);
+        var locks = mock(cn.ac.fage.accessmesh.access.infrastructure.PasswordResetLockSupport.class);
+        doThrow(new BizException(10015, "重置进行中")).when(locks).lockPlatformAccount(2L);
+        var service = new PlatformAccountAppServiceImpl(accounts, guard, audit,
+            mock(cn.ac.fage.accessmesh.access.auth.security.LoginFailureStore.class),
+            mock(org.springframework.transaction.PlatformTransactionManager.class), locks);
+        assertThatThrownBy(() -> service.resetPassword(2L)).isInstanceOf(BizException.class)
+            .extracting("errorCode").isEqualTo(10015);
+        verify(guard).requireOperator();
+        verifyNoInteractions(accounts, audit);
+    }
+
+    @Test
+    void tenantAdminRecoveryUsesTheSameUserLockBeforeTheTenantRowLock() {
+        var tenants = mock(cn.ac.fage.accessmesh.access.tenant.service.domain.TenantDomainService.class);
+        var guard = mock(PlatformAccountGuard.class);
+        var users = mock(cn.ac.fage.accessmesh.access.user.service.domain.UserDomainService.class);
+        var locks = mock(cn.ac.fage.accessmesh.access.infrastructure.PasswordResetLockSupport.class);
+        var tenant = new cn.ac.fage.accessmesh.access.tenant.entity.SysTenant();
+        tenant.setAdminUserId(77L);
+        when(tenants.findById(1L)).thenReturn(tenant);
+        doThrow(new BizException(10015, "重置进行中")).when(locks).lockTenantUser(1L, 77L);
+        var service = new cn.ac.fage.accessmesh.access.tenant.service.impl.TenantAppServiceImpl(
+            tenants, guard, users,
+            mock(cn.ac.fage.accessmesh.access.bootstrap.TenantBaselineInitializer.class),
+            mock(cn.ac.fage.accessmesh.access.bootstrap.AccessBootstrapInitializer.class),
+            mock(PlatformAuditDomainService.class),
+            mock(cn.ac.fage.accessmesh.common.security.RedisTenantGateStore.class),
+            mock(cn.ac.fage.accessmesh.access.auth.security.LoginFailureStore.class),
+            mock(org.springframework.transaction.PlatformTransactionManager.class), locks);
+        assertThatThrownBy(() -> service.resetAdminPassword(1L)).isInstanceOf(BizException.class)
+            .extracting("errorCode").isEqualTo(10015);
+        verify(tenants, never()).lock(anyLong());
+        verifyNoInteractions(users);
+    }
+
+    @Test
     void shouldKeepTheLastEnabledPlatformAdministrator() {
         var accounts = mock(PlatformAccountDomainService.class);
         var guard = mock(PlatformAccountGuard.class);
@@ -28,7 +68,8 @@ class PlatformAccountAppServiceTest {
         when(accounts.countEnabled()).thenReturn(1L);
         var service = new PlatformAccountAppServiceImpl(accounts, guard, audit,
             mock(cn.ac.fage.accessmesh.access.auth.security.LoginFailureStore.class),
-            mock(org.springframework.transaction.PlatformTransactionManager.class));
+            mock(org.springframework.transaction.PlatformTransactionManager.class),
+            mock(cn.ac.fage.accessmesh.access.infrastructure.PasswordResetLockSupport.class));
         assertThatThrownBy(() -> service.updateStatus(new PlatformStatusReq(2L, 0)))
             .isInstanceOf(BizException.class).hasMessageContaining("最后");
         verify(accounts, never()).updateStatus(anyLong(), anyInt(), anyLong());

@@ -13,7 +13,7 @@ last_updated: 2026-10-18
 
 ## 未收敛问题
 
-**阅读约定**：按根因或可共同处理的范围合并，子项各自保留证据、影响与既有边界。旧编号的去向见文末索引；编号合并不代表缺陷修复。原始登记细节见 [合并前快照](archive/2026-09-30/pending-problems-before-consolidation.md)，外部报告核实见 [核实记录](archive/2026-09-30/logic-review-verification.md)。本次整理没有重新运行业务复现。
+**阅读约定**：按根因或可共同处理的范围合并，子项各自保留证据、影响与既有边界。旧编号的去向见文末索引；编号合并不代表缺陷修复。原始登记细节见 [合并前快照](archive/2026-09-30/pending-problems-before-consolidation.md)，外部报告核实见 [核实记录](archive/2026-09-30/logic-review-verification.md)。2026-09-30 合并本身没有重新运行业务复现；后续验证与修复以各条目的关联任务及证据为准。
 
 <a id="q-060"></a>
 ## Q-060 权限排障能力新形态重做待重启
@@ -32,7 +32,7 @@ last_updated: 2026-10-18
 **处理入口**：暂缓与重启边界见[管理诊断交付状态](design/engine/implementation.md#permission-diagnostics-status)。
 
 <a id="q-062"></a>
-## Q-062 未成册五族契约补册（等接口完全稳定）
+## Q-062 剩余接口契约补册（等接口完全稳定）
 
 - **状态**：open（继续暂缓，2026-10-17 确认）
 - **登记**：2026-10-05
@@ -41,14 +41,14 @@ last_updated: 2026-10-18
 
 **现象与证据**：登记时涉及 auth 登录族、dict、notice、job、login-log 与零散入口的形状文档缺口；当前登录日志已成册，审计导出与部署任务也已有局部契约。其余未成册入口仍主要通过总册导航查阅 Controller/DTO 源码，不能把已补齐部分继续计作缺失。
 
-**影响与边界**：第三方接入与脚本消费方需读源码；与「没界面、没出口」叠加成三重不可见。补册重访条件=接口完全稳定（避免文档腐化，原取舍理由维持）。
+**影响与边界**：剩余未成册接口的第三方接入与脚本消费方仍需读源码；已交付页面、日志入口及局部契约不计作缺失。补册重访条件=接口完全稳定（避免文档腐化，原取舍理由维持）。
 
-**设想方向（未定案）**：五族+零散端点最小形状表（字段+错误码）；login-log 已随 T-ACCESS-085/T-FE-065 转正先行补形状表。
+**设想方向（未定案）**：为剩余未成册端点补最小形状表（字段+错误码），保留并引用已有登录、登录日志等契约，不重复补写已交付内容。
 
 **处理入口**：继续暂缓的启动条件见[契约总册使用者导航](design/access-service-api-contract.md#contract-navigation)。
 
 <a id="q-068"></a>
-## Q-068 登录辅助能力延后项集合（强制下线/验证码替代通道/跨标签会话承载）
+## Q-068 独立强制下线与验证码替代通道（继续暂缓）
 
 - **状态**：open
 - **登记**：2026-10-06
@@ -59,7 +59,7 @@ last_updated: 2026-10-18
 
 **影响与边界**：强制下线及验证码替代属于延期能力；跨标签同步已处理租户旧界面与新身份不一致窗口，不能与 HttpOnly 改造混为同一交付。此前预览期需求压力较小，不代表现有边界不存在。另：T-ACCESS-082 卡内「并发窗口已由 085e1d5fa 行锁实施闭合」的后续补丁指针缺失（卡为归档时点快照不回改，本条为指针补录载体）。
 
-**设想方向（未定案）**：按需求优先级逐项立项；②重启时核对[当前登录锁与审计边界](design/access-service-architecture.md#login-audit-transaction-boundary)（Q-067 已修复，不解除验证码替代通道的暂缓）；③启动时按 security-standards §3 前置补 CSRF 面。
+**设想方向（未定案）**：按需求优先级逐项立项；②重启时核对[当前登录锁与审计边界](design/access-service-architecture.md#login-audit-transaction-boundary)（Q-067 已修复，不解除验证码替代通道的暂缓）。跨标签同步与 HttpOnly/CSRF 已交付，不再列为待启动事项。
 
 **处理入口**：强制下线继续暂缓，边界见[会话吊销契约](design/access-service-api-contract.md#admin-force-logout-status)；验证码替代通道继续暂缓，已明确[无法读图用户的限制](design/frontend/login.md#captcha-accessibility-status)；跨标签租户会话同步已完成，由 [T-FE-071](archive/2026-10-17/tasks/T-FE-071.md) 承接，范围见[登录设计](design/frontend/login.md#cross-tab-session-status)；平台同步由 [T-FE-072](archive/2026-10-17/tasks/T-FE-072.md) 完成；HttpOnly 改造由 [T-ACCESS-109](archive/2026-10-17/tasks/T-ACCESS-109.md) 完成，当前范围与兼容边界见[认证设计](design/browser-session-authentication.md)。
 
@@ -71,78 +71,11 @@ last_updated: 2026-10-18
 - **来源**：[T-ACCESS-089](archive/2026-10-06/tasks/T-ACCESS-089.md) 已定范围：本次只评估，实际拆分进入路线图
 - **关联**：[工程基线](ops/engineering-baseline.md)
 
-**现象与证据**：资源管理、授权计划、用户管理、OAuth2 应用服务在本次盘点分别约 1232/1074/1044/1003 行（以 [工程基线](ops/engineering-baseline.md) 为准——2026-10-06 逐任务评审修正本行旧 959 漂移，登记面不维护独立计数），聚合多个相关入口和校验步骤，改动定位与测试准备成本较高。
+**现象与证据**：资源管理、授权计划、用户管理和 OAuth2 服务聚合多个相关入口和校验步骤，改动定位与测试准备成本较高。职责盘点见[工程基线](ops/engineering-baseline.md)，不以文件行数直接推导拆分必要性。
 
 **影响与边界**：现有功能有回归覆盖；尚无证据表明仅按行数拆分能改善事务边界或复用。不能为缩短文件把同一事务拆成分散编排。
 
 **设想方向（未定案）**：后续真实功能改动时识别独立职责与复用单元，再决定是否抽取 DomainService；本计划不做大型重构。
-
-<a id="q-056"></a>
-## Q-056 apiRouteResourceKey 拼接存在 Q-044 同型理论碰撞面
-
-- **状态**：open
-- **登记**：2026-10-01
-- **来源**：T-PERM-096 类推扫描（用户拍板登记）；[Q-044](#q-044) 同型
-- **关联**：[T-PERM-096](archive/2026-10-04/tasks/T-PERM-096.md)（类推发现记录）；P3（理论可构造、现实未发生）
-
-**现象与证据**：`BusinessKeyUtil.apiRouteResourceKey(method, path, resourceCode)` 以 `|` 拼三段做映射同步的内存索引，消费点 [MappingSyncHandlerImpl.java:79/90/95](../access-service/src/main/java/cn/ac/fage/accessmesh/access/resource/service/domain/impl/MappingSyncHandlerImpl.java)（存量行索引、incoming 活跃集、按资源 id 拼回查）。`pathPattern` 为 URL 自由文本（`|` 是合法 URL 字符无需转义）、`resourceCode` 自由文本且处尾段之前——与 Q-044 已修的「多个自由文本段相邻拼接」同形态。
-
-**影响与边界**：碰撞需同时满足「某行 path 含 `|`」且「同方法下另一行字段恰可拼出同串」（如 `POST|/api/x|y` 与 path=`/api/x`、resourceCode=`y` 的行），当前实际注册路径未出现该形态；后果为同步过期清理误判（漏删/误删映射行），不涉及权限判定面。修法方向可循 Q-044 元组化先例（record 键或 percent-encode 中段）；属 Q-044 设想「内部消费者全量迁移分开评估」范围，随问题清单批次排期。
-
-<a id="q-070"></a>
-## Q-070「记住我」死分支裁剪评估（SSO 示例已移除）
-
-- **状态**：open
-- **登记**：2026-10-14
-- **来源**：2026-10-12~14 外部持续审查（过度设计候选），外部模型核实（2026-10-13）+ 主代理亲核（2026-10-14）
-- **关联**：[scenario-audit-remediation-plan](archive/2026-10-17/scenario-audit-remediation-plan.md)（同批修复计划）
-
-**现象与证据**：user store 的 isRemembered/loginDay 设置动作没有调用方，登录页没有“记住我”UI；`setTenantSession` 仍消费这两个字段来设置标签页标记的保留期限。
-
-**影响与边界**：剩余死动作与分支增加会话模块阅读成本；multipleTabsKey 仍有真实消费点，不可连带删除。未启用 URL 令牌 SSO 示例已随 T-ACCESS-109 移除，处置边界见[登录设计](design/frontend/login.md#legacy-sso-template-status)。
-
-**处理入口**：SSO 部分已由 [T-ACCESS-109](archive/2026-10-17/tasks/T-ACCESS-109.md) 收敛；其余记住我字段、动作与期限分支保留，待单独评估后决定是否裁剪。
-
-<a id="q-072"></a>
-## Q-072 iframe 缓存模板 hash 刷新缺陷（原审查 022 号降级项）
-
-- **状态**：open
-- **登记**：2026-10-14
-- **来源**：2026-10-12~14 外部持续审查（原缺陷候选经核实降级为条件性裁剪候选：现役 initRouter 不传 frameSrc、后端固定 keepAlive=false，无启用入口）
-- **关联**：[scenario-audit-remediation-plan](archive/2026-10-17/scenario-audit-remediation-plan.md)
-
-**现象与证据**：`layout/frame.vue:68-70` 先 `new URL` 解析又弃用，直接在原字符串尾部拼 `?t=`/`&t=`——URL 含 hash 时刷新参数落入 fragment，按 HTML 导航标准为同文档导航，不重新加载文档（探针实证 `document-url-changed=false`）。
-
-**影响**：仅二次开发者显式启用模板 iframe 缓存后成立：刷新动作对带 hash 的子应用不可靠。现役菜单不受影响。
-
-**设想方向（未定案）**：先按真实扩展需求决定保留与否；若启用，改用已创建 URL 对象经 searchParams 设参再输出 href。相邻闲置面（addAsyncRoutes 非空注入支路无生产输入）可同批评估裁剪。
-
-<a id="q-079"></a>
-## Q-079 IllegalArgumentException 处理器整段记录异常消息的泄露面待盘点
-
-- **状态**：open
-- **登记**：2026-10-15
-- **来源**：[T-PERM-110](archive/2026-10-17/tasks/T-PERM-110.md) 双轨评审类推发现（同批已修 HttpMessageNotReadable 日志脱敏；用户拍板本条登记待盘点）
-- **关联**：[T-PERM-110](archive/2026-10-17/tasks/T-PERM-110.md)（同根日志通道）
-
-**现象与证据**：`common/.../exception/GlobalExceptionHandler.java:130`（handleIllegalArgumentException）将 `e.getMessage()` 原样写入 WARN 日志。框架路径的该类异常消息可能携带用户提交的原始值（典型形态 `No enum constant com.x.Type '原始值'`）。本仓库业务代码抛 IllegalArgumentException 多为固定文案，但未逐点盘点是否存在把请求输入拼进消息的写法。
-
-**影响**：若存在拼接输入的 throw 点，密码/token 可能随日志外泄（与 T-PERM-110 已修的解析错误日志同型）。当前未证实可达泄露案例：请求体解析错误走 HttpMessageNotReadable（已修）、参数绑定类型错误走 MethodArgumentTypeMismatch、业务校验走 BizException。
-
-**设想方向（未定案）**：先程序化盘点全部 IllegalArgumentException throw 点的消息构造形态（拼接输入 vs 固定文案），证实存在泄露面再定收口修法（同批脱敏会丢失「参数错误具体原因」的运维排查信息，需按盘点结果权衡）。
-
-## Q-081 同一用户重置密码的跨标签页/跨操作员并发无服务端互斥（前端只能挡同 tab）
-
-- **状态**：open
-- **登记**：2026-10-15
-- **来源**：[T-FE-068](archive/2026-10-17/tasks/T-FE-068.md) 用户拍板登记待盘点（缺陷探针场景的跨 tab 形态核实）
-- **关联**：[T-FE-068](archive/2026-10-17/tasks/T-FE-068.md)（同 tab 互斥已随卡收口；本条为跨 tab/跨操作员残余面）
-
-**现象与证据**：`POST /api/access/user/reset-password` 每次调用生成新密码并整体覆盖（无代际/版本语义）；前端 T-FE-068 的 pending 登记是组件内状态，仅挡同一标签页的重复触发。两个操作员（或同浏览器两标签页）在几秒窗口内对同一用户重置：A 先写（密码 P1）响应慢、B 后写（P2）响应快，A 的迟到响应弹出的 P1 已失效——A 若把 P1 交付用户，用户登录必失败（服务端真密码是 P2）。
-
-**影响**：需要「两个操作员对同一用户在几秒窗口内同时重置」的窄时序，实际频率极低且用户登录失败后再找管理员重置可自愈；主要风险是迟到交付的凭据静默失效（管理员无感知交付了废密码）。
-
-**设想方向（未定案）**：服务端响应带代际/重置序号供前端丢弃迟到凭据，或重置前校验「自请求发出起的会话代际」，或登记为接受边界（窗口极窄+自愈）——拍板后转任务或 closed。
 
 ## 已收敛（含合并索引；详情在关联问题/任务或历史来源）
 
@@ -150,6 +83,11 @@ last_updated: 2026-10-18
 
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
+| <a id="q-056"></a>Q-056 | API 路由复合键碰撞前提 | closed：正常声明入口的资源编码不允许分隔符，嵌套校验已验证；理论工具碰撞不等于可达缺陷，保留离线脏数据边界 | [T-ACCESS-119](archive/2026-10-18/tasks/T-ACCESS-119.md) | 2026-10-18 |
+| <a id="q-070"></a>Q-070 | 记住我死分支 | 已裁剪：删除未使用状态与动作，保留路由会话标记 | [T-ACCESS-119](archive/2026-10-18/tasks/T-ACCESS-119.md) | 2026-10-18 |
+| <a id="q-072"></a>Q-072 | iframe 模板 hash 刷新 | 已修复：查询参数正确设置并保留 hash，不启用模板入口 | [T-ACCESS-119](archive/2026-10-18/tasks/T-ACCESS-119.md) | 2026-10-18 |
+| <a id="q-079"></a>Q-079 | 非法参数异常日志原始消息 | 已修复技术兜底消息输出；保留请求关联与异常类型，不将合成输入探针等同真实认证凭据泄露 | [T-ACCESS-119](archive/2026-10-18/tasks/T-ACCESS-119.md) | 2026-10-18 |
+| <a id="q-081"></a>Q-081 | 重置密码重叠请求与交付窗口 | 已收敛：Redis 非等待锁拒绝事务期间重叠重置；提交后的交付窗口按用户确认边界保留 | [T-ACCESS-119](archive/2026-10-18/tasks/T-ACCESS-119.md) | 2026-10-18 |
 | <a id="q-071"></a>Q-071 | 顶栏虚构消息与红点 | 已收敛：三种布局移除演示入口，删除无消费者模板代码并完成页面验证 | [T-FE-077](archive/2026-10-18/tasks/T-FE-077.md) | 2026-10-18 |
 | <a id="q-078"></a>Q-078 | 标准文件能力不可达 | 已收敛：标准租户路由、可转授文件权限与最小页面交付，Gateway、分类委派、隔离和持久卷验收通过；旧库按备份重建边界处理 | [计划与验收](archive/2026-10-18/standard-capability-completion-plan.md) | 2026-10-18 |
 | <a id="q-067"></a>Q-067 | 登录事务内同步独立审计的连接池双重占用 | 已收敛：登录事务结束后同步独立写审计，保留密码重置行锁、失败日志与异常隔离；生产池配置未变 | [T-ACCESS-117](archive/2026-10-18/tasks/T-ACCESS-117.md) | 2026-10-18 |

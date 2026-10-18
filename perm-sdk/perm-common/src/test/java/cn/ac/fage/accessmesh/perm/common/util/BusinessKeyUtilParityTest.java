@@ -117,6 +117,13 @@ class BusinessKeyUtilParityTest {
     }
 
     @Test
+    void passwordResetKeysSeparateTenantAndPlatformIdentities() {
+        assertThat(BusinessKeyUtil.passwordResetLockKey(1L, 77)).isEqualTo("accessmesh:password-reset:tenant:1:77");
+        assertThat(BusinessKeyUtil.passwordResetLockKey(2L, 77)).isEqualTo("accessmesh:password-reset:tenant:2:77");
+        assertThat(BusinessKeyUtil.passwordResetLockKey(null, 77)).isEqualTo("accessmesh:password-reset:platform:77");
+    }
+
+    @Test
     void apiMappingPresenceKeyShouldLockIndexIsomorphicFormat() {
         assertThat(BusinessKeyUtil.apiMappingPresenceKey("demo-svc", 1001L, "get", "/api/x"))
             .isEqualTo("demo-svc|1001|GET|/api/x");

@@ -746,3 +746,12 @@ bootstrap 的 §14.4 最小集（`RESOURCE:VIEW`/`OPERATION:VIEW` scopeAll + `RO
 不提供自动断环自愈（选哪条边断开是业务决策）。环出现时按
 `docs/design/access-service-rebuild-runbook.md`「常见问题」的检测 SQL 定位环节点后人工订正
 （每树一条同构 SQL，depth 上限 200）；检测 SQL 与 `TreeCycleHardeningPgIT` 用例同源保持不腐烂。
+
+<a id="password-reset-lock"></a>
+## 18. 密码重置请求互斥
+
+`PasswordResetLockSupport` 使用现有 Redisson 的无等待 `tryLock()`，未指定固定 leaseTime，沿用 watchdog 自动续期。调用方必须在事务与同步回调有效时获取，基础设施统一在 `afterCompletion` 尝试解锁，覆盖提交、回滚及结果未知。解锁失败告警但不改写已确定的数据库结果。业务接口及错误码见[重置并发契约](access-service-api-contract.md#password-reset-concurrency)。
+
+锁键由 `BusinessKeyUtil.passwordResetLockKey` 唯一构造：租户用户按 tenantId/userId，独立平台账号按平台身份域/accountId 隔离。租户内重置与平台首管理员恢复共享同一目标键；平台恢复先解析固定首管理员 ID 并获取 Redis 锁，再获取租户和用户行锁，避免在数据库锁队列中等待后再次重置。平台账号恢复同样先获取目标重置锁再进入平台管理行锁。
+
+这是处理期间的重复操作拒绝，不是持久化凭据代际或分布式强一致承诺。Redis 获取失败则请求失败；网络分区、Redis 数据丢失或 JVM 长暂停造成锁续期丢失时，不能保证重复请求拒绝，数据库行锁仍保护写入串行化。提交后密码交付窗口按契约明确保留，不用延长 TTL 猜测交付完成。适用范围与取舍由 T-ACCESS-119 的 2026-10-18 用户决定确认。

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useRoute } from "vue-router";
 import { ref, unref, watch, onMounted, nextTick } from "vue";
+import { refreshFrameUrl } from "./frame-url";
 
 defineOptions({
   name: "LayFrame"
@@ -65,9 +66,11 @@ watch(
     if (props.frameInfo?.fullPath === path && isRedirect) {
       loading.value = true;
       clearFallbackTimer();
-      const url = new URL(props.frameInfo.frameSrc, window.location.origin);
-      const joinChar = url.search ? "&" : "?";
-      frameSrc.value = `${props.frameInfo.frameSrc}${joinChar}t=${Date.now()}`;
+      frameSrc.value = refreshFrameUrl(
+        props.frameInfo.frameSrc,
+        window.location.origin,
+        Date.now()
+      );
       fallbackTimer.value = window.setTimeout(() => {
         if (loading.value) {
           hideLoading();

@@ -220,6 +220,15 @@ public final class BusinessKeyUtil {
         return method + "|" + path + "|" + resourceCode;
     }
 
+    /** 密码重置互斥键；null tenantId 表示独立平台账号，与租户用户隔离。 */
+    public static String passwordResetLockKey(Long tenantId, long accountId) {
+        if (accountId <= 0 || (tenantId != null && tenantId <= 0)) {
+            throw new IllegalArgumentException("Password reset identity must be positive");
+        }
+        return "accessmesh:password-reset:" + (tenantId == null ? "platform" : "tenant:" + tenantId)
+            + ":" + accountId;
+    }
+
     /**
      * API 映射存在键：{@code serviceCode|resourceEntityId|METHOD|path}（method 大写化）。
      * <p>与 resource_api_mapping 唯一索引同构——AccessBootstrapInitializer 固定图缺行判定。</p>

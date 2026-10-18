@@ -66,7 +66,8 @@ class UserAppServiceMemberCandidatesGateTest {
         service = new UserAppServiceImpl(
             userMapper, userDomainService, userOrgDomainService,
             orgTreeConfigDomainService, orgDomainService, userWriteAppService,
-            permissionValidator, orgVisibilityQueryService);
+            permissionValidator, orgVisibilityQueryService,
+            Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.PasswordResetLockSupport.class));
     }
 
     private SysOrg org(long id, String orgType) {

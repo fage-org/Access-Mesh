@@ -8,6 +8,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -76,6 +78,65 @@ class UserLoginRowLockPgIT {
     private JdbcTemplate jdbc;
     @Autowired
     private PlatformTransactionManager txManager;
+    @Autowired
+    private org.redisson.api.RedissonClient redisson;
+    @Autowired
+    private cn.ac.fage.accessmesh.access.infrastructure.PasswordResetLockSupport passwordResetLocks;
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void resetLockRejectsAnotherClientAndReleasesAfterCommitOrRollback(boolean rollback) throws Exception {
+        var otherClient = org.redisson.Redisson.create(new org.redisson.config.Config(redisson.getConfig()));
+        var other = new cn.ac.fage.accessmesh.access.infrastructure.PasswordResetLockSupport(otherClient);
+        var transaction = new TransactionTemplate(txManager);
+        var locked = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        ExecutorService pool = Executors.newSingleThreadExecutor();
+        try {
+            Future<?> holder = pool.submit(() -> transaction.executeWithoutResult(status -> {
+                passwordResetLocks.lockTenantUser(TENANT, 910001L);
+                // 使用与生产写入相同的 Mapper/租户上下文，确保参与当前事务管理器。
+                TenantContextHolder.setTenantId(TENANT);
+                try {
+                    SysUser patch = com.mybatisflex.core.util.UpdateEntity.of(SysUser.class);
+                    patch.setId(910001L);
+                    patch.setPassword(NEW_HASH);
+                    assertThat(userMapper.update(patch)).isEqualTo(1);
+                } finally {
+                    TenantContextHolder.clear();
+                }
+                locked.countDown();
+                try {
+                    assertThat(release.await(10, TimeUnit.SECONDS)).isTrue();
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(exception);
+                }
+                if (rollback) status.setRollbackOnly();
+            }));
+            assertThat(locked.await(10, TimeUnit.SECONDS)).isTrue();
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> transaction.executeWithoutResult(status ->
+                other.lockTenantUser(TENANT, 910001L)))
+                .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
+                .extracting("errorCode").isEqualTo(10015);
+            // 同号不同租户、另一用户与独立平台账号不互斥。
+            transaction.executeWithoutResult(status -> {
+                other.lockTenantUser(2L, 910001L);
+                other.lockTenantUser(TENANT, 910002L);
+                other.lockPlatformAccount(910001L);
+            });
+            release.countDown();
+            holder.get(10, TimeUnit.SECONDS);
+            transaction.executeWithoutResult(status -> other.lockTenantUser(TENANT, 910001L));
+            assertThat(jdbc.queryForObject("SELECT password FROM sys_user WHERE tenant_id = ? AND id = 910001",
+                String.class, TENANT)).isEqualTo(rollback ? OLD_HASH : NEW_HASH);
+        } finally {
+            release.countDown();
+            pool.shutdownNow();
+            pool.awaitTermination(10, TimeUnit.SECONDS);
+            otherClient.shutdown();
+        }
+    }
 
     @BeforeEach
     void seedUser() {

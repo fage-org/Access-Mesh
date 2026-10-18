@@ -54,7 +54,8 @@ class UserResetPasswordByteLimitTest {
             mock(cn.ac.fage.accessmesh.access.org.service.domain.OrgDomainService.class),
             mock(cn.ac.fage.accessmesh.access.user.service.UserWriteAppService.class),
             mock(cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator.class),
-            mock(cn.ac.fage.accessmesh.access.org.service.OrgVisibilityQueryAppService.class));
+            mock(cn.ac.fage.accessmesh.access.org.service.OrgVisibilityQueryAppService.class),
+            mock(cn.ac.fage.accessmesh.access.infrastructure.PasswordResetLockSupport.class));
 
         try (var stp = Mockito.mockStatic(StpUtil.class)) {
             stp.when(StpUtil::getLoginIdAsLong).thenReturn(5L);

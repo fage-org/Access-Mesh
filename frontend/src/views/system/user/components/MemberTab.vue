@@ -235,7 +235,7 @@ const resetPwdFlow = createResetPasswordFlow({
   requestReset: userId => resetUserPassword({ userId }),
   deliverPassword: password =>
     ElMessageBox.alert(
-      `新密码：${password}\n\n请将密码通知用户妥善保管；用户下次登录需先设置新密码后继续使用。`,
+      `新密码：${password}\n\n请将密码通知用户妥善保管；用户下次登录需先设置新密码后继续使用。再次重置会使此密码失效，请避免多名管理员重复重置。`,
       "密码重置成功",
       {
         confirmButtonText: "知道了",

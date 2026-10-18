@@ -174,7 +174,7 @@ onMounted(list.loadTable);
   >
     <template v-if="delivery"
       ><el-alert
-        title="关闭后无法再次查看。首次登录必须设置不同的新密码。"
+        title="关闭后无法再次查看。首次登录必须设置不同的新密码；再次重置会使此密码失效。"
         type="warning"
         :closable="false"
       />
