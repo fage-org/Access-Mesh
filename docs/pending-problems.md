@@ -55,27 +55,13 @@ last_updated: 2026-10-18
 - **来源**：逐任务三通道评审 P3 处置时发现的任务卡登记缺口——T-ACCESS-082（两条延期项）、T-ACCESS-083（验证码延后）、T-FE-064（C10）各自声称「登记/延后」但本清单此前零对应条目（2026-10-06 逐任务评审补录合并）
 - **关联**：[T-ACCESS-082](archive/2026-10-06/tasks/T-ACCESS-082.md)、[T-ACCESS-083](archive/2026-10-06/tasks/T-ACCESS-083.md)、[T-FE-064](archive/2026-10-06/tasks/T-FE-064.md)
 
-**现象与证据**：三项延后能力在任务卡「非目标/遗留」节声明但无登记载体：①**强制下线**——管理员主动终结指定租户用户原生会话的能力（现仅重置密码链路顺带 logout，无独立入口）；②**验证码替代通道**——图形验证码的无障碍/行为式/音频替代（当前唯一形态 4 位纯数字，见 Q-067 关联的验证码强度议题）；③**跨标签同步与令牌承载**（T-FE-064 C10）——两项独立事项：租户同步已由 T-FE-071 实施；HttpOnly Cookie 与 CSRF 改造已由 T-ACCESS-109 实施并验收。独立平台运营页同类状态问题已随 T-FE-072 收敛（Q-082）。
+**现象与证据**：三项延后能力在任务卡「非目标/遗留」节声明但无登记载体：①**强制下线**——管理员主动终结指定租户用户原生会话的能力（现仅重置密码链路顺带 logout，无独立入口）；②**验证码替代通道**——图形验证码的无障碍/行为式/音频替代（当前唯一形态 4 位纯数字，限制见[登录设计](design/frontend/login.md#captcha-accessibility-status)）；③**跨标签同步与令牌承载**（T-FE-064 C10）——两项独立事项：租户同步已由 T-FE-071 实施；HttpOnly Cookie 与 CSRF 改造已由 T-ACCESS-109 实施并验收。独立平台运营页同类状态问题已随 T-FE-072 收敛（Q-082）。
 
 **影响与边界**：强制下线及验证码替代属于延期能力；跨标签同步已处理租户旧界面与新身份不一致窗口，不能与 HttpOnly 改造混为同一交付。此前预览期需求压力较小，不代表现有边界不存在。另：T-ACCESS-082 卡内「并发窗口已由 085e1d5fa 行锁实施闭合」的后续补丁指针缺失（卡为归档时点快照不回改，本条为指针补录载体）。
 
-**设想方向（未定案）**：按需求优先级逐项立项；②启动时与 Q-067 修法评估联动（验证码形态影响计数锁与限流设计）；③启动时按 security-standards §3 前置补 CSRF 面。
+**设想方向（未定案）**：按需求优先级逐项立项；②重启时核对[当前登录锁与审计边界](design/access-service-architecture.md#login-audit-transaction-boundary)（Q-067 已修复，不解除验证码替代通道的暂缓）；③启动时按 security-standards §3 前置补 CSRF 面。
 
 **处理入口**：强制下线继续暂缓，边界见[会话吊销契约](design/access-service-api-contract.md#admin-force-logout-status)；验证码替代通道继续暂缓，已明确[无法读图用户的限制](design/frontend/login.md#captcha-accessibility-status)；跨标签租户会话同步已完成，由 [T-FE-071](archive/2026-10-17/tasks/T-FE-071.md) 承接，范围见[登录设计](design/frontend/login.md#cross-tab-session-status)；平台同步由 [T-FE-072](archive/2026-10-17/tasks/T-FE-072.md) 完成；HttpOnly 改造由 [T-ACCESS-109](archive/2026-10-17/tasks/T-ACCESS-109.md) 完成，当前范围与兼容边界见[认证设计](design/browser-session-authentication.md)。
-
-<a id="q-067"></a>
-## Q-067 登录事务内同步 REQUIRES_NEW 审计造成连接池双重占用
-
-- **状态**：open（用户拍板暂缓，2026-10-06）
-- **登记**：2026-10-06
-- **来源**：逐任务三通道评审 P1（本地双轨+claude+codex sol 六张任务卡独立发现，核实成立；修法分叉已列，用户拍板「记录问题，暂不解决」）
-- **关联**：逐任务三通道评审（T-ACCESS-082/083/084/085/090、T-FE-064 六卡独立发现；评审过程报告 2026-10-06 按用户指令移出仓库，不再留链接）
-
-**现象与证据**：`AuthAppServiceImpl.login` 整方法 @Transactional（085e1d5fa 行锁串行化拍板形态），事务内 5 个分支（:192/:200/:206/:213/:228）同步调 `LoginLogDomainServiceImpl.recordLoginLog`（REQUIRES_NEW，:52）。REQUIRES_NEW 挂起外层事务不还连接、内层再借第二条（Spring DataSourceTransactionManager 语义+官方池大小警告，及 mybatis-flex FlexTransactionManager 1.11.7 sources jar 双实证）；HikariCP 默认池 10、借连接等待超时 30s（application.yml 无覆盖）。10 个并发匿名登录（Gateway 白名单免鉴权可达）即占满全池，各审计等第二条连接 30s 超时，期间全服务所有 DB 操作停摆且可重发循环。
-
-**影响与边界**：现在没出事=预览期无部署、无并发登录。审计独立于主事务回滚的语义（REQUIRES_NEW 的目的：失败分支抛异常回滚时日志必须留痕）必须保留；有问题的只是「事务内同步借第二条连接」的实现形态。
-
-**设想方向（未定案，2026-10-06 已向用户列过）**：① 审计 @Async+REQUIRES_NEW（AuditDomainServiceImpl.asyncRecordLog 先例，当时推荐项）；② login 事务收窄重构（行锁读+校验+签发进窄事务，审计移事务外，改动面最大）；③ 仅调大连接池（缓解非修复，可叠加）。用户拍板暂缓；重启时从①评估。
 
 <a id="q-065"></a>
 ## Q-065 大型应用服务的职责拆分评估
@@ -192,6 +178,7 @@ last_updated: 2026-10-18
 
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
+| <a id="q-067"></a>Q-067 | 登录事务内同步独立审计的连接池双重占用 | 已收敛：登录事务结束后同步独立写审计，保留密码重置行锁、失败日志与异常隔离；生产池配置未变 | [T-ACCESS-117](archive/2026-10-18/tasks/T-ACCESS-117.md) | 2026-10-18 |
 | <a id="q-069"></a>Q-069 | OAuth2 client_id 跨租户命名冲突与注册面存在性泄露 | 已收敛：租户内唯一索引及按凭据租户解析已交付，注册面不再泄露他租户占用；完成于 2026-10-08，本次补齐索引与归档 | [T-ACCESS-097](archive/2026-10-18/tasks/T-ACCESS-097.md) | 2026-10-18 |
 | <a id="q-076"></a>Q-076 | 服务凭证验密成本 | 已收敛：SHA-256 替换逐请求 BCrypt，保留实时状态检查；旧凭证重新签发，无兼容。部署吞吐不作本任务承诺 | [T-ACCESS-114](archive/2026-10-18/tasks/T-ACCESS-114.md) | 2026-10-18 |
 | <a id="q-073"></a>Q-073 | 已完成导出产物领取 | 已收敛：成功产物归原提交者领取，保留接口准入与租户/用户归属检查 | [T-ACCESS-112](archive/2026-10-17/tasks/T-ACCESS-112.md) | 2026-10-17 |

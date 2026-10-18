@@ -1,5 +1,7 @@
 # 2026-10-18 归档
 
+[登录审计事务边界收敛](login-audit-transaction-plan.md)与 T-ACCESS-117 已完成，Q-067 已收敛；[验收记录](tasks/evidence/T-ACCESS-117/verification.md)保存单连接池、行锁与完整回归证据。
+
 [最近变更核实修复与状态校准](recent-change-review-remediation.md)已完成，相关任务与[统一验收](tasks/evidence/recent-change-review/verification.md)随计划归档；T-PERM-036 描述已校准并保持暂缓。
 
 独立任务 [T-ACCESS-114](tasks/T-ACCESS-114.md) 完成服务凭证 SHA-256 验密与旧哈希退役，Q-076 已收敛。任务卡、[验收记录](tasks/evidence/T-ACCESS-114/verification.md)和源码哈希清单随卡归档。

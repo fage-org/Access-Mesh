@@ -307,6 +307,15 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 - **收敛删除**：无使用者的 `TenantAwareScheduled` 注解（common）与 `TenantScheduledAspect` 切面（admin/config）随本任务删除——静态任务的租户调度未来经 `sys_task_execution` 统一治理后再引入；按租户循环查询改为跨租户批量后，`TenantIdProvider` 接口（common）与 `AdminTenantIdProvider`（唯一消费者消失）一并删除。内部同步兜底维护任务已随 T-ACCESS-005 删除；gateway 的 `cleanupOrphanedMarkers`（60s）保持每实例本地执行——清理的是本实例内存中的孤立失效标记，属本地缓存治理（T-ACCESS-008），加数据库租约反而错误。
 - **测试**：`TaskExecutionLeaseConcurrencyTest`（PostgreSQL Testcontainers，双实例以不同 lease_owner + 并发线程模拟；建表在 `@BeforeAll`——先于 Spring 上下文创建，因 `JobServiceImpl @PostConstruct` 会查 `sys_job`）覆盖并发抢占唯一赢家、续租仅持有者且仅当前尝试号、**同实例接管自己的过期任务被 attempt fencing 挡住**、过期接管 + 旧持有者不可覆盖、SUCCESS 不可重抢占、抢占超限阻断、FAILED 至少一次重试、**僵尸执行收敛（任务删除后 attempt 拉满不再候选）与 abandon 对并发抢占/SUCCESS 行的 fencing**、编排级幂等（同一执行键多触发只执行一次）与接管重试携带同一幂等键；单元测试覆盖拒绝与调度器拓扑（`TaskExecutorConfigTest`：拒绝转 TaskRejectedException、ApplicationContextRunner 验证共享/续租两调度器 Bean 互异且池大小正确）、对账编排（`JobServiceImplTest`：拒绝时停续租写 FAILED / 停用删除跳过 / 对账 diff 不重建 / **cron 变更替换调度** / 停用取消 / **批量加载失败保持现有调度**）、CGLIB 代理白名单解析（`JobInvokeDomainServiceTest`）、执行键构建与反解（`TaskExecutionDomainServiceImplTest`）。
 
+<a id="login-audit-transaction-boundary"></a>
+### 登录审计事务边界
+
+2026-10-18 [T-ACCESS-117](../archive/2026-10-18/tasks/T-ACCESS-117.md) 已完成，Q-067 已收敛。租户密码登录由非事务外层编排持有自己的 TransactionTemplate 边界：租户解析、验证码、用户 FOR UPDATE 锁读、验密、状态检查、会话与标记创建保持在同一个登录事务中。事务提交或回滚完成、连接归还后，才同步调用既有 LoginLogDomainService 的 REQUIRES_NEW 审计。登录入口拒绝加入调用方已有事务，防止审计执行时仍占有上层连接。
+
+原判定位置捕获当前请求的不可变审计字段，不在事务结束后重查身份或失败原因；请求内临时数据不包含密码或令牌。成功审计仅在登录事务正常返回时记录；认证拒绝保持原失败原因。若已形成成功记录，但事务完成向调用方抛出异常，改记 status=0、固定原因“登录事务未正常完成”，原异常继续传播。此规则不检测事务管理器内部未抛出的故障，不增加会话补偿机制。
+
+审计写入及独立事务提交失败只告警，不覆盖登录响应或原认证异常。未知租户不构造虚拟 tenant_id。OAuth2 和平台身份的既有日志路径不因此异步化或改变事务语义。用户行锁必须覆盖会话创建，不能只锁读取语句或把 BCrypt 比对移到锁外；不在仍持连接的 finally/事务同步回调里直接写独立审计。
+
 ### 8.2 审计事务分级
 
 部署任务定义同步与全任务调度对账由 `JobScheduleReconciler` 统一在启动就绪及每 60 秒执行，先同步定义、再对账调度；两个步骤分别记录失败，定义同步失败不阻断普通任务对账。此编排不增加独立周期扫描器（T-ACCESS-115）。

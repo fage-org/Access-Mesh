@@ -1,0 +1,7 @@
+{
+  "access-service/src/main/java/cn/ac/fage/accessmesh/access/auth/service/impl/AuthAppServiceImpl.java": "aa2ea4a3f47baf8e777d0b4570cb0a63c1b0d714dda5288441d079daaa69603a",
+  "access-service/src/test/java/cn/ac/fage/accessmesh/access/AuthLoginLockTest.java": "f6ddf585cafa57bf7e2eda4e2098021ebde72362138edf8af15c2b24081545e3",
+  "access-service/src/test/java/cn/ac/fage/accessmesh/access/auth/service/LoginUnknownAccountCostTest.java": "fb7bbc5a1ce0ff3a5c7fceeb00c87f90600b7f280c6b54b0a0ae9d3b289388c3",
+  "access-service/src/test/java/cn/ac/fage/accessmesh/access/auth/service/impl/LoginTransactionBoundaryTest.java": "bbbe4fafe70fa3a83b5db73ecfa4f8debdae72b6ff788263788abd3323a62933",
+  "access-service/src/test/java/cn/ac/fage/accessmesh/access/characterization/LoginSessionPgIT.java": "ef54cf5015e173a5f3c2d6d66018f1825229e06a10d9b6a395905cc92ebf4a26"
+}

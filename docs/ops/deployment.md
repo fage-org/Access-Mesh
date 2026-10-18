@@ -204,13 +204,15 @@ COMMIT;
 
 ## 12. 容量与菜单读取基线
 
+登录审计采用[事务结束后同步独立写入](../design/access-service-architecture.md#login-audit-transaction-boundary)（T-ACCESS-117），消除登录与其审计同时占用连接的等待环；此修复不替代部署容量规划，不调整现有池大小或宣称高并发请求永不等待。
+
 以下为当前配置/库默认值，不是吞吐量承诺；调大线程数不能替代数据库连接预算。多实例总连接数需要按实例数乘以各池上限计算，并留出运维与数据库自身余量。
 
 OAuth2 链签发时间容忍窗 `access.oauth2.clock-skew-tolerance-seconds`（默认 3 秒、配 0 关闭）：多实例部署仍要求节点 NTP 同步（秒级偏差内），容忍窗只吸收残余漂移（慢时钟节点不拒稍早签发的链），不放宽过期判定（2026-10-06 拍板）。
 
 | 资源 | 当前基线 | 调整入口与关注点 |
 |---|---|---|
-| access-service HikariCP | 未覆盖 HikariCP 5.0.1 默认最大 10 连接 | `spring.datasource.hikari.maximum-pool-size/minimum-idle/connection-timeout`；结合 PG max_connections、事务时长和等待指标设置 |
+| access-service HikariCP | 未覆盖 HikariCP 默认最大 10 连接 | `spring.datasource.hikari.maximum-pool-size/minimum-idle/connection-timeout`；结合 PG max_connections、事务时长和等待指标设置 |
 | 审计异步执行器 | core 4 / max 16 / queue 1000，keep-alive 60s | `spring.task.execution.pool.*`；满时调用者执行，会增加原请求耗时；停机丢弃会告警 |
 | 业务作业执行器 | core 2 / max 4 / queue 100，keep-alive 60s | `access.task.executor.*`；满时拒绝并记录失败，租约接管按既有规则重试 |
 | 共享调度器 | 2 线程 | `spring.task.scheduling.pool.size`，承载 cron 与扫描；扫描数据库 IO 可能占用线程 |

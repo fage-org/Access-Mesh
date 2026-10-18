@@ -10,7 +10,7 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| access-service 归并（跨服务） | `T-ACCESS` | 117 |
+| access-service 归并（跨服务） | `T-ACCESS` | 118 |
 | permission-center | `T-PERM` | 113 |
 | admin-service | `T-ADMIN` | 036 |
 | gateway | `T-GW` | 015 |
@@ -22,7 +22,7 @@
 
 ## 当前待办入口
 
-当前待启动方案为[顶栏裁剪与标准文件能力补齐](../plans/standard-capability-completion-plan.md)，尚无实施中或评审中任务；[最近变更核实修复与状态校准](../archive/2026-10-18/recent-change-review-remediation.md)已完成归档。未成任务的问题见[待解决问题](../pending-problems.md)。
+[登录审计事务边界收敛](../archive/2026-10-18/login-audit-transaction-plan.md)已完成归档，当前无实施中或评审中任务。待启动方案为[顶栏裁剪与标准文件能力补齐](../plans/standard-capability-completion-plan.md)；[最近变更核实修复与状态校准](../archive/2026-10-18/recent-change-review-remediation.md)已完成归档。未成任务的问题见[待解决问题](../pending-problems.md)。
 
 | ID | 标题 | 状态 | 直接依赖 |
 |---|---|---|---|
@@ -34,6 +34,12 @@
 T-PERM-036 继续暂缓，需用户明确解除门禁。下方已完成批次及历史执行顺序只用于追溯，不重新启动。
 
 ## 任务总表
+
+### 登录审计事务边界收敛（已归档）
+
+| ID | 标题 | 状态 | 直接依赖 |
+|---|---|---|---|
+| [T-ACCESS-117](../archive/2026-10-18/tasks/T-ACCESS-117.md) | 登录事务结束后同步记录独立审计 | ✅ | — |
 
 ### 最近变更核实修复与状态校准（已归档）
 

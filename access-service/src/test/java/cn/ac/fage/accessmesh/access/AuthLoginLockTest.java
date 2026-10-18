@@ -85,6 +85,25 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 class AuthLoginLockTest {
 
+    @Test
+    void failedLoginAuditsOutsideTheLoginTransactionButStillLocksInsideIt() throws Exception {
+        stubRedis();
+        var lockInTransaction = new java.util.concurrent.atomic.AtomicBoolean();
+        var auditInTransaction = new java.util.concurrent.atomic.AtomicBoolean(true);
+        when(userDomainService.lockValidByUsername(1L, USERNAME)).thenAnswer(invocation -> {
+            lockInTransaction.set(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive());
+            return enabledUser();
+        });
+        org.mockito.Mockito.doAnswer(invocation -> {
+            auditInTransaction.set(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive());
+            return null;
+        }).when(loginLogDomainService).recordLoginLog(any());
+        assertThat(login("WrongPassword9").path("code").asInt()).isEqualTo(10005);
+        verify(loginLogDomainService).recordLoginLog(any());
+        assertThat(lockInTransaction).isTrue();
+        assertThat(auditInTransaction).isFalse();
+    }
+
     private static final ObjectMapper MAPPER = JsonMapper.builder().configureForJackson2().build();
     private static final String PASSWORD = "Pass@123";
     private static final String USERNAME = "bob";

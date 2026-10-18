@@ -29,6 +29,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -59,6 +60,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "accessmesh.sync.scheduler.enabled=false", "access.tenant.gate-repair.enabled=false",
     "mybatis-flex.configuration.map-underscore-to-camel-case=true",
     "logging.level.cn.ac.fage.accessmesh=WARN",
+    "spring.datasource.hikari.maximum-pool-size=1",
+    "spring.datasource.hikari.minimum-idle=1",
+    "spring.datasource.hikari.connection-timeout=500",
 })
 class LoginSessionPgIT {
     @org.junit.jupiter.api.BeforeEach
@@ -84,7 +88,43 @@ class LoginSessionPgIT {
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
 
+    @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
+    private cn.ac.fage.accessmesh.access.tenant.service.TenantAccessGuard tenantAccess;
+
     private final ObjectMapper mapper = JsonMapper.builder().configureForJackson2().build();
+
+    @Test
+    void passwordUpdateCannotPassTheLoginSessionCreationWindow() throws Exception {
+        String username = "locked_" + UUID.randomUUID().toString().substring(0, 8);
+        jdbc.update("INSERT INTO sys_user (id,tenant_id,username,password,name,status,user_type,force_reset_pwd) VALUES (910504,?,?,?,?,1,3,false)",
+            TENANT, username, cn.dev33.satoken.secure.BCrypt.hashpw(PASSWORD), "login lock");
+        var beforeSession = new java.util.concurrent.CountDownLatch(1);
+        var release = new java.util.concurrent.CountDownLatch(1);
+        org.mockito.Mockito.doAnswer(invocation -> {
+            Object process = invocation.callRealMethod();
+            beforeSession.countDown();
+            assertThat(release.await(20, TimeUnit.SECONDS)).isTrue();
+            return process;
+        }).when(tenantAccess).captureLoginProcess(org.mockito.ArgumentMatchers.eq(TENANT), org.mockito.ArgumentMatchers.anyLong());
+        try (var executor = java.util.concurrent.Executors.newSingleThreadExecutor()) {
+            var login = executor.submit(() -> browserLogin(username));
+            try {
+                assertThat(beforeSession.await(20, TimeUnit.SECONDS)).isTrue();
+                // 独立连接模拟密码重置 UPDATE；不借登录池的唯一连接，避免把池等待误当行锁等待。
+                try (var connection = java.sql.DriverManager.getConnection(ItInfra.jdbcUrl(LoginSessionPgIT.class), ItInfra.username(), ItInfra.password())) {
+                    connection.setAutoCommit(false);
+                    try (var statement = connection.createStatement()) { statement.execute("SET LOCAL lock_timeout='500ms'"); }
+                    try (var update = connection.prepareStatement("UPDATE sys_user SET password=? WHERE tenant_id=? AND id=910504")) {
+                        update.setString(1, "changed"); update.setLong(2, TENANT);
+                        assertThatThrownBy(update::executeUpdate).isInstanceOfSatisfying(java.sql.SQLException.class,
+                            error -> assertThat(error.getSQLState()).isEqualTo("55P03"));
+                    } finally { connection.rollback(); }
+                }
+            } finally { release.countDown(); }
+            assertThat(mapper.readTree(login.get(20, TimeUnit.SECONDS).getResponse().getContentAsString()).path("code").asInt()).isEqualTo(200);
+            assertThat(jdbc.update("UPDATE sys_user SET password=? WHERE tenant_id=? AND id=910504", cn.dev33.satoken.secure.BCrypt.hashpw(PASSWORD), TENANT)).isEqualTo(1);
+        }
+    }
 
     @Test
     void browserSessionUsesRealNativeAuthenticationAndCannotLogoutAReplacementSession() throws Exception {
@@ -156,6 +196,8 @@ class LoginSessionPgIT {
         assertThat(token).isNotBlank();
         assertThat(loginBody.get("data").get("expiresIn").asLong())
             .isEqualTo(cn.dev33.satoken.SaManager.getConfig().getTimeout());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM sys_login_log WHERE tenant_id=? AND username=? AND status=1", Integer.class, TENANT, USERNAME))
+            .as("单连接池中成功日志也须落库，不能因嵌套借连接超时而仅告警").isEqualTo(1);
 
         // 验证码一次性消费：同 captchaId 二次登录必失败（Lua 已 DEL）
         MvcResult replay = mockMvc.perform(post("/api/access/auth/login")
@@ -167,6 +209,8 @@ class LoginSessionPgIT {
         JsonNode replayBody = mapper.readTree(
             replay.getResponse().getContentAsString(StandardCharsets.UTF_8));
         assertThat(replayBody.get("code").asInt()).isNotEqualTo(200);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM sys_login_log WHERE tenant_id=? AND username=? AND status=0", Integer.class, TENANT, USERNAME))
+            .as("登录回滚后验证码失败审计独立落库").isEqualTo(1);
 
         // 会话消费：userinfo 200（RequestContextInterceptor 经 Sa-Token 会话绑定身份）
         mockMvc.perform(post("/api/access/auth/userinfo")
@@ -180,5 +224,21 @@ class LoginSessionPgIT {
         mockMvc.perform(post("/api/access/auth/userinfo")
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().is(401));
+    }
+
+    @Test
+    void wrongPasswordStillPersistsAuditWithOnlyOneConnection() throws Exception {
+        String username = "audit_" + UUID.randomUUID().toString().substring(0, 8);
+        jdbc.update("INSERT INTO sys_user (id,tenant_id,username,password,name,status,user_type,force_reset_pwd) VALUES (910503,?,?,?,?,1,3,false)",
+            TENANT, username, cn.dev33.satoken.secure.BCrypt.hashpw(PASSWORD), "audit pool");
+        String captcha = UUID.randomUUID().toString();
+        stringRedisTemplate.opsForValue().set("captcha:" + captcha, "3141", 5, TimeUnit.MINUTES);
+        var result = mockMvc.perform(post("/api/access/auth/login").contentType(MediaType.APPLICATION_JSON)
+            .content(mapper.writeValueAsString(Map.of("tenantCode", cn.ac.fage.accessmesh.access.it.TenantTestSupport.CODE,
+                "username", username, "password", "WrongPass9", "captchaId", captcha, "captchaCode", "3141"))))
+            .andExpect(status().isOk()).andReturn();
+        assertThat(mapper.readTree(result.getResponse().getContentAsString()).path("code").asInt()).isEqualTo(10005);
+        assertThat(jdbc.queryForList("SELECT fail_reason FROM sys_login_log WHERE tenant_id=? AND username=? AND status=0", String.class, TENANT, username))
+            .containsExactly("密码错误");
     }
 }

@@ -10,6 +10,7 @@
 
 | 文档 | 类型 | 状态 | 说明 |
 |------|------|------|------|
+| [login-audit-transaction-plan](../archive/2026-10-18/login-audit-transaction-plan.md) | 登录审计事务边界收敛 | archived | [验收](../archive/2026-10-18/tasks/evidence/T-ACCESS-117/verification.md)，Q-067 已收敛 |
 | [recent-change-review-remediation](../archive/2026-10-18/recent-change-review-remediation.md) | 最近变更核实修复与状态校准 | archived | [核实与验收](../archive/2026-10-18/tasks/evidence/recent-change-review/verification.md) |
 | [permission-lifecycle-boundaries-plan](../archive/2026-10-17/permission-lifecycle-boundaries-plan.md) | 权限生命周期边界收口 | archived | [任务与验收](../archive/2026-10-17/tasks/evidence/lifecycle-boundaries/verification.md) |
 | [audit-log-lifecycle-plan](../archive/2026-10-17/audit-log-lifecycle-plan.md) | 审计日志导出与保留策略 | archived | [任务与验收](../archive/2026-10-17/audit-log-lifecycle-plan.md)，Q-061 已收敛 |

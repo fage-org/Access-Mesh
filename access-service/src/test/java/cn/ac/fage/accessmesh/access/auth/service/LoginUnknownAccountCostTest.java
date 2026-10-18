@@ -61,7 +61,7 @@ class LoginUnknownAccountCostTest {
         when(redis.execute(any(DefaultRedisScript.class), anyList())).thenReturn("8888");
         var service = new cn.ac.fage.accessmesh.access.auth.service.impl.AuthAppServiceImpl(
             users, mock(UserOrgDomainService.class), tenants, mock(TenantAccessGuard.class),
-            loginFailures, loginLogs, redis, mock(UserMenuQueryAppService.class));
+            loginFailures, loginLogs, redis, mock(UserMenuQueryAppService.class), new com.mybatisflex.spring.FlexTransactionManager());
 
         try (var bcrypt = org.mockito.Mockito.mockStatic(BCrypt.class)) {
             bcrypt.when(() -> BCrypt.checkpw(anyString(), anyString())).thenReturn(false);
@@ -134,7 +134,7 @@ class LoginUnknownAccountCostTest {
         var service = new cn.ac.fage.accessmesh.access.auth.service.impl.AuthAppServiceImpl(
             users, mock(UserOrgDomainService.class), tenants, mock(TenantAccessGuard.class),
             loginFailures, mock(LoginLogDomainService.class), redis,
-            mock(UserMenuQueryAppService.class));
+            mock(UserMenuQueryAppService.class), new com.mybatisflex.spring.FlexTransactionManager());
 
         try (var bcrypt = org.mockito.Mockito.mockStatic(BCrypt.class)) {
             bcrypt.when(() -> BCrypt.checkpw(anyString(), anyString())).thenReturn(false);

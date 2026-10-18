@@ -108,6 +108,8 @@ Claude 按需技能位于 `.claude/skills/`。
 
 ## 归档记录
 
+[登录审计事务边界](access-service-architecture.md#login-audit-transaction-boundary)已由 T-ACCESS-117 实施，验证见[2026-10-18 归档](../archive/2026-10-18/tasks/evidence/T-ACCESS-117/verification.md)。
+
 [2026-10-18 批次](../archive/2026-10-18/README.md)包含服务凭证验收与 T-ACCESS-097 补归档；Q-069 已收敛。T-PERM-036 当前描述已按现行范围查询链路校准，继续暂缓。
 
 | 归档批次              | 说明                                                                                                                                            |

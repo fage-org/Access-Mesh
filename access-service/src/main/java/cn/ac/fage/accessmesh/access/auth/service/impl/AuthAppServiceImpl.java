@@ -32,7 +32,9 @@ import cn.dev33.satoken.session.SaSession;
 import cn.dev33.satoken.stp.StpUtil;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -78,6 +80,7 @@ public class AuthAppServiceImpl implements AuthAppService {
     private final LoginLogDomainService loginLogDomainService;
     private final StringRedisTemplate redisTemplate;
     private final UserMenuQueryAppService userMenuQueryService;
+    private final TransactionTemplate loginTransaction;
 
     /**
      * 平台用户会话过期展示口径（秒）。
@@ -105,6 +108,7 @@ public class AuthAppServiceImpl implements AuthAppService {
      * @param loginLogDomainService 登录日志领域服务，记录登录成功/失败
      * @param redisTemplate Redis操作模板，用于验证码和登录失败计数
      * @param userMenuQueryService 跨域用户菜单聚合查询服务（/auth/user-menu）
+     * @param transactionManager 登录事务管理器；审计在该事务结束后同步执行
      */
     public AuthAppServiceImpl(UserDomainService userDomainService,
                            UserOrgDomainService userOrgDomainService,
@@ -113,7 +117,8 @@ public class AuthAppServiceImpl implements AuthAppService {
                            LoginFailureStore loginFailures,
                            LoginLogDomainService loginLogDomainService,
                            StringRedisTemplate redisTemplate,
-                           UserMenuQueryAppService userMenuQueryService) {
+                           UserMenuQueryAppService userMenuQueryService,
+                           PlatformTransactionManager transactionManager) {
         this.userDomainService = userDomainService;
         this.userOrgDomainService = userOrgDomainService;
         this.tenantDomainService = tenantDomainService;
@@ -122,6 +127,7 @@ public class AuthAppServiceImpl implements AuthAppService {
         this.loginLogDomainService = loginLogDomainService;
         this.redisTemplate = redisTemplate;
         this.userMenuQueryService = userMenuQueryService;
+        this.loginTransaction = new TransactionTemplate(transactionManager);
     }
 
     /**
@@ -154,20 +160,31 @@ public class AuthAppServiceImpl implements AuthAppService {
      * 验证码失败不计入失败计数，仅留审计日志（2026-10-06 拍板：免验证码零成本锁号回退）。
      * </p>
      *
-     * @param req 登录请求，包含租户ID、用户名、密码、验证码等
+     * @param req 登录请求，包含租户编码、用户名、密码、验证码等
      * @return 登录响应，包含令牌、用户信息、是否强制重置密码等
      * @throws BizException 验证码错误、用户不存在、用户已停用、账号临时锁定、密码错误等
      * <p>
-     * 2026-10-06 复评轮拍板（行锁串行化）：本方法为事务方法，用户读取走
-     * {@link UserDomainService#lockValidByUsername}（FOR UPDATE 行锁持续到提交），与
-     * resetPassword 的 UPDATE 行锁互斥——关闭「在途旧密码登录在重置吊销后建立新会话」
-     * 并发窗口（交错两侧其一必见对方已提交结果）。锁持有期间占用数据库连接；
-     * 失败审计日志 REQUIRES_NEW 独立短事务，不受本事务回滚影响。
+     * 用户 FOR UPDATE 锁读、验密和会话创建处于同一个登录事务中，与密码重置串行。
+     * 外层不持有事务：登录事务结束后才同步记录独立审计，避免同时占用两条连接。
      * </p>
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public LoginResp login(LoginReq req) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            throw new IllegalStateException("login must own its transaction boundary");
+        }
+        LoginAuditCapture audit = new LoginAuditCapture();
+        boolean completed = false;
+        try {
+            LoginResp result = loginTransaction.execute(status -> loginInTransaction(req, audit));
+            completed = true;
+            return result;
+        } finally {
+            safeRecordLoginLog(audit.entry, completed);
+        }
+    }
+
+    private LoginResp loginInTransaction(LoginReq req, LoginAuditCapture audit) {
         var tenant = tenantDomainService.findByCode(req.tenantCode());
         Long tenantId = tenant == null ? null : tenant.getId();
         try {
@@ -176,7 +193,7 @@ public class AuthAppServiceImpl implements AuthAppService {
             // 验证码失败不推进失败计数（2026-10-06 拍板恢复改前语义）：计数键无 IP 维度，
             // 免验证码请求可零成本定向锁定任意已知账号（验证码一次性消费，攻击者无需获取
             // 验证码即可推动计数）；验证码失败仅留审计日志，只有通过验证码后的密码失败才锁号
-            safeRecordLoginLog(tenantId, null, req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 0, "验证码错误");
+            captureLoginLog(audit, tenantId, null, req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 0, "验证码错误");
             throw e;
         }
         SysUser user = tenantId == null ? null : userDomainService.lockValidByUsername(tenantId, req.username());
@@ -190,7 +207,7 @@ public class AuthAppServiceImpl implements AuthAppService {
         // 同码同计数；停用/锁定状态只在密码正确后披露，按错误码差异枚举用户名的通道关闭
         if (user == null || user.getPassword() == null || !BCrypt.checkpw(req.password(), user.getPassword())) {
             if (tenantId != null) loginFailures.recordTenantFailure(tenantId, req.username());
-            safeRecordLoginLog(tenantId, user == null ? null : user.getId(), req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 0,
+            captureLoginLog(audit, tenantId, user == null ? null : user.getId(), req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 0,
                 user == null ? "用户不存在" : "密码错误");
             throw new BizException(AccessErrorCode.PASSWORD_INCORRECT.getCode(), AccessErrorCode.PASSWORD_INCORRECT.getMessage());
         }
@@ -198,7 +215,7 @@ public class AuthAppServiceImpl implements AuthAppService {
         try {
             redisProcessId = tenantAccess.captureLoginProcess(tenantId, tenant.getSessionEpoch());
         } catch (TenantAccessDeniedException | TenantGateUnavailableException exception) {
-            safeRecordLoginLog(tenantId, user.getId(), req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 0,
+            captureLoginLog(audit, tenantId, user.getId(), req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 0,
                 "租户不可用或状态已变化");
             throw exception;
         }
@@ -206,13 +223,13 @@ public class AuthAppServiceImpl implements AuthAppService {
         // 都不应进入会话（与投影 isEnabled(status)==1 对齐，防止认证放行+主体停用分裂）；
         // 停用（管理员事实）仍优先于临时锁定提示，避免重叠时误导「30分钟后重试」
         if (user.getStatus() == null || user.getStatus() != 1) {
-            safeRecordLoginLog(tenantId, user.getId(), req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 0, "用户已停用");
+            captureLoginLog(audit, tenantId, user.getId(), req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 0, "用户已停用");
             throw new BizException(AccessErrorCode.USER_DISABLED.getCode(), AccessErrorCode.USER_DISABLED.getMessage());
         }
         if (loginFailures.isTenantLocked(tenantId, req.username())) {
             // T-ADMIN-022：计数键即锁（临时，键过期自动恢复），拒绝时补记登录日志留审计痕迹。
             // 锁定检查在密码校验之后：错误密码仍推进计数，窗口由首次失败时设置的 TTL 决定。
-            safeRecordLoginLog(tenantId, user.getId(), req.username(),
+            captureLoginLog(audit, tenantId, user.getId(), req.username(),
                 LOGIN_TYPE_PASSWORD, req.clientId(), 0, "登录失败次数过多，账号临时锁定");
             throw new BizException(AccessErrorCode.USER_LOCKED.getCode(),
                 "登录失败次数过多，账号已临时锁定，请" + LoginFailureStore.LOCK_WINDOW_MINUTES + "分钟后重试");
@@ -232,7 +249,7 @@ public class AuthAppServiceImpl implements AuthAppService {
         tokenSession.set(TenantSessionStamp.PROCESS, redisProcessId);
         tokenSession.set(TenantSessionStamp.FORCE_RESET, Boolean.TRUE.equals(user.getForceResetPwd()));
 
-        safeRecordLoginLog(tenantId, user.getId(), req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 1, null);
+        captureLoginLog(audit, tenantId, user.getId(), req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 1, null);
 
         return new LoginResp(
             token,
@@ -246,31 +263,39 @@ public class AuthAppServiceImpl implements AuthAppService {
         );
     }
 
-    /**
-     * 记录登录日志（失败隔离，调用方兜底）
-     * <p>
-     * 日志写入经 REQUIRES_NEW 独立短事务；方法体不吞异常，异常（含 Spring 代理层
-     * commit 阶段的连接中断/rollback-only）自然传播到本方法，由本方法 try-catch 兜底：
-     * 日志失败仅告警，不阻断登录主流程（失败分支的 BizException 不被日志异常覆盖）。
-     * 客户端 IP/User-Agent 从当前请求上下文提取（无请求上下文时为空）。
-     * </p>
-     */
-    private void safeRecordLoginLog(Long tenantId, Long userId, String username, String loginType,
-                                    String clientId, Integer status, String failReason) {
+    /** 单次请求的日志快照；不使用共享字段、ThreadLocal 或异步队列。 */
+    private static final class LoginAuditCapture {
+        private LoginLogEntry entry;
+    }
+
+    private void captureLoginLog(LoginAuditCapture audit, Long tenantId, Long userId, String username,
+                                 String loginType, String clientId, Integer status, String failReason) {
         if (tenantId == null) {
             log.warn("Login rejected without a resolvable tenant; no synthetic tenant id is recorded");
             return;
         }
-        HttpServletRequest request = HttpRequestUtils.currentRequest();
         try {
-            loginLogDomainService.recordLoginLog(new LoginLogEntry(
-                tenantId, userId, username, loginType, clientId,
-                HttpRequestUtils.getClientIp(request),
-                HttpRequestUtils.getUserAgent(request),
-                status, failReason));
+            HttpServletRequest request = HttpRequestUtils.currentRequest();
+            audit.entry = new LoginLogEntry(tenantId, userId, username, loginType, clientId,
+                HttpRequestUtils.getClientIp(request), HttpRequestUtils.getUserAgent(request), status, failReason);
+        } catch (Exception e) {
+            log.warn("提取登录日志信息失败（已隔离）: tenantId={}, username={}, status={}, error={}",
+                tenantId, username, status, e.getMessage());
+        }
+    }
+
+    /** 在登录事务完整结束后调用，独立审计的写入/提交异常不覆盖认证结果。 */
+    private void safeRecordLoginLog(LoginLogEntry entry, boolean completed) {
+        if (entry == null) return;
+        if (!completed && Integer.valueOf(1).equals(entry.status())) {
+            entry = new LoginLogEntry(entry.tenantId(), entry.userId(), entry.username(), entry.loginType(),
+                entry.clientId(), entry.ipAddress(), entry.userAgent(), 0, "登录事务未正常完成");
+        }
+        try {
+            loginLogDomainService.recordLoginLog(entry);
         } catch (Exception e) {
             log.warn("记录登录日志失败（已隔离，不影响登录流程）: tenantId={}, username={}, status={}, error={}",
-                tenantId, username, status, e.getMessage());
+                entry.tenantId(), entry.username(), entry.status(), e.getMessage());
         }
     }
 
