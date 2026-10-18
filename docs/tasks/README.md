@@ -10,7 +10,7 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| access-service 归并（跨服务） | `T-ACCESS` | 120 |
+| access-service 归并（跨服务） | `T-ACCESS` | 121 |
 | permission-center | `T-PERM` | 113 |
 | admin-service | `T-ADMIN` | 036 |
 | gateway | `T-GW` | 015 |
@@ -22,7 +22,7 @@
 
 ## 当前待办入口
 
-[T-ACCESS-119](../archive/2026-10-18/tasks/T-ACCESS-119.md) 已完成归档。当前无已获准启动的新实施任务，其余事项见[待解决问题](../pending-problems.md)，原暂缓边界保持。
+[T-ACCESS-120](../archive/2026-10-18/tasks/T-ACCESS-120.md) 已完成归档。当前无已获准启动的新实施任务；其他事项见[待解决问题](../pending-problems.md)，原暂缓边界保持。
 
 | ID | 标题 | 状态 | 直接依赖 |
 |---|---|---|---|
@@ -31,6 +31,12 @@
 T-PERM-036 继续暂缓，需用户明确解除门禁。历史批次只供追溯，不重新启动。
 
 ## 任务总表
+
+### Redis 事务锁取锁中断后的释放责任（已归档）
+
+| ID | 标题 | 状态 | 直接依赖 |
+|---|---|---|---|
+| [T-ACCESS-120](../archive/2026-10-18/tasks/T-ACCESS-120.md) | Redis 事务锁取锁中断后的释放责任 | ✅ | — |
 
 ### 测试环境待解决问题校准与最小修复（已归档）
 

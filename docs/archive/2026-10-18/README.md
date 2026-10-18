@@ -1,5 +1,7 @@
 # 2026-10-18 归档
 
+[T-ACCESS-120](tasks/T-ACCESS-120.md) 完成 Codex 外评确认的 Redis 事务锁取锁中断修复；密码重置和树写锁统一处理获取结果与释放责任，[原始评审与验收](tasks/evidence/T-ACCESS-120/verification.md)已归档。
+
 [T-ACCESS-119](tasks/T-ACCESS-119.md) 完成测试环境待解决问题校准与最小修复；[验收记录](tasks/evidence/T-ACCESS-119/verification.md)保存定向反例、完整回归与本地双轨结论。Q-056/Q-070/Q-072/Q-079/Q-081 已按验证结果及已确认边界收敛，其他事项继续暂缓。
 
 [T-ACCESS-118](tasks/T-ACCESS-118.md) 完成标准文件能力四组外评核实与修复；[记录](tasks/evidence/T-ACCESS-118/verification.md)保留外评原文、反例、用户确认的边界与完整回归。

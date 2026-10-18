@@ -85,6 +85,110 @@ class UserLoginRowLockPgIT {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
+    void interruptedAcquisitionMustReleaseLateRedisSuccess(boolean treeLock) throws Exception {
+        var replies = new DelayedReplies();
+        var config = new org.redisson.config.Config(redisson.getConfig());
+        config.setNettyHook(replies);
+        config.useSingleServer().setConnectionMinimumIdleSize(1).setConnectionPoolSize(2)
+            .setPingConnectionInterval(0);
+        var ownerClient = org.redisson.Redisson.create(config);
+        String key = treeLock
+            ? cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.lockKey(TENANT,
+                cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.SYS_MENU)
+            : cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtil.passwordResetLockKey(TENANT, 910120L);
+        var probe = redisson.getLock(key);
+        var owner = new java.util.concurrent.atomic.AtomicReference<Thread>();
+        var failure = new java.util.concurrent.atomic.AtomicReference<RuntimeException>();
+        var continued = new java.util.concurrent.atomic.AtomicBoolean();
+        var interrupted = new java.util.concurrent.atomic.AtomicBoolean();
+        ExecutorService pool = Executors.newSingleThreadExecutor();
+        try {
+            replies.pause();
+            Future<?> request = pool.submit(() -> {
+                owner.set(Thread.currentThread());
+                try {
+                    new TransactionTemplate(txManager).executeWithoutResult(status -> {
+                        if (treeLock) {
+                            new cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport(ownerClient)
+                                .lockTreeWrites(TENANT,
+                                    cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.SYS_MENU);
+                        } else {
+                            new cn.ac.fage.accessmesh.access.infrastructure.PasswordResetLockSupport(ownerClient)
+                                .lockTenantUser(TENANT, 910120L);
+                        }
+                        continued.set(true);
+                    });
+                } catch (RuntimeException exception) {
+                    failure.set(exception);
+                    interrupted.set(Thread.currentThread().isInterrupted());
+                } finally {
+                    Thread.interrupted();
+                }
+            });
+            assertThat(replies.arrived.await(10, TimeUnit.SECONDS)).isTrue();
+            assertThat(probe.isLocked()).as("Redis 已取得锁，响应尚未交付调用线程").isTrue();
+            owner.get().interrupt();
+            replies.release();
+            request.get(10, TimeUnit.SECONDS);
+            assertThat(failure.get()).isNotNull();
+            assertThat(interrupted.get()).isTrue();
+            assertThat(continued.get()).as("中断后不得进入业务写入").isFalse();
+            org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(3)).until(() -> {
+                boolean acquired = probe.tryLock();
+                if (acquired) probe.unlock();
+                return acquired;
+            });
+        } finally {
+            replies.release();
+            pool.shutdownNow();
+            pool.awaitTermination(10, TimeUnit.SECONDS);
+            // 仅清本用例独占键，使旧实现反例失败后不会遗留续期锁污染后续验证。
+            probe.forceUnlock();
+            ownerClient.shutdown();
+        }
+    }
+
+    /** 延迟真实 Redis 响应交付，不替换 RLock 或其取消/续期实现。 */
+    private static final class DelayedReplies extends org.redisson.client.DefaultNettyHook {
+        private final CountDownLatch arrived = new CountDownLatch(1);
+        private final java.util.List<Runnable> held = new java.util.ArrayList<>();
+        private boolean paused;
+
+        synchronized void pause() { paused = true; }
+
+        void release() {
+            java.util.List<Runnable> pending;
+            synchronized (this) {
+                paused = false;
+                pending = java.util.List.copyOf(held);
+                held.clear();
+            }
+            pending.forEach(Runnable::run);
+        }
+
+        @Override
+        public void afterChannelInitialization(io.netty.channel.Channel channel) {
+            channel.pipeline().addFirst(new io.netty.channel.ChannelInboundHandlerAdapter() {
+                @Override
+                public void channelRead(io.netty.channel.ChannelHandlerContext context, Object message) {
+                    synchronized (DelayedReplies.this) {
+                        if (paused) {
+                            held.add(() -> context.executor().execute(() -> {
+                                context.fireChannelRead(message);
+                                context.fireChannelReadComplete();
+                            }));
+                            arrived.countDown();
+                            return;
+                        }
+                    }
+                    context.fireChannelRead(message);
+                }
+            });
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
     void resetLockRejectsAnotherClientAndReleasesAfterCommitOrRollback(boolean rollback) throws Exception {
         var otherClient = org.redisson.Redisson.create(new org.redisson.config.Config(redisson.getConfig()));
         var other = new cn.ac.fage.accessmesh.access.infrastructure.PasswordResetLockSupport(otherClient);

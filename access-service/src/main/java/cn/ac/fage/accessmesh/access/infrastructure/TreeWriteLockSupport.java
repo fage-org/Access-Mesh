@@ -1,12 +1,7 @@
 package cn.ac.fage.accessmesh.access.infrastructure;
 
-import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * 树结构写路径分布式锁（T-PERM-044：四棵树 move 并发成环窗口收口）。
@@ -18,7 +13,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  * parent 关系，环无法落库。
  * </p>
  * <p>
- * 实现选型（2026-09-04 定案变更：原 advisory lock 方案改为 Redisson）：{@code RLock.lock()}
+ * 实现选型（2026-09-04 定案变更：原 advisory lock 方案改为 Redisson）：Redisson 阻塞获取
  * 不带 leaseTime，由 watchdog 自动续期（默认 30s、每 10s 续），防持锁进程崩溃后死锁；
  * <b>释放挂 {@code TransactionSynchronization.afterCompletion}</b>——事务 commit/rollback 后
  * 同线程回调 unlock，堵死「解锁先于提交」缝隙（unlock 若写在事务方法体内，与 AOP 代理的
@@ -27,7 +22,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  * </p>
  * <p>
  * 已知边界（定案接受）：①watchdog 依赖与 Redis 的连接——网络分区/JVM 长暂停超 30s 无续期
- * 时锁被逐出而事务仍在跑，窗口复现（概率极低）；②Redis 不可用时取锁失败即写入口失败
+ * 时锁被逐出而事务仍在跑，窗口复现；②Redis 不可用时取锁失败即写入口失败
  * （fail-closed；跳锁等于窗口大开，不可选）。正确性依赖 READ_COMMITTED（PG 语句级快照，
  * 拿到锁后的校验查询可见他人已提交数据）；若改 REPEATABLE_READ 需把锁提到事务外层。
  * </p>
@@ -41,8 +36,6 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  */
 @Component
 public class TreeWriteLockSupport {
-
-    private static final Logger log = LoggerFactory.getLogger(TreeWriteLockSupport.class);
 
     private static final String LOCK_KEY_PREFIX = "accessmesh:tree-write-lock:";
 
@@ -80,35 +73,7 @@ public class TreeWriteLockSupport {
      * </p>
      */
     public void lockTreeWrites(Long tenantId, TreeLockTarget target) {
-        if (!TransactionSynchronizationManager.isActualTransactionActive()) {
-            throw new IllegalStateException(
-                "lockTreeWrites 必须在事务内调用（释放依赖事务边界的 afterCompletion 回调）: " + target);
-        }
-        RLock lock = redissonClient.getLock(lockKey(tenantId, target));
-        lock.lock();
-        // 拿锁成功后注册释放回调；注册本身失败（极端）时立即解锁回滚语义，
-        // 不让无释放时机的锁悬挂到 TTL
-        try {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCompletion(int status) {
-                    try {
-                        lock.unlock();
-                    } catch (Exception e) {
-                        // 释放失败仅告警：持锁线程已结束、watchdog 随之停止，lease TTL 兜底过期
-                        log.warn("tree write lock release failed (lease TTL will reclaim): key={}, status={}",
-                            lock.getName(), status, e);
-                    }
-                }
-            });
-        } catch (RuntimeException e) {
-            try {
-                lock.unlock();
-            } catch (Exception suppressed) {
-                log.warn("tree write lock rollback unlock failed: key={}", lock.getName(), suppressed);
-            }
-            throw e;
-        }
+        RedisTransactionLockSupport.acquire(redissonClient, lockKey(tenantId, target), true);
     }
 
     /**

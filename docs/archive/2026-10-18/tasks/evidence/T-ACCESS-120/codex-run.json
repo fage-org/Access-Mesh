@@ -1,0 +1,25 @@
+{
+  "base": "3ff4d23003067db1586ffdfdad86c9739e6518ae",
+  "head": "c754c414eed29cf08d94d6294cf2c2f3da932573",
+  "channel": "codex",
+  "modelOverride": null,
+  "reasoningOverride": null,
+  "contextOverride": null,
+  "multiAgent": false,
+  "sandbox": "read-only",
+  "prompt": "prompt.md",
+  "exit": 0,
+  "statusBefore": "clean",
+  "statusAfter": "clean",
+  "runLogSha256": "6c9005b45bff4fe9421f0e10dd9418b7799eb10e5990a6437a0914e38b590484",
+  "promptSha256": "422889f82dca1dcb14395fb6c156e82783ac2c17b7bf99777363a185afe54fad",
+  "reportSha256": "4596ef24eb294ff87f0771284d55fab26b21b1861b041b1fe39f05b6657515e5",
+  "findings": {
+    "P0": 0,
+    "P1": 0,
+    "P2": 1,
+    "P3": 0
+  },
+  "archivedPrompt": "codex-prompt.md",
+  "archivedReport": "codex-report.md"
+}

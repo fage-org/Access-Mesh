@@ -682,11 +682,12 @@ bootstrap 的 §14.4 最小集（`RESOURCE:VIEW`/`OPERATION:VIEW` scopeAll + `RO
 
 - **机制**：`TreeWriteLockSupport.lockTreeWrites(tenantId, target)` 取 Redisson 可重入锁
   `RLock`，key = `accessmesh:tree-write-lock:{treeKey}:{tenantId}`（treeKey 1-4 显式编号）。
-  `lock()` 不带 leaseTime，由 watchdog 自动续期（默认 30s、每 10s 续）——防持锁进程崩溃后
+  阻塞获取不带 leaseTime，由 watchdog 自动续期（默认 30s、每 10s 续）——防持锁进程崩溃后
   死锁；**释放挂 `TransactionSynchronization.afterCompletion`**（事务 commit/rollback 后
   同线程回调 unlock），堵死「解锁先于提交」缝隙：unlock 若写在事务方法体内，与 AOP 代理的
   实际提交之间存在空隙，后进锁者校验读不到未提交数据，窗口复现。unlock 失败仅告警，由
   watchdog 停止后的 lease TTL 兜底释放。
+- 获取与释放通过 `RedisTransactionLockSupport` 处理；线程中断不取消可能迟到成功的获取结果，详见[公共事务锁中断边界](#transaction-lock-interruption)。树锁继续等待竞争锁，不增加等待超时。
 - **已知边界（定案接受）**：①watchdog 依赖与 Redis 的连接——网络分区/JVM 长暂停超 30s
   无续期时锁被逐出而事务仍在跑，窗口复现（概率极低）；②Redis 不可用时取锁失败即写入口
   失败（fail-closed；跳锁等于窗口大开，不可选）。正确性依赖 READ_COMMITTED（PG 语句级
@@ -750,8 +751,17 @@ bootstrap 的 §14.4 最小集（`RESOURCE:VIEW`/`OPERATION:VIEW` scopeAll + `RO
 <a id="password-reset-lock"></a>
 ## 18. 密码重置请求互斥
 
-`PasswordResetLockSupport` 使用现有 Redisson 的无等待 `tryLock()`，未指定固定 leaseTime，沿用 watchdog 自动续期。调用方必须在事务与同步回调有效时获取，基础设施统一在 `afterCompletion` 尝试解锁，覆盖提交、回滚及结果未知。解锁失败告警但不改写已确定的数据库结果。业务接口及错误码见[重置并发契约](access-service-api-contract.md#password-reset-concurrency)。
+`PasswordResetLockSupport` 通过公共 `RedisTransactionLockSupport` 使用 Redisson 非等待获取，不指定固定 leaseTime，沿用 watchdog 自动续期。调用方必须在事务与同步回调有效时获取，基础设施统一在 `afterCompletion` 尝试解锁，覆盖提交、回滚及结果未知。解锁失败告警但不改写已确定的数据库结果。业务接口及错误码见[重置并发契约](access-service-api-contract.md#password-reset-concurrency)。
 
 锁键由 `BusinessKeyUtil.passwordResetLockKey` 唯一构造：租户用户按 tenantId/userId，独立平台账号按平台身份域/accountId 隔离。租户内重置与平台首管理员恢复共享同一目标键；平台恢复先解析固定首管理员 ID 并获取 Redis 锁，再获取租户和用户行锁，避免在数据库锁队列中等待后再次重置。平台账号恢复同样先获取目标重置锁再进入平台管理行锁。
 
 这是处理期间的重复操作拒绝，不是持久化凭据代际或分布式强一致承诺。Redis 获取失败则请求失败；网络分区、Redis 数据丢失或 JVM 长暂停造成锁续期丢失时，不能保证重复请求拒绝，数据库行锁仍保护写入串行化。提交后密码交付窗口按契约明确保留，不用延长 TTL 猜测交付完成。适用范围与取舍由 T-ACCESS-119 的 2026-10-18 用户决定确认。
+
+<a id="transaction-lock-interruption"></a>
+### 18.1 公共事务锁的中断边界
+
+T-ACCESS-120：密码重置锁与树写锁共同通过异步 Redisson 命令获取锁，在原请求线程以不取消结果的方式等待完成。不能使用会因线程中断取消外层 Future 的同步获取后再注册释放：底层命令仍可能成功并启动 watchdog，原调用方却已退出。
+
+进入获取前已中断的线程直接失败，不发送取锁命令。等待中被中断时保留中断标记，等待该命令结果确定；若实际取得锁，先在原 owner 线程尝试释放并等待结果，再抛出技术异常，不能进入业务写入。未中断且成功时注册 afterCompletion；注册失败立即尝试释放。解锁也等待异步结果完成，不因线程已有中断标记丢弃结果；失败只告警，不覆盖原错误或已确定的事务结果。
+
+“非等待重置”只表示不排队竞争已被占用的锁，仍需等待 Redis 命令结果；树写锁继续等待前一持有者释放，包括获取过程中被中断时等待结果确定的阶段。此处不添加固定 TTL、超时保险丝、后台补偿队列或自动重试，不改变三个重置入口及树写入的键空间、门禁和正常事务释放时机。

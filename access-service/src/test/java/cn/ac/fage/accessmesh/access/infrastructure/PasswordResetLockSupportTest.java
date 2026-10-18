@@ -40,11 +40,11 @@ class PasswordResetLockSupportTest {
         transaction();
         RLock lock = mock(RLock.class);
         when(redis.getLock(BusinessKeyUtil.passwordResetLockKey(1L, 77))).thenReturn(lock);
-        when(lock.tryLock()).thenReturn(false);
+        when(lock.tryLockAsync()).thenReturn(new org.redisson.misc.CompletableFutureWrapper<>(false));
         assertThatThrownBy(() -> support.lockTenantUser(1L, 77))
             .isInstanceOf(BizException.class).extracting("errorCode").isEqualTo(10015);
-        verify(lock).tryLock();
-        verify(lock, never()).unlock();
+        verify(lock).tryLockAsync();
+        verify(lock, never()).unlockAsync();
         assertThat(TransactionSynchronizationManager.getSynchronizations()).isEmpty();
     }
 
@@ -54,14 +54,15 @@ class PasswordResetLockSupportTest {
         transaction();
         RLock lock = mock(RLock.class);
         when(redis.getLock(BusinessKeyUtil.passwordResetLockKey(1L, 77))).thenReturn(lock);
-        when(lock.tryLock()).thenReturn(true);
+        when(lock.tryLockAsync()).thenReturn(new org.redisson.misc.CompletableFutureWrapper<>(true));
+        when(lock.unlockAsync()).thenReturn(org.redisson.misc.CompletableFutureWrapper.completedNull());
         support.lockTenantUser(1L, 77);
-        verify(lock, never()).unlock();
+        verify(lock, never()).unlockAsync();
         var synchronization = TransactionSynchronizationManager.getSynchronizations().getFirst();
         synchronization.beforeCompletion();
-        verify(lock, never()).unlock();
+        verify(lock, never()).unlockAsync();
         synchronization.afterCompletion(status);
-        verify(lock).unlock();
+        verify(lock).unlockAsync();
     }
 
     @Test
@@ -73,12 +74,38 @@ class PasswordResetLockSupportTest {
     }
 
     @Test
+    void alreadyInterruptedRequestDoesNotStartAnAcquisition() {
+        transaction();
+        Thread.currentThread().interrupt();
+        try {
+            assertThatThrownBy(() -> support.lockTenantUser(1L, 77)).isInstanceOf(IllegalStateException.class);
+            assertThat(Thread.currentThread().isInterrupted()).isTrue();
+            verifyNoInteractions(redis);
+        } finally {
+            Thread.interrupted();
+        }
+    }
+
+    @Test
+    void failedAsyncAcquisitionDoesNotUnlockOrRegisterACompletion() {
+        transaction();
+        RLock lock = mock(RLock.class);
+        when(redis.getLock(anyString())).thenReturn(lock);
+        when(lock.tryLockAsync()).thenReturn(new org.redisson.misc.CompletableFutureWrapper<>(
+            new IllegalStateException("Redis unavailable")));
+        assertThatThrownBy(() -> support.lockPlatformAccount(77)).hasRootCauseMessage("Redis unavailable");
+        verify(lock, never()).unlockAsync();
+        assertThat(TransactionSynchronizationManager.getSynchronizations()).isEmpty();
+    }
+
+    @Test
     void releaseFailureDoesNotRewriteCommittedOutcome() {
         transaction();
         RLock lock = mock(RLock.class);
         when(redis.getLock(anyString())).thenReturn(lock);
-        when(lock.tryLock()).thenReturn(true);
-        doThrow(new IllegalStateException("Redis unavailable")).when(lock).unlock();
+        when(lock.tryLockAsync()).thenReturn(new org.redisson.misc.CompletableFutureWrapper<>(true));
+        when(lock.unlockAsync()).thenReturn(new org.redisson.misc.CompletableFutureWrapper<>(
+            new IllegalStateException("Redis unavailable")));
         support.lockPlatformAccount(77);
         assertThatCode(() -> TransactionSynchronizationManager.getSynchronizations().getFirst().afterCompletion(0))
             .doesNotThrowAnyException();

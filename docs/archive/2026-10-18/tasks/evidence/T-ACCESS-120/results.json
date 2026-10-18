@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-18",
+  "baseline": "c754c414eed29cf08d94d6294cf2c2f3da932573",
+  "backend": {
+    "command": "mvn test -T 1C",
+    "exit": 0,
+    "tests": 3004,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "duration": "20:21 min (Wall Clock)"
+  },
+  "frontend": "not run; no frontend source changes",
+  "sourceIntegrity": {
+    "inputs": 1644,
+    "changed": [],
+    "added": [],
+    "manifestSha256": "3604fc98ba2a54b03c76119c91c43f95a9172c71e856810b0828c6865ddd96cc"
+  },
+  "redisson": {
+    "version": "4.8.0",
+    "jarSha256": "cbaf6850dfd49f245c4d7232d0cf8acb5057e9a465251b5f1c0890096284d3b0"
+  },
+  "keySuites": [
+    "[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.137 s -- in cn.ac.fage.accessmesh.access.infrastructure.PasswordResetLockSupportTest",
+    "[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 7.403 s -- in cn.ac.fage.accessmesh.access.characterization.TreeCycleHardeningPgIT",
+    "[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 7.745 s -- in cn.ac.fage.accessmesh.access.engine.InterfaceAdmissionHeavyPgIT",
+    "[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 6.198 s -- in cn.ac.fage.accessmesh.access.user.UserLoginRowLockPgIT",
+    "[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 503.5 s -- in cn.ac.fage.accessmesh.access.sync.ResourcePublicationHeavyPgIT",
+    "[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 118.5 s -- in cn.ac.fage.accessmesh.e2e.BasicRoleGrantVerticalSliceE2EIT",
+    "[INFO] Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 87.21 s -- in cn.ac.fage.accessmesh.e2e.ExampleBusinessFinalCheckE2EIT",
+    "[INFO] Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 71.21 s -- in cn.ac.fage.accessmesh.e2e.ExampleProtectedApiE2EIT"
+  ],
+  "logHashes": {
+    "full-backend.log": "e4249a88caaf3d711bb98591b6e691cbb5d11250dc7b8dd9a4e92e82e9060a6d",
+    "redis-interruption-red.log": "01da3fe75433c49a45bcdb95f597fdc5fb9fd1b955b9c39aaf3118293c0a9159",
+    "targeted-green.log": "04cd1aa58aeb08e2ac5a4c9d41d66d05aabb3e9b5d255458551441c2e8ede5a2"
+  }
+}
