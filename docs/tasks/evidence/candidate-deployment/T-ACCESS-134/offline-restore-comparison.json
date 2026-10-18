@@ -1,0 +1,8 @@
+{
+  "allTablesEqual": true,
+  "tableCount": 40,
+  "allSequencesEqual": true,
+  "sequenceCount": 39,
+  "source": "backup-frozen-database.json",
+  "restore": "restored-before-app-database.json"
+}

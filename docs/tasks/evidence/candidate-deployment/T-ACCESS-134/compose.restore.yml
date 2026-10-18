@@ -1,0 +1,61 @@
+# 配合候选源码中的 docker-compose.yml；--project-directory 必须指向候选源码。
+# 本次 Compose 5.4.0 已验证 !override/!reset 替换列表，避免保留原宿主端口。
+services:
+  postgresql:
+    environment:
+      POSTGRES_DB: postgres
+    volumes: !override
+      - accessmesh-pgdata:/var/lib/postgresql/data
+    container_name: am-restore-20261018-44e178a-pg
+    ports: !reset []
+  redis:
+    container_name: am-restore-20261018-44e178a-redis
+    ports: !reset []
+  nacos:
+    container_name: am-restore-20261018-44e178a-nacos
+    ports: !reset []
+  access-service:
+    container_name: am-restore-20261018-44e178a-access
+    image: accessmesh/access-service:candidate-44e178a1b
+    ports: !reset []
+    environment:
+      NACOS_SERVER_ADDR: nacos:8848
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgresql:5432/access_restore
+      DB_HOST: postgresql
+      REDIS_HOST: redis
+      ACCESS_BROWSER_ALLOWED_ORIGINS: http://127.0.0.1:18090,http://127.0.0.1:18091
+  gateway:
+    container_name: am-restore-20261018-44e178a-gateway
+    image: accessmesh/gateway:candidate-44e178a1b
+    ports: !override
+      - "127.0.0.1:18091:8080"
+    environment:
+      NACOS_SERVER_ADDR: nacos:8848
+      REDIS_HOST: redis
+      ACCESS_BROWSER_ALLOWED_ORIGINS: http://127.0.0.1:18090,http://127.0.0.1:18091
+      GATEWAY_CORS_ALLOWED_ORIGINS: http://127.0.0.1:18090,http://127.0.0.1:18091
+  example-service:
+    container_name: am-restore-20261018-44e178a-example
+    image: accessmesh/example-service:candidate-44e178a1b
+    ports: !reset []
+    environment:
+      NACOS_SERVER_ADDR: nacos:8848
+  frontend:
+    container_name: am-restore-20261018-44e178a-frontend
+    image: accessmesh/frontend:candidate-44e178a1b-fe1
+    ports: !override
+      - "127.0.0.1:18090:80"
+
+volumes:
+  accessmesh-pgdata:
+    name: am-restore-20261018-44e178a_pgdata
+  accessmesh-redisdata:
+    name: am-restore-20261018-44e178a_redisdata
+  accessmesh-nacosdata:
+    name: am-restore-20261018-44e178a_nacosdata
+  accessmesh-files:
+    name: am-restore-20261018-44e178a_files
+
+networks:
+  default:
+    name: am-restore-20261018-44e178a_default

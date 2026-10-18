@@ -1,0 +1,158 @@
+[
+  {
+    "name": "am-candidate-20261018-44e178a-example",
+    "id": "ff64a2314729b083a4d34246930e854192575afee63ea2d2424102c55d316792",
+    "image": "sha256:b8303b515f35b20d87ad5d01f653583af2055757d7fd6860a00ace8a5183d6a8",
+    "status": "running",
+    "health": "healthy",
+    "startedAt": "2026-10-18T12:33:44.214305423Z",
+    "ports": {},
+    "networks": {
+      "am-candidate-20261018-44e178a_default": "172.19.0.5"
+    },
+    "mounts": [],
+    "publicConfig": {
+      "NACOS_SERVER_ADDR": "nacos:8848"
+    }
+  },
+  {
+    "name": "am-candidate-20261018-44e178a-frontend",
+    "id": "dbf25daf1ef6e1228437f963f4df2f1e6a76a4a9bc94537ddf818c47c6fa9ae7",
+    "image": "sha256:e9ecdf6055d3b51b1c669e40affa645cb75e09beabfba3f1213a56f273a0caf2",
+    "status": "running",
+    "health": "healthy",
+    "startedAt": "2026-10-18T12:33:41.150817046Z",
+    "ports": {
+      "80/tcp": [
+        {
+          "HostIp": "127.0.0.1",
+          "HostPort": "18080"
+        }
+      ]
+    },
+    "networks": {
+      "am-candidate-20261018-44e178a_default": "172.19.0.7"
+    },
+    "mounts": [],
+    "publicConfig": {}
+  },
+  {
+    "name": "am-candidate-20261018-44e178a-gateway",
+    "id": "9c9b40c7209a7de88faf0f7db83dd1d0c979137a58c7954bce134185a7935f00",
+    "image": "sha256:6e9a60312a3b848ecd0c84be87ae2c51e6294b10833234ec84c43ae81b213f1e",
+    "status": "running",
+    "health": "healthy",
+    "startedAt": "2026-10-18T12:33:44.392001013Z",
+    "ports": {
+      "8080/tcp": [
+        {
+          "HostIp": "127.0.0.1",
+          "HostPort": "18081"
+        }
+      ]
+    },
+    "networks": {
+      "am-candidate-20261018-44e178a_default": "172.19.0.8"
+    },
+    "mounts": [],
+    "publicConfig": {
+      "REDIS_HOST": "redis",
+      "NACOS_SERVER_ADDR": "nacos:8848"
+    }
+  },
+  {
+    "name": "am-candidate-20261018-44e178a-access",
+    "id": "24c52e741fc6ebbd1d4bbde7b4b1913a8354b63ffa8c30cb110d5164357bcc75",
+    "image": "sha256:0908abe5626e430108f850a2170c8ce1fb334deabd4c0bb2cdc9b99bcaa4c797",
+    "status": "running",
+    "health": "healthy",
+    "startedAt": "2026-10-18T12:33:44.317690219Z",
+    "ports": {},
+    "networks": {
+      "am-candidate-20261018-44e178a_default": "172.19.0.6"
+    },
+    "mounts": [
+      {
+        "Type": "volume",
+        "Name": "am-candidate-20261018-44e178a_files",
+        "Destination": "/var/lib/accessmesh/files",
+        "RW": true
+      }
+    ],
+    "publicConfig": {
+      "DB_HOST": "postgresql",
+      "REDIS_HOST": "redis",
+      "NACOS_SERVER_ADDR": "nacos:8848",
+      "FILE_STORAGE_PATH": "/var/lib/accessmesh/files"
+    }
+  },
+  {
+    "name": "am-candidate-20261018-44e178a-pg",
+    "id": "0390e0c2e5aea9e5bc112557ee7d32a98e7e0cc071a9d9e46bd59945ddf176df",
+    "image": "sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685",
+    "status": "running",
+    "health": "healthy",
+    "startedAt": "2026-10-18T10:55:58.094845528Z",
+    "ports": {},
+    "networks": {
+      "am-candidate-20261018-44e178a_default": "172.19.0.4"
+    },
+    "mounts": [
+      {
+        "Type": "volume",
+        "Name": "am-candidate-20261018-44e178a_pgdata",
+        "Destination": "/var/lib/postgresql/data",
+        "RW": true
+      },
+      {
+        "Type": "bind",
+        "Name": null,
+        "Destination": "/docker-entrypoint-initdb.d/01-access-schema.sql",
+        "RW": false
+      }
+    ],
+    "publicConfig": {}
+  },
+  {
+    "name": "am-candidate-20261018-44e178a-redis",
+    "id": "53a9633e69d07f6294a589d0293aab6c4a2148bf2a6e13a29b73e7dd88e16d57",
+    "image": "sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf",
+    "status": "running",
+    "health": "healthy",
+    "startedAt": "2026-10-18T10:55:58.083151505Z",
+    "ports": {},
+    "networks": {
+      "am-candidate-20261018-44e178a_default": "172.19.0.2"
+    },
+    "mounts": [
+      {
+        "Type": "volume",
+        "Name": "am-candidate-20261018-44e178a_redisdata",
+        "Destination": "/data",
+        "RW": true
+      }
+    ],
+    "publicConfig": {}
+  },
+  {
+    "name": "am-candidate-20261018-44e178a-nacos",
+    "id": "2547767130b2a50e558308a92623b465a238362daefe86b03dd7bd425ea5704f",
+    "image": "sha256:d70b20546fe59aeb86add0754db1dbc3a3067363e18599329c5163d0d8cd9cd8",
+    "status": "running",
+    "health": "healthy",
+    "startedAt": "2026-10-18T10:55:58.071356777Z",
+    "ports": {},
+    "networks": {
+      "am-candidate-20261018-44e178a_default": "172.19.0.3"
+    },
+    "mounts": [
+      {
+        "Type": "volume",
+        "Name": "am-candidate-20261018-44e178a_nacosdata",
+        "Destination": "/home/nacos/data",
+        "RW": true
+      }
+    ],
+    "publicConfig": {}
+  }
+]

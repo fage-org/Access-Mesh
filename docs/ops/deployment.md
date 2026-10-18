@@ -27,6 +27,8 @@ Nacos(8848)：服务注册/配置（三服务共同依赖）
 
 同机独立候选部署不能仅指定另一个 Compose project name：仓库编排包含固定容器名、宿主端口和文件卷名。使用覆盖配置时须检查合并后的全部资源和服务发现地址，避免列表合并保留原端口；数据库、Redis、Nacos 与文件卷均使用新资源。回环非默认端口的正式包实测、脱敏配置及复现命令见 [T-ACCESS-131](../tasks/evidence/candidate-deployment/verification.md)。此记录仅覆盖实际预览拓扑，不替代前述 TLS 终结和多代理部署验证。
 
+**应用重启/重建顺序**：当前前端 nginx 的 `proxy_pass http://gateway:8080` 在启动时解析容器地址。并行重启应用可能改变 Gateway IP，前端仍访问旧 IP，即使全部容器健康也会返回 502。维护时先暂停前端入口，完成 access-service/Gateway/example-service 重启或重建并确认依赖就绪，再启动或重建前端，使 nginx 重新解析地址。Gateway 容器地址变动后也须刷新前端。最后从真实前端入口请求 `/api/access/auth/captcha` 并验证 HTTP/信封，再正常登录；静态首页和管理端健康不能替代该检查。[T-ACCESS-134](../tasks/evidence/candidate-deployment/T-ACCESS-134/verification.md)保留失败响应、顺序修正及重验结果；本次未改变 nginx 的解析机制。
+
 ## 2. 密钥与敏感配置（强制）
 
 | 密钥 | 作用 | 约束 |
@@ -108,7 +110,7 @@ login-log 固定图新增路由，旧图启动缺行时须先备份再重建。b
 
 以下命令为 Linux/Bash 运维示例，在仓库根目录执行。备份包含用户、授权与凭据哈希，目录须仅运维账号可读；离机副本加密保存。数据库备份之外，另行备份 Nacos 配置、密钥及 ADMIN_FILE 持久目录（Compose 预览档=命名卷，物理卷名已钉死为 `accessmesh-files`——默认卷名带项目前缀且随目录名/COMPOSE_PROJECT_NAME 漂移，钉死后备份命令可移植；备份形态如 `docker run --rm -v accessmesh-files:/data -v <备份目录>:/backup alpine tar czf /backup/accessmesh-files-$(date +%Y%m%d%H%M%S).tgz -C /data .`）。Redis 恢复时清空本平台专用逻辑库，重新登录；不要恢复旧会话、授权缓存和令牌。
 
-**一次性文件迁移（升级到钉名卷形态，codex sol r2 P2-5 + r3 P2-3 双源补全）**：当前形态固定挂载命名卷 `accessmesh-files`（容器内 `/var/lib/accessmesh/files`）。直接 `up -d` 不会把旧来源内容带进钉名卷——PG 元数据仍在而文件内容全失（下载报物理文件不存在）。已上传过文件的环境按旧来源二选一迁移，共同次序为「先备份留底 → 内容落到钉名卷 → 切换新栈 → 抽样核验既有文件可下载且内容一致 → 清理旧来源」：
+**一次性文件迁移（升级到钉名卷形态）**：当前形态固定挂载命名卷 `accessmesh-files`（容器内 `/var/lib/accessmesh/files`）。直接 `up -d` 不会把旧来源内容带进钉名卷——PG 元数据仍在而文件内容全失（下载报物理文件不存在）。已上传过文件的环境按旧来源二选一迁移，共同次序为「先备份留底 → 内容落到钉名卷 → 切换新栈 → 抽样核验既有文件可下载且内容一致 → 清理旧来源」：
 
 - **来源一：无卷形态（T-ACCESS-099 之前，2026-10-14 前的更早部署）**——无文件卷，内容在旧 access-service 容器可写层（容器内 `${user.home}/accessmesh-files`，root 运行时典型为 `/root/accessmesh-files`，以旧部署实际 FILE_STORAGE_PATH 为准；`docker exec accessmesh-access-service sh -c 'ls "${user.home:-/root}/accessmesh-files"'` 可确认）。旧容器一旦删除可写层**不可恢复**——必须先导出再重建：①停止写入（停旧容器即可）；②`docker cp accessmesh-access-service:<上述容器内路径> ./accessmesh-files-backup` 导出留底；③按新版本重建服务（钉名卷自动创建）；④`docker run --rm -v "$(pwd)/accessmesh-files-backup:/src" -v accessmesh-files:/dst alpine sh -c "cp -a /src/. /dst/"`。
 - **来源二：项目前缀卷形态（T-ACCESS-099 已挂卷、钉名之前的部署）**——物理卷名为默认 `<项目名>_accessmesh-files`，Docker 不会改名/迁移旧卷：①停止写入；②对旧物理卷做一次上述 tar 备份留底；③`docker run --rm -v <旧物理卷名>:/src -v accessmesh-files:/dst alpine sh -c "cp -a /src/. /dst/"`（旧卷名用 `docker volume ls` 确认，典型为 `access-mesh_accessmesh-files`）；④核验后删除旧卷。
@@ -151,6 +153,14 @@ docker compose exec -T postgresql rm "$tmp_restore"
 ```
 
 核对备份时记录的用户/有效授权数量、关键租户与业务行，随后用隔离的 Redis 与旧版本应用连接**恢复库**验证登录、授权允许和拒绝各一条。注意：`application.yml` 的 JDBC URL 库名硬编码 `access_db`（仅 HOST/PORT 为占位符），起验证实例必须显式覆盖库名，否则应用会静默连回运行库、三查通过即产出「备份已验证」假结论（2026-10-06 逐任务评审修正）——验证实例以 `SPRING_DATASOURCE_URL=jdbc:postgresql://postgresql:5432/access_restore` 环境变量覆盖（compose `run`/临时服务定义注入，勿改动运行实例）。灾难恢复时只有环境负责人确认目标后才切换数据源；清空平台专用 Redis DB、启动一台 access-service 验证，再启动其余实例与 Gateway。独立库创建失败（同名存在）须先调查，不自动 DROP。
+
+### 8.3 同版本独立恢复的实测边界
+
+T-ACCESS-134 已使用固定候选应用，在停止全部应用写入后成套备份 PostgreSQL 与文件卷，并恢复到另一套独立 PG/Redis/Nacos/文件卷及网络。恢复端显式配置 `SPRING_DATASOURCE_URL=jdbc:postgresql://postgresql:5432/access_restore`；除配置核对，还用 `pg_stat_activity` 将 JDBC 会话的库名、客户端地址与恢复应用容器对应，防止误连源库。完整命令、备份摘要与耗时见[验收记录](../tasks/evidence/candidate-deployment/T-ACCESS-134/verification.md)。
+
+复用仓库 Compose 创建恢复 PostgreSQL 时，须移除空库自动执行 schema 的 initdb 挂载，先创建专用空恢复库，再用 `pg_restore --exit-on-error --single-transaction --no-owner` 恢复完整 dump；不在已灌 schema 的库上叠加全库恢复，也不自动删除同名库。应用启动前比较备份与恢复端全部表数据及序列，文件目录核对哈希；启动后以新登录重验允许、拒绝及文件下载。数据库备份、文件、匹配镜像版本和密钥配置须一起保管；Windows 本地备份目录本次使用当前用户/SYSTEM 专用 ACL，未制作离机副本。
+
+恢复 Redis 使用全新专用卷，不复制源会话或授权缓存；旧源会话被拒绝后，再通过正常验证码和密码登录。源 Nacos 没有配置项，本次保留其冷备份但恢复端使用全新注册中心重新注册服务；这不等同于验证非空 Nacos 配置恢复。example-service 的运行期业务报表在内存中，重启不会保留；数据库中的身份、授权、服务登记和文件元数据及持久文件内容属于本次已验证范围。该演练为同版本匹配数据恢复，不证明跨版本升级、生产容量、RPO/RTO 或自动灾备切换。
 
 ## 9. 平台与租户管理员恢复
 

@@ -1,0 +1,8 @@
+{
+  "startedUtc": "2026-10-18T12:37:58.071254+00:00",
+  "restoredUtc": "2026-10-18T12:39:36.177779+00:00",
+  "seconds": 98.107,
+  "realIngressHttp": 200,
+  "realIngressCode": 200,
+  "singleMeasurementNotRto": true
+}

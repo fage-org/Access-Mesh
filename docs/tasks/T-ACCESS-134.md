@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-134
 title: 重启持久化与备份恢复验收
-status: proposed
+status: done
 plan: docs/plans/candidate-deployment-acceptance-plan.md
 domain: cross-service
 design_refs:
@@ -18,7 +18,7 @@ acceptance:
   - 记录恢复耗时与数据核验结果并回写支持边界
 design_writeback:
   required: true
-  status: pending
+  status: done
 last_updated: 2026-10-18
 ---
 
@@ -42,11 +42,21 @@ last_updated: 2026-10-18
 
 ## 验收对照
 
-- [ ] 应用重启与重建后业务数据和文件完整，初始化未覆盖既有身份或授权。
-- [ ] 一致时点数据库与文件成套备份完成，材料可定位且敏感信息受保护。
-- [ ] 恢复栈确实使用独立资源，数据与文件核验和 Gateway 行为验证通过。
-- [ ] 实测耗时、边界与材料保留位置登记，设计和手册回写完成。
+- [x] 应用重启与重建后业务数据和文件完整，初始化未覆盖既有身份或授权。
+- [x] 一致时点数据库与文件成套备份完成，材料可定位且敏感信息受保护。
+- [x] 恢复栈确实使用独立资源，数据与文件核验和 Gateway 行为验证通过。
+- [x] 实测耗时、边界与材料保留位置登记，设计和手册回写完成。
 
 ## 非目标 / 遗留
 
 不验证跨版本保数据升级，不引入 migration 框架、共享文件存储、灾备自动切换或生产恢复承诺。不得把同版本恢复通过写为旧版本升级通过。
+
+## 完成记录
+
+2026-10-18 使用 T-ACCESS-131 固定镜像完成应用重启、保留数据卷的容器重建，以及停写后的 PG/文件成套备份。恢复到 `am-restore-20261018-44e178a` 独立栈，显式连接 `access_restore`；启动前全部表数据指纹和序列状态匹配，启动后实际 JDBC 会话、独立服务发现、空 Redis 与源旧会话拒绝均有证据。两租户管理员及普通用户重新正常登录后，授权允许/拒绝、跨租户文件拒绝、下载哈希和已删除样本保持通过。
+
+发现同时重启应用可令 nginx 访问 Gateway 旧 IP，容器 healthy 仍返回 502；已按后端就绪后刷新前端的顺序恢复，并在重建及恢复启动中重验，部署手册补入操作顺序与真实 API 入口探测。无产品源码或镜像变更。数据库恢复 2.313 秒，恢复执行至 API 入口可用 68.913 秒（基础设施预先就绪）；仅为本次样本实测，不是生产 RTO。
+
+[验收记录](evidence/candidate-deployment/T-ACCESS-134/verification.md)及[脱敏命令](evidence/candidate-deployment/T-ACCESS-134/commands.md)保存版本、原始响应、文件/数据库摘要、耗时和本地双轨结论。执行 run.py、verify.py、backup.py、restore.py、final-collect.py 形成真实环境验证记录；完整回归仍由 T-ACCESS-135 承载。本地代码轨与文档轨通过，design_refs 与部署手册已回写。
+
+源入口 18080、恢复入口 18090 及两套专用资源保留；受限备份在 `.tmp/candidate-deployment-acceptance/T-ACCESS-134/backup-20261018T123757Z/`。后续清理须明确对象，不自动删除。example 运行期内存报表不持久化，非空 Nacos 配置恢复、跨版本升级和多实例文件存储不属于本次结论。

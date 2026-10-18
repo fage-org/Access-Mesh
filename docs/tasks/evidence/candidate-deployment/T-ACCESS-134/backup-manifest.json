@@ -1,0 +1,43 @@
+{
+  "backupId": "backup-20261018T123757Z",
+  "privateLocation": ".tmp/candidate-deployment-acceptance/T-ACCESS-134/backup-20261018T123757Z",
+  "writerConnections": 0,
+  "files": [
+    {
+      "file": "access-db.dump",
+      "bytes": 266661,
+      "sha256": "dc60b0b987baf2069735119c6f5433b0a74c4245c22b7c7068da49781d5651a8",
+      "sensitive": true
+    },
+    {
+      "file": "candidate.env",
+      "bytes": 908,
+      "sha256": "f0c2d5780b597a915e5b8c67c04d5ca3d99fb6f5283b3f0832b1a8d58e56acbf",
+      "sensitive": true
+    },
+    {
+      "file": "files.tgz",
+      "bytes": 395,
+      "sha256": "b49e835db2616211d51fa0b216f0aeaa1054f09cfee004baefc5b447e1ef09d4",
+      "sensitive": true
+    },
+    {
+      "file": "nacosdata.tgz",
+      "bytes": 147824,
+      "sha256": "32d8c4053b2a844031bd41e66fbe397e33f052f6411c961d69cca625f2d9dd66",
+      "sensitive": true
+    },
+    {
+      "file": "restore.env",
+      "bytes": 908,
+      "sha256": "7a69ba88a05cc14e32df9160e4516f25f2b8e867b809090eb998178b8cfa7d17",
+      "sensitive": true
+    }
+  ],
+  "dumpSeconds": 0.538,
+  "backupWindowStartedUtc": "2026-10-18T20:37:58.071254+08:00",
+  "backupCompletedUtc": "2026-10-18T20:38:14.05996+08:00",
+  "backupSeconds": 15.989,
+  "consistentPair": "all application writers stopped for database dump and file archive",
+  "redisBackedUp": false
+}

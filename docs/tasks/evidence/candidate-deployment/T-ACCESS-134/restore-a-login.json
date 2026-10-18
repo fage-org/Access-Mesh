@@ -1,0 +1,9 @@
+{
+  "tenantCode": "qa-132-a",
+  "username": "admin",
+  "http": 200,
+  "code": 200,
+  "requestId": "bfad30fd-b822-4ec4-8c99-2dc573fb0922",
+  "channel": "fresh native captcha/password login",
+  "tokensExcluded": true
+}

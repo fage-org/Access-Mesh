@@ -22,6 +22,8 @@
 
 先按 [部署基线 §8](../ops/deployment.md#8-postgresql-备份与恢复) 完成备份及恢复演练；忘记首管理员密码按 [§9](../ops/deployment.md#9-平台与租户管理员恢复)，授权墓碑按 [§10](../ops/deployment.md#10-授权墓碑恢复)。不得因固定图升级直接删掉未备份的卷。
 
+保数据恢复与下方空库重建是不同操作：T-ACCESS-134 已在同版本候选上将完整 dump 和文件卷恢复到新建 `access_restore` 与独立文件卷，启动前核对表数据/序列，启动后用新会话验证允许、拒绝及下载哈希。恢复目标不先运行当前 schema，也不执行下方 DROP；匹配产物、实际 JDBC 连接和隔离资源证据见[恢复验收](../tasks/evidence/candidate-deployment/T-ACCESS-134/verification.md)。不把该结果用于旧版本数据升级；前端须在后端地址稳定后重启，顺序见[部署基线](../ops/deployment.md#1-拓扑)。
+
 1. **清库**：删除并重建数据库 schema（DDL 为普通 `CREATE TABLE`，非幂等——必须在空 schema 上一次性执行，
    对已有 schema 重跑会报「relation already exists」）：
    ```bash

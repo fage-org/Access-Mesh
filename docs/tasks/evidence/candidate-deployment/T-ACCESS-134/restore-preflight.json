@@ -1,0 +1,13 @@
+{
+  "newProject": "am-restore-20261018-44e178a",
+  "resourceNameCollisions": false,
+  "ports": [
+    18090,
+    18091
+  ],
+  "explicitDatabase": "access_restore",
+  "schemaInitMountRemoved": true,
+  "databaseAndRedisPasswordsIndependent": true,
+  "platformKeysAndServiceCredentialMap": "preserved privately from candidate",
+  "renderedConfigValidated": true
+}

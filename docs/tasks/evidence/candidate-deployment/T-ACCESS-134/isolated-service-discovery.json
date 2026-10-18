@@ -1,0 +1,48 @@
+{
+  "source": {
+    "access-service": [
+      {
+        "ip": "172.19.0.5",
+        "port": 9100,
+        "healthy": true
+      }
+    ],
+    "gateway": [
+      {
+        "ip": "172.19.0.6",
+        "port": 8080,
+        "healthy": true
+      }
+    ],
+    "example-service": [
+      {
+        "ip": "172.19.0.7",
+        "port": 9300,
+        "healthy": true
+      }
+    ]
+  },
+  "restore": {
+    "access-service": [
+      {
+        "ip": "172.20.0.5",
+        "port": 9100,
+        "healthy": true
+      }
+    ],
+    "gateway": [
+      {
+        "ip": "172.20.0.6",
+        "port": 8080,
+        "healthy": true
+      }
+    ],
+    "example-service": [
+      {
+        "ip": "172.20.0.7",
+        "port": 9300,
+        "healthy": true
+      }
+    ]
+  }
+}

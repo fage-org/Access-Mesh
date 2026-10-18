@@ -1,0 +1,6 @@
+{
+  "emptyAllDatabases": true,
+  "output": "# Keyspace",
+  "oldSessionsImported": false,
+  "newVolume": "am-restore-20261018-44e178a_redisdata"
+}

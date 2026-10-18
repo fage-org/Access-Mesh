@@ -1,0 +1,9 @@
+{
+  "tenantCode": "qa-132-a",
+  "username": "qareader",
+  "http": 200,
+  "code": 200,
+  "requestId": "230d5426-5822-4e74-8830-e75816eb6110",
+  "channel": "fresh native captcha/password login",
+  "tokensExcluded": true
+}

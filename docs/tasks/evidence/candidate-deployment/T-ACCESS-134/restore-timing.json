@@ -1,0 +1,11 @@
+{
+  "startedUtc": "2026-10-18T12:39:20.730200+00:00",
+  "completedUtc": "2026-10-18T12:40:29.643274+00:00",
+  "databaseRestoreSeconds": 2.313,
+  "fileRestoreSeconds": 0.814,
+  "applicationStartToHealthSeconds": 61.701,
+  "totalToIngressSeconds": 68.913,
+  "apiIngressHttp": 200,
+  "apiIngressCode": 200,
+  "notProductionRto": true
+}

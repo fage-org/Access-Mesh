@@ -1,0 +1,443 @@
+{
+  "database": "access_db",
+  "tables": [
+    {
+      "table_name": "abstract_role",
+      "rows": 6,
+      "sha256": "93d47773e5cffd804f09175be3fa16fe7b0bbc8471aafc1c65c19b9c6e838844"
+    },
+    {
+      "table_name": "abstract_user",
+      "rows": 3,
+      "sha256": "ba14efbff52bb158cca27c83d9144e4c3285fd9c69be426dd325b70c97b98bbf"
+    },
+    {
+      "table_name": "biz_domain",
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "table_name": "domain_config",
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "table_name": "operation_log",
+      "rows": 39,
+      "sha256": "65532d0cf3dc000d083fd13ce65b09d288b1ad4a9232d93426a7323089b09538"
+    },
+    {
+      "table_name": "operation_permission",
+      "rows": 254,
+      "sha256": "b1bf1e46bd043878310b77ff1c1c2f320e1f4f43d11e6af105ee5f5bb6f699a9"
+    },
+    {
+      "table_name": "permission_change_log",
+      "rows": 8,
+      "sha256": "1129d6d31f670b2aa88862f9df09e2a3f3f837d2af7265741fa213bffc116b8d"
+    },
+    {
+      "table_name": "permission_condition",
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "table_name": "permission_conflict_rule",
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "table_name": "permission_dependency_declaration",
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "table_name": "platform_account",
+      "rows": 1,
+      "sha256": "3f8af360fade8d9ee884e8c91954c84522b2f0bf0e02fda481df7f978a9fb866"
+    },
+    {
+      "table_name": "platform_audit_log",
+      "rows": 8,
+      "sha256": "526fb87e4e178e987dd1d0e3c7121fe6283759c7c0f38540e46aab233f8fe8d1"
+    },
+    {
+      "table_name": "resource_api_mapping",
+      "rows": 246,
+      "sha256": "9c8d2f6031139c0f8bed0cb6a10e62845e5acb8496c68f9713112d4537225dee"
+    },
+    {
+      "table_name": "resource_dependency",
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "table_name": "resource_entity",
+      "rows": 377,
+      "sha256": "51326e9325f460700d9a2c5427d208a89327eff40cd65a7fc005fa980d960f68"
+    },
+    {
+      "table_name": "resource_publication_state",
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "table_name": "role_resource_permission",
+      "rows": 133,
+      "sha256": "e2023e267bac01d89cdf72c20a7d4a5dcee8f3937524d1f49c7737d7a0d9afbf"
+    },
+    {
+      "table_name": "service_config",
+      "rows": 4,
+      "sha256": "a73274790fab9c0f3db46ed564ebbbf1523fd185053695234220032fe865902b"
+    },
+    {
+      "table_name": "service_credential",
+      "rows": 2,
+      "sha256": "ba1f0f41aee17300cee9e8763e4bb22ce988afd482daca6d290a162bead06742"
+    },
+    {
+      "table_name": "service_manifest_sync",
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "table_name": "sync_metadata",
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "table_name": "sys_dict_data",
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "table_name": "sys_dict_type",
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "table_name": "sys_file",
+      "rows": 3,
+      "sha256": "fea7cd25ac6c9f02bf8d0767c6a04f207735afd589a4f241b349418c78544e03"
+    },
+    {
+      "table_name": "sys_job",
+      "rows": 2,
+      "sha256": "dbdb9b6cfd2889a755744eb2e0cd6ec8546363db4393cae4faf13a08cc87efd4"
+    },
+    {
+      "table_name": "sys_job_log",
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "table_name": "sys_login_log",
+      "rows": 16,
+      "sha256": "28fe439bf161eb6047ef413b677d9f0f95daf7b79983df8a27c20945ae337cd9"
+    },
+    {
+      "table_name": "sys_menu",
+      "rows": 36,
+      "sha256": "21d039bdaf99c331152ca47758e29d3079fa9d6ae6dbd6dcbf7c7a58e9922975"
+    },
+    {
+      "table_name": "sys_notice",
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "table_name": "sys_oauth2_client",
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "table_name": "sys_org",
+      "rows": 3,
+      "sha256": "9b2c95c1e24111044df3472cc15ecbecd4d4b6102144f1fa0c415a1364f89dd4"
+    },
+    {
+      "table_name": "sys_org_tree_config",
+      "rows": 2,
+      "sha256": "615b4ae4f7d67020f61a3385f0d1f1cf987ca4f818327b4bb780b855d30a7548"
+    },
+    {
+      "table_name": "sys_task_execution",
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "table_name": "sys_tenant",
+      "rows": 2,
+      "sha256": "23189206d5e395350c03a6e3c9217f2f9b85b13cb837244266b3f025b7d05c90"
+    },
+    {
+      "table_name": "sys_user",
+      "rows": 3,
+      "sha256": "b5cd5f9193ad1df0f4659d10c23143b1f0beda8270702f1fd5343833f0a45f43"
+    },
+    {
+      "table_name": "sys_user_notice",
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "table_name": "sys_user_org",
+      "rows": 3,
+      "sha256": "87290cc9e687b52a9cf0dd1d29815ace95796a4f885022bd88e692d9594ca36d"
+    },
+    {
+      "table_name": "system_config",
+      "rows": 18,
+      "sha256": "f5b0264775b6889fa12a84cfbf18ca439f97274cbcf149372264af6dd45614e3"
+    },
+    {
+      "table_name": "type_definition",
+      "rows": 68,
+      "sha256": "fa9764d06168ccf0f63eeb6945a5708f4d6f68a91b6d7a0c88ab429a5a5ce59c"
+    },
+    {
+      "table_name": "user_role",
+      "rows": 6,
+      "sha256": "c31160704fecc7ab18cc0938ef11957534fa94c7d204370a3894362582e1c1df"
+    }
+  ],
+  "sequences": [
+    {
+      "sequencename": "abstract_role_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": 6
+    },
+    {
+      "sequencename": "abstract_user_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": 3
+    },
+    {
+      "sequencename": "biz_domain_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": null
+    },
+    {
+      "sequencename": "domain_config_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": null
+    },
+    {
+      "sequencename": "operation_log_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": 39
+    },
+    {
+      "sequencename": "operation_permission_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": 254
+    },
+    {
+      "sequencename": "permission_change_log_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": 8
+    },
+    {
+      "sequencename": "permission_condition_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": null
+    },
+    {
+      "sequencename": "permission_conflict_rule_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": null
+    },
+    {
+      "sequencename": "permission_dependency_declaration_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": null
+    },
+    {
+      "sequencename": "platform_account_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": 1
+    },
+    {
+      "sequencename": "platform_audit_log_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": 8
+    },
+    {
+      "sequencename": "resource_api_mapping_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": 246
+    },
+    {
+      "sequencename": "resource_dependency_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": null
+    },
+    {
+      "sequencename": "resource_entity_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": 377
+    },
+    {
+      "sequencename": "resource_publication_state_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": null
+    },
+    {
+      "sequencename": "role_resource_permission_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": 133
+    },
+    {
+      "sequencename": "service_config_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": 4
+    },
+    {
+      "sequencename": "service_credential_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": 2
+    },
+    {
+      "sequencename": "service_manifest_sync_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": null
+    },
+    {
+      "sequencename": "sync_metadata_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": null
+    },
+    {
+      "sequencename": "sys_dict_data_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": null
+    },
+    {
+      "sequencename": "sys_dict_type_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": null
+    },
+    {
+      "sequencename": "sys_file_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": 3
+    },
+    {
+      "sequencename": "sys_job_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": 2
+    },
+    {
+      "sequencename": "sys_job_log_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": null
+    },
+    {
+      "sequencename": "sys_login_log_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": 16
+    },
+    {
+      "sequencename": "sys_menu_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": 36
+    },
+    {
+      "sequencename": "sys_notice_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": null
+    },
+    {
+      "sequencename": "sys_oauth2_client_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": null
+    },
+    {
+      "sequencename": "sys_org_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": 3
+    },
+    {
+      "sequencename": "sys_org_tree_config_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": 2
+    },
+    {
+      "sequencename": "sys_task_execution_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": null
+    },
+    {
+      "sequencename": "sys_tenant_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": 2
+    },
+    {
+      "sequencename": "sys_user_notice_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": null
+    },
+    {
+      "sequencename": "sys_user_org_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": 3
+    },
+    {
+      "sequencename": "system_config_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": 18
+    },
+    {
+      "sequencename": "type_definition_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": 68
+    },
+    {
+      "sequencename": "user_role_id_seq",
+      "start_value": 1,
+      "increment_by": 1,
+      "last_value": 6
+    }
+  ],
+  "recordedAt": "2026-10-18T20:33:38+0800",
+  "method": "whole-row canonical text order; SHA-256 on server; no password or credential hashes exported"
+}

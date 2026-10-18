@@ -1,0 +1,26 @@
+{
+  "source": {
+    "expectedDatabase": "access_db",
+    "accessContainerAddress": "172.19.0.5",
+    "actualPostgresConnections": [
+      {
+        "datname": "access_db",
+        "client_addr": "172.19.0.5/32",
+        "application_name": "PostgreSQL JDBC Driver",
+        "connections": 10
+      }
+    ]
+  },
+  "restore": {
+    "expectedDatabase": "access_restore",
+    "accessContainerAddress": "172.20.0.5",
+    "actualPostgresConnections": [
+      {
+        "datname": "access_restore",
+        "client_addr": "172.20.0.5/32",
+        "application_name": "PostgreSQL JDBC Driver",
+        "connections": 10
+      }
+    ]
+  }
+}

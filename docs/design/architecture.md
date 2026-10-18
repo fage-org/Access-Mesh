@@ -113,6 +113,8 @@ last_reviewed: 2026-10-18
 
 同机独立验收必须隔离容器名、宿主端口、网络、所有数据卷及服务发现；现有 Compose 固定名称与文件卷意味着仅更换 project name 不充分。T-ACCESS-131 已验证回环 HTTP、非默认端口的 nginx → Gateway → access-service 正式部署、平台初始化、登录页渲染与平台认证 HTTP 链路，见[候选部署证据](../tasks/evidence/candidate-deployment/verification.md)。该证据不扩展为生产 HTTPS、多代理、租户业务接入或恢复能力已验收。
 
+同版本重启与恢复范围另由 [T-ACCESS-134](../tasks/evidence/candidate-deployment/T-ACCESS-134/verification.md)验证：相同镜像重启/重建应用后持久化事实保持，停写后成套备份数据库与文件，恢复到独立 PG/Redis/Nacos/文件卷并核对实际 JDBC 目标；正常新登录后允许、拒绝和下载哈希通过。前端须在后端地址稳定后启动以刷新 nginx 上游解析。example 运行期报表为内存数据，不承诺重启持久化；不据此扩展为跨版本升级、生产容量或自动灾备能力。
+
 ## 2. Gateway 网关服务
 
 ### 2.1 职责边界
