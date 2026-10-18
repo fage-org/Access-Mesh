@@ -40,6 +40,8 @@ last_reviewed: 2026-10-18
 
 完整活例见 `docs/design/services/example-service.md` 与 E2E 测试 `ExampleProtectedApiE2EIT`。
 
+可执行的[首次接入操作示例](../../example-service/examples/first-access.md)包含管理建模、服务凭证 FULL 声明、独立租户配置及普通用户授撤步骤；报表使用固定 `EXAMPLE/report-1`、`report-2`，不能用 hello 的任意候选实例替代。原生工具登录取得 Bearer，网页沿 Cookie/CSRF。T-ACCESS-133 已在固定候选隔离栈按这些步骤完成代理走查，含[原始响应及边界证据](../tasks/evidence/candidate-deployment/T-ACCESS-133/verification.md)；尚无独立新人接入证据。
+
 **接入主线一览**（T-ACCESS-053，每环节均可在上表验证资产中找到自动化证据。③服务身份不占 §2.1 步骤序号——管理台接入链不需要它；§2.1 步 5 防直调为服务侧加固项，不属主线环节）：
 
 ```text

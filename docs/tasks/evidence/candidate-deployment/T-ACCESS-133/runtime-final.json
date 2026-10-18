@@ -1,0 +1,96 @@
+{
+  "composeProject": "am-candidate-20261018-44e178a",
+  "candidateSource": "44e178a1bc953f3488819376f3bbe2fd24081a49",
+  "productCodeChanged": false,
+  "imageRebuilt": false,
+  "configuredTenants": [
+    1,
+    2
+  ],
+  "containers": [
+    {
+      "name": "am-candidate-20261018-44e178a-example",
+      "image": "sha256:b8303b515f35b20d87ad5d01f653583af2055757d7fd6860a00ace8a5183d6a8",
+      "health": "healthy",
+      "ports": {},
+      "networks": [
+        "am-candidate-20261018-44e178a_default"
+      ],
+      "restartCount": 0
+    },
+    {
+      "name": "am-candidate-20261018-44e178a-frontend",
+      "image": "sha256:e9ecdf6055d3b51b1c669e40affa645cb75e09beabfba3f1213a56f273a0caf2",
+      "health": "healthy",
+      "ports": {
+        "80/tcp": [
+          {
+            "HostIp": "127.0.0.1",
+            "HostPort": "18080"
+          }
+        ]
+      },
+      "networks": [
+        "am-candidate-20261018-44e178a_default"
+      ],
+      "restartCount": 0
+    },
+    {
+      "name": "am-candidate-20261018-44e178a-gateway",
+      "image": "sha256:6e9a60312a3b848ecd0c84be87ae2c51e6294b10833234ec84c43ae81b213f1e",
+      "health": "healthy",
+      "ports": {
+        "8080/tcp": [
+          {
+            "HostIp": "127.0.0.1",
+            "HostPort": "18081"
+          }
+        ]
+      },
+      "networks": [
+        "am-candidate-20261018-44e178a_default"
+      ],
+      "restartCount": 0
+    },
+    {
+      "name": "am-candidate-20261018-44e178a-access",
+      "image": "sha256:0908abe5626e430108f850a2170c8ce1fb334deabd4c0bb2cdc9b99bcaa4c797",
+      "health": "healthy",
+      "ports": {},
+      "networks": [
+        "am-candidate-20261018-44e178a_default"
+      ],
+      "restartCount": 0
+    },
+    {
+      "name": "am-candidate-20261018-44e178a-pg",
+      "image": "sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685",
+      "health": "healthy",
+      "ports": {},
+      "networks": [
+        "am-candidate-20261018-44e178a_default"
+      ],
+      "restartCount": 0
+    },
+    {
+      "name": "am-candidate-20261018-44e178a-redis",
+      "image": "sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf",
+      "health": "healthy",
+      "ports": {},
+      "networks": [
+        "am-candidate-20261018-44e178a_default"
+      ],
+      "restartCount": 0
+    },
+    {
+      "name": "am-candidate-20261018-44e178a-nacos",
+      "image": "sha256:d70b20546fe59aeb86add0754db1dbc3a3067363e18599329c5163d0d8cd9cd8",
+      "health": "healthy",
+      "ports": {},
+      "networks": [
+        "am-candidate-20261018-44e178a_default"
+      ],
+      "restartCount": 0
+    }
+  ]
+}

@@ -1,0 +1,189 @@
+{
+  "users": [
+    {
+      "tenant_id": 1,
+      "id": 1,
+      "username": "admin",
+      "status": 1,
+      "force_reset_pwd": false
+    },
+    {
+      "tenant_id": 1,
+      "id": 3,
+      "username": "qareader",
+      "status": 1,
+      "force_reset_pwd": false
+    },
+    {
+      "tenant_id": 2,
+      "id": 2,
+      "username": "admin",
+      "status": 1,
+      "force_reset_pwd": false
+    }
+  ],
+  "readerBindings": [
+    {
+      "tenant_id": 1,
+      "abstract_user_id": 3,
+      "target_type": "ROLE",
+      "target_id": 5,
+      "relation_id": 5,
+      "valid_from": null,
+      "valid_to": null
+    },
+    {
+      "tenant_id": 1,
+      "abstract_user_id": 3,
+      "target_type": "ROLE",
+      "target_id": 6,
+      "relation_id": null,
+      "valid_from": null,
+      "valid_to": null
+    }
+  ],
+  "readerRolesIncludingAncestors": [
+    {
+      "id": 5,
+      "parent_id": 2,
+      "role_type": 1,
+      "external_id": "3",
+      "name": "验收部门 A",
+      "status": 1
+    },
+    {
+      "id": 6,
+      "parent_id": null,
+      "role_type": 6,
+      "external_id": "qa-file-reader",
+      "name": "验收文件只读角色",
+      "status": 1
+    },
+    {
+      "id": 2,
+      "parent_id": null,
+      "role_type": 1,
+      "external_id": "1",
+      "name": "默认组织",
+      "status": 1
+    }
+  ],
+  "readerGrantsIncludingAncestors": [
+    {
+      "id": 123,
+      "abstract_role_id": 6,
+      "type_code": "ADMIN_FILE",
+      "code": "document",
+      "granted_bits": 2,
+      "scope_all": false,
+      "can_grant": false,
+      "condition_id": null,
+      "depend_on": null,
+      "grant_source": "MANUAL"
+    },
+    {
+      "id": 133,
+      "abstract_role_id": 6,
+      "type_code": "EXAMPLE",
+      "code": "report-1",
+      "granted_bits": 2,
+      "scope_all": false,
+      "can_grant": false,
+      "condition_id": null,
+      "depend_on": null,
+      "grant_source": "MANUAL"
+    }
+  ],
+  "services": [
+    {
+      "tenant_id": 1,
+      "service_code": "example-service",
+      "base_path": "/api/example",
+      "status": 1,
+      "config_generation": 2
+    },
+    {
+      "tenant_id": 2,
+      "service_code": "example-service",
+      "base_path": "/api/example",
+      "status": 1,
+      "config_generation": 2
+    }
+  ],
+  "credentials": [
+    {
+      "id": 1,
+      "tenant_id": 1,
+      "service_code": "example-service",
+      "status": 1,
+      "expires_at": null
+    },
+    {
+      "id": 2,
+      "tenant_id": 2,
+      "service_code": "example-service",
+      "status": 1,
+      "expires_at": null
+    }
+  ],
+  "exampleResources": [
+    {
+      "tenant_id": 1,
+      "id": 363,
+      "code": "report-1",
+      "name": "report-1",
+      "status": 1
+    },
+    {
+      "tenant_id": 1,
+      "id": 364,
+      "code": "report-2",
+      "name": "report-2",
+      "status": 1
+    },
+    {
+      "tenant_id": 1,
+      "id": 376,
+      "code": "report-101",
+      "name": "qa-133-tenant-A-only",
+      "status": 1
+    },
+    {
+      "tenant_id": 2,
+      "id": 370,
+      "code": "report-1",
+      "name": "report-1",
+      "status": 1
+    },
+    {
+      "tenant_id": 2,
+      "id": 371,
+      "code": "report-2",
+      "name": "report-2",
+      "status": 1
+    },
+    {
+      "tenant_id": 2,
+      "id": 377,
+      "code": "report-101",
+      "name": "qa-133-B-permission-only",
+      "status": 1
+    }
+  ],
+  "readerGrantHistory": [
+    {
+      "id": 132,
+      "delete_flag": 132,
+      "created_at": "2026-10-18T12:19:46.611151+00:00",
+      "deleted_at": "2026-10-18T12:19:47.150989+00:00",
+      "code": "report-1"
+    },
+    {
+      "id": 133,
+      "delete_flag": 0,
+      "created_at": "2026-10-18T12:19:47.260494+00:00",
+      "deleted_at": null,
+      "code": "report-1"
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "serviceCode": "example-service",
+  "basePath": "/api/example",
+  "syncMode": "FULL",
+  "groups": [
+    {
+      "groupCode": "qa-133",
+      "groupName": "首次接入验收",
+      "apis": [
+        {
+          "name": "问候",
+          "httpMethod": "POST",
+          "path": "/demo/hello",
+          "resourceCode": "qa-133-hello",
+          "requiredPermission": {
+            "resourceTypeCode": "EXAMPLE",
+            "operationCode": "VIEW"
+          }
+        },
+        {
+          "name": "查看报表",
+          "httpMethod": "POST",
+          "path": "/report/view",
+          "resourceCode": "qa-133-view",
+          "requiredPermission": {
+            "resourceTypeCode": "EXAMPLE",
+            "operationCode": "VIEW"
+          }
+        },
+        {
+          "name": "报表列表",
+          "httpMethod": "POST",
+          "path": "/report/list",
+          "resourceCode": "qa-133-list",
+          "requiredPermission": {
+            "resourceTypeCode": "EXAMPLE",
+            "operationCode": "VIEW"
+          }
+        },
+        {
+          "name": "创建报表",
+          "httpMethod": "POST",
+          "path": "/report/create",
+          "resourceCode": "qa-133-create",
+          "requiredPermission": {
+            "resourceTypeCode": "EXAMPLE",
+            "operationCode": "CREATE"
+          }
+        }
+      ]
+    }
+  ]
+}

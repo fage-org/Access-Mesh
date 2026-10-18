@@ -1,0 +1,5 @@
+{
+  "reportCode": "report-101",
+  "tenantId": 1,
+  "storage": "example-service memory; deliberately not a persistence claim"
+}

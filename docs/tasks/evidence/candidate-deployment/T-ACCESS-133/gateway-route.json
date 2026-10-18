@@ -1,0 +1,12 @@
+{
+  "file": "gateway/src/main/resources/application.yml",
+  "sha256": "8157deb5ee754ff9954a14fef8fb5e8d4c34abe8310ec5015e9d42362cf410d5",
+  "id": "example-service",
+  "uri": "lb://example-service",
+  "predicate": "Path=/api/example/**",
+  "metadata": {
+    "serviceCode": "example-service"
+  },
+  "stripPrefix": false,
+  "evidence": "frozen candidate configuration plus successful Gateway requests and isolated Nacos instance"
+}

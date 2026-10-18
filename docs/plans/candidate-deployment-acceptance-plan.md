@@ -45,7 +45,7 @@ last_updated: 2026-10-18
 |---|---|---|---|
 | [T-ACCESS-131](../tasks/T-ACCESS-131.md) | 候选版本冻结与隔离部署 | ✅ | — |
 | [T-ACCESS-132](../tasks/T-ACCESS-132.md) | 租户与管理台使用验收 | ✅ | T-ACCESS-131 |
-| [T-ACCESS-133](../tasks/T-ACCESS-133.md) | 首次业务接入与授权闭环验收 | ⚙️ | T-ACCESS-132 |
+| [T-ACCESS-133](../tasks/T-ACCESS-133.md) | 首次业务接入与授权闭环验收 | ✅ | T-ACCESS-132 |
 | [T-ACCESS-134](../tasks/T-ACCESS-134.md) | 重启持久化与备份恢复验收 | ⚙️ | T-ACCESS-133 |
 | [T-ACCESS-135](../tasks/T-ACCESS-135.md) | 候选版本验收收口 | ⚙️ | T-ACCESS-134 |
 
@@ -59,4 +59,4 @@ last_updated: 2026-10-18
 
 ## 当前进度
 
-T-ACCESS-131、T-ACCESS-132 已完成，隔离环境与验收数据保留；下一项为 T-ACCESS-133。各项执行结果以任务卡与证据为准，计划整体验收尚未完成。
+T-ACCESS-131～T-ACCESS-133 已完成，隔离环境与验收数据保留；下一项为 T-ACCESS-134。各项执行结果以任务卡与证据为准，计划整体验收尚未完成。

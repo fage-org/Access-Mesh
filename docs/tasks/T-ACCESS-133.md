@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-133
 title: 首次业务接入与授权闭环验收
-status: proposed
+status: done
 plan: docs/plans/candidate-deployment-acceptance-plan.md
 domain: cross-service
 design_refs:
@@ -19,7 +19,7 @@ acceptance:
   - 接入文档可复现并明确自动执行与独立使用者验证的证据区别
 design_writeback:
   required: true
-  status: pending
+  status: done
 last_updated: 2026-10-18
 ---
 
@@ -45,11 +45,19 @@ last_updated: 2026-10-18
 
 ## 验收对照
 
-- [ ] 服务从未登记状态依文档接入，凭证、路由和服务发现配置可复现。
-- [ ] 普通用户授权、撤销、重授主线通过，时间与授权前提明确。
-- [ ] 实例 B 越权、租户隔离、凭证缺失/停用及身份签名反例得到验证。
-- [ ] 接入卡点已处置，指南与设计回写，实际验证者身份如实记录。
+- [x] 服务从未登记状态依文档接入，凭证、路由和服务发现配置可复现。
+- [x] 普通用户授权、撤销、重授主线通过，时间与授权前提明确。
+- [x] 实例 B 越权、租户隔离、凭证缺失/停用及身份签名反例得到验证。
+- [x] 接入卡点已处置，指南与设计回写，实际验证者身份如实记录。
 
 ## 非目标 / 遗留
 
 不实施 T-PERM-036 的 query-scopes 到真实业务 SQL 链路，不恢复诊断页面，不新增 SDK 自动改写或注解能力，不把本卡当作全协议认证审计。
+
+## 完成记录
+
+2026-10-18 沿 T-ACCESS-131 固定镜像在原隔离栈完成两租户首次接入，启动 example-service 并配置租户独立凭证。原生用户身份执行管理写入，服务身份执行 FULL 同步与运行时查询；普通用户 qareader 的 EXAMPLE/report-1 VIEW 允许、report-2 拒绝，撤销与重授分别在首次 30ms/36ms 探测生效。租户缺凭证映射、凭证停用/恢复、主体与实际业务数据隔离、Gateway 身份清洗及 SDK 直连拒绝均已验证。
+
+[验收证据](evidence/candidate-deployment/T-ACCESS-133/verification.md)保留 61 条脱敏 HTTP 观察、授撤轮询、直连反例、数据库只读终态、运行镜像与服务发现信息。临时执行命令及适用边界见证据；公开 [接入操作示例](../../example-service/examples/first-access.md)与 FULL 清单已重验。修正 quickstart 的浏览器取令牌提示，补齐报表固定资源码与错误分层，并完成 design_refs 回写。
+
+代理执行，不宣称独立新人验收；无产品代码变动或镜像重建，本地代码轨与文档轨核对通过。完整回归仍由 T-ACCESS-135 承载。运行环境、凭证映射、服务登记、普通用户授权及原有文件样本保留给 T-ACCESS-134；example 运行期内存对象不纳入持久化要求。

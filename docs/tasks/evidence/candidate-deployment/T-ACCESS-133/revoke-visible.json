@@ -1,0 +1,17 @@
+{
+  "boundarySeconds": 30,
+  "observedMs": 30,
+  "attempts": [
+    {
+      "atMs": 30,
+      "http": 403,
+      "body": {
+        "code": 403,
+        "message": "无接口访问权限",
+        "requestId": "315f237e-38e4-4fb7-b167-53823539191f",
+        "traceId": "315f237e-38e4-4fb7-b167-53823539191f"
+      }
+    }
+  ],
+  "measurement": "from successful grant API response to first matching request; bounded condition polling"
+}

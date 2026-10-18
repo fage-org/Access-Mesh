@@ -1,0 +1,22 @@
+{
+  "boundarySeconds": 30,
+  "observedMs": 42,
+  "attempts": [
+    {
+      "atMs": 42,
+      "http": 200,
+      "body": {
+        "code": 200,
+        "message": "success",
+        "data": {
+          "greeting": "hello, candidate-133",
+          "userId": "3",
+          "tenantId": "1"
+        },
+        "requestId": "f2257d16-a577-44ea-a16b-fd66dc621abf",
+        "traceId": "f2257d16-a577-44ea-a16b-fd66dc621abf"
+      }
+    }
+  ],
+  "measurement": "from successful grant API response to first matching request; bounded condition polling"
+}
