@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-132
 title: 租户与管理台使用验收
-status: proposed
+status: in-progress
 plan: docs/plans/candidate-deployment-acceptance-plan.md
 domain: cross-service
 design_refs:
@@ -35,6 +35,8 @@ last_updated: 2026-10-18
 管理员完成文件分类上传、查询、详情、下载、删除；下载校验文件名、内容摘要及错误提示。使用普通角色验证默认无权、仅 document 分类 VIEW 委派、未授予分类与跨租户读取拒绝。为 T-ACCESS-134 保留未删除文件及其内容摘要。业务数据通过 UI 或公开 API 准备，不用手工 SQL 填路由或授权。
 
 ## 当前口径
+
+当前已通过平台页面开通 qa-132-a 与 qa-132-b，并核对列表刷新和开通审计；租户 A 停在首次登录接管点，等待用户在浏览器完成验证码登录、强制改密及重新登录。进度与待验范围见[验收记录](evidence/candidate-deployment/T-ACCESS-132/verification.md)。任务保持 in-progress，不以平台开通替代后续租户使用验收。
 
 本卡要求真实浏览器和 Gateway 接线证据，不能以 mock 或服务直连成功代替。失败证据同时记录 HTTP 状态、响应信封、requestId（实际存在时）与页面表现；按[部署取证说明](../ops/deployment.md)核对登录日志及可归属租户的操作日志，不要求契约未承诺的故障零丢失。
 

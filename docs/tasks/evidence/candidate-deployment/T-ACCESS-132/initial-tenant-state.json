@@ -1,0 +1,33 @@
+{
+  "tenants": [
+    {
+      "id": 1,
+      "code": "qa-132-a",
+      "name": "验收租户 A",
+      "status": 1
+    },
+    {
+      "id": 2,
+      "code": "qa-132-b",
+      "name": "验收租户 B",
+      "status": 1
+    }
+  ],
+  "admins": [
+    {
+      "tenant_id": 1,
+      "id": 1,
+      "username": "admin",
+      "status": 1,
+      "force_reset_pwd": true
+    },
+    {
+      "tenant_id": 2,
+      "id": 2,
+      "username": "admin",
+      "status": 1,
+      "force_reset_pwd": true
+    }
+  ],
+  "fileCount": 0
+}

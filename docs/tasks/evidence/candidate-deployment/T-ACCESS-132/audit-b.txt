@@ -1,0 +1,71 @@
+Browser tab: 2, Title: "pure-admin-thin", URL: "http://127.0.0.1:18080/#/platform/audit".
+0 AXWebArea pure-admin-thin, URL: 127.0.0.1:18080/#/platform/audit
+	1 image
+	2 container
+		3 menu bar
+			4 AccessMesh · 租户
+			5 平台账号
+			6 平台审计
+			7 (collapsed) admin, Secondary Actions: Expand
+				8 container
+					9 text admin
+					10 image
+		44 heading 平台审计, Value: 1
+			45 text 平台审计
+		46 container
+			47 text 目标租户 ID
+			48 container
+				49 button 减少数值
+				50 button 增加数值
+				51 stepper (settable, integer) 目标租户 ID, Value: 2, ID: el-id-6307-22
+			52 button 查询
+		186 container
+			187 table
+				188 row
+					189 cell
+						190 text 时间
+					191 cell
+						192 text 平台操作者
+					193 cell
+						194 text 目标租户
+					195 cell
+						196 text 动作
+					197 cell
+						198 text 结果
+					199 cell
+						200 text 对象类型
+					201 cell
+						202 text 对象 ID
+					203 cell
+						204 text 说明
+					205 cell
+						206 text 请求 ID
+			207 table
+				228 row
+					229 cell
+						230 text 2026-10-18T11:15:46.769854
+					231 cell
+						232 text admin
+					233 cell
+						234 text 2
+					235 cell
+						236 text TENANT_CREATE
+					237 cell
+						238 text SUCCESS
+					239 cell
+						240 text sys_tenant
+					241 cell
+						242 text 2
+					243 cell
+						244 text 租户标准图创建完成
+					245 cell
+						246 text 16609f46-a975-4bdc-9cd2-78b12e06f702
+		227 text 共 1 条
+		181 button (disabled) 上一页
+		182 content list
+			183 container 第 1 页
+				184 text 1
+		185 button (disabled) 下一页
+		43 button 进入租户登录
+
+The focused UI element is 0 AXWebArea pure-admin-thin, URL: 127.0.0.1:18080/#/platform/audit

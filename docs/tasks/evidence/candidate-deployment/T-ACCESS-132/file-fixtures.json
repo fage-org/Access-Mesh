@@ -1,0 +1,26 @@
+[
+  {
+    "fileName": "验收文档-保留.txt",
+    "bizType": "document",
+    "purpose": "retain for recovery",
+    "sha256": "7e92d23fd0f2eea2b24cb033a9e775f0dc334f482c71cbe44b14b775da8c21eb",
+    "bytes": 59,
+    "uploadStatus": "not run"
+  },
+  {
+    "fileName": "验收文档-删除.txt",
+    "bizType": "document",
+    "purpose": "delete during UI acceptance",
+    "sha256": "7d9480a692e202e1ced554068ebb8a49f301c30998a88819e2887ee53737393e",
+    "bytes": 53,
+    "uploadStatus": "not run"
+  },
+  {
+    "fileName": "其他分类-隔离.txt",
+    "bizType": "default",
+    "purpose": "ungranted category",
+    "sha256": "6c1e6fe48df87e55e9f04af9816e3cc2ca1c59cce07a5fddefe3cd3b36becd91",
+    "bytes": 60,
+    "uploadStatus": "not run"
+  }
+]
