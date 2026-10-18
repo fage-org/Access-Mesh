@@ -223,7 +223,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         }
 
         // ---- 阶段 B：批量解析 resourceTypeValue + 现有 entities + parent ids ----
-        Integer resourceTypeValue = typeResolutionService.resolveTypeValue(
+        Integer resourceTypeValue = typeResolutionService.resolveTypeValueFromDatabase(
                 tenantId, "resource_type", req.scope().resourceTypeCode());
         // resourceTypeValue 为 null 时不直接拒绝整批，沿用单条 applySingleSync 路径让每条 item 独立返回 dependencyMissing。
         Map<CodeKey, ResourceEntity> existingByCodeKey = new HashMap<>();
@@ -458,7 +458,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         }
         Integer resourceTypeValue = prefetch.typeValue() != null
                 ? prefetch.typeValue()
-                : typeResolutionService.resolveTypeValue(tenantId, "resource_type", req.resourceTypeCode());
+                : typeResolutionService.resolveTypeValueFromDatabase(tenantId, "resource_type", req.resourceTypeCode());
         if (resourceTypeValue == null) {
             return SyncResultBuilder.dependencyMissing("RESOURCE_TYPE_NOT_FOUND");
         }

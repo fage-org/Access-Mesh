@@ -47,7 +47,7 @@ class AbstractRoleSyncAppServiceTest {
     @org.junit.jupiter.params.provider.ValueSource(strings = {"DISABLE", "DELETE", "UPSERT"})
     void shouldRejectBuiltinRoleLossBeforeConsumingVersion(String operation) {
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(6);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(6);
         AbstractRole existing = role(123L, null);
         when(abstractRoleMapper.selectByTypeAndExternalId(TENANT_ID, 6, "bootstrap-admin")).thenReturn(existing);
         when(tenantAdminContinuity.isProtectedRole(isNull(), eq(123L))).thenReturn(true);
@@ -64,7 +64,7 @@ class AbstractRoleSyncAppServiceTest {
     @Test
     void shouldRejectFullSyncBuiltinDisableWithoutConsumingItemVersion() {
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(6);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(6);
         AbstractRole existing = role(123L, null);
         existing.setExternalId("bootstrap-admin");
         when(abstractRoleMapper.selectByTypeAndExternalIds(eq(TENANT_ID), eq(6), any()))
@@ -83,7 +83,7 @@ class AbstractRoleSyncAppServiceTest {
     @Test
     void shouldRejectFullSyncBuiltinMissingDeletionBeforeMetadataChange() {
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(6);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(6);
         var metadata = new cn.ac.fage.accessmesh.access.sync.metadata.SyncMetadata();
         metadata.setBusinessKeyHash("missing-builtin-role");
         metadata.setTargetId(123L);
@@ -174,7 +174,7 @@ class AbstractRoleSyncAppServiceTest {
         // 树写锁先于任何树结构校验（T-PERM-044）：外部同步与 moveRole 共持同把锁
         org.mockito.Mockito.clearInvocations(treeWriteLockSupport);
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(2);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(2);
         when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), eq("ABSTRACT_ROLE"),
                 eq(SOURCE_SERVICE), anyString(), anyString(), anyString(), anyString(),
                 anyString(), anyString(), eq(OCCURRED_AT), eq(1L)))
@@ -195,7 +195,7 @@ class AbstractRoleSyncAppServiceTest {
     @Test
     void shouldReturnStale_whenVersionStale() {
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(2);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(2);
         stubNewerExistingMetadata("org-100");
 
         SyncResultResp resp = service.sync(TENANT_ID, upsertReqNoParent(), httpRequest);
@@ -218,7 +218,7 @@ class AbstractRoleSyncAppServiceTest {
     @Test
     void shouldReturnStaleForOldCyclicEventInsteadOfFailure() {
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(2);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(2);
         stubNewerExistingMetadata("org-200");
 
         AbstractRoleSyncReq req = new AbstractRoleSyncReq("UPSERT", "BASIC_ROLE", "org-200",
@@ -237,7 +237,7 @@ class AbstractRoleSyncAppServiceTest {
     @Test
     void shouldReturnDependencyMissing_whenParentRoleNotFound() {
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(2);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(2);
         when(typeResolutionService.resolveRoleId(TENANT_ID, "BASIC_ROLE", "org-100", null)).thenReturn(null);
 
         SyncResultResp resp = service.sync(TENANT_ID, upsertReqWithParent(), httpRequest);
@@ -304,7 +304,7 @@ class AbstractRoleSyncAppServiceTest {
         existing.setTenantId(TENANT_ID);
         existing.setRoleType(2);
         existing.setExternalId("org-200");
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(2);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(2);
         when(typeResolutionService.resolveRoleId(TENANT_ID, "BASIC_ROLE", "org-200", null)).thenReturn(7L);
         when(abstractRoleMapper.selectByTypeAndExternalId(TENANT_ID, 2, "org-200")).thenReturn(existing);
 
@@ -338,7 +338,7 @@ class AbstractRoleSyncAppServiceTest {
         existing.setExternalId("org-200");
         AbstractRole child = role(8L, 7L);
         child.setExternalId("org-300");
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(2);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(2);
         when(abstractRoleMapper.selectByTypeAndExternalIds(eq(TENANT_ID), eq(2), any()))
                 .thenReturn(java.util.List.of(existing));
         when(typeResolutionService.batchResolveRoleIds(eq(TENANT_ID), eq("BASIC_ROLE"), any(), isNull()))
@@ -425,7 +425,7 @@ class AbstractRoleSyncAppServiceTest {
         a.setExternalId("org-a");
         AbstractRole b = role(8L, null);
         b.setExternalId("org-b");
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(2);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(2);
         when(abstractRoleMapper.selectByTypeAndExternalIds(eq(TENANT_ID), eq(2), any()))
                 .thenReturn(java.util.List.of(a, b));
         when(typeResolutionService.batchResolveRoleIds(eq(TENANT_ID), eq("BASIC_ROLE"), any(), isNull()))
@@ -552,7 +552,7 @@ class AbstractRoleSyncAppServiceTest {
         mockHeaderMatch();
         AbstractRole a = role(7L, null);
         a.setExternalId("org-a");
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(2);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(2);
         when(abstractRoleMapper.selectByTypeAndExternalIds(eq(TENANT_ID), eq(2), any()))
                 .thenReturn(java.util.List.of(a));
         when(typeResolutionService.batchResolveRoleIds(eq(TENANT_ID), eq("BASIC_ROLE"), any(), isNull()))
@@ -605,7 +605,7 @@ class AbstractRoleSyncAppServiceTest {
     /** 测试夹具：full-sync 公共桩（类型解析/存量预载/父解析/内存图/版本 APPLIED） */
     private void stubFullSyncBase(java.util.List<AbstractRole> existingRoles,
                                   java.util.Map<String, Long> parentIds) {
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(2);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(2);
         when(abstractRoleMapper.selectByTypeAndExternalIds(eq(TENANT_ID), eq(2), any()))
                 .thenReturn(existingRoles);
         when(typeResolutionService.batchResolveRoleIds(eq(TENANT_ID), eq("BASIC_ROLE"), any(), isNull()))
@@ -658,7 +658,7 @@ class AbstractRoleSyncAppServiceTest {
     @Test
     void shouldBackfillTargetId_whenUpsertCreatesNewAbstractRole() {
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(2);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(2);
         when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), eq("ABSTRACT_ROLE"),
                 eq(SOURCE_SERVICE), anyString(), anyString(), anyString(), anyString(),
                 anyString(), anyString(), eq(OCCURRED_AT), eq(1L)))
@@ -685,7 +685,7 @@ class AbstractRoleSyncAppServiceTest {
     @Test
     void shouldRejectSyncDeleteWhenTargetIsGrantOriginOwner() {
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(2);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(2);
         AbstractRole existing = role(123L, null);
         existing.setExternalId("pm-admin");
         when(abstractRoleMapper.selectByTypeAndExternalId(TENANT_ID, 2, "pm-admin")).thenReturn(existing);
@@ -718,7 +718,7 @@ class AbstractRoleSyncAppServiceTest {
     void shouldRejectFullSyncCalibrationWhenDeactivateSetHitsGrantOriginOwner() {
         mockHeaderMatch();
         // 窄桩（不走 stubFullSyncBase：本用例 item 无 parent、应用面不触发 batchResolveRoleIds/applyVersion）
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(2);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(2);
         when(abstractRoleMapper.selectByTypeAndExternalIds(eq(TENANT_ID), eq(2), any()))
                 .thenReturn(java.util.List.of());
         lenient().when(abstractRoleMapper.selectValidRoleTree(TENANT_ID, false)).thenReturn(java.util.List.of());

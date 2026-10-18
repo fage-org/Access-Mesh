@@ -713,8 +713,8 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         // 该 typeValue 的有效 abstract_user/abstract_role 行时整批拒绝（用户/角色是业务主体数据，
         // 对齐 resource_entity 面=守卫，而非操作位/投影=级联）；管理员须先删/迁走该类型用户/角色。
         // 并发语义：role_type 面经上方 ABSTRACT_ROLE 树写锁与全部角色写入口串行闭合；user_type
-        // 面用户写入口无锁可复用（用户行无树结构，本无锁需求；为极窄交错给高频用户创建加分布式
-        // 锁不成比例），为 best-effort 守卫（对齐 T-PERM-050 级联并发先例）——交错残留由 typeValue
+        // 面类型删除尚未接入 SubjectDomainService 的共同主体锁，保留已接受的 best-effort
+        // 守卫；主体写入口已有 PG106，不代表类型删除也已参与互斥。交错残留由 typeValue
         // 软删不复用兜底（孤儿 user_type 值永不撞新类型，uk_abstract_user 部分索引无冲突恶化）
         rejectIfSubjectTypeReferenced(tenantId, entities, validIds, "user_type", "用户行",
             subjectDomainService::findUserTypesWithValidRows);

@@ -83,7 +83,7 @@ class AbstractUserSyncAppServiceTest {
     @Test
     void shouldReturnApplied_whenUpsertNewVersion() {
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "user_type", "USER")).thenReturn(0);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "user_type", "USER")).thenReturn(0);
         when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), eq("ABSTRACT_USER"),
                 eq(SOURCE_SERVICE), anyString(), anyString(), anyString(), anyString(),
                 anyString(), anyString(), eq(OCCURRED_AT), eq(1L)))
@@ -102,7 +102,7 @@ class AbstractUserSyncAppServiceTest {
     @Test
     void shouldReturnStale_whenVersionStale() {
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "user_type", "USER")).thenReturn(0);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "user_type", "USER")).thenReturn(0);
         when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), eq("ABSTRACT_USER"),
                 eq(SOURCE_SERVICE), anyString(), anyString(), anyString(), anyString(),
                 anyString(), anyString(), any(), anyLong()))
@@ -157,7 +157,7 @@ class AbstractUserSyncAppServiceTest {
     @Test
     void shouldBackfillTargetId_whenUpsertCreatesNewAbstractUser() {
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "user_type", "USER")).thenReturn(0);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "user_type", "USER")).thenReturn(0);
         when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), eq("ABSTRACT_USER"),
                 eq(SOURCE_SERVICE), anyString(), anyString(), anyString(), anyString(),
                 anyString(), anyString(), eq(OCCURRED_AT), eq(1L)))

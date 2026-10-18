@@ -250,7 +250,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         }
         localProjectionGuard.rejectReservedSubjectType(req.subjectTypeCode());
 
-        Integer userType = typeResolutionService.resolveTypeValue(tenantId, "user_type", req.subjectTypeCode());
+        Integer userType = typeResolutionService.resolveTypeValueFromDatabase(tenantId, "user_type", req.subjectTypeCode());
         if (userType == null) {
             throw new BizException(AccessErrorCode.TYPE_CODE_NOT_FOUND.getCode(), "Unknown subjectTypeCode: " + req.subjectTypeCode());
         }

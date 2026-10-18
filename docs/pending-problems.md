@@ -91,7 +91,7 @@ last_updated: 2026-10-18
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
 | <a id="q-083"></a>Q-083 | 旧实体回写覆盖凭据、状态及删除 | 已修复：行锁/主体事务锁与请求触达列更新 | [T-ACCESS-123](archive/2026-10-18/tasks/T-ACCESS-123.md) | 2026-10-18 |
-| <a id="q-084"></a>Q-084 | 类型锁后旧缓存 | 已修复：Mapper新鲜读取与操作写路径数据库身份 | [T-ACCESS-124](archive/2026-10-18/tasks/T-ACCESS-124.md) | 2026-10-18 |
+| <a id="q-084"></a>Q-084 | 类型锁后旧缓存 | 已修复：Mapper新鲜读取与类型/操作/同步写入数据库身份 | [T-ACCESS-124](archive/2026-10-18/tasks/T-ACCESS-124.md)、[T-ACCESS-129](archive/2026-10-18/tasks/T-ACCESS-129.md) | 2026-10-18 |
 | <a id="q-085"></a>Q-085 | 岗位成员使用锁前parent | 已修复：SYS_ORG锁内结构读取与投影写入 | [T-ACCESS-125](archive/2026-10-18/tasks/T-ACCESS-125.md) | 2026-10-18 |
 | <a id="q-086"></a>Q-086 | 主体删除与成员绑定孤儿 | 已修复：共享主体生命周期事务锁 | [T-ACCESS-126](archive/2026-10-18/tasks/T-ACCESS-126.md) | 2026-10-18 |
 | <a id="q-087"></a>Q-087 | 主体FULL使用旧预载 | 已修复：预载与版本应用纳入共同锁，保留CAS | [T-ACCESS-126](archive/2026-10-18/tasks/T-ACCESS-126.md) | 2026-10-18 |

@@ -9,6 +9,26 @@ import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
 import cn.ac.fage.accessmesh.common.exception.BizException;
+import cn.ac.fage.accessmesh.common.cache.CacheService;
+import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
+import cn.ac.fage.accessmesh.access.type.mapper.TypeDefinitionMapper;
+import cn.ac.fage.accessmesh.access.type.service.TypeDefinitionAppService;
+import cn.ac.fage.accessmesh.access.role.service.AbstractRoleSyncAppService;
+import cn.ac.fage.accessmesh.access.resource.service.ResourceEntitySyncAppService;
+import cn.ac.fage.accessmesh.access.sync.dto.AbstractRoleFullSyncReq;
+import cn.ac.fage.accessmesh.access.sync.dto.AbstractRoleSyncItem;
+import cn.ac.fage.accessmesh.access.sync.dto.AbstractRoleSyncReq;
+import cn.ac.fage.accessmesh.access.sync.dto.AbstractRoleSyncScope;
+import cn.ac.fage.accessmesh.access.sync.dto.AbstractUserFullSyncReq;
+import cn.ac.fage.accessmesh.access.sync.dto.AbstractUserSyncItem;
+import cn.ac.fage.accessmesh.access.sync.dto.AbstractUserSyncReq;
+import cn.ac.fage.accessmesh.access.sync.dto.AbstractUserSyncScope;
+import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntityFullSyncReq;
+import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntitySyncItem;
+import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntitySyncReq;
+import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntitySyncScope;
+import cn.ac.fage.accessmesh.access.sync.metadata.SyncVersionRef;
+import cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtil;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -62,6 +82,11 @@ class BackendWriteConcurrencyPgIT {
     @Autowired private DictAppService dictionaries;
     @Autowired private cn.ac.fage.accessmesh.access.user.service.UserManageAppService users;
     @Autowired private cn.ac.fage.accessmesh.access.user.service.AbstractUserSyncAppService sync;
+    @Autowired private AbstractRoleSyncAppService roleSync;
+    @Autowired private ResourceEntitySyncAppService resourceSync;
+    @Autowired private TypeDefinitionAppService types;
+    @Autowired private TypeDefinitionMapper typeMapper;
+    @Autowired private CacheService caches;
     @MockitoBean private AdminPermissionValidator permissionValidator;
     @MockitoBean private QueryGate gate;
     @MockitoBean private cn.ac.fage.accessmesh.access.sync.guard.SyncTypeGuard syncTypes;
@@ -76,6 +101,101 @@ class BackendWriteConcurrencyPgIT {
             org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(java.util.Set.of());
         org.mockito.Mockito.when(syncTypes.validate(org.mockito.ArgumentMatchers.any(),
             org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(true);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void roleSyncMustNotPersistTheTypeFromALateCacheFill(boolean full) {
+        String source = "role-source-" + UUID.randomUUID();
+        String code = "role-type-" + UUID.randomUUID();
+        int currentType = recreateTypeWithLateCacheFill("role_type", code, "{}");
+        var version = new SyncVersionRef(java.time.LocalDateTime.of(2026, 10, 18, 0, 0), 1L);
+        AccessRequestContext.bind(RequestContext.service(1L, source));
+        try {
+            var result = full
+                ? roleSync.fullSync(1L, new AbstractRoleFullSyncReq(new AbstractRoleSyncScope(source, code, "root"),
+                    java.util.List.of(new AbstractRoleSyncItem("root", "root", null, null, 1, 0, null, null, null, version))), null)
+                : roleSync.sync(1L, new AbstractRoleSyncReq("UPSERT", code, "root", "root", null, null,
+                    "root", 1, 0, null, source, null, null, version), null);
+            assertThat(result.applied()).as("sync result: %s", result).isTrue();
+            assertThat(jdbc.queryForList("SELECT role_type FROM abstract_role WHERE tenant_id=1 AND external_id='root' AND role_type IN (?,?) AND delete_flag=0",
+                Integer.class, currentType - 1, currentType)).containsExactly(currentType);
+        } finally {
+            AccessRequestContext.clear();
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void resourceSyncMustNotPersistTheTypeFromALateCacheFill(boolean full) {
+        String source = "resource-source-" + UUID.randomUUID();
+        String code = "resource-type-" + UUID.randomUUID();
+        jdbc.update("INSERT INTO service_config(tenant_id,service_code,name) VALUES (1,?,'sync source')", source);
+        int currentType = recreateTypeWithLateCacheFill("resource_type", code,
+            "{\"managedMode\":\"SYNC\",\"syncSourceService\":\"" + source + "\"}");
+        var version = new SyncVersionRef(java.time.LocalDateTime.of(2026, 10, 18, 0, 0), 1L);
+        AccessRequestContext.bind(RequestContext.service(1L, source));
+        try {
+            var result = full
+                ? resourceSync.fullSync(1L, new ResourceEntityFullSyncReq(new ResourceEntitySyncScope(source, code),
+                    java.util.List.of(new ResourceEntitySyncItem("root", null, "root", null, null, null,
+                        null, 1, null, null, null, version)), "1"), null)
+                : resourceSync.sync(1L, new ResourceEntitySyncReq("UPSERT", code, "root", null, "root", null,
+                    null, null, null, 1, null, source, null, null, version, "1"), null);
+            assertThat(result.applied()).as("sync result: %s", result).isTrue();
+            assertThat(jdbc.queryForList("SELECT resource_type FROM resource_entity WHERE tenant_id=1 AND code='root' AND resource_type IN (?,?) AND delete_flag=0",
+                Integer.class, currentType - 1, currentType)).containsExactly(currentType);
+        } finally {
+            AccessRequestContext.clear();
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"single", "full", "management"})
+    void userWritersMustNotPersistTheTypeFromALateCacheFill(String entrance) {
+        String source = "user-source-" + UUID.randomUUID();
+        String code = "user-type-" + UUID.randomUUID();
+        int currentType = recreateTypeWithLateCacheFill("user_type", code, "{}");
+        var version = new SyncVersionRef(java.time.LocalDateTime.of(2026, 10, 18, 0, 0), 1L);
+        AccessRequestContext.bind(entrance.equals("management")
+            ? RequestContext.user(1L, 99L) : RequestContext.service(1L, source));
+        try {
+            switch (entrance) {
+                case "single" -> assertThat(sync.sync(1L, new AbstractUserSyncReq("UPSERT", code, "root",
+                    "root", true, null, source, null, null, version), null).applied()).isTrue();
+                case "full" -> assertThat(sync.fullSync(1L, new AbstractUserFullSyncReq(new AbstractUserSyncScope(source, code),
+                    java.util.List.of(new AbstractUserSyncItem("root", "root", true, null, null, null, version))), null).applied()).isTrue();
+                case "management" -> users.createUser(1L, new cn.ac.fage.accessmesh.access.user.dto.req.AbstractUserCreateReq(
+                    code, "root", "root", true, null));
+                default -> throw new AssertionError("unknown entrance");
+            }
+            assertThat(jdbc.queryForList("SELECT user_type FROM abstract_user WHERE tenant_id=1 AND external_id='root' AND user_type IN (?,?) AND delete_flag=0",
+                Integer.class, currentType - 1, currentType)).containsExactly(currentType);
+        } finally {
+            AccessRequestContext.clear();
+        }
+    }
+
+    private int recreateTypeWithLateCacheFill(String key, String code, String extra) {
+        int oldValue = jdbc.queryForObject("SELECT coalesce(max(type_value),0)+1 FROM type_definition WHERE tenant_id=1 AND type_key=?",
+            Integer.class, key);
+        long id = jdbc.queryForObject("INSERT INTO type_definition(tenant_id,type_key,type_code,type_value,name,extra) VALUES (1,?,?,?,'old type',?::jsonb) RETURNING id",
+            Long.class, key, code, oldValue, extra);
+        String cacheKey = BusinessKeyUtil.typeValueCacheKey(key, code);
+        AccessRequestContext.bind(RequestContext.user(1L, 99L));
+        try {
+            // 展开真实 miss 的读/回填两个阶段：读取已返回后暂停回填，删除提交及重建后才继续。
+            var token = caches.beginRead(AccessCacheCatalog.TYPE_VALUE);
+            var oldType = typeMapper.selectByTypeKeyAndCode(1L, key, code);
+            types.deleteTypesByIds(1L, java.util.List.of(id), 99L);
+            jdbc.update("INSERT INTO type_definition(tenant_id,type_key,type_code,type_value,name,extra) VALUES (1,?,?,?,'new type',?::jsonb)",
+                key, code, oldValue + 1, extra);
+            caches.put(token, 1L, cacheKey, java.util.Map.of(code, oldType.getTypeValue()));
+            assertThat(caches.get(AccessCacheCatalog.TYPE_VALUE, 1L, cacheKey)).containsEntry(code, oldValue);
+            return oldValue + 1;
+        } finally {
+            AccessRequestContext.clear();
+        }
     }
 
     @ParameterizedTest

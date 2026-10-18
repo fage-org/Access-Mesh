@@ -117,7 +117,7 @@ class FullSyncN1GuardTest {
 
     @Test
     void abstractUserFullSync_shouldUseBatchedSelectsAndWrites_for100Items() {
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "user_type", "USER")).thenReturn(0);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "user_type", "USER")).thenReturn(0);
         when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), anyString(), anyString(),
                 anyString(), anyString(), anyString(), anyString(),
                 anyString(), anyString(), any(LocalDateTime.class), anyLong()))
@@ -177,7 +177,7 @@ class FullSyncN1GuardTest {
 
     @Test
     void resourceEntityFullSync_shouldUseBatchedSelectsAndWrites_for100Items() {
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
         when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), anyString(), anyString(),
                 anyString(), anyString(), anyString(), anyString(),
                 anyString(), anyString(), any(LocalDateTime.class), anyLong()))

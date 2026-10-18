@@ -118,7 +118,7 @@ class FullSyncResponseContractTest {
     @Test
     void abstractUserFullSync_allSuccess_topLevelMatchesSyncContract() {
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "user_type", "USER")).thenReturn(0);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "user_type", "USER")).thenReturn(0);
         when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), anyString(), anyString(),
                 anyString(), anyString(), anyString(), anyString(),
                 anyString(), anyString(), any(LocalDateTime.class), anyLong()))
@@ -177,7 +177,7 @@ class FullSyncResponseContractTest {
     @Test
     void abstractRoleFullSync_allSuccess_topLevelMatchesSyncContract() {
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(1);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(1);
         when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), anyString(), anyString(),
                 anyString(), anyString(), anyString(), anyString(),
                 anyString(), anyString(), any(LocalDateTime.class), anyLong()))
@@ -217,7 +217,7 @@ class FullSyncResponseContractTest {
     @Test
     void abstractRoleFullSync_partialFailure_topLevelRetryable() {
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(1);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(1);
         when(typeResolutionService.batchResolveRoleIds(eq(TENANT_ID), eq("BASIC_ROLE"), any(), eq(null)))
                 .thenReturn(java.util.Collections.emptyMap());
         lenient().when(typeResolutionService.resolveRoleId(eq(TENANT_ID), eq("BASIC_ROLE"), eq("missing-parent"), eq(null)))

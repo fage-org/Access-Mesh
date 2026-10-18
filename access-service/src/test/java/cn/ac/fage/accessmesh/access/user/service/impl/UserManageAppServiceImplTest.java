@@ -198,7 +198,7 @@ class UserManageAppServiceImplTest {
         AbstractUserCreateReq req = new AbstractUserCreateReq("USER", "ext-u-1", "外部用户", true, null);
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.USER),
             org.mockito.ArgumentMatchers.isNull(), eq(OperationCode.CREATE))).thenReturn(true);
-        when(typeResolutionService.resolveTypeValue(1L, "user_type", "USER")).thenReturn(1);
+        when(typeResolutionService.resolveTypeValueFromDatabase(1L, "user_type", "USER")).thenReturn(1);
         when(typeResolutionService.resolveTypeCode(1L, "user_type", 1)).thenReturn("USER");
         org.mockito.Mockito.doAnswer(invocation -> {
             AbstractUser inserted = invocation.getArgument(0);

@@ -1,0 +1,163 @@
+{
+  "command": "mvn test -T 1C",
+  "exitCode": 0,
+  "modules": {
+    "access-service": {
+      "tests": 2559,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "common": {
+      "tests": 119,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "e2e": {
+      "tests": 35,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "example-service": {
+      "tests": 53,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "gateway": {
+      "tests": 152,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "sdk-host-probe": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "sdk-host-probe-log4j2": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "perm-sdk\\perm-client-spring-boot-starter": {
+      "tests": 29,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "perm-sdk\\perm-common": {
+      "tests": 54,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "perm-sdk\\perm-registration-spring-boot-starter": {
+      "tests": 19,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "totals": {
+    "tests": 3025,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "sentinels": {
+    "TEST-cn.ac.fage.accessmesh.access.engine.InterfaceAdmissionHeavyPgIT.xml": {
+      "tests": 2,
+      "seconds": "6.603"
+    },
+    "TEST-cn.ac.fage.accessmesh.access.platform.service.BackendWriteConcurrencyPgIT.xml": {
+      "tests": 14,
+      "seconds": "6.136"
+    },
+    "TEST-cn.ac.fage.accessmesh.access.sync.ResourcePublicationHeavyPgIT.xml": {
+      "tests": 1,
+      "seconds": "431.357"
+    },
+    "TEST-cn.ac.fage.accessmesh.e2e.BasicRoleGrantVerticalSliceE2EIT.xml": {
+      "tests": 9,
+      "seconds": "112.673"
+    },
+    "TEST-cn.ac.fage.accessmesh.e2e.E2eProcessSupportTest.xml": {
+      "tests": 2,
+      "seconds": "4.226"
+    },
+    "TEST-cn.ac.fage.accessmesh.e2e.ExampleBusinessFinalCheckE2EIT.xml": {
+      "tests": 12,
+      "seconds": "92.579"
+    },
+    "TEST-cn.ac.fage.accessmesh.e2e.ExampleProtectedApiE2EIT.xml": {
+      "tests": 12,
+      "seconds": "73.439"
+    }
+  },
+  "excludedOldReports": [
+    "access-service\\target\\surefire-reports\\TEST-cn.ac.fage.accessmesh.access.bootstrap.AccessBootstrapRunnerTest.xml",
+    "access-service\\target\\surefire-reports\\TEST-cn.ac.fage.accessmesh.access.user.TxDiagScratchPgIT.xml"
+  ],
+  "sourceFiles": 2459,
+  "sourceChanges": {
+    "added": [],
+    "removed": [],
+    "changed": []
+  },
+  "sourceSnapshotSha256": "55562c918995ee54fef0a57c678cf80ebf887be15654d022474a7f2b1fe6ccdf",
+  "logSha256": "e3d000eee0d6021e310e06e5189b7688654bec4a6fa74201f8ce6369cc42ebf5",
+  "logPath": ".tmp\\concurrency-lock-review-sol-20261018\\full-backend.log",
+  "completion": [
+    "[INFO] Total time:  19:30 min (Wall Clock)",
+    "[INFO] Finished at: 2026-10-18T18:19:29+08:00"
+  ],
+  "reactor": [
+    "[INFO] AccessMesh ......................................... SUCCESS [  1.765 s]",
+    "[INFO] Common Module ...................................... SUCCESS [ 10.426 s]",
+    "[INFO] Permission SDK ..................................... SUCCESS [  0.004 s]",
+    "[INFO] Perm Common ........................................ SUCCESS [  2.477 s]",
+    "[INFO] Gateway Service .................................... SUCCESS [ 51.165 s]",
+    "[INFO] Perm Registration Starter .......................... SUCCESS [ 11.060 s]",
+    "[INFO] Access Service ..................................... SUCCESS [14:10 min]",
+    "[INFO] Perm Client Starter ................................ SUCCESS [ 10.776 s]",
+    "[INFO] Example Service .................................... SUCCESS [ 28.744 s]",
+    "[INFO] SDK Host Probe ..................................... SUCCESS [ 14.409 s]",
+    "[INFO] SDK Host Probe (Log4j2 host) ....................... SUCCESS [  3.508 s]",
+    "[INFO] E2E Tests .......................................... SUCCESS [04:53 min]"
+  ],
+  "targeted": [
+    {
+      "scope": "BackendWriteConcurrencyPgIT before repair: resource/role",
+      "errors": 0,
+      "skipped": 0,
+      "log": "type-stale-red.log",
+      "sha256": "9c35dbab7733cc0fb5674a32207a85eeab3d5c3082ec138668c8f5265a9c3cef",
+      "failures": 4,
+      "tests": 11
+    },
+    {
+      "scope": "BackendWriteConcurrencyPgIT before repair: resource/role/user",
+      "errors": 0,
+      "skipped": 0,
+      "log": "type-stale-family-red.log",
+      "sha256": "94bd0218134be4f166ff99b2d524f8875924cc7c3ddd9e2803fb7e36a200994f",
+      "failures": 7,
+      "tests": 14
+    },
+    {
+      "scope": "targeted compatibility and actual persistence",
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "e2e692cc17dcd69ac69d4fc45bf837d02bc959625f9415c5460d412c42c798c3",
+      "log": "type-stale-green.log",
+      "failures": 0,
+      "unitTests": 106,
+      "containerTests": 14
+    }
+  ]
+}

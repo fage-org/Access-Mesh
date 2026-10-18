@@ -1,0 +1,28 @@
+{
+  "head": "3e7ec01e3f6c9ecefe234d3331700053fc9ae5c9",
+  "base": "a4214fc31af8ef722ea100fd394a6d55e0eb3f3a",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "max",
+  "multiAgent": false,
+  "sandbox": "read-only",
+  "sessionId": "01a14e58-a736-74f3-91d0-b3e81285fa14",
+  "exitCode": 0,
+  "statusBefore": "",
+  "statusAfter": "",
+  "modelIdentityVerified": false,
+  "counts": {
+    "P3": 0,
+    "P1": 0,
+    "P2": 0,
+    "P0": 0
+  },
+  "observations": 1,
+  "tests": "not run by reviewer",
+  "hashes": {
+    "report.md": "00d5aec0b376d34881cc03e86aed375ca4e22f6bb5f88b0575425c1630db102f",
+    "prompt.md": "100ea187c1a76bd58b89d5a9487bdc7575a89546c2afcec36b5b022e712f9737",
+    "run.log": "c5dac473148099f2a48cef1da739263a2d568e4c51f0ab6da42ba544028c4ab5"
+  },
+  "finishedDate": "2026-10-18",
+  "runLog": ".tmp/concurrency-lock-review-sol-20261018/run.log"
+}

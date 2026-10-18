@@ -97,7 +97,7 @@ class FullSyncStaleVersionTest {
         org.mockito.Mockito.lenient().when(syncTypeGuard.validate(org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any())).thenReturn(true);
         AccessRequestContext.bind(RequestContext.service(TENANT_ID, SOURCE_SERVICE));
-        lenient().when(typeResolutionService.resolveTypeValue(TENANT_ID, "user_type", "USER")).thenReturn(0);
+        lenient().when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "user_type", "USER")).thenReturn(0);
     }
 
     /**

@@ -8,7 +8,7 @@ last_reviewed: 2026-10-18
 
 # 公共 Redis 事务锁与后端并发接入方案
 
-> 当前实现已完成，[实施计划](../archive/2026-10-18/backend-concurrency-hardening.md)与[验收记录](../archive/2026-10-18/tasks/evidence/backend-concurrency/verification.md)保存范围和证据。既有树锁、重置锁、数据库租约与接受边界保持。
+> 当前实现已完成，[实施计划](../archive/2026-10-18/backend-concurrency-hardening.md)、[验收记录](../archive/2026-10-18/tasks/evidence/backend-concurrency/verification.md)及[类型身份写入核实](../archive/2026-10-18/tasks/evidence/T-ACCESS-129/verification.md)保存范围和证据。既有树锁、重置锁、数据库租约与接受边界保持。
 
 ## 目标与现状
 
@@ -96,6 +96,10 @@ OAuth2 客户端、任务、条件、互斥规则、已有系统配置、域配�
 ### 类型与岗位的读取时机
 
 类型的 selectValidById/selectValidByIds/selectByTypeKeyAndCode 明确清理 MyBatis 会话缓存；类型编辑在所需树锁之后再锁定有效类型行。操作 create/update 在 RESOURCE_ENTITY 锁内直接读取类型身份，写入口不使用 TYPE_VALUE 缓存确定目标；只读查询仍可使用原解析缓存。所有者指针与授权根变更继续由原事务共同维护。
+
+资源、角色、主体的 single/FULL 同步及管理主体创建，通过 `TypeResolutionService.resolveTypeValueFromDatabase` 确定持久化类型值。该共享入口复用清会话缓存的 Mapper，不读写 TYPE_VALUE；已有业务锁仍由调用方先取得。类型删除提交后的旧读取可能迟到回填缓存，短 TTL 只限制读取陈旧时间，不能修复引用旧 typeValue 的已落库事实，因此这类写入不能使用读取缓存。管理资源创建已消费所有权守卫返回的数据库类型行，操作写入已直接读取类型行，保持原实现；预置不可删除类型的固定图解析不扩大改造。只读类型缓存及其剩余 TTL 协议保留。
+
+主体写入的当前类型读取不改变 user_type 删除的 best-effort 边界：类型删除尚未接入共同主体锁，读到当前类型之后的删除交错仍按[类型生命周期契约](access-service-api-contract.md#type-lifecycle)处理。已完成删除后的旧缓存身份写入不属于该交错，须拒绝或选择同码重建后的当前身份。
 
 岗位成员 assign/remove 在 SYS_ORG 锁内读取最新结构，再构造 relation。批量分配仍批量读取，不引入循环查询。锁前对象不能作为锁内投影写入的 parent 来源。
 

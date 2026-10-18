@@ -30,6 +30,13 @@ public interface TypeResolutionService {
     Integer resolveTypeValue(Long tenantId, String typeKey, String typeCode);
 
     /**
+     * 从数据库解析当前有效类型身份，不读写 TYPE_VALUE 缓存，并清除 MyBatis 会话旧读。
+     * 用于把类型值写入持久化事实的入口；调用方仍须先取得对应业务互斥，
+     * 本方法不代替类型生命周期锁或改变已接受的删除边界。
+     */
+    Integer resolveTypeValueFromDatabase(Long tenantId, String typeKey, String typeCode);
+
+    /**
      * 批量解析type_codes到type_values
      *
      * @param tenantId 租户ID

@@ -132,7 +132,7 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
         }
 
         // 3. 解析 roleType
-        Integer roleType = typeResolutionService.resolveTypeValue(tenantId, "role_type", req.roleTypeCode());
+        Integer roleType = typeResolutionService.resolveTypeValueFromDatabase(tenantId, "role_type", req.roleTypeCode());
         if (roleType == null) {
             return SyncResultBuilder.nonRetryable("Unknown roleTypeCode: " + req.roleTypeCode());
         }
@@ -268,7 +268,7 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
         treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE);
         var adminBefore = tenantAdminContinuity.begin(tenantId);
 
-        Integer roleType = typeResolutionService.resolveTypeValue(tenantId, "role_type", req.scope().roleTypeCode());
+        Integer roleType = typeResolutionService.resolveTypeValueFromDatabase(tenantId, "role_type", req.scope().roleTypeCode());
         if (roleType == null) {
             SyncResultResp.ItemResult denied = new SyncResultResp.ItemResult(
                     null, false, false,

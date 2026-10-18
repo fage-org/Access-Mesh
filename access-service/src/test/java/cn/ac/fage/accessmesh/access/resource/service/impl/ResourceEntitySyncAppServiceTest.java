@@ -91,7 +91,7 @@ class ResourceEntitySyncAppServiceTest {
     @Test
     void shouldNotConsumeVersion_whenDisableTargetMissing() {
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
         ResourceEntitySyncReq req = new ResourceEntitySyncReq("DISABLE", "MENU", "missing", "default",
                 null, null, null, null, null, null, null, SOURCE_SERVICE, "menu", "missing",
                 new SyncVersionRef(OCCURRED_AT, 1L));
@@ -119,7 +119,7 @@ class ResourceEntitySyncAppServiceTest {
                 eq(SOURCE_SERVICE), anyString(), anyString(), anyString(), anyString(),
                 anyString(), anyString(), any(), anyLong()))
                 .thenReturn(SyncMetadataDomainService.ApplyVersionResult.APPLIED);
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
         when(resourceEntityMapper.selectByTypeCodeAndCodeType(TENANT_ID, 0, "menu-1", "default")).thenReturn(null);
         lenient().when(resourceEntityMapper.insert(any(ResourceEntity.class))).thenReturn(1);
 
@@ -146,7 +146,7 @@ class ResourceEntitySyncAppServiceTest {
                 eq("example-service"), anyString(), anyString(), anyString(), anyString(),
                 anyString(), anyString(), any(), anyLong()))
                 .thenReturn(SyncMetadataDomainService.ApplyVersionResult.APPLIED);
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
         when(resourceEntityMapper.selectByTypeCodeAndCodeType(TENANT_ID, 0, "menu-1", "default")).thenReturn(null);
         lenient().when(resourceEntityMapper.insert(any(ResourceEntity.class))).thenReturn(1);
 
@@ -167,7 +167,7 @@ class ResourceEntitySyncAppServiceTest {
                 eq(SOURCE_SERVICE), anyString(), anyString(), anyString(), anyString(),
                 anyString(), anyString(), any(), anyLong()))
                 .thenReturn(SyncMetadataDomainService.ApplyVersionResult.APPLIED);
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
         lenient().when(resourceEntityMapper.insert(any(ResourceEntity.class))).thenReturn(1);
 
         ResourceEntitySyncReq req = new ResourceEntitySyncReq("UPSERT", "MENU", "menu-1", " BIZ ",
@@ -184,7 +184,7 @@ class ResourceEntitySyncAppServiceTest {
     @Test
     void shouldReturnStale_whenOldVersion() {
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
         when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), eq("RESOURCE_ENTITY"),
                 eq(SOURCE_SERVICE), anyString(), anyString(), anyString(), anyString(),
                 anyString(), anyString(), any(), anyLong()))
@@ -203,7 +203,7 @@ class ResourceEntitySyncAppServiceTest {
         mockHeaderMatch();
         // parent 解析与判环先于 applyVersion（T-PERM-044 评审 P1 对齐角色先例：依赖缺失/环路
         // 拒绝不推进同步版本，上游修正后同版本重试不被判 STALE）——本用例不触达 applyVersion
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
         when(typeResolutionService.resolveResourceId(TENANT_ID, "MENU", "parent-x", "default", null))
                 .thenReturn(null);
 
@@ -363,7 +363,7 @@ class ResourceEntitySyncAppServiceTest {
     @Test
     void shouldRejectCyclicParent_withoutAdvancingVersion() {
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
         // existing id=5；目标 parent id=9 是其子孙 → 判环拒绝（先于 applyVersion，不推进同步版本）
         ResourceEntity existing = new ResourceEntity();
         existing.setId(5L);
@@ -401,7 +401,7 @@ class ResourceEntitySyncAppServiceTest {
     @Test
     void fullSyncRejectsCyclicParent_viaInMemoryGraph() {
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
         // 库内图：9 → 5（child-x 挂在 menu-1 下）；事件要求 menu-1 挂到 child-x 下（新边 5 → 9）
         // → 与既有 9 → 5 闭合环，拒绝该 item
         ResourceEntity existing = new ResourceEntity();
@@ -451,7 +451,7 @@ class ResourceEntitySyncAppServiceTest {
         mockHeaderMatch();
         // 合法新 parent（不闭环）→ 通过外层内存判环、实际进入 doSyncOneInternal 执行 update——
         // 该路径下 cyclePreChecked 必须跳过内部 DB 子孙判定（无参数时每项一次递归 CTE，N+1）
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
         ResourceEntity existing = new ResourceEntity();
         existing.setId(5L);
         existing.setTenantId(TENANT_ID);
@@ -513,7 +513,7 @@ class ResourceEntitySyncAppServiceTest {
     @Test
     void shouldRejectCrossTypeParent_withoutResolvingOrAdvancingVersion() {
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
 
         // parentResourceTypeCode=BUTTON 显式异类型 → item 级拒绝，先于父解析与版本写入
         ResourceEntitySyncReq req = new ResourceEntitySyncReq("UPSERT", "MENU", "menu-1", "default",
@@ -537,7 +537,7 @@ class ResourceEntitySyncAppServiceTest {
     @Test
     void shouldResolveParentByOwnType_whenParentTypeCodeOmitted() {
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
         when(typeResolutionService.resolveResourceId(TENANT_ID, "MENU", "parent-x", "default", null))
                 .thenReturn(88L);
         when(resourceEntityMapper.selectByTypeCodeAndCodeType(TENANT_ID, 0, "menu-1", "default"))
@@ -564,7 +564,7 @@ class ResourceEntitySyncAppServiceTest {
     @Test
     void fullSyncRejectsCrossTypeParentItem_butAppliesOthers() {
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
         ResourceEntity existing = new ResourceEntity();
         existing.setId(5L);
         existing.setTenantId(TENANT_ID);
@@ -617,7 +617,7 @@ class ResourceEntitySyncAppServiceTest {
     @Test
     void shouldTreatParentAsAbsent_whenOnlyParentTypeCodeProvided() {
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
         when(resourceEntityMapper.selectByTypeCodeAndCodeType(TENANT_ID, 0, "menu-1", "default"))
                 .thenReturn(null);
         lenient().when(resourceEntityMapper.insert(any(ResourceEntity.class))).thenReturn(1);
@@ -653,7 +653,7 @@ class ResourceEntitySyncAppServiceTest {
     @Test
     void shouldIgnoreParentFields_whenDisableOperation() {
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
         ResourceEntity existing = new ResourceEntity();
         existing.setId(5L);
         existing.setTenantId(TENANT_ID);
@@ -685,7 +685,7 @@ class ResourceEntitySyncAppServiceTest {
     @Test
     void shouldRejectDeleteWithoutAdvancingVersion_whenValidDescendantsExist() {
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
         ResourceEntity existing = new ResourceEntity();
         existing.setId(5L);
         existing.setTenantId(TENANT_ID);
@@ -717,7 +717,7 @@ class ResourceEntitySyncAppServiceTest {
     @Test
     void shouldDelete_whenNoValidDescendants() {
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
         ResourceEntity existing = new ResourceEntity();
         existing.setId(5L);
         existing.setTenantId(TENANT_ID);
@@ -746,7 +746,7 @@ class ResourceEntitySyncAppServiceTest {
     @Test
     void shouldForceNullParentColumn_whenUpsertWithoutParentFieldsOnExistingRow() {
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
         ResourceEntity existing = new ResourceEntity();
         existing.setId(5L);
         existing.setTenantId(TENANT_ID);
@@ -779,7 +779,7 @@ class ResourceEntitySyncAppServiceTest {
     @Test
     void fullSyncResolvesParentByScopeType_whenParentTypeCodeOmitted() {
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        when(typeResolutionService.resolveTypeValueFromDatabase(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
         ResourceEntity existing = new ResourceEntity();
         existing.setId(5L);
         existing.setTenantId(TENANT_ID);

@@ -89,8 +89,7 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
 
         // ② miss 后查数据库（T-ACCESS-008：SQL 前记录读取起点，回填只写剩余 TTL）
         CacheReadToken<Map<String, Integer>> readToken = cacheService.beginRead(AccessCacheCatalog.TYPE_VALUE);
-        TypeDefinition td = typeDefinitionMapper.selectByTypeKeyAndCode(tenantId, typeKey, typeCode);
-        Integer result = td != null ? td.getTypeValue() : null;
+        Integer result = resolveTypeValueFromDatabase(tenantId, typeKey, typeCode);
 
         // ③ 回填缓存（只缓存非 null 值）
         if (result != null) {
@@ -100,6 +99,12 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         }
 
         return result;
+    }
+
+    @Override
+    public Integer resolveTypeValueFromDatabase(Long tenantId, String typeKey, String typeCode) {
+        TypeDefinition type = typeDefinitionMapper.selectByTypeKeyAndCode(tenantId, typeKey, typeCode);
+        return type == null ? null : type.getTypeValue();
     }
 
     /**

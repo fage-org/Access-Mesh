@@ -100,7 +100,7 @@ public class AbstractUserSyncAppServiceImpl implements AbstractUserSyncAppServic
 
         // 3. 解析 subjectTypeCode -> userType
         subjects.lockUserWrites(tenantId);
-        Integer userType = typeResolutionService.resolveTypeValue(tenantId, "user_type", req.subjectTypeCode());
+        Integer userType = typeResolutionService.resolveTypeValueFromDatabase(tenantId, "user_type", req.subjectTypeCode());
         if (userType == null) {
             return SyncResultBuilder.nonRetryable("Unknown subjectTypeCode: " + req.subjectTypeCode());
         }
@@ -178,7 +178,7 @@ public class AbstractUserSyncAppServiceImpl implements AbstractUserSyncAppServic
         }
 
         subjects.lockUserWrites(tenantId);
-        Integer userType = typeResolutionService.resolveTypeValue(tenantId, "user_type", req.scope().subjectTypeCode());
+        Integer userType = typeResolutionService.resolveTypeValueFromDatabase(tenantId, "user_type", req.scope().subjectTypeCode());
         if (userType == null) {
             SyncResultResp.ItemResult denied = new SyncResultResp.ItemResult(
                     null, false, false,

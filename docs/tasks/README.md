@@ -10,7 +10,7 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| access-service 归并（跨服务） | `T-ACCESS` | 129 |
+| access-service 归并（跨服务） | `T-ACCESS` | 130 |
 | permission-center | `T-PERM` | 113 |
 | admin-service | `T-ADMIN` | 036 |
 | gateway | `T-GW` | 015 |
@@ -22,7 +22,7 @@
 
 ## 当前待办入口
 
-[后端并发缺口修复与公共 Redis 事务锁](../archive/2026-10-18/backend-concurrency-hardening.md) 已完成归档。当前只保留原有暂缓事项；问题与任务索引已收敛。
+[后端并发缺口修复与公共 Redis 事务锁](../archive/2026-10-18/backend-concurrency-hardening.md) 已完成归档。[锁内类型身份写入核实与修复](../archive/2026-10-18/tasks/T-ACCESS-129.md) 亦已完成。当前仅保留原有暂缓事项。
 
 | ID | 标题 | 状态 | 直接依赖 |
 |---|---|---|---|
@@ -31,6 +31,12 @@
 T-PERM-036 继续暂缓，需用户明确解除门禁。历史批次只供追溯，不重新启动。
 
 ## 任务总表
+
+### 锁内类型身份写入核实与修复
+
+| ID | 标题 | 状态 | 直接依赖 |
+|---|---|---|---|
+| [T-ACCESS-129](../archive/2026-10-18/tasks/T-ACCESS-129.md) | 锁内类型身份写入核实与修复 | ✅ | T-ACCESS-124 |
 
 ### 后端并发缺口修复与公共 Redis 事务锁
 
