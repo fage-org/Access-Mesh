@@ -28,11 +28,40 @@ class PermRegistrationAutoConfigurationTest {
     private static final jakarta.validation.ValidatorFactory VALIDATORS = Validation.buildDefaultValidatorFactory();
     @TempDir Path temporary;
     @AfterAll static void close() { VALIDATORS.close(); }
-    private final ApplicationContextRunner runner = new ApplicationContextRunner()
+    private final ApplicationContextRunner withoutMapper = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(PropertyPlaceholderAutoConfiguration.class,PermRegistrationAutoConfiguration.class))
-            .withBean(ObjectMapper.class,ObjectMapper::new)
             .withBean(Validator.class,VALIDATORS::getValidator)
             .withBean("testTransport",PermissionManifestClient.class,() -> mock(PermissionManifestClient.class),d -> d.setPrimary(true));
+    private final ApplicationContextRunner runner = withoutMapper.withBean(ObjectMapper.class,ObjectMapper::new);
+
+    @Test void shouldAssembleWithoutHostMapperAndKeepManifestParsingStrict() {
+        withoutMapper.withPropertyValues("perm.registration.enabled=true", "perm.allow-insecure=true")
+            .run(context -> {
+                assertThat(context).hasNotFailed();
+                assertThat(context).doesNotHaveBean(ObjectMapper.class);
+                var publisher = context.getBean(PermissionRegistrationPublisher.class);
+                String manifest = "{\"schemaVersion\":1,\"publicationGeneration\":\"42\",\"revision\":\"r\",\"dependencies\":[]}";
+                assertThat(publisher.read(new java.io.ByteArrayInputStream(manifest.getBytes(java.nio.charset.StandardCharsets.UTF_8))).revision()).isEqualTo("r");
+                for (String invalid : List.of(manifest + " {}", manifest.replace("\"revision\"", "\"unknown\""))) {
+                    assertThatThrownBy(() -> publisher.read(new java.io.ByteArrayInputStream(invalid.getBytes(java.nio.charset.StandardCharsets.UTF_8))))
+                        .isInstanceOf(java.io.IOException.class);
+                }
+            });
+    }
+
+    @Test void shouldRetainHostMapperSettingsWithoutReplacingItsBean() {
+        var host = tools.jackson.databind.json.JsonMapper.builder()
+            .enable(tools.jackson.core.json.JsonReadFeature.ALLOW_JAVA_COMMENTS).build();
+        withoutMapper.withBean(ObjectMapper.class, () -> host)
+            .withPropertyValues("perm.registration.enabled=true", "perm.allow-insecure=true")
+            .run(context -> {
+                assertThat(context).hasNotFailed();
+                assertThat(context.getBean(ObjectMapper.class)).isSameAs(host);
+                var publisher = context.getBean(PermissionRegistrationPublisher.class);
+                String manifest = "{/*host setting*/\"schemaVersion\":1,\"publicationGeneration\":\"42\",\"revision\":\"r\",\"dependencies\":[]}";
+                assertThat(publisher.read(new java.io.ByteArrayInputStream(manifest.getBytes(java.nio.charset.StandardCharsets.UTF_8))).revision()).isEqualTo("r");
+            });
+    }
 
     @Test void shouldRemainInactiveWithoutOptIn() {
         runner.run(context -> {

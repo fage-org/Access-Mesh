@@ -9,10 +9,10 @@ export function roleRelationKey(role: UserRoleItem): string {
   ]);
 }
 
-export function withoutRoleRelation(
+export function hasRoleRelation(
   roles: UserRoleItem[],
-  removed: UserRoleItem
-): UserRoleItem[] {
-  const key = roleRelationKey(removed);
-  return roles.filter(role => roleRelationKey(role) !== key);
+  target: UserRoleItem
+): boolean {
+  const key = roleRelationKey(target);
+  return roles.some(role => roleRelationKey(role) === key);
 }

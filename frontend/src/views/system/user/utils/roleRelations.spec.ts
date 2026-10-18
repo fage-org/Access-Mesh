@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { UserRoleItem } from "@/api/user-manage";
-import { roleRelationKey, withoutRoleRelation } from "./roleRelations";
+import { roleRelationKey, hasRoleRelation } from "./roleRelations";
 
 const direct: UserRoleItem = {
   roleTypeCode: "BASIC_ROLE",
@@ -22,7 +22,9 @@ describe("功能角色独立关系", () => {
   it.each([
     [direct, related],
     [related, direct]
-  ])("只移除所选关系并保留另一个来源", (removed, kept) => {
-    expect(withoutRoleRelation([direct, related], removed)).toEqual([kept]);
+  ])("按精确关系确认读回结果，不把其他来源当作目标", (removed, kept) => {
+    expect(hasRoleRelation([direct, related], removed)).toBe(true);
+    expect(hasRoleRelation([kept], removed)).toBe(false);
+    expect(hasRoleRelation([kept], kept)).toBe(true);
   });
 });

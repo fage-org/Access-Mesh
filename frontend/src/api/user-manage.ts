@@ -360,13 +360,13 @@ export const assignRole = async (data: {
   );
 };
 
-/** 回收功能角色（POST /api/access/user-role/revoke，items[] 批量、业务键标识） */
+/** 回收后读取实际关系；成功信封可能包含被服务端跳过的无权项，不能据此推断已移除。 */
 export const revokeRole = async (data: {
   userId: number;
   roleTypeCode: string;
   roleExternalId: string;
   relationId: number | null;
-}): Promise<void> => {
+}): Promise<UserRoleItem[]> => {
   unwrap(
     await http.request<R<void>>("post", "/api/access/user-role/revoke", {
       data: {
@@ -382,6 +382,7 @@ export const revokeRole = async (data: {
       }
     })
   );
+  return getUserRoles(data.userId);
 };
 
 // ========== /api/access/org CRUD API ==========

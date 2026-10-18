@@ -22,7 +22,7 @@ import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import { hasPerms } from "@/utils/auth";
 import { ORG_USER_PERMS } from "../utils/perms";
 import { ASSIGNABLE_ROLE_TYPE_CODES } from "../utils/roleAssignCandidates";
-import { roleRelationKey, withoutRoleRelation } from "../utils/roleRelations";
+import { roleRelationKey, hasRoleRelation } from "../utils/roleRelations";
 import { useRemotePagedOptions, mergeSelected } from "../utils/remoteOptions";
 import Remove from "~icons/ep/remove";
 import AddFill from "~icons/ri/add-circle-line";
@@ -280,17 +280,27 @@ const availableOrgs = computed(() => {
 // ========== 角色操作 ==========
 
 async function handleRevoke(role: UserRoleItem) {
+  const userId = props.user?.id;
+  if (!userId) return;
   try {
-    await revokeRole({
-      userId: props.user!.id,
+    const actualRoles = await revokeRole({
+      userId,
       roleTypeCode: role.roleTypeCode,
       roleExternalId: role.roleExternalId,
       relationId: role.relationId
     });
-    roles.value = withoutRoleRelation(roles.value, role);
-    message("所选角色关系已移除，其他关系不受影响", { type: "success" });
+    if (props.user?.id !== userId) return;
+    roles.value = actualRoles;
+    if (hasRoleRelation(actualRoles, role)) {
+      message("所选角色关系仍存在，未确认移除，请检查管理权限后重试", {
+        type: "warning"
+      });
+    } else {
+      message("列表已刷新，所选关系已不在当前有效列表中", { type: "info" });
+    }
   } catch {
-    message("移除失败", { type: "error" });
+    if (props.user?.id === userId)
+      message("未能确认移除结果，请刷新后检查", { type: "error" });
   }
 }
 

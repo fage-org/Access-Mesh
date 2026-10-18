@@ -100,9 +100,11 @@ docs/
 | 默认组织树与用户生命周期 | [design/default-org-tree-user-lifecycle.md](design/default-org-tree-user-lifecycle.md)                                                |
 | PostgreSQL 表结构    | [design/schema/access-service.sql](design/schema/access-service.sql)（唯一权威 DDL）                                                 |
 
-自动授权设计已采纳[简化方案](design/dependency-auto-grant.md)；资源与依赖独立接入，实施前细化仍由 T-PERM-078 承接。
+自动授权已按[简化方案](design/dependency-auto-grant.md)交付，资源与依赖独立接入；剩余真实业务 SQL 消费验证由 [T-PERM-036](tasks/T-PERM-036.md) 承接并继续暂缓。
 
 ## 执行计划
+
+[最近变更核实修复与状态校准](archive/2026-10-18/recent-change-review-remediation.md)已完成归档，当前无活跃计划。当前待办以[任务看板顶部入口](tasks/README.md#当前待办入口)为准；T-PERM-036 保持暂缓。
 
 独立任务 [T-ACCESS-114](archive/2026-10-18/tasks/T-ACCESS-114.md) 已完成归档；实时任务状态见[任务看板](tasks/README.md)。
 

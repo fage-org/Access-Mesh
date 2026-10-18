@@ -22,6 +22,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { AxiosInstance, InternalAxiosRequestConfig } from "axios";
+import { defer } from "@/test-support/async";
 
 const {
   mockUser,
@@ -473,6 +474,37 @@ describe("cross-tab HTTP ownership", () => {
       }
     ).axiosInstance;
   }
+  it("rechecks ownership after asynchronously decoding a JSON error Blob", async () => {
+    const decoding = defer<void>();
+    const content = defer<string>();
+    const body = new Blob([], { type: "application/json" });
+    vi.spyOn(body, "text").mockImplementation(() => {
+      decoding.resolve();
+      return content.promise;
+    });
+    instance().defaults.adapter = config =>
+      Promise.reject(
+        Object.assign(new Error("mismatch"), {
+          config,
+          response: { status: 409, data: body, config, headers: {} }
+        })
+      );
+    const request = http.post("/api/access/log/operation/export", {
+      responseType: "blob"
+    });
+    const rejected = expect(request).rejects.toThrow("登录状态已改变");
+    await decoding.promise;
+    mockGetToken.mockReturnValue({
+      sessionId: "new-user",
+      expires: Date.now() + 60000
+    });
+    boundary.acceptLocalTenantSession("new-user");
+    content.resolve(JSON.stringify({ code: 90002 }));
+    await rejected;
+    expect(mockRemoveTenantSession).not.toHaveBeenCalled();
+    expect(mockLogOut).not.toHaveBeenCalled();
+    expect(boundary.tenantSessionBlocked.value).toBe(false);
+  });
   it("blocks old-page calls before the storage notification without logging out the new identity", async () => {
     installAdapter(() => 403);
     mockGetToken.mockReturnValue({
@@ -753,23 +785,55 @@ describe("platform response and tenant isolation", () => {
   });
 });
 
-it("server Cookie/context mismatch clears only its own active metadata and blocks old UI", async () => {
-  const ctor = Object.getPrototypeOf(http).constructor as {
-    axiosInstance: AxiosInstance;
-  };
-  ctor.axiosInstance.defaults.adapter = config =>
-    Promise.reject(
-      Object.assign(new Error("mismatch"), {
-        config,
-        response: { status: 409, data: { code: 90002 }, config, headers: {} }
-      })
+it.each([
+  ["tenant", "json"],
+  ["tenant", "blob"],
+  ["platform", "blob"]
+] as const)(
+  "server %s Cookie/context mismatch in %s clears only its own active metadata and blocks old UI",
+  async (realm, format) => {
+    mockPlatformSession.mockReturnValue({
+      sessionId: "operator-A",
+      expires: Date.now() + 60000
+    });
+    const ctor = Object.getPrototypeOf(http).constructor as {
+      axiosInstance: AxiosInstance;
+    };
+    ctor.axiosInstance.defaults.adapter = config =>
+      Promise.reject(
+        Object.assign(new Error("mismatch"), {
+          config,
+          response: {
+            status: 409,
+            data:
+              format === "blob"
+                ? new Blob([JSON.stringify({ code: 90002 })], {
+                    type: "application/json"
+                  })
+                : { code: 90002 },
+            config,
+            headers: {}
+          }
+        })
+      );
+    await expect(
+      http.post(
+        realm === "tenant"
+          ? "/api/access/user/page"
+          : "/api/access/tenant/page",
+        { authRealm: realm }
+      )
+    ).rejects.toThrow("登录状态已改变");
+    expect(mockRemoveTenantSession).toHaveBeenCalledTimes(
+      realm === "tenant" ? 1 : 0
     );
-  await expect(http.post("/api/access/user/page")).rejects.toThrow(
-    "登录状态已改变"
-  );
-  expect(mockRemoveTenantSession).toHaveBeenCalledTimes(1);
-  expect(mockRemovePlatformSession).not.toHaveBeenCalled();
-  expect(mockLogOut).not.toHaveBeenCalled();
-  const boundary = await import("@/utils/tenant-session");
-  expect(boundary.tenantSessionBlocked.value).toBe(true);
-});
+    expect(mockRemovePlatformSession).toHaveBeenCalledTimes(
+      realm === "platform" ? 1 : 0
+    );
+    expect(mockLogOut).not.toHaveBeenCalled();
+    const boundary = await import("@/utils/tenant-session");
+    const platform = await import("@/utils/platform-session");
+    expect(boundary.tenantSessionBlocked.value).toBe(realm === "tenant");
+    expect(platform.platformSessionBlocked.value).toBe(realm === "platform");
+  }
+);

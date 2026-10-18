@@ -3104,6 +3104,8 @@ schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正�
 <a id="contract-section-19-10-1"></a>
 #### 19.10.1 可选 registration SDK
 
+注册 publisher 优先复用宿主 `ObjectMapper`，无宿主对象时仅创建局部默认对象，不注册全局 mapper、不要求引入 Web 或 Jackson 自动配置模块；两种路径都保持清单未知字段及尾随内容的严格拒绝（T-API-014）。
+
 `perm-registration-spring-boot-starter` 默认不装配，配置 `perm.registration.enabled=true` 后提供 PermissionRegistrationPublisher。复用 `perm.credential-id/credential-secret` 与显式 true/false 的 `perm.allow-insecure`，不另建密钥；默认单租户静态发布另用 `perm.tenant-id`、`perm.service-code`。多租户逐调用传 RegistrationTarget，自带完整凭证，既有拦截器不覆盖它。
 
 - `capture(generation, revision, PermissionManifestProvider)` 只读取一次依赖并固定输入；generation 来自来源提交顺序。`publish(target, snapshot)` 独立发送 manifest；重试传原 snapshot，不重读 Provider。

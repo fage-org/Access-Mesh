@@ -147,10 +147,10 @@ docker compose exec -T postgresql rm "$tmp_restore"
 
 租户首管理员凭据可由平台运营界面受审计重置，但不恢复状态和角色，已删除则拒绝。客户内部管理员仍按租户内流程管理用户；所有管理员失联或授权墓碑异常需部署方维护窗口核对，不能假定存在固定租户 1。
 
-生成 BCrypt 哈希可使用已有交互工具（明文不放命令参数）：
+生成 BCrypt 哈希可使用已有交互工具（明文不放命令参数）。以下 JAR 版本与根 pom 的 `sa-token.version` 一致；先完成当前版本依赖解析，不依赖历史 Maven 缓存：
 
 ```bash
-java --class-path "$HOME/.m2/repository/cn/dev33/sa-token-core/1.38.0/sa-token-core-1.38.0.jar" tools/ops/PasswordHash.java
+java --class-path "$HOME/.m2/repository/cn/dev33/sa-token-core/1.46.0/sa-token-core-1.46.0.jar" tools/ops/PasswordHash.java
 ```
 
 工具校验与服务写入口同口径（T-PERM-110）：密码须 8–32 位、含字母和数字，且 UTF-8 字节长度不超过 72（约 24 个汉字）——BCrypt 只参与前 72 字节，超限密码尾部差异会被静默忽略，先拒后哈希。

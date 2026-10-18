@@ -3,7 +3,7 @@ doc_type: design
 title: 登录页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-10-17
+last_reviewed: 2026-10-18
 ---
 
 # 登录页 前端设计（T-FE-041 真实登录链路）
@@ -72,6 +72,8 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 - `isSessionTerminated` 统一判断活动元数据缺失、标记缺失或本地 expires 已到期。请求短路时提示“会话已过期，请重新登录”（10 秒去重），立即 logOut 清理并抛 SessionExpiredError；不发出已知无效的业务请求。登录、验证码与注销进入各自窄分支，注销显式使用请求创建时的原标记。
 - 401 只终结对应的当前会话：先检查请求代际，再比较 X-AM-Session 与当前 sessionId；主动退出后迟到 401 不重复弹过期提示，旧会话响应不得注销新身份。403 维持原能力刷新去重规则，503 等错误由页面处理。
 - HTTP 409 + code=90002 表示 Cookie 与页面上下文不一致；只在请求仍属于当前页会话时清除对应活动元数据并阻断旧界面，确认重新载入后进入登录页。此分支不调用注销新 Cookie、不重放写请求、不触发权限刷新。
+
+JSON 类型的 Blob 错误响应同样经过公共 HTTP 层的会话处置；异步读取响应体后重新校核请求所属会话，旧响应不得清除或阻断新身份。CSV 导出不另设会话例外（T-FE-074）。mock 登录的菜单查询使用同一 `X-AM-Session` 头传递测试身份（T-FE-075）。
 
 <a id="cross-tab-session-status"></a>
 ## 跨标签会话同步交付边界

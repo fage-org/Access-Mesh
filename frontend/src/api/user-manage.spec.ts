@@ -19,14 +19,44 @@ const page = (items: unknown[], hasNext: boolean) => ({
 });
 
 describe("撤回用户角色关系", () => {
+  it("does not report a result when the post-revoke read fails", async () => {
+    mockRequest
+      .mockReset()
+      .mockResolvedValueOnce({ code: 200, data: null })
+      .mockRejectedValueOnce(new Error("read unavailable"));
+    await expect(
+      revokeRole({
+        userId: 10,
+        roleTypeCode: "BASIC_ROLE",
+        roleExternalId: "report-reader",
+        relationId: null
+      })
+    ).rejects.toThrow("read unavailable");
+  });
   it.each([null, 200])("请求保留所选关系 %s", async relationId => {
-    mockRequest.mockReset().mockResolvedValue({ code: 200, data: null });
-    await revokeRole({
+    const remaining = [
+      {
+        roleTypeCode: "BASIC_ROLE",
+        roleExternalId: "report-reader",
+        relationId
+      }
+    ];
+    mockRequest
+      .mockReset()
+      .mockResolvedValueOnce({ code: 200, data: null })
+      .mockResolvedValueOnce({ code: 200, data: { items: remaining } });
+    const actual = await revokeRole({
       userId: 10,
       roleTypeCode: "BASIC_ROLE",
       roleExternalId: "report-reader",
       relationId
     });
+    expect(actual).toEqual(remaining);
+    expect(mockRequest).toHaveBeenLastCalledWith(
+      "post",
+      "/api/access/user-role/view",
+      { data: { userId: 10 } }
+    );
     expect(mockRequest).toHaveBeenCalledWith(
       "post",
       "/api/access/user-role/revoke",

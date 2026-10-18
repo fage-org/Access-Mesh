@@ -63,20 +63,6 @@ last_updated: 2026-10-18
 
 **处理入口**：强制下线继续暂缓，边界见[会话吊销契约](design/access-service-api-contract.md#admin-force-logout-status)；验证码替代通道继续暂缓，已明确[无法读图用户的限制](design/frontend/login.md#captcha-accessibility-status)；跨标签租户会话同步已完成，由 [T-FE-071](archive/2026-10-17/tasks/T-FE-071.md) 承接，范围见[登录设计](design/frontend/login.md#cross-tab-session-status)；平台同步由 [T-FE-072](archive/2026-10-17/tasks/T-FE-072.md) 完成；HttpOnly 改造由 [T-ACCESS-109](archive/2026-10-17/tasks/T-ACCESS-109.md) 完成，当前范围与兼容边界见[认证设计](design/browser-session-authentication.md)。
 
-<a id="q-069"></a>
-## Q-069 OAuth2 client_id 跨租户命名冲突与存在性泄露
-
-- **状态**：converted
-- **登记**：2026-10-08
-- **来源**：租户生命周期批次三通道评审（claude 通道发现并核实，定性"既有约束被本批多租户常态化放大"）；同日用户拍板修法方向
-- **关联**：[T-ACCESS-097](tasks/T-ACCESS-097.md)
-
-**现象与证据**：`sys_oauth2_client` 的 `uk_oauth2_client_id` 唯一索引不含 tenant_id（schema L116），客户端按 clientId 单参解析（OAuth2AppServiceImpl.getValidClient / RequestContextInterceptor）。租户 B 注册租户 A 已用标识（如 `admin-web`）被全局拒绝，且错误信息向 B 泄露该标识已被他租户占用。
-
-**影响与边界**：历史单租户期撞名场景不存在；本批"各租户自行注册客户端"成为常态后冲突必然出现——跨租户命名耦合 + 存在性泄露，无数据损坏。
-
-**拍板（2026-10-08）**：client_id 改租户内唯一（索引 (tenant_id, client_id)、客户端解析带租户、重复注册不泄露他租户存在性）；实施细节与验收见关联任务卡。
-
 <a id="q-067"></a>
 ## Q-067 登录事务内同步 REQUIRES_NEW 审计造成连接池双重占用
 
@@ -206,6 +192,7 @@ last_updated: 2026-10-18
 
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
+| <a id="q-069"></a>Q-069 | OAuth2 client_id 跨租户命名冲突与注册面存在性泄露 | 已收敛：租户内唯一索引及按凭据租户解析已交付，注册面不再泄露他租户占用；完成于 2026-10-08，本次补齐索引与归档 | [T-ACCESS-097](archive/2026-10-18/tasks/T-ACCESS-097.md) | 2026-10-18 |
 | <a id="q-076"></a>Q-076 | 服务凭证验密成本 | 已收敛：SHA-256 替换逐请求 BCrypt，保留实时状态检查；旧凭证重新签发，无兼容。部署吞吐不作本任务承诺 | [T-ACCESS-114](archive/2026-10-18/tasks/T-ACCESS-114.md) | 2026-10-18 |
 | <a id="q-073"></a>Q-073 | 已完成导出产物领取 | 已收敛：成功产物归原提交者领取，保留接口准入与租户/用户归属检查 | [T-ACCESS-112](archive/2026-10-17/tasks/T-ACCESS-112.md) | 2026-10-17 |
 | <a id="q-074"></a>Q-074 | 服务删除与旧凭证复活 | 已收敛：新版删除同事务回收凭证；旧版本遗留由维护人员在同码重建前人工清理 | [T-ACCESS-111](archive/2026-10-17/tasks/T-ACCESS-111.md) | 2026-10-17 |

@@ -4,6 +4,8 @@ import cn.ac.fage.accessmesh.perm.registration.PermissionRegistrationPublisher;
 import cn.ac.fage.accessmesh.perm.registration.RegistrationResult;
 import cn.ac.fage.accessmesh.perm.registration.feign.PermissionManifestClient;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
+import org.springframework.beans.factory.ObjectProvider;
 import jakarta.validation.Validator;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -28,9 +30,11 @@ public class PermRegistrationAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     PermissionRegistrationPublisher permissionRegistrationPublisher(PermissionManifestClient client,
-            ObjectMapper json, Validator validator, PermRegistrationProperties properties) {
+            ObjectProvider<ObjectMapper> json, Validator validator, PermRegistrationProperties properties) {
         properties.validateCredentialPair();
-        return new PermissionRegistrationPublisher(client,json,validator,properties.declaredAllowInsecure());
+        // 局部兜底支持无 Web 宿主；不向宿主注册全局 mapper，严格清单解析仍由 publisher 保证。
+        ObjectMapper mapper = json.getIfAvailable(() -> JsonMapper.builder().configureForJackson2().build());
+        return new PermissionRegistrationPublisher(client,mapper,validator,properties.declaredAllowInsecure());
     }
 
     @Bean

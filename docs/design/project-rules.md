@@ -3,7 +3,7 @@ doc_type: design
 title: 项目开发规范（PROJECT RULES）
 status: adopted
 domain: common
-last_reviewed: 2026-10-17
+last_reviewed: 2026-10-18
 ---
 
 # 项目开发规范（PROJECT RULES）
@@ -387,6 +387,7 @@ OAuth2 JWT 的签发与验签由 `OAuth2JwtSupport` 适配 Nimbus JOSE + JWT；S
 - **common 不携带任何 META-INF 装配注册**：`UtcTimezoneEnvironmentPostProcessor`（类在 common）与 `CommonAutoConfiguration`/`CacheAutoConfiguration`/`RedissonCacheAutoConfiguration` 的注册由平台应用各自的 `META-INF/spring.factories` / `AutoConfiguration.imports` 声明——access-service/example-service 装配全部四条；gateway 装配缓存两条，`CommonAutoConfiguration` 行采用「注册以排除」（候选登记 + 主类 exclude）：exclude 校验要求被排除类是自动装配候选（非候选直接抛错），而 E2E 共享大类路径〔子进程类路径含兄弟模块 target/classes〕会经其他服务注册文件带入该类（平台 GlobalExceptionHandler 与 gateway 自有同名 Bean 冲突）——候选登记 + exclude 在任意类路径形态下均合法且净效果恒为不装配。缓存自动配置方法签名引用 optional 依赖，注册外溢到缺件宿主会在条件求值期 `NoClassDefFoundError` 炸掉宿主启动，这是注册不出 common 的硬理由。
 - **SDK 闭包零日志实现**：boot 聚合器 `spring-boot-starter`（零类 jar，固定携带 `starter-logging`→Logback/log4j-to-slf4j/jul-to-slf4j）不出现在 SDK 任何 compile 边——client starter 以 `spring-boot-autoconfigure` 取代 `spring-boot-starter` 直依，openfeign/loadbalancer/validation 深边一律排除聚合器（深边在真实 Boot 宿主中恒输于宿主自身的浅路径，无「反向剪除宿主后端」面）。SDK 真正公共依赖显式化：`slf4j-api`/`jakarta.annotation-api` provided（宿主必然供应），Jackson 3 `jackson-databind` compile（内置 Java time，契约 DTO 时间字段编解码），`spring-boot-http-converter` 提供 Feign 客户端转换器扩展接口、不携带 MVC 容器或日志实现。SDK 库模块测试域绑定全局 `spring-boot-starter-test` 携带的 Logback（单 Provider）；平台应用运行形态仍统一 Log4j2。
 - **SDK Feign 编解码自洽**：Spring Cloud OpenFeign 5 使用 `FeignHttpMessageConverters` 和 `ClientHttpMessageConvertersCustomizer`。`PermFeignClientsConfiguration` 仅在权限客户端子上下文提供 JSON 定制器，复用宿主已有 JsonMapper；无宿主 mapper 时创建局部 Jackson 3 mapper（ISO 时间串、未知字段宽容），不向宿主注册自己的全局 mapper 或凭证拦截器。宿主 Web 栈形态不影响 SDK 的 JSON 编解码。
+- **注册清单编解码**：registration publisher 优先复用宿主 ObjectMapper，缺失时采用局部默认对象，不增加宿主全局 mapper 或配置开关；严格拒绝未知字段和尾随内容的规则保持（T-API-014）。
 - **回归锁**：`sdk-host-probe`（WebFlux+Logback 宿主，四把锁：日志实现类路径与 Provider 绑定/时区不改写/无 @RestControllerAdvice 与 common 包 Bean/应用类型推断 REACTIVE）与 `sdk-host-probe-log4j2`（自选 Log4j2 且自身边剪除默认 logging 的宿主：Logback/log4j-to-slf4j/jul-to-slf4j 缺席 + SLF4J 绑定 Log4j2）两模块，均红跑证实旧边界下失败。
 
 ---

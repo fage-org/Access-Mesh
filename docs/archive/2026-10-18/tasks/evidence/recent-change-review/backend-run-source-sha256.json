@@ -1,0 +1,15 @@
+{
+  "access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/task/JobScheduleReconciler.java": "85732f5ebabbe0f2f5ab39ba1db52e60695bf85d17f3c5e88cc92a7220a7aaea",
+  "access-service/src/test/java/cn/ac/fage/accessmesh/access/infrastructure/task/JobScheduleReconcilerTest.java": "b32bc8c660857f770119023959eaf590dae3cb841e21e44186952bb7e2256ef1",
+  "frontend/mock/login.spec.ts": "c893c2ec49702ea1914d212d98adb58ca42a5f10c802296830d3e504f48d493a",
+  "frontend/mock/login.ts": "e58461cb8669beaac522f12fcf1a9bb7f604e6637b55650e110e0c0bd8f0c016",
+  "frontend/src/api/user-manage.spec.ts": "9fce337e5743891a6810a7274f7b7ca2c2670cf87e92d77a6c0c78d6aa64377b",
+  "frontend/src/api/user-manage.ts": "3ea303d5a1b2b49914ab17bf192522e1adb21359c8cdd875cc9c08d99214c996",
+  "frontend/src/utils/http/index.spec.ts": "46e6659d37b8ba836b394fa94b64824d3a96fe815d5e0303caea968370ee4fd0",
+  "frontend/src/utils/http/index.ts": "bdb4356db9a14f0c7bfb50fbc1aeada11d09a0b991d46f6541e9d458271ade81",
+  "frontend/src/views/system/user/components/UserDetailPanel.vue": "fcf793d125ada9e90005cf467eb663058c2b0040363357e5f3ea676550e2fb1f",
+  "frontend/src/views/system/user/utils/roleRelations.spec.ts": "b77792e0bd495838ea4d4f2ae71fe880a63c6ba66b2e93c63ab3c57e3444cb22",
+  "frontend/src/views/system/user/utils/roleRelations.ts": "18b14d18d5c769261119dc0b16af0e1ff4d1e08701655470ab5695455c350cc6",
+  "perm-sdk/perm-registration-spring-boot-starter/src/main/java/cn/ac/fage/accessmesh/perm/registration/config/PermRegistrationAutoConfiguration.java": "68218d442664b1d5084347e71378111c8765b6e4f75e2c6e2a7cd31181308b3b",
+  "perm-sdk/perm-registration-spring-boot-starter/src/test/java/cn/ac/fage/accessmesh/perm/registration/PermRegistrationAutoConfigurationTest.java": "f772d3fadda39253a2f6b1e0c7c41329ebe8ea3b792c311e3919e87b6c96d82e"
+}

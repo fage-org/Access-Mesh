@@ -4,12 +4,13 @@
 
 ## 当前计划
 
-当前无活跃计划；任务状态见[任务看板](../tasks/README.md)。
+当前无活跃计划；最近变更核实修复与状态校准已完成归档，任务状态见[任务看板](../tasks/README.md)。
 
 ## 已归档计划
 
 | 文档 | 类型 | 状态 | 说明 |
 |------|------|------|------|
+| [recent-change-review-remediation](../archive/2026-10-18/recent-change-review-remediation.md) | 最近变更核实修复与状态校准 | archived | [核实与验收](../archive/2026-10-18/tasks/evidence/recent-change-review/verification.md) |
 | [permission-lifecycle-boundaries-plan](../archive/2026-10-17/permission-lifecycle-boundaries-plan.md) | 权限生命周期边界收口 | archived | [任务与验收](../archive/2026-10-17/tasks/evidence/lifecycle-boundaries/verification.md) |
 | [audit-log-lifecycle-plan](../archive/2026-10-17/audit-log-lifecycle-plan.md) | 审计日志导出与保留策略 | archived | [任务与验收](../archive/2026-10-17/audit-log-lifecycle-plan.md)，Q-061 已收敛 |
 | [scenario-audit-remediation-plan](../archive/2026-10-17/scenario-audit-remediation-plan.md) | 架构与使用场景持续审查问题修复 | archived | 全部任务及验收证据见[归档批次](../archive/2026-10-17/README.md)；批准例外仍按现行安全规范执行 |

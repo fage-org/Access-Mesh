@@ -1,12 +1,12 @@
 ---
 doc_type: design
 title: AccessMesh 扩展指南（接入与二次开发全景）
-status: adopted（2026-09-12 用户确认定稿；双通道外评两轮处置收口）
+status: adopted
 domain: common
 design_refs:
   - docs/design/architecture.md
   - docs/design/access-service-api-contract.md
-last_reviewed: 2026-10-17
+last_reviewed: 2026-10-18
 ---
 
 # AccessMesh 扩展指南（接入与二次开发全景）
@@ -256,7 +256,7 @@ URL 指向服务根地址，不附加 /api/access（方法映射已包含完整�
 | 条件操作符扩展 | **封闭** | 仅 4 类内置操作符，无 SPI |
 | 权限源扩展 | **不存在** | 统一引擎唯一事实源（role_perm_entry + 同事务投影）；历史上设想的「权限源策略」已随 T-PERM-057 统一引擎重构收编 |
 | 自动授权（依赖补全） | **已交付** | 凭证（070）、声明编译/资源共序/SDK/迁移（071）、角色物化（072）、来源解释/授撤预览/声明诊断/对账（073）均收口（2026-09-21）；旧写入口和 autoGrant 已退役。管理员视角：授权页「预览影响」看授撤连带影响（仅供参考）、依赖页查声明状态与角色来源 DAG、任务管理页按需触发自动授权对账（种子默认停用） |
-| 动态数据权限端到端 | **延后** | T-PERM-036 延后至 example-service 演示；scopeMode→SQL 映射契约已定（api-contract §6.7） |
+| 动态数据权限端到端 | **延后** | [T-PERM-036](../tasks/T-PERM-036.md) 继续暂缓；已交付的报表列表不等同真实 SQL 过滤验证，四态消费见[契约 §18.6](access-service-api-contract.md#contract-section-18-6) |
 | 内置事实链路类型写入 | **禁止** | USER/ORG/MENU/ROLE 等归 access-service 内部 SYNC，外部同步一律拒（§4） |
 | 异常告警通知渠道 | **不做** | 异步异常可观测性由 log.error 承载；钉钉/邮件等告警渠道不在开源 IAM 核心范围（T-PERM-038 定性），接入方经日志采集侧自行对接 |
 | resource-dependency 管理写入 | **已关闭** | 管理页只读；所属服务经独立 manifest 发布，旧 create/update/remove/batch-sync 不再提供 |

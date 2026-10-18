@@ -4,7 +4,7 @@ title: access-service 目标架构与归并约束
 status: adopted
 domain: cross-service
 supersedes: docs/archive/2026-08-15/admin-permission-sync.md
-last_reviewed: 2026-10-17
+last_reviewed: 2026-10-18
 ---
 
 # access-service 目标架构与归并约束
@@ -308,6 +308,8 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 - **测试**：`TaskExecutionLeaseConcurrencyTest`（PostgreSQL Testcontainers，双实例以不同 lease_owner + 并发线程模拟；建表在 `@BeforeAll`——先于 Spring 上下文创建，因 `JobServiceImpl @PostConstruct` 会查 `sys_job`）覆盖并发抢占唯一赢家、续租仅持有者且仅当前尝试号、**同实例接管自己的过期任务被 attempt fencing 挡住**、过期接管 + 旧持有者不可覆盖、SUCCESS 不可重抢占、抢占超限阻断、FAILED 至少一次重试、**僵尸执行收敛（任务删除后 attempt 拉满不再候选）与 abandon 对并发抢占/SUCCESS 行的 fencing**、编排级幂等（同一执行键多触发只执行一次）与接管重试携带同一幂等键；单元测试覆盖拒绝与调度器拓扑（`TaskExecutorConfigTest`：拒绝转 TaskRejectedException、ApplicationContextRunner 验证共享/续租两调度器 Bean 互异且池大小正确）、对账编排（`JobServiceImplTest`：拒绝时停续租写 FAILED / 停用删除跳过 / 对账 diff 不重建 / **cron 变更替换调度** / 停用取消 / **批量加载失败保持现有调度**）、CGLIB 代理白名单解析（`JobInvokeDomainServiceTest`）、执行键构建与反解（`TaskExecutionDomainServiceImplTest`）。
 
 ### 8.2 审计事务分级
+
+部署任务定义同步与全任务调度对账由 `JobScheduleReconciler` 统一在启动就绪及每 60 秒执行，先同步定义、再对账调度；两个步骤分别记录失败，定义同步失败不阻断普通任务对账。此编排不增加独立周期扫描器（T-ACCESS-115）。
 
 审计生命周期由 audit 能力包承载：三类租户日志的有界 CSV 导出复用响应脱敏；期限清理复用任务租约，经平台 DomainService 批量登记部署任务，租户域行锁与任务尝试行锁共同保护每批删除。配置默认关闭、启动读取，停用租户暂停；完整契约与部署参数见[API 契约 §16.7](access-service-api-contract.md#contract-section-16-7)。不增加归档存储，平台审计不纳入清理。
 

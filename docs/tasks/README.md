@@ -10,17 +10,37 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| access-service 归并（跨服务） | `T-ACCESS` | 115 |
+| access-service 归并（跨服务） | `T-ACCESS` | 116 |
 | permission-center | `T-PERM` | 113 |
 | admin-service | `T-ADMIN` | 036 |
 | gateway | `T-GW` | 015 |
 | 组织/用户（跨 admin+perm） | `T-ORG` | 006 |
-| 跨服务 API 契约 | `T-API` | 014 |
-| 前端 | `T-FE` | 074 |
+| 跨服务 API 契约 | `T-API` | 015 |
+| 前端 | `T-FE` | 077 |
 
 > 新建任务时从对应领域取下一编号，计数器 +1。
 
+## 当前待办入口
+
+当前无实施中或评审中任务；[最近变更核实修复与状态校准](../archive/2026-10-18/recent-change-review-remediation.md)已完成归档。未成任务的问题见[待解决问题](../pending-problems.md)。
+
+| ID | 标题 | 状态 | 直接依赖 |
+|---|---|---|---|
+| [T-PERM-036](T-PERM-036.md) | scopeMode → 业务 SQL 端到端验证（暂缓） | ⚙️ | T-FE-013、T-PERM-033 |
+
+T-PERM-036 继续暂缓，需用户明确解除门禁。下方已完成批次及历史执行顺序只用于追溯，不重新启动。
+
 ## 任务总表
+
+### 最近变更核实修复与状态校准（已归档）
+
+| ID | 标题 | 状态 | 直接依赖 |
+|---|---|---|---|
+| [T-ACCESS-115](../archive/2026-10-18/tasks/T-ACCESS-115.md) | 统一部署任务登记与调度对账 | ✅ | — |
+| [T-API-014](../archive/2026-10-18/tasks/T-API-014.md) | 注册 SDK 无宿主 JSON 对象装配 | ✅ | — |
+| [T-FE-074](../archive/2026-10-18/tasks/T-FE-074.md) | Blob 错误响应会话边界 | ✅ | — |
+| [T-FE-075](../archive/2026-10-18/tasks/T-FE-075.md) | mock 菜单会话标记接线 | ✅ | — |
+| [T-FE-076](../archive/2026-10-18/tasks/T-FE-076.md) | 角色撤回后的有效关系反馈 | ✅ | — |
 
 ### 服务凭证 SHA-256 验密
 
@@ -100,11 +120,11 @@
 | [T-ACCESS-104](../archive/2026-10-17/tasks/T-ACCESS-104.md) | 无权删除全拒反馈修正（P2） | ✅ | — | ✓ |
 | [T-ACCESS-105](../archive/2026-10-17/tasks/T-ACCESS-105.md) | 存量依赖漏洞核实与高危扫描阻断清理 | ✅ | — | ✓ |
 
-### OAuth2 客户端租户内唯一（待启动，Q-069 承接）
+### OAuth2 客户端租户内唯一（已完成并归档）
 
 | ID | 标题 | 状态 | 直接依赖 | 回写 |
 |---|---|---|---|---|
-| [T-ACCESS-097](T-ACCESS-097.md) | OAuth2 客户端租户内唯一改造 | ✅ | — | ✓ |
+| [T-ACCESS-097](../archive/2026-10-18/tasks/T-ACCESS-097.md) | OAuth2 客户端租户内唯一改造 | ✅ | — | ✓ |
 
 ### 租户开通与独立平台运营（2026-10-08 完成归档）
 
@@ -402,7 +422,7 @@
 | [T-PERM-071](../archive/2026-09-24/tasks/T-PERM-071.md) | 独立依赖声明与可选 SDK 协调（✅ 2026-09-21 收口：全量含 E2E 1842 项 0 失败；双轨+四任务内外评审处置完毕〔claude P3×3 全处置、风格转出 T-PERM-079、拍板与豁免登记见 [历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日三行〕；迁移未在任何部署库执行） | —（自动授权实施序列） | [简化设计](../design/dependency-auto-grant.md) | T-PERM-070, T-PERM-078, T-PERM-074 | ✅ | ✓ |
 | [T-PERM-072](../archive/2026-09-24/tasks/T-PERM-072.md) | 自动授权物化与共享推导 | —（自动授权实施序列） | [简化设计](../design/dependency-auto-grant.md) | T-PERM-071 | ✅ | ✓ |
 | [T-PERM-073](../archive/2026-09-24/tasks/T-PERM-073.md) | 按需来源解释、授权界面与对账 | —（自动授权实施序列） | [简化设计](../design/dependency-auto-grant.md) | T-PERM-072 | ✅ | ✅ |
-| [T-PERM-036](T-PERM-036.md) | 动态数据权限端到端验证（scopeMode → SQL 映射链路）— ⚠️ design-review §11 Q7/B 暂缓（延后 example-service） | —（2026-09-14 脱出已归档计划，暂缓等 PM 重申） | 契约总册 §18.6；engine/core-flows；engine/implementation | T-FE-013, T-PERM-033 | ⚙️ | ⏳ |
+| [T-PERM-036](T-PERM-036.md) | 动态数据权限端到端验证（scopeMode → 业务 SQL，暂缓） | —（2026-09-14 脱出已归档计划，暂缓等 PM 重申） | 契约总册 §18.6；engine/core-flows；engine/implementation | T-FE-013, T-PERM-033 | ⚙️ | ⏳ |
 | [T-PERM-037](../archive/2026-09-14/tasks/T-PERM-037.md) | 跨页共性接口改造 + api-contract 回写收尾（已收口 2026-08-31，审计型零代码变更，终态见任务卡完成记录） | [frontend-phase2](../archive/2026-09-14/frontend-phase2-plan.md)（已归档） | api-contract；implementation | T-PERM-022~034 | ✅ | ✓ |
 | [T-PERM-038](../archive/2026-09-12/tasks/T-PERM-038.md) | 全局 TODO 收口（已收口 2026-09-12：附录 A 七条定性——3 条消解/2 条 T-PERM-035 预留保留/2 条失效注释删除；终态见任务卡处置记录） | [frontend-phase4](../archive/2026-09-12/frontend-phase4-plan.md) | —（工程改进，无设计回写） | — | ✅ | — |
 | [T-PERM-039](../archive/2026-09-12/tasks/T-PERM-039.md) | 测试补充（已收口 2026-09-12：覆盖重估——access-service 157 测试文件/permission 域 33/36 实现类有直接测试，原「每接口 1+2」口径已被各任务回归锁实质取代，定性依据见任务卡） | [frontend-phase4](../archive/2026-09-12/frontend-phase4-plan.md) | —（工程改进，无设计回写） | T-PERM-037 | ✅ | — |
@@ -546,9 +566,9 @@ _当前无未终态 T-ADMIN 任务。`T-ADMIN-001~019`（用户角色代理修�
 
 ---
 
-## 建议执行顺序
+## 历史执行顺序（仅追溯）
 
-依据：①评审定级（A/B/C 为 P0）②依赖解锁价值 ③验收闭环优先 ④无依赖可立即并行。
+以下为已结束批次的历史编排，不作为当前待办或启动指令。当前工作见本页顶部入口；暂缓事项必须遵循任务卡门禁。
 
 ### 问题清单转出（已归档，2026-10-04）
 

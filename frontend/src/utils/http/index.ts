@@ -210,9 +210,20 @@ class PureHttp {
         }
         return response.data;
       },
-      (error: PureHttpError) => {
+      async (error: PureHttpError) => {
         const $error = error;
         $error.isCancelRequest = Axios.isCancel($error);
+        // Blob downloads carry JSON error envelopes too. Decode before the shared
+        // error branches; the ownership checks below must run after this await.
+        const response = $error.response;
+        const body = response?.data;
+        if (response && body instanceof Blob && body.type.includes("json")) {
+          try {
+            response.data = JSON.parse(await body.text());
+          } catch {
+            // Preserve the original transport error when its body is unreadable.
+          }
+        }
         if (
           ($error.config as PureHttpRequestConfig)?.authRealm === "platform"
         ) {

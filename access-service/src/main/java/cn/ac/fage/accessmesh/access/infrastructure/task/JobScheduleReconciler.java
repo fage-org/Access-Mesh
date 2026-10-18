@@ -1,6 +1,9 @@
 package cn.ac.fage.accessmesh.access.infrastructure.task;
 
 import cn.ac.fage.accessmesh.access.platform.service.JobAppService;
+import cn.ac.fage.accessmesh.access.audit.service.AuditRetentionAppService;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -23,16 +26,24 @@ public class JobScheduleReconciler {
     private static final Logger log = LoggerFactory.getLogger(JobScheduleReconciler.class);
 
     private final JobAppService jobService;
+    private final AuditRetentionAppService retention;
 
-    public JobScheduleReconciler(JobAppService jobService) {
+    public JobScheduleReconciler(JobAppService jobService, AuditRetentionAppService retention) {
         this.jobService = jobService;
+        this.retention = retention;
     }
 
     /**
-     * 每 60 秒对账一轮（初延迟 60s：启动加载 @PostConstruct 先行，错峰首轮）。
+     * 启动就绪及每 60 秒先同步部署任务定义，再统一对账调度；两步失败互不阻断。
      */
+    @EventListener(ApplicationReadyEvent.class)
     @Scheduled(fixedDelayString = "PT60S", initialDelayString = "PT60S")
     public void reconcile() {
+        try {
+            retention.synchronizeJobs();
+        } catch (RuntimeException e) {
+            log.error("Audit retention job registration failed; next reconcile will retry", e);
+        }
         try {
             jobService.reconcileScheduledJobs();
         } catch (Exception e) {

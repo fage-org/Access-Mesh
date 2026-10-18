@@ -317,8 +317,8 @@ export default defineFakeRoute(
           /**
            * v1.4 双轨并行下发入口（mock）。
            * <p>
-           * 真后端从 token 解析 userId 后查权限中心；mock 无 token 解码逻辑，
-           * 通过 token 字段 `mock-token-{username}` 反查 ROLE_PERM_MATRIX。
+           * 真后端校核 Cookie 与会话标记后查权限中心；mock 使用
+           * X-AM-Session 中的 `mock-token-{username}` 反查 ROLE_PERM_MATRIX。
            * <p>
            * 响应壳与真后端 `R<UserMenuResp>`（code=200/message/data）一致 ——
            * 前端 store/user.ts 通过 `unwrap` 解包。
@@ -326,11 +326,10 @@ export default defineFakeRoute(
           url: "/api/access/auth/user-menu",
           method: "post",
           response: ({ headers }) => {
-            const auth = (headers?.authorization ??
-              headers?.Authorization ??
+            const session = (headers?.["x-am-session"] ??
+              headers?.["X-AM-Session"] ??
               "") as string;
-            // Authorization 形如 "Bearer mock-token-{username}"
-            const match = /mock-token-([a-z0-9_-]+)/i.exec(auth);
+            const match = /mock-token-([a-z0-9_-]+)/i.exec(session);
             const username = match?.[1] ?? "admin";
             const profile = ROLE_PROFILES[username] ?? ROLE_PROFILES.admin;
             const permissions =

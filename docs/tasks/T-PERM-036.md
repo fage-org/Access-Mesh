@@ -1,57 +1,52 @@
 ---
 doc_type: task
 id: T-PERM-036
-title: 动态数据权限端到端验证（scopeMode → SQL 映射链路）
+title: 动态数据权限端到端验证（scopeMode → 业务 SQL）
 status: proposed
-plan: —（2026-09-14 脱出 frontend-phase2 随计划归档；暂缓门禁不变，等 PM 重申）
-domain: permission-center
+plan: null
+domain: cross-service
 design_refs:
-  - docs/design/access-service-api-contract.md#§18.6（query-scopes；T-ACCESS-040 重挂总册）
+  - docs/design/access-service-api-contract.md#contract-section-18-6
   - docs/design/engine/core-flows.md
   - docs/design/engine/implementation.md
+  - docs/design/services/example-service.md
 depends_on:
   - T-FE-013
   - T-PERM-033
-blocks: []
 acceptance:
-  - "执行门禁：design-review §11 Q7/B 决策动态数据权限端到端测试延后到 example-service，且 example-service 暂不实现；进入 in-progress 前必须 PM 重申解除暂缓"
-  - "梳理数据权限链路：用户属性 → 条件表达式 → 数据过滤"
-  - "构造测试场景：普通员工（本人）/ 团队管理者（本团队）/ 部门总监（本部门）"
-  - "端到端验证：ConditionEvalUtils → PermQueryEngine（范围权限事实）→ 业务服务按 scopeMode 映射 SQL：INSTANCE 加 items[].resourceCode 范围过滤、ALL 不加、DENIED/EMPTY 不发 SQL 或返回空"
-  - "记录发现的缺口或问题"
+  - 用户明确解除暂缓后才进入实施；描述校准不视为启动授权
+  - 复用现行 query-scopes 与统一执行器，验证权限事实到真实业务 SQL 查询结果的端到端链路
+  - 验证 INSTANCE 精确范围过滤、ALL 无范围过滤但保留租户约束、DENIED 拒绝且不发业务 SQL、EMPTY 返回空且不发业务 SQL
+  - 覆盖已确认的本人、团队和部门场景，具体业务数据模型在重启时确认
+  - 将实际缺口和验收结果回写对应设计，不重复建设已有查询和示例能力
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-06-29
+last_updated: 2026-10-18
 ---
-
-# T-PERM-036 动态数据权限端到端验证
-
-> 状态：proposed
-> ⚠️ 执行门禁：design-review §11 Q7/B — 动态数据权限端到端测试延后到 example-service，且 example-service 暂不实现。进入 in-progress 前必须 PM 重申解除暂缓。
-
-## decision_refs（暂缓依据，非实现依据）
-
-> 归档文档仅作决策溯源，**不作为实现依据**，不进入 design_refs 回写范围。
-
-- `docs/archive/2026-06-17/design-review.md` §11 Q7/B — 动态数据权限端到端测试延后到 example-service，且 example-service 暂不实现
-- `docs/archive/2026-08-27/improvement-plan.md` §3.1 痛点 #4 — 已标暂缓（2026-06-20 审计 S-026；计划本体已归档，暂缓决策仍有效）
 
 ## 背景
 
-动态数据权限：按身份 ID 的数据范围筛选（普通员工看本人、团队管理者看本团队、部门总监看本部门）。设计已存在（条件评估、数据范围），但端到端链路未验证。对应已归档 improvement-plan（archive/2026-08-27/）§3.1 痛点 #4。
+当前范围查询已交付，SDK 提供 `PermissionFeignClient.queryScopes`；服务端经 `PermissionQueryAppServiceImpl`、`QueryExecutionEngine.execute` 与 `ScopeCoverageProjector` 生成四态范围结果。接口与四态消费语义以[契约 §18.6](../design/access-service-api-contract.md#contract-section-18-6)为准。
 
-## 验证步骤（已归档 improvement-plan §2.3）
+example-service 已提供 Gateway 准入和业务最终检查，报表列表使用 `query-resources` 过滤并保持分页 total 同口径。该服务仍无数据源，现有示例不能证明 `query-scopes → scopeMode → 真实业务 SQL` 的数据过滤链路。[示例现状](../design/services/example-service.md)是重启时的起点，不再沿用“example-service 尚未实现”的描述。
 
-1. 梳理数据权限链路：用户属性 → 条件表达式 → 数据过滤
-2. 构造测试场景：普通员工 / 团队管理者 / 部门总监
-3. 端到端测试：ConditionEvalUtils → PermQueryEngine → 业务服务按 scopeMode 映射 SQL
-4. 记录缺口
+## 范围
 
-## 关联
+剩余范围为业务消费者将范围权限事实映射到真实 SQL 的端到端验证，核对主体、主资源上下文、直接与依赖范围、业务键映射、租户隔离及四态消费。现有查询引擎和接口能力继续复用。
 
-scopeMode 四态契约已由 T-PERM-009 定义、T-PERM-015 前端落地。本任务验证其后端端到端链路。
+## 当前口径
 
-## 验收标准
+2026-10-18 用户确认继续暂缓，仅按现状校准任务描述。`status=proposed`、设计回写 pending 保持；必须由用户明确解除暂缓后才能实施。本次不引入业务数据库、SQL 自动改写模块或新的演示功能。
 
-见 acceptance。
+历史暂缓依据为 [design-review §11 Q7/B](../archive/2026-06-17/design-review.md)及 [improvement-plan §3.1](../archive/2026-08-27/improvement-plan.md)，仅用于追溯。未来实施使用上述现行设计，不恢复已退役的执行器或 DTO。
+
+## 验收对照
+
+- [ ] 解除暂缓并确认业务数据模型。
+- [ ] 实际 SQL 端到端验证与四态消费。
+- [ ] 缺口处置、设计回写和必要回归。
+
+## 非目标 / 遗留
+
+不重做已交付的权限判定、范围查询或报表列表接入；不因本卡重新启动权限排障页面、通用 SQL 自动改写、菜单/按钮/条件演示等独立事项。

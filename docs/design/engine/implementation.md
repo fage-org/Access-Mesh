@@ -3,7 +3,7 @@ doc_type: design
 title: 权限中心 — 核心功能实现设计
 status: adopted
 domain: access-service
-last_reviewed: 2026-10-17
+last_reviewed: 2026-10-18
 ---
 
 # 权限中心 — 核心功能实现设计
@@ -595,8 +595,7 @@ query-scopes 四态分组（T-PERM-009 契约维持）：AppService 只留线格
   `BatchAuthCheckPgIT`（批量化①-⑪）＋ `AuthorizationChangeInvalidationPgIT`/`AutoGrantEngineContractPgIT`
   （失效链/自动授权契约，T-PERM-092 起服务面驱动）＋ `QueryExecutionPgIT`/`QueryReadSupportPgIT`
   （引擎核心验收）＋ `QueryGate` 单测族＋ 架构测试（mapper 边界/薄门面/退役锁）。
-- **遗留衔接**：`docs/tasks/T-PERM-036.md`（proposed）验收叙述仍含旧引擎链路——该卡推进时须按
-  新 execute 口径改写验收（计划 A.8 登记）。
+- **遗留衔接**：[T-PERM-036](../../tasks/T-PERM-036.md) 已按现行 execute/query-scopes 链路校准，剩余为 scopeMode 到真实业务 SQL 的端到端验证；继续暂缓，描述更新不解除启动门禁。
 
 ### 3.10 批量判定（batchCheck 一次 execute 多 item）
 
