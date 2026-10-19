@@ -5,6 +5,8 @@ import cn.ac.fage.accessmesh.example.metadata.domain.DemoMetadataDomainService;
 import cn.ac.fage.accessmesh.example.metadata.domain.DemoPublicationDomainService;
 import cn.ac.fage.accessmesh.example.metadata.domain.DemoPublicationDomainService.Change;
 import cn.ac.fage.accessmesh.example.enums.ExampleErrorCode;
+import cn.ac.fage.accessmesh.example.metadata.DemoTypePurpose;
+import cn.ac.fage.accessmesh.example.data.catalog.DemoField;
 import cn.ac.fage.accessmesh.example.metadata.entity.DemoReport;
 import cn.ac.fage.accessmesh.example.metadata.entity.DemoScope;
 import cn.ac.fage.accessmesh.example.metadata.mapper.DemoDatasetMapper;
@@ -24,8 +26,8 @@ public class DemoMetadataDomainServiceImpl implements DemoMetadataDomainService 
     private final DemoScopeMapper scopes;
     private final DemoPublicationDomainService publications;
     private final DemoReportFieldMapper fields;
-    private static final Set<String> FIELD_KEYS = Set.of("recordCode", "ownerUserId", "teamCode", "departmentCode",
-        "regionCode", "saleDate", "productName", "amount", "remark");
+    private static final Set<String> FIELD_KEYS = java.util.Arrays.stream(DemoField.values())
+        .map(DemoField::key).collect(java.util.stream.Collectors.toUnmodifiableSet());
 
     public DemoMetadataDomainServiceImpl(DemoDatasetMapper datasets, DemoReportMapper reports, DemoScopeMapper scopes,
                                          DemoPublicationDomainService publications, DemoReportFieldMapper fields) {
@@ -75,12 +77,37 @@ public class DemoMetadataDomainServiceImpl implements DemoMetadataDomainService 
         return saved;
     }
 
-    private long lock(long tenant, long actor) {
+    private long lock(long tenant, long actor) { return lockDataset(tenant,actor); }
+
+    @Override
+    public long lockDataset(long tenant, long actor) {
         if (!TransactionSynchronizationManager.isActualTransactionActive()) {
             throw new IllegalStateException("Metadata writes require a transaction");
         }
         datasets.ensure(tenant, actor);
         return datasets.lock(tenant);
+    }
+
+    @Override
+    public void validatePolicyTypes(long tenant,String fieldType,Set<String> rowTypes) {
+        DemoTypePurpose.requireDynamic(fieldType);
+        for(String rowType:rowTypes) {
+            DemoTypePurpose.requireDynamic(rowType);
+            if (rowType.equals(fieldType)) throw invalid();
+        }
+        var types=new java.util.HashSet<>(rowTypes); types.add(fieldType);
+        var fieldTypes=datasets.fieldTypes(tenant,types);
+        if (!fieldTypes.contains(fieldType) || !java.util.Collections.disjoint(fieldTypes,rowTypes)) throw invalid();
+    }
+
+    @Override
+    public List<DemoScope> scopes(long tenant,Set<cn.ac.fage.accessmesh.example.metadata.DemoResourceKey> keys) {
+        return keys.isEmpty()?List.of():scopes.byKeys(tenant,keys);
+    }
+
+    @Override
+    public List<DemoReportField> fieldsByResourceCodes(long tenant,String type,Set<String> codes) {
+        return codes.isEmpty()?List.of():fields.byResourceCodes(tenant,type,codes);
     }
 
     @Override
@@ -160,9 +187,7 @@ public class DemoMetadataDomainServiceImpl implements DemoMetadataDomainService 
     }
 
     private void validatePurpose(long tenant, String type, boolean field) {
-        if (type == null || type.isBlank() || java.util.Set.of("DEMO_REPORT", "DEMO_POLICY", "DEMO_DATASET", "DEMO_TASK").contains(type)) {
-            throw invalid();
-        }
+        DemoTypePurpose.requireDynamic(type);
         if (field ? datasets.usedForScope(tenant, type) : datasets.usedForField(tenant, type)) {
             throw invalid();
         }

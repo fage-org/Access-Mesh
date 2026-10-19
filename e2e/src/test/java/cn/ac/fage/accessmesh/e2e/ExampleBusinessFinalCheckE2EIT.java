@@ -678,6 +678,11 @@ class ExampleBusinessFinalCheckE2EIT {
             postForData(gateway()+"/api/access/operation-permission/create", adminToken,
                 JSON.createObjectNode().put("resourceTypeCode",type).put("code",type.equals("DEMO_TASK") ? "TRIGGER" : List.of("DEMO_POLICY", "DEMO_DATASET").contains(type) ? "MANAGE" : "DATA_READ")
                     .put("name","demo operation").put("binaryBit",16).put("inheritMask",0));
+            if(List.of("DEMO_REPORT","DEMO_REPORT_FIELD","DEMO_DATA_SCOPE").contains(type)) {
+                postForData(gateway()+"/api/access/operation-permission/create",adminToken,
+                    JSON.createObjectNode().put("resourceTypeCode",type).put("code","DATA_EDIT").put("name","edit data")
+                        .put("binaryBit",32).put("inheritMask",0));
+            }
         }
         postForData(gateway()+"/api/access/biz-domain/create", adminToken,
             JSON.createObjectNode().put("code","EXAMPLE_DEMO").put("name","Example demo"));
@@ -752,6 +757,10 @@ class ExampleBusinessFinalCheckE2EIT {
                     assertThat(process.exitValue()).as("setup script: %s",new String(Files.readAllBytes(log),StandardCharsets.UTF_8)).isZero();
                 } finally { if (process.isAlive()) process.destroyForcibly(); }
             }
+            var empty=demoAdminPost("/demo-data/page",JSON.createObjectNode().put("reportCode","sales-report").put("pageNum",1).put("pageSize",20));
+            assertThat(empty.path("data").path("state").asText()).isEqualTo("EMPTY_ROWS");
+            assertThat(empty.path("data").path("page").path("total").asLong()).isZero();
+            assertThat(empty.path("data").path("columns").size()).isEqualTo(9);
         }
 
     }

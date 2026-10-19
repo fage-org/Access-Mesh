@@ -8,7 +8,7 @@ last_reviewed: 2026-10-19
 
 # example-service 持久化权限演示 API 契约
 
-本文件由 T-ACCESS-136 定稿，元数据与资源发布已由 T-ACCESS-139 实现，验收状态见任务卡；其余新业务族按计划实施。现役 hello/report 探针继续按[服务设计](services/example-service.md)运行，未交付的路由不描述为已上线，也不进入可用接口声明。
+本文件由 T-ACCESS-136 定稿，元数据与资源发布已由 T-ACCESS-139 交付，策略配置与记录查询/备注修改由 T-ACCESS-140 实现，验收状态见任务卡；导入与任务按计划实施。现役 hello/report 探针继续按[服务设计](services/example-service.md)运行，未交付的路由不描述为已上线，也不进入可用接口声明。
 
 报表入口采用已确认的[固定主类型/主操作边界](example-permission-demo.md#admission-binding)：主类型为 DEMO_REPORT，读取/编辑/导出分别为 DATA_READ / DATA_EDIT / EXPORT；它们不作为策略可编辑字段。动态范围、字段与谓词配置继续生效。
 
@@ -96,7 +96,7 @@ service-config/sync-v2 接口声明使用完整清单，须保留仍受支持的
 所有业务编码不为空、长度至多 64；名称至多 128。初始化类型所有权归 example-service，codeType 缺省为 default。元数据登记允许在策略生效前完成，字段只引用服务端固定目录；因此“登记 → 发布 → 配置 → 授权 → 导入”不形成循环依赖。
 
 <a id="resource-type-purposes"></a>
-同一租户内资源类型按用途隔离：DEMO_REPORT 只用于报表，DEMO_POLICY / DEMO_DATASET / DEMO_TASK 保留给对应管理门禁；字段类型与行范围类型不得混用。字段与行范围允许自定义类型名，多个报表可共用字段类型。创建报表和保存范围在共同数据库事务守卫内检查已登记用途，冲突整次拒绝 30102；不能仅在单份策略内检查类型不同。已有历史身份保留用途，不能通过停用、软删或同名重建绕过检查；不增加独立类型管理平台。
+同一租户内资源类型按用途隔离：DEMO_REPORT 只用于报表，DEMO_POLICY / DEMO_DATASET / DEMO_TASK 保留给对应管理门禁；字段类型与行范围类型不得混用。字段与行范围允许自定义类型名，多个报表可共用字段类型。策略历史中使用的行范围类型也占用行范围用途，ALL 不要求先造范围实例，但不能因此绕过用途隔离。创建报表和保存范围在共同数据库事务守卫内检查已登记用途，冲突整次拒绝 30102；不能仅在单份策略内检查类型不同。已有历史身份保留用途，不能通过停用、软删或同名重建绕过检查；不增加独立类型管理平台。
 
 | POST 路径 | 请求关键字段 | 门禁与响应 |
 |---|---|---|
@@ -139,7 +139,7 @@ service-config/sync-v2 接口声明使用完整清单，须保留仍受支持的
 
 导入不能因缺某字段编辑权而用默认值写入。ownerUserId 的演示有效性由准备脚本创建用户并回填真实 ID；运行时只校验合法 ID 形态，不同步或维护用户目录。未知 ID 绝不能解释为所有主体；SELF 只比较已验签主体 ID，不匹配即无记录。
 
-`POST /api/example/demo-policy/get` 请求 `{datasetCode}`，`save` 请求 `{datasetCode,expectedVersion,configuration}`；都要求 DEMO_POLICY:MANAGE。响应为 `{datasetCode,version,configuration,updatedAt}`；首次保存 expectedVersion=0。配置完整校验、版本写入、生效引用与变更摘要同事务；失败保持原版本。恢复旧配置也按新一次 save 执行。
+`POST /api/example/demo-policy/get` 请求 `{datasetCode}`，`save` 请求 `{datasetCode,expectedVersion,configuration}`；都要求 DEMO_POLICY:MANAGE。响应为 `{datasetCode,version,configuration,updatedAt}`；尚无生效策略时 get 返回 30102，首次保存 expectedVersion=0。配置完整校验、版本写入、生效引用与变更摘要同事务；绑定的范围须已登记、启用且当前版本已发布，失败保持原版本。恢复旧配置也按新一次 save 执行。
 
 `configuration` 结构：
 
@@ -209,7 +209,7 @@ CSV 只输出最终授权列，沿既有引号转义与字符串公式前缀防�
 <a id="business-errors"></a>
 ## 新业务错误码
 
-下列编号随所属能力登记到 ExampleErrorCode；元数据已登记 30101/30102/30103/30108，其余随后续任务交付；业务失败沿现役 BizException/统一错误信封，结构与格式非法仍走公共 90001 / HTTP 400。
+下列编号随所属能力登记到 ExampleErrorCode；已实现能力已登记 30101/30102/30103/30106/30108，其余随后续任务交付；业务失败沿现役 BizException/统一错误信封，结构与格式非法仍走公共 90001 / HTTP 400。
 
 | 编号 | 含义 | 暴露边界 |
 |---|---|---|
@@ -222,5 +222,9 @@ CSV 只输出最终授权列，沿既有引号转义与字符串公式前缀防�
 | 30107 | DEMO_RESULT_UNAVAILABLE | 已知本人执行尚无结果、非 SUCCESS 或已到期；状态接口仍能看到状态 |
 | 30108 | DEMO_RESOURCE_NOT_READY | 当前源版本尚未发布成功；不能用历史已发布状态冒充就绪 |
 | 30109 | DEMO_TRIGGER_CONFLICT | triggerKey 被用于另一份请求，不改写原执行 |
+
+读路径使用本地只读一致快照核对策略、报表、目录及实际使用的范围版本，再查询 items/total；写路径在共同数据集行锁内核对并原子修改。SQL 采用固定字段目录的标识符与绑定参数，超时为 30106，参数预算包含固定条件和目标定位参数。
+
+字段描述 dataType 为 STRING / USER_ID / DATE / DECIMAL；日期值使用 ISO 日期字符串，金额不经过 double。
 
 策略版本、目录版本和任务版本都是本地乐观并发标识，不是权限中心的 permissionVersion，不新增跨服务版本协议。实现与测试不得把这些本地版本当作仍然拥有权限的证明。

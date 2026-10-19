@@ -196,6 +196,86 @@
             "resourceTypeCode": "DEMO_POLICY",
             "operationCode": "MANAGE"
           }
+        },
+        {
+          "name": "demo-policy/get",
+          "httpMethod": "POST",
+          "path": "/demo-policy/get",
+          "resourceCode": "example:demo:demo-policy:get",
+          "requiredPermission": {
+            "resourceTypeCode": "DEMO_POLICY",
+            "operationCode": "MANAGE"
+          }
+        },
+        {
+          "name": "demo-policy/save",
+          "httpMethod": "POST",
+          "path": "/demo-policy/save",
+          "resourceCode": "example:demo:demo-policy:save",
+          "requiredPermission": {
+            "resourceTypeCode": "DEMO_POLICY",
+            "operationCode": "MANAGE"
+          }
+        },
+        {
+          "name": "demo-data/fields",
+          "httpMethod": "POST",
+          "path": "/demo-data/fields",
+          "resourceCode": "example:demo:demo-data:fields",
+          "requiredPermission": {
+            "resourceTypeCode": "DEMO_REPORT",
+            "operationCode": "DATA_READ"
+          }
+        },
+        {
+          "name": "demo-data/page",
+          "httpMethod": "POST",
+          "path": "/demo-data/page",
+          "resourceCode": "example:demo:demo-data:page",
+          "requiredPermission": {
+            "resourceTypeCode": "DEMO_REPORT",
+            "operationCode": "DATA_READ"
+          }
+        },
+        {
+          "name": "demo-data/get",
+          "httpMethod": "POST",
+          "path": "/demo-data/get",
+          "resourceCode": "example:demo:demo-data:get",
+          "requiredPermission": {
+            "resourceTypeCode": "DEMO_REPORT",
+            "operationCode": "DATA_READ"
+          }
+        },
+        {
+          "name": "demo-data/batch-get",
+          "httpMethod": "POST",
+          "path": "/demo-data/batch-get",
+          "resourceCode": "example:demo:demo-data:batch-get",
+          "requiredPermission": {
+            "resourceTypeCode": "DEMO_REPORT",
+            "operationCode": "DATA_READ"
+          }
+        },
+        {
+          "name": "demo-data/update",
+          "httpMethod": "POST",
+          "path": "/demo-data/update",
+          "resourceCode": "example:demo:demo-data:update",
+          "requiredPermission": {
+            "resourceTypeCode": "DEMO_REPORT",
+            "operationCode": "DATA_EDIT"
+          }
+        },
+        {
+          "name": "demo-data/batch-update",
+          "httpMethod": "POST",
+          "path": "/demo-data/batch-update",
+          "resourceCode": "example:demo:demo-data:batch-update",
+          "requiredPermission": {
+            "resourceTypeCode": "DEMO_REPORT",
+            "operationCode": "DATA_EDIT"
+          }
         }
       ]
     }

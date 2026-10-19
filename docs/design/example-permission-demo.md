@@ -82,35 +82,7 @@ AccessMesh 决定主体具有哪些主资源操作及有效范围，继续复用
 
 同租户的报表、字段与行范围类型按用途隔离，字段/范围保留自定义类型名；登记入口共同约束见[类型用途契约](example-service-api-contract.md#resource-type-purposes)。这不改变行范围与字段授权动态配置的能力。
 
-以下 JSON 是**拟议配置示例**，不是已有接口契约；示例中的资源和人员由初始化脚本创建并返回：
-
-```json
-{
-  "datasetCode": "sales-records",
-  "scopeResourceTypeCode": "DEMO_DATA_SCOPE",
-  "scopeOperationCode": "DATA_READ",
-  "bindings": [
-    {
-      "resourceCode": "self", "codeType": "default",
-      "predicates": [
-        {"field": "ownerUserId", "operator": "EQ", "valueSource": "SUBJECT_ID"}
-      ]
-    },
-    {
-      "resourceCode": "team-t1", "codeType": "default",
-      "predicates": [
-        {"field": "teamCode", "operator": "EQ", "valueSource": "LITERAL", "value": "T1"}
-      ]
-    },
-    {
-      "resourceCode": "department-d1", "codeType": "default",
-      "predicates": [
-        {"field": "departmentCode", "operator": "EQ", "valueSource": "LITERAL", "value": "D1"}
-      ]
-    }
-  ]
-}
-```
+配置形态以[专属 API 契约](example-service-api-contract.md#policy)为准，由 fields、read、edit 和 bindings 组成。[准备脚本](../../tools/init-example-permission-demo.ps1)提供本人、团队、部门、地区的可执行初始配置；读取当前策略后按版本提交修改，不复制另一套配置协议。
 
 “本人”由 `SUBJECT_ID` 从可信认证上下文取值，不接受客户端 ownerUserId 作为当前主体；团队/部门只是不同字段配置。增加“地区 R1”范围，只需登记/授权对应资源并配置 regionCode=R1，无需修改 Java 或重新发布服务。
 

@@ -32,7 +32,7 @@ last_updated: 2026-10-19
 
 当前范围查询已交付，SDK 提供 `PermissionFeignClient.queryScopes`；服务端经 `PermissionQueryAppServiceImpl`、`QueryExecutionEngine.execute` 与 `ScopeCoverageProjector` 生成四态范围结果。接口与四态消费语义以[契约 §18.6](../design/access-service-api-contract.md#contract-section-18-6)为准。
 
-example-service 已提供 Gateway 准入和业务最终检查，报表列表使用 `query-resources` 过滤并保持分页 total 同口径。该服务仍无数据源，现有示例不能证明 `query-scopes → scopeMode → 真实业务 SQL` 的数据过滤链路。[示例现状](../design/services/example-service.md)是重启时的起点，不再沿用“example-service 尚未实现”的描述。
+example-service 已提供 Gateway 准入和业务最终检查，报表列表使用 `query-resources` 过滤并保持分页 total 同口径。独立业务库和行列执行器已由前置任务推进，现役内存探针本身不能证明 `query-scopes → scopeMode → 真实业务 SQL` 的数据过滤链路。[示例现状](../design/services/example-service.md)是重启时的起点，不再沿用“example-service 尚未实现”的描述。
 
 ## 范围
 
@@ -46,7 +46,7 @@ example-service 已提供 Gateway 准入和业务最终检查，报表列表使�
 
 ## 当前口径
 
-2026-10-19 用户已要求逐步执行整个权限演示计划，本卡用户授权层面的暂缓解除。`status=proposed`、设计回写 pending，等待 T-ACCESS-136 契约定稿及直接依赖 T-ACCESS-138 完成；不把启动授权等同于技术准入或行为验收。
+2026-10-19 用户已要求逐步执行整个权限演示计划，本卡用户授权层面的暂缓解除。`status=proposed`、设计回写 pending，等待直接依赖 T-ACCESS-138 完成；不把启动授权等同于技术准入或行为验收。
 
 历史暂缓依据为 [design-review §11 Q7/B](../archive/2026-06-17/design-review.md)及 [improvement-plan §3.1](../archive/2026-08-27/improvement-plan.md)，仅用于追溯。未来实施使用上述现行设计，不恢复已退役的执行器或 DTO。
 

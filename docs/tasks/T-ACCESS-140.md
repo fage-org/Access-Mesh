@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-140
 title: 动态策略配置与真实 SQL 权限过滤
-status: proposed
+status: done
 plan: docs/plans/example-permission-demo-plan.md
 domain: cross-service
 design_refs:
@@ -22,7 +22,7 @@ acceptance:
   - "权限谓词覆盖列表/详情/total/写入；DATA_READ 不替代 DATA_EDIT，混合批量无权整批无副作用。"
 design_writeback:
   required: true
-  status: pending
+  status: done
 last_updated: 2026-10-19
 ---
 
@@ -44,17 +44,21 @@ last_updated: 2026-10-19
 
 ## 当前口径
 
-实现只使用有限通用字段/谓词/值来源，不按角色名或业务维度硬编码。租户/有效状态不可配置关闭，SQL 参数化。按直接依赖 T-ACCESS-139 完成后实施；T-PERM-036 在本卡和导入交付后验证，不倒置依赖。详细规则见[权限演示设计](../design/example-permission-demo.md)；计划已 active。
+实现只使用有限通用字段/谓词/值来源，不按角色名或业务维度硬编码。租户/有效状态不可配置关闭，SQL 参数化。实现、定向验证与完整回归已验收；T-PERM-036 在本卡和导入交付后验证，不倒置依赖。详细规则见[权限演示设计](../design/example-permission-demo.md)；计划已 active。
 
 ## 验收对照
 
-- [ ] 提交完整配置一次校验并按版本原子生效；无独立草稿生命周期，失败不改变旧版，历史内容恢复生成新版本。
-- [ ] 共享行列执行器可在导入之前用 PG 夹具验收；SQL 数据集过滤、明确投影和写列约束使用同一固定版本。
-- [ ] 行谓词与字段 SELECT/写列同时限制，报表同名字段不串权；隐藏列筛选/排序拒绝，无字段权不兜底全部列。
-- [ ] 本人/团队/部门由配置实现；新增已有 regionCode 的范围只改配置/授权，Java 与部署不变。
-- [ ] 无权限修改策略、非法字段/值/谓词、未知范围绑定均拒绝；失败发布不替换旧版，查询固定版本。
-- [ ] 权限谓词覆盖列表/详情/total/写入；DATA_READ 不替代 DATA_EDIT，混合批量无权整批无副作用。
+- [x] 提交完整配置一次校验并按版本原子生效；无独立草稿生命周期，失败不改变旧版，历史内容恢复生成新版本。
+- [x] 共享行列执行器可在导入之前用 PG 夹具验收；SQL 数据集过滤、明确投影和写列约束使用同一固定版本。
+- [x] 行谓词与字段 SELECT/写列同时限制，报表同名字段不串权；隐藏列筛选/排序拒绝，无字段权不兜底全部列。
+- [x] 本人/团队/部门由配置实现；新增已有 regionCode 的范围只改配置/授权，Java 与部署不变。
+- [x] 无权限修改策略、非法字段/值/谓词、未知范围绑定均拒绝；失败发布不替换旧版，查询固定版本。
+- [x] 权限谓词覆盖列表/详情/total/写入；DATA_READ 不替代 DATA_EDIT，混合批量无权整批无副作用。
 
 ## 非目标 / 遗留
 
 不写任意 SQL、SpEL/脚本执行、通用规则平台或分析聚合。
+
+## 完成记录
+
+实现与定向验证见[验证记录](evidence/example-permission-demo/T-ACCESS-140.md)，2026-10-19 根 reactor `mvn test -T 1C`（附脚本实跑参数）3,097 pass / 0 fail / 0 error / 0 skip，18:42 min，包含 E2E/heavy。

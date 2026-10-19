@@ -74,6 +74,26 @@ class ExampleServiceApplicationTest {
 
     private final ObjectMapper json = JsonMapper.builder().configureForJackson2().build();
 
+    @Test
+    void dataRoutesRejectMalformedSelectionsAndChangesBeforeBusinessExecution() {
+        HttpHeaders headers=new HttpHeaders(); headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("X-User-Id","42"); headers.set("X-Tenant-Id","9003"); sign(headers,"42","9003");
+        var invalid=java.util.List.of(
+            Map.entry("/page","{\"reportCode\":\"r1\",\"pageSize\":201}"),
+            Map.entry("/batch-get","{\"reportCode\":\"r1\",\"recordCodes\":[\"A\",\"A\"]}"),
+            Map.entry("/update","{\"reportCode\":\"r1\",\"recordCode\":\"A\",\"remark\":\"value\",\"remarkClear\":true}"),
+            Map.entry("/update","{\"reportCode\":\"r1\",\"recordCode\":\"A\"}"),
+            Map.entry("/page","{\"reportCode\":\"r1\",\"filters\":[{\"fieldId\":1,\"operator\":\"GT\",\"value\":1}]}"));
+        for(var input:invalid) {
+            var response=rest.postForEntity("/api/example/demo-data"+input.getKey(),new HttpEntity<>(input.getValue(),headers),String.class);
+            assertThat(response.getStatusCode().value()).as(input.getKey()).isEqualTo(400);
+            assertThat(json.readTree(response.getBody()).path("code").asInt()).isEqualTo(90001);
+        }
+        headers.remove("X-User-Signature");
+        var unsigned=json.readTree(rest.postForObject("/api/example/demo-data/fields",new HttpEntity<>(Map.of("reportCode","r1"),headers),String.class));
+        assertThat(unsigned.path("code").asInt()).isEqualTo(30003);
+    }
+
     @org.springframework.test.context.bean.override.mockito.MockitoBean
     private cn.ac.fage.accessmesh.example.perm.BusinessPermChecker permissionChecker;
 

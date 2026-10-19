@@ -24,6 +24,9 @@ public interface DemoDatasetMapper {
 
     @Select("""
         SELECT EXISTS(SELECT 1 FROM demo_scope WHERE tenant_id=#{tenant} AND resource_type_code=#{type})
+          OR EXISTS(SELECT 1 FROM demo_policy WHERE tenant_id=#{tenant}
+            AND (configuration #>> '{read,rowResourceTypeCode}'=#{type}
+              OR configuration #>> '{edit,rowResourceTypeCode}'=#{type}))
         """)
     boolean usedForScope(@Param("tenant") long tenant, @Param("type") String type);
 
@@ -31,4 +34,21 @@ public interface DemoDatasetMapper {
         SELECT EXISTS(SELECT 1 FROM demo_report WHERE tenant_id=#{tenant} AND field_resource_type_code=#{type})
         """)
     boolean usedForField(@Param("tenant") long tenant, @Param("type") String type);
+
+    @Select("""
+        <script>
+        SELECT DISTINCT field_resource_type_code FROM demo_report WHERE tenant_id=#{tenant} AND field_resource_type_code IN
+        <foreach collection="types" item="type" open="(" close=")" separator=",">#{type}</foreach>
+        </script>
+        """)
+    java.util.List<String> fieldTypes(@Param("tenant") long tenant,@Param("types") java.util.Set<String> types);
+
+    @Select("SELECT active_policy_version FROM demo_dataset WHERE tenant_id=#{tenant} AND dataset_code='sales-records' AND delete_flag=0")
+    Long policyVersion(@Param("tenant") long tenant);
+
+    @org.apache.ibatis.annotations.Update("""
+        UPDATE demo_dataset SET active_policy_version=#{next},updated_by=#{actor},updated_at=now()
+        WHERE tenant_id=#{tenant} AND dataset_code='sales-records' AND active_policy_version=#{expected} AND delete_flag=0
+        """)
+    int activatePolicy(@Param("tenant") long tenant,@Param("expected") long expected,@Param("next") long next,@Param("actor") long actor);
 }

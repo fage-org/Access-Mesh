@@ -1,6 +1,6 @@
 # 持久化权限演示接入
 
-元数据与资源发布入口由 T-ACCESS-139 提供。动态策略、CSV、行列取数及定时任务按[计划](../../docs/plans/example-permission-demo-plan.md)后续交付；本步骤不会创建业务记录或授予普通读者权限。
+元数据与资源发布入口由 T-ACCESS-139 提供。动态策略、行列查询与备注修改由 T-ACCESS-140 实现，CSV 与定时任务按[计划](../../docs/plans/example-permission-demo-plan.md)后续交付；本步骤不会创建业务记录或授予普通读者权限。
 
 ## 准备与执行
 
@@ -13,9 +13,9 @@ pwsh -File tools/init-example-permission-demo.ps1 -BaseUrl https://your-gateway.
 # 仅可信隔离网络的本地测试可显式追加 -AllowInsecure 并使用 http 地址。
 ```
 
-`-FieldType` / `-ScopeType` 可选择自定义类型名；二者按用途分离。`-ReportCode` 默认 sales-report。脚本核对服务凭证属于管理员当前租户，建立缺失的类型与操作、独立 EXAMPLE_DEMO 分类域和显式 SUB_PERM 规则，保留类型所有者的现役首授基座，再发布[完整接口声明](permission-demo-interfaces.json)并登记报表和字段。
+`-FieldType` / `-ScopeType` 可选择自定义类型名；二者按用途分离。`-ReportCode` 默认 sales-report。脚本核对服务凭证属于管理员当前租户，建立缺失的类型与操作、独立 EXAMPLE_DEMO 分类域和显式 SUB_PERM 规则，保留类型所有者的现役首授基座，再发布[完整接口声明](permission-demo-interfaces.json)并登记报表、字段及本人/团队/部门/地区范围，等待发布后保存初始策略。
 
-重复执行复用原报表与字段身份，仅登记缺少的固定目录字段。遇到不兼容的类型所有权、已有域配置、未知路由、停用路由或不同准入要求会停止；已完成步骤保留，不回滚为清库操作。FULL 声明保留受支持的旧 hello/report 路由及其已有资源编码，不发布未来尚未实现的接口。
+重复执行复用原报表、字段与范围身份，仅登记缺少的固定目录字段；已有策略内容相同则不创建新版本，不同则停止而不覆盖。既有停用/失败的范围不会被脚本自动恢复。遇到不兼容的类型所有权、已有域配置、未知路由、停用路由或不同准入要求会停止；已完成步骤保留，不回滚为清库操作。FULL 声明保留受支持的旧 hello/report 路由及其已有资源编码，不发布未来尚未实现的接口。
 
 管理入口用管理员 Bearer，接口声明与后台资源发布用服务凭证；服务凭证不能调用类型/授权等用户管理写接口。不要将普通读者设为管理员来绕过最终鉴权。
 
@@ -28,3 +28,11 @@ pwsh -File tools/init-example-permission-demo.ps1 -BaseUrl https://your-gateway.
 发布确认要求首次应用成功或相同版本、相同内容的严格重放确认；不能把 STALE 或 HTTP 200 当作成功。这个确认不提供跨系统即时撤权或资源永久存在的承诺，后续数据操作仍检查当前本地版本及实际权限。
 
 本阶段没有跨版本数据库升级承诺。已部署旧 schema 的环境须先按自己的备份/升级流程准备当前 schema；服务不会隐式执行 DDL。临时 E2E 环境使用原样 schema 初始化。
+
+## 策略与记录接口
+
+`demo-policy/get` 使用 `{datasetCode:"sales-records"}`；修改返回的 configuration 后，以当前 version 作为 expectedVersion 调用 save。每次有效保存生成新版本；非法配置、未发布引用或版本竞争保留旧版。策略由独立 MANAGE 权限保护，不因能读取报表而开放修改。
+
+`demo-data/fields` 使用 `{reportCode}` 返回当前可读字段 ID 和筛选/排序标志。`page` 使用 `{reportCode,pageNum,pageSize,fieldIds?,filters?,sort?}`，未选列时默认当前可读列；无权字段不能用于筛选或排序。`get` / `batch-get` 使用已知 recordCode / recordCodes 定位，编号无读权时不返回编号；批量结果用请求下标关联。
+
+`update` / `batch-update` 只修改 remark，显式 `remarkClear:true` 才清空；需要 DATA_EDIT 及对应行、备注字段编辑权，读权不能替代写权。混入无权或不存在的目标会整批回滚。没有导入业务数据时，初始化后的 page 正常返回 EMPTY_ROWS；不要用 IAM 资源登记冒充实际记录导入。

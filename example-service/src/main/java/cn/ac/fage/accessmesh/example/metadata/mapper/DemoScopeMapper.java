@@ -31,4 +31,15 @@ public interface DemoScopeMapper {
         WHERE tenant_id=#{tenantId} AND id=#{id} AND version=#{version} AND delete_flag=0
         """)
     int update(DemoScope scope);
+
+    @Select("""
+        <script>
+        SELECT * FROM demo_scope WHERE tenant_id=#{tenant} AND delete_flag=0 AND
+        <foreach collection="keys" item="key" open="(" close=")" separator=" OR ">
+          (resource_type_code=#{key.type} AND resource_code=#{key.code} AND code_type=#{key.codeType})
+        </foreach>
+        </script>
+        """)
+    java.util.List<DemoScope> byKeys(@Param("tenant") long tenant,
+        @Param("keys") java.util.Set<cn.ac.fage.accessmesh.example.metadata.DemoResourceKey> keys);
 }

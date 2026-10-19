@@ -22,11 +22,11 @@
 
 ## 当前待办入口
 
-[example 持久化权限演示](../plans/example-permission-demo-plan.md)已启动，T-ACCESS-136、137、139 已完成，下一步为 T-ACCESS-140；后续任务按依赖等待，业务页面任务已取消。候选部署验收已归档。
+[example 持久化权限演示](../plans/example-permission-demo-plan.md)已启动，T-ACCESS-136、137、139、140 已完成，下一步为 T-ACCESS-138；后续任务按依赖等待，业务页面任务已取消。候选部署验收已归档。
 
 | ID | 标题 | 状态 | 直接依赖 |
 |---|---|---|---|
-| [T-ACCESS-140](T-ACCESS-140.md) | 动态策略配置与真实 SQL 权限过滤 | ⚙️ | T-ACCESS-139 |
+| [T-ACCESS-138](T-ACCESS-138.md) | 演示业务记录与 CSV 导入 | ⚙️ | T-ACCESS-140 |
 | [T-PERM-036](T-PERM-036.md) | scopeMode → 业务 SQL 端到端验证（等待前置） | ⚙️ | T-ACCESS-138 |
 
 T-PERM-036 已获整计划执行授权，等待直接依赖完成。其他暂缓事项保持。历史批次只供追溯。
@@ -40,7 +40,7 @@ T-PERM-036 已获整计划执行授权，等待直接依赖完成。其他暂缓
 | [T-ACCESS-136](T-ACCESS-136.md) | 权限演示需求与实施契约定稿 | ✅ | — |
 | [T-ACCESS-137](T-ACCESS-137.md) | 权限演示数据库与持久化基础 | ✅ | T-ACCESS-136 |
 | [T-ACCESS-139](T-ACCESS-139.md) | 演示资源登记与可靠发布 | ✅ | T-ACCESS-137 |
-| [T-ACCESS-140](T-ACCESS-140.md) | 动态策略配置与真实 SQL 权限过滤 | ⚙️ | T-ACCESS-139 |
+| [T-ACCESS-140](T-ACCESS-140.md) | 动态策略配置与真实 SQL 权限过滤 | ✅ | T-ACCESS-139 |
 | [T-ACCESS-138](T-ACCESS-138.md) | 演示业务记录与 CSV 导入 | ⚙️ | T-ACCESS-140 |
 | [T-PERM-036](T-PERM-036.md) | 动态数据权限端到端验证 | ⚙️ | T-ACCESS-138 |
 | [T-ACCESS-141](T-ACCESS-141.md) | 有界授权快照导出与结果领取 | ⚙️ | T-ACCESS-140、T-PERM-036 |

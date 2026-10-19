@@ -1,8 +1,7 @@
 package cn.ac.fage.accessmesh.example.metadata.controller;
 
-import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.model.R;
-import cn.ac.fage.accessmesh.example.enums.ExampleErrorCode;
+import cn.ac.fage.accessmesh.example.security.ExampleRequestIdentity;
 import cn.ac.fage.accessmesh.example.metadata.dto.MetadataDtos.*;
 import cn.ac.fage.accessmesh.example.metadata.service.DemoMetadataAppService;
 import cn.ac.fage.accessmesh.example.metadata.service.DemoPublicationAppService;
@@ -43,15 +42,6 @@ public class DemoMetadataController {
     @PostMapping("/demo-publication/retry")
     public R<PublicationResp> retry(@Valid @RequestBody PublicationGetReq r, HttpServletRequest h) { return R.ok(publications.retry(caller(h), r)); }
     private static Caller caller(HttpServletRequest request) {
-        // GatewaySignatureFilter validates these headers before the controller.
-        try {
-            long tenant = Long.parseLong(request.getHeader("X-Tenant-Id"));
-            long user = Long.parseLong(request.getHeader("X-User-Id"));
-            if (tenant <= 0 || user <= 0) throw new NumberFormatException();
-            return new Caller(tenant, user, request.getHeader("X-Forwarded-For"));
-        } catch (NumberFormatException e) {
-            throw new BizException(ExampleErrorCode.DEMO_IDENTITY_HEADER_MISSING.getCode(),
-                ExampleErrorCode.DEMO_IDENTITY_HEADER_MISSING.getMessage());
-        }
+        return ExampleRequestIdentity.read(request);
     }
 }

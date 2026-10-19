@@ -3,6 +3,8 @@ package cn.ac.fage.accessmesh.example.metadata;
 import cn.ac.fage.accessmesh.example.controller.DemoController;
 import cn.ac.fage.accessmesh.example.controller.ReportController;
 import cn.ac.fage.accessmesh.example.metadata.controller.DemoMetadataController;
+import cn.ac.fage.accessmesh.example.data.controller.DemoPolicyController;
+import cn.ac.fage.accessmesh.example.data.controller.DemoDataController;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,7 +20,7 @@ class DemoInterfaceManifestTest {
     @Test
     void shouldDeclareExactlyTheImplementedPostRoutesWithExplicitPermissionRequirements() throws Exception {
         Set<String> implemented=new HashSet<>();
-        for (Class<?> controller : Set.of(DemoController.class,ReportController.class,DemoMetadataController.class)) {
+        for (Class<?> controller : Set.of(DemoController.class,ReportController.class,DemoMetadataController.class,DemoPolicyController.class,DemoDataController.class)) {
             String prefix=controller.getAnnotation(RequestMapping.class).value()[0];
             for (var method : controller.getDeclaredMethods()) {
                 var mapping=method.getAnnotation(PostMapping.class);
@@ -39,7 +41,9 @@ class DemoInterfaceManifestTest {
                 case "/demo-report/create" -> DemoPermission.REPORT_CREATE;
                 case "/demo-report/get" -> DemoPermission.REPORT_VIEW;
                 case "/demo-report/update", "/demo-field/register", "/demo-field/list", "/demo-field/update", "/demo-field/remove" -> DemoPermission.REPORT_UPDATE;
-                case "/demo-scope/save", "/demo-publication/get", "/demo-publication/page", "/demo-publication/retry" -> DemoPermission.POLICY_MANAGE;
+                case "/demo-scope/save", "/demo-publication/get", "/demo-publication/page", "/demo-publication/retry", "/demo-policy/get", "/demo-policy/save" -> DemoPermission.POLICY_MANAGE;
+                case "/demo-data/fields", "/demo-data/page", "/demo-data/get", "/demo-data/batch-get" -> DemoPermission.REPORT_READ;
+                case "/demo-data/update", "/demo-data/batch-update" -> DemoPermission.REPORT_EDIT;
                 default -> null; // Legacy probe requirements are verified by their existing E2E journeys.
             };
             if (permission!=null) {

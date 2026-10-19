@@ -144,4 +144,33 @@ if ($missing.Count -gt 0) {
     $fields=@((Invoke-DemoApi '/api/example/demo-field/list' @{reportCode=$ReportCode;pageNum=1;pageSize=200}).data.items)
 }
 foreach ($field in $fields) { Wait-DemoPublication $field.resourceTypeCode $field.resourceCode }
-Write-Output "Example metadata ready: report=$ReportCode; fieldType=$FieldType; scopeType=$ScopeType. No business records or reader grants were created."
+$scopeDefinitions=@(
+    @{code='self';name='本人';predicate=@{fieldKey='ownerUserId';operator='EQ';valueSource='SUBJECT_ID'}},
+    @{code='team-t1';name='团队 T1';predicate=@{fieldKey='teamCode';operator='EQ';valueSource='LITERAL';value='T1'}},
+    @{code='department-d1';name='部门 D1';predicate=@{fieldKey='departmentCode';operator='EQ';valueSource='LITERAL';value='D1'}},
+    @{code='region-r1';name='地区 R1';predicate=@{fieldKey='regionCode';operator='EQ';valueSource='LITERAL';value='R1'}}
+)
+foreach ($scope in $scopeDefinitions) {
+    $event=Invoke-DemoApi '/api/example/demo-publication/get' @{resourceTypeCode=$ScopeType;resourceCode=$scope.code;codeType='default'} $adminHeaders @(200,30101)
+    if ($event.code -eq 30101) {
+        $null=Invoke-DemoApi '/api/example/demo-scope/save' @{resourceTypeCode=$ScopeType;resourceCode=$scope.code;codeType='default';name=$scope.name;enabled=$true;expectedVersion=0}
+    }
+    Wait-DemoPublication $ScopeType $scope.code
+}
+$configuration=@{
+    fields=@(@('recordCode','ownerUserId','teamCode','departmentCode','regionCode','saleDate','productName','amount','remark') | ForEach-Object {@{fieldKey=$_;filterable=$true;sortable=$true}})
+    read=@{rowResourceTypeCode=$ScopeType;rowOperationCode='DATA_READ';fieldResourceTypeCode=$FieldType;fieldOperationCode='DATA_READ'}
+    edit=@{rowResourceTypeCode=$ScopeType;rowOperationCode='DATA_EDIT';fieldResourceTypeCode=$FieldType;fieldOperationCode='DATA_EDIT'}
+    bindings=@($scopeDefinitions | ForEach-Object {@{resourceTypeCode=$ScopeType;resourceCode=$_.code;codeType='default';predicates=@($_.predicate)}})
+}
+$policy=Invoke-DemoApi '/api/example/demo-policy/get' @{datasetCode='sales-records'} $adminHeaders @(200,30102)
+if ($policy.code -eq 30102) {
+    $null=Invoke-DemoApi '/api/example/demo-policy/save' @{datasetCode='sales-records';expectedVersion=0;configuration=$configuration}
+} else {
+    $actual=[System.Text.Json.Nodes.JsonNode]::Parse(($policy.data.configuration|ConvertTo-Json -Depth 30 -Compress))
+    $desired=[System.Text.Json.Nodes.JsonNode]::Parse(($configuration|ConvertTo-Json -Depth 30 -Compress))
+    if (-not [System.Text.Json.Nodes.JsonNode]::DeepEquals($actual,$desired)) {
+        throw 'Existing policy differs; it has not been overwritten. Review it and use demo-policy/save with its current version.'
+    }
+}
+Write-Output "Example metadata and policy ready: report=$ReportCode; fieldType=$FieldType; scopeType=$ScopeType. No business records or reader grants were created."

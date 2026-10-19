@@ -60,4 +60,14 @@ public interface DemoReportFieldMapper {
         """)
     int remove(@Param("tenant") long tenant, @Param("report") long report, @Param("ids") List<Long> ids,
                @Param("actor") long actor);
+
+    @Select("""
+        <script>
+        SELECT f.* FROM demo_report_field f JOIN demo_report r ON r.id=f.report_id AND r.tenant_id=f.tenant_id
+        WHERE f.tenant_id=#{tenant} AND r.field_resource_type_code=#{type} AND f.resource_code IN
+        <foreach collection="codes" item="code" open="(" close=")" separator=",">#{code}</foreach>
+        </script>
+        """)
+    List<DemoReportField> byResourceCodes(@Param("tenant") long tenant,@Param("type") String type,
+                                         @Param("codes") java.util.Set<String> codes);
 }

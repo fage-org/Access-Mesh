@@ -16,4 +16,8 @@ public interface DemoMetadataDomainService {
     List<DemoReportField> registerFields(long tenant, long actor, String code, long catalogVersion, List<String> keys);
     void updateField(long tenant, long actor, String code, long catalogVersion, long fieldId, boolean enabled);
     void removeFields(long tenant, long actor, String code, long catalogVersion, List<Long> ids);
+    long lockDataset(long tenant,long actor);
+    void validatePolicyTypes(long tenant,String fieldType,java.util.Set<String> rowTypes);
+    List<DemoScope> scopes(long tenant,java.util.Set<cn.ac.fage.accessmesh.example.metadata.DemoResourceKey> keys);
+    List<DemoReportField> fieldsByResourceCodes(long tenant,String type,java.util.Set<String> codes);
 }
