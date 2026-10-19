@@ -1,6 +1,6 @@
 # 持久化权限演示接入
 
-元数据与资源发布入口由 T-ACCESS-139 提供。动态策略、行列查询与备注修改由 T-ACCESS-140 实现，CSV 与定时任务按[计划](../../docs/plans/example-permission-demo-plan.md)后续交付；本步骤不会创建业务记录或授予普通读者权限。
+元数据与资源发布入口由 T-ACCESS-139 提供。动态策略、行列查询与备注修改由 T-ACCESS-140 实现，CSV 导入由 T-ACCESS-138 实现，定时任务按[计划](../../docs/plans/example-permission-demo-plan.md)后续交付；本步骤不会创建业务记录或授予普通读者权限。
 
 ## 准备与执行
 
@@ -36,3 +36,19 @@ pwsh -File tools/init-example-permission-demo.ps1 -BaseUrl https://your-gateway.
 `demo-data/fields` 使用 `{reportCode}` 返回当前可读字段 ID 和筛选/排序标志。`page` 使用 `{reportCode,pageNum,pageSize,fieldIds?,filters?,sort?}`，未选列时默认当前可读列；无权字段不能用于筛选或排序。`get` / `batch-get` 使用已知 recordCode / recordCodes 定位，编号无读权时不返回编号；批量结果用请求下标关联。
 
 `update` / `batch-update` 只修改 remark，显式 `remarkClear:true` 才清空；需要 DATA_EDIT 及对应行、备注字段编辑权，读权不能替代写权。混入无权或不存在的目标会整批回滚。没有导入业务数据时，初始化后的 page 正常返回 EMPTY_ROWS；不要用 IAM 资源登记冒充实际记录导入。
+
+## CSV 导入与撤销
+
+准备 UTF-8 CSV（可带 BOM），表头为 `recordCode,ownerUserId,teamCode,departmentCode,regionCode,saleDate,productName,amount,remark`；ownerUserId 填真实用户 ID。remark 可空或省略该表头，其余列必填。先完成报表字段登记、资源发布、策略与授权；导入者需要独立数据维护权、报表 DATA_EDIT、行编辑 ALL 和所有提交列的编辑权。INSTANCE 即使覆盖当前全部记录也不能导入。
+
+设置 `EXAMPLE_OPERATOR_TOKEN` 为该用户的原生 Bearer，再运行：
+
+```powershell
+pwsh -File tools/import-example-records.ps1 -BaseUrl https://your-gateway.example -CsvPath ./records.csv
+# 网络结果不确定时保留脚本先输出的 importKey，并用同一文件、用户和报表重试：
+pwsh -File tools/import-example-records.ps1 -BaseUrl https://your-gateway.example -CsvPath ./records.csv -ImportKey <原请求号>
+```
+
+原始文件字节摘要在服务器计算。同号换文件或报表拒绝；有效 recordCode 冲突整批回滚。`demo-data/import-status` / `revoke-import` 使用 `{importKey}`，仅原操作者访问。撤销按来源报表和原字段身份重新检查权限，保留请求号及 REVOKED 状态；旧号重放不恢复数据，主动重导使用新号。字段删除后同名重建不能替代旧授权身份。
+
+一次最多 10 MiB、10,000 行；坏行与超限不部分导入，不回显原始单元格内容。已有行列权限查询可在导入后验证真实记录。完整的非管理员场景包继续由 T-PERM-036/T-ACCESS-142 验收。

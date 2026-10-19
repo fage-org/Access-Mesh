@@ -56,6 +56,8 @@ class DemoDataPgIT {
     @Autowired PolicyCompiler compiler;
     @Autowired DemoDataAppService app;
     @Autowired DemoDataDomainService domain;
+    @Autowired cn.ac.fage.accessmesh.example.data.service.DemoImportAppService importer;
+    @Autowired cn.ac.fage.accessmesh.example.data.domain.DemoImportDomainService importDomain;
     @Autowired JsonMapper json;
     @Autowired org.apache.ibatis.session.SqlSessionFactory sessions;
     @MockitoBean PermissionFeignClient client;
@@ -262,6 +264,88 @@ class DemoDataPgIT {
         }
         assertEquals("old-A",remark("A"));
     }
+
+    @Test void shouldImportReplayRevokeAndReimportOnlyWithNewKey() {
+        allowImport(); String key=UUID.randomUUID().toString(); var request=new cn.ac.fage.accessmesh.example.data.dto.ImportDtos.ImportReq("r1",key);
+        var first=importer.submit(actor,request,csv("X")); assertEquals("IMPORTED",first.status()); assertEquals(1,first.recordCount());
+        assertEquals(first,importer.submit(actor,request,csv("X")));
+        assertEquals(30104,assertThrows(BizException.class,()->importer.submit(actor,request,csv("Y"))).getErrorCode());
+        var keyReq=new cn.ac.fage.accessmesh.example.data.dto.ImportDtos.KeyReq(key);
+        assertEquals(30004,assertThrows(BizException.class,()->importer.status(new Caller(1,43,null),keyReq)).getErrorCode());
+        assertEquals("REVOKED",importer.revoke(actor,keyReq).status());
+        assertEquals("REVOKED",importer.submit(actor,request,csv("X")).status());
+        assertEquals("REVOKED",importer.revoke(actor,keyReq).status());
+        var next=importer.submit(actor,new cn.ac.fage.accessmesh.example.data.dto.ImportDtos.ImportReq("r1",UUID.randomUUID().toString()),csv("X"));
+        assertEquals("IMPORTED",next.status());
+        assertEquals(1L,jdbc.queryForObject("SELECT count(*) FROM demo_record WHERE tenant_id=1 AND record_code='X' AND delete_flag=0",Long.class));
+    }
+
+    @Test void shouldRejectInstanceEvenWhenItCoversAllRowsAndRejectMissingSubmittedColumnGrant() {
+        allowImport(); rowMode=ScopeMode.INSTANCE;
+        jdbc.update("UPDATE demo_record SET team_code='T1' WHERE tenant_id=1");
+        assertEquals(4,app.page(actor,page("r1",1,20)).page().total());
+        var request=new cn.ac.fage.accessmesh.example.data.dto.ImportDtos.ImportReq("r1",UUID.randomUUID().toString());
+        assertEquals(30004,assertThrows(BizException.class,()->importer.submit(actor,request,csv("X"))).getErrorCode());
+        rowMode=ScopeMode.ALL; fieldMode=ScopeMode.INSTANCE;
+        editCodes=fields.values().stream().filter(f -> !f.getFieldKey().equals("amount")).map(DemoReportField::getResourceCode).toList();
+        assertEquals(30004,assertThrows(BizException.class,()->importer.submit(actor,request,csv("X"))).getErrorCode());
+        assertEquals(0L,jdbc.queryForObject("SELECT count(*) FROM demo_import_batch WHERE import_key=?::uuid",Long.class,request.importKey()));
+    }
+
+    @Test void shouldRollbackEveryChunkWhenLastRecordConflicts() {
+        allowImport(); String key=UUID.randomUUID().toString(); StringBuilder input=new StringBuilder(DemoCsvReaderTest.HEADER);
+        for(int i=0;i<256;i++) input.append(csvRow("late-"+i)); input.append(csvRow("A"));
+        var file=new org.springframework.mock.web.MockMultipartFile("file","records.csv","text/csv",input.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        assertEquals(30104,assertThrows(BizException.class,()->importer.submit(actor,new cn.ac.fage.accessmesh.example.data.dto.ImportDtos.ImportReq("r1",key),file)).getErrorCode());
+        assertEquals(0L,jdbc.queryForObject("SELECT count(*) FROM demo_record WHERE record_code LIKE 'late-%'",Long.class));
+        assertEquals(0L,jdbc.queryForObject("SELECT count(*) FROM demo_import_batch WHERE import_key=?::uuid",Long.class,key));
+    }
+
+    @Test void shouldSerializeConcurrentSameKeyToOneBatch() throws Exception {
+        allowImport(); var request=new cn.ac.fage.accessmesh.example.data.dto.ImportDtos.ImportReq("r1",UUID.randomUUID().toString());
+        var start=new java.util.concurrent.CountDownLatch(1);
+        java.util.function.Supplier<cn.ac.fage.accessmesh.example.data.dto.ImportDtos.ImportResp> submit=()->{
+            try { assertTrue(start.await(10,java.util.concurrent.TimeUnit.SECONDS)); }
+            catch(InterruptedException e) { Thread.currentThread().interrupt(); throw new IllegalStateException(e); }
+            return importer.submit(actor,request,csv("parallel"));
+        };
+        var first=java.util.concurrent.CompletableFuture.supplyAsync(submit); var second=java.util.concurrent.CompletableFuture.supplyAsync(submit); start.countDown();
+        assertEquals(first.get(15,java.util.concurrent.TimeUnit.SECONDS),second.get(15,java.util.concurrent.TimeUnit.SECONDS));
+        assertEquals(1L,jdbc.queryForObject("SELECT count(*) FROM demo_import_batch WHERE import_key=?::uuid",Long.class,request.importKey()));
+        assertEquals(1L,jdbc.queryForObject("SELECT count(*) FROM demo_record WHERE record_code='parallel'",Long.class));
+    }
+
+    @Test void shouldKeepOriginalReportAndFieldIdentitiesForRevocation() {
+        allowImport(); String key=UUID.randomUUID().toString();
+        importer.submit(actor,new cn.ac.fage.accessmesh.example.data.dto.ImportDtos.ImportReq("r1",key),csv("X"));
+        var wrongReport=domain.authorizeImport(actor,"r2",EnumSet.allOf(cn.ac.fage.accessmesh.example.data.catalog.DemoField.class));
+        assertEquals(30004,assertThrows(BizException.class,()->tx.execute(s -> importDomain.revoke(wrongReport,42,UUID.fromString(key)))).getErrorCode());
+        tx.executeWithoutResult(s -> {
+            metadata.removeFields(1,42,"r1",1,List.of(fields.get("amount").getId()));
+            metadata.registerFields(1,42,"r1",2,List.of("amount"));
+        });
+        jdbc.update("UPDATE demo_report_field SET publication_status='PUBLISHED'");
+        assertEquals(30102,assertThrows(BizException.class,()->importer.revoke(actor,new cn.ac.fage.accessmesh.example.data.dto.ImportDtos.KeyReq(key))).getErrorCode());
+        assertEquals("IMPORTED",importer.status(actor,new cn.ac.fage.accessmesh.example.data.dto.ImportDtos.KeyReq(key)).status());
+    }
+
+    @Test void shouldNotWriteAnOmittedOptionalColumnWithoutItsGrant() {
+        allowImport(); fieldMode=ScopeMode.INSTANCE;
+        editCodes=fields.values().stream().filter(f -> !f.getFieldKey().equals("remark")).map(DemoReportField::getResourceCode).toList();
+        var file=new org.springframework.mock.web.MockMultipartFile("file","records.csv","text/csv",
+            ("recordCode,ownerUserId,teamCode,departmentCode,regionCode,saleDate,productName,amount\nwithout-remark,42,T1,D1,R1,2026-10-19,item,1.00\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        assertEquals(1,importer.submit(actor,new cn.ac.fage.accessmesh.example.data.dto.ImportDtos.ImportReq("r1",UUID.randomUUID().toString()),file).recordCount());
+        assertNull(remark("without-remark"));
+    }
+
+    private void allowImport() {
+        rowMode=ScopeMode.ALL; fieldMode=ScopeMode.ALL;
+        when(client.checkAuth(any(),anyString(),anyString())).thenReturn(R.ok(cn.ac.fage.accessmesh.perm.common.dto.resp.AuthCheckResp.allow(List.of(),List.of(),false)));
+    }
+    private org.springframework.mock.web.MockMultipartFile csv(String code) {
+        return new org.springframework.mock.web.MockMultipartFile("file","records.csv","text/csv",(DemoCsvReaderTest.HEADER+csvRow(code)).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+    private static String csvRow(String code) { return code+",42,T1,D1,R1,2026-10-19,Imported,1.00,note\r\n"; }
 
     private PageReq page(String report,int page,int size) { return new PageReq(report,null,null,null,page,size); }
     private void grantRead(String... keys) { readCodes=Arrays.stream(keys).map(k -> fields.get(k).getResourceCode()).toList(); }

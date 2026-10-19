@@ -32,6 +32,8 @@ public enum ExampleErrorCode {
     DEMO_OBJECT_UNAVAILABLE(30101, "报表或字段不可用"),
     DEMO_POLICY_INVALID(30102, "配置或资源类型用途无效"),
     DEMO_VERSION_CONFLICT(30103, "元数据版本或业务编码冲突"),
+    DEMO_IMPORT_CONFLICT(30104, "导入请求号或有效记录冲突"),
+    DEMO_CSV_INVALID(30105, "CSV 格式或字段无效"),
     DEMO_LIMIT_EXCEEDED(30106, "请求或执行容量超限"),
     DEMO_RESOURCE_NOT_READY(30108, "当前资源版本尚未发布成功");
 

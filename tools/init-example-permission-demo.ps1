@@ -144,24 +144,22 @@ if ($missing.Count -gt 0) {
     $fields=@((Invoke-DemoApi '/api/example/demo-field/list' @{reportCode=$ReportCode;pageNum=1;pageSize=200}).data.items)
 }
 foreach ($field in $fields) { Wait-DemoPublication $field.resourceTypeCode $field.resourceCode }
-$scopeDefinitions=@(
-    @{code='self';name='本人';predicate=@{fieldKey='ownerUserId';operator='EQ';valueSource='SUBJECT_ID'}},
-    @{code='team-t1';name='团队 T1';predicate=@{fieldKey='teamCode';operator='EQ';valueSource='LITERAL';value='T1'}},
-    @{code='department-d1';name='部门 D1';predicate=@{fieldKey='departmentCode';operator='EQ';valueSource='LITERAL';value='D1'}},
-    @{code='region-r1';name='地区 R1';predicate=@{fieldKey='regionCode';operator='EQ';valueSource='LITERAL';value='R1'}}
-)
+$configuration=Get-Content -LiteralPath (Join-Path $root 'example-service/examples/permission-demo-policy.json') -Raw | ConvertFrom-Json -AsHashtable
+foreach ($mode in @('read','edit')) {
+    $configuration[$mode].rowResourceTypeCode=$ScopeType
+    $configuration[$mode].fieldResourceTypeCode=$FieldType
+}
+$scopeNames=@{'self'='本人';'team-t1'='团队 T1';'department-d1'='部门 D1';'region-r1'='地区 R1'}
+$scopeDefinitions=@($configuration.bindings | ForEach-Object {
+    $_.resourceTypeCode=$ScopeType
+    @{code=$_.resourceCode;name=$(if ($scopeNames.ContainsKey($_.resourceCode)) {$scopeNames[$_.resourceCode]} else {$_.resourceCode})}
+})
 foreach ($scope in $scopeDefinitions) {
     $event=Invoke-DemoApi '/api/example/demo-publication/get' @{resourceTypeCode=$ScopeType;resourceCode=$scope.code;codeType='default'} $adminHeaders @(200,30101)
     if ($event.code -eq 30101) {
         $null=Invoke-DemoApi '/api/example/demo-scope/save' @{resourceTypeCode=$ScopeType;resourceCode=$scope.code;codeType='default';name=$scope.name;enabled=$true;expectedVersion=0}
     }
     Wait-DemoPublication $ScopeType $scope.code
-}
-$configuration=@{
-    fields=@(@('recordCode','ownerUserId','teamCode','departmentCode','regionCode','saleDate','productName','amount','remark') | ForEach-Object {@{fieldKey=$_;filterable=$true;sortable=$true}})
-    read=@{rowResourceTypeCode=$ScopeType;rowOperationCode='DATA_READ';fieldResourceTypeCode=$FieldType;fieldOperationCode='DATA_READ'}
-    edit=@{rowResourceTypeCode=$ScopeType;rowOperationCode='DATA_EDIT';fieldResourceTypeCode=$FieldType;fieldOperationCode='DATA_EDIT'}
-    bindings=@($scopeDefinitions | ForEach-Object {@{resourceTypeCode=$ScopeType;resourceCode=$_.code;codeType='default';predicates=@($_.predicate)}})
 }
 $policy=Invoke-DemoApi '/api/example/demo-policy/get' @{datasetCode='sales-records'} $adminHeaders @(200,30102)
 if ($policy.code -eq 30102) {

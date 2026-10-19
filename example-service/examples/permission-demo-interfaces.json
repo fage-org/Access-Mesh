@@ -276,6 +276,36 @@
             "resourceTypeCode": "DEMO_REPORT",
             "operationCode": "DATA_EDIT"
           }
+        },
+        {
+          "name": "demo-data/import",
+          "httpMethod": "POST",
+          "path": "/demo-data/import",
+          "resourceCode": "example:demo:demo-data:import",
+          "requiredPermission": {
+            "resourceTypeCode": "DEMO_DATASET",
+            "operationCode": "MANAGE"
+          }
+        },
+        {
+          "name": "demo-data/import-status",
+          "httpMethod": "POST",
+          "path": "/demo-data/import-status",
+          "resourceCode": "example:demo:demo-data:import-status",
+          "requiredPermission": {
+            "resourceTypeCode": "DEMO_DATASET",
+            "operationCode": "MANAGE"
+          }
+        },
+        {
+          "name": "demo-data/revoke-import",
+          "httpMethod": "POST",
+          "path": "/demo-data/revoke-import",
+          "resourceCode": "example:demo:demo-data:revoke-import",
+          "requiredPermission": {
+            "resourceTypeCode": "DEMO_DATASET",
+            "operationCode": "MANAGE"
+          }
         }
       ]
     }

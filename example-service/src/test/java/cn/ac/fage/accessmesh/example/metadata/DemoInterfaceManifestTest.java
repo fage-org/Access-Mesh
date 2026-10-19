@@ -5,6 +5,7 @@ import cn.ac.fage.accessmesh.example.controller.ReportController;
 import cn.ac.fage.accessmesh.example.metadata.controller.DemoMetadataController;
 import cn.ac.fage.accessmesh.example.data.controller.DemoPolicyController;
 import cn.ac.fage.accessmesh.example.data.controller.DemoDataController;
+import cn.ac.fage.accessmesh.example.data.controller.DemoImportController;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,7 +21,7 @@ class DemoInterfaceManifestTest {
     @Test
     void shouldDeclareExactlyTheImplementedPostRoutesWithExplicitPermissionRequirements() throws Exception {
         Set<String> implemented=new HashSet<>();
-        for (Class<?> controller : Set.of(DemoController.class,ReportController.class,DemoMetadataController.class,DemoPolicyController.class,DemoDataController.class)) {
+        for (Class<?> controller : Set.of(DemoController.class,ReportController.class,DemoMetadataController.class,DemoPolicyController.class,DemoDataController.class,DemoImportController.class)) {
             String prefix=controller.getAnnotation(RequestMapping.class).value()[0];
             for (var method : controller.getDeclaredMethods()) {
                 var mapping=method.getAnnotation(PostMapping.class);
@@ -44,6 +45,7 @@ class DemoInterfaceManifestTest {
                 case "/demo-scope/save", "/demo-publication/get", "/demo-publication/page", "/demo-publication/retry", "/demo-policy/get", "/demo-policy/save" -> DemoPermission.POLICY_MANAGE;
                 case "/demo-data/fields", "/demo-data/page", "/demo-data/get", "/demo-data/batch-get" -> DemoPermission.REPORT_READ;
                 case "/demo-data/update", "/demo-data/batch-update" -> DemoPermission.REPORT_EDIT;
+                case "/demo-data/import", "/demo-data/import-status", "/demo-data/revoke-import" -> DemoPermission.DATASET_MANAGE;
                 default -> null; // Legacy probe requirements are verified by their existing E2E journeys.
             };
             if (permission!=null) {

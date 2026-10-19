@@ -7,7 +7,8 @@ public enum DemoPermission {
     REPORT_UPDATE("DEMO_REPORT", "UPDATE"),
     REPORT_READ("DEMO_REPORT", "DATA_READ"),
     REPORT_EDIT("DEMO_REPORT", "DATA_EDIT"),
-    POLICY_MANAGE("DEMO_POLICY", "MANAGE");
+    POLICY_MANAGE("DEMO_POLICY", "MANAGE"),
+    DATASET_MANAGE("DEMO_DATASET", "MANAGE");
 
     private final String type;
     private final String operation;

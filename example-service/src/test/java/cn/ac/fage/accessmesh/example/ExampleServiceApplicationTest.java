@@ -74,6 +74,27 @@ class ExampleServiceApplicationTest {
 
     private final ObjectMapper json = JsonMapper.builder().configureForJackson2().build();
 
+    @Test void multipartImportUsesJsonRequestPartAndMapsCsvErrors() {
+        org.mockito.Mockito.when(permissionChecker.check(org.mockito.ArgumentMatchers.any(),org.mockito.ArgumentMatchers.any(),org.mockito.ArgumentMatchers.any(),org.mockito.ArgumentMatchers.any()))
+            .thenReturn(new cn.ac.fage.accessmesh.example.perm.BusinessPermChecker.Decision(true,null));
+        HttpHeaders headers=new HttpHeaders(); headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+        headers.set("X-User-Id","42"); headers.set("X-Tenant-Id","9004"); sign(headers,"42","9004");
+        var parts=new org.springframework.util.LinkedMultiValueMap<String,Object>();
+        var jsonHeaders=new HttpHeaders(); jsonHeaders.setContentType(MediaType.APPLICATION_JSON);
+        parts.add("request",new HttpEntity<>(Map.of("reportCode","r1","importKey",java.util.UUID.randomUUID().toString()),jsonHeaders));
+        parts.add("file",new org.springframework.core.io.ByteArrayResource("unknown\nsecret-value\n".getBytes(java.nio.charset.StandardCharsets.UTF_8)) {
+            @Override public String getFilename() { return "records.csv"; }
+        });
+        var response=json.readTree(rest.postForObject("/api/example/demo-data/import",new HttpEntity<>(parts,headers),String.class));
+        assertThat(response.path("code").asInt()).isEqualTo(30105);
+        assertThat(response.toString()).doesNotContain("secret-value");
+        parts.set("file",new org.springframework.core.io.ByteArrayResource(new byte[10*1024*1024+1]) {
+            @Override public String getFilename() { return "oversized.csv"; }
+        });
+        var oversized=json.readTree(rest.postForObject("/api/example/demo-data/import",new HttpEntity<>(parts,headers),String.class));
+        assertThat(oversized.path("code").asInt()).isEqualTo(30106);
+    }
+
     @Test
     void dataRoutesRejectMalformedSelectionsAndChangesBeforeBusinessExecution() {
         HttpHeaders headers=new HttpHeaders(); headers.setContentType(MediaType.APPLICATION_JSON);

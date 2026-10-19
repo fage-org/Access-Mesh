@@ -45,6 +45,12 @@ public class DemoDataDomainServiceImpl implements DemoDataDomainService {
     public DataSqlPlan authorizeRead(Caller caller,Selection selection) { return authorize(caller,selection,null); }
     @Override
     public DataSqlPlan authorizeEdit(Caller caller,String code) { return authorize(caller,new Selection(code,null,null,null),Set.of(DemoField.REMARK)); }
+    @Override
+    public DataSqlPlan authorizeImport(Caller caller,String code,Set<DemoField> fields) {
+        var plan=authorize(caller,new Selection(code,null,null,null),fields);
+        if(plan.rowMode()!=ScopeMode.ALL) throw error(ExampleErrorCode.PERMISSION_DENIED);
+        return plan;
+    }
 
     private DataSqlPlan authorize(Caller caller,Selection selection,Set<DemoField> writeFields) {
         boolean edit=writeFields!=null;

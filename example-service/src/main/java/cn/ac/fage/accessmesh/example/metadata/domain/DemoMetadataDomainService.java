@@ -11,6 +11,7 @@ public interface DemoMetadataDomainService {
     DemoScope saveScope(long tenant, long actor, String type, String code, String codeType,
                         String name, boolean enabled, long expectedVersion);
     DemoReport getReport(long tenant, String code);
+    DemoReport getReportById(long tenant,long id);
     DemoReport updateReport(long tenant, long actor, String code, long version, String name, boolean enabled);
     List<DemoReportField> getFields(long tenant, String code);
     List<DemoReportField> registerFields(long tenant, long actor, String code, long catalogVersion, List<String> keys);

@@ -116,6 +116,12 @@ public class DemoMetadataDomainServiceImpl implements DemoMetadataDomainService 
         if (report == null) throw error(ExampleErrorCode.DEMO_OBJECT_UNAVAILABLE);
         return report;
     }
+    @Override
+    public DemoReport getReportById(long tenant,long id) {
+        var report=reports.selectById(tenant,id);
+        if(report==null) throw error(ExampleErrorCode.DEMO_OBJECT_UNAVAILABLE);
+        return report;
+    }
 
     @Override
     public DemoReport updateReport(long tenant, long actor, String code, long version, String name, boolean enabled) {

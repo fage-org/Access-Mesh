@@ -118,6 +118,8 @@ class ExampleBusinessFinalCheckE2EIT {
     private static ServiceHandle accessService;
     private static ServiceHandle gatewayService;
     private static ServiceHandle exampleService;
+    private static Map<String,String> exampleEnvironment;
+    private static List<String> exampleArguments;
 
     private static String adminToken;
     private static long targetUserId;
@@ -159,17 +161,16 @@ class ExampleBusinessFinalCheckE2EIT {
             URI.create("http://localhost:" + accessPort + "/api/access/auth/captcha"), ACCESS_SERVICE_CLASSES_DIR);
         waitAdminSeeded();
 
-        exampleService = startService("example-service", EXAMPLE_MAIN_CLASS,
-            exampleServiceArgs(examplePort, accessPort),
-            exampleDatabase.environment(Map.of("JWT_SECRET_KEY", JWT_SECRET,
+        exampleEnvironment=exampleDatabase.environment(Map.of("JWT_SECRET_KEY", JWT_SECRET,
                 "ACCESSMESH_SIGNATURE_SECRET", SIGNATURE_SECRET,
                 "SPRING_APPLICATION_JSON", JSON.writeValueAsString(Map.of("example", Map.of("permission", Map.of(
                     "allow-insecure", true,
                     "tenant-credentials", Map.of(
                         "1", Map.of("credential-id", "sc-example-e2e-1", "credential-secret", "sk-example-e2e-1"),
-                        "2", Map.of("credential-id", "sc-example-e2e-2", "credential-secret", "sk-example-e2e-2")))))))),
-            URI.create("http://localhost:" + examplePort + "/api/example/demo/hello"),
-            EXAMPLE_SERVICE_CLASSES_DIR);
+                        "2", Map.of("credential-id", "sc-example-e2e-2", "credential-secret", "sk-example-e2e-2"))))))));
+        exampleArguments=exampleServiceArgs(examplePort,accessPort);
+        exampleService=startService("example-service",EXAMPLE_MAIN_CLASS,exampleArguments,exampleEnvironment,
+            URI.create("http://localhost:"+examplePort+"/api/example/demo/hello"),EXAMPLE_SERVICE_CLASSES_DIR);
 
         gatewayService = startService("gateway", GATEWAY_MAIN_CLASS,
             gatewayArgs(gatewayPort, gatewayMgmtPort, accessPort, examplePort), gatewayEnv(),
@@ -763,6 +764,72 @@ class ExampleBusinessFinalCheckE2EIT {
             assertThat(empty.path("data").path("columns").size()).isEqualTo(9);
         }
 
+    }
+
+    @Test
+    @Order(14)
+    void csvImportAndRequestIdentitySurviveServiceRestartAndRevocation() throws Exception {
+        ensureDataSetup();
+        String key=java.util.UUID.randomUUID().toString();
+        String csv="recordCode,ownerUserId,teamCode,departmentCode,regionCode,saleDate,productName,amount,remark\r\n"
+            +"restart-row,"+targetUserId+",T1,D1,R1,2026-10-19,Restart,1.25,note\r\n";
+        var imported=uploadCsv(adminToken,"sales-report",key,csv);
+        assertThat(imported.path("code").asInt()).isEqualTo(200);
+        assertThat(imported.path("data").path("recordCount").asInt()).isEqualTo(1);
+        assertThat(uploadCsv(adminToken,"sales-report",key,csv).path("data").path("status").asText()).isEqualTo("IMPORTED");
+        int port=exampleService.port(); exampleService.destroy();
+        exampleService=startService("example-service",EXAMPLE_MAIN_CLASS,exampleArguments,exampleEnvironment,
+            URI.create("http://localhost:"+port+"/api/example/demo/hello"),EXAMPLE_SERVICE_CLASSES_DIR);
+        var status=demoAdminPost("/demo-data/import-status",JSON.createObjectNode().put("importKey",key));
+        assertThat(status.path("data").path("status").asText()).isEqualTo("IMPORTED");
+        var rows=demoAdminPost("/demo-data/page",JSON.createObjectNode().put("reportCode","sales-report"));
+        assertThat(rows.path("data").path("page").path("total").asInt()).isEqualTo(1);
+        assertThat(rows.path("data").path("page").path("items").get(0).path("recordCode").asText()).isEqualTo("restart-row");
+        demoAdminPost("/demo-data/revoke-import",JSON.createObjectNode().put("importKey",key));
+        assertThat(uploadCsv(adminToken,"sales-report",key,csv).path("data").path("status").asText()).isEqualTo("REVOKED");
+        String next=java.util.UUID.randomUUID().toString();
+        assertThat(uploadCsv(adminToken,"sales-report",next,csv).path("data").path("status").asText()).isEqualTo("IMPORTED");
+        demoAdminPost("/demo-data/revoke-import",JSON.createObjectNode().put("importKey",next));
+    }
+
+    private static void ensureDataSetup() throws Exception {
+        var current=parseEnvelope(postEnvelope(gateway()+"/api/example/demo-policy/get",adminToken,"{\"datasetCode\":\"sales-records\"}"));
+        if(current.path("code").asInt()==200) return;
+        assertThat(current.path("code").asInt()).isEqualTo(30102);
+        var create=parseEnvelope(postEnvelope(gateway()+"/api/example/demo-report/create",adminToken,
+            "{\"reportCode\":\"sales-report\",\"name\":\"Sales\",\"datasetCode\":\"sales-records\",\"fieldResourceTypeCode\":\"DEMO_REPORT_FIELD\"}"));
+        assertThat(create.path("code").asInt()).isIn(200,30103);
+        awaitDemoPublication("DEMO_REPORT","sales-report");
+        var report=demoAdminPost("/demo-report/get",JSON.createObjectNode().put("reportCode","sales-report")).path("data");
+        var currentFields=demoAdminPost("/demo-field/list",JSON.createObjectNode().put("reportCode","sales-report")).path("data").path("items");
+        var configured=JSON.readTree(Files.readString(Path.of("..","example-service","examples","permission-demo-policy.json")));
+        var keys=JSON.createArrayNode();
+        for(var field:configured.path("fields")) {
+            boolean exists=false; for(var registered:currentFields) if(registered.path("fieldKey").asText().equals(field.path("fieldKey").asText())) exists=true;
+            if(!exists) keys.add(field.path("fieldKey").asText());
+        }
+        if(!keys.isEmpty()) demoAdminPost("/demo-field/register",JSON.createObjectNode().put("reportCode","sales-report")
+            .put("expectedCatalogVersion",report.path("catalogVersion").asLong()).set("fieldKeys",keys));
+        var fields=demoAdminPost("/demo-field/list",JSON.createObjectNode().put("reportCode","sales-report")).path("data").path("items");
+        for(var field:fields) awaitDemoPublication("DEMO_REPORT_FIELD",field.path("resourceCode").asText());
+        for(var binding:configured.path("bindings")) {
+            String code=binding.path("resourceCode").asText();
+            demoAdminPost("/demo-scope/save",JSON.createObjectNode().put("resourceTypeCode","DEMO_DATA_SCOPE").put("resourceCode",code)
+                .put("name",code).put("enabled",true).put("expectedVersion",0));
+            awaitDemoPublication("DEMO_DATA_SCOPE",code);
+        }
+        demoAdminPost("/demo-policy/save",JSON.createObjectNode().put("datasetCode","sales-records").put("expectedVersion",0).set("configuration",configured));
+    }
+
+    private static JsonNode uploadCsv(String token,String report,String key,String csv) throws Exception {
+        String boundary="example-"+java.util.UUID.randomUUID();
+        String request=JSON.createObjectNode().put("reportCode",report).put("importKey",key).toString();
+        String body="--"+boundary+"\r\nContent-Disposition: form-data; name=\"request\"\r\nContent-Type: application/json\r\n\r\n"+request
+            +"\r\n--"+boundary+"\r\nContent-Disposition: form-data; name=\"file\"; filename=\"records.csv\"\r\nContent-Type: text/csv\r\n\r\n"+csv+"\r\n--"+boundary+"--\r\n";
+        var response=HTTP.send(HttpRequest.newBuilder(URI.create(gateway()+"/api/example/demo-data/import"))
+            .timeout(Duration.ofSeconds(30)).header("Authorization","Bearer "+token).header("Content-Type","multipart/form-data; boundary="+boundary)
+            .POST(HttpRequest.BodyPublishers.ofString(body,StandardCharsets.UTF_8)).build(),HttpResponse.BodyHandlers.ofString());
+        return JSON.readTree(response.body());
     }
 
     private static JsonNode demoAdminPost(String path, JsonNode body) {

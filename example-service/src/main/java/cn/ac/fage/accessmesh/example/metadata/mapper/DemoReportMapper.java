@@ -28,6 +28,8 @@ public interface DemoReportMapper {
         WHERE r.tenant_id = #{tenantId} AND r.report_code = #{reportCode} AND r.delete_flag = 0
         """)
     DemoReport selectByCode(@Param("tenantId") long tenantId, @Param("reportCode") String reportCode);
+    @Select("SELECT * FROM demo_report WHERE tenant_id=#{tenant} AND id=#{id} AND delete_flag=0")
+    DemoReport selectById(@Param("tenant") long tenant,@Param("id") long id);
 
     @Update("""
         UPDATE demo_report SET name=#{name},enabled=#{enabled},version=version+1,

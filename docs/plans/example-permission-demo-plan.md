@@ -46,7 +46,7 @@ last_updated: 2026-10-19
 | [T-ACCESS-137](../tasks/T-ACCESS-137.md) | 权限演示数据库与持久化基础 | ✅ | T-ACCESS-136 |
 | [T-ACCESS-139](../tasks/T-ACCESS-139.md) | 演示资源登记与可靠发布 | ✅ | T-ACCESS-137 |
 | [T-ACCESS-140](../tasks/T-ACCESS-140.md) | 动态策略配置与真实 SQL 权限过滤 | ✅ | T-ACCESS-139 |
-| [T-ACCESS-138](../tasks/T-ACCESS-138.md) | 演示业务记录与 CSV 导入 | ⚙️ | T-ACCESS-140 |
+| [T-ACCESS-138](../tasks/T-ACCESS-138.md) | 演示业务记录与 CSV 导入 | ✅ | T-ACCESS-140 |
 | [T-PERM-036](../tasks/T-PERM-036.md) | 动态数据权限端到端验证 | ⚙️ | T-ACCESS-138 |
 | [T-ACCESS-141](../tasks/T-ACCESS-141.md) | 有界授权快照导出与结果领取 | ⚙️ | T-ACCESS-140、T-PERM-036 |
 | [T-ACCESS-143](../tasks/T-ACCESS-143.md) | example 内部自定义定时任务与恢复 | ⚙️ | T-ACCESS-141 |
@@ -63,6 +63,6 @@ last_updated: 2026-10-19
 
 ## 当前进度
 
-T-ACCESS-136、T-ACCESS-137、T-ACCESS-139 done；T-FE-079 cancelled，T-ACCESS-140 done，其余 proposed。实施契约、持久化基础与资源发布已验收，下一步为 T-ACCESS-138；安全检查脚本已按确认范围更新。执行中的未决设计取舍由用户决定，已确认范围不重复提问。
+T-ACCESS-136、T-ACCESS-137、T-ACCESS-139 done；T-FE-079 cancelled，T-ACCESS-140 done，T-ACCESS-138 done，其余 proposed。实施契约、持久化基础与资源发布已验收，下一步为 T-PERM-036；安全检查脚本已按确认范围更新。执行中的未决设计取舍由用户决定，已确认范围不重复提问。
 
 定稿核对证据见 T-ACCESS-136；已确认的导入请求号、记录定位、安全测试例外、执行预算和固定主操作已回写所属规范。

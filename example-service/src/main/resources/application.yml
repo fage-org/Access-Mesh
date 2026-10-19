@@ -1,5 +1,7 @@
 server:
   port: 9300
+  tomcat:
+    max-swallow-size: 11MB
 
 # 探针仅在容器内回环管理端口可达，不经过业务身份拦截器。
 management:
@@ -15,6 +17,10 @@ management:
       show-details: never
 
 spring:
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 11MB
   datasource:
     url: jdbc:postgresql://${EXAMPLE_DB_HOST:127.0.0.1}:${EXAMPLE_DB_PORT:5432}/${EXAMPLE_DB_NAME:example_db}?stringtype=unspecified
     username: ${EXAMPLE_DB_USERNAME:example_app}

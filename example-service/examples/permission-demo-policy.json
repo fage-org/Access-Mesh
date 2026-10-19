@@ -1,0 +1,114 @@
+{
+  "fields": [
+    {
+      "fieldKey": "recordCode",
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "fieldKey": "ownerUserId",
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "fieldKey": "teamCode",
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "fieldKey": "departmentCode",
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "fieldKey": "regionCode",
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "fieldKey": "saleDate",
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "fieldKey": "productName",
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "fieldKey": "amount",
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "fieldKey": "remark",
+      "filterable": true,
+      "sortable": true
+    }
+  ],
+  "read": {
+    "rowResourceTypeCode": "DEMO_DATA_SCOPE",
+    "rowOperationCode": "DATA_READ",
+    "fieldResourceTypeCode": "DEMO_REPORT_FIELD",
+    "fieldOperationCode": "DATA_READ"
+  },
+  "edit": {
+    "rowResourceTypeCode": "DEMO_DATA_SCOPE",
+    "rowOperationCode": "DATA_EDIT",
+    "fieldResourceTypeCode": "DEMO_REPORT_FIELD",
+    "fieldOperationCode": "DATA_EDIT"
+  },
+  "bindings": [
+    {
+      "resourceTypeCode": "DEMO_DATA_SCOPE",
+      "resourceCode": "self",
+      "codeType": "default",
+      "predicates": [
+        {
+          "fieldKey": "ownerUserId",
+          "operator": "EQ",
+          "valueSource": "SUBJECT_ID"
+        }
+      ]
+    },
+    {
+      "resourceTypeCode": "DEMO_DATA_SCOPE",
+      "resourceCode": "team-t1",
+      "codeType": "default",
+      "predicates": [
+        {
+          "fieldKey": "teamCode",
+          "operator": "EQ",
+          "valueSource": "LITERAL",
+          "value": "T1"
+        }
+      ]
+    },
+    {
+      "resourceTypeCode": "DEMO_DATA_SCOPE",
+      "resourceCode": "department-d1",
+      "codeType": "default",
+      "predicates": [
+        {
+          "fieldKey": "departmentCode",
+          "operator": "EQ",
+          "valueSource": "LITERAL",
+          "value": "D1"
+        }
+      ]
+    },
+    {
+      "resourceTypeCode": "DEMO_DATA_SCOPE",
+      "resourceCode": "region-r1",
+      "codeType": "default",
+      "predicates": [
+        {
+          "fieldKey": "regionCode",
+          "operator": "EQ",
+          "valueSource": "LITERAL",
+          "value": "R1"
+        }
+      ]
+    }
+  ]
+}

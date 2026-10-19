@@ -8,7 +8,7 @@ last_reviewed: 2026-10-19
 
 # example-service 持久化权限演示 API 契约
 
-本文件由 T-ACCESS-136 定稿，元数据与资源发布已由 T-ACCESS-139 交付，策略配置与记录查询/备注修改由 T-ACCESS-140 实现，验收状态见任务卡；导入与任务按计划实施。现役 hello/report 探针继续按[服务设计](services/example-service.md)运行，未交付的路由不描述为已上线，也不进入可用接口声明。
+本文件由 T-ACCESS-136 定稿，元数据与资源发布已由 T-ACCESS-139 交付，策略配置与记录查询/备注修改由 T-ACCESS-140 实现，验收状态见任务卡；CSV 导入由 T-ACCESS-138 实现，任务按计划实施。现役 hello/report 探针继续按[服务设计](services/example-service.md)运行，未交付的路由不描述为已上线，也不进入可用接口声明。
 
 报表入口采用已确认的[固定主类型/主操作边界](example-permission-demo.md#admission-binding)：主类型为 DEMO_REPORT，读取/编辑/导出分别为 DATA_READ / DATA_EDIT / EXPORT；它们不作为策略可编辑字段。动态范围、字段与谓词配置继续生效。
 
@@ -55,7 +55,7 @@ last_reviewed: 2026-10-19
 
 `POST /api/example/demo-data/import-status` 与 `POST /api/example/demo-data/revoke-import` 均接收 `{importKey}`，返回 `ImportResp`。仅原操作者在可信租户下访问，其他操作者与不存在统一拒绝 30004；状态查询要求数据维护权，不返回业务字段值或文件摘要。撤销额外检查来源报表 DATA_EDIT、行编辑 ALL 和实际导入字段的编辑权，从已存批次读取来源报表及字段身份，不能让请求换用另一报表的授权。已撤销批次重复撤销返回原状态；字段身份删除失效时不按同名新字段替代，失败关闭。
 
-CSV 只能含目标报表已登记且发布的固定数据集字段，未知或重复表头拒绝。字段类型见策略目录节，文件/行数按[执行预算](example-permission-demo.md#execution-budgets)；空文件或无业务记录拒绝。错误只报告受控原因、行号和字段，不回显无读权字段值、原始 CSV 行或 SQL。样例/模板由场景脚本按固定目录生成，首版无独立上传暂存、预览确认作业或任意列自动注册。
+CSV 只能含目标报表已登记且发布的固定数据集字段，未知或重复表头拒绝。必填业务列必须出现；可空 remark 表头可省略，省略时 SQL 不显式写该列，也不以默认值绕过任何提交列的编辑权限。字段类型见策略目录节，文件/行数按[执行预算](example-permission-demo.md#execution-budgets)；空文件或无业务记录拒绝。错误只报告受控原因、行号和字段，不回显无读权字段值、原始 CSV 行或 SQL。样例/模板由场景脚本按固定目录生成，首版无独立上传暂存、预览确认作业或任意列自动注册。
 
 <a id="record-addressing"></a>
 ## 记录定位与行列响应
@@ -209,7 +209,7 @@ CSV 只输出最终授权列，沿既有引号转义与字符串公式前缀防�
 <a id="business-errors"></a>
 ## 新业务错误码
 
-下列编号随所属能力登记到 ExampleErrorCode；已实现能力已登记 30101/30102/30103/30106/30108，其余随后续任务交付；业务失败沿现役 BizException/统一错误信封，结构与格式非法仍走公共 90001 / HTTP 400。
+下列编号随所属能力登记到 ExampleErrorCode；已实现能力已登记 30101/30102/30103/30104/30105/30106/30108，其余随后续任务交付；业务失败沿现役 BizException/统一错误信封，结构与格式非法仍走公共 90001 / HTTP 400。
 
 | 编号 | 含义 | 暴露边界 |
 |---|---|---|

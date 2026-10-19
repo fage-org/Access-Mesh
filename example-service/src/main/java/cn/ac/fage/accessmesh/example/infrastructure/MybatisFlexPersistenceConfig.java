@@ -30,6 +30,7 @@ public class MybatisFlexPersistenceConfig implements ConfigurationCustomizer {
     }
     @Override
     public void customize(FlexConfiguration configuration) {
+        configuration.getTypeHandlerRegistry().register(java.util.UUID.class,new UuidTypeHandler());
         configuration.getTypeHandlerRegistry().register(LocalDateTime.class,
             new TimestamptzLocalDateTimeTypeHandler());
     }
