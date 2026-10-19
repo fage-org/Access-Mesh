@@ -3,7 +3,7 @@ doc_type: design
 title: Example Service 设计
 status: adopted
 domain: example-service
-last_reviewed: 2026-10-18
+last_reviewed: 2026-10-19
 ---
 
 # Example Service 设计
@@ -12,7 +12,7 @@ last_reviewed: 2026-10-18
 
 ## 待实施的持久化权限演示
 
-[权限演示需求](../example-permission-demo.md)为 draft，[执行计划](../../plans/example-permission-demo-plan.md)为 proposed。已确认 CSV 入库、本人/团队/部门动态行权限、基于特定报表的字段权限与 example 内部调度，不做数据分析或业务页面；本次只设计，尚未改变下文当前实现。真实 SQL 验证由 T-PERM-036 承接，实施暂缓仍在。
+[权限演示设计](../example-permission-demo.md)为 adopted，[执行计划](../../plans/example-permission-demo-plan.md)为 active，T-ACCESS-136 已定稿，当前推进 T-ACCESS-137。已确认 CSV 入库、本人/团队/部门动态行权限、基于特定报表的字段权限与 example 内部调度，不做数据分析或业务页面；后续代码任务按依赖实施，尚未改变下文当前实现。真实 SQL 验证由 T-PERM-036 承接，已获整计划执行授权，等待前置任务。
 
 ## 职责边界
 

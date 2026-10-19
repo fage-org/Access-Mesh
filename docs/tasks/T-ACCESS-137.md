@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-137
 title: 权限演示数据库与持久化基础
-status: proposed
+status: in-progress
 plan: docs/plans/example-permission-demo-plan.md
 domain: cross-service
 design_refs:
@@ -18,7 +18,7 @@ acceptance:
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-10-18
+last_updated: 2026-10-19
 ---
 
 ## 背景
@@ -33,7 +33,7 @@ example_db、数据源、MyBatis-Flex 分层、原样 DDL、审计/唯一性/CAS
 
 ## 当前口径
 
-不用旧未消费 DDL 直接启动，不读取 IAM 内部表，不建设销售分析字段或影子用户中心。单实例部署；测试支持避免让 example 依赖 access-service 测试包或重复自建容器组。 详细规则见[权限演示设计](../design/example-permission-demo.md)；计划为 proposed，本次只设计。
+不用旧未消费 DDL 直接启动，不读取 IAM 内部表，不建设销售分析字段或影子用户中心。单实例部署；测试支持避免让 example 依赖 access-service 测试包或重复自建容器组。 详细规则见[权限演示设计](../design/example-permission-demo.md)；计划已 active，T-ACCESS-136 已 done，本卡开始实施。
 
 ## 验收对照
 

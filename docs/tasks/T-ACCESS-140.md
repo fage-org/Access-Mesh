@@ -6,6 +6,8 @@ status: proposed
 plan: docs/plans/example-permission-demo-plan.md
 domain: cross-service
 design_refs:
+  - docs/design/example-service-api-contract.md#policy
+  - docs/design/example-service-api-contract.md#records
   - docs/design/example-permission-demo.md#field-permissions
   - docs/design/example-permission-demo.md#dynamic-policy
   - docs/design/example-permission-demo.md#operations
@@ -21,7 +23,7 @@ acceptance:
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-10-18
+last_updated: 2026-10-19
 ---
 
 ## 背景
@@ -34,13 +36,15 @@ last_updated: 2026-10-18
 
 实现报表上下文的字段范围查询、授权字段目录、SQL 明确列投影及编辑列校验；与行范围共同消费四态。
 
+详情和修改按 recordCode 定位，列表只在编号可读时返回编号，不增加 rowId；已知编号不替代权限校验，写后响应不自动回显字段值。依据见[字段权限](../design/example-permission-demo.md#field-permissions)。
+
 本卡先于 CSV 导入交付共享行列授权执行器，导入复用它而不复制字段门禁。定向 PG 验证用测试夹具准备记录，不依赖生产导入 API；实现就绪后由 T-ACCESS-138 完成可重复导入接线。
 
 为导入、在线读写和异步快照提供同一授权结果/行谓词/列投影入口，不分散复制规则。
 
 ## 当前口径
 
-实现只使用有限通用字段/谓词/值来源，不按角色名或业务维度硬编码。租户/有效状态不可配置关闭，SQL 参数化。仅在本计划及 T-PERM-036 实施准入明确后启动。 详细规则见[权限演示设计](../design/example-permission-demo.md)；计划为 proposed，本次只设计。
+实现只使用有限通用字段/谓词/值来源，不按角色名或业务维度硬编码。租户/有效状态不可配置关闭，SQL 参数化。按直接依赖 T-ACCESS-139 完成后实施；T-PERM-036 在本卡和导入交付后验证，不倒置依赖。详细规则见[权限演示设计](../design/example-permission-demo.md)；计划已 active。
 
 ## 验收对照
 

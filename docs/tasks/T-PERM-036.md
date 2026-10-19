@@ -17,7 +17,7 @@ depends_on:
 acceptance:
   - "使用非管理员演示身份，先完成配置/授权再导入；验证同一主体的行撤权、字段撤权、正负写入和跨报表隔离。"
   - "验证报表上下文字段隔离、行列四态组合、隐藏列无旁路、导入/读写字段权限以及字段新增删除的授权边界。"
-  - 用户明确解除暂缓后才进入实施；描述校准不视为启动授权
+  - 整计划执行授权已覆盖本卡；契约定稿和 T-ACCESS-138 完成后才进入实施
   - 复用现行 query-scopes 与统一执行器，验证权限事实到真实业务 SQL 查询结果的端到端链路
   - 验证 INSTANCE 精确范围过滤、ALL 无范围过滤但保留租户约束、DENIED 拒绝且不发业务 SQL、EMPTY 返回空且不发业务 SQL
   - 覆盖配置驱动的本人、团队、部门及范围并集，扩展已有地区字段仅修改配置和授权，无需修改 Java 或重启
@@ -25,7 +25,7 @@ acceptance:
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-10-18
+last_updated: 2026-10-19
 ---
 
 ## 背景
@@ -46,7 +46,7 @@ example-service 已提供 Gateway 准入和业务最终检查，报表列表使�
 
 ## 当前口径
 
-2026-10-18 本次授权为权限演示需求与计划设计，用户确认 CSV、本人/团队/部门动态配置、无分析/业务页面、example 内部调度。`status=proposed`、设计回写 pending 及实施暂缓保持；纳入计划并重连依赖不等于解除门禁。后续明确启动实施时由 T-ACCESS-136 核定准入，本次不引入业务数据库或修改运行服务。
+2026-10-19 用户已要求逐步执行整个权限演示计划，本卡用户授权层面的暂缓解除。`status=proposed`、设计回写 pending，等待 T-ACCESS-136 契约定稿及直接依赖 T-ACCESS-138 完成；不把启动授权等同于技术准入或行为验收。
 
 历史暂缓依据为 [design-review §11 Q7/B](../archive/2026-06-17/design-review.md)及 [improvement-plan §3.1](../archive/2026-08-27/improvement-plan.md)，仅用于追溯。未来实施使用上述现行设计，不恢复已退役的执行器或 DTO。
 

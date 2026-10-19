@@ -42,7 +42,8 @@
 
 | 文档 | 状态 | 关联计划 |
 |---|---|---|
-| [example 持久化权限演示](example-permission-demo.md) | draft；动态行列权限、报表字段隔离、CSV、内部调度，无分析或业务页面 | [权限演示计划](../plans/example-permission-demo-plan.md) |
+| [example 持久化权限演示](example-permission-demo.md) | adopted 目标；动态行列权限、报表字段隔离、CSV、内部调度，无分析或业务页面 | [权限演示计划](../plans/example-permission-demo-plan.md) |
+| [example 演示 API 契约](example-service-api-contract.md) | adopted 目标；请求/响应已定稿，等待实施 | [权限演示计划](../plans/example-permission-demo-plan.md) |
 | [IAM核心正确性与用户任务闭环](iam-task-closure.md) | draft；非现役契约，取舍随任务启动确定 | [执行计划](../archive/2026-09-24/iam-task-closure-plan.md) |
 
 [历史简化评估](../archive/2026-09-20/auto-grant-assessment.md)仅作追溯，当前实施依据为上方已采纳的自动授权设计。
@@ -114,7 +115,7 @@ Claude 按需技能位于 `.claude/skills/`。
 
 [登录审计事务边界](access-service-architecture.md#login-audit-transaction-boundary)已由 T-ACCESS-117 实施，验证见[2026-10-18 归档](../archive/2026-10-18/tasks/evidence/T-ACCESS-117/verification.md)。
 
-[2026-10-18 批次](../archive/2026-10-18/README.md)包含服务凭证验收与 T-ACCESS-097 补归档；Q-069 已收敛。T-PERM-036 当前描述已按现行范围查询链路校准，继续暂缓。
+[2026-10-18 批次](../archive/2026-10-18/README.md)包含服务凭证验收与 T-ACCESS-097 补归档；Q-069 已收敛。T-PERM-036 已获权限演示计划执行授权，等待前置任务。
 
 | 归档批次              | 说明                                                                                                                                            |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |

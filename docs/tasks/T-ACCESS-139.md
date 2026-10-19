@@ -6,6 +6,7 @@ status: proposed
 plan: docs/plans/example-permission-demo-plan.md
 domain: cross-service
 design_refs:
+  - docs/design/example-service-api-contract.md#metadata
   - docs/design/example-permission-demo.md#field-permissions
   - docs/design/example-permission-demo.md#storage
   - docs/design/example-permission-demo.md#operations
@@ -19,7 +20,7 @@ acceptance:
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-10-18
+last_updated: 2026-10-19
 ---
 
 ## 背景
@@ -36,7 +37,7 @@ last_updated: 2026-10-18
 
 ## 当前口径
 
-使用现有服务凭证和 SYNC 通道，Feign 在本地事务外。策略管理与业务数据维护是独立授权；保持源版本和数据库事实一致，不自动扩大客户授权。 详细规则见[权限演示设计](../design/example-permission-demo.md)；计划为 proposed，本次只设计。
+使用现有服务凭证和 SYNC 通道，Feign 在本地事务外。策略管理与业务数据维护是独立授权；保持源版本和数据库事实一致，不自动扩大客户授权。 详细规则见[权限演示设计](../design/example-permission-demo.md)；计划已 active，本卡等待前置任务完成后实施。
 
 ## 验收对照
 

@@ -22,7 +22,7 @@ acceptance:
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-10-18
+last_updated: 2026-10-19
 ---
 
 ## 背景
@@ -39,7 +39,7 @@ API/脚本样例、真实身份/资源创建与清理、正反例期望 ID、动
 
 ## 当前口径
 
-移除业务页面和分析验收，不依赖已取消 T-FE-079。使用既有 IAM 管理台和脚本，按任务范围复用现有引擎证据；收口 mvn test -T 1C 含 E2E/heavy。 详细规则见[权限演示设计](../design/example-permission-demo.md)；计划为 proposed，本次只设计。
+移除业务页面和分析验收，不依赖已取消 T-FE-079。使用既有 IAM 管理台和脚本，按任务范围复用现有引擎证据；收口 mvn test -T 1C 含 E2E/heavy。 详细规则见[权限演示设计](../design/example-permission-demo.md)；计划已 active，本卡等待前置任务完成后实施。
 
 ## 验收对照
 

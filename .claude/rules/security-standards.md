@@ -193,7 +193,7 @@ CI 的 NVD 初始化使用官方年度压缩文件与 modified 文件（2026-10-
 
 ### Docker 测试依赖临时风险例外
 
-2026-10-17 用户批准（T-ACCESS-105）：仅接受 `docker-java-transport-zerodep:3.7.1` JAR 内嵌 HttpCore 5.3.6 的 **CVE-2026-54399**，范围为 Access Service / E2E Tests 的 test 依赖、连接可信 Docker 基础设施。此 HTTP/1.1 头资源耗尽漏洞真实存在，不能归为误报；普通 HttpCore 已升级，排除不覆盖普通依赖或生产链路。
+2026-10-17 用户批准（T-ACCESS-105），2026-10-19 为 example 持久化权限演示扩展测试范围（T-ACCESS-136）：仅接受 `docker-java-transport-zerodep:3.7.1` JAR 内嵌 HttpCore 5.3.6 的 **CVE-2026-54399**，范围为 Access Service / E2E Tests / Example Service 的 test 依赖、连接可信 Docker 基础设施。此 HTTP/1.1 头资源耗尽漏洞真实存在，不能归为误报；普通 HttpCore 已升级，排除不覆盖普通依赖或生产链路，也不覆盖新建共享测试模块等其他项目路径。
 
 XML 规则限定内嵌路径和 CVE，`tools/security/check-maven-audit.mjs` 从原始报告核对版本及全部 projectReferences，缺失或超出上述测试范围即阻断；查询 Maven Central，当出现更新的 docker-java 正式版即阻断并要求复核其修复情况，查询失败也不放行。原始报告与风险判定报告一起保存。上游修复、生产路径或不可信 Docker/代理接入时撤回例外并重新处理；连接可信性须在环境配置变更评审中核实，不由 artifact 版本推断。修复后删除对应规则及专用门禁。
 

@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const acceptedCve = "CVE-2026-54399";
-const allowedReferences = new Set(["Access Service:test", "E2E Tests:test"]);
+const allowedReferences = new Set(["Access Service:test", "E2E Tests:test", "Example Service:test"]);
 const metadataUrl = "https://repo.maven.apache.org/maven2/com/github/docker-java/docker-java-transport-zerodep/maven-metadata.xml";
 
 // Dependency Check XML selectors cannot constrain Maven scopes. Keep this accepted

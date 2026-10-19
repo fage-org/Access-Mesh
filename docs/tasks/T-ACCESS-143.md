@@ -6,6 +6,7 @@ status: proposed
 plan: docs/plans/example-permission-demo-plan.md
 domain: cross-service
 design_refs:
+  - docs/design/example-service-api-contract.md#tasks
   - docs/design/example-permission-demo.md#field-permissions
   - docs/design/example-permission-demo.md#scheduled-tasks
 depends_on:
@@ -20,7 +21,7 @@ acceptance:
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-10-18
+last_updated: 2026-10-19
 ---
 
 ## 背景
@@ -37,7 +38,7 @@ last_updated: 2026-10-18
 
 ## 当前口径
 
-不接 access-service 任务管理。任务主体固定为可信创建者，配置不得指定任意用户/URL/方法/SQL。单实例，调度执行复用 T-ACCESS-141 的同一业务入口。 详细规则见[权限演示设计](../design/example-permission-demo.md)；计划为 proposed，本次只设计。
+不接 access-service 任务管理。任务主体固定为可信创建者，配置不得指定任意用户/URL/方法/SQL。单实例，调度执行复用 T-ACCESS-141 的同一业务入口。 详细规则见[权限演示设计](../design/example-permission-demo.md)；计划已 active，本卡等待前置任务完成后实施。
 
 ## 验收对照
 

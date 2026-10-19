@@ -6,6 +6,7 @@ status: proposed
 plan: docs/plans/example-permission-demo-plan.md
 domain: cross-service
 design_refs:
+  - docs/design/example-service-api-contract.md#tasks
   - docs/design/example-permission-demo.md#field-permissions
   - docs/design/example-permission-demo.md#scheduled-tasks
   - docs/design/example-permission-demo.md#operations
@@ -22,7 +23,7 @@ acceptance:
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-10-18
+last_updated: 2026-10-19
 ---
 
 ## 背景
@@ -39,7 +40,7 @@ last_updated: 2026-10-18
 
 ## 当前口径
 
-缩减文件卷/大文件产品化范围；有界结果可直接存 PG。保留现役已完成导出归提交者的边界。执行函数由内部调度任务复用，不另建一套调度平台。 详细规则见[权限演示设计](../design/example-permission-demo.md)；计划为 proposed，本次只设计。
+缩减文件卷/大文件产品化范围；有界结果可直接存 PG。保留现役已完成导出归提交者的边界。执行函数由内部调度任务复用，不另建一套调度平台。 详细规则见[权限演示设计](../design/example-permission-demo.md)；计划已 active，本卡等待前置任务完成后实施。
 
 ## 验收对照
 

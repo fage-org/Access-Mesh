@@ -6,7 +6,7 @@ const dependency = () => ({
   fileName: "docker-java-transport-zerodep-3.7.1.jar (shaded HttpCore)",
   filePath: "/repository/docker-java-transport-zerodep-3.7.1.jar/META-INF/maven/org.apache.httpcomponents.core5/httpcore5/pom.xml",
   packages: [{ id: "pkg:maven/org.apache.httpcomponents.core5/httpcore5@5.3.6" }],
-  projectReferences: ["Access Service:test", "E2E Tests:test"],
+  projectReferences: ["Access Service:test", "E2E Tests:test", "Example Service:test"],
   suppressedVulnerabilities: [{ name: "CVE-2026-54399" }],
 });
 const evaluate = d => evaluateMavenRisk({ dependencies: [d] }, ["3.7.1"]);
@@ -20,7 +20,8 @@ test("accepts only the approved test scopes, with Windows or Unix report paths",
   assert.equal(evaluate(h2).acceptedRisks.length, 1);
 });
 test("blocks production, unknown and missing scope evidence", () => {
-  for (const refs of [["Access Service:compile"], ["New Module:test"], [], undefined]) {
+  for (const refs of [["Access Service:compile"], ["Example Service:compile"],
+    ["New Module:test"], ["Example Service:test", "New Module:test"], [], undefined]) {
     const d = dependency(); d.projectReferences = refs;
     assert.throws(() => evaluate(d), /approved test dependency paths/);
   }

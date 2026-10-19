@@ -1,11 +1,12 @@
 ---
 doc_type: plan
 title: example-service 持久化权限演示
-status: proposed
+status: active
 domain: cross-service
 design_refs:
   - docs/design/example-permission-demo.md
   - docs/design/services/example-service.md
+  - docs/design/example-service-api-contract.md
 tasks:
   - T-ACCESS-136
   - T-ACCESS-137
@@ -18,14 +19,14 @@ tasks:
   - T-ACCESS-142
   - T-FE-079
 acceptance: "真实数据、动态行列权限、报表字段隔离、读写与内部定时任务通过可重复 API 场景验证，持久化/幂等及设计契约回写完成。"
-last_updated: 2026-10-18
+last_updated: 2026-10-19
 ---
 
 # example-service 持久化权限演示计划
 
 ## 目标
 
-按[需求设计](../design/example-permission-demo.md)交付真实数据库支撑的权限样板；重点是动态行范围、报表上下文的字段权限和任务执行权限，不建设 BI 分析产品。本次只完成需求和计划修订。
+按[需求设计](../design/example-permission-demo.md)交付真实数据库支撑的权限样板；重点是动态行范围、报表上下文的字段权限和任务执行权限，不建设 BI 分析产品。2026-10-19 已获用户授权逐步执行，先完成契约定稿，再按直接依赖实施。
 
 ## 非目标
 
@@ -34,15 +35,15 @@ last_updated: 2026-10-18
 ## 准入条件
 
 - 用户已确认 CSV、本人/团队/部门、报表上下文字段权限、动态配置、无页面和 example 内部调度；导入范围、策略生效流程及任务条件上下文按需求正文已确认口径执行，剩余详细契约由 T-ACCESS-136 定稿。
-- 设计 adopted、API 与 DDL 边界及测试基建复用路径明确后再实施。
-- T-PERM-036 保留实施暂缓；后续明确启动本计划时统一核定其准入，不以别卡绕过。
+- T-ACCESS-136 先定稿；设计 adopted、API 与 DDL 边界及测试基建复用路径明确后，下游代码任务才进入实施。
+- 本次整计划执行授权覆盖 T-PERM-036，解除用户授权层面的暂缓；仍须满足契约定稿和 T-ACCESS-138 完成的技术前置，不以别卡绕过。
 
 ## 任务清单
 
 | ID | 标题 | 状态 | 直接依赖 |
 |---|---|---|---|
-| [T-ACCESS-136](../tasks/T-ACCESS-136.md) | 权限演示需求与实施契约定稿 | ⚙️ | — |
-| [T-ACCESS-137](../tasks/T-ACCESS-137.md) | 权限演示数据库与持久化基础 | ⚙️ | T-ACCESS-136 |
+| [T-ACCESS-136](../tasks/T-ACCESS-136.md) | 权限演示需求与实施契约定稿 | ✅ | — |
+| [T-ACCESS-137](../tasks/T-ACCESS-137.md) | 权限演示数据库与持久化基础 | 🔨 | T-ACCESS-136 |
 | [T-ACCESS-139](../tasks/T-ACCESS-139.md) | 演示资源登记与可靠发布 | ⚙️ | T-ACCESS-137 |
 | [T-ACCESS-140](../tasks/T-ACCESS-140.md) | 动态策略配置与真实 SQL 权限过滤 | ⚙️ | T-ACCESS-139 |
 | [T-ACCESS-138](../tasks/T-ACCESS-138.md) | 演示业务记录与 CSV 导入 | ⚙️ | T-ACCESS-140 |
@@ -62,6 +63,6 @@ last_updated: 2026-10-18
 
 ## 当前进度
 
-需求和计划已按权限演示目标收敛；T-FE-079 cancelled，其余 proposed。新任务 T-ACCESS-143 承接内部调度；T-ACCESS-142 依赖已重连，无在办任务依赖已取消前端卡。尚未修改代码、DDL 或部署，T-PERM-036 实施门禁保留。
+T-ACCESS-136 done，T-ACCESS-137 in-progress；T-FE-079 cancelled，其余 proposed，按依赖等待。实施契约已 adopted，开始持久化与 PG 测试支持接入；安全检查脚本已按确认范围更新。执行中的未决设计取舍由用户决定，已确认范围不重复提问。
 
-整体检查提出的范围与裁剪取舍已确认并回写，检查记录无剩余用户选择项；这不替代实施契约定稿或行为验收。
+定稿核对证据见 T-ACCESS-136；已确认的导入请求号、记录定位、安全测试例外、执行预算和固定主操作已回写所属规范。
