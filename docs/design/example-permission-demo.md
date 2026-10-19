@@ -80,6 +80,8 @@ AccessMesh 决定主体具有哪些主资源操作及有效范围，继续复用
 
 行范围默认使用自有类型 `DEMO_DATA_SCOPE`，字段范围使用独立类型 `DEMO_REPORT_FIELD`。本人/团队/部门共用行谓词解释器，字段资源共用列投影解释器；两种范围按类型分格，不混作 OR。固定主类型/主操作见 §10；范围类型/操作及字段映射从已发布配置加载。资源业务键包括 resourceTypeCode/resourceCode/codeType，匹配时使用结构化键，不靠分隔符反解。
 
+同租户的报表、字段与行范围类型按用途隔离，字段/范围保留自定义类型名；登记入口共同约束见[类型用途契约](example-service-api-contract.md#resource-type-purposes)。这不改变行范围与字段授权动态配置的能力。
+
 以下 JSON 是**拟议配置示例**，不是已有接口契约；示例中的资源和人员由初始化脚本创建并返回：
 
 ```json
@@ -221,7 +223,7 @@ access-service 当前任务调用仅支持本进程 `@JobInvocable bean.method(T
 该语义造成的“在线 IP 条件通过、后台不满足”限制及后续重访条件保留于 [T-ACCESS-143](../tasks/T-ACCESS-143.md#task-ip-context-limit)，不因本次定案丢失，也不据此放宽当前权限检查。
 - 结果按[执行预算](#execution-budgets)限制行数与字节，超限失败并提示缩小筛选；结果直接持久化在业务库，避免首版再建设文件卷和文件管理。CSV 导出沿既有转义与公式防护规则。
 - 任务定义、执行状态、尝试号、错误摘要及成功结果持久化。服务重启加载启用任务并处理未完成执行；通过 CAS/尝试号防旧执行覆盖新结果，唯一执行键防重复落结果。
-- 失败重试有上限；最终失败可见。权限拒绝为业务终态，不无限重试；技术故障才按既定预算重试。停机期间默认不补发全部遗漏 cron，只恢复已有未完成记录；恢复语义定稿后写清。
+- 失败重试有上限；最终失败可见。权限拒绝为业务终态，不无限重试；技术故障才按既定预算重试。停机期间默认不补发全部遗漏 cron，只恢复已有未完成记录；恢复与重试规则见本节及执行预算。
 - 已完成结果仍按[现役导出归属边界](access-service-api-contract.md#completed-export-ownership)由原提交者领取，检查租户/用户归属和接口准入；不因之后源权限撤销重新生成或自动删除已完成内容。保留期与有界清理通过内部维护调度执行，维护不读取或再分发业务数据。
 
 执行状态最低闭合为 PENDING → RUNNING → SUCCESS / DENIED / EMPTY / SKIPPED / FAILED；技术故障在预算内以同键回到 PENDING，超限为 FAILED。行/字段 EMPTY 或有效查询零记录为 EMPTY，不生成可下载产物；任务执行前停用为 SKIPPED；权限拒绝为 DENIED；SUCCESS 到期转 EXPIRED。状态接口可读到受控原因，但不输出未授权字段值、凭证或原始异常。
@@ -279,7 +281,7 @@ Controller → AppService → DomainService → Mapper；事务在 AppService。
 
 example 使用独立 `testcontainers` execution，沿用 skipTestcontainers、heavy 与 fork 进程隔离规则；不与普通上下文测试混跑，也不把跨服务 E2E 移回服务模块。时区映射按工程规范 §7.4 在 example 配置同等 TypeHandler，不为此把 ORM 依赖上提 common。具体受影响证据与现状见[实施前核对](../tasks/evidence/example-permission-demo/implementation-baseline.md)。
 
-当前持久层 Mapper 使用显式 tenantId 条件及同租户父对象关联；生成 SQL 的租户工厂拒绝未建立可信上下文的调用，不提供无租户回退。跨记录事务通过 Flex 管理的 Mapper 连接执行，不能混用独立 JDBC 连接来假定原子性。实际表约束、条件插入与映射验证由 T-ACCESS-137 承接；业务门禁和完整 AppService/DomainService 编排仍按后续任务交付。
+当前持久层 Mapper 使用显式 tenantId 条件及同租户父对象关联；生成 SQL 的租户工厂拒绝未建立可信上下文的调用，不提供无租户回退。跨记录事务通过 Flex 管理的 Mapper 连接执行，不能混用独立 JDBC 连接来假定原子性。实际表约束、条件插入与映射验证由 T-ACCESS-137 承接；T-ACCESS-139 已接入元数据 AppService/DomainService、共同数据集行锁及事务内待发布事件，事务外发送，源版本条件回写就绪状态。查询与业务写入继续由后续任务交付。
 
 <a id="scenarios"></a>
 ## 8. 场景包与验收
@@ -342,7 +344,7 @@ API 演示等待可核对的状态和结果，不固定 sleep 后宣称撤权或
 
 [执行计划](../plans/example-permission-demo-plan.md)只维护编排；任务卡持范围/验收。T-ACCESS-138/139 覆盖导入字段及资源登记，T-ACCESS-140 实现行过滤与字段投影，T-PERM-036 验证行列四态/报表隔离，T-ACCESS-141/143 覆盖任务字段重查；不另立重复字段权限项目。T-FE-079 因无业务页面取消，下游移除对它的依赖。T-ACCESS-141 保留原异步导出主题但缩为有界权限快照与领取，不建设文件平台。
 
-计划已获用户执行授权，T-ACCESS-136 正在定稿；T-PERM-036 的用户授权暂缓随整计划启动解除，仍依赖前置契约与实现验收。其他执行任务按直接依赖推进，不通过新任务绕过原卡门禁。
+计划已获用户执行授权，T-ACCESS-136 已定稿；T-PERM-036 的用户授权暂缓随整计划启动解除，仍依赖前置契约与实现验收。其他执行任务按直接依赖推进，不通过新任务绕过原卡门禁。
 
 非目标：销售统计分析、图表、业务页面、外部数据源/ETL、任意 SQL、通用规则引擎、影子组织用户中心、跨服务调度桥接、独立备份平台、生产高可用承诺。Q-060 等原暂缓事项不自动重启。
 

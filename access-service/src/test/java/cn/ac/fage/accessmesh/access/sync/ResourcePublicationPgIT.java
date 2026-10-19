@@ -78,6 +78,35 @@ class ResourcePublicationPgIT {
     @Autowired private ServiceCredentialDomainService credentials;
     @AfterEach void clear() { AccessRequestContext.clear(); }
 
+    @Test void shouldConfirmOnlyIdenticalPureIncrementalReplay() {
+        Fixture f = fixture();
+        assertThat(single(f, "receipt", null, 1).applied()).isTrue();
+        var replay = singleCt(f, "receipt", " default ", null, 1);
+        assertThat(replay.accepted()).isTrue();
+        assertThat(replay.applied()).isFalse();
+        assertThat(replay.stale()).isFalse();
+        assertThat(replay.retryClass()).isNull();
+        assertThat(replay.reason()).isEqualTo("SYNC_VERSION_REPLAYED");
+        assertThat(single(f, "receipt", null, 2).applied()).isTrue();
+        assertThat(single(f, "receipt", null, 1).stale()).isTrue();
+        assertThat(active(f, "receipt")).isEqualTo(1);
+        assertThat(scopeCount(f)).isZero();
+    }
+
+    @Test void shouldRejectChangedPayloadAtSamePureIncrementalVersion() {
+        Fixture f = fixture();
+        assertThat(single(f, "receipt", null, 1).applied()).isTrue();
+        AccessRequestContext.bind(RequestContext.service(1L, f.service()));
+        try {
+            var conflict = service.sync(1L, new ResourceEntitySyncReq("UPSERT", f.typeCode(), "receipt", null,
+                "changed", null, null, null, null, 1, null, f.service(), null, null, new SyncVersionRef(AT, 1L)), null);
+            assertThat(conflict.accepted()).isFalse();
+            assertThat(conflict.reason()).isEqualTo("SYNC_VERSION_CONFLICT");
+            assertThat(jdbc.queryForObject("SELECT name FROM resource_entity WHERE tenant_id=1 AND resource_type=? AND code='receipt' AND delete_flag=0",
+                String.class, f.type())).isEqualTo("receipt");
+        } finally { AccessRequestContext.clear(); }
+    }
+
     @Test void shouldKeepLegacyOnlyUntilScopeAcceptsOrderedPublication() {
         Fixture f = fixture();
         assertThat(single(f, "a", null, 1).applied()).isTrue();
@@ -87,6 +116,26 @@ class ResourcePublicationPgIT {
         assertThat(maximum(f)).isEqualTo(10);
         assertThat(single(f, "a", null, 2).reason()).isEqualTo("PUBLICATION_GENERATION_REQUIRED");
         assertThat(single(f, "a", "11", 2).applied()).isTrue();
+    }
+
+    @Test void shouldConfirmDeletedEventButNotRolledBackOrUnfingerprintedEvent() {
+        Fixture f = fixture();
+        assertThatThrownBy(() -> new TransactionTemplate(transactions).executeWithoutResult(s -> {
+            assertThat(single(f, "rollback", null, 1).applied()).isTrue();
+            throw new IllegalStateException("expected rollback");
+        })).isInstanceOf(IllegalStateException.class);
+        assertThat(active(f,"rollback")).isZero();
+        assertThat(single(f,"rollback",null,1).applied()).isTrue();
+        jdbc.update("UPDATE sync_metadata SET last_incremental_hash=NULL WHERE source_service=?",f.service());
+        assertThat(single(f,"rollback",null,1).stale()).isTrue();
+        var deletion=new ResourceEntitySyncReq("DELETE",f.typeCode(),"rollback","default",null,
+            null,null,null,null,null,null,f.service(),null,null,new SyncVersionRef(AT,2L));
+        AccessRequestContext.bind(RequestContext.service(1L,f.service()));
+        try {
+            assertThat(service.sync(1L,deletion,null).applied()).isTrue();
+            assertThat(service.sync(1L,deletion,null).reason()).isEqualTo("SYNC_VERSION_REPLAYED");
+            assertThat(active(f,"rollback")).isZero();
+        } finally { AccessRequestContext.clear(); }
     }
 
     @Test void shouldKeepOutOfOrderOtherKey_andRejectOlderFullBeforeCleanup() {

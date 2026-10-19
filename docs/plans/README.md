@@ -4,7 +4,7 @@
 
 ## 当前计划
 
-当前 [example 持久化权限演示计划](example-permission-demo-plan.md)为 active：T-ACCESS-136 已定稿，当前推进 T-ACCESS-137，后续按依赖实施；不做分析或业务页面。候选部署与接入验收已完成归档。
+当前 [example 持久化权限演示计划](example-permission-demo-plan.md)为 active：T-ACCESS-136、137、139 已完成，下一步为 T-ACCESS-140，后续按依赖实施；不做分析或业务页面。候选部署与接入验收已完成归档。
 
 任务状态以[任务看板](../tasks/README.md)为准；T-PERM-036 已获整计划执行授权，等待前置，其余暂缓事项保持。
 

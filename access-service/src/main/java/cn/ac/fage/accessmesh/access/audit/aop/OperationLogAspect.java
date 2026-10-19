@@ -180,7 +180,8 @@ public class OperationLogAspect {
         if (failure != null || responseCode != 200) {
             summary = "失败(code=" + responseCode + ") " + summary;
         } else if (result instanceof cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp sync
-                && (!sync.accepted() || (!sync.applied() && !sync.stale()))) {
+                && (!sync.accepted() || (!sync.applied() && !sync.stale()
+                    && !cn.ac.fage.accessmesh.access.sync.SyncResultBuilder.REASON_REPLAYED.equals(sync.reason())))) {
             summary = "同步未应用(reason=" + sync.reason() + ") " + summary;
         }
         // 对齐 operation_log 列上限截断（target_id VARCHAR(256)/summary VARCHAR(512)/operator_name VARCHAR(256)），

@@ -32,6 +32,11 @@ public class ResourcePublicationDomainService {
     public void stampItem(Long tenant, String service, String scope, String businessHash, long generation, String hash) {
         requireOne(metadata.stampResourcePublication(tenant, service, SyncKeyCodecUtil.sha256Hex(scope), businessHash, generation, hash));
     }
+    public void stampIncremental(Long tenant, String service, String scope, String businessHash,
+                                 SyncVersionRef version, String hash) {
+        requireOne(metadata.stampResourceIncremental(tenant, service, SyncKeyCodecUtil.sha256Hex(scope), businessHash,
+            SyncVersionOrder.roundToMicros(version.occurredAt()), version.sequenceNo(), hash));
+    }
     public void markDeleted(Long tenant, String service, String scope, List<String> hashes) {
         if (metadata.markResourcesDeleted(tenant, service, SyncKeyCodecUtil.sha256Hex(scope), hashes) != hashes.size()) {
             throw new SystemException(AccessErrorCode.SYSTEM_INIT_FAILED.getCode(), "resource cleanup metadata changed during transaction");

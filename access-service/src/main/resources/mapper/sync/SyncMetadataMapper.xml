@@ -38,6 +38,7 @@
         <result column="last_sync_sequence_no" property="lastSyncSequenceNo"/>
         <result column="last_publication_generation" property="lastPublicationGeneration"/>
         <result column="last_publication_hash" property="lastPublicationHash"/>
+        <result column="last_incremental_hash" property="lastIncrementalHash"/>
         <result column="extra" property="extra"/>
         <result column="created_at" property="createdAt"/>
         <result column="updated_at" property="updatedAt"/>
@@ -45,7 +46,7 @@
         <result column="delete_flag" property="deleteFlag"/>
     </resultMap>
 
-    <select id="selectByBusinessKeyHashes" resultMap="SyncMetadataMap">
+    <select id="selectByBusinessKeyHashes" resultMap="SyncMetadataMap" flushCache="true" useCache="false">
         SELECT * FROM sync_metadata
         WHERE tenant_id = #{tenantId}
           AND entity_kind = #{entityKind}
@@ -111,6 +112,14 @@
             last_sync_sequence_no = EXCLUDED.last_sync_sequence_no,
             extra = EXCLUDED.extra,
             updated_at = now()
+    </update>
+
+    <update id="stampResourceIncremental">
+        UPDATE sync_metadata SET last_incremental_hash=#{payloadHash}
+        WHERE tenant_id=#{tenantId} AND entity_kind='RESOURCE_ENTITY' AND source_service=#{service}
+          AND scope_key_hash=#{scopeHash} AND business_key_hash=#{businessHash} AND delete_flag=0
+          AND last_sync_occurred_at=#{occurredAt} AND last_sync_sequence_no=#{sequenceNo}
+          AND last_publication_generation IS NULL
     </update>
 
     <update id="upsertIfNewer">

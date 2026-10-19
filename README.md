@@ -70,6 +70,8 @@ docker compose --profile app up -d --build frontend gateway access-service
 
 平台就绪后先注册 example-service、签发服务凭证并填入 `.env`，再按[独立业务库说明](docs/ops/example-database.md)初始化 example_db/example_app 后启动 example-service。运营入口 http://127.0.0.1/#/platform/login （平台账号 `admin` + 部署密码）；从运营界面开通租户后，客户在租户登录页填写编码并使用一次交付的随机密码；开发模式手工启动、example 接口 403→授权→200 演练、常见问题见 [docs/quickstart.md](docs/quickstart.md)。默认 `docker compose up -d` 仅启动基础设施（PG/Redis/Nacos）。
 
+持久化报表/字段元数据与可靠资源发布可按[权限演示接入](example-service/examples/permission-demo.md)准备；动态行列 SQL、CSV 导入与内部定时任务按[计划](docs/plans/example-permission-demo-plan.md)继续交付。
+
 ## License
 
 MIT License — 详见 [LICENSE](LICENSE)（前端派生自 pure-admin-thin，上游声明保留于 [frontend/LICENSE](frontend/LICENSE)）

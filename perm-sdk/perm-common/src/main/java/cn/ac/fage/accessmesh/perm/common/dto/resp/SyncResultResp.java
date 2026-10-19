@@ -8,6 +8,7 @@ import java.util.List;
  * 详见 {@code docs/design/access-service-api-contract.md §19.3}：
  * <ul>
  *   <li>成功：accepted=true, applied=true, stale=false, retryClass=null, reason=null</li>
+ *   <li>资源纯增量精确重放：accepted=true, applied=false, stale=false, retryClass=null, reason=SYNC_VERSION_REPLAYED</li>
  *   <li>STALE：accepted=true, applied=false, stale=true, retryClass=STALE_VERSION, reason=SYNC_VERSION_STALE</li>
  *   <li>失败：accepted=false, applied=false, stale=false,
  *       retryClass∈{RETRYABLE,DEPENDENCY_MISSING,NON_RETRYABLE,SECURITY_DENIED}</li>

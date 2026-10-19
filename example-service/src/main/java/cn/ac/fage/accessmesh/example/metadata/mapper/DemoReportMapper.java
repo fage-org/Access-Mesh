@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Options;
+import org.apache.ibatis.annotations.Update;
 
 @Mapper
 public interface DemoReportMapper {
@@ -27,4 +28,19 @@ public interface DemoReportMapper {
         WHERE r.tenant_id = #{tenantId} AND r.report_code = #{reportCode} AND r.delete_flag = 0
         """)
     DemoReport selectByCode(@Param("tenantId") long tenantId, @Param("reportCode") String reportCode);
+
+    @Update("""
+        UPDATE demo_report SET name=#{name},enabled=#{enabled},version=version+1,
+          publication_status='PENDING',updated_by=#{actor},updated_at=now()
+        WHERE tenant_id=#{tenant} AND id=#{id} AND version=#{version} AND delete_flag=0
+        """)
+    int update(@Param("tenant") long tenant, @Param("id") long id, @Param("version") long version,
+               @Param("name") String name, @Param("enabled") boolean enabled, @Param("actor") long actor);
+
+    @Update("""
+        UPDATE demo_report SET catalog_version=catalog_version+1,updated_by=#{actor},updated_at=now()
+        WHERE tenant_id=#{tenant} AND id=#{id} AND catalog_version=#{version} AND delete_flag=0
+        """)
+    int advanceCatalog(@Param("tenant") long tenant, @Param("id") long id, @Param("version") long version,
+                       @Param("actor") long actor);
 }

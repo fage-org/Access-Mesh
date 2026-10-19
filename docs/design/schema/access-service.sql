@@ -1034,6 +1034,7 @@ CREATE TABLE sync_metadata (
     last_sync_sequence_no BIGINT NOT NULL,
     last_publication_generation BIGINT,
     last_publication_hash CHAR(64),
+    last_incremental_hash CHAR(64),
     extra                 JSONB DEFAULT '{}',
     created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -1058,6 +1059,7 @@ COMMENT ON COLUMN sync_metadata.target_id IS '目标表内部ID，仅 access-ser
 COMMENT ON COLUMN sync_metadata.target_status IS '目标同步状态：ABSTRACT_USER/ABSTRACT_ROLE/RESOURCE_ENTITY 仅允许 ACTIVE/DISABLED/DELETED；USER_ROLE 仅允许 ACTIVE/UNBOUND';
 COMMENT ON COLUMN sync_metadata.last_sync_occurred_at IS '最后一次已应用同步事件发生时间';
 COMMENT ON COLUMN sync_metadata.last_sync_sequence_no IS '最后一次已应用同步事件序号，和 occurred_at 共同判断新旧版本';
+COMMENT ON COLUMN sync_metadata.last_incremental_hash IS '资源纯增量已应用事件的规范化 SHA-256；与最后版本同事务保存，精确重放确认；NULL 不构成确认';
 
 -- -----------------------------------------------------------------------------
 -- 28. role_resource_permission - 角色-资源-操作中间表（支持子权限 depend_on，冗余 resource_type）

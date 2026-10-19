@@ -667,6 +667,114 @@ class ExampleBusinessFinalCheckE2EIT {
         assertThat(parseEnvelope(postEnvelope(url, null, body, signedExampleIdentity("2", secondUser))).path("code").asInt()).isEqualTo(30005);
     }
 
+    @Test
+    @Order(13)
+    void persistentMetadataPublishesThroughServiceCredentialsAndSupportsScopedFieldGrants() throws Exception {
+        for (String type : List.of("DEMO_REPORT", "DEMO_REPORT_FIELD", "DEMO_DATA_SCOPE", "DEMO_POLICY", "DEMO_DATASET", "DEMO_TASK")) {
+            String extra = List.of("DEMO_POLICY", "DEMO_DATASET", "DEMO_TASK").contains(type) ? "{\"managedMode\":\"MANAGED\"}"
+                : "{\"managedMode\":\"SYNC\",\"syncSourceService\":\"example-service\"}";
+            postForData(gateway()+"/api/access/type-definition/create", adminToken,
+                JSON.createObjectNode().put("typeKey","resource_type").put("typeCode",type).put("name",type).put("extra",extra));
+            postForData(gateway()+"/api/access/operation-permission/create", adminToken,
+                JSON.createObjectNode().put("resourceTypeCode",type).put("code",type.equals("DEMO_TASK") ? "TRIGGER" : List.of("DEMO_POLICY", "DEMO_DATASET").contains(type) ? "MANAGE" : "DATA_READ")
+                    .put("name","demo operation").put("binaryBit",16).put("inheritMask",0));
+        }
+        postForData(gateway()+"/api/access/biz-domain/create", adminToken,
+            JSON.createObjectNode().put("code","EXAMPLE_DEMO").put("name","Example demo"));
+        for (var config : Map.of("CLASSIFY", "{\"resourceTypeCodes\":[\"DEMO_REPORT\",\"DEMO_REPORT_FIELD\",\"DEMO_DATA_SCOPE\",\"DEMO_POLICY\",\"DEMO_DATASET\",\"DEMO_TASK\"]}",
+                "SUB_PERM", "{\"allowed\":[{\"parent_type\":\"DEMO_REPORT\",\"child_types\":[\"DEMO_REPORT_FIELD\",\"DEMO_DATA_SCOPE\"]}]}").entrySet()) {
+            postForData(gateway()+"/api/access/domain-config/save",adminToken,
+                JSON.createObjectNode().put("domainCode","EXAMPLE_DEMO").put("configType",config.getKey()).put("extra",config.getValue()));
+        }
+        var manifest=JSON.readTree(Files.readString(Path.of("..","example-service","examples","permission-demo-interfaces.json")));
+        var oldMappings=postForData(gateway()+"/api/access/service-config/apis",adminToken,JSON.createObjectNode().put("serviceCode",SERVICE)).path("items");
+        for (var declaration : manifest.path("groups").get(0).path("apis")) {
+            for (var mapping : oldMappings) {
+                if (("/api/example"+declaration.path("path").asText()).equals(mapping.path("pathPattern").asText())) {
+                    ((tools.jackson.databind.node.ObjectNode)declaration).put("resourceCode",mapping.path("resourceCode").asText());
+                }
+            }
+        }
+        var headers=Map.of("X-Credential-Id","sc-example-e2e-1","X-Credential-Secret","sk-example-e2e-1");
+        var sync=postEnvelope("http://localhost:"+accessService.port()+"/api/access/service-config/sync-v2", null, manifest.toString(),headers);
+        assertThat(parseEnvelope(sync).path("code").asInt()).isEqualTo(200);
+        var denied=postEnvelope(gateway()+"/api/example/demo-report/create",targetToken,
+            "{\"reportCode\":\"forbidden\",\"name\":\"denied\",\"datasetCode\":\"sales-records\",\"fieldResourceTypeCode\":\"DEMO_REPORT_FIELD\"}");
+        assertThat(denied.status()).isEqualTo(403);
+        demoAdminPost("/demo-report/create",JSON.createObjectNode().put("reportCode","persistent")
+            .put("name","Persistent report").put("datasetCode","sales-records").put("fieldResourceTypeCode","DEMO_REPORT_FIELD"));
+        awaitDemoPublication("DEMO_REPORT","persistent");
+        var registered=demoAdminPost("/demo-field/register", JSON.createObjectNode().put("reportCode","persistent")
+            .put("expectedCatalogVersion",0).set("fieldKeys",JSON.createArrayNode().add("amount"))).path("data");
+        String fieldCode=registered.path("items").get(0).path("resourceCode").asText();
+        awaitDemoPublication("DEMO_REPORT_FIELD",fieldCode);
+        var parentKey=JSON.createObjectNode().put("resourceTypeCode","DEMO_REPORT").put("resourceCode","persistent")
+            .put("codeType","default").put("operationCode","DATA_READ").put("scopeMode","INSTANCE").put("canGrant",false);
+        var childKey=JSON.createObjectNode().put("resourceTypeCode","DEMO_REPORT_FIELD").put("resourceCode",fieldCode)
+            .put("codeType","default").put("operationCode","DATA_READ").put("scopeMode","INSTANCE").put("canGrant",false);
+        var create=JSON.createObjectNode(); create.set("key",parentKey);
+        create.set("children",JSON.createArrayNode().add(childKey));
+        var plan=JSON.createObjectNode().set("creates",JSON.createArrayNode().add(create));
+        postForData(gateway()+"/api/access/role-resource-permission/apply-grant-plan",adminToken,
+            JSON.createObjectNode().put("roleTypeCode",ROLE_TYPE).put("roleExternalId",ROLE_EXTERNAL_ID).set("plan",plan));
+        var check=JSON.createObjectNode().put("subjectTypeCode","LOCAL_USER").put("subjectExternalId",Long.toString(targetUserId))
+            .put("resourceTypeCode","DEMO_REPORT_FIELD").put("resourceCode",fieldCode).put("operationCode","DATA_READ")
+            .put("parentResourceTypeCode","DEMO_REPORT").put("parentResourceCode","persistent")
+            .set("parentOperationCodes",JSON.createArrayNode().add("DATA_READ"));
+        org.awaitility.Awaitility.await().atMost(STALE_WINDOW).untilAsserted(() -> {
+            var result=parseEnvelope(postEnvelope("http://localhost:"+accessService.port()+"/api/access/auth/check",null,check.toString(),headers));
+            assertThat(result.path("code").asInt()).isEqualTo(200);
+            assertThat(result.path("data").path("allowed").asBoolean()).isTrue();
+        });
+        var wrongChannel=postEnvelope("http://localhost:"+accessService.port()+"/api/access/type-definition/create",null,
+            "{\"typeKey\":\"resource_type\",\"typeCode\":\"FORBIDDEN\",\"name\":\"forbidden\"}",headers);
+        assertThat(wrongChannel.status()).isEqualTo(403);
+        demoAdminPost("/demo-report/update",JSON.createObjectNode().put("reportCode","persistent")
+            .put("expectedVersion",1).put("name","Disabled report").put("enabled",false));
+        awaitDemoPublication("DEMO_REPORT","persistent");
+        demoAdminPost("/demo-report/update",JSON.createObjectNode().put("reportCode","persistent")
+            .put("expectedVersion",2).put("name","Restored report").put("enabled",true));
+        awaitDemoPublication("DEMO_REPORT","persistent");
+        // Optional local verification of the PowerShell delivery artifact; the core E2E is portable.
+        String scriptHost=System.getProperty("example.demo.scriptHost");
+        if (scriptHost != null) {
+            for (int replay=0; replay<2; replay++) {
+                Path log=Path.of("target","e2e","permission-demo-setup-"+replay+".log").toAbsolutePath();
+                var builder=new ProcessBuilder(scriptHost,"-NoProfile","-NonInteractive","-File",
+                    Path.of("..","tools","init-example-permission-demo.ps1").toAbsolutePath().toString(),
+                    "-BaseUrl",gateway(),"-AllowInsecure");
+                builder.environment().put("ADMIN_TOKEN",adminToken);
+                builder.environment().put("EXAMPLE_CREDENTIAL_ID","sc-example-e2e-1");
+                builder.environment().put("EXAMPLE_CREDENTIAL_SECRET","sk-example-e2e-1");
+                var process=builder.redirectErrorStream(true).redirectOutput(log.toFile()).start();
+                try {
+                    assertThat(process.waitFor(150,TimeUnit.SECONDS)).as("setup script completed").isTrue();
+                    assertThat(process.exitValue()).as("setup script: %s",new String(Files.readAllBytes(log),StandardCharsets.UTF_8)).isZero();
+                } finally { if (process.isAlive()) process.destroyForcibly(); }
+            }
+        }
+
+    }
+
+    private static JsonNode demoAdminPost(String path, JsonNode body) {
+        var response=new java.util.concurrent.atomic.AtomicReference<JsonNode>();
+        org.awaitility.Awaitility.await().atMost(STALE_WINDOW).untilAsserted(() -> {
+            var result=parseEnvelope(postEnvelope(gateway()+"/api/example"+path,adminToken,body.toString()));
+            assertThat(result.path("code").asInt()).as("demo admin API %s: %s",path,result).isEqualTo(200);
+            response.set(result);
+        });
+        return response.get();
+    }
+
+    private static void awaitDemoPublication(String type, String code) {
+        org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(60)).untilAsserted(() -> {
+            var result=parseEnvelope(postEnvelope(gateway()+"/api/example/demo-publication/get",adminToken,
+                JSON.createObjectNode().put("resourceTypeCode",type).put("resourceCode",code).toString()));
+            assertThat(result.path("code").asInt()).isEqualTo(200);
+            assertThat(result.path("data").path("status").asText()).as("publication result: %s",result).isEqualTo("PUBLISHED");
+        });
+    }
+
     private static Map<String, String> signedExampleIdentity(String tenant, long user) throws Exception {
         long timestamp = System.currentTimeMillis() / 1000;
         var mac = javax.crypto.Mac.getInstance("HmacSHA256");

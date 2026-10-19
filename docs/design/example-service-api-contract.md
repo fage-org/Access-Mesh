@@ -8,7 +8,7 @@ last_reviewed: 2026-10-19
 
 # example-service 持久化权限演示 API 契约
 
-本文件由 T-ACCESS-136 定稿，描述待实施的新业务族。现役 hello/report 探针继续按[服务设计](services/example-service.md)运行，不将这里的路由描述为已上线。新接口在下游任务完成前不出现在可用能力清单中。
+本文件由 T-ACCESS-136 定稿，元数据与资源发布已由 T-ACCESS-139 实现，验收状态见任务卡；其余新业务族按计划实施。现役 hello/report 探针继续按[服务设计](services/example-service.md)运行，未交付的路由不描述为已上线，也不进入可用接口声明。
 
 报表入口采用已确认的[固定主类型/主操作边界](example-permission-demo.md#admission-binding)：主类型为 DEMO_REPORT，读取/编辑/导出分别为 DATA_READ / DATA_EDIT / EXPORT；它们不作为策略可编辑字段。动态范围、字段与谓词配置继续生效。
 
@@ -95,6 +95,9 @@ service-config/sync-v2 接口声明使用完整清单，须保留仍受支持的
 
 所有业务编码不为空、长度至多 64；名称至多 128。初始化类型所有权归 example-service，codeType 缺省为 default。元数据登记允许在策略生效前完成，字段只引用服务端固定目录；因此“登记 → 发布 → 配置 → 授权 → 导入”不形成循环依赖。
 
+<a id="resource-type-purposes"></a>
+同一租户内资源类型按用途隔离：DEMO_REPORT 只用于报表，DEMO_POLICY / DEMO_DATASET / DEMO_TASK 保留给对应管理门禁；字段类型与行范围类型不得混用。字段与行范围允许自定义类型名，多个报表可共用字段类型。创建报表和保存范围在共同数据库事务守卫内检查已登记用途，冲突整次拒绝 30102；不能仅在单份策略内检查类型不同。已有历史身份保留用途，不能通过停用、软删或同名重建绕过检查；不增加独立类型管理平台。
+
 | POST 路径 | 请求关键字段 | 门禁与响应 |
 |---|---|---|
 | `/api/example/demo-report/create` | `reportCode,name,datasetCode,fieldResourceTypeCode` | 检查 DEMO_REPORT 类型级 CREATE；新建时启用，保存固定主类型和稳定字段类型身份；返回报表元数据，发布状态 PENDING |
@@ -112,6 +115,10 @@ service-config/sync-v2 接口声明使用完整清单，须保留仍受支持的
 字段 resourceCode 服务端生成不可复用编码；字段管理响应的 fieldId 为本地稳定身份。新增同名有效字段整批拒绝，删除后的历史字段保留用于识别旧任务引用。批量元数据接口上限 100，重复目标拒绝。所有字段归属和版本检查在同一事务守卫下完成。
 
 待发布事实与元数据同事务，事务外调用现役增量 sync。发布状态为 PENDING / PUBLISHED / FAILED，只有匹配当前本地源版本的成功响应才可将当前资源标为 PUBLISHED；对外数据操作要求当前报表与所用字段发布完成。源服务被停用、类型归属错误等明确拒绝记 FAILED，等待管理员排查后重试，不伪装成功。暂态错误有限重试，预算采用执行预算中的三次尝试和间隔，耗尽记 FAILED；手动重试不更换载荷/源版本。重启继续处理 PENDING，不建设 FULL 对账或新消息系统。
+
+发布成功只接受首次应用的明确成功，或[严格重放确认](access-service-api-contract.md#resource-incremental-replay)；不能把 STALE、信封 200 或任意 accepted=true 当作当前载荷已应用。相同版本但不同内容及未知响应组合失败关闭。
+
+发布查询分页只列每条资源的最新源版本，旧事件保留作冻结事实；删除字段后的最新 DELETE 事件仍可查询和重试。人工重试只重新排队最新 FAILED 事件，开始新的有界尝试周期（attempt 从 0 计）；PENDING/PUBLISHED 请求重试不改变状态。失败后的自动退避为 10/30 秒；进程中断后按持久化尝试数和下次时刻恢复，耗尽周期预算转 FAILED。首版单实例发送器串行发送，远程调用在两段本地事务之间，不持数据库锁等待网络。
 
 源版本在同一业务事务内递增并映射为现役 `syncVersion`：occurredAt 使用持久化 UTC 事件时间，至少保持不小于同资源上次事件时间，sequenceNo 使用该资源单调版本；按数据库时间精度保存后冻结在载荷中。重试不重新取当前时间。首版为纯增量来源，不自造 sourceVersion 请求字段或启用 FULL 的 publicationGeneration 协议；字段业务归属也不写成跨类型资源树父边。
 
@@ -202,7 +209,7 @@ CSV 只输出最终授权列，沿既有引号转义与字符串公式前缀防�
 <a id="business-errors"></a>
 ## 新业务错误码
 
-下列编号供新业务实现统一登记到 ExampleErrorCode，当前未上线；业务失败沿现役 BizException/统一错误信封，结构与格式非法仍走公共 90001 / HTTP 400。
+下列编号随所属能力登记到 ExampleErrorCode；元数据已登记 30101/30102/30103/30108，其余随后续任务交付；业务失败沿现役 BizException/统一错误信封，结构与格式非法仍走公共 90001 / HTTP 400。
 
 | 编号 | 含义 | 暴露边界 |
 |---|---|---|

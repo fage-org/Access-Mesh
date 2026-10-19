@@ -2739,7 +2739,14 @@ FULL 缺失/null/空白 `publicationGeneration`、缺失/null `items` 在 HTTP D
 
 `retryClass` 固定枚举：`RETRYABLE`、`DEPENDENCY_MISSING`、`NON_RETRYABLE`、`SECURITY_DENIED`、`STALE_VERSION`。`STALE_VERSION` 是唯一 `accepted=true` 的失败分类（`accepted=true, applied=false, stale=true`，reason=`SYNC_VERSION_STALE`）——表示请求已接受但未覆盖旧版本。调用方判定失败以 `accepted=false || stale=true` 为准，勿依赖信封 code。
 
+<a id="resource-incremental-replay"></a>
+资源纯增量同步的严格重放确认（T-ACCESS-139）：同租户、来源、资源业务键，已提交版本与请求版本相等，且规范化事件摘要相等时，返回 `accepted=true, applied=false, stale=false, retryClass=null, reason=SYNC_VERSION_REPLAYED`。这是已应用事件的确认，不再次修改资源或广播权限变更。同版本但摘要不同返回 `NON_RETRYABLE / SYNC_VERSION_CONFLICT`；更旧版本仍返回 STALE。摘要与目标事实在同一事务提交，包含操作、规范化业务键、可写内容、来源身份和按 PG 精度归一的 syncVersion；复用资源发布规范化规则，JSON 对象键顺序不影响摘要。
+
+该确认先经过现役来源身份、类型所有权与服务状态门禁，受资源共同事务锁保护。历史元数据缺少摘要时不猜测已应用，等版本仍返回 STALE。当前范围已切入 publicationGeneration 协议时，仍先按原协议拒绝缺代次请求；FULL 与带代次增量的响应和仲裁规则不变。此次能力按空库权威 schema 交付，不隐式改动现有部署数据库。
+
 旧版本 no-op 必须返回成功响应壳，调度器据 `stale=true` 直接把任务置为 `SUCCESS`，不得重试：
+
+上句是既有同步调度对过期事件的终止口径，不代表当前请求载荷已经应用或业务资源已就绪。example 的资源发布状态必须使用[严格重放确认](#resource-incremental-replay)，不把该终止口径当作 PUBLISHED 依据；其真正旧事件终止为受控失败，不能覆盖更新源版本的状态。
 
 ```json
 {
@@ -3363,6 +3370,10 @@ schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正�
 | `10011` | `PASSWORD_UNCHANGED` | 强制改密时新密码不能与当前密码相同 | [平台与租户生命周期](#contract-section-26) |
 | `10012` | `PASSWORD_RESET_REQUIRED` | 请先修改自己的初始密码 | [平台与租户生命周期](#contract-section-26) |
 | `10013` | `PASSWORD_TOO_LONG` | 密码UTF-8字节长度不能超过72（约24个汉字），请缩短 | [§7.7](#contract-section-7-7) |
+| `30101` | `DEMO_OBJECT_UNAVAILABLE` | [错误码分段](#contract-section-20-1)；[example 业务契约](example-service-api-contract.md#business-errors) | ExampleErrorCode |
+| `30102` | `DEMO_POLICY_INVALID` | [错误码分段](#contract-section-20-1)；[example 业务契约](example-service-api-contract.md#business-errors) | ExampleErrorCode |
+| `30103` | `DEMO_VERSION_CONFLICT` | [错误码分段](#contract-section-20-1)；[example 业务契约](example-service-api-contract.md#business-errors) | ExampleErrorCode |
+| `30108` | `DEMO_RESOURCE_NOT_READY` | [错误码分段](#contract-section-20-1)；[example 业务契约](example-service-api-contract.md#business-errors) | ExampleErrorCode |
 <!-- error-code-index:end -->
 
 退役码 10111 不复用；历史说明保留于 §20.1。SDK 验签的 30003 已由 PermClientErrorCode 单源定义，保持原 HTTP 200 + 业务码行为。

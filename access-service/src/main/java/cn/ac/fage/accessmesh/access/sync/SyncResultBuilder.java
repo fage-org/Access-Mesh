@@ -23,6 +23,7 @@ public final class SyncResultBuilder {
     public static final String RETRY_SECURITY_DENIED = "SECURITY_DENIED";
 
     public static final String REASON_STALE = "SYNC_VERSION_STALE";
+    public static final String REASON_REPLAYED = "SYNC_VERSION_REPLAYED";
     public static final String REASON_FULL_SYNC_PARTIAL_FAILURE = "FULL_SYNC_PARTIAL_FAILURE";
 
     private SyncResultBuilder() {
@@ -33,6 +34,11 @@ public final class SyncResultBuilder {
      */
     public static SyncResultResp applied() {
         return new SyncResultResp(true, true, false, null, null);
+    }
+
+    /** The exact pure-incremental event was committed previously; no new mutation. */
+    public static SyncResultResp replayed() {
+        return new SyncResultResp(true, false, false, null, REASON_REPLAYED);
     }
 
     /**

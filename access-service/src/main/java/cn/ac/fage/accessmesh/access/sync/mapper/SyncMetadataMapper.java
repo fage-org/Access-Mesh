@@ -15,6 +15,10 @@ import java.util.List;
  * </p>
  */
 public interface SyncMetadataMapper extends BaseMapper<SyncMetadata> {
+    int stampResourceIncremental(@Param("tenantId") Long tenantId, @Param("service") String service,
+        @Param("scopeHash") String scopeHash, @Param("businessHash") String businessHash,
+        @Param("occurredAt") LocalDateTime occurredAt, @Param("sequenceNo") Long sequenceNo,
+        @Param("payloadHash") String payloadHash);
 
     int stampResourcePublication(@Param("tenantId") Long tenantId, @Param("service") String service,
                                  @Param("scopeHash") String scopeHash, @Param("businessHash") String businessHash,

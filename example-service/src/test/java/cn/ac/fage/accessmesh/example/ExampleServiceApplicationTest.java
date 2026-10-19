@@ -28,6 +28,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = {
+        "example.publication.enabled=false",
         "spring.cloud.nacos.config.enabled=false",
         "spring.cloud.nacos.config.import-check.enabled=false",
         "spring.cloud.nacos.discovery.enabled=false",
@@ -72,6 +73,62 @@ class ExampleServiceApplicationTest {
     }
 
     private final ObjectMapper json = JsonMapper.builder().configureForJackson2().build();
+
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private cn.ac.fage.accessmesh.example.perm.BusinessPermChecker permissionChecker;
+
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbc;
+
+    @Test
+    void metadataRoutesUseSignedIdentityValidateRequestsAndPersistPendingEvents() {
+        org.mockito.Mockito.when(permissionChecker.check(org.mockito.ArgumentMatchers.eq("9001"),
+            org.mockito.ArgumentMatchers.eq("42"), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+            .thenReturn(new cn.ac.fage.accessmesh.example.perm.BusinessPermChecker.Decision(true, null));
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("X-User-Id", "42"); headers.set("X-Tenant-Id", "9001");
+        sign(headers, "42", "9001");
+        var created = json.readTree(rest.postForObject("/api/example/demo-report/create", new HttpEntity<>(Map.of(
+            "reportCode", "http-report", "name", "报表", "datasetCode", "sales-records",
+            "fieldResourceTypeCode", "HTTP_FIELDS", "tenantId", 9999, "userId", 8888), headers), String.class));
+        assertThat(created.path("code").asInt()).isEqualTo(200);
+        assertThat(created.path("data").path("publicationStatus").asText()).isEqualTo("PENDING");
+        assertThat(jdbc.queryForObject("SELECT tenant_id FROM demo_report WHERE report_code='http-report'", Long.class)).isEqualTo(9001);
+        assertThat(jdbc.queryForObject("SELECT created_by FROM demo_publication WHERE tenant_id=9001", Long.class)).isEqualTo(42);
+        var fields = json.readTree(rest.postForObject("/api/example/demo-field/register", new HttpEntity<>(Map.of(
+            "reportCode", "http-report", "expectedCatalogVersion", 0, "fieldKeys", java.util.List.of("amount", "remark")), headers), String.class));
+        assertThat(fields.path("code").asInt()).isEqualTo(200);
+        assertThat(fields.path("data").path("catalogVersion").asLong()).isEqualTo(1);
+        assertThat(fields.path("data").path("items").size()).isEqualTo(2);
+        var invalidPage = rest.postForEntity("/api/example/demo-field/list", new HttpEntity<>(Map.of(
+            "reportCode", "http-report", "pageSize", 201), headers), String.class);
+        assertThat(invalidPage.getStatusCode().value()).isEqualTo(400);
+        var conflicting = json.readTree(rest.postForObject("/api/example/demo-scope/save", new HttpEntity<>(Map.of(
+            "resourceTypeCode", "HTTP_FIELDS", "resourceCode", "1", "name", "团队 T1",
+            "enabled", true, "expectedVersion", 0), headers), String.class));
+        assertThat(conflicting.path("code").asInt()).isEqualTo(30102);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM demo_scope WHERE tenant_id=9001", Long.class)).isZero();
+    }
+
+    @Test
+    void metadataDeniedOrUnsignedRequestsCannotCreateBusinessFacts() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("X-User-Id", "42"); headers.set("X-Tenant-Id", "9002");
+        var body = Map.of("reportCode", "denied", "name", "报表", "datasetCode", "sales-records",
+            "fieldResourceTypeCode", "FIELDS");
+        var unsigned = json.readTree(rest.postForObject("/api/example/demo-report/create", new HttpEntity<>(body, headers), String.class));
+        assertThat(unsigned.path("code").asInt()).isEqualTo(30003);
+        org.mockito.Mockito.verifyNoInteractions(permissionChecker);
+        sign(headers, "42", "9002");
+        org.mockito.Mockito.when(permissionChecker.check(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+            .thenReturn(new cn.ac.fage.accessmesh.example.perm.BusinessPermChecker.Decision(false, "NO_PERMISSION"));
+        var denied = json.readTree(rest.postForObject("/api/example/demo-report/create", new HttpEntity<>(body, headers), String.class));
+        assertThat(denied.path("code").asInt()).isEqualTo(30004);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM demo_dataset WHERE tenant_id=9002", Long.class)).isZero();
+    }
 
     /** 按 Gateway SignatureEnrichFilter 同款算法构造签名请求头（HMAC-SHA256，hex） */
     private static void sign(HttpHeaders headers, String userId, String tenantId) {

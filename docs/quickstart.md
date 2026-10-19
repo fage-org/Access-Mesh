@@ -66,6 +66,8 @@ docker compose --profile app up -d --build example-service
 
 需要验证实际报表对象时，使用 [example 首次接入操作示例](../example-service/examples/first-access.md)及配套 FULL 清单。它使用固定的 `EXAMPLE/report-1`、`report-2` 内存样本；hello 的 `demo-report` 候选授权不等于拥有这些报表的实例权限。
 
+需要持久化报表/字段元数据与可靠资源发布时，使用[权限演示接入](../example-service/examples/permission-demo.md)。当前该步骤不导入业务记录，动态行列过滤与定时任务的交付状态见其计划链接。
+
 ## 路径 B：开发模式（改代码热迭代）
 
 基础设施用 compose，应用跑在本机便于调试：

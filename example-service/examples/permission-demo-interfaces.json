@@ -1,0 +1,203 @@
+{
+  "serviceCode": "example-service",
+  "basePath": "/api/example",
+  "syncMode": "FULL",
+  "groups": [
+    {
+      "groupCode": "example-demo",
+      "groupName": "持久化权限演示与原有探针",
+      "apis": [
+        {
+          "name": "demo/hello",
+          "httpMethod": "POST",
+          "path": "/demo/hello",
+          "resourceCode": "example:demo:demo:hello",
+          "requiredPermission": {
+            "resourceTypeCode": "EXAMPLE",
+            "operationCode": "VIEW"
+          }
+        },
+        {
+          "name": "report/view",
+          "httpMethod": "POST",
+          "path": "/report/view",
+          "resourceCode": "example:demo:report:view",
+          "requiredPermission": {
+            "resourceTypeCode": "EXAMPLE",
+            "operationCode": "VIEW"
+          }
+        },
+        {
+          "name": "report/batch-view",
+          "httpMethod": "POST",
+          "path": "/report/batch-view",
+          "resourceCode": "example:demo:report:batch-view",
+          "requiredPermission": {
+            "resourceTypeCode": "EXAMPLE",
+            "operationCode": "VIEW"
+          }
+        },
+        {
+          "name": "report/list",
+          "httpMethod": "POST",
+          "path": "/report/list",
+          "resourceCode": "example:demo:report:list",
+          "requiredPermission": {
+            "resourceTypeCode": "EXAMPLE",
+            "operationCode": "VIEW"
+          }
+        },
+        {
+          "name": "report/create",
+          "httpMethod": "POST",
+          "path": "/report/create",
+          "resourceCode": "example:demo:report:create",
+          "requiredPermission": {
+            "resourceTypeCode": "EXAMPLE",
+            "operationCode": "CREATE"
+          }
+        },
+        {
+          "name": "report/sub-view",
+          "httpMethod": "POST",
+          "path": "/report/sub-view",
+          "resourceCode": "example:demo:report:sub-view",
+          "requiredPermission": {
+            "resourceTypeCode": "EXAMPLE",
+            "operationCode": "SUB_VIEW"
+          }
+        },
+        {
+          "name": "report/export/submit",
+          "httpMethod": "POST",
+          "path": "/report/export/submit",
+          "resourceCode": "example:demo:report:export:submit",
+          "requiredPermission": {
+            "resourceTypeCode": "EXAMPLE",
+            "operationCode": "EXPORT"
+          }
+        },
+        {
+          "name": "report/export/status",
+          "httpMethod": "POST",
+          "path": "/report/export/status",
+          "resourceCode": "example:demo:report:export:status",
+          "requiredPermission": {
+            "resourceTypeCode": "EXAMPLE",
+            "operationCode": "VIEW"
+          }
+        },
+        {
+          "name": "demo-report/create",
+          "httpMethod": "POST",
+          "path": "/demo-report/create",
+          "resourceCode": "example:demo:demo-report:create",
+          "requiredPermission": {
+            "resourceTypeCode": "DEMO_REPORT",
+            "operationCode": "CREATE"
+          }
+        },
+        {
+          "name": "demo-report/get",
+          "httpMethod": "POST",
+          "path": "/demo-report/get",
+          "resourceCode": "example:demo:demo-report:get",
+          "requiredPermission": {
+            "resourceTypeCode": "DEMO_REPORT",
+            "operationCode": "VIEW"
+          }
+        },
+        {
+          "name": "demo-report/update",
+          "httpMethod": "POST",
+          "path": "/demo-report/update",
+          "resourceCode": "example:demo:demo-report:update",
+          "requiredPermission": {
+            "resourceTypeCode": "DEMO_REPORT",
+            "operationCode": "UPDATE"
+          }
+        },
+        {
+          "name": "demo-field/register",
+          "httpMethod": "POST",
+          "path": "/demo-field/register",
+          "resourceCode": "example:demo:demo-field:register",
+          "requiredPermission": {
+            "resourceTypeCode": "DEMO_REPORT",
+            "operationCode": "UPDATE"
+          }
+        },
+        {
+          "name": "demo-field/list",
+          "httpMethod": "POST",
+          "path": "/demo-field/list",
+          "resourceCode": "example:demo:demo-field:list",
+          "requiredPermission": {
+            "resourceTypeCode": "DEMO_REPORT",
+            "operationCode": "UPDATE"
+          }
+        },
+        {
+          "name": "demo-field/update",
+          "httpMethod": "POST",
+          "path": "/demo-field/update",
+          "resourceCode": "example:demo:demo-field:update",
+          "requiredPermission": {
+            "resourceTypeCode": "DEMO_REPORT",
+            "operationCode": "UPDATE"
+          }
+        },
+        {
+          "name": "demo-field/remove",
+          "httpMethod": "POST",
+          "path": "/demo-field/remove",
+          "resourceCode": "example:demo:demo-field:remove",
+          "requiredPermission": {
+            "resourceTypeCode": "DEMO_REPORT",
+            "operationCode": "UPDATE"
+          }
+        },
+        {
+          "name": "demo-scope/save",
+          "httpMethod": "POST",
+          "path": "/demo-scope/save",
+          "resourceCode": "example:demo:demo-scope:save",
+          "requiredPermission": {
+            "resourceTypeCode": "DEMO_POLICY",
+            "operationCode": "MANAGE"
+          }
+        },
+        {
+          "name": "demo-publication/get",
+          "httpMethod": "POST",
+          "path": "/demo-publication/get",
+          "resourceCode": "example:demo:demo-publication:get",
+          "requiredPermission": {
+            "resourceTypeCode": "DEMO_POLICY",
+            "operationCode": "MANAGE"
+          }
+        },
+        {
+          "name": "demo-publication/page",
+          "httpMethod": "POST",
+          "path": "/demo-publication/page",
+          "resourceCode": "example:demo:demo-publication:page",
+          "requiredPermission": {
+            "resourceTypeCode": "DEMO_POLICY",
+            "operationCode": "MANAGE"
+          }
+        },
+        {
+          "name": "demo-publication/retry",
+          "httpMethod": "POST",
+          "path": "/demo-publication/retry",
+          "resourceCode": "example:demo:demo-publication:retry",
+          "requiredPermission": {
+            "resourceTypeCode": "DEMO_POLICY",
+            "operationCode": "MANAGE"
+          }
+        }
+      ]
+    }
+  ]
+}

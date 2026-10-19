@@ -43,6 +43,7 @@ public class SyncMetadata {
 
     private Long lastPublicationGeneration;
     private String lastPublicationHash;
+    private String lastIncrementalHash;
 
     /**
      * 同步实体类型：ABSTRACT_USER / ABSTRACT_ROLE / USER_ROLE / RESOURCE_ENTITY

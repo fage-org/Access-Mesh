@@ -10,9 +10,9 @@ last_reviewed: 2026-10-19
 
 本文档是 example-service 的精简设计入口。旧版完整设计已归档到 `../../archive/2026-04-28/example-service-design.full.md`，仅用于追溯。
 
-## 待实施的持久化权限演示
+## 持久化权限演示进度
 
-[权限演示设计](../example-permission-demo.md)与[新 API 契约](../example-service-api-contract.md)为 adopted 目标，[执行计划](../../plans/example-permission-demo-plan.md)为 active。T-ACCESS-137 接入独立业务库、持久化 Mapper 与 PG 测试支持；新业务入口、动态 SQL、导入与内部任务仍按后续卡交付。既有 hello/report 路由继续是下文的内存探针，不能把数据库基础等同于新业务 API 已上线。真实 SQL 权限链路由 T-PERM-036 验收。
+[权限演示设计](../example-permission-demo.md)与[新 API 契约](../example-service-api-contract.md)为 adopted 目标，[执行计划](../../plans/example-permission-demo-plan.md)为 active。T-ACCESS-137 接入独立业务库、持久化 Mapper 与 PG 测试支持；T-ACCESS-139 已实现元数据管理、冻结事件与资源发布，收口验证见任务卡。[接入脚本](../../../example-service/examples/permission-demo.md)提供类型、SUB_PERM 和完整路由准备。动态 SQL、导入与内部任务仍按后续卡交付。既有 hello/report 路由继续是下文的内存探针，不能把数据库基础等同于新业务 API 已上线。真实 SQL 权限链路由 T-PERM-036 验收。
 
 ## 职责边界
 

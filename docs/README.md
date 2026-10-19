@@ -105,7 +105,7 @@ docs/
 
 ## 执行计划
 
-当前 [example 持久化权限演示计划](plans/example-permission-demo-plan.md)为 active，实施契约已定稿，当前推进持久化基础；[需求草案](design/example-permission-demo.md)定义动态配置、真实数据与内部调度范围。[候选独立部署与首次接入验收](archive/2026-10-18/candidate-deployment-acceptance-plan.md)已归档，结果及边界见[最终验收](archive/2026-10-18/tasks/evidence/candidate-deployment/verification.md)。
+当前 [example 持久化权限演示计划](plans/example-permission-demo-plan.md)为 active，实施契约、持久化基础与资源发布已完成，下一步为动态行列过滤；[需求草案](design/example-permission-demo.md)定义动态配置、真实数据与内部调度范围。[候选独立部署与首次接入验收](archive/2026-10-18/candidate-deployment-acceptance-plan.md)已归档，结果及边界见[最终验收](archive/2026-10-18/tasks/evidence/candidate-deployment/verification.md)。
 
 [登录审计事务边界收敛](archive/2026-10-18/login-audit-transaction-plan.md)已完成归档，Q-067 已收敛。
 

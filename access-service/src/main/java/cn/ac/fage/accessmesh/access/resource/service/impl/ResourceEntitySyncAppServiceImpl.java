@@ -136,19 +136,27 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         catch (IllegalArgumentException e) { return SyncResultBuilder.nonRetryable("PUBLICATION_GENERATION_INVALID"); }
         String scope = SyncKeyCodecUtil.resourceEntityScopeKey(req.resourceTypeCode());
         var state = publications.read(tenantId, req.sourceService(), scope);
-        SyncMetadata metadata = null;
-        String itemHash = null;
-        if (generation != null) {
-            req = publicationNormalizer.snapshot(req);
-            itemHash = publicationNormalizer.hash(req);
-            String keyHash = SyncKeyCodecUtil.sha256Hex(publicationNormalizer.businessKey(req));
-            metadata = syncMetadataDomainService.mapByBusinessKeyHash(tenantId, ENTITY_KIND, req.sourceService(),
-                    SyncKeyCodecUtil.sha256Hex(scope), Set.of(keyHash)).get(keyHash);
-        }
+        req = publicationNormalizer.snapshot(req);
+        String itemHash = publicationNormalizer.hash(req);
+        String keyHash = SyncKeyCodecUtil.sha256Hex(publicationNormalizer.businessKey(req));
+        SyncMetadata metadata = syncMetadataDomainService.mapByBusinessKeyHash(tenantId, ENTITY_KIND, req.sourceService(),
+                SyncKeyCodecUtil.sha256Hex(scope), Set.of(keyHash)).get(keyHash);
         var decision = ResourcePublicationPolicy.single(state, metadata, generation, itemHash);
         if (decision != ResourcePublicationPolicy.Decision.APPLY) return publicationRejection(decision);
+        if (generation == null && metadata != null) {
+            int order = SyncVersionOrder.compareIncoming(metadata, req.syncVersion());
+            if (order < 0) return SyncResultBuilder.stale();
+            if (order == 0) {
+                if (metadata.getLastIncrementalHash() == null) return SyncResultBuilder.stale();
+                return metadata.getLastIncrementalHash().equals(itemHash) ? SyncResultBuilder.replayed()
+                    : SyncResultBuilder.nonRetryable("SYNC_VERSION_CONFLICT");
+            }
+        }
         SyncResultResp result = applySingleSync(tenantId, req, metadata, generation, itemHash);
         if (generation != null && result.applied()) publications.acceptSingle(tenantId, req.sourceService(), scope, generation);
+        if (generation == null && result.applied()) {
+            publications.stampIncremental(tenantId, req.sourceService(), scope, keyHash, req.syncVersion(), itemHash);
+        }
         return result;
     }
 
