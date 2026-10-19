@@ -3,21 +3,24 @@ doc_type: task
 id: T-PERM-036
 title: 动态数据权限端到端验证（scopeMode → 业务 SQL）
 status: proposed
-plan: null
+plan: docs/plans/example-permission-demo-plan.md
 domain: cross-service
 design_refs:
+  - docs/design/example-permission-demo.md#field-permissions
+  - docs/design/example-permission-demo.md
   - docs/design/access-service-api-contract.md#contract-section-18-6
   - docs/design/engine/core-flows.md
   - docs/design/engine/implementation.md
   - docs/design/services/example-service.md
 depends_on:
-  - T-FE-013
-  - T-PERM-033
+  - T-ACCESS-138
 acceptance:
+  - "使用非管理员演示身份，先完成配置/授权再导入；验证同一主体的行撤权、字段撤权、正负写入和跨报表隔离。"
+  - "验证报表上下文字段隔离、行列四态组合、隐藏列无旁路、导入/读写字段权限以及字段新增删除的授权边界。"
   - 用户明确解除暂缓后才进入实施；描述校准不视为启动授权
   - 复用现行 query-scopes 与统一执行器，验证权限事实到真实业务 SQL 查询结果的端到端链路
   - 验证 INSTANCE 精确范围过滤、ALL 无范围过滤但保留租户约束、DENIED 拒绝且不发业务 SQL、EMPTY 返回空且不发业务 SQL
-  - 覆盖已确认的本人、团队和部门场景，具体业务数据模型在重启时确认
+  - 覆盖配置驱动的本人、团队、部门及范围并集，扩展已有地区字段仅修改配置和授权，无需修改 Java 或重启
   - 将实际缺口和验收结果回写对应设计，不重复建设已有查询和示例能力
 design_writeback:
   required: true
@@ -35,16 +38,24 @@ example-service 已提供 Gateway 准入和业务最终检查，报表列表使�
 
 剩余范围为业务消费者将范围权限事实映射到真实 SQL 的端到端验证，核对主体、主资源上下文、直接与依赖范围、业务键映射、租户隔离及四态消费。现有查询引擎和接口能力继续复用。
 
+本卡纳入 [权限演示计划](../plans/example-permission-demo-plan.md)，在 T-ACCESS-140 交付动态策略和真实 SQL 后承担跨服务验证，不重复实现过滤器。输入/过滤实现分别由 T-ACCESS-138/140 承接；需求见 [权限演示设计](../design/example-permission-demo.md)。验证配置发布、无代码动态扩展、非法配置拒绝与读写范围一致性。
+
+验证字段作为报表数据权限的真实 SQL 投影和写列约束，覆盖同名字段跨报表、行列 ALL 不互相放宽和空字段不取数。
+
+本卡依赖导入完成后运行在线主线；按设计联合场景固定授权前提，任务阶段由 141/143 承接，142 整合。
+
 ## 当前口径
 
-2026-10-18 用户确认继续暂缓，仅按现状校准任务描述。`status=proposed`、设计回写 pending 保持；必须由用户明确解除暂缓后才能实施。本次不引入业务数据库、SQL 自动改写模块或新的演示功能。
+2026-10-18 本次授权为权限演示需求与计划设计，用户确认 CSV、本人/团队/部门动态配置、无分析/业务页面、example 内部调度。`status=proposed`、设计回写 pending 及实施暂缓保持；纳入计划并重连依赖不等于解除门禁。后续明确启动实施时由 T-ACCESS-136 核定准入，本次不引入业务数据库或修改运行服务。
 
 历史暂缓依据为 [design-review §11 Q7/B](../archive/2026-06-17/design-review.md)及 [improvement-plan §3.1](../archive/2026-08-27/improvement-plan.md)，仅用于追溯。未来实施使用上述现行设计，不恢复已退役的执行器或 DTO。
 
 ## 验收对照
 
+- [ ] 使用非管理员演示身份，先完成配置/授权再导入；验证同一主体的行撤权、字段撤权、正负写入和跨报表隔离。
+- [ ] 验证报表上下文字段隔离、行列四态组合、隐藏列无旁路、导入/读写字段权限以及字段新增删除的授权边界。
 - [ ] 解除暂缓并确认业务数据模型。
-- [ ] 实际 SQL 端到端验证与四态消费。
+- [ ] 实际 SQL 四态、配置发布、无代码扩展及读写范围端到端验证。
 - [ ] 缺口处置、设计回写和必要回归。
 
 ## 非目标 / 遗留

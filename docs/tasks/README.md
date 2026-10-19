@@ -10,27 +10,43 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| access-service 归并（跨服务） | `T-ACCESS` | 136 |
+| access-service 归并（跨服务） | `T-ACCESS` | 144 |
 | permission-center | `T-PERM` | 113 |
 | admin-service | `T-ADMIN` | 036 |
 | gateway | `T-GW` | 015 |
 | 组织/用户（跨 admin+perm） | `T-ORG` | 006 |
 | 跨服务 API 契约 | `T-API` | 015 |
-| 前端 | `T-FE` | 079 |
+| 前端 | `T-FE` | 080 |
 
 > 新建任务时从对应领域取下一编号，计数器 +1。
 
 ## 当前待办入口
 
-[当前候选版本独立环境部署与首次接入验收](../archive/2026-10-18/candidate-deployment-acceptance-plan.md)已完成归档；当前无新增执行任务，原有暂缓事项保持原状态。
+[example 持久化权限演示](../plans/example-permission-demo-plan.md)处于需求与计划设计阶段；执行任务 proposed，业务页面任务已取消，尚未启动实施。候选部署验收已归档。
 
 | ID | 标题 | 状态 | 直接依赖 |
 |---|---|---|---|
-| [T-PERM-036](T-PERM-036.md) | scopeMode → 业务 SQL 端到端验证（暂缓） | ⚙️ | T-FE-013、T-PERM-033 |
+| [T-ACCESS-136](T-ACCESS-136.md) | 权限演示需求与实施契约定稿 | ⚙️ | — |
+| [T-PERM-036](T-PERM-036.md) | scopeMode → 业务 SQL 端到端验证（实施暂缓） | ⚙️ | T-ACCESS-138 |
 
-T-PERM-036 继续暂缓，需用户明确解除门禁。历史批次只供追溯，不重新启动。
+T-PERM-036 已纳入权限演示计划，实施仍需明确解除门禁；本次设计和依赖重连不等于启动。其他暂缓事项保持。历史批次只供追溯。
 
 ## 任务总表
+
+### example-service 持久化权限演示（需求与计划）
+
+| ID | 标题 | 状态 | 直接依赖 |
+|---|---|---|---|
+| [T-ACCESS-136](T-ACCESS-136.md) | 权限演示需求与实施契约定稿 | ⚙️ | — |
+| [T-ACCESS-137](T-ACCESS-137.md) | 权限演示数据库与持久化基础 | ⚙️ | T-ACCESS-136 |
+| [T-ACCESS-139](T-ACCESS-139.md) | 演示资源登记与可靠发布 | ⚙️ | T-ACCESS-137 |
+| [T-ACCESS-140](T-ACCESS-140.md) | 动态策略配置与真实 SQL 权限过滤 | ⚙️ | T-ACCESS-139 |
+| [T-ACCESS-138](T-ACCESS-138.md) | 演示业务记录与 CSV 导入 | ⚙️ | T-ACCESS-140 |
+| [T-PERM-036](T-PERM-036.md) | 动态数据权限端到端验证 | ⚙️ | T-ACCESS-138 |
+| [T-ACCESS-141](T-ACCESS-141.md) | 有界授权快照导出与结果领取 | ⚙️ | T-ACCESS-140、T-PERM-036 |
+| [T-ACCESS-143](T-ACCESS-143.md) | example 内部自定义定时任务与恢复 | ⚙️ | T-ACCESS-141 |
+| [T-ACCESS-142](T-ACCESS-142.md) | 权限场景包与持久化验收收口 | ⚙️ | T-ACCESS-143、T-PERM-036 |
+| [T-FE-079](T-FE-079.md) | BI 工作区与销售分析页面 | ❌ | — |
 
 ### 当前候选版本独立环境部署与首次接入验收
 
@@ -495,7 +511,6 @@ T-PERM-036 继续暂缓，需用户明确解除门禁。历史批次只供追溯
 | [T-PERM-071](../archive/2026-09-24/tasks/T-PERM-071.md) | 独立依赖声明与可选 SDK 协调（✅ 2026-09-21 收口：全量含 E2E 1842 项 0 失败；双轨+四任务内外评审处置完毕〔claude P3×3 全处置、风格转出 T-PERM-079、拍板与豁免登记见 [历史定案原文](../archive/2026-09-26/decision-registry-before.md) 同日三行〕；迁移未在任何部署库执行） | —（自动授权实施序列） | [简化设计](../design/dependency-auto-grant.md) | T-PERM-070, T-PERM-078, T-PERM-074 | ✅ | ✓ |
 | [T-PERM-072](../archive/2026-09-24/tasks/T-PERM-072.md) | 自动授权物化与共享推导 | —（自动授权实施序列） | [简化设计](../design/dependency-auto-grant.md) | T-PERM-071 | ✅ | ✓ |
 | [T-PERM-073](../archive/2026-09-24/tasks/T-PERM-073.md) | 按需来源解释、授权界面与对账 | —（自动授权实施序列） | [简化设计](../design/dependency-auto-grant.md) | T-PERM-072 | ✅ | ✅ |
-| [T-PERM-036](T-PERM-036.md) | 动态数据权限端到端验证（scopeMode → 业务 SQL，暂缓） | —（2026-09-14 脱出已归档计划，暂缓等 PM 重申） | 契约总册 §18.6；engine/core-flows；engine/implementation | T-FE-013, T-PERM-033 | ⚙️ | ⏳ |
 | [T-PERM-037](../archive/2026-09-14/tasks/T-PERM-037.md) | 跨页共性接口改造 + api-contract 回写收尾（已收口 2026-08-31，审计型零代码变更，终态见任务卡完成记录） | [frontend-phase2](../archive/2026-09-14/frontend-phase2-plan.md)（已归档） | api-contract；implementation | T-PERM-022~034 | ✅ | ✓ |
 | [T-PERM-038](../archive/2026-09-12/tasks/T-PERM-038.md) | 全局 TODO 收口（已收口 2026-09-12：附录 A 七条定性——3 条消解/2 条 T-PERM-035 预留保留/2 条失效注释删除；终态见任务卡处置记录） | [frontend-phase4](../archive/2026-09-12/frontend-phase4-plan.md) | —（工程改进，无设计回写） | — | ✅ | — |
 | [T-PERM-039](../archive/2026-09-12/tasks/T-PERM-039.md) | 测试补充（已收口 2026-09-12：覆盖重估——access-service 157 测试文件/permission 域 33/36 实现类有直接测试，原「每接口 1+2」口径已被各任务回归锁实质取代，定性依据见任务卡） | [frontend-phase4](../archive/2026-09-12/frontend-phase4-plan.md) | —（工程改进，无设计回写） | T-PERM-037 | ✅ | — |
@@ -735,7 +750,7 @@ _当前无未终态 T-ADMIN 任务。`T-ADMIN-001~019`（用户角色代理修�
 
 - `T-PERM-022~034` 逐页后端接口改造 ← 各 Phase 1 前端任务（🔧❌ 清单）
 - `T-PERM-037` 跨页共性接口改造 + api-contract 回写收尾 ← T-PERM-022~034（不重复逐页改造）
-- `T-PERM-036` 动态数据权限 — ⚠️ design-review §11 暂缓，需 PM 重申（T-PERM-035 自动授权已于 2026-09-19 定稿并拆卡 T-PERM-070~073，暂缓解除）
+- [T-PERM-036](T-PERM-036.md) 动态数据权限：现纳入 [权限演示计划](../plans/example-permission-demo-plan.md)，实施仍暂缓；当前依赖见任务卡。
 - `T-FE-015~022` Phase 3 联调 ← Phase 1 + Phase 2
 - `T-FE-023` 扩展验证 / `T-ADMIN-020` 代码清理 / `T-PERM-038` TODO 收口 / `T-PERM-039` 测试补充 — Phase 4（✅ 全部 done，2026-09-12 随计划归档）
 

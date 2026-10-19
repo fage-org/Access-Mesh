@@ -10,6 +10,10 @@ last_reviewed: 2026-10-18
 
 本文档是 example-service 的精简设计入口。旧版完整设计已归档到 `../../archive/2026-04-28/example-service-design.full.md`，仅用于追溯。
 
+## 待实施的持久化权限演示
+
+[权限演示需求](../example-permission-demo.md)为 draft，[执行计划](../../plans/example-permission-demo-plan.md)为 proposed。已确认 CSV 入库、本人/团队/部门动态行权限、基于特定报表的字段权限与 example 内部调度，不做数据分析或业务页面；本次只设计，尚未改变下文当前实现。真实 SQL 验证由 T-PERM-036 承接，实施暂缓仍在。
+
 ## 职责边界
 
 - 在核心主线稳定后，提供 AccessMesh 权限中心真实接入示例。

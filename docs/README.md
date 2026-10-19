@@ -101,11 +101,11 @@ docs/
 | 默认组织树与用户生命周期 | [design/default-org-tree-user-lifecycle.md](design/default-org-tree-user-lifecycle.md)                                                |
 | PostgreSQL 表结构    | [design/schema/access-service.sql](design/schema/access-service.sql)（唯一权威 DDL）                                                 |
 
-自动授权已按[简化方案](design/dependency-auto-grant.md)交付，资源与依赖独立接入；剩余真实业务 SQL 消费验证由 [T-PERM-036](tasks/T-PERM-036.md) 承接并继续暂缓。
+自动授权已按[简化方案](design/dependency-auto-grant.md)交付，资源与依赖独立接入；剩余真实业务 SQL 消费验证由 [T-PERM-036](tasks/T-PERM-036.md) 承接，现纳入权限演示计划但实施继续暂缓。
 
 ## 执行计划
 
-当前无活跃执行计划。[候选独立部署与首次接入验收](archive/2026-10-18/candidate-deployment-acceptance-plan.md)已归档，结果及边界见[最终验收](archive/2026-10-18/tasks/evidence/candidate-deployment/verification.md)。
+当前 [example 持久化权限演示计划](plans/example-permission-demo-plan.md)为 proposed，处于需求与计划阶段，未启动实施；[需求草案](design/example-permission-demo.md)定义动态配置、真实数据与内部调度范围。[候选独立部署与首次接入验收](archive/2026-10-18/candidate-deployment-acceptance-plan.md)已归档，结果及边界见[最终验收](archive/2026-10-18/tasks/evidence/candidate-deployment/verification.md)。
 
 [登录审计事务边界收敛](archive/2026-10-18/login-audit-transaction-plan.md)已完成归档，Q-067 已收敛。
 
