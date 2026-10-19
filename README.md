@@ -68,7 +68,7 @@ cp .env.example .env        # 填写数据库/Redis 密码及四个应用密钥�
 docker compose --profile app up -d --build frontend gateway access-service
 ```
 
-平台就绪后先注册 example-service、签发服务凭证并填入 `.env`，再启动 example-service（步骤见 quickstart）。运营入口 http://127.0.0.1/#/platform/login （平台账号 `admin` + 部署密码）；从运营界面开通租户后，客户在租户登录页填写编码并使用一次交付的随机密码；开发模式手工启动、example 接口 403→授权→200 演练、常见问题见 [docs/quickstart.md](docs/quickstart.md)。默认 `docker compose up -d` 仅启动基础设施（PG/Redis/Nacos）。
+平台就绪后先注册 example-service、签发服务凭证并填入 `.env`，再按[独立业务库说明](docs/ops/example-database.md)初始化 example_db/example_app 后启动 example-service。运营入口 http://127.0.0.1/#/platform/login （平台账号 `admin` + 部署密码）；从运营界面开通租户后，客户在租户登录页填写编码并使用一次交付的随机密码；开发模式手工启动、example 接口 403→授权→200 演练、常见问题见 [docs/quickstart.md](docs/quickstart.md)。默认 `docker compose up -d` 仅启动基础设施（PG/Redis/Nacos）。
 
 ## License
 

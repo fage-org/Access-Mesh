@@ -45,7 +45,9 @@ docker compose --profile app up -d --build frontend gateway access-service
 
 **登录与开通**：打开 http://127.0.0.1/#/platform/login，用平台账号 `admin` 和 `.env` 中的平台密码登录。开通租户并妥善交付一次展示的随机密码；客户从租户登录页填写租户编码、`admin` 和初始密码，完成首次改密后重新登录。后续 example-service 配置与业务授权由该租户管理员完成。详见[租户运营](ops/tenant-operations.md)。
 
-登录后在各接入租户的「服务与接口」登记 `example-service`，持该租户管理员会话调用 `POST /api/access/service-credential/create`，请求 `{"serviceCode":"example-service"}`。把各自返回的凭证填入 `.env` 的 `EXAMPLE_PERMISSION_CONFIG_JSON`，结构见模板（`example.permission.tenant-credentials`，键为租户 ID，以各租户开通后的实际 ID 为准）。本地 `example.permission.allow-insecure=true` 明示单信任域；也可通过 Nacos 配置同一映射。然后运行：
+登录后在各接入租户的「服务与接口」登记 `example-service`，持该租户管理员会话调用 `POST /api/access/service-credential/create`，请求 `{"serviceCode":"example-service"}`。把各自返回的凭证填入 `.env` 的 `EXAMPLE_PERMISSION_CONFIG_JSON`，结构见模板（`example.permission.tenant-credentials`，键为租户 ID，以各租户开通后的实际 ID 为准）。本地 `example.permission.allow-insecure=true` 明示单信任域；也可通过 Nacos 配置同一映射。
+
+首次启动 example 前，还需填写独立的 `EXAMPLE_DB_PASSWORD` 并按[业务库初始化](ops/example-database.md)创建 example_db/example_app；不能直接复用 access_db 的管理账号。初始化只执行一次，不在服务启动时自动建表。完成后运行：
 
 ```bash
 docker compose --profile app up -d --build example-service
@@ -82,7 +84,8 @@ ACCESS_PLATFORM_BOOTSTRAP_ENABLED=true ACCESS_PLATFORM_ADMIN_PASSWORD=<密码> \
 ACCESSMESH_SIGNATURE_SECRET=<与上同值> PERM_INTERNAL_SECRET=<与上同值> \
   mvn spring-boot:run -pl gateway
 
-# 4. example-service（可选演示服务，另开终端）
+# 4. example-service（先按 ops/example-database.md 初始化独立业务库，另开终端）
+# 本机进程另需注入 EXAMPLE_DB_PASSWORD，不自动读取 .env
 ACCESSMESH_SIGNATURE_SECRET=<与上同值> \
   SPRING_APPLICATION_JSON='<与 .env 模板相同结构的凭证映射 JSON>' \
   mvn spring-boot:run -pl example-service
@@ -99,6 +102,7 @@ cd frontend && pnpm install && pnpm dev
 |------|------|------|
 | access-service 容器反复重启 | `.env` 密钥缺失（服务 fail-fast 并打印缺失项） | `docker compose logs access-service` 看启动失败原因并补齐 `.env` |
 | 经 Gateway 的 example 请求全部返回信封 30003 | `ACCESSMESH_SIGNATURE_SECRET` 在 gateway/example-service 两处不同值（身份签名校验失败） | 两处改同值后重启 |
+| example 启动时数据库认证失败或找不到 demo_dataset | 独立业务库未初始化，或 EXAMPLE_DB_* 配置不一致 | 按[业务库说明](ops/example-database.md)核对账号/库/密码，非空库不重复初始化或清库 |
 | 403，响应体无 JSON 信封，Console 报 CORS 错误 | 请求**已到 Gateway**，但页面 Origin 不在 CORS 白名单（不要归因为「未走 Gateway」） | 用四个默认形态之一访问（`localhost`/`127.0.0.1` × 8848/8890）；自定义端口/域名时设 `GATEWAY_CORS_ALLOWED_ORIGINS` 放行该 Origin（设值=整体替换默认四条，需保留其他形态时全列出） |
 | 404，JSON 信封 `code=404`（message 为 `No static resource` 类路由文案，无 `requestId`） | 路径或路由不对（`/api` 前缀被改写、`VITE_PROXY_TARGET` 指错目标） | 核对请求路径（应为 `/api/<服务命名空间>/**`）与代理目标（Gateway 8080） |
 | 400 提示租户缺失 | 请求绕过了 Gateway 直连 access-service（租户头由 Gateway 注入） | 前端必须经 vite 代理（dev）或 nginx（http://127.0.0.1/）/Gateway 8080 访问，不要直连 9100 |

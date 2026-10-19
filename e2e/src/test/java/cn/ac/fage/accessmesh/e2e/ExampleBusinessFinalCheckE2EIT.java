@@ -147,6 +147,8 @@ class ExampleBusinessFinalCheckE2EIT {
             }
         }
 
+        var exampleDatabase = E2eExampleDatabase.create(postgres);
+
         int accessPort = freePort();
         int gatewayPort = freePort();
         int gatewayMgmtPort = freePort();
@@ -159,13 +161,13 @@ class ExampleBusinessFinalCheckE2EIT {
 
         exampleService = startService("example-service", EXAMPLE_MAIN_CLASS,
             exampleServiceArgs(examplePort, accessPort),
-            Map.of("JWT_SECRET_KEY", JWT_SECRET,
+            exampleDatabase.environment(Map.of("JWT_SECRET_KEY", JWT_SECRET,
                 "ACCESSMESH_SIGNATURE_SECRET", SIGNATURE_SECRET,
                 "SPRING_APPLICATION_JSON", JSON.writeValueAsString(Map.of("example", Map.of("permission", Map.of(
                     "allow-insecure", true,
                     "tenant-credentials", Map.of(
                         "1", Map.of("credential-id", "sc-example-e2e-1", "credential-secret", "sk-example-e2e-1"),
-                        "2", Map.of("credential-id", "sc-example-e2e-2", "credential-secret", "sk-example-e2e-2"))))))),
+                        "2", Map.of("credential-id", "sc-example-e2e-2", "credential-secret", "sk-example-e2e-2")))))))),
             URI.create("http://localhost:" + examplePort + "/api/example/demo/hello"),
             EXAMPLE_SERVICE_CLASSES_DIR);
 
@@ -839,10 +841,7 @@ class ExampleBusinessFinalCheckE2EIT {
                 + "org.springframework.cloud.gateway.config.GatewayResilience4JCircuitBreakerAutoConfiguration,"
                 + "cn.dev33.satoken.reactor.spring.SaTokenContextRegister,"
                 + "org.redisson.spring.starter.RedissonAutoConfigurationV4,"
-                + "cn.ac.fage.accessmesh.common.cache.RedissonCacheAutoConfiguration,"
-                + "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,"
-                + "org.springframework.boot.jdbc.autoconfigure.JdbcTemplateAutoConfiguration,"
-                + "com.mybatisflex.spring.boot.v4.MybatisFlexAutoConfiguration");
+                + "cn.ac.fage.accessmesh.common.cache.RedissonCacheAutoConfiguration");
     }
 
     private static List<String> gatewayArgs(int port, int managementPort, int accessPort, int examplePort) {

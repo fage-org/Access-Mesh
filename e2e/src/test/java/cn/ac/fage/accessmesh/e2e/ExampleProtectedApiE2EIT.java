@@ -155,6 +155,8 @@ class ExampleProtectedApiE2EIT {
                 + "1, 'example-service', 'Example Service', 1)");
         }
 
+        var exampleDatabase = E2eExampleDatabase.create(postgres);
+
         int accessPort = freePort();
         int gatewayPort = freePort();
         int gatewayMgmtPort = freePort();
@@ -168,8 +170,8 @@ class ExampleProtectedApiE2EIT {
         // ACCESSMESH_SIGNATURE_SECRET 与 Gateway 同源：example 的 GatewaySignatureFilter
         // 复算 Gateway 注入的 X-User-Signature（身份信任链示例）
         exampleService = startService("example-service", EXAMPLE_MAIN_CLASS,
-            exampleServiceArgs(examplePort), Map.of("JWT_SECRET_KEY", JWT_SECRET,
-                "ACCESSMESH_SIGNATURE_SECRET", SIGNATURE_SECRET),
+            exampleServiceArgs(examplePort), exampleDatabase.environment(Map.of("JWT_SECRET_KEY", JWT_SECRET,
+                "ACCESSMESH_SIGNATURE_SECRET", SIGNATURE_SECRET)),
             URI.create("http://localhost:" + examplePort + "/api/example/demo/hello"),
             EXAMPLE_SERVICE_CLASSES_DIR);
 
@@ -751,7 +753,7 @@ class ExampleProtectedApiE2EIT {
     /**
      * example-service 子进程启动参数。共享类路径（gateway 测试类路径）带入了 gateway /
      * access-service 依赖树的自动配置：Gateway 系（本服务不是网关）、Redisson（无 Redis 消费）、
-     * JDBC/MyBatis 系（无数据源）均须显式排除，保持「瘦身 POM」的生产装配面；本服务自身
+     * 须显式排除；JDBC/MyBatis 使用独立 example 数据库，与生产装配保持一致。本服务自身
      * application.yml 已关缓存装配（accessmesh.cache.enabled=false，caffeine 为 common optional 依赖）。
      */
     private static List<String> exampleServiceArgs(int port) {
@@ -775,10 +777,7 @@ class ExampleProtectedApiE2EIT {
                 + "org.springframework.cloud.gateway.config.GatewayResilience4JCircuitBreakerAutoConfiguration,"
                 + "cn.dev33.satoken.reactor.spring.SaTokenContextRegister,"
                 + "org.redisson.spring.starter.RedissonAutoConfigurationV4,"
-                + "cn.ac.fage.accessmesh.common.cache.RedissonCacheAutoConfiguration,"
-                + "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,"
-                + "org.springframework.boot.jdbc.autoconfigure.JdbcTemplateAutoConfiguration,"
-                + "com.mybatisflex.spring.boot.v4.MybatisFlexAutoConfiguration");
+                + "cn.ac.fage.accessmesh.common.cache.RedissonCacheAutoConfiguration");
     }
 
     private static List<String> gatewayArgs(int port, int managementPort, int accessPort, int examplePort) {

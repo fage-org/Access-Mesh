@@ -139,6 +139,8 @@ AccessMesh 决定主体具有哪些主资源操作及有效范围，继续复用
 
 导入报表的每个可暴露业务字段登记为 `DEMO_REPORT_FIELD` 资源。业务归属唯一键为 `(tenantId, reportId, fieldId)`，映射到该报表稳定 fieldKey 与已登记的数据集字段；对外使用不透明、不可复用的资源编码，不能仅以 `amount` 等列名全局寻址。两个报表即使引用同一底层数据集、都含 amount，也各自有字段资源和授权。
 
+持久化基础以字段主键的十进制文本生成 resourceCode，生成列不可被请求覆盖；软删保留原主键，新建同名字段使用新主键，因此不会复用旧授权身份。调用方将该编码视为不透明值，完整资源键仍由类型/codeType 与该编码共同组成，不把 IAM 内部资源 ID 当作本地 fieldId。
+
 典型授权为“报表 A 的 DATA_READ 主权限 → A.amount 的 DATA_READ 子权限”，编辑同理使用 DATA_EDIT。初始化明确配置现役 SUB_PERM 允许的字段资源类型，不依赖缺省放行。这里的报表→字段关系是业务归属和 depend_on 授权上下文，**不是**跨资源类型的资源树父边；不设置违反现役同类型树约束的 parentResourceCode。
 
 运行时从已验证的本地报表取得真实身份和所属字段，作为 query-scopes 的主资源上下文；同次读取请求使用 `parentOperationCodes=[DATA_READ]`，请求行范围与字段范围两类的 DATA_READ 格。修改用 DATA_EDIT；导出额外校验 EXPORT，取数仍用 DATA_READ 行列范围。主类型/主操作固定，范围绑定保持动态配置，不新增一套授权算法。
@@ -235,7 +237,7 @@ access-service 当前任务调用仅支持本进程 `@JobInvocable bean.method(T
 <a id="storage"></a>
 ## 7. 存储与实现边界
 
-独立 example_db 与数据库账号，MyBatis-Flex/PostgreSQL 沿项目技术栈，不读取 IAM 内部表。逻辑实体为报表、报表字段与资源映射、业务记录、导入批次、数据集字段目录、策略版本/范围绑定、待发布资源、定时任务、执行记录与有界结果；报表字段归属/身份和目录版本必须有持久约束，不能只放内存映射。可在定稿时合并同生命周期结构，不为概念各造一层框架。唯一可执行 DDL 由 [example schema](schema/example-service.sql)维护，新 DDL 由 T-ACCESS-137 实施，定稿阶段不提前执行。
+独立 example_db 与数据库账号，MyBatis-Flex/PostgreSQL 沿项目技术栈，不读取 IAM 内部表。逻辑实体为报表、报表字段与资源映射、业务记录、导入批次、数据集字段目录、策略版本/范围绑定、待发布资源、定时任务、执行记录与有界结果；报表字段归属/身份和目录版本必须有持久约束，不能只放内存映射。同生命周期结构按首版表结构合并，不为概念各造一层框架。唯一可执行 DDL 由 [example schema](schema/example-service.sql)维护，T-ACCESS-137 已完成原样 PG 验证；实际环境只按[业务库初始化说明](../ops/example-database.md)在空库执行，不由服务隐式建表。
 
 资源通过现有 SYNC 通道登记，类型定义和操作仍由租户管理员经既有管理 API 创建，类型来源明确归 example。待发布事件与本地业务写入同事务，事务外发请求，重试同载荷/版本；发布未完成不冒充资源已可授权。政策规则修改不直接改用户授权，所有授权仍在 AccessMesh。
 
@@ -276,6 +278,8 @@ Controller → AppService → DomainService → Mapper；事务在 AppService。
 原 `ItInfra` 保留 access 侧门面及其模板/租户初始化、Redis 注册；抽离其 PG 容器、fork 槽位及隔离建库部分给真实的两个使用者。example 只消费 PG，按 example 原样 DDL 建类库；不启动 Redis、不加载 IAM schema/租户基线。现有 access 用例不需要逐类改调用方式。
 
 example 使用独立 `testcontainers` execution，沿用 skipTestcontainers、heavy 与 fork 进程隔离规则；不与普通上下文测试混跑，也不把跨服务 E2E 移回服务模块。时区映射按工程规范 §7.4 在 example 配置同等 TypeHandler，不为此把 ORM 依赖上提 common。具体受影响证据与现状见[实施前核对](../tasks/evidence/example-permission-demo/implementation-baseline.md)。
+
+当前持久层 Mapper 使用显式 tenantId 条件及同租户父对象关联；生成 SQL 的租户工厂拒绝未建立可信上下文的调用，不提供无租户回退。跨记录事务通过 Flex 管理的 Mapper 连接执行，不能混用独立 JDBC 连接来假定原子性。实际表约束、条件插入与映射验证由 T-ACCESS-137 承接；业务门禁和完整 AppService/DomainService 编排仍按后续任务交付。
 
 <a id="scenarios"></a>
 ## 8. 场景包与验收

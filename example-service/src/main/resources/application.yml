@@ -15,6 +15,14 @@ management:
       show-details: never
 
 spring:
+  datasource:
+    url: jdbc:postgresql://${EXAMPLE_DB_HOST:127.0.0.1}:${EXAMPLE_DB_PORT:5432}/${EXAMPLE_DB_NAME:example_db}?stringtype=unspecified
+    username: ${EXAMPLE_DB_USERNAME:example_app}
+    password: ${EXAMPLE_DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  sql:
+    init:
+      mode: never
   application:
     name: example-service
   # 对齐 access-service 模式：无 bootstrap starter，Nacos 远端配置经 config.import 加载
@@ -48,3 +56,10 @@ example:
   export:
     # 异步导出作业执行时点重查的演示延迟（毫秒）：窗口内撤权 → 执行时点检查拒绝（N24）
     delay-ms: 1500
+
+# Handwritten Mapper SQL binds tenant_id; no generated all-tenant queries.
+mybatis-flex:
+  global-config:
+    tenant-column: tenant_id
+  configuration:
+    map-underscore-to-camel-case: true

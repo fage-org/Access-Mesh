@@ -12,7 +12,7 @@ last_reviewed: 2026-10-19
 
 ## 待实施的持久化权限演示
 
-[权限演示设计](../example-permission-demo.md)为 adopted，[执行计划](../../plans/example-permission-demo-plan.md)为 active，T-ACCESS-136 已定稿，当前推进 T-ACCESS-137。已确认 CSV 入库、本人/团队/部门动态行权限、基于特定报表的字段权限与 example 内部调度，不做数据分析或业务页面；后续代码任务按依赖实施，尚未改变下文当前实现。真实 SQL 验证由 T-PERM-036 承接，已获整计划执行授权，等待前置任务。
+[权限演示设计](../example-permission-demo.md)与[新 API 契约](../example-service-api-contract.md)为 adopted 目标，[执行计划](../../plans/example-permission-demo-plan.md)为 active。T-ACCESS-137 接入独立业务库、持久化 Mapper 与 PG 测试支持；新业务入口、动态 SQL、导入与内部任务仍按后续卡交付。既有 hello/report 路由继续是下文的内存探针，不能把数据库基础等同于新业务 API 已上线。真实 SQL 权限链路由 T-PERM-036 验收。
 
 ## 职责边界
 
@@ -25,13 +25,13 @@ last_reviewed: 2026-10-19
 
 [首次接入操作示例](../../../example-service/examples/first-access.md)与配套 FULL 清单覆盖 hello、报表 view/list/create；VIEW 路径用 `EXAMPLE/report-1` 与 `report-2` 做允许/拒绝对照。示例实际报表为按租户隔离的内存数据，资源登记不会创建业务内容，重建示例容器会丢失运行期新建报表。当前租户已具权限但业务对象不存在时返回 30001，实例权限不足返回 30004，凭证认证失败等查询依赖故障返回 30005。固定候选的两租户凭证、授撤、对象隔离及防直调已由代理验证，详见 [T-ACCESS-133 证据](../../archive/2026-10-18/tasks/evidence/candidate-deployment/T-ACCESS-133/verification.md)；不据此声称独立新人接入或真实 SQL 过滤已验证。
 
-T-ACCESS-135 在相同冻结镜像上完成源栈/恢复栈普通用户允许、拒绝及文件组合冒烟，并通过包含示例 E2E 的完整回归；[最终候选结论](../../archive/2026-10-18/tasks/evidence/candidate-deployment/verification.md)保留版本与边界。本示例仍不提供运行期报表持久化或生产业务数据库模板。
+T-ACCESS-135 在相同冻结镜像上完成源栈/恢复栈普通用户允许、拒绝及文件组合冒烟，并通过包含示例 E2E 的完整回归；[最终候选结论](../../archive/2026-10-18/tasks/evidence/candidate-deployment/verification.md)保留版本与边界。该冻结版本的报表数据为内存样本；当前分支新增业务库基础见本文数据库节，不回改历史验收边界。
 
 - `POST /api/example/demo/hello`（身份回显接口）：入参 `{name}`，返回问候语 + Gateway `HeaderEnrichFilter` 注入的 `X-User-Id`/`X-Tenant-Id` 回显；`name` 空白拒绝 30001、身份头缺失拒绝 30002（example 业务域错误码段 30001-39999，`ExampleErrorCode`）。
 - 接口级鉴权（第一层）由 Gateway 承担（规范 §2.4）：Gateway `Path=/api/example/**` 路由（无 StripPrefix、`serviceCode=example-service`，T-ACCESS-042 单命名空间）按操作准入快照放行/拒绝（MAY_ENTER=存在类型-操作覆盖候选，非最终许可）。
 - **业务最终检查（第二层，T-ACCESS-061 §8.6 逐路由参考实现）**：`ReportController` 七路由覆盖检查表全部七行——`view`（实际资源+对应操作）、`batch-view`（独立批量逐项 DECISION）、`list`（`query-resources` 范围过滤+分页 total 同口径）、`create`（TYPE_LEVEL）、`sub-view`（depend_on 真实父上下文）、`export/submit`+`export/status`（异步作业提交与执行时点各自鉴权）；`/hello` 最终检查定位=身份头存在性。主体/租户恒取自已验签身份头（请求 DTO 无主体/租户字段）；业务拒绝=信封 **30004**、鉴权服务不可用=fail-closed **30005**；反向拒绝测试=`ReportControllerTest` + `ReportControllerValidationTest`（HTTP 入参边界）（迁移资格载体——契约 §25.7）。
 - 接入路径（E2E `ExampleProtectedApiE2EIT` ③~⑧ 钉死；T-ACCESS-059/061 现行口径）：管理员经 Gateway 先建业务类型与实例（`type-definition/create` 建 `EXAMPLE`、`resource-entity/create` 建示例报表实例），再调 `/api/access/service-config/sync-v2`（FULL 接口声明，ApiItem 必填 `requiredPermission={resourceTypeCode:EXAMPLE, operationCode:VIEW}`）一步创建 API 登记资源与 `resource_api_mapping`（owner=example-service、maintainSource=SERVICE_SYNC、pathPattern=basePath+path=外部路径）→ 授予角色业务操作授权（`EXAMPLE:VIEW`）→ 网关操作准入放行（MAY_ENTER）→ 业务最终检查放行 → 200。旧 `/sync`（v1）协议不携带操作引用，不再用于新链接入；`API:ACCESS` 授权行自 T-ACCESS-059 起不参与网关判定（legacy 资源语义，062 受控清理面）。API 登记资源的唯一事实入口仍是 service-config 声明通道（API 类型种子声明 SYNC+access-service，T-PERM-069：外部同步来源不匹配一律 RESOURCE_TYPE_OWNERSHIP_DENIED、资源管理面手工 CRUD 20055）。
-- 依赖形态（T-ACCESS-061 用户拍板修订）：POM 重新引入 `perm-client-spring-boot-starter`（Feign——业务最终检查调用 `auth/check` 族端点；服务认证=per-service 凭证；共享实例按网关验签租户从 `example.permission.tenant-credentials` 选择独立凭证并显式传入 SDK；无映射拒绝 30004，不回落固定凭证，异步执行沿捕获租户重查；原租户发头 ThreadLocal 已退役）；仍无数据源、无缓存消费（`accessmesh.cache.enabled=false`）。曾删除的 perm-data、MyBatis-Flex、PostgreSQL、Redis、MapStruct、JSqlParser 维持删除。
+- 依赖形态（T-ACCESS-061 用户拍板修订）：POM 重新引入 `perm-client-spring-boot-starter`（Feign——业务最终检查调用 `auth/check` 族端点；服务认证=per-service 凭证；共享实例按网关验签租户从 `example.permission.tenant-credentials` 选择独立凭证并显式传入 SDK；无映射拒绝 30004，不回落固定凭证，异步执行沿捕获租户重查；原租户发头 ThreadLocal 已退役）；T-ACCESS-137 接入 MyBatis-Flex/PostgreSQL；仍无缓存消费（`accessmesh.cache.enabled=false`），不引入 perm-data、Redis、MapStruct 或 JSqlParser。
 - 菜单/按钮/范围/条件权限等其余演示场景仍为规划（状态见下方演示场景表），随核心主线后续任务补齐。
 - 错误码子段约定：30001-30099 为演示接口相关历史编号；30003 随验签迁至 SDK 的 PermClientErrorCode，保留兼容编号，其余由 ExampleErrorCode 定义，30001+ 段位分配随新资源扩展时在代码枚举中登记。
 - **身份签名校验（perm-client starter 的 `GatewaySignatureFilter`）**：复算 Gateway `SignatureEnrichFilter` 注入的 `X-User-Signature`（HMAC-SHA256(secret, userId|tenantId|timestamp)，常量时间比较），时效窗 `perm.client.signature.valid-seconds`（默认 300s，本服务验签窗口，与 access-service `perm.signature.valid-seconds` 独立；两者均须覆盖各自时钟偏差与传输延迟）；携带身份头但签名缺失/不匹配/超窗的请求拒绝信封 **30003**。密钥经 `perm.client.signature.secret`（默认取环境变量 `ACCESSMESH_SIGNATURE_SECRET`，须与 Gateway 同源）——未配置时 fail-closed（凡携带身份头的请求一律拒绝，启动日志 ERROR 提示）。信任边界的根本保障仍是网络隔离（业务服务仅 Gateway 可达），签名校验是纵深防御/直连自证示例。
@@ -80,4 +80,6 @@ T-ACCESS-135 在相同冻结镜像上完成源栈/恢复栈普通用户允许、
 
 ## 数据库
 
-本服务当前无数据源（T-API-001 依赖瘦身删除 PostgreSQL/MyBatis-Flex）。`../schema/example-service.sql` 暂无消费方，保留供未来演示数据场景；启用时需重新引入数据源依赖并在本文档恢复表结构口径。
+本服务使用独立 example_db/example_app，已接入 MyBatis-Flex/PostgreSQL；唯一 DDL 为 [example-service.sql](../schema/example-service.sql)，原未使用 BI schema 已替换。初始化、环境变量与备份范围见[业务库说明](../../ops/example-database.md)。启动检查连接与基础表，不自动执行 DDL 或灌业务样本。
+
+持久层当前提供报表/字段实体与显式租户 Mapper，字段资源编码由不可复用主键生成。PG 测试验证唯一约束、租户与父对象归属、UTC 映射和实际 Mapper 事务；完整业务编排、发布和权限过滤不由本段宣称完成。

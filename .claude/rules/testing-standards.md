@@ -483,15 +483,20 @@ const user = createTestUser({ name: "admin", roles: ["admin"] });
 |---|---|---|
 | 单元/上下文测试（无真实容器） | 所在服务模块默认 execution | 无 |
 | access-service 容器测试（真实 PG/Redis） | access-service 容器组 execution | `@Tag("testcontainers")` |
+| example-service 容器测试（真实 PG） | example-service 容器组 execution | `@Tag("testcontainers")` |
 | 跨服务 E2E（子进程拓扑：gateway/access/example 子进程 + 自起容器） | **仅 `e2e` 模块** | 模块整轨，`-DskipE2E` 开关 |
 
 **禁止**把跨服务 E2E 类放进任何服务模块：服务模块为 E2E 声明跨服务 test 依赖会形成 reactor 依赖边，使 `mvn -T` 模块并行对重模块完全失效（T-ACCESS-031 实测：未拆分时 -T 525s ≈ 串行 522s，拆分后日常 269s）。
 
 超大规模参数上限用例使用 `testcontainers-heavy` 标签。日常回归可 `-DskipHeavyIT=true`，任务收口必须跑 heavy 与 E2E；具体命令见 [AGENTS](../../AGENTS.md#常用命令开发阶段预估)。测试 Gateway 白名单中的普通用户自服务端点时，MockMvc 夹具模拟该路径的真实转发：密钥头与 Bearer 令牌，不额外注入用户/租户/签名头绕过会话解析。其他链路按自身真实转发契约构造，不能扩大本项头形态限制。[来源](../../docs/archive/2026-09-26/decision-registry-before.md)（原第 157 行）及[历史记录](../../docs/archive/2026-09-26/decision-registry-history.md)（原第 37 行）。
 
-### 10.2 容器测试必须用 ItInfra（禁自建基建）
+### 10.2 容器测试必须复用共享基建（禁按类自起容器）
 
-当前权威 schema 采用 PG-only 校验（T-ACCESS-072）：日常非容器轨不再执行 H2 适配 DDL。DDL 变更必须定向运行 `AccessServiceSchemaPostgresTest` 并确认实际执行、零 skip；Docker 不可用时不能宣称 DDL 已验证。此处不移除其他 H2 上下文，也不改变双 execution 隔离。
+PG 生命周期与 fork 槽位共用 `test-support` 测试源码，由服务模块的 test-source 引入，不发布测试支持模块或依赖其他服务 test-jar。access 门面仍为 `ItInfra`，保留 IAM DDL/租户夹具与 Redis 分库；example 使用 `ExamplePgInfra`，只加载 example DDL，不启动 Redis 或 IAM 模板。各模块维护自己的 schema 验收与独立 `testcontainers` execution，`skipTestcontainers` 对两者均适用。
+
+使用 FlexTransactionManager 时，测试夹具的直接 JdbcTemplate 写入不能被当作 Mapper 事务的回滚证据；夹具应独立清理，或通过同一受管 Mapper 事务写入。回滚验收必须实际走生产 Mapper 并独立核对数据库结果，不能仅给测试方法加 `@Transactional` 就宣称 JDBC 夹具也回滚。
+
+当前权威 schema 采用 PG-only 校验（T-ACCESS-072）：日常非容器轨不再执行 H2 适配 DDL。DDL 变更须按所属服务定向运行 `AccessServiceSchemaPostgresTest` / `ExampleSchemaPgIT` 并确认实际执行、零 skip；Docker 不可用时不能宣称 DDL 已验证。此处不移除其他 H2 上下文，也不改变双 execution 隔离。
 
 ```java
 // ❌ 错误 — 自起容器对 + 类内全量 DDL（T-ACCESS-030 前旧形态，28 类 × 15-30s 冗余基建）

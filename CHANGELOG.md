@@ -24,6 +24,8 @@
 
 ### Changed
 
+- **example-service 业务库前置**：服务接入独立 PostgreSQL 业务库，启动需配置 `EXAMPLE_DB_*` 并先完成空库初始化；新增 `tools/init-example-db.ps1`，不自动清库或迁移旧表。既有 hello/report 路由仍为内存探针，新动态行列权限 API 按演示计划继续交付。
+
 - **服务凭证验密**：高熵随机服务 secret 改用带版本的 SHA-256 摘要，消除逐请求 BCrypt 计算；凭证停用、过期和服务状态仍逐请求检查。旧 BCrypt 服务凭证不再接受，开发环境须重新签发并更新消费方配置，不提供兼容或自动转换。用户登录、OAuth2 密钥及 SDK 请求协议保持；[切换说明](docs/ops/deployment.md#service-credential-digest-upgrade)。
 
 - **权限生命周期边界**：功能角色按所选关系精确撤回；租户管理入口禁止停用或删除内置 `access-service`。新版删除业务服务时同事务永久回收全部旧凭证，签发与删除由数据库行锁串行化；旧版本删除留下的凭证仍须维护人员在同码重建前人工清理。
