@@ -12,7 +12,7 @@ last_reviewed: 2026-10-19
 
 ## 持久化权限演示进度
 
-[权限演示设计](../example-permission-demo.md)与[新 API 契约](../example-service-api-contract.md)为 adopted 目标，[执行计划](../../plans/example-permission-demo-plan.md)为 active。T-ACCESS-137 接入独立业务库、持久化 Mapper 与 PG 测试支持；T-ACCESS-139 已实现元数据管理、冻结事件与资源发布，收口验证见任务卡。[接入脚本](../../../example-service/examples/permission-demo.md)提供类型、SUB_PERM 和完整路由准备。T-ACCESS-140 已实现策略版本与动态 SQL 行列过滤、查询及备注修改，收口状态见任务卡；CSV 导入、请求号重放和撤销由 T-ACCESS-138 实现，收口状态见任务卡；内部任务仍按后续卡交付。既有 hello/report 路由继续是下文的内存探针，不能把数据库基础等同于新业务 API 已上线。真实 SQL 权限链路由 T-PERM-036 验收。
+[权限演示设计](../example-permission-demo.md)与[新 API 契约](../example-service-api-contract.md)为 adopted 目标，[执行计划](../../plans/example-permission-demo-plan.md)为 active。T-ACCESS-137 接入独立业务库、持久化 Mapper 与 PG 测试支持；T-ACCESS-139 已实现元数据管理、冻结事件与资源发布，收口验证见任务卡。[接入脚本](../../../example-service/examples/permission-demo.md)提供类型、SUB_PERM 和完整路由准备。T-ACCESS-140 已实现策略版本与动态 SQL 行列过滤、查询及备注修改，收口状态见任务卡；CSV 导入、请求号重放和撤销由 T-ACCESS-138 实现，收口状态见任务卡；内部任务仍按后续卡交付。既有 hello/report 路由继续是下文的内存探针，不能把数据库基础等同于新业务 API 已上线。真实 SQL 权限链路的普通用户、行列四态、授权变化与双租户实证见 [T-PERM-036](../../tasks/T-PERM-036.md)，完整验收状态以任务卡为准。
 
 ## 职责边界
 

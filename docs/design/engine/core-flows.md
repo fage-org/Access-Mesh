@@ -425,3 +425,7 @@ resource_dependency.resource_entity_id 是源，depends_on_resource_entity_id �
 - `canManage=true` 只允许授权同一条权限，不能扩大资源、操作或范围；可授权对象候选范围由业务服务控制。
 - 所有 Request DTO 必须移除 `tenantId`。
 - 所有列表响应必须包装成 `data.items`，不能直接返回数组。
+
+### example 行列消费验收
+
+query-scopes 的真实业务 SQL 消费由 example 的固定字段目录、策略版本和行列执行器完成；引擎仍只返回权限事实，不负责拼业务 SQL。普通用户、四态、跨报表字段身份和多租户链路的验证见 [T-PERM-036](../../tasks/T-PERM-036.md)，不新增第二套查询或授权算法。

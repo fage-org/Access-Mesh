@@ -39,6 +39,7 @@ import java.time.Duration;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntPredicate;
 
@@ -125,6 +126,7 @@ class ExampleBusinessFinalCheckE2EIT {
     private static long targetUserId;
     private static String targetInitialPassword;
     private static String targetToken;
+    private static String dataImportKey;
 
     @BeforeAll
     static void bootStack() throws Exception {
@@ -792,33 +794,228 @@ class ExampleBusinessFinalCheckE2EIT {
         demoAdminPost("/demo-data/revoke-import",JSON.createObjectNode().put("importKey",next));
     }
 
-    private static void ensureDataSetup() throws Exception {
-        var current=parseEnvelope(postEnvelope(gateway()+"/api/example/demo-policy/get",adminToken,"{\"datasetCode\":\"sales-records\"}"));
+    @Test
+    @Order(15)
+    void ordinaryUserPermissionsControlRealRowsColumnsAndWrites() throws Exception {
+        ensureDataSetup();
+        var fieldRows=demoAdminPost("/demo-field/list",JSON.createObjectNode().put("reportCode","sales-report")).path("data").path("items");
+        Map<String,JsonNode> fields=new java.util.HashMap<>(); fieldRows.forEach(f -> fields.put(f.path("fieldKey").asText(),f));
+        long beta=postForData(gateway()+"/api/access/user/create",adminToken,JSON.createObjectNode().put("username","data-beta").put("name","数据乙")).path("id").asLong();
+        long gamma=postForData(gateway()+"/api/access/user/create",adminToken,JSON.createObjectNode().put("username","data-gamma").put("name","数据丙")).path("id").asLong();
+        long delta=postForData(gateway()+"/api/access/user/create",adminToken,JSON.createObjectNode().put("username","data-delta").put("name","数据丁")).path("id").asLong();
+        createDataParent("sales-report","DATA_READ",List.of(dataKey("DEMO_DATA_SCOPE","team-t1","DATA_READ","INSTANCE"),
+            dataKey("DEMO_REPORT_FIELD",fields.get("recordCode").path("resourceCode").asText(),"DATA_READ","INSTANCE"),
+            dataKey("DEMO_REPORT_FIELD",fields.get("productName").path("resourceCode").asText(),"DATA_READ","INSTANCE")));
+        var noEdit=postEnvelope(gateway()+"/api/example/demo-data/update",targetToken,"{\"reportCode\":\"sales-report\",\"recordCode\":\"A\",\"remark\":\"not allowed\"}");
+        assertThat(noEdit.status()).isEqualTo(403);
+        createDataGrant(dataKey("DEMO_DATASET",null,"MANAGE","ALL"),null);
+        List<tools.jackson.databind.node.ObjectNode> edits=new java.util.ArrayList<>();
+        edits.add(dataKey("DEMO_DATA_SCOPE",null,"DATA_EDIT","ALL"));
+        fields.values().forEach(f -> edits.add(dataKey("DEMO_REPORT_FIELD",f.path("resourceCode").asText(),"DATA_EDIT","INSTANCE")));
+        createDataParent("sales-report","DATA_EDIT",edits);
+        dataImportKey=java.util.UUID.randomUUID().toString();
+        String csv="recordCode,ownerUserId,teamCode,departmentCode,regionCode,saleDate,productName,amount,remark\n"
+            +"A,"+targetUserId+",T1,D1,R1,2026-10-19,Alpha,10.00,ra\n"
+            +"B,"+beta+",T1,D1,R2,2026-10-19,Beta,20.00,rb\n"
+            +"C,"+gamma+",T2,D1,R1,2026-10-19,Gamma,30.00,rc\n"
+            +"D,"+delta+",T3,D2,R2,2026-10-19,Delta,40.00,rd\n";
+        org.awaitility.Awaitility.await().atMost(STALE_WINDOW).untilAsserted(() -> assertThat(uploadCsv(targetToken,"sales-report",dataImportKey,csv).path("code").asInt()).isEqualTo(200));
+        assertDataCodes(List.of("A","B"));
+        var hidden=postEnvelope(gateway()+"/api/example/demo-data/page",targetToken,JSON.createObjectNode().put("reportCode","sales-report")
+            .set("filters",JSON.createArrayNode().add(JSON.createObjectNode().put("fieldId",fields.get("amount").path("fieldId").asLong()).put("operator","EQ").put("value",10))).toString());
+        assertThat(parseEnvelope(hidden).path("code").asInt()).isEqualTo(30004);
+        long readParent=dataGrantId("DEMO_REPORT","sales-report","DATA_READ",null);
+        long editParent=dataGrantId("DEMO_REPORT","sales-report","DATA_EDIT",null);
+        createDataGrant(dataKey("DEMO_REPORT_FIELD",null,"DATA_READ","ALL"),readParent);
+        awaitBusinessResult("/api/example/demo-data/page","{\"reportCode\":\"sales-report\"}",
+            r -> r.path("code").asInt()==200 && r.path("data").path("columns").size()==9 && r.path("data").path("page").path("total").asInt()==2,
+            "field ALL must not widen row scope");
+        removeDataGrant(dataGrantId("DEMO_REPORT_FIELD",null,"DATA_READ",readParent));
+        assertDataCodes(List.of("A","B"));
+        createDataGrant(dataKey("DEMO_DATA_SCOPE",null,"DATA_READ","ALL"),readParent);
+        assertDataCodes(List.of("A","B","C","D"));
+        removeDataGrant(dataGrantId("DEMO_DATA_SCOPE",null,"DATA_READ",readParent));
+        assertDataCodes(List.of("A","B"));
+        removeDataGrant(dataGrantId("DEMO_DATA_SCOPE","team-t1","DATA_READ",readParent));
+        awaitBusinessResult("/api/example/demo-data/page","{\"reportCode\":\"sales-report\"}",r -> r.path("code").asInt()==30004,"row grant removal must deny business data");
+        createDataGrant(dataKey("DEMO_DATA_SCOPE","team-t1","DATA_READ","INSTANCE"),readParent);
+        assertDataCodes(List.of("A","B"));
+        String productCode=fields.get("productName").path("resourceCode").asText();
+        removeDataGrant(dataGrantId("DEMO_REPORT_FIELD",productCode,"DATA_READ",readParent));
+        awaitBusinessResult("/api/example/demo-data/page","{\"reportCode\":\"sales-report\"}",r -> r.path("code").asInt()==200 && r.path("data").path("columns").size()==1,"field revoke must remove its descriptor and values");
+        var explicit=postEnvelope(gateway()+"/api/example/demo-data/page",targetToken,JSON.createObjectNode().put("reportCode","sales-report")
+            .set("fieldIds",JSON.createArrayNode().add(fields.get("productName").path("fieldId").asLong())).toString());
+        assertThat(parseEnvelope(explicit).path("code").asInt()).isEqualTo(30004);
+        createDataGrant(dataKey("DEMO_REPORT_FIELD",productCode,"DATA_READ","INSTANCE"),readParent);
+        String recordCode=fields.get("recordCode").path("resourceCode").asText();
+        removeDataGrant(dataGrantId("DEMO_REPORT_FIELD",recordCode,"DATA_READ",readParent));
+        var hiddenNumber=awaitBusinessResult("/api/example/demo-data/get","{\"reportCode\":\"sales-report\",\"recordCode\":\"A\"}",
+            r -> r.path("code").asInt()==200 && r.path("data").path("record").has("productName") && !r.path("data").path("record").has("recordCode"),"known record remains addressable without exposing its number");
+        assertThat(hiddenNumber.path("data").path("record").size()).isEqualTo(1);
+        createDataGrant(dataKey("DEMO_REPORT_FIELD",recordCode,"DATA_READ","INSTANCE"),readParent);
+        removeDataGrant(dataGrantId("DEMO_DATA_SCOPE",null,"DATA_EDIT",editParent));
+        createDataGrant(dataKey("DEMO_DATA_SCOPE","team-t1","DATA_EDIT","INSTANCE"),editParent);
+        var mixed="{\"reportCode\":\"sales-report\",\"changes\":[{\"recordCode\":\"A\",\"remark\":\"changed\"},{\"recordCode\":\"C\",\"remark\":\"forbidden\"}]}";
+        awaitBusinessResult("/api/example/demo-data/batch-update",mixed,r -> r.path("code").asInt()==30004,"mixed write must roll back");
+        assertThat(demoAdminPost("/demo-data/get",JSON.createObjectNode().put("reportCode","sales-report").put("recordCode","A")).path("data").path("record").path("remark").asText()).isEqualTo("ra");
+        var updated=awaitBusinessResult("/api/example/demo-data/update","{\"reportCode\":\"sales-report\",\"recordCode\":\"A\",\"remark\":\"blind edit\"}",r -> r.path("code").asInt()==200,"edit grant need not imply remark read grant");
+        assertThat(updated.path("data").has("remark")).isFalse();
+        String remarkCode=fields.get("remark").path("resourceCode").asText();
+        removeDataGrant(dataGrantId("DEMO_REPORT_FIELD",remarkCode,"DATA_EDIT",editParent));
+        awaitBusinessResult("/api/example/demo-data/update","{\"reportCode\":\"sales-report\",\"recordCode\":\"A\",\"remark\":\"denied\"}",r -> r.path("code").asInt()==30004,"field edit revocation must reject");
+        createDataGrant(dataKey("DEMO_REPORT_FIELD",remarkCode,"DATA_EDIT","INSTANCE"),editParent);
+        removeDataGrant(dataGrantId("DEMO_DATA_SCOPE","team-t1","DATA_EDIT",editParent));
+        createDataGrant(dataKey("DEMO_DATA_SCOPE",null,"DATA_EDIT","ALL"),editParent);
+        // Same physical field under another report does not inherit sales-report's field identity.
+        demoAdminPost("/demo-report/create",JSON.createObjectNode().put("reportCode","isolated-view").put("name","Isolated").put("datasetCode","sales-records").put("fieldResourceTypeCode","DEMO_REPORT_FIELD"));
+        awaitDemoPublication("DEMO_REPORT","isolated-view");
+        var isolated=demoAdminPost("/demo-field/register",JSON.createObjectNode().put("reportCode","isolated-view").put("expectedCatalogVersion",0)
+            .set("fieldKeys",JSON.createArrayNode().add("productName"))).path("data").path("items").get(0);
+        awaitDemoPublication("DEMO_REPORT_FIELD",isolated.path("resourceCode").asText());
+        createDataParent("isolated-view","DATA_READ",List.of(dataKey("DEMO_DATA_SCOPE","team-t1","DATA_READ","INSTANCE"),dataKey("DEMO_REPORT_FIELD",productCode,"DATA_READ","INSTANCE")));
+        awaitBusinessResult("/api/example/demo-data/page","{\"reportCode\":\"isolated-view\"}",r -> r.path("code").asInt()==200 && r.path("data").path("state").asText().equals("EMPTY_FIELDS"),"foreign report field cannot reveal values");
+        long isolatedParent=dataGrantId("DEMO_REPORT","isolated-view","DATA_READ",null);
+        removeDataGrant(dataGrantId("DEMO_REPORT_FIELD",productCode,"DATA_READ",isolatedParent));
+        createDataGrant(dataKey("DEMO_REPORT_FIELD",isolated.path("resourceCode").asText(),"DATA_READ","INSTANCE"),isolatedParent);
+        awaitBusinessResult("/api/example/demo-data/page","{\"reportCode\":\"isolated-view\"}",r -> r.path("code").asInt()==200 && r.path("data").path("page").path("total").asInt()==2,"correct report field must allow");
+        demoAdminPost("/demo-field/remove",JSON.createObjectNode().put("reportCode","isolated-view").put("expectedCatalogVersion",1)
+            .set("fieldIds",JSON.createArrayNode().add(isolated.path("fieldId").asLong())));
+        var recreated=demoAdminPost("/demo-field/register",JSON.createObjectNode().put("reportCode","isolated-view").put("expectedCatalogVersion",2)
+            .set("fieldKeys",JSON.createArrayNode().add("productName"))).path("data").path("items").get(0);
+        assertThat(recreated.path("fieldId").asLong()).isNotEqualTo(isolated.path("fieldId").asLong());
+        awaitDemoPublication("DEMO_REPORT_FIELD",recreated.path("resourceCode").asText());
+        var oldField=postEnvelope(gateway()+"/api/example/demo-data/page",targetToken,JSON.createObjectNode().put("reportCode","isolated-view")
+            .set("fieldIds",JSON.createArrayNode().add(isolated.path("fieldId").asLong())).toString());
+        assertThat(parseEnvelope(oldField).path("code").asInt()).isEqualTo(30004);
+        createDataGrant(dataKey("DEMO_DATA_SCOPE","region-r1","DATA_READ","INSTANCE"),readParent);
+        removeDataGrant(dataGrantId("DEMO_DATA_SCOPE","team-t1","DATA_READ",readParent));
+        assertDataCodes(List.of("A","C"));
+        var policy=demoAdminPost("/demo-policy/get",JSON.createObjectNode().put("datasetCode","sales-records")).path("data");
+        var configuration=policy.path("configuration").deepCopy();
+        for(var binding:configuration.path("bindings")) if(binding.path("resourceCode").asText().equals("region-r1"))
+            ((tools.jackson.databind.node.ObjectNode)binding.path("predicates").get(0)).put("value","R2");
+        demoAdminPost("/demo-policy/save",JSON.createObjectNode().put("datasetCode","sales-records").put("expectedVersion",policy.path("version").asLong()).set("configuration",configuration));
+        assertDataCodes(List.of("B","D"));
+        demoAdminPost("/demo-policy/save",JSON.createObjectNode().put("datasetCode","sales-records").put("expectedVersion",policy.path("version").asLong()+1).set("configuration",policy.path("configuration")));
+        removeDataGrant(dataGrantId("DEMO_DATA_SCOPE","region-r1","DATA_READ",readParent));
+        var conditional=dataKey("DEMO_DATA_SCOPE","team-t1","DATA_READ","INSTANCE");
+        String future=java.time.LocalDate.now(java.time.ZoneOffset.UTC).plusYears(5).toString();
+        String rules="{\"logic\":\"AND\",\"items\":[{\"type\":\"DATE_RANGE\",\"params\":{\"start\":\""+future+"\",\"end\":\""+future+"\"}}]}";
+        conditional.set("inlineCondition",JSON.createObjectNode().put("name","future only").put("conditionRules",rules));
+        createDataGrant(conditional,null);
+        awaitBusinessResult("/api/example/demo-data/page","{\"reportCode\":\"sales-report\"}",r -> r.path("code").asInt()==200 && r.path("data").path("state").asText().equals("EMPTY_ROWS"),"condition-filtered scope must be EMPTY rather than DENIED or all rows");
+        removeDataGrant(dataGrantId("DEMO_DATA_SCOPE","team-t1","DATA_READ",null));
+        createDataGrant(dataKey("DEMO_DATA_SCOPE","team-t1","DATA_READ","INSTANCE"),readParent);
+        assertDataCodes(List.of("A","B"));
+    }
+
+    @Test
+    @Order(16)
+    void sameRecordCodeAndImportKeyRemainIsolatedAcrossRealTenants() throws Exception {
+        var login=E2eTenantSupport.login(gateway(),"e2e-second","admin",BOOTSTRAP_ADMIN_PASSWORD,ExampleBusinessFinalCheckE2EIT::readCaptchaFromRedis);
+        String token=login.path("accessToken").asText(); long owner=login.path("userId").asLong();
+        assertThat(token).isNotBlank(); assertThat(owner).isPositive();
+        postForData(gateway()+"/api/access/service-config/save",token,JSON.createObjectNode().put("serviceCode",SERVICE).put("name","Tenant two example").put("status",1));
+        var credentials=postForData(gateway()+"/api/access/service-credential/list",token,JSON.createObjectNode().put("serviceCode",SERVICE)).path("items");
+        long credential=0;
+        for(var entry:credentials) if(entry.path("credentialId").asText().equals("sc-example-e2e-2")) credential=entry.path("id").asLong();
+        assertThat(credential).isPositive();
+        postForData(gateway()+"/api/access/service-credential/update",token,JSON.createObjectNode().put("id",credential).put("status",1));
+        for(String type:List.of("DEMO_REPORT","DEMO_REPORT_FIELD","DEMO_DATA_SCOPE","DEMO_POLICY","DEMO_DATASET","DEMO_TASK")) {
+            boolean synced=List.of("DEMO_REPORT","DEMO_REPORT_FIELD","DEMO_DATA_SCOPE").contains(type);
+            String extra=synced?"{\"managedMode\":\"SYNC\",\"syncSourceService\":\"example-service\"}":"{\"managedMode\":\"MANAGED\"}";
+            postForData(gateway()+"/api/access/type-definition/create",token,JSON.createObjectNode().put("typeKey","resource_type").put("typeCode",type).put("name",type).put("extra",extra));
+            var operations=synced?List.of("DATA_READ","DATA_EDIT"):type.equals("DEMO_TASK")?List.of("TRIGGER"):List.of("MANAGE");
+            long bit=16;
+            for(String operation:operations) {
+                postForData(gateway()+"/api/access/operation-permission/create",token,JSON.createObjectNode().put("resourceTypeCode",type).put("code",operation).put("name",operation).put("binaryBit",bit).put("inheritMask",0)); bit<<=1;
+            }
+        }
+        var manifest=JSON.readTree(Files.readString(Path.of("..","example-service","examples","permission-demo-interfaces.json")));
+        var synced=postEnvelope("http://localhost:"+accessService.port()+"/api/access/service-config/sync-v2",null,manifest.toString(),
+            Map.of("X-Credential-Id","sc-example-e2e-2","X-Credential-Secret","sk-example-e2e-2"));
+        assertThat(parseEnvelope(synced).path("code").asInt()).isEqualTo(200);
+        ensureDataSetup(token);
+        String csv="recordCode,ownerUserId,teamCode,departmentCode,regionCode,saleDate,productName,amount,remark\n"
+            +"A,"+owner+",T1,D1,R1,2026-10-19,TenantTwo,99.00,private\n";
+        assertThat(uploadCsv(token,"sales-report",dataImportKey,csv).path("code").asInt()).isEqualTo(200);
+        var second=demoPost(token,"/demo-data/page",JSON.createObjectNode().put("reportCode","sales-report")).path("data").path("page");
+        assertThat(second.path("total").asInt()).isEqualTo(1);
+        assertThat(second.path("items").get(0).path("productName").asText()).isEqualTo("TenantTwo");
+        assertDataCodes(List.of("A","B"));
+        var first=awaitBusinessResult("/api/example/demo-data/get","{\"reportCode\":\"sales-report\",\"recordCode\":\"A\"}",r -> r.path("code").asInt()==200,"tenant one stays readable");
+        assertThat(first.path("data").path("record").path("productName").asText()).isEqualTo("Alpha");
+        assertThat(demoPost(token,"/demo-data/import-status",JSON.createObjectNode().put("importKey",dataImportKey)).path("data").path("recordCount").asInt()).isEqualTo(1);
+        var own=postEnvelope(gateway()+"/api/example/demo-data/import-status",targetToken,JSON.createObjectNode().put("importKey",dataImportKey).toString());
+        assertThat(parseEnvelope(own).path("data").path("recordCount").asInt()).isEqualTo(4);
+    }
+
+    private static tools.jackson.databind.node.ObjectNode dataKey(String type,String code,String operation,String mode) {
+        var key=JSON.createObjectNode().put("resourceTypeCode",type).put("operationCode",operation).put("scopeMode",mode).put("canGrant",false);
+        if(code==null) { key.putNull("resourceCode"); key.putNull("codeType"); }
+        else { key.put("resourceCode",code); key.put("codeType","default"); }
+        return key;
+    }
+    private static void createDataParent(String report,String operation,List<tools.jackson.databind.node.ObjectNode> children) {
+        var create=JSON.createObjectNode(); create.set("key",dataKey("DEMO_REPORT",report,operation,"INSTANCE"));
+        var nested=JSON.createArrayNode(); children.forEach(nested::add); create.set("children",nested);
+        dataGrantPlan(JSON.createArrayNode().add(create),JSON.createArrayNode());
+    }
+    private static void createDataGrant(tools.jackson.databind.node.ObjectNode key,Long parent) {
+        var create=JSON.createObjectNode(); create.set("key",key); if(parent!=null) create.put("parentPermissionId",parent);
+        dataGrantPlan(JSON.createArrayNode().add(create),JSON.createArrayNode());
+    }
+    private static void removeDataGrant(long id) { dataGrantPlan(JSON.createArrayNode(),JSON.createArrayNode().add(id)); }
+    private static void dataGrantPlan(JsonNode creates,JsonNode removes) {
+        var plan=JSON.createObjectNode(); plan.set("creates",creates); plan.set("removes",removes);
+        postForData(gateway()+"/api/access/role-resource-permission/apply-grant-plan",adminToken,
+            JSON.createObjectNode().put("roleTypeCode",ROLE_TYPE).put("roleExternalId",ROLE_EXTERNAL_ID).set("plan",plan));
+    }
+    private static long dataGrantId(String type,String code,String operation,Long parent) {
+        var rows=postForData(gateway()+"/api/access/role-resource-permission/list",adminToken,
+            JSON.createObjectNode().put("roleTypeCode",ROLE_TYPE).put("roleExternalId",ROLE_EXTERNAL_ID).put("includeChildren",true)).path("items");
+        for(var row:rows) if(row.path("resourceTypeCode").asText().equals(type) && Objects.equals(row.hasNonNull("resourceCode")?row.path("resourceCode").asText():null,code)
+            && row.path("operationCode").asText().equals(operation) && Objects.equals(row.hasNonNull("dependOn")?row.path("dependOn").asLong():null,parent)) return row.path("id").asLong();
+        throw new AssertionError("Grant not found: "+type+"/"+operation);
+    }
+    private static void assertDataCodes(List<String> expected) throws Exception {
+        var result=awaitBusinessResult("/api/example/demo-data/page","{\"reportCode\":\"sales-report\",\"pageSize\":20}",r -> {
+            List<String> codes=new java.util.ArrayList<>(); r.path("data").path("page").path("items").forEach(item -> codes.add(item.path("recordCode").asText()));
+            boolean noAmount=true; for(var item:r.path("data").path("page").path("items")) if(item.has("amount")) noAmount=false;
+            return r.path("code").asInt()==200 && codes.equals(expected) && noAmount;
+        },"actual SQL rows must match granted scopes");
+        for(var row:result.path("data").path("page").path("items")) assertThat(row.has("amount")).isFalse();
+    }
+
+    private static void ensureDataSetup() throws Exception { ensureDataSetup(adminToken); }
+
+    private static void ensureDataSetup(String token) throws Exception {
+        var current=parseEnvelope(postEnvelope(gateway()+"/api/example/demo-policy/get",token,"{\"datasetCode\":\"sales-records\"}"));
         if(current.path("code").asInt()==200) return;
         assertThat(current.path("code").asInt()).isEqualTo(30102);
-        var create=parseEnvelope(postEnvelope(gateway()+"/api/example/demo-report/create",adminToken,
+        var create=parseEnvelope(postEnvelope(gateway()+"/api/example/demo-report/create",token,
             "{\"reportCode\":\"sales-report\",\"name\":\"Sales\",\"datasetCode\":\"sales-records\",\"fieldResourceTypeCode\":\"DEMO_REPORT_FIELD\"}"));
         assertThat(create.path("code").asInt()).isIn(200,30103);
-        awaitDemoPublication("DEMO_REPORT","sales-report");
-        var report=demoAdminPost("/demo-report/get",JSON.createObjectNode().put("reportCode","sales-report")).path("data");
-        var currentFields=demoAdminPost("/demo-field/list",JSON.createObjectNode().put("reportCode","sales-report")).path("data").path("items");
+        awaitDemoPublication(token,"DEMO_REPORT","sales-report");
+        var report=demoPost(token,"/demo-report/get",JSON.createObjectNode().put("reportCode","sales-report")).path("data");
+        var currentFields=demoPost(token,"/demo-field/list",JSON.createObjectNode().put("reportCode","sales-report")).path("data").path("items");
         var configured=JSON.readTree(Files.readString(Path.of("..","example-service","examples","permission-demo-policy.json")));
         var keys=JSON.createArrayNode();
         for(var field:configured.path("fields")) {
             boolean exists=false; for(var registered:currentFields) if(registered.path("fieldKey").asText().equals(field.path("fieldKey").asText())) exists=true;
             if(!exists) keys.add(field.path("fieldKey").asText());
         }
-        if(!keys.isEmpty()) demoAdminPost("/demo-field/register",JSON.createObjectNode().put("reportCode","sales-report")
+        if(!keys.isEmpty()) demoPost(token,"/demo-field/register",JSON.createObjectNode().put("reportCode","sales-report")
             .put("expectedCatalogVersion",report.path("catalogVersion").asLong()).set("fieldKeys",keys));
-        var fields=demoAdminPost("/demo-field/list",JSON.createObjectNode().put("reportCode","sales-report")).path("data").path("items");
-        for(var field:fields) awaitDemoPublication("DEMO_REPORT_FIELD",field.path("resourceCode").asText());
+        var fields=demoPost(token,"/demo-field/list",JSON.createObjectNode().put("reportCode","sales-report")).path("data").path("items");
+        for(var field:fields) awaitDemoPublication(token,"DEMO_REPORT_FIELD",field.path("resourceCode").asText());
         for(var binding:configured.path("bindings")) {
             String code=binding.path("resourceCode").asText();
-            demoAdminPost("/demo-scope/save",JSON.createObjectNode().put("resourceTypeCode","DEMO_DATA_SCOPE").put("resourceCode",code)
+            demoPost(token,"/demo-scope/save",JSON.createObjectNode().put("resourceTypeCode","DEMO_DATA_SCOPE").put("resourceCode",code)
                 .put("name",code).put("enabled",true).put("expectedVersion",0));
-            awaitDemoPublication("DEMO_DATA_SCOPE",code);
+            awaitDemoPublication(token,"DEMO_DATA_SCOPE",code);
         }
-        demoAdminPost("/demo-policy/save",JSON.createObjectNode().put("datasetCode","sales-records").put("expectedVersion",0).set("configuration",configured));
+        demoPost(token,"/demo-policy/save",JSON.createObjectNode().put("datasetCode","sales-records").put("expectedVersion",0).set("configuration",configured));
     }
 
     private static JsonNode uploadCsv(String token,String report,String key,String csv) throws Exception {
@@ -832,19 +1029,22 @@ class ExampleBusinessFinalCheckE2EIT {
         return JSON.readTree(response.body());
     }
 
-    private static JsonNode demoAdminPost(String path, JsonNode body) {
+    private static JsonNode demoAdminPost(String path,JsonNode body) { return demoPost(adminToken,path,body); }
+    private static void awaitDemoPublication(String type,String code) { awaitDemoPublication(adminToken,type,code); }
+
+    private static JsonNode demoPost(String token,String path, JsonNode body) {
         var response=new java.util.concurrent.atomic.AtomicReference<JsonNode>();
         org.awaitility.Awaitility.await().atMost(STALE_WINDOW).untilAsserted(() -> {
-            var result=parseEnvelope(postEnvelope(gateway()+"/api/example"+path,adminToken,body.toString()));
+            var result=parseEnvelope(postEnvelope(gateway()+"/api/example"+path,token,body.toString()));
             assertThat(result.path("code").asInt()).as("demo admin API %s: %s",path,result).isEqualTo(200);
             response.set(result);
         });
         return response.get();
     }
 
-    private static void awaitDemoPublication(String type, String code) {
+    private static void awaitDemoPublication(String token,String type, String code) {
         org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(60)).untilAsserted(() -> {
-            var result=parseEnvelope(postEnvelope(gateway()+"/api/example/demo-publication/get",adminToken,
+            var result=parseEnvelope(postEnvelope(gateway()+"/api/example/demo-publication/get",token,
                 JSON.createObjectNode().put("resourceTypeCode",type).put("resourceCode",code).toString()));
             assertThat(result.path("code").asInt()).isEqualTo(200);
             assertThat(result.path("data").path("status").asText()).as("publication result: %s",result).isEqualTo("PUBLISHED");

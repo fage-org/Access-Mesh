@@ -595,7 +595,7 @@ query-scopes 四态分组（T-PERM-009 契约维持）：AppService 只留线格
   `BatchAuthCheckPgIT`（批量化①-⑪）＋ `AuthorizationChangeInvalidationPgIT`/`AutoGrantEngineContractPgIT`
   （失效链/自动授权契约，T-PERM-092 起服务面驱动）＋ `QueryExecutionPgIT`/`QueryReadSupportPgIT`
   （引擎核心验收）＋ `QueryGate` 单测族＋ 架构测试（mapper 边界/薄门面/退役锁）。
-- **遗留衔接**：[T-PERM-036](../../tasks/T-PERM-036.md) 已按现行 execute/query-scopes 链路校准，剩余为 scopeMode 到真实业务 SQL 的端到端验证；继续暂缓，描述更新不解除启动门禁。
+- **遗留衔接**：[T-PERM-036](../../tasks/T-PERM-036.md) 已获整计划执行授权并完成 scopeMode 到真实业务 SQL 的定向链路验收，当前完整回归状态见任务卡；不恢复旧执行器。
 
 ### 3.10 批量判定（batchCheck 一次 execute 多 item）
 
@@ -1129,3 +1129,7 @@ Map<PermissionGrantDomainService.GrantCheckKey, PermissionGrantDomainService.Gra
 | `PermissionGrantDomainServiceImpl.checkCanGrant` 实例解析映射 | `ResourceTripleKey(typeCode 大写归一, code, codeType)`（原 `resourceTripleCodeKey` 的 toUpperCase 语义随元组保留） | 私有 record |
 
 **持久化/对外协议键维持 BusinessKeyUtil 单源**：golden 锁继续有效；`checkCanGrant` 拒绝消息（20040）以 `GrantCheckKey` record `toString` 呈现完整键，契约锁定的 `Cannot delegate <key>; reason=<REASON>` 形态不变（`<key>` 编码不属契约锁定面）。
+
+### example 行列消费验收
+
+query-scopes 的真实业务 SQL 消费由 example 的固定字段目录、策略版本和行列执行器完成；引擎仍只返回权限事实，不负责拼业务 SQL。普通用户、四态、跨报表字段身份和多租户链路的验证见 [T-PERM-036](../../tasks/T-PERM-036.md)，不新增第二套查询或授权算法。

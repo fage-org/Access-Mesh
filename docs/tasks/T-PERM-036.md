@@ -2,7 +2,7 @@
 doc_type: task
 id: T-PERM-036
 title: 动态数据权限端到端验证（scopeMode → 业务 SQL）
-status: proposed
+status: done
 plan: docs/plans/example-permission-demo-plan.md
 domain: cross-service
 design_refs:
@@ -24,8 +24,8 @@ acceptance:
   - 将实际缺口和验收结果回写对应设计，不重复建设已有查询和示例能力
 design_writeback:
   required: true
-  status: pending
-last_updated: 2026-10-19
+  status: done
+last_updated: 2026-10-20
 ---
 
 ## 背景
@@ -46,18 +46,22 @@ example-service 已提供 Gateway 准入和业务最终检查，报表列表使�
 
 ## 当前口径
 
-2026-10-19 用户已要求逐步执行整个权限演示计划，本卡用户授权层面的暂缓解除。`status=proposed`、设计回写 pending，等待直接依赖 T-ACCESS-138 完成；不把启动授权等同于技术准入或行为验收。
+2026-10-19 用户已要求逐步执行整个权限演示计划，本卡用户授权层面的暂缓解除。定向真实链路与完整回归均已通过，设计回写完成；不把启动授权等同于技术准入或行为验收。
 
 历史暂缓依据为 [design-review §11 Q7/B](../archive/2026-06-17/design-review.md)及 [improvement-plan §3.1](../archive/2026-08-27/improvement-plan.md)，仅用于追溯。未来实施使用上述现行设计，不恢复已退役的执行器或 DTO。
 
 ## 验收对照
 
-- [ ] 使用非管理员演示身份，先完成配置/授权再导入；验证同一主体的行撤权、字段撤权、正负写入和跨报表隔离。
-- [ ] 验证报表上下文字段隔离、行列四态组合、隐藏列无旁路、导入/读写字段权限以及字段新增删除的授权边界。
-- [ ] 解除暂缓并确认业务数据模型。
-- [ ] 实际 SQL 四态、配置发布、无代码扩展及读写范围端到端验证。
-- [ ] 缺口处置、设计回写和必要回归。
+- [x] 使用非管理员演示身份，先完成配置/授权再导入；验证同一主体的行撤权、字段撤权、正负写入和跨报表隔离。
+- [x] 验证报表上下文字段隔离、行列四态组合、隐藏列无旁路、导入/读写字段权限以及字段新增删除的授权边界。
+- [x] 解除暂缓并确认业务数据模型。
+- [x] 实际 SQL 四态、配置发布、无代码扩展及读写范围端到端验证。
+- [x] 缺口处置、设计回写和必要回归。
 
 ## 非目标 / 遗留
 
 不重做已交付的权限判定、范围查询或报表列表接入；不因本卡重新启动权限排障页面、通用 SQL 自动改写、菜单/按钮/条件演示等独立事项。
+
+## 完成记录
+
+真实普通用户、四态、字段生命周期和双租户证据见[验收记录](evidence/example-permission-demo/T-PERM-036.md)；2026-10-20 完整回归 3,115 pass / 0 fail / 0 error / 0 skip，20:37 min，含 E2E/heavy。
