@@ -65,3 +65,30 @@ POST /api/example/demo-snapshot/submit
 保存返回的 executionKey，以 `POST /api/example/demo-execution/get` 请求 `{"executionKey":"返回的 UUID"}` 查询状态；SUCCESS 后以相同请求体调用 `/api/example/demo-execution/download` 接收 CSV。`/demo-execution/page` 使用 `{pageNum,pageSize}` 查本人记录。网络重试沿原 triggerKey，主动新执行才换号；同号不能换选择或借用他人身份。
 
 省略 fieldIds 表示执行时的当前可读列；显式 fieldIds、filters 和 sort 使用 `/demo-data/fields` 返回的稳定身份。执行前撤销显式列会拒绝，默认列只保留仍有权的部分。后台不保存提交 IP；仅凭在线 IP 条件获得的权限不保证后台通过。EMPTY 无文件；超行数/字节预算整次 FAILED；成功文件保留 7 天，过期不可下载。完整词表与预算见 [API 契约](../../docs/design/example-service-api-contract.md#tasks)。单实例后台默认启用，测试可用 `example.execution.enabled=false` 停止自动消费而直接驱动服务；不提供多实例保证。
+
+## 导出脚本与本人定时任务
+
+已有普通用户授权后，将其 Bearer 保存在 `EXAMPLE_OPERATOR_TOKEN`，选择文件只含 Selection（示例为 `permission-demo-selection.json`，可添加已授权的稳定 fieldIds、filters、sort）：
+
+```powershell
+pwsh tools/export-example-snapshot.ps1 -BaseUrl https://your-gateway.example `
+  -SelectionPath example-service/examples/permission-demo-selection.json -OutputPath ./snapshot.csv
+```
+
+脚本输出 triggerKey 和 executionKey，轮询后下载 CSV；目标文件须不存在。网络重试可指定原 `-TriggerKey`，不换号创建重复结果；超过等待期限后可以按 executionKey 继续查询。只有在隔离可信 HTTP 测试环境才显式增加 `-AllowInsecure`。
+
+定时任务先 `POST /api/example/demo-task/create`：
+
+```json
+{"name":"每分钟权限快照","cron":"0 * * * * *","selection":{"reportCode":"sales-report"}}
+```
+
+保存返回的 taskId/version。初始停用；调用 `/demo-task/set-enabled`，请求 `{taskId,expectedVersion,enabled:true}` 启用。cron 统一 UTC、六段且秒字段为 0；需要手动演示时调用 `/demo-task/trigger`，请求 `{taskId,triggerKey}`。从 `/demo-execution/page` 按 `{taskId,pageNum,pageSize}` 发现自动生成的执行键。结束演示后以最新 version 停用任务，避免继续定时生成。
+
+任务仅创建者维护；管理员不因此代管他人任务。修改需完整 name/cron/selection 与 expectedVersion，旧执行保留旧选择；同号触发的重试返回旧执行。任务停止前尚未取数的执行会再次核对启用状态，已完成内容按原归属和期限保留。重启恢复已有 PENDING/RUNNING，重新初始化未来 cron，不补跑停机遗漏时刻。
+
+## 可重复验收入口
+
+`mvn test -pl e2e -am -Dtest=ExampleBusinessFinalCheckE2EIT -Dsurefire.failIfNoSpecifiedTests=false` 使用独立临时 Gateway/access/example/PG/Redis，以真实普通用户完成授权、导入、行列查询、撤权、任务、重启与下载链路。加 `-Dexample.demo.scriptHost=<本机 pwsh 绝对路径>` 同时运行初始化与导出脚本；令牌只注入隔离子进程环境。此命令不使用或清空候选部署环境。
+
+SQL 事务、版本、同键并发、attempt 防旧结果覆盖及精确预算由 `DemoDataPgIT` 验证；执行键和受控状态由 API 留存。完整项目收口命令仍为根 `mvn test -T 1C`，包含 E2E/heavy。

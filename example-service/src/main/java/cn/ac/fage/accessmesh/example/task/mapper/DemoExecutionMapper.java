@@ -13,10 +13,12 @@ public interface DemoExecutionMapper {
     @Select("SELECT "+COLUMNS+" FROM demo_execution WHERE tenant_id=#{tenant} AND execution_key=#{key} AND delete_flag=0")
     DemoExecution byKey(@Param("tenant") long tenant,@Param("key") UUID key);
     @Insert("""
-        INSERT INTO demo_execution(tenant_id,execution_key,trigger_kind,trigger_key,request_payload,created_by,updated_by)
-        VALUES(#{tenantId},#{executionKey},'ONCE',#{triggerKey},CAST(#{requestPayload} AS jsonb),#{createdBy},#{createdBy})
+        INSERT INTO demo_execution(tenant_id,execution_key,trigger_kind,trigger_key,task_id,task_version,scheduled_time,request_payload,created_by,updated_by)
+        VALUES(#{tenantId},#{executionKey},#{triggerKind},#{triggerKey},#{taskId},#{taskVersion},#{scheduledTime},CAST(#{requestPayload} AS jsonb),#{createdBy},#{createdBy})
         """)
     int insert(DemoExecution execution);
+    @Select("SELECT "+COLUMNS+" FROM demo_execution WHERE tenant_id=#{tenant} AND task_id=#{task} AND scheduled_time=#{time} AND trigger_kind='CRON' AND delete_flag=0")
+    DemoExecution bySchedule(@Param("tenant") long tenant,@Param("task") long task,@Param("time") java.time.LocalDateTime time);
     @Select("SELECT "+COLUMNS+" FROM demo_execution WHERE status='PENDING' AND attempt<3 AND delete_flag=0 AND (next_attempt_at IS NULL OR next_attempt_at<=clock_timestamp()) ORDER BY id LIMIT 1")
     DemoExecution next();
     @Update("""

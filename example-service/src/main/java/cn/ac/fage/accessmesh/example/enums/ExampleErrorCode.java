@@ -29,7 +29,7 @@ public enum ExampleErrorCode {
     PERMISSION_DENIED(30004, "无业务操作权限（业务最终检查拒绝，T-ACCESS-061）"),
 
     PERM_CHECK_UNAVAILABLE(30005, "鉴权服务暂不可用，业务最终检查失败已拒绝（fail-closed）"),
-    DEMO_OBJECT_UNAVAILABLE(30101, "报表或字段不可用"),
+    DEMO_OBJECT_UNAVAILABLE(30101, "报表、字段或任务不可用"),
     DEMO_POLICY_INVALID(30102, "配置或资源类型用途无效"),
     DEMO_VERSION_CONFLICT(30103, "元数据版本或业务编码冲突"),
     DEMO_IMPORT_CONFLICT(30104, "导入请求号或有效记录冲突"),

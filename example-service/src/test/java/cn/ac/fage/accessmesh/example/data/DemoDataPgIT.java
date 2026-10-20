@@ -52,6 +52,7 @@ class DemoDataPgIT {
     @DynamicPropertySource static void database(DynamicPropertyRegistry r) { ExamplePgInfra.PG.register(r,DemoDataPgIT.class); }
     @Autowired cn.ac.fage.accessmesh.example.task.service.DemoExecutionAppService executions;
     @Autowired cn.ac.fage.accessmesh.example.task.domain.DemoExecutionDomainService executionDomain;
+    @Autowired cn.ac.fage.accessmesh.example.task.service.DemoTaskAppService tasks;
     @Autowired JdbcTemplate jdbc;
     @Autowired PlatformTransactionManager transactions;
     @Autowired DemoMetadataDomainService metadata;
@@ -270,6 +271,91 @@ class DemoDataPgIT {
             assertEquals(a.get(10,java.util.concurrent.TimeUnit.SECONDS).executionKey(),b.get(10,java.util.concurrent.TimeUnit.SECONDS).executionKey());
         }
         assertEquals(1L,jdbc.queryForObject("SELECT count(*) FROM demo_execution",Long.class));
+    }
+
+    @Test void shouldOwnTaskAndFreezeEachManualExecutionAcrossConfigurationChanges() {
+        allowExecution();
+        var task=tasks.create(actor,new cn.ac.fage.accessmesh.example.task.dto.TaskDtos.CreateReq("snapshot","0 0 0 * * *",new Selection("r1",List.of(fields.get("productName").getId()),null,null)));
+        assertFalse(task.enabled());
+        final long taskId=task.taskId();
+        var trigger=new cn.ac.fage.accessmesh.example.task.dto.TaskDtos.TriggerReq(task.taskId(),UUID.randomUUID());
+        assertEquals(30101,assertThrows(BizException.class,()->tasks.trigger(actor,trigger)).getErrorCode());
+        assertEquals(30004,assertThrows(BizException.class,()->tasks.get(new Caller(1,43,null),taskId)).getErrorCode());
+        task=tasks.setEnabled(actor,new cn.ac.fage.accessmesh.example.task.dto.TaskDtos.EnabledReq(task.taskId(),task.version(),true));
+        var execution=tasks.trigger(actor,trigger);
+        assertEquals(execution.executionKey(),tasks.trigger(actor,trigger).executionKey());
+        tasks.update(actor,new cn.ac.fage.accessmesh.example.task.dto.TaskDtos.UpdateReq(task.taskId(),task.version(),"changed","0 0 1 * * *",new Selection("r1",List.of(fields.get("recordCode").getId()),null,null)));
+        assertTrue(executions.runNext());
+        var result=executions.get(actor,execution.executionKey());
+        assertEquals("SUCCESS",result.status()); assertEquals(List.of("productName"),result.outputColumns().stream().map(Column::fieldKey).toList());
+        assertEquals(execution.executionKey(),tasks.trigger(actor,trigger).executionKey());
+    }
+
+    @Test void shouldSkipDisabledPendingTaskAndRestrictAllOwnerViews() {
+        allowExecution();
+        var task=enabledTask(); long id=task.taskId();
+        var trigger=new cn.ac.fage.accessmesh.example.task.dto.TaskDtos.TriggerReq(id,UUID.randomUUID());
+        var queued=tasks.trigger(actor,trigger);
+        tasks.setEnabled(actor,new cn.ac.fage.accessmesh.example.task.dto.TaskDtos.EnabledReq(id,task.version(),false));
+        clearInvocations(client,records);
+        assertTrue(executions.runNext());
+        assertEquals("SKIPPED",executions.get(actor,queued.executionKey()).status());
+        verify(client,never()).queryScopes(any(),anyString(),anyString()); verify(records,never()).page(any(),anyInt(),anyLong());
+        var other=new Caller(1,43,null);
+        assertEquals(0,tasks.page(other,new cn.ac.fage.accessmesh.example.task.dto.TaskDtos.PageReq(1,20)).total());
+        assertEquals(30004,assertThrows(BizException.class,()->tasks.setEnabled(other,new cn.ac.fage.accessmesh.example.task.dto.TaskDtos.EnabledReq(id,task.version(),true))).getErrorCode());
+        assertEquals(30004,assertThrows(BizException.class,()->tasks.trigger(other,trigger)).getErrorCode());
+        assertEquals(30004,assertThrows(BizException.class,()->executions.page(other,new cn.ac.fage.accessmesh.example.task.dto.ExecutionDtos.PageReq(id,1,20))).getErrorCode());
+        assertEquals(30004,assertThrows(BizException.class,()->tasks.get(new Caller(2,42,null),id)).getErrorCode());
+    }
+
+    @Test void shouldDeduplicateCronAndResetOnlyFutureScheduleOnRecovery() {
+        allowExecution(); var task=enabledTask();
+        var due=java.time.LocalDateTime.now(java.time.ZoneOffset.UTC).minusMinutes(2).withSecond(0).withNano(0);
+        jdbc.update("UPDATE demo_task SET next_scheduled_time=? WHERE id=?",due,task.taskId());
+        assertTrue(tasks.scheduleNext()); assertFalse(tasks.scheduleNext());
+        var page=executions.page(actor,new cn.ac.fage.accessmesh.example.task.dto.ExecutionDtos.PageReq(task.taskId(),1,20));
+        assertEquals(1,page.total()); assertEquals(due,page.items().getFirst().scheduledTime());
+        var key=page.items().getFirst().executionKey();
+        // Revisit precisely the same planned instant: the frozen execution is retained.
+        jdbc.update("UPDATE demo_task SET next_scheduled_time=? WHERE id=?",due,task.taskId());
+        assertTrue(tasks.scheduleNext()); assertEquals(1L,jdbc.queryForObject("SELECT count(*) FROM demo_execution",Long.class));
+        jdbc.update("UPDATE demo_task SET next_scheduled_time=now()-interval '1 hour' WHERE id=?",task.taskId());
+        tasks.resetSchedule(); executions.recover(); assertFalse(tasks.scheduleNext());
+        assertEquals(1L,jdbc.queryForObject("SELECT count(*) FROM demo_execution",Long.class));
+        assertTrue(jdbc.queryForObject("SELECT next_scheduled_time>clock_timestamp() FROM demo_task WHERE id=?",Boolean.class,task.taskId()));
+        assertTrue(executions.runNext()); assertEquals("SUCCESS",executions.get(actor,key).status());
+        assertEquals(task.taskId(),tasks.get(actor,task.taskId()).taskId());
+    }
+
+    @Test void shouldRejectStaleTaskVersionAndChangedManualTriggerTarget() {
+        allowExecution(); var a=enabledTask(); var b=enabledTask();
+        var trigger=new cn.ac.fage.accessmesh.example.task.dto.TaskDtos.TriggerReq(a.taskId(),UUID.randomUUID()); tasks.trigger(actor,trigger);
+        assertEquals(30109,assertThrows(BizException.class,()->tasks.trigger(actor,new cn.ac.fage.accessmesh.example.task.dto.TaskDtos.TriggerReq(b.taskId(),trigger.triggerKey()))).getErrorCode());
+        tasks.setEnabled(actor,new cn.ac.fage.accessmesh.example.task.dto.TaskDtos.EnabledReq(a.taskId(),a.version(),false));
+        assertEquals(30103,assertThrows(BizException.class,()->tasks.update(actor,new cn.ac.fage.accessmesh.example.task.dto.TaskDtos.UpdateReq(a.taskId(),a.version(),"stale","0 * * * * *",new Selection("r1",null,null,null)))).getErrorCode());
+        assertEquals(a.name(),tasks.get(actor,a.taskId()).name()); assertFalse(tasks.get(actor,a.taskId()).enabled());
+    }
+
+    @Test void shouldRecheckTaskTriggerPermissionAndHonorRevocationDuringRetry() {
+        allowExecution(); var task=enabledTask();
+        var queued=tasks.trigger(actor,new cn.ac.fage.accessmesh.example.task.dto.TaskDtos.TriggerReq(task.taskId(),UUID.randomUUID()));
+        when(client.queryScopes(any(),anyString(),anyString())).thenReturn(R.fail(99999,"temporary"));
+        executions.runNext(); assertEquals("PENDING",executions.get(actor,queued.executionKey()).status());
+        when(client.checkAuth(any(),anyString(),anyString())).thenAnswer(i->{
+            var r=(cn.ac.fage.accessmesh.perm.common.dto.req.AuthCheckReq)i.getArgument(0);
+            return R.ok("TRIGGER".equals(r.operationCode())?cn.ac.fage.accessmesh.perm.common.dto.resp.AuthCheckResp.deny("NO_PERMISSION",false):
+                cn.ac.fage.accessmesh.perm.common.dto.resp.AuthCheckResp.allow(List.of(),List.of(),false));
+        });
+        jdbc.update("UPDATE demo_execution SET next_attempt_at=now() WHERE execution_key=?",queued.executionKey());
+        clearInvocations(client); executions.runNext();
+        assertEquals("DENIED",executions.get(actor,queued.executionKey()).status());
+        verify(client,never()).queryScopes(any(),anyString(),anyString());
+    }
+
+    private cn.ac.fage.accessmesh.example.task.dto.TaskDtos.TaskResp enabledTask() {
+        var task=tasks.create(actor,new cn.ac.fage.accessmesh.example.task.dto.TaskDtos.CreateReq("snapshot","0 0 0 * * *",new Selection("r1",null,null,null)));
+        return tasks.setEnabled(actor,new cn.ac.fage.accessmesh.example.task.dto.TaskDtos.EnabledReq(task.taskId(),task.version(),true));
     }
 
     private void allowExecution() {

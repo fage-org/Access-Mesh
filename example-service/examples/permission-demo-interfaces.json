@@ -346,6 +346,66 @@
             "resourceTypeCode": "DEMO_TASK",
             "operationCode": "VIEW"
           }
+        },
+        {
+          "name": "demo-task/create",
+          "httpMethod": "POST",
+          "path": "/demo-task/create",
+          "resourceCode": "example:demo:demo-task:create",
+          "requiredPermission": {
+            "resourceTypeCode": "DEMO_TASK",
+            "operationCode": "CREATE"
+          }
+        },
+        {
+          "name": "demo-task/get",
+          "httpMethod": "POST",
+          "path": "/demo-task/get",
+          "resourceCode": "example:demo:demo-task:get",
+          "requiredPermission": {
+            "resourceTypeCode": "DEMO_TASK",
+            "operationCode": "VIEW"
+          }
+        },
+        {
+          "name": "demo-task/page",
+          "httpMethod": "POST",
+          "path": "/demo-task/page",
+          "resourceCode": "example:demo:demo-task:page",
+          "requiredPermission": {
+            "resourceTypeCode": "DEMO_TASK",
+            "operationCode": "VIEW"
+          }
+        },
+        {
+          "name": "demo-task/update",
+          "httpMethod": "POST",
+          "path": "/demo-task/update",
+          "resourceCode": "example:demo:demo-task:update",
+          "requiredPermission": {
+            "resourceTypeCode": "DEMO_TASK",
+            "operationCode": "UPDATE"
+          }
+        },
+        {
+          "name": "demo-task/set-enabled",
+          "httpMethod": "POST",
+          "path": "/demo-task/set-enabled",
+          "resourceCode": "example:demo:demo-task:set-enabled",
+          "requiredPermission": {
+            "resourceTypeCode": "DEMO_TASK",
+            "operationCode": "ENABLE"
+          }
+        },
+        {
+          "name": "demo-task/trigger",
+          "httpMethod": "POST",
+          "path": "/demo-task/trigger",
+          "resourceCode": "example:demo:demo-task:trigger",
+          "requiredPermission": {
+            "resourceTypeCode": "DEMO_TASK",
+            "operationCode": "TRIGGER"
+          }
         }
       ]
     }

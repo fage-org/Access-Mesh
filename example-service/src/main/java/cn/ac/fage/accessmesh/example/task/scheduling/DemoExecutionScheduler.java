@@ -13,14 +13,15 @@ import org.springframework.stereotype.Component;
 public class DemoExecutionScheduler {
     private static final org.slf4j.Logger log=org.slf4j.LoggerFactory.getLogger(DemoExecutionScheduler.class);
     private final DemoExecutionAppService service;
+    private final cn.ac.fage.accessmesh.example.task.service.DemoTaskAppService tasks;
     private boolean ready;
-    public DemoExecutionScheduler(DemoExecutionAppService service) { this.service=service; }
+    public DemoExecutionScheduler(DemoExecutionAppService service,cn.ac.fage.accessmesh.example.task.service.DemoTaskAppService tasks) { this.service=service; this.tasks=tasks; }
     @EventListener(ApplicationReadyEvent.class)
-    public synchronized void start() { service.recover(); ready=true; }
+    public synchronized void start() { tasks.resetSchedule(); service.recover(); ready=true; }
     @Scheduled(fixedDelay=1000)
     public synchronized void tick() {
         if(!ready) return;
-        try { service.expire(); service.runNext(); }
+        try { service.expire(); tasks.scheduleNext(); service.runNext(); }
         catch(RuntimeException e) { log.warn("Snapshot worker cycle failed ({})",e.getClass().getSimpleName()); }
     }
 }

@@ -30,7 +30,9 @@ class DemoExecutionFailureTest {
         e.setAttempt(1); e.setStatus("RUNNING"); e.setRequestPayload("{\"reportCode\":\"r1\"}");
         when(executions.claim()).thenReturn(e);
         when(data.authorizeRead(any(),any())).thenThrow(new CannotGetJdbcConnectionException("unavailable",new SQLException("test",sqlState)));
-        var app=new DemoExecutionAppServiceImpl(executions,data,mock(DemoMetadataDomainService.class),mock(DemoDataPermissions.class),JsonMapper.builder().build(),transactions);
+        var tasks=mock(cn.ac.fage.accessmesh.example.task.domain.DemoTaskDomainService.class);
+        when(tasks.executable(any())).thenReturn(true);
+        var app=new DemoExecutionAppServiceImpl(executions,data,mock(DemoMetadataDomainService.class),mock(DemoDataPermissions.class),JsonMapper.builder().build(),transactions,tasks);
         assertTrue(app.runNext());
         verify(executions).finish(e);
         assertEquals(status,e.getStatus()); assertEquals(reason,e.getFailureReason()); assertNull(e.getResultBytes());

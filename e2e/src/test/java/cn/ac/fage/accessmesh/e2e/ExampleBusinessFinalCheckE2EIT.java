@@ -681,6 +681,14 @@ class ExampleBusinessFinalCheckE2EIT {
             postForData(gateway()+"/api/access/operation-permission/create", adminToken,
                 JSON.createObjectNode().put("resourceTypeCode",type).put("code",type.equals("DEMO_TASK") ? "TRIGGER" : List.of("DEMO_POLICY", "DEMO_DATASET").contains(type) ? "MANAGE" : "DATA_READ")
                     .put("name","demo operation").put("binaryBit",16).put("inheritMask",0));
+            if(type.equals("DEMO_REPORT")) {
+                postForData(gateway()+"/api/access/operation-permission/create",adminToken,
+                    JSON.createObjectNode().put("resourceTypeCode",type).put("code","EXPORT").put("name","export data").put("binaryBit",64).put("inheritMask",0));
+            }
+            if(type.equals("DEMO_TASK")) {
+                postForData(gateway()+"/api/access/operation-permission/create",adminToken,
+                    JSON.createObjectNode().put("resourceTypeCode",type).put("code","ENABLE").put("name","enable task").put("binaryBit",32).put("inheritMask",0));
+            }
             if(List.of("DEMO_REPORT","DEMO_REPORT_FIELD","DEMO_DATA_SCOPE").contains(type)) {
                 postForData(gateway()+"/api/access/operation-permission/create",adminToken,
                     JSON.createObjectNode().put("resourceTypeCode",type).put("code","DATA_EDIT").put("name","edit data")
@@ -857,6 +865,9 @@ class ExampleBusinessFinalCheckE2EIT {
         createDataGrant(dataKey("DEMO_DATA_SCOPE","team-t1","DATA_EDIT","INSTANCE"),editParent);
         var mixed="{\"reportCode\":\"sales-report\",\"changes\":[{\"recordCode\":\"A\",\"remark\":\"changed\"},{\"recordCode\":\"C\",\"remark\":\"forbidden\"}]}";
         awaitBusinessResult("/api/example/demo-data/batch-update",mixed,r -> r.path("code").asInt()==30004,"mixed write must roll back");
+        var restrictedRevoke=parseEnvelope(postEnvelope(gateway()+"/api/example/demo-data/revoke-import",targetToken,JSON.createObjectNode().put("importKey",dataImportKey).toString()));
+        assertThat(restrictedRevoke.path("code").asInt()).isEqualTo(30004);
+        assertThat(uploadCsv(targetToken,"sales-report",java.util.UUID.randomUUID().toString(),csv).path("code").asInt()).isEqualTo(30004);
         assertThat(demoAdminPost("/demo-data/get",JSON.createObjectNode().put("reportCode","sales-report").put("recordCode","A")).path("data").path("record").path("remark").asText()).isEqualTo("ra");
         var updated=awaitBusinessResult("/api/example/demo-data/update","{\"reportCode\":\"sales-report\",\"recordCode\":\"A\",\"remark\":\"blind edit\"}",r -> r.path("code").asInt()==200,"edit grant need not imply remark read grant");
         assertThat(updated.path("data").has("remark")).isFalse();
@@ -925,7 +936,7 @@ class ExampleBusinessFinalCheckE2EIT {
             boolean synced=List.of("DEMO_REPORT","DEMO_REPORT_FIELD","DEMO_DATA_SCOPE").contains(type);
             String extra=synced?"{\"managedMode\":\"SYNC\",\"syncSourceService\":\"example-service\"}":"{\"managedMode\":\"MANAGED\"}";
             postForData(gateway()+"/api/access/type-definition/create",token,JSON.createObjectNode().put("typeKey","resource_type").put("typeCode",type).put("name",type).put("extra",extra));
-            var operations=synced?List.of("DATA_READ","DATA_EDIT"):type.equals("DEMO_TASK")?List.of("TRIGGER"):List.of("MANAGE");
+            var operations=synced?List.of("DATA_READ","DATA_EDIT"):type.equals("DEMO_TASK")?List.of("TRIGGER","ENABLE"):List.of("MANAGE");
             long bit=16;
             for(String operation:operations) {
                 postForData(gateway()+"/api/access/operation-permission/create",token,JSON.createObjectNode().put("resourceTypeCode",type).put("code",operation).put("name",operation).put("binaryBit",bit).put("inheritMask",0)); bit<<=1;
@@ -956,6 +967,106 @@ class ExampleBusinessFinalCheckE2EIT {
         else { key.put("resourceCode",code); key.put("codeType","default"); }
         return key;
     }
+    @Test
+    @Order(17)
+    void persistentTasksRecheckRealGrantsAndPreserveCompletedArtifactsAcrossRestart() throws Exception {
+        for(String operation:List.of("CREATE","VIEW","UPDATE","ENABLE","TRIGGER")) createDataGrant(dataKey("DEMO_TASK",null,operation,"ALL"),null);
+        createDataGrant(dataKey("DEMO_REPORT","sales-report","EXPORT","INSTANCE"),null);
+        var selection=JSON.createObjectNode().put("reportCode","sales-report");
+        var task=targetDemo("/demo-task/create",JSON.createObjectNode().put("name","owned snapshot").put("cron","0 0 0 * * *").set("selection",selection));
+        long taskId=task.path("taskId").asLong(); assertThat(task.path("enabled").asBoolean()).isFalse();
+        task=targetDemo("/demo-task/set-enabled",JSON.createObjectNode().put("taskId",taskId).put("expectedVersion",task.path("version").asLong()).put("enabled",true));
+        var trigger=JSON.createObjectNode().put("taskId",taskId).put("triggerKey",java.util.UUID.randomUUID().toString());
+        var queued=targetDemo("/demo-task/trigger",trigger); String key=queued.path("executionKey").asText();
+        var completed=awaitExecution(key,"SUCCESS"); assertThat(completed.path("recordCount").asInt()).isEqualTo(2);
+        assertThat(targetDemo("/demo-task/trigger",trigger).path("executionKey").asText()).isEqualTo(key);
+        byte[] original=downloadSnapshot(key);
+        assertThat(new String(original,StandardCharsets.UTF_8)).contains("Alpha","Beta","productName").doesNotContain("Gamma","amount");
+        var foreign=parseEnvelope(postEnvelope(gateway()+"/api/example/demo-task/get",adminToken,JSON.createObjectNode().put("taskId",taskId).toString()));
+        assertThat(foreign.path("code").asInt()).isEqualTo(30004);
+        var fieldRows=demoAdminPost("/demo-field/list",JSON.createObjectNode().put("reportCode","sales-report")).path("data").path("items");
+        JsonNode product=null; for(var field:fieldRows) if(field.path("fieldKey").asText().equals("productName")) product=field;
+        assertThat(product).isNotNull();
+        long parent=dataGrantId("DEMO_REPORT","sales-report","DATA_READ",null);
+        String productCode=product.path("resourceCode").asText();
+        restartExampleWorker(false);
+        assertThat(targetDemo("/demo-task/get",JSON.createObjectNode().put("taskId",taskId)).path("name").asText()).isEqualTo("owned snapshot");
+        assertThat(downloadSnapshot(key)).containsExactly(original);
+        var explicit=JSON.createObjectNode().put("reportCode","sales-report").set("fieldIds",JSON.createArrayNode().add(product.path("fieldId").asLong()));
+        var frozen=targetDemo("/demo-task/create",JSON.createObjectNode().put("name","frozen field").put("cron","0 0 0 * * *").set("selection",explicit));
+        long frozenId=frozen.path("taskId").asLong();
+        targetDemo("/demo-task/set-enabled",JSON.createObjectNode().put("taskId",frozenId).put("expectedVersion",frozen.path("version").asLong()).put("enabled",true));
+        var pending=targetDemo("/demo-task/trigger",JSON.createObjectNode().put("taskId",frozenId).put("triggerKey",java.util.UUID.randomUUID().toString()));
+        assertThat(pending.path("status").asText()).isEqualTo("PENDING");
+        removeDataGrant(dataGrantId("DEMO_REPORT_FIELD",productCode,"DATA_READ",parent));
+        awaitBusinessResult("/api/example/demo-data/page",selection.toString(),r->r.path("code").asInt()==200 && r.path("data").path("columns").size()==1,"field removal must be visible before restart");
+        restartExampleWorker(true);
+        awaitExecution(pending.path("executionKey").asText(),"DENIED");
+        assertThat(downloadSnapshot(key)).containsExactly(original);
+        createDataGrant(dataKey("DEMO_REPORT_FIELD",productCode,"DATA_READ","INSTANCE"),parent);
+        awaitBusinessResult("/api/example/demo-data/page",selection.toString(),r->r.path("code").asInt()==200 && r.path("data").path("columns").size()==2,"restored field must be visible");
+        // The same actor follows SELF -> department -> team, with the same records and SQL configuration.
+        removeDataGrant(dataGrantId("DEMO_DATA_SCOPE","team-t1","DATA_READ",parent));
+        createDataGrant(dataKey("DEMO_DATA_SCOPE","self","DATA_READ","INSTANCE"),parent); assertDataCodes(List.of("A"));
+        removeDataGrant(dataGrantId("DEMO_DATA_SCOPE","self","DATA_READ",parent));
+        createDataGrant(dataKey("DEMO_DATA_SCOPE","department-d1","DATA_READ","INSTANCE"),parent); assertDataCodes(List.of("A","B","C"));
+        removeDataGrant(dataGrantId("DEMO_DATA_SCOPE","department-d1","DATA_READ",parent));
+        var conditional=dataKey("DEMO_DATA_SCOPE","team-t1","DATA_READ","INSTANCE");
+        String rules="{\"logic\":\"AND\",\"items\":[{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"127.0.0.1\",\"::1\"]}}]}";
+        conditional.set("inlineCondition",JSON.createObjectNode().put("name","online loopback only").put("conditionRules",rules));
+        createDataGrant(conditional,null); assertDataCodes(List.of("A","B"));
+        var noIp=targetDemo("/demo-task/trigger",JSON.createObjectNode().put("taskId",taskId).put("triggerKey",java.util.UUID.randomUUID().toString()));
+        awaitExecution(noIp.path("executionKey").asText(),"EMPTY");
+        removeDataGrant(dataGrantId("DEMO_DATA_SCOPE","team-t1","DATA_READ",null));
+        createDataGrant(dataKey("DEMO_DATA_SCOPE","team-t1","DATA_READ","INSTANCE"),parent); assertDataCodes(List.of("A","B"));
+        String scriptHost=System.getProperty("example.demo.scriptHost");
+        if(scriptHost!=null && !scriptHost.isBlank()) {
+            Path output=Path.of("target","e2e","snapshot-"+java.util.UUID.randomUUID()+".csv").toAbsolutePath();
+            var builder=new ProcessBuilder(scriptHost,"-NoProfile","-File",Path.of("..","tools","export-example-snapshot.ps1").toAbsolutePath().toString(),
+                "-BaseUrl",gateway(),"-AllowInsecure","-SelectionPath",Path.of("..","example-service","examples","permission-demo-selection.json").toAbsolutePath().toString(),"-OutputPath",output.toString());
+            builder.environment().put("EXAMPLE_OPERATOR_TOKEN",targetToken);
+            builder.redirectErrorStream(true).redirectOutput(Path.of(output.toString()+".log").toFile());
+            var process=builder.start();
+            try {
+                assertThat(process.waitFor(150,java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+                assertThat(process.exitValue()).as("snapshot script: %s",Files.readString(Path.of(output.toString()+".log"))).isZero();
+                assertThat(Files.readString(output)).contains("Alpha","Beta").doesNotContain("Gamma","amount");
+            } finally { if(process.isAlive()) process.destroyForcibly(); }
+        }
+        // Real automatic cron dispatch, bounded by one minute and polled by its durable execution record.
+        var automatic=targetDemo("/demo-task/create",JSON.createObjectNode().put("name","minute cron").put("cron","0 * * * * *").set("selection",selection));
+        long automaticId=automatic.path("taskId").asLong();
+        var enabled=targetDemo("/demo-task/set-enabled",JSON.createObjectNode().put("taskId",automaticId).put("expectedVersion",automatic.path("version").asLong()).put("enabled",true));
+        org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(90)).untilAsserted(()->{
+            var executions=targetDemo("/demo-execution/page",JSON.createObjectNode().put("taskId",automaticId).put("pageSize",20)).path("items");
+            assertThat(executions.isEmpty()).isFalse();
+            var execution=executions.get(0); assertThat(execution.path("status").asText()).isEqualTo("SUCCESS");
+            assertThat(execution.path("scheduledTime").asText()).isNotBlank(); assertThat(execution.path("recordCount").asInt()).isEqualTo(2);
+        });
+        targetDemo("/demo-task/set-enabled",JSON.createObjectNode().put("taskId",automaticId).put("expectedVersion",enabled.path("version").asLong()).put("enabled",false));
+    }
+
+    private static JsonNode targetDemo(String path,JsonNode body) throws Exception {
+        return awaitBusinessResult("/api/example"+path,body.toString(),r->r.path("code").asInt()==200,"target task operation "+path).path("data");
+    }
+    private static JsonNode awaitExecution(String key,String state) throws Exception {
+        return awaitBusinessResult("/api/example/demo-execution/get",JSON.createObjectNode().put("executionKey",key).toString(),
+            r->r.path("code").asInt()==200 && state.equals(r.path("data").path("status").asText()),"execution reaches "+state).path("data");
+    }
+    private static byte[] downloadSnapshot(String key) throws Exception {
+        var response=HTTP.send(HttpRequest.newBuilder(URI.create(gateway()+"/api/example/demo-execution/download"))
+            .header("Authorization","Bearer "+targetToken).header("Content-Type","application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(JSON.createObjectNode().put("executionKey",key).toString())).build(),HttpResponse.BodyHandlers.ofByteArray());
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.headers().firstValue("Content-Type").orElse("")).startsWith("text/csv"); return response.body();
+    }
+    private static void restartExampleWorker(boolean enabled) throws Exception {
+        int port=exampleService.port(); exampleService.destroy();
+        var args=new java.util.ArrayList<>(exampleArguments); args.add("--example.execution.enabled="+enabled);
+        exampleService=startService("example-service",EXAMPLE_MAIN_CLASS,args,exampleEnvironment,
+            URI.create("http://localhost:"+port+"/api/example/demo/hello"),EXAMPLE_SERVICE_CLASSES_DIR);
+    }
+
     private static void createDataParent(String report,String operation,List<tools.jackson.databind.node.ObjectNode> children) {
         var create=JSON.createObjectNode(); create.set("key",dataKey("DEMO_REPORT",report,operation,"INSTANCE"));
         var nested=JSON.createArrayNode(); children.forEach(nested::add); create.set("children",nested);

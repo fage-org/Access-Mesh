@@ -21,7 +21,7 @@ class DemoInterfaceManifestTest {
     @Test
     void shouldDeclareExactlyTheImplementedPostRoutesWithExplicitPermissionRequirements() throws Exception {
         Set<String> implemented=new HashSet<>();
-        for (Class<?> controller : Set.of(DemoController.class,ReportController.class,DemoMetadataController.class,DemoPolicyController.class,DemoDataController.class,DemoImportController.class,cn.ac.fage.accessmesh.example.task.controller.DemoExecutionController.class)) {
+        for (Class<?> controller : Set.of(DemoController.class,ReportController.class,DemoMetadataController.class,DemoPolicyController.class,DemoDataController.class,DemoImportController.class,cn.ac.fage.accessmesh.example.task.controller.DemoExecutionController.class,cn.ac.fage.accessmesh.example.task.controller.DemoTaskController.class)) {
             String prefix=controller.getAnnotation(RequestMapping.class).value()[0];
             for (var method : controller.getDeclaredMethods()) {
                 var mapping=method.getAnnotation(PostMapping.class);
@@ -51,6 +51,11 @@ class DemoInterfaceManifestTest {
                 case "/demo-data/fields", "/demo-data/page", "/demo-data/get", "/demo-data/batch-get" -> DemoPermission.REPORT_READ;
                 case "/demo-data/update", "/demo-data/batch-update" -> DemoPermission.REPORT_EDIT;
                 case "/demo-data/import", "/demo-data/import-status", "/demo-data/revoke-import" -> DemoPermission.DATASET_MANAGE;
+                case "/demo-task/create" -> DemoPermission.TASK_CREATE;
+                case "/demo-task/update" -> DemoPermission.TASK_UPDATE;
+                case "/demo-task/set-enabled" -> DemoPermission.TASK_ENABLE;
+                case "/demo-task/trigger" -> DemoPermission.TASK_TRIGGER;
+                case "/demo-task/get", "/demo-task/page" -> DemoPermission.TASK_VIEW;
                 case "/demo-snapshot/submit" -> DemoPermission.TASK_TRIGGER;
                 case "/demo-execution/get", "/demo-execution/page", "/demo-execution/download" -> DemoPermission.TASK_VIEW;
                 default -> null; // Legacy probe requirements are verified by their existing E2E journeys.

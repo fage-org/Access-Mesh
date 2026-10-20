@@ -27,8 +27,22 @@ public class DemoExecutionDomainService {
     }
     public DemoExecution insert(Caller c,SubmitReq r) {
         var e=new DemoExecution(); e.setTenantId(c.tenantId()); e.setCreatedBy(c.userId());
-        e.setExecutionKey(UUID.randomUUID()); e.setTriggerKey(r.triggerKey()); e.setRequestPayload(json.writeValueAsString(r.selection()));
+        e.setTriggerKind("ONCE"); e.setExecutionKey(UUID.randomUUID()); e.setTriggerKey(r.triggerKey()); e.setRequestPayload(json.writeValueAsString(r.selection()));
         mapper.insert(e); return mapper.byKey(c.tenantId(),e.getExecutionKey());
+    }
+    public DemoExecution existingManual(Caller c,long task,UUID key) {
+        var e=mapper.byTrigger(c.tenantId(),key); if(e==null) return null; owner(c,e);
+        if(!"MANUAL".equals(e.getTriggerKind()) || !Long.valueOf(task).equals(e.getTaskId())) throw error(ExampleErrorCode.DEMO_TRIGGER_CONFLICT);
+        return e;
+    }
+    public DemoExecution enqueueTask(cn.ac.fage.accessmesh.example.task.entity.DemoTask task,UUID trigger,java.time.LocalDateTime time) {
+        if(time!=null) {
+            var existing=mapper.bySchedule(task.getTenantId(),task.getId(),time); if(existing!=null) return existing;
+        }
+        var e=new DemoExecution(); e.setTenantId(task.getTenantId()); e.setCreatedBy(task.getCreatedBy());
+        e.setExecutionKey(UUID.randomUUID()); e.setTriggerKey(trigger); e.setTriggerKind(time==null?"MANUAL":"CRON");
+        e.setTaskId(task.getId()); e.setTaskVersion(task.getVersion()); e.setScheduledTime(time); e.setRequestPayload(task.getSelection());
+        mapper.insert(e); return mapper.byKey(e.getTenantId(),e.getExecutionKey());
     }
     public DemoExecution owned(Caller c,UUID key) { var e=mapper.byKey(c.tenantId(),key); owner(c,e); return e; }
     public byte[] download(Caller c,UUID key) {

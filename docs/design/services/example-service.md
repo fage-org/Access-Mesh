@@ -86,4 +86,4 @@ T-ACCESS-135 在相同冻结镜像上完成源栈/恢复栈普通用户允许、
 
 ## 有界权限快照
 
-`/api/example/demo-snapshot/submit` 保存可信创建者和稳定字段选择，后台按实际执行时间重新检查 TRIGGER、EXPORT 和行列范围，不保存用户 IP。`demo-execution/get/page/download` 提供本人状态及有界 CSV 领取；请求重试沿 triggerKey，结果与 SUCCESS 按 attempt 同事务提交，默认后台恢复与期限清理。详细预算和边界见[权限演示设计](../example-permission-demo.md#scheduled-tasks)及[API 契约](../example-service-api-contract.md#tasks)。T-ACCESS-141 已完成验收；自定义 cron 仍待 T-ACCESS-143。
+`/api/example/demo-snapshot/submit` 保存可信创建者和稳定字段选择，后台按实际执行时间重新检查 TRIGGER、EXPORT 和行列范围，不保存用户 IP。`demo-execution/get/page/download` 提供本人状态及有界 CSV 领取；请求重试沿 triggerKey，结果与 SUCCESS 按 attempt 同事务提交，默认后台恢复与期限清理。详细预算和边界见[权限演示设计](../example-permission-demo.md#scheduled-tasks)及[API 契约](../example-service-api-contract.md#tasks)。T-ACCESS-141 已完成验收；自定义 cron 与本人任务管理已实现，已完成 T-ACCESS-143 验收。

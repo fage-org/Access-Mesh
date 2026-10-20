@@ -27,6 +27,7 @@ import java.util.UUID;
 @Service
 public class DemoExecutionAppServiceImpl implements DemoExecutionAppService {
     private static final org.slf4j.Logger log=org.slf4j.LoggerFactory.getLogger(DemoExecutionAppServiceImpl.class);
+    private final cn.ac.fage.accessmesh.example.task.domain.DemoTaskDomainService tasks;
     private final DemoExecutionDomainService executions;
     private final DemoDataDomainService data;
     private final DemoMetadataDomainService metadata;
@@ -34,8 +35,9 @@ public class DemoExecutionAppServiceImpl implements DemoExecutionAppService {
     private final JsonMapper json;
     private final TransactionTemplate write,read;
     public DemoExecutionAppServiceImpl(DemoExecutionDomainService executions,DemoDataDomainService data,
-        DemoMetadataDomainService metadata,DemoDataPermissions permissions,JsonMapper json,PlatformTransactionManager transactions) {
-        this.executions=executions; this.data=data; this.metadata=metadata; this.permissions=permissions; this.json=json;
+        DemoMetadataDomainService metadata,DemoDataPermissions permissions,JsonMapper json,PlatformTransactionManager transactions,
+        cn.ac.fage.accessmesh.example.task.domain.DemoTaskDomainService tasks) {
+        this.tasks=tasks; this.executions=executions; this.data=data; this.metadata=metadata; this.permissions=permissions; this.json=json;
         write=new TransactionTemplate(transactions); read=new TransactionTemplate(transactions);
         read.setReadOnly(true); read.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
     }
@@ -62,23 +64,27 @@ public class DemoExecutionAppServiceImpl implements DemoExecutionAppService {
     @Override public boolean runNext() {
         var e=write.execute(s -> executions.claim()); if(e==null) return false;
         try {
-            var c=new Caller(e.getTenantId(),e.getCreatedBy(),null);
-            var selection=json.readValue(e.getRequestPayload(),Selection.class);
-            permissions.require(c,DemoPermission.TASK_TRIGGER,null);
-            permissions.require(c,DemoPermission.REPORT_EXPORT,selection.reportCode());
-            var plan=data.authorizeRead(c,selection);
-            read.executeWithoutResult(s -> {
-                var page=data.page(plan,1,1001);
-                if(page.total()>1000) throw limit();
-                e.setPolicyVersion(plan.policyVersion()); e.setCatalogVersion(plan.catalogVersion());
-                e.setOutputColumns(json.writeValueAsString(plan.columns().stream().map(col -> new Column(col.id(),col.field().key(),col.field().kind().name())).toList()));
-                e.setResultRowCount(page.total());
-                if(page.items().isEmpty()) { e.setStatus("EMPTY"); return; }
-                var csv=new BoundedCsvWriter(1000,1048576,DemoExecutionAppServiceImpl::limit);
-                csv.header(plan.columns().stream().map(col -> col.field().key()).toArray(String[]::new));
-                for(var row:page.items()) csv.row(plan.columns().stream().map(col -> row.get(col.field().key())).toArray());
-                e.setResultBytes(csv.bytes()); e.setStatus("SUCCESS");
-            });
+            if(!tasks.executable(e)) skip(e);
+            else {
+                var c=new Caller(e.getTenantId(),e.getCreatedBy(),null);
+                var selection=json.readValue(e.getRequestPayload(),Selection.class);
+                permissions.require(c,DemoPermission.TASK_TRIGGER,null);
+                permissions.require(c,DemoPermission.REPORT_EXPORT,selection.reportCode());
+                var plan=data.authorizeRead(c,selection);
+                read.executeWithoutResult(s -> {
+                    if(!tasks.executable(e)) { skip(e); return; }
+                    var page=data.page(plan,1,1001);
+                    if(page.total()>1000) throw limit();
+                    e.setPolicyVersion(plan.policyVersion()); e.setCatalogVersion(plan.catalogVersion());
+                    e.setOutputColumns(json.writeValueAsString(plan.columns().stream().map(col -> new Column(col.id(),col.field().key(),col.field().kind().name())).toList()));
+                    e.setResultRowCount(page.total());
+                    if(page.items().isEmpty()) { e.setStatus("EMPTY"); return; }
+                    var csv=new BoundedCsvWriter(1000,1048576,DemoExecutionAppServiceImpl::limit);
+                    csv.header(plan.columns().stream().map(col -> col.field().key()).toArray(String[]::new));
+                    for(var row:page.items()) csv.row(plan.columns().stream().map(col -> row.get(col.field().key())).toArray());
+                    e.setResultBytes(csv.bytes()); e.setStatus("SUCCESS");
+                });
+            }
         } catch(RuntimeException failure) { classify(e,failure); }
         // A lost commit acknowledgement leaves RUNNING or the committed terminal result. Recovery never rebuilds SUCCESS.
         try { write.executeWithoutResult(s -> executions.finish(e)); }
@@ -91,6 +97,7 @@ public class DemoExecutionAppServiceImpl implements DemoExecutionAppService {
     }
     @Override public void recover() { write.executeWithoutResult(s -> executions.recover()); }
     @Override public void expire() { write.executeWithoutResult(s -> executions.expire()); }
+    private static void skip(DemoExecution e) { e.setStatus("SKIPPED"); e.setFailureReason("TASK_DISABLED"); }
     private static void classify(DemoExecution e,RuntimeException failure) {
         e.setResultBytes(null); e.setPolicyVersion(null); e.setCatalogVersion(null); e.setOutputColumns(null); e.setResultRowCount(null);
         boolean retryable=false;

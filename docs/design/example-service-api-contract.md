@@ -181,7 +181,7 @@ remark 未传/null 表示不修改；`remarkClear=true` 才清空。非空新值
 <a id="tasks"></a>
 ## 快照、内部定时任务与结果
 
-一次性快照 submit 与 execution get/page/download 已实现，T-ACCESS-141 已完成验收；任务定义与 cron 触发仍由 T-ACCESS-143 交付。下载成功返回 `text/csv;charset=UTF-8` 与 `Cache-Control: no-store`，失败使用统一错误信封。
+一次性快照 submit 与 execution get/page/download 已实现，T-ACCESS-141 已完成验收；任务定义与 cron 触发已实现，T-ACCESS-143 已验收。下载成功返回 `text/csv;charset=UTF-8` 与 `Cache-Control: no-store`，失败使用统一错误信封。
 
 任务权限使用类型级 `DEMO_TASK` 操作，且所有定义、执行和结果入口都校验可信租户/原创建者。其他用户与不存在统一返回 30004，不提供代他人执行或维护入口。
 
@@ -206,6 +206,8 @@ Selection 与记录查询共用，但不含分页；省略 fieldIds 为默认选
 
 状态为 PENDING → RUNNING → SUCCESS / DENIED / EMPTY / SKIPPED / FAILED，SUCCESS 到期转 EXPIRED；暂态技术失败在预算内沿原键回 PENDING。每次抢占增加 attempt，输出字节和 SUCCESS 在同一事务按当前 attempt 提交；旧尝试不能覆盖新尝试。服务重启将预算内遗留 RUNNING 重新排队，已耗尽尝试预算的未完成记录转 FAILED，不能靠重启绕过上限。SUCCESS/EXPIRED 不重新取数；停机期间未产生记录的 cron 时刻不补发。
 
+任务维护、手动触发和 cron 入队在同租户数据集守卫下串行，并锁内读取当前任务状态/版本。启用和修改按当前数据库 UTC 时间计算下次触发；每次调度最多入队一个当前到期时刻，并计算后续时刻。启动将启用任务的未来时刻重新初始化，既有执行保留原键与冻结选择；不按旧配置补发停机时段。执行器在远程授权之前及本地取数快照开始时检查任务当前启用状态，已进入取数快照的执行不因随后停用追溯撤销。
+
 CSV 只输出最终授权列，沿既有引号转义与字符串公式前缀防护。返回 CSV 使用受保护 POST 下载，不返回公开 URL；新增下载路径须登记相应 HTTP 契约例外。领取不延长 expiresAt；清理仅移除到期内容并标 EXPIRED，保留执行身份/唯一键与受控状态。
 
 <a id="business-errors"></a>
@@ -215,7 +217,7 @@ CSV 只输出最终授权列，沿既有引号转义与字符串公式前缀防�
 
 | 编号 | 含义 | 暴露边界 |
 |---|---|---|
-| 30101 | DEMO_OBJECT_UNAVAILABLE | 本地报表/字段不可用；任务、执行和导入批次的跨用户/不存在统一 30004 |
+| 30101 | DEMO_OBJECT_UNAVAILABLE | 本地报表/字段不可用或任务已停用；任务、执行和导入批次的跨用户/不存在统一 30004 |
 | 30102 | DEMO_POLICY_INVALID | 无生效策略、未知绑定或配置校验失败；不泄漏 SQL 或未授权记录值 |
 | 30103 | DEMO_VERSION_CONFLICT | 配置/目录/任务期望版本不符；重新读取后发起新操作 |
 | 30104 | DEMO_IMPORT_CONFLICT | importKey 换载荷，或有效 recordCode 冲突；message 使用对应的受控说明，不回显记录值，不给统一错误信封新增 reason 字段 |

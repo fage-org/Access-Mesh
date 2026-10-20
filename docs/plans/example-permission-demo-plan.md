@@ -19,7 +19,7 @@ tasks:
   - T-ACCESS-142
   - T-FE-079
 acceptance: "真实数据、动态行列权限、报表字段隔离、读写与内部定时任务通过可重复 API 场景验证，持久化/幂等及设计契约回写完成。"
-last_updated: 2026-10-19
+last_updated: 2026-10-20
 ---
 
 # example-service 持久化权限演示计划
@@ -49,7 +49,7 @@ last_updated: 2026-10-19
 | [T-ACCESS-138](../tasks/T-ACCESS-138.md) | 演示业务记录与 CSV 导入 | ✅ | T-ACCESS-140 |
 | [T-PERM-036](../tasks/T-PERM-036.md) | 动态数据权限端到端验证 | ✅ | T-ACCESS-138 |
 | [T-ACCESS-141](../tasks/T-ACCESS-141.md) | 有界授权快照导出与结果领取 | ✅ | T-ACCESS-140、T-PERM-036 |
-| [T-ACCESS-143](../tasks/T-ACCESS-143.md) | example 内部自定义定时任务与恢复 | ⚙️ | T-ACCESS-141 |
+| [T-ACCESS-143](../tasks/T-ACCESS-143.md) | example 内部自定义定时任务与恢复 | ✅ | T-ACCESS-141 |
 | [T-ACCESS-142](../tasks/T-ACCESS-142.md) | 权限场景包与持久化验收收口 | ⚙️ | T-ACCESS-143、T-PERM-036 |
 | [T-FE-079](../tasks/T-FE-079.md) | BI 工作区与销售分析页面 | ❌ | — |
 
@@ -63,6 +63,6 @@ last_updated: 2026-10-19
 
 ## 当前进度
 
-T-ACCESS-136、137、139、140、138 与 T-PERM-036 done；T-ACCESS-141 done；T-ACCESS-143、142 proposed；T-FE-079 cancelled。下一步为 T-ACCESS-143。执行中的未决设计取舍由用户决定，已确认范围不重复提问。
+T-ACCESS-136、137、139、140、138 与 T-PERM-036 done；T-ACCESS-141 done；T-ACCESS-143 done，T-ACCESS-142 proposed；T-FE-079 cancelled。下一步为 T-ACCESS-142。执行中的未决设计取舍由用户决定，已确认范围不重复提问。
 
 定稿核对证据见 T-ACCESS-136；已确认的导入请求号、记录定位、安全测试例外、执行预算和固定主操作已回写所属规范。
