@@ -8,6 +8,26 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class DemoExecutionSchedulerTest {
+    @Test void shouldRetryRecoveryBeforeAcceptingWorkAfterAFailedCycle() {
+        var executions=mock(DemoExecutionAppService.class); var tasks=mock(DemoTaskAppService.class);
+        var scheduler=new DemoExecutionScheduler(executions,tasks);
+        scheduler.start(); clearInvocations(executions,tasks);
+        when(executions.runNext()).thenThrow(new IllegalStateException("completion unavailable")).thenReturn(false);
+        scheduler.tick();
+        doThrow(new IllegalStateException("still unavailable")).doNothing().when(executions).recover();
+        scheduler.tick();
+        verify(executions).runNext();
+        verify(tasks).scheduleNext();
+        clearInvocations(executions,tasks);
+        scheduler.tick();
+        var order=inOrder(executions,tasks);
+        order.verify(executions).recover();
+        order.verify(executions).expire();
+        order.verify(tasks).scheduleNext();
+        order.verify(executions).runNext();
+        scheduler.tick();
+        verify(executions,times(2)).recover();
+    }
     @Test void shouldBlockBothTriggersAndClaimsUntilStartupRecoveryCompletes() {
         var executions=mock(DemoExecutionAppService.class); var tasks=mock(DemoTaskAppService.class);
         var scheduler=new DemoExecutionScheduler(executions,tasks);

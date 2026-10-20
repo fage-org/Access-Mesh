@@ -7,3 +7,5 @@
 [最终验收](tasks/evidence/example-permission-demo/T-ACCESS-142.md)保存完整联合主线、可执行 JAR、动态配置产物/进程观测、状态分类修正及标准完整回归。最终 `mvn test -T 1C`：3,148 passed / 0 failed / 0 error / 0 skipped，包含 E2E/heavy。此前跳过与失败均有独立记录，没有被计为成功。
 
 源码与验证结果为本地交付；冻结候选部署仍保留其原版本与历史验收边界。
+
+[T-ACCESS-144](tasks/T-ACCESS-144.md) 完成 Mapper 隔离级别接线、example 正常周期恢复与导入取锁期限修正，并修正发布重试请求字段；[验证记录](tasks/evidence/T-ACCESS-144/verification.md)保存逐项核实、修复前对照与最终完整回归。

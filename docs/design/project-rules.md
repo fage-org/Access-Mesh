@@ -3,7 +3,7 @@ doc_type: design
 title: 项目开发规范（PROJECT RULES）
 status: adopted
 domain: common
-last_reviewed: 2026-10-18
+last_reviewed: 2026-10-20
 ---
 
 # 项目开发规范（PROJECT RULES）
@@ -790,6 +790,8 @@ public UserDetailResp getUserDetail(Long userId) { ... }
 - **MUST 提供行为证据**：按[接入与验收](redis-transaction-locks.md#lock-verification)验证相互竞争入口、提交/回滚及适用的异常路径；复用现有真实 PG/Redis 测试，时序使用闩锁或提交闸门。仅证明 helper 被调用不足以证明业务互斥闭合。
 
 原有 watchdog 故障边界、密码重置提交后交付窗口等接受范围仍以所属契约为准，不能自动推广到新业务。本节不要求所有并发问题都加 Redis 锁，也不通过新增锁撤销既有接受边界。规范接入来源：[T-ACCESS-130](../archive/2026-10-18/tasks/T-ACCESS-130.md)。
+
+当前 Flex 1.11.8 事务管理器不向物理连接传递 Spring 的显式隔离级别。平台服务由 common 的 `SpringTransactionIsolationInterceptor` 在 Mapper 准备 SQL 时应用当前事务隔离级别，保留 Flex 事务管理器与连接绑定，Hikari 在连接归还时恢复默认值。`@Transactional` 与 `TransactionTemplate` 共用该接线；默认隔离及加入外层事务沿 Spring 既有语义。集成验收须证明 Mapper 真实连接、并发提交可见性、提交/回滚后连接复用及独立事务隔离，不能仅断言 Spring 上下文属性。
 
 ---
 

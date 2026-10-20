@@ -81,7 +81,7 @@ public class DemoImportDomainServiceImpl implements DemoImportDomainService {
     }
     private void guard(DataSqlPlan plan,long actor) {
         if(plan.permission()!=DemoPermission.REPORT_EDIT || plan.rowMode()!=ScopeMode.ALL) throw error(ExampleErrorCode.PERMISSION_DENIED);
-        metadata.lockDataset(plan.tenantId(),actor); data.verify(plan);
+        data.guardWrite(plan,actor);
     }
     private static DemoRecord record(long tenant,long batch,long actor,Map<DemoField,Object> values) {
         var row=new DemoRecord(); row.setTenantId(tenant); row.setBatchId(batch); row.setCreatedBy(actor);

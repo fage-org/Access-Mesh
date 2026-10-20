@@ -204,7 +204,7 @@ access-service 当前任务调用仅支持本进程 `@JobInvocable bean.method(T
 
 抢占时增加 attempt，结果写入与 SUCCESS 状态在同一 PG 事务、按当前 attempt 条件提交；结果记录以执行键唯一。同进程重复触发、崩溃后恢复和超时尝试均不得重复提交结果。单实例重启后对遗留 RUNNING 重新排队，再次抢占生成新 attempt；已经 SUCCESS 的记录只读取已存结果。验收须在结果事务提交前、提交后分别模拟故障，验证重试与不重做的区别。
 
-一次性快照使用 `demo_execution` 保存冻结的 Selection，执行时重新鉴权并在本地一致快照中调用共用数据 DomainService；CSV 格式与审计复用 common 的有界写入器。抢占/提交使用执行键和 attempt 条件更新，字节与 SUCCESS 单条更新同事务；提交确认丢失后不得覆盖已提交的终态。单实例 worker 启动先恢复未完成记录，再开始抢占；每次维护最多清理 100 条到期产物。执行状态/本人下载不重查源报表范围，不延长期限。任务定义、本人控制、cron 接线已由 T-ACCESS-143 实现并验收；定时和手动触发共用上述执行器。
+一次性快照使用 `demo_execution` 保存冻结的 Selection，执行时重新鉴权并在本地一致快照中调用共用数据 DomainService；CSV 格式与审计复用 common 的有界写入器。抢占/提交使用执行键和 attempt 条件更新，字节与 SUCCESS 单条更新同事务；提交确认丢失后不得覆盖已提交的终态。单实例 worker 启动及每个串行 tick 先恢复遗留 RUNNING，再接受新工作；同步 runNext 不跨 tick 保留活跃尝试，恢复不只依赖上个周期是否抛出异常。恢复失败继续等待后续 tick，不依赖进程重启；同一执行键、尝试预算及 10/30 秒退避保持，SUCCESS 不重新执行。每次维护最多清理 100 条到期产物。执行状态/本人下载不重查源报表范围，不延长期限。任务定义、本人控制、cron 接线已由 T-ACCESS-143 实现并验收；定时和手动触发共用上述执行器。
 
 ### 6.3 持久化验收
 
@@ -246,6 +246,8 @@ Controller → AppService → DomainService → Mapper；事务在 AppService。
 | 任务修改/启停、触发/抢占、结果完成与到期清理 | 本人归属、任务版本/有效状态校验、执行键唯一及 attempt 条件更新；结果和 SUCCESS 同事务；到期只处理成功产物，不覆盖运行尝试 |
 
 涉及多行的路径统一先数据集控制行，再报表/字段，再批次/业务记录；同类多目标按稳定 ID 排序。锁内读取需实际访问数据库，不能复用 MyBatis 一级缓存中的旧实体。读分页在本地只读一致快照内读取 items/total，所有远程授权先完成；这不形成与 AccessMesh 的分布式快照或即时撤权保证。
+
+一致读的显式隔离级别由公共 `SpringTransactionIsolationInterceptor` 在 Mapper 准备 SQL 时传到实际 JDBC 连接，沿用 Flex 的连接绑定与提交协议；仅设置 Spring 事务属性不足以证明物理隔离。数据写守卫 `DemoDataDomainService.guardWrite` 在数据集取锁之前设置事务内五秒 `statement_timeout`，备注更新、CSV 导入与撤销共同使用；该预算约束每条 SQL（包含初始取锁），不表示整个请求五秒内结束。
 
 ### 7.2 PG 测试复用出口
 

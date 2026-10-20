@@ -13,6 +13,7 @@ public interface DemoDataDomainService {
     DataSqlPlan authorizeEdit(Caller caller,String reportCode);
     DataSqlPlan authorizeImport(Caller caller,String reportCode,java.util.Set<cn.ac.fage.accessmesh.example.data.catalog.DemoField> fields);
     void verify(DataSqlPlan plan);
+    void guardWrite(DataSqlPlan plan,long actor);
     PageResp<Map<String,Object>> page(DataSqlPlan plan,int page,int size);
     Map<String,Object> get(DataSqlPlan plan,String code);
     Map<Integer,Map<String,Object>> batch(DataSqlPlan plan,List<String> codes);

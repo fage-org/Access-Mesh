@@ -10,7 +10,7 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| access-service 归并（跨服务） | `T-ACCESS` | 144 |
+| access-service 归并（跨服务） | `T-ACCESS` | 145 |
 | permission-center | `T-PERM` | 113 |
 | admin-service | `T-ADMIN` | 036 |
 | gateway | `T-GW` | 015 |
@@ -22,9 +22,15 @@
 
 ## 当前待办入口
 
-[example 持久化权限演示](../archive/2026-10-20/example-permission-demo-plan.md)已完成并归档；业务页面任务保持取消。当前没有已启动的执行任务，其他暂缓事项保持。最终行为与验证见[验收记录](../archive/2026-10-20/tasks/evidence/example-permission-demo/T-ACCESS-142.md)。
+[T-ACCESS-144](../archive/2026-10-20/tasks/T-ACCESS-144.md) 已完成事务隔离接线与 example 执行恢复、导入取锁期限修正，见[验证记录](../archive/2026-10-20/tasks/evidence/T-ACCESS-144/verification.md)。[example 持久化权限演示](../archive/2026-10-20/example-permission-demo-plan.md)已归档；业务页面任务保持取消，当前没有已启动的执行任务，其他暂缓事项保持。
 
 ## 任务总表
+
+### 事务隔离与演示执行可靠性
+
+| ID | 标题 | 状态 | 直接依赖 |
+|---|---|---|---|
+| [T-ACCESS-144](../archive/2026-10-20/tasks/T-ACCESS-144.md) | Mapper 隔离级别接线与演示任务恢复、导入期限 | ✅ | — |
 
 ### example-service 持久化权限演示
 

@@ -199,6 +199,11 @@ class AccessServiceApplicationTest {
             org.springframework.transaction.PlatformTransactionManager.class).length == 1,
             "事务管理器必须唯一");
 
+        assertTrue(applicationContext.getBean(org.apache.ibatis.session.SqlSessionFactory.class)
+            .getConfiguration().getInterceptors().stream().anyMatch(
+                cn.ac.fage.accessmesh.common.mybatis.SpringTransactionIsolationInterceptor.class::isInstance),
+            "Mapper 必须将 Spring 声明的隔离级别传到实际 JDBC 连接");
+
         // 唯一 CacheService（common 统一缓存框架）
         assertNotNull(applicationContext.getBean(CacheService.class));
         assertTrue(applicationContext.getBeanNamesForType(CacheService.class).length == 1,

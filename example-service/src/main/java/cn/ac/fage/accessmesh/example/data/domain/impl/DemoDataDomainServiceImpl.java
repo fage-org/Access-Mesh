@@ -199,9 +199,16 @@ public class DemoDataDomainServiceImpl implements DemoDataDomainService {
         return Map.copyOf(result);
     }
     @Override
+    public void guardWrite(DataSqlPlan plan,long actor) {
+        if(plan.permission()!=DemoPermission.REPORT_EDIT) throw error(ExampleErrorCode.PERMISSION_DENIED);
+        records.setTimeout();
+        metadata.lockDataset(plan.tenantId(),actor);
+        verify(plan);
+    }
+    @Override
     public int update(DataSqlPlan plan,long actor,List<Change> changes) {
         if(plan.permission()!=DemoPermission.REPORT_EDIT || plan.columns().stream().noneMatch(c -> c.field()==DemoField.REMARK)) throw error(ExampleErrorCode.PERMISSION_DENIED);
-        records.setTimeout(); metadata.lockDataset(plan.tenantId(),actor); verify(plan);
+        guardWrite(plan,actor);
         if(empty(plan)) throw error(ExampleErrorCode.PERMISSION_DENIED);
         int updated=records.update(plan,actor,changes);
         if(updated!=changes.size()) throw error(ExampleErrorCode.PERMISSION_DENIED);

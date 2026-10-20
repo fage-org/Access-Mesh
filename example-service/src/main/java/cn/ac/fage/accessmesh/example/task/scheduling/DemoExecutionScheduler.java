@@ -21,7 +21,13 @@ public class DemoExecutionScheduler {
     @Scheduled(fixedDelay=1000)
     public synchronized void tick() {
         if(!ready) return;
-        try { service.expire(); tasks.scheduleNext(); service.runNext(); }
-        catch(RuntimeException e) { log.warn("Snapshot worker cycle failed ({})",e.getClass().getSimpleName()); }
+        try {
+            // No live attempt spans serial ticks. Also recover when a failed commit was only logged by Flex.
+            service.recover();
+            service.expire(); tasks.scheduleNext(); service.runNext();
+        }
+        catch(RuntimeException e) {
+            log.warn("Snapshot worker cycle failed ({})",e.getClass().getSimpleName());
+        }
     }
 }

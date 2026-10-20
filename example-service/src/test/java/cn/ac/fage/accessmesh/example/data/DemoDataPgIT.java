@@ -51,7 +51,7 @@ import static org.mockito.ArgumentMatchers.*;
 class DemoDataPgIT {
     @DynamicPropertySource static void database(DynamicPropertyRegistry r) { ExamplePgInfra.PG.register(r,DemoDataPgIT.class); }
     @Autowired cn.ac.fage.accessmesh.example.task.service.DemoExecutionAppService executions;
-    @Autowired cn.ac.fage.accessmesh.example.task.domain.DemoExecutionDomainService executionDomain;
+    @MockitoSpyBean cn.ac.fage.accessmesh.example.task.domain.DemoExecutionDomainService executionDomain;
     @Autowired cn.ac.fage.accessmesh.example.task.service.DemoTaskAppService tasks;
     @Autowired JdbcTemplate jdbc;
     @Autowired PlatformTransactionManager transactions;
@@ -132,6 +132,112 @@ class DemoDataPgIT {
         assertEquals(30004,assertThrows(BizException.class,()->executions.get(new Caller(1,43,null),done.executionKey())).getErrorCode());
         assertEquals(30004,assertThrows(BizException.class,()->executions.get(new Caller(2,42,null),done.executionKey())).getErrorCode());
         assertFalse(executions.runNext());
+    }
+
+    @ParameterizedTest @ValueSource(booleans={false,true})
+    void shouldKeepItemsAndCountInOneSnapshotWhenImportCommitsBetweenThem(boolean snapshot) {
+        allowImport();
+        var queued=snapshot?executions.submit(actor,new cn.ac.fage.accessmesh.example.task.dto.ExecutionDtos.SubmitReq(
+            UUID.randomUUID(),new Selection("r1",null,null,null))):null;
+        var actualMapper=new org.mybatis.spring.SqlSessionTemplate(sessions).getMapper(DemoDataMapper.class);
+        doAnswer(invocation -> {
+            var rows=actualMapper.page(invocation.getArgument(0),invocation.getArgument(1),invocation.getArgument(2));
+            // A different thread/connection commits through the real import path after SELECT, before COUNT.
+            java.util.concurrent.CompletableFuture.runAsync(() -> importer.submit(actor,
+                new cn.ac.fage.accessmesh.example.data.dto.ImportDtos.ImportReq("r1",UUID.randomUUID().toString()),csv("between")))
+                .get(10,java.util.concurrent.TimeUnit.SECONDS);
+            return rows;
+        }).when(records).page(any(),anyInt(),anyLong());
+        if(snapshot) {
+            assertTrue(executions.runNext());
+            var done=executions.get(actor,queued.executionKey());
+            assertEquals("SUCCESS",done.status());
+            assertEquals(4L,done.recordCount());
+            String csv=new String(executions.download(actor,done.executionKey()),java.nio.charset.StandardCharsets.UTF_8);
+            assertEquals(5,csv.lines().count());
+            assertFalse(csv.contains("between"));
+        } else {
+            var result=app.page(actor,page("r1",1,20)).page();
+            assertEquals(4,result.items().size());
+            assertEquals(4,result.total());
+        }
+        assertEquals(1L,jdbc.queryForObject("SELECT count(*) FROM demo_record WHERE record_code='between'",Long.class));
+    }
+
+    @ParameterizedTest @ValueSource(booleans={false,true})
+    void shouldApplyIsolationToMapperConnectionAndRestorePoolDefault(boolean rollback) {
+        var read=new TransactionTemplate(transactions);
+        read.setIsolationLevel(org.springframework.transaction.TransactionDefinition.ISOLATION_REPEATABLE_READ);
+        int[] backend=new int[1];
+        read.executeWithoutResult(status -> {
+            records.setTimeout();
+            var session=org.mybatis.spring.SqlSessionUtils.getSqlSession(sessions);
+            try {
+                assertEquals(java.sql.Connection.TRANSACTION_REPEATABLE_READ,session.getConnection().getTransactionIsolation());
+                backend[0]=session.getConnection().unwrap(org.postgresql.jdbc.PgConnection.class).getBackendPID();
+                var independent=new TransactionTemplate(transactions);
+                independent.setPropagationBehavior(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+                independent.executeWithoutResult(inner -> {
+                    records.setTimeout();
+                    var nested=org.mybatis.spring.SqlSessionUtils.getSqlSession(sessions);
+                    try {
+                        assertEquals(java.sql.Connection.TRANSACTION_READ_COMMITTED,nested.getConnection().getTransactionIsolation());
+                        assertNotEquals(backend[0],nested.getConnection().unwrap(org.postgresql.jdbc.PgConnection.class).getBackendPID());
+                    } catch(java.sql.SQLException e) { throw new AssertionError(e); }
+                    finally { org.mybatis.spring.SqlSessionUtils.closeSqlSession(nested,sessions); }
+                });
+                assertEquals(java.sql.Connection.TRANSACTION_REPEATABLE_READ,session.getConnection().getTransactionIsolation());
+            } catch(java.sql.SQLException e) { throw new AssertionError(e); }
+            finally { org.mybatis.spring.SqlSessionUtils.closeSqlSession(session,sessions); }
+            if(rollback) status.setRollbackOnly();
+        });
+        tx.executeWithoutResult(status -> {
+            records.setTimeout();
+            var session=org.mybatis.spring.SqlSessionUtils.getSqlSession(sessions);
+            try {
+                assertEquals(java.sql.Connection.TRANSACTION_READ_COMMITTED,session.getConnection().getTransactionIsolation());
+                assertEquals(backend[0],session.getConnection().unwrap(org.postgresql.jdbc.PgConnection.class).getBackendPID(),
+                    "The same pooled connection must return to its default after commit or rollback");
+            } catch(java.sql.SQLException e) { throw new AssertionError(e); }
+            finally { org.mybatis.spring.SqlSessionUtils.closeSqlSession(session,sessions); }
+        });
+    }
+
+    @ParameterizedTest @ValueSource(booleans={false,true})
+    void shouldRecoverFailedCompletionOnNormalTicksWithoutRestart(boolean committed) {
+        allowExecution();
+        var scheduler=new cn.ac.fage.accessmesh.example.task.scheduling.DemoExecutionScheduler(executions,tasks);
+        scheduler.start();
+        var queued=executions.submit(actor,new cn.ac.fage.accessmesh.example.task.dto.ExecutionDtos.SubmitReq(
+            UUID.randomUUID(),new Selection("r1",null,null,null)));
+        var finishes=new java.util.concurrent.atomic.AtomicInteger();
+        doAnswer(invocation -> {
+            Object result=invocation.callRealMethod();
+            if(finishes.incrementAndGet()<=2) {
+                org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        private void fail() { throw new org.springframework.jdbc.CannotGetJdbcConnectionException(
+                            "completion unavailable",new java.sql.SQLException("connection lost","08006")); }
+                        @Override public void beforeCommit(boolean readOnly) { if(!committed) fail(); }
+                        @Override public void afterCommit() { if(committed) fail(); }
+                    });
+            }
+            return result;
+        }).when(executionDomain).finish(any());
+        scheduler.tick();
+        assertEquals(committed?"SUCCESS":"RUNNING",executions.get(actor,queued.executionKey()).status());
+        byte[] saved=committed?executions.download(actor,queued.executionKey()):null;
+        scheduler.tick();
+        assertEquals(committed?"SUCCESS":"PENDING",executions.get(actor,queued.executionKey()).status());
+        if(!committed) {
+            jdbc.update("UPDATE demo_execution SET next_attempt_at=now() WHERE execution_key=?",queued.executionKey());
+            scheduler.tick();
+        }
+        var done=executions.get(actor,queued.executionKey());
+        assertEquals("SUCCESS",done.status());
+        assertEquals(committed?1:2,done.attempt());
+        if(committed) assertArrayEquals(saved,executions.download(actor,queued.executionKey()));
+        assertEquals(1L,jdbc.queryForObject("SELECT count(*) FROM demo_execution",Long.class));
     }
 
     @Test void shouldRejectExplicitRevokedFieldWithoutAnArtifact() {
@@ -541,6 +647,35 @@ class DemoDataPgIT {
         var next=importer.submit(actor,new cn.ac.fage.accessmesh.example.data.dto.ImportDtos.ImportReq("r1",UUID.randomUUID().toString()),csv("X"));
         assertEquals("IMPORTED",next.status());
         assertEquals(1L,jdbc.queryForObject("SELECT count(*) FROM demo_record WHERE tenant_id=1 AND record_code='X' AND delete_flag=0",Long.class));
+    }
+
+    @ParameterizedTest @ValueSource(booleans={false,true})
+    void shouldBoundInitialDatasetLockWaitForImportAndRevoke(boolean revoke) throws Exception {
+        allowImport();
+        String key=UUID.randomUUID().toString();
+        var request=new cn.ac.fage.accessmesh.example.data.dto.ImportDtos.ImportReq("r1",key);
+        if(revoke) importer.submit(actor,request,csv("lock-budget"));
+        java.util.concurrent.CompletableFuture<?> work=null;
+        try(var connection=Objects.requireNonNull(jdbc.getDataSource()).getConnection()) {
+            connection.setAutoCommit(false);
+            try(var statement=connection.prepareStatement("SELECT id FROM demo_dataset WHERE tenant_id=1 FOR UPDATE")) {
+                statement.executeQuery().close();
+            }
+            try {
+                work=java.util.concurrent.CompletableFuture.supplyAsync(() -> revoke
+                    ?importer.revoke(actor,new cn.ac.fage.accessmesh.example.data.dto.ImportDtos.KeyReq(key))
+                    :importer.submit(actor,request,csv("lock-budget")));
+                var pending=work;
+                var failure=assertThrows(java.util.concurrent.ExecutionException.class,
+                    () -> pending.get(12,java.util.concurrent.TimeUnit.SECONDS));
+                assertEquals(30106,assertInstanceOf(BizException.class,failure.getCause()).getErrorCode());
+            } finally {
+                connection.rollback();
+                if(work!=null) work.handle((value,error)->null).get(10,java.util.concurrent.TimeUnit.SECONDS);
+            }
+        }
+        assertEquals(revoke?1L:0L,jdbc.queryForObject("SELECT count(*) FROM demo_record WHERE record_code='lock-budget' AND delete_flag=0",Long.class));
+        assertEquals(revoke?1L:0L,jdbc.queryForObject("SELECT count(*) FROM demo_import_batch WHERE import_key=?::uuid AND status='IMPORTED'",Long.class,key));
     }
 
     @Test void shouldRejectInstanceEvenWhenItCoversAllRowsAndRejectMissingSubmittedColumnGrant() {
