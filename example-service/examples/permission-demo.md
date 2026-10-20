@@ -1,6 +1,6 @@
 # 持久化权限演示接入
 
-元数据与资源发布入口由 T-ACCESS-139 提供。动态策略、行列查询与备注修改由 T-ACCESS-140 实现，CSV 导入由 T-ACCESS-138 实现，定时任务按[计划](../../docs/plans/example-permission-demo-plan.md)后续交付；本步骤不会创建业务记录或授予普通读者权限。
+元数据与资源发布入口由 T-ACCESS-139 提供。动态策略、行列查询与备注修改由 T-ACCESS-140 实现，CSV 导入由 T-ACCESS-138 实现，定时任务按[计划](../../docs/archive/2026-10-20/example-permission-demo-plan.md)后续交付；本步骤不会创建业务记录或授予普通读者权限。
 
 ## 准备与执行
 
@@ -92,3 +92,5 @@ pwsh tools/export-example-snapshot.ps1 -BaseUrl https://your-gateway.example `
 `mvn test -pl e2e -am -Dtest=ExampleBusinessFinalCheckE2EIT -Dsurefire.failIfNoSpecifiedTests=false` 使用独立临时 Gateway/access/example/PG/Redis，以真实普通用户完成授权、导入、行列查询、撤权、任务、重启与下载链路。加 `-Dexample.demo.scriptHost=<本机 pwsh 绝对路径>` 同时运行初始化与导出脚本；令牌只注入隔离子进程环境。此命令不使用或清空候选部署环境。
 
 SQL 事务、版本、同键并发、attempt 防旧结果覆盖及精确预算由 `DemoDataPgIT` 验证；执行键和受控状态由 API 留存。完整项目收口命令仍为根 `mvn test -T 1C`，包含 E2E/heavy。
+
+按步骤执行及核对 A/B/C/D、列集合和任务状态，见[同一用户联合场景包](permission-demo-scenarios.md)。

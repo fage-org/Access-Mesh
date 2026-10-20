@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-138
 title: 演示业务记录与 CSV 导入
 status: done
-plan: docs/plans/example-permission-demo-plan.md
+plan: docs/archive/2026-10-20/example-permission-demo-plan.md
 domain: cross-service
 design_refs:
   - docs/design/example-service-api-contract.md#import
@@ -35,11 +35,11 @@ last_updated: 2026-10-19
 
 导入绑定目标报表；先准备字段元数据、发布和授权，再确认数据。模板由场景脚本生成，上传校验与整批入库遵循字段权限，不增加独立预览作业。
 
-脚本生成并在网络重试中复用导入请求号；请求号与文件摘要直接归属批次，具体行为见[导入请求号与重导](../design/example-permission-demo.md#import-idempotency)，不新增通用幂等组件。
+脚本生成并在网络重试中复用导入请求号；请求号与文件摘要直接归属批次，具体行为见[导入请求号与重导](../../../design/example-permission-demo.md#import-idempotency)，不新增通用幂等组件。
 
 ## 当前口径
 
-取消销售人员管理和影子用户绑定流程；导入 ownerUserId 等业务归属使用场景包真实身份。普通请求主体/租户仍来自验签上下文，不由 CSV 或 DTO 决定。 详细规则见[权限演示设计](../design/example-permission-demo.md)；计划已 active，实现、定向验证和完整回归已验收；见[验证记录](evidence/example-permission-demo/T-ACCESS-138.md)。
+取消销售人员管理和影子用户绑定流程；导入 ownerUserId 等业务归属使用场景包真实身份。普通请求主体/租户仍来自验签上下文，不由 CSV 或 DTO 决定。 详细规则见[权限演示设计](../../../design/example-permission-demo.md)；计划已 active，实现、定向验证和完整回归已验收；见[验证记录](evidence/example-permission-demo/T-ACCESS-138.md)。
 
 ## 验收对照
 

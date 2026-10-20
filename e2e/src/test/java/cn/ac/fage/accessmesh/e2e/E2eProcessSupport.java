@@ -18,6 +18,15 @@ final class E2eProcessSupport {
 
     static ServiceHandle launch(String name, String mainClass, List<String> args,
                                 Map<String, String> env, String childClasspath) throws IOException {
+        return launchCommand(name,args,env,List.of("-cp",childClasspath,mainClass));
+    }
+
+    static ServiceHandle launchJar(String name,Path jar,List<String> args,Map<String,String> env) throws IOException {
+        if(!Files.isRegularFile(jar)) throw new IOException("Executable service jar is missing: "+jar);
+        return launchCommand(name,args,env,List.of("-jar",jar.toAbsolutePath().toString()));
+    }
+
+    private static ServiceHandle launchCommand(String name,List<String> args,Map<String,String> env,List<String> entryPoint) throws IOException {
         String javaBin = Path.of(System.getProperty("java.home"), "bin",
             System.getProperty("os.name", "").toLowerCase().contains("win") ? "java.exe" : "java").toString();
         int port = parsePort(args);
@@ -31,9 +40,7 @@ final class E2eProcessSupport {
         command.add("-Xms128m");
         command.add("-Xmx512m");
         command.add("-Dfile.encoding=UTF-8");
-        command.add("-cp");
-        command.add(childClasspath);
-        command.add(mainClass);
+        command.addAll(entryPoint);
         command.addAll(args);
 
         ProcessBuilder pb = new ProcessBuilder(command);

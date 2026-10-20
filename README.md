@@ -10,6 +10,7 @@
 - **树形角色模型**：ORG/POSITION/PERSONAL/GROUP_ROLE/BASIC_ROLE 五种角色类型已建模；角色管理页维护 BASIC_ROLE，PERSONAL 支持 API 与分配，GROUP_ROLE 写入冻结
 - **RBAC 权限引擎**：资源-操作-角色三位一体，支持条件权限和范围权限
 - **网关级鉴权**：Spring Cloud Gateway + Sa-Token，接口级白名单模式（快照本地匹配 + 30 秒撤权边界）
+- **持久化权限演示**：独立 example_db、CSV 导入、显式 SQL 行列过滤、本人快照与内部定时任务；提供[接入指南](example-service/examples/permission-demo.md)和[联合场景包](example-service/examples/permission-demo-scenarios.md)
 - **OAuth2 认证**：授权码 + PKCE / 刷新令牌模式
 - **文件管理**：标准租户提供分类上传、查询、下载与删除页面；管理员可向角色转授分类权限，普通用户默认无文件权限（[使用边界](docs/design/frontend/file-management.md)）
 - **SDK**：perm-client 提供 Feign 查询与 Servlet Gateway 身份验签；可选 perm-registration 负责依赖发布。Gateway 准入逻辑在 gateway 服务中，空壳 perm-gateway 已退役；SQL 自动改写模块仍未提供
@@ -34,7 +35,7 @@
 Gateway (8080)
   ├── access-service (9100)    能力包单体：管理面（用户/组织/菜单/认证/字典等）+ 权限面（权限事实 + 鉴权引擎）
   │                             （18 顶层包 = 13 能力包 + sync/engine/projection/bootstrap/infrastructure）
-  └── example-service (9300)    对接演示（问候接口与报表路由，经 Gateway 准入并在业务侧做最终检查）
+  └── example-service (9300)    对接演示（独立 example_db：动态行列权限、CSV、快照及内部任务）
 ```
 
 `admin-service` 与 `permission-center` 已归并为 `access-service`（单库 `access_db`），详见 [架构设计](docs/design/architecture.md) 与 [归并后目标架构](docs/design/access-service-architecture.md)。
@@ -70,7 +71,7 @@ docker compose --profile app up -d --build frontend gateway access-service
 
 平台就绪后先注册 example-service、签发服务凭证并填入 `.env`，再按[独立业务库说明](docs/ops/example-database.md)初始化 example_db/example_app 后启动 example-service。运营入口 http://127.0.0.1/#/platform/login （平台账号 `admin` + 部署密码）；从运营界面开通租户后，客户在租户登录页填写编码并使用一次交付的随机密码；开发模式手工启动、example 接口 403→授权→200 演练、常见问题见 [docs/quickstart.md](docs/quickstart.md)。默认 `docker compose up -d` 仅启动基础设施（PG/Redis/Nacos）。
 
-持久化报表/字段元数据与可靠资源发布可按[权限演示接入](example-service/examples/permission-demo.md)准备；动态行列 SQL、策略配置与备注修改已实现；CSV 导入与批次撤销已实现；内部定时任务按[计划](docs/plans/example-permission-demo-plan.md)继续交付。
+持久化报表/字段元数据与可靠资源发布可按[权限演示接入](example-service/examples/permission-demo.md)准备；动态行列 SQL、策略配置与备注修改已实现；CSV 导入与批次撤销已实现；内部定时任务按[计划](docs/archive/2026-10-20/example-permission-demo-plan.md)继续交付。
 
 ## License
 

@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-136
 title: 权限演示需求与实施契约定稿
 status: done
-plan: docs/plans/example-permission-demo-plan.md
+plan: docs/archive/2026-10-20/example-permission-demo-plan.md
 domain: cross-service
 design_refs:
   - docs/design/example-service-api-contract.md
@@ -34,15 +34,15 @@ last_updated: 2026-10-19
 
 定稿报表字段资源和目录版本、SUB_PERM 接入、动态列投影、导入与编辑权限、无可见字段响应及已完成产物边界。
 
-接口字段细化集中在[example API 契约](../design/example-service-api-contract.md)，已覆盖元数据、发布、策略、导入、记录读写与任务/结果入口，已通过本地双轨核对，设计已 adopted；下游按依赖实施。
+接口字段细化集中在[example API 契约](../../../design/example-service-api-contract.md)，已覆盖元数据、发布、策略、导入、记录读写与任务/结果入口，已通过本地双轨核对，设计已 adopted；下游按依赖实施。
 
-固定入口类型/主操作的边界已确认并回写[设计](../design/example-permission-demo.md#admission-binding)，不再保留未确认的主操作切换能力。
+固定入口类型/主操作的边界已确认并回写[设计](../../../design/example-permission-demo.md#admission-binding)，不再保留未确认的主操作切换能力。
 
 ## 当前口径
 
-CSV、本人/团队/部门、运行时动态配置、无业务页面、example 内部调度已确认，不重复提问。计划已获执行授权，本卡已完成契约定稿，下游代码任务按依赖推进。未决取舍按真实场景交用户决定，详细规则见[权限演示设计](../design/example-permission-demo.md)。
+CSV、本人/团队/部门、运行时动态配置、无业务页面、example 内部调度已确认，不重复提问。计划已获执行授权，本卡已完成契约定稿，下游代码任务按依赖推进。未决取舍按真实场景交用户决定，详细规则见[权限演示设计](../../../design/example-permission-demo.md)。
 
-导入采用已确认的[请求号与重导契约](../design/example-permission-demo.md#import-idempotency)，API 与唯一约束据此细化。PG 复用现状：`ItInfra` 位于 access-service 测试源，绑定 access DDL 模板和 Redis 注册，不能直接成为 example 测试依赖；共享出口须只抽离实际复用的基建，保留各服务 schema 与测试执行轨道。
+导入采用已确认的[请求号与重导契约](../../../design/example-permission-demo.md#import-idempotency)，API 与唯一约束据此细化。PG 复用现状：`ItInfra` 位于 access-service 测试源，绑定 access DDL 模板和 Redis 注册，不能直接成为 example 测试依赖；共享出口须只抽离实际复用的基建，保留各服务 schema 与测试执行轨道。
 
 [设计检查](evidence/example-permission-demo/design-check.md)保留当前契约对照与检查边界，不替代本卡定稿验收。
 

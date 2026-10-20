@@ -62,7 +62,7 @@ final class E2eTenantSupport {
             if (token != null) builder.header("Authorization", "Bearer " + token);
             var response = HTTP.send(builder.build(), HttpResponse.BodyHandlers.ofString());
             JsonNode envelope = JSON.readTree(response.body());
-            assertThat(response.statusCode()).as("HTTP %s", url).isEqualTo(200);
+            assertThat(response.statusCode()).as("HTTP %s, code=%s, message=%s", url, envelope.path("code"), envelope.path("message")).isEqualTo(200);
             assertThat(envelope.path("code").asInt()).as("%s: %s", url, envelope.path("message")).isEqualTo(200);
             return envelope.path("data");
         } catch (InterruptedException exception) {

@@ -9,6 +9,7 @@ import java.util.Map;
 
 public interface DemoDataDomainService {
     DataSqlPlan authorizeRead(Caller caller,Selection selection);
+    DataSqlPlan authorizeSnapshot(Caller caller,Selection selection);
     DataSqlPlan authorizeEdit(Caller caller,String reportCode);
     DataSqlPlan authorizeImport(Caller caller,String reportCode,java.util.Set<cn.ac.fage.accessmesh.example.data.catalog.DemoField> fields);
     void verify(DataSqlPlan plan);

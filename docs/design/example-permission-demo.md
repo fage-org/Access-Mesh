@@ -13,7 +13,7 @@ last_reviewed: 2026-10-20
 
 example 是拥有真实业务数据的权限接入样板，交付目标是可重复验证权限系统行为。业务外壳采用“报表资源 + 销售记录 + 自定义定时任务”，不建设数据分析产品。
 
-2026-10-18 用户确认：CSV 数据入口；本人、团队、部门场景同时覆盖；数据权限必须动态配置，不能硬编码业务维度；导入报表的字段作为基于特定报表资源的数据权限；去掉数据分析和业务页面；example 使用内部调度，暂不接 access-service 现有任务管理。2026-10-19 已获授权逐步执行计划，[T-ACCESS-136](../tasks/T-ACCESS-136.md)已完成实施契约定稿；以下为采纳目标，实际交付仍按任务逐步验收。
+2026-10-18 用户确认：CSV 数据入口；本人、团队、部门场景同时覆盖；数据权限必须动态配置，不能硬编码业务维度；导入报表的字段作为基于特定报表资源的数据权限；去掉数据分析和业务页面；example 使用内部调度，暂不接 access-service 现有任务管理。2026-10-19 已获授权逐步执行计划，[T-ACCESS-136](../archive/2026-10-20/tasks/T-ACCESS-136.md)已完成实施契约定稿；以下为现役实施边界，完整验收与归档见[任务看板](../tasks/README.md)。
 
 同日确认的范围收敛：导入/撤销仅供具备全行编辑范围的管理身份准备数据；策略采用校验后原子生效，取消独立草稿生命周期；新后台任务不携带用户 IP，时间条件按实际执行时评估。以下正文为这些决定的唯一详细口径。
 
@@ -192,7 +192,7 @@ access-service 当前任务调用仅支持本进程 `@JobInvocable bean.method(T
 - 用户被停用、权限被撤销、服务凭证失效或任务停用，后续执行应拒绝/跳过；不得只验证“任务创建时有权”。停止任务/撤权与已经进行中的取数不存在跨服务强原子承诺，按现行鉴权生效窗口和本地检查边界验收。
 - 本计划新增后台快照/定时任务的自动、手动及重试执行均不携带用户 clientIp：不沿用提交来源 IP，不以任务主机 IP 代替，也不从旧请求头恢复。IP 条件缺上下文时不满足，依现役引擎返回 DENIED 或 EMPTY；若另有有效授权，仍按现役合并语义判定，不能自行改成“出现任何 IP 条件就整次拒绝”。时间条件由鉴权服务按本次实际执行时间评估，不使用任务创建时间或计划触发时间伪装当前时间。现有旧一次性导出保存提交 IP 的实现不在本次改动范围。
 
-该语义造成的“在线 IP 条件通过、后台不满足”限制及后续重访条件保留于 [T-ACCESS-143](../tasks/T-ACCESS-143.md#task-ip-context-limit)，不因本次定案丢失，也不据此放宽当前权限检查。
+该语义造成的“在线 IP 条件通过、后台不满足”限制及后续重访条件保留于 [T-ACCESS-143](../archive/2026-10-20/tasks/T-ACCESS-143.md#task-ip-context-limit)，不因本次定案丢失，也不据此放宽当前权限检查。
 - 结果按[执行预算](#execution-budgets)限制行数与字节，超限失败并提示缩小筛选；结果直接持久化在业务库，避免首版再建设文件卷和文件管理。CSV 导出沿既有转义与公式防护规则。
 - 任务定义、执行状态、尝试号、错误摘要及成功结果持久化。服务重启加载启用任务并处理未完成执行；通过 CAS/尝试号防旧执行覆盖新结果，唯一执行键防重复落结果。
 - 失败重试有上限；最终失败可见。权限拒绝为业务终态，不无限重试；技术故障才按既定预算重试。停机期间默认不补发全部遗漏 cron，只恢复已有未完成记录；恢复与重试规则见本节及执行预算。
@@ -253,9 +253,9 @@ Controller → AppService → DomainService → Mapper；事务在 AppService。
 
 原 `ItInfra` 保留 access 侧门面及其模板/租户初始化、Redis 注册；抽离其 PG 容器、fork 槽位及隔离建库部分给真实的两个使用者。example 只消费 PG，按 example 原样 DDL 建类库；不启动 Redis、不加载 IAM schema/租户基线。现有 access 用例不需要逐类改调用方式。
 
-example 使用独立 `testcontainers` execution，沿用 skipTestcontainers、heavy 与 fork 进程隔离规则；不与普通上下文测试混跑，也不把跨服务 E2E 移回服务模块。时区映射按工程规范 §7.4 在 example 配置同等 TypeHandler，不为此把 ORM 依赖上提 common。具体受影响证据与现状见[实施前核对](../tasks/evidence/example-permission-demo/implementation-baseline.md)。
+example 使用独立 `testcontainers` execution，沿用 skipTestcontainers、heavy 与 fork 进程隔离规则；不与普通上下文测试混跑，也不把跨服务 E2E 移回服务模块。时区映射按工程规范 §7.4 在 example 配置同等 TypeHandler，不为此把 ORM 依赖上提 common。具体受影响证据与现状见[实施前核对](../archive/2026-10-20/tasks/evidence/example-permission-demo/implementation-baseline.md)。
 
-当前持久层 Mapper 使用显式 tenantId 条件及同租户父对象关联；生成 SQL 的租户工厂拒绝未建立可信上下文的调用，不提供无租户回退。跨记录事务通过 Flex 管理的 Mapper 连接执行，不能混用独立 JDBC 连接来假定原子性。实际表约束、条件插入与映射验证由 T-ACCESS-137 承接；T-ACCESS-139 已接入元数据 AppService/DomainService、共同数据集行锁及事务内待发布事件，事务外发送，源版本条件回写就绪状态。查询与业务写入继续由后续任务交付。
+当前持久层 Mapper 使用显式 tenantId 条件及同租户父对象关联；生成 SQL 的租户工厂拒绝未建立可信上下文的调用，不提供无租户回退。跨记录事务通过 Flex 管理的 Mapper 连接执行，不能混用独立 JDBC 连接来假定原子性。实际表约束、条件插入与映射验证由 T-ACCESS-137 承接；T-ACCESS-139 已接入元数据 AppService/DomainService、共同数据集行锁及事务内待发布事件，事务外发送，源版本条件回写就绪状态。查询、备注修改、导入与持久任务均复用这些本地身份和串行边界，已通过 PG 与真实 E2E 验证。
 
 <a id="scenarios"></a>
 ## 8. 场景包与验收
@@ -307,24 +307,24 @@ example 使用独立 `testcontainers` execution，沿用 skipTestcontainers、he
 | 空范围与条件 | 按已有条件/互斥夹具产生 EMPTY，并分别对线上与任务执行 | 线上明确空态，任务 EMPTY，业务记录查询和产物写入均未发生 |
 | 故障与重启 | 结果事务提交前故障后恢复，再模拟提交成功但确认丢失 | 前者同 executionKey 重查权限后重试，后者只返回既有结果；数据库只保留一份成功产物 |
 
-API 演示等待可核对的状态和结果，不固定 sleep 后宣称撤权或恢复已生效。定向测试通过闩锁/执行闸门控制“提交后、执行前”和“结果提交前、提交后”，不新增生产调试后门。T-PERM-036 的普通用户在线行列、导入与双租户实证见[验收记录](../tasks/evidence/example-permission-demo/T-PERM-036.md)，T-ACCESS-141/143 证明同一执行器的快照/调度边界，T-ACCESS-142 用完整场景串起最终验收。
+API 演示等待可核对的状态和结果，不固定 sleep 后宣称撤权或恢复已生效。定向测试通过闩锁/执行闸门控制“提交后、执行前”和“结果提交前、提交后”，不新增生产调试后门。T-PERM-036 的普通用户在线行列、导入与双租户实证见[验收记录](../archive/2026-10-20/tasks/evidence/example-permission-demo/T-PERM-036.md)，T-ACCESS-141/143 证明同一执行器的快照/调度边界，T-ACCESS-142 的[联合场景包](../../example-service/examples/permission-demo-scenarios.md)与完整 E2E 串起同一用户验收，并保存实际执行观测。
 
 交付一个按场景组织的 API 样例/PowerShell 脚本包及预期记录 ID 清单，不强制新增第三方工具依赖；每步检查 HTTP、信封与业务结果。准备/重置/反例均限定演示范围，秘密只在内存或忽略配置保存。
 
-测试复用现有基础：配置编译用单测；原样 DDL、谓词 SQL、事务/幂等用 PG；跨服务场景只放 e2e。现有 ItInfra 位于 access-service 测试源，先明确可复用出口和 execution，不直接让 example 依赖该服务测试包或自建重复容器组。收口按仓库要求全量回归，不新增前端任务及不必要的浏览器门禁。
+测试复用现有基础：配置编译用单测；原样 DDL、谓词 SQL、事务/幂等用 PG；跨服务场景只放 e2e。PG 生命周期已提取至 test-support，access 的 ItInfra 和 example 的 ExamplePgInfra 分别保留服务门面和执行轨，不依赖另一服务测试包或自建重复容器组。收口按仓库要求全量回归，不新增前端任务及不必要的浏览器门禁。
 
 <a id="plan-boundary"></a>
 ## 9. 计划与非目标
 
-[执行计划](../plans/example-permission-demo-plan.md)只维护编排；任务卡持范围/验收。T-ACCESS-138/139 已实现导入字段及资源登记，T-ACCESS-140 实现行过滤与字段投影，T-PERM-036 验证行列四态/报表隔离，T-ACCESS-141/143 覆盖任务字段重查；不另立重复字段权限项目。T-FE-079 因无业务页面取消，下游移除对它的依赖。T-ACCESS-141 保留原异步导出主题但缩为有界权限快照与领取，不建设文件平台。
+[执行计划](../archive/2026-10-20/example-permission-demo-plan.md)只维护编排；任务卡持范围/验收。T-ACCESS-138/139 已实现导入字段及资源登记，T-ACCESS-140 实现行过滤与字段投影，T-PERM-036 验证行列四态/报表隔离，T-ACCESS-141/143 覆盖任务字段重查；不另立重复字段权限项目。T-FE-079 因无业务页面取消，下游移除对它的依赖。T-ACCESS-141 保留原异步导出主题但缩为有界权限快照与领取，不建设文件平台。
 
-计划已获用户执行授权，T-ACCESS-136 已定稿；T-PERM-036 的用户授权暂缓随整计划启动解除，仍依赖前置契约与实现验收。其他执行任务按直接依赖推进，不通过新任务绕过原卡门禁。
+本计划的全部执行任务已完成并归档。T-PERM-036 的历史暂缓在本计划内解除并已验收；其他暂缓事项保持，不自动扩展本计划范围。
 
 非目标：销售统计分析、图表、业务页面、外部数据源/ETL、任意 SQL、通用规则引擎、影子组织用户中心、跨服务调度桥接、独立备份平台、生产高可用承诺。Q-060 等原暂缓事项不自动重启。
 
 ## 10. 实施边界与执行预算
 
-API 细化见[专属契约](example-service-api-contract.md)，PG 复用路径见 §7.2，旧探针迁移证据见 T-ACCESS-136。新业务代码与原样 DDL 的实际验证由后续任务承担。
+API 细化见[专属契约](example-service-api-contract.md)，PG 复用路径见 §7.2，旧探针迁移证据见 T-ACCESS-136。新业务、原样 DDL、真实行列权限及可执行 JAR 的验证见 [最终验收](../archive/2026-10-20/tasks/evidence/example-permission-demo/T-ACCESS-142.md)。
 
 <a id="admission-binding"></a>
 ### 网关准入与主操作绑定

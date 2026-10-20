@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-139
 title: 演示资源登记与可靠发布
 status: done
-plan: docs/plans/example-permission-demo-plan.md
+plan: docs/archive/2026-10-20/example-permission-demo-plan.md
 domain: cross-service
 design_refs:
   - docs/design/example-service-api-contract.md#metadata
@@ -41,7 +41,7 @@ last_updated: 2026-10-19
 
 ## 当前口径
 
-使用现有服务凭证和 SYNC 通道，Feign 在本地事务外。策略管理与业务数据维护是独立授权；保持源版本和数据库事实一致，不自动扩大客户授权。详细规则见[权限演示设计](../design/example-permission-demo.md)与[类型用途契约](../design/example-service-api-contract.md#resource-type-purposes)；T-ACCESS-137 已完成，实现、定向验证与包含 E2E/heavy 的完整回归已验收；证据见[验证记录](evidence/example-permission-demo/T-ACCESS-139.md)。
+使用现有服务凭证和 SYNC 通道，Feign 在本地事务外。策略管理与业务数据维护是独立授权；保持源版本和数据库事实一致，不自动扩大客户授权。详细规则见[权限演示设计](../../../design/example-permission-demo.md)与[类型用途契约](../../../design/example-service-api-contract.md#resource-type-purposes)；T-ACCESS-137 已完成，实现、定向验证与包含 E2E/heavy 的完整回归已验收；证据见[验证记录](evidence/example-permission-demo/T-ACCESS-139.md)。
 
 ## 验收对照
 

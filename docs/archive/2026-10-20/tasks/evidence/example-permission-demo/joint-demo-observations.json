@@ -1,0 +1,165 @@
+[ {
+  "step" : "explicit-cron-A-B",
+  "execution" : {
+    "executionKey" : "8d795261-9918-4a83-8bcf-854676d28ac5",
+    "taskId" : 4,
+    "status" : "SUCCESS",
+    "attempt" : 1,
+    "scheduledTime" : "2026-10-20T01:57:00",
+    "policyVersion" : 3,
+    "catalogVersion" : 1,
+    "outputColumns" : [ {
+      "fieldId" : 2,
+      "fieldKey" : "recordCode",
+      "dataType" : "STRING"
+    }, {
+      "fieldId" : 8,
+      "fieldKey" : "productName",
+      "dataType" : "STRING"
+    } ],
+    "recordCount" : 2,
+    "expiresAt" : "2026-10-27T01:57:00.168315",
+    "reason" : null
+  }
+}, {
+  "step" : "self-A",
+  "execution" : {
+    "executionKey" : "73133c09-6c20-454d-90e1-c1206d9ef065",
+    "taskId" : 4,
+    "status" : "SUCCESS",
+    "attempt" : 1,
+    "scheduledTime" : null,
+    "policyVersion" : 3,
+    "catalogVersion" : 1,
+    "outputColumns" : [ {
+      "fieldId" : 2,
+      "fieldKey" : "recordCode",
+      "dataType" : "STRING"
+    }, {
+      "fieldId" : 8,
+      "fieldKey" : "productName",
+      "dataType" : "STRING"
+    } ],
+    "recordCount" : 1,
+    "expiresAt" : "2026-10-27T01:57:01.250306",
+    "reason" : null
+  }
+}, {
+  "step" : "explicit-field-denied",
+  "execution" : {
+    "executionKey" : "4fd9a988-95ff-4938-9990-de61e6936241",
+    "taskId" : 4,
+    "status" : "DENIED",
+    "attempt" : 1,
+    "scheduledTime" : null,
+    "policyVersion" : null,
+    "catalogVersion" : null,
+    "outputColumns" : null,
+    "recordCount" : null,
+    "expiresAt" : null,
+    "reason" : "PERMISSION_DENIED"
+  }
+}, {
+  "step" : "default-recordCode-only",
+  "execution" : {
+    "executionKey" : "310be9a9-9536-440e-a447-e2e0eec85cc5",
+    "taskId" : 4,
+    "status" : "SUCCESS",
+    "attempt" : 1,
+    "scheduledTime" : null,
+    "policyVersion" : 3,
+    "catalogVersion" : 1,
+    "outputColumns" : [ {
+      "fieldId" : 2,
+      "fieldKey" : "recordCode",
+      "dataType" : "STRING"
+    } ],
+    "recordCount" : 1,
+    "expiresAt" : "2026-10-27T01:57:03.430801",
+    "reason" : null
+  }
+}, {
+  "step" : "restored-A-two-columns",
+  "execution" : {
+    "executionKey" : "e41cc01f-1a43-4d72-b81a-abe0239a6451",
+    "taskId" : 4,
+    "status" : "SUCCESS",
+    "attempt" : 1,
+    "scheduledTime" : null,
+    "policyVersion" : 3,
+    "catalogVersion" : 1,
+    "outputColumns" : [ {
+      "fieldId" : 2,
+      "fieldKey" : "recordCode",
+      "dataType" : "STRING"
+    }, {
+      "fieldId" : 8,
+      "fieldKey" : "productName",
+      "dataType" : "STRING"
+    } ],
+    "recordCount" : 1,
+    "expiresAt" : "2026-10-27T01:57:05.52743",
+    "reason" : null
+  }
+}, {
+  "step" : "condition-empty",
+  "execution" : {
+    "executionKey" : "e6db1712-39e4-4896-96dc-790386315888",
+    "taskId" : 4,
+    "status" : "EMPTY",
+    "attempt" : 1,
+    "scheduledTime" : null,
+    "policyVersion" : 3,
+    "catalogVersion" : 1,
+    "outputColumns" : [ {
+      "fieldId" : 2,
+      "fieldKey" : "recordCode",
+      "dataType" : "STRING"
+    }, {
+      "fieldId" : 8,
+      "fieldKey" : "productName",
+      "dataType" : "STRING"
+    } ],
+    "recordCount" : 0,
+    "expiresAt" : null,
+    "reason" : null
+  }
+}, {
+  "step" : "restart-pending",
+  "execution" : {
+    "executionKey" : "c3d0cd69-25a1-4ffc-b308-4c053e373556",
+    "taskId" : 4,
+    "status" : "PENDING",
+    "attempt" : 0,
+    "scheduledTime" : null,
+    "policyVersion" : null,
+    "catalogVersion" : null,
+    "outputColumns" : null,
+    "recordCount" : null,
+    "expiresAt" : null,
+    "reason" : null
+  }
+}, {
+  "step" : "committed-replay-after-export-revoked",
+  "execution" : {
+    "executionKey" : "c3d0cd69-25a1-4ffc-b308-4c053e373556",
+    "taskId" : 4,
+    "status" : "SUCCESS",
+    "attempt" : 1,
+    "scheduledTime" : null,
+    "policyVersion" : 3,
+    "catalogVersion" : 1,
+    "outputColumns" : [ {
+      "fieldId" : 2,
+      "fieldKey" : "recordCode",
+      "dataType" : "STRING"
+    }, {
+      "fieldId" : 8,
+      "fieldKey" : "productName",
+      "dataType" : "STRING"
+    } ],
+    "recordCount" : 1,
+    "expiresAt" : "2026-10-27T01:57:33.931472",
+    "reason" : null
+  }
+} ]

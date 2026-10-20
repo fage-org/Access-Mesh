@@ -4,14 +4,13 @@
 
 ## 当前计划
 
-当前 [example 持久化权限演示计划](example-permission-demo-plan.md)为 active：T-ACCESS-136、137、139、140、138 已完成，T-ACCESS-141 已完成，下一步为 T-ACCESS-143，后续按依赖实施；不做分析或业务页面。候选部署与接入验收已完成归档。
-
-任务状态以[任务看板](../tasks/README.md)为准；T-PERM-036 已验收完成，其余暂缓事项保持。
+当前没有活跃执行计划。[example 持久化权限演示](../archive/2026-10-20/example-permission-demo-plan.md)已完成归档，任务状态以[任务看板](../tasks/README.md)为准；其他暂缓事项保持。
 
 ## 已归档计划
 
 | 文档 | 类型 | 状态 | 说明 |
 |------|------|------|------|
+| [example-permission-demo-plan](../archive/2026-10-20/example-permission-demo-plan.md) | example-service 持久化权限演示 | archived | [联合、正式包及完整回归验收](../archive/2026-10-20/tasks/evidence/example-permission-demo/T-ACCESS-142.md)；无业务页面 |
 | [candidate-deployment-acceptance-plan](../archive/2026-10-18/candidate-deployment-acceptance-plan.md) | 当前候选独立部署与首次接入验收 | archived | [最终验收](../archive/2026-10-18/tasks/evidence/candidate-deployment/verification.md)；本地预览与同版本恢复范围 |
 | [standard-capability-completion-plan](../archive/2026-10-18/standard-capability-completion-plan.md) | 顶栏裁剪与标准文件能力补齐 | archived | [验收](../archive/2026-10-18/tasks/evidence/standard-capability/verification.md)，Q-071/Q-078 已收敛 |
 | [login-audit-transaction-plan](../archive/2026-10-18/login-audit-transaction-plan.md) | 登录审计事务边界收敛 | archived | [验收](../archive/2026-10-18/tasks/evidence/T-ACCESS-117/verification.md)，Q-067 已收敛 |

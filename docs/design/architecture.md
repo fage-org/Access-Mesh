@@ -3,7 +3,7 @@ doc_type: design
 title: 微服务架构设计
 status: adopted
 domain: common
-last_reviewed: 2026-10-18
+last_reviewed: 2026-10-20
 ---
 
 # 微服务架构设计
@@ -24,7 +24,7 @@ last_reviewed: 2026-10-18
 | ----------------------------- | ------------------------------ | ---------------------- | ---------- | ---------------------------------------------------------------------- |
 | gateway                       | Spring Cloud Gateway (WebFlux) | 无（纯网关）           | 8080       | 流量入口：路由转发、Token 校验、接口鉴权                               |
 | access-service（访问控制服务）| Spring Boot 4 (WebMVC)         | PostgreSQL（access_db，public schema） | 9100 | 用户、组织、菜单、认证、字典/通知/文件/审计/调度（管理面）+ 通用权限管理与鉴权引擎（权限面）；能力包模块化单体（13 能力包 + sync/engine/projection/bootstrap/infrastructure，T-ACCESS-033），默认组织树是用户目录；组织既是业务树也是角色容器 |
-| example-service（演示服务）   | Spring Boot 4 (WebMVC)         | 无（瘦身后无数据源，T-API-001） | 9300       | 权限中心接入示例：报表示例族七路由+单受保护接口 `POST /api/example/demo/hello`（身份回显，3xxxx 错误码段）；接口级鉴权（第一层）由 Gateway 承担（规范 §2.4）；业务最终检查（第二层，T-ACCESS-061 拍板）经 perm-client SDK starter 调 auth/check 族端点（服务凭证通道）；可选 registration 只发布依赖，默认关闭 |
+| example-service（演示服务）   | Spring Boot 4 (WebMVC)         | PostgreSQL / MyBatis-Flex（独立 example_db） | 9300       | 持久化权限接入示例：动态 SQL 行列、CSV、快照与内部任务；保留报表探针族和单受保护接口 `POST /api/example/demo/hello`（身份回显，3xxxx 错误码段）；接口级鉴权（第一层）由 Gateway 承担（规范 §2.4）；业务最终检查（第二层，T-ACCESS-061 拍板）经 perm-client SDK starter 调 auth/check 族端点（服务凭证通道）；可选 registration 只发布依赖，默认关闭 |
 
 ### 1.2 基础设施
 
@@ -38,7 +38,7 @@ last_reviewed: 2026-10-18
 | 任务调度 | Spring Scheduler                   | 轻量定时任务（兼演示权限控制）       |
 | 认证框架 | Sa-Token + OAuth2                  | 多种授权模式并存                     |
 | 链路追踪 | X-Request-Id 头链（单 ID）          | 请求关联：Gateway 生成/透传 X-Request-Id，traceId 为其响应字段别名（T-PERM-021 F1.d 单 ID 收敛，原 X-Trace-Id 头偏好删除）；完整分布式 tracing 未接线（otel 桥依赖已引、头链路未消费，演进登记见 project-rules §4.3） |
-| 前端框架 | Vue 3 + Element Plus               | 管理端 + example 演示端              |
+| 前端框架 | Vue 3 + Element Plus               | IAM 管理端；example 使用 API/脚本              |
 
 ### 1.3 架构拓扑图
 
@@ -73,8 +73,8 @@ last_reviewed: 2026-10-18
        └───────────┬──────────────┘          └────────┬────────┘
                    │                                  │
                    ▼                                  ▼
-              PostgreSQL                         （无）
-              (access_db)                  example-service 无数据源（T-API-001 瘦身）
+              PostgreSQL                         PostgreSQL
+              (access_db)                       (example_db)
 ```
 
 ### 1.4 服务间交互矩阵
@@ -113,7 +113,7 @@ last_reviewed: 2026-10-18
 
 同机独立验收必须隔离容器名、宿主端口、网络、所有数据卷及服务发现；现有 Compose 固定名称与文件卷意味着仅更换 project name 不充分。T-ACCESS-131 已验证回环 HTTP、非默认端口的 nginx → Gateway → access-service 正式部署、平台初始化、登录页渲染与平台认证 HTTP 链路，见[候选部署证据](../archive/2026-10-18/tasks/evidence/candidate-deployment/verification.md)。该证据不扩展为生产 HTTPS、多代理、租户业务接入或恢复能力已验收。
 
-同版本重启与恢复范围另由 [T-ACCESS-134](../archive/2026-10-18/tasks/evidence/candidate-deployment/T-ACCESS-134/verification.md)验证：相同镜像重启/重建应用后持久化事实保持，停写后成套备份数据库与文件，恢复到独立 PG/Redis/Nacos/文件卷并核对实际 JDBC 目标；正常新登录后允许、拒绝和下载哈希通过。前端须在后端地址稳定后启动以刷新 nginx 上游解析。example 运行期报表为内存数据，不承诺重启持久化；不据此扩展为跨版本升级、生产容量或自动灾备能力。
+同版本重启与恢复范围另由 [T-ACCESS-134](../archive/2026-10-18/tasks/evidence/candidate-deployment/T-ACCESS-134/verification.md)验证：相同镜像重启/重建应用后持久化事实保持，停写后成套备份数据库与文件，恢复到独立 PG/Redis/Nacos/文件卷并核对实际 JDBC 目标；正常新登录后允许、拒绝和下载哈希通过。前端须在后端地址稳定后启动以刷新 nginx 上游解析。该冻结候选的 example 报表探针为内存数据，不承诺重启持久化；不据此扩展为跨版本升级、生产容量或自动灾备能力。
 
 T-ACCESS-135 已核对冻结源码、JAR/镜像/前端静态文件与部署配置，完成包含 E2E/heavy 的后端全量回归、前端质量门禁及源/恢复栈最终组合冒烟。[候选验收结论](../archive/2026-10-18/tasks/evidence/candidate-deployment/verification.md)只证明实际本机回环预览和同版本恢复范围，不改变上述生产部署与持久化边界，也不代表已经发布。
 
@@ -340,7 +340,7 @@ sys_menu 的权威 DDL 见 [`schema/access-service.sql`](schema/access-service.s
 
 ### 4.3 数据库
 
-当前无数据源（T-API-001 依赖瘦身删除 PostgreSQL/MyBatis-Flex）。[schema/example-service.sql](schema/example-service.sql) 为企业 BI 演示库 DDL（数据源、报表、数据任务），暂无消费方，保留供未来演示数据场景（仅演进方向）。
+example-service 使用独立 example_db/example_app，按 [schema/example-service.sql](schema/example-service.sql) 保存报表/字段、策略、记录与导入、资源发布、任务和有界结果；不读取 IAM 内部表。旧 BI DDL 已被当前演示 schema 替换，初始化及备份范围见[业务库说明](../ops/example-database.md)。旧 hello/report 内存探针保留独有接线证据，不能与新持久业务族混用。
 
 ### 4.4 SDK / Starter 规划
 

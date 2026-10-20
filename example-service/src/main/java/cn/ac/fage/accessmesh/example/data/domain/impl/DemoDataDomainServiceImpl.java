@@ -44,6 +44,8 @@ public class DemoDataDomainServiceImpl implements DemoDataDomainService {
     @Override
     public DataSqlPlan authorizeRead(Caller caller,Selection selection) { return authorize(caller,selection,null); }
     @Override
+    public DataSqlPlan authorizeSnapshot(Caller caller,Selection selection) { return authorize(caller,selection,null,true); }
+    @Override
     public DataSqlPlan authorizeEdit(Caller caller,String code) { return authorize(caller,new Selection(code,null,null,null),Set.of(DemoField.REMARK)); }
     @Override
     public DataSqlPlan authorizeImport(Caller caller,String code,Set<DemoField> fields) {
@@ -53,9 +55,14 @@ public class DemoDataDomainServiceImpl implements DemoDataDomainService {
     }
 
     private DataSqlPlan authorize(Caller caller,Selection selection,Set<DemoField> writeFields) {
+        return authorize(caller,selection,writeFields,false);
+    }
+    private DataSqlPlan authorize(Caller caller,Selection selection,Set<DemoField> writeFields,boolean frozen) {
         boolean edit=writeFields!=null;
         if(TransactionSynchronizationManager.isActualTransactionActive()) throw new IllegalStateException("Remote authorization must precede the data transaction");
         var report=metadata.getReport(caller.tenantId(),selection.reportCode()); requireReport(report);
+        var frozenFields=frozen?metadata.getFields(caller.tenantId(),report.getReportCode()):null;
+        if(frozen) verifyFrozenReferences(selection,frozenFields);
         var stored=policies.current(caller.tenantId());
         var configuration=compiler.parse(json.readTree(stored.getConfiguration()));
         var operations=edit?configuration.edit():configuration.read();
@@ -86,7 +93,7 @@ public class DemoDataDomainServiceImpl implements DemoDataDomainService {
             }
             rowPredicate="("+String.join(" OR ",alternatives)+")";
         }
-        var currentFields=metadata.getFields(caller.tenantId(),report.getReportCode());
+        var currentFields=frozenFields==null?metadata.getFields(caller.tenantId(),report.getReportCode()):frozenFields;
         Set<Long> granted=new HashSet<>();
         if(scopes.fields().scopeMode()==ScopeMode.ALL) currentFields.forEach(f -> granted.add(f.getId()));
         if(scopes.fields().scopeMode()==ScopeMode.INSTANCE) {
@@ -207,6 +214,18 @@ public class DemoDataDomainServiceImpl implements DemoDataDomainService {
     }
     private static boolean empty(DataSqlPlan plan) { return plan.emptyRows() || plan.columns().isEmpty(); }
     private static void requireRead(DataSqlPlan plan) { if(plan.permission()!=DemoPermission.REPORT_READ) throw error(ExampleErrorCode.PERMISSION_DENIED); }
+    private static void verifyFrozenReferences(Selection selection,List<DemoReportField> fields) {
+        var byId=fields.stream().collect(Collectors.toMap(DemoReportField::getId,f->f));
+        Set<Long> referenced=new HashSet<>();
+        if(selection.fieldIds()!=null) referenced.addAll(selection.fieldIds());
+        if(selection.filters()!=null) selection.filters().forEach(f->referenced.add(f.fieldId()));
+        if(selection.sort()!=null) referenced.add(selection.sort().fieldId());
+        for(Long id:referenced) {
+            var field=byId.get(id);
+            if(field==null || !field.getEnabled()) throw error(ExampleErrorCode.DEMO_OBJECT_UNAVAILABLE);
+            requirePublished(field.getPublicationStatus());
+        }
+    }
     private static DemoReportField requireAllowed(Map<Long,DemoReportField> allowed,Long id) {
         var field=allowed.get(id); if(field==null) throw error(ExampleErrorCode.PERMISSION_DENIED); return field;
     }

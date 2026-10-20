@@ -204,6 +204,8 @@ Selection 与记录查询共用，但不含分页；省略 fieldIds 为默认选
 
 执行响应为 `{executionKey,taskId?,status,attempt,scheduledTime?,policyVersion?,catalogVersion?,outputColumns?,recordCount?,expiresAt?,reason?}`。PENDING/RUNNING 尚未产生的版本或产物字段为空，不伪造提交时版本作为执行时版本；错误原因来自受控词表，不带原始异常或无权业务值。
 
+冻结选择引用的字段被删除、停用或已不属于该报表时为 FAILED（OBJECT_UNAVAILABLE）；字段身份仍有效但读取授权撤回时为 DENIED。在线选择接口继续使用相同的无权/未知拒绝语义，不新增存在性反馈。
+
 状态为 PENDING → RUNNING → SUCCESS / DENIED / EMPTY / SKIPPED / FAILED，SUCCESS 到期转 EXPIRED；暂态技术失败在预算内沿原键回 PENDING。每次抢占增加 attempt，输出字节和 SUCCESS 在同一事务按当前 attempt 提交；旧尝试不能覆盖新尝试。服务重启将预算内遗留 RUNNING 重新排队，已耗尽尝试预算的未完成记录转 FAILED，不能靠重启绕过上限。SUCCESS/EXPIRED 不重新取数；停机期间未产生记录的 cron 时刻不补发。
 
 任务维护、手动触发和 cron 入队在同租户数据集守卫下串行，并锁内读取当前任务状态/版本。启用和修改按当前数据库 UTC 时间计算下次触发；每次调度最多入队一个当前到期时刻，并计算后续时刻。启动将启用任务的未来时刻重新初始化，既有执行保留原键与冻结选择；不按旧配置补发停机时段。执行器在远程授权之前及本地取数快照开始时检查任务当前启用状态，已进入取数快照的执行不因随后停用追溯撤销。

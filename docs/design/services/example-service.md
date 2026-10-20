@@ -12,7 +12,7 @@ last_reviewed: 2026-10-20
 
 ## 持久化权限演示进度
 
-[权限演示设计](../example-permission-demo.md)与[新 API 契约](../example-service-api-contract.md)为 adopted 目标，[执行计划](../../plans/example-permission-demo-plan.md)为 active。T-ACCESS-137 接入独立业务库、持久化 Mapper 与 PG 测试支持；T-ACCESS-139 已实现元数据管理、冻结事件与资源发布，收口验证见任务卡。[接入脚本](../../../example-service/examples/permission-demo.md)提供类型、SUB_PERM 和完整路由准备。T-ACCESS-140 已实现策略版本与动态 SQL 行列过滤、查询及备注修改，收口状态见任务卡；CSV 导入、请求号重放和撤销由 T-ACCESS-138 实现，收口状态见任务卡；内部任务仍按后续卡交付。既有 hello/report 路由继续是下文的内存探针，不能把数据库基础等同于新业务 API 已上线。真实 SQL 权限链路的普通用户、行列四态、授权变化与双租户实证见 [T-PERM-036](../../tasks/T-PERM-036.md)，完整验收状态以任务卡为准。
+[权限演示设计](../example-permission-demo.md)与[API 契约](../example-service-api-contract.md)为现役依据。独立业务库、元数据可靠发布、动态 SQL 行列过滤、CSV 导入、持久快照和内部定时任务已交付；[执行计划](../../archive/2026-10-20/example-permission-demo-plan.md)已完成并归档。[接入指南](../../../example-service/examples/permission-demo.md)与[联合场景包](../../../example-service/examples/permission-demo-scenarios.md)提供可执行脚本和请求预期。普通用户、双租户、同一主体联合权限变化及可执行 JAR 重启证据见 [T-ACCESS-142](../../archive/2026-10-20/tasks/T-ACCESS-142.md)。既有 hello/report 路由继续保留其内存探针和独有回归证据，不与持久业务数据混用。
 
 ## 职责边界
 
@@ -25,7 +25,7 @@ last_reviewed: 2026-10-20
 
 [首次接入操作示例](../../../example-service/examples/first-access.md)与配套 FULL 清单覆盖 hello、报表 view/list/create；VIEW 路径用 `EXAMPLE/report-1` 与 `report-2` 做允许/拒绝对照。示例实际报表为按租户隔离的内存数据，资源登记不会创建业务内容，重建示例容器会丢失运行期新建报表。当前租户已具权限但业务对象不存在时返回 30001，实例权限不足返回 30004，凭证认证失败等查询依赖故障返回 30005。固定候选的两租户凭证、授撤、对象隔离及防直调已由代理验证，详见 [T-ACCESS-133 证据](../../archive/2026-10-18/tasks/evidence/candidate-deployment/T-ACCESS-133/verification.md)；不据此声称独立新人接入或真实 SQL 过滤已验证。
 
-T-ACCESS-135 在相同冻结镜像上完成源栈/恢复栈普通用户允许、拒绝及文件组合冒烟，并通过包含示例 E2E 的完整回归；[最终候选结论](../../archive/2026-10-18/tasks/evidence/candidate-deployment/verification.md)保留版本与边界。该冻结版本的报表数据为内存样本；当前分支新增业务库基础见本文数据库节，不回改历史验收边界。
+T-ACCESS-135 在相同冻结镜像上完成源栈/恢复栈普通用户允许、拒绝及文件组合冒烟，并通过包含示例 E2E 的完整回归；[最终候选结论](../../archive/2026-10-18/tasks/evidence/candidate-deployment/verification.md)保留版本与边界。该冻结版本的报表数据为内存样本；当前分支持久化演示见本文数据库节，不回改历史验收边界。
 
 - `POST /api/example/demo/hello`（身份回显接口）：入参 `{name}`，返回问候语 + Gateway `HeaderEnrichFilter` 注入的 `X-User-Id`/`X-Tenant-Id` 回显；`name` 空白拒绝 30001、身份头缺失拒绝 30002（example 业务域错误码段 30001-39999，`ExampleErrorCode`）。
 - 接口级鉴权（第一层）由 Gateway 承担（规范 §2.4）：Gateway `Path=/api/example/**` 路由（无 StripPrefix、`serviceCode=example-service`，T-ACCESS-042 单命名空间）按操作准入快照放行/拒绝（MAY_ENTER=存在类型-操作覆盖候选，非最终许可）。
@@ -82,7 +82,7 @@ T-ACCESS-135 在相同冻结镜像上完成源栈/恢复栈普通用户允许、
 
 本服务使用独立 example_db/example_app，已接入 MyBatis-Flex/PostgreSQL；唯一 DDL 为 [example-service.sql](../schema/example-service.sql)，原未使用 BI schema 已替换。初始化、环境变量与备份范围见[业务库说明](../../ops/example-database.md)。启动检查连接与基础表，不自动执行 DDL 或灌业务样本。
 
-持久层当前提供报表/字段实体与显式租户 Mapper，字段资源编码由不可复用主键生成。PG 测试验证唯一约束、租户与父对象归属、UTC 映射和实际 Mapper 事务；完整业务编排、发布和权限过滤不由本段宣称完成。
+持久层覆盖报表/字段、策略、业务数据及导入、待发布事件、任务和执行结果，均显式约束租户。PG 测试验证唯一约束、归属、UTC 映射和事务；真实 E2E 及可执行 JAR 验证业务编排、权限变化、重启与结果领取。字段资源编码由不可复用主键生成。
 
 ## 有界权限快照
 

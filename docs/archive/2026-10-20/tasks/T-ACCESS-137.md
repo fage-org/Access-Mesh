@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-137
 title: 权限演示数据库与持久化基础
 status: done
-plan: docs/plans/example-permission-demo-plan.md
+plan: docs/archive/2026-10-20/example-permission-demo-plan.md
 domain: cross-service
 design_refs:
   - docs/design/schema/example-service.sql
@@ -35,7 +35,7 @@ example_db、数据源、MyBatis-Flex 分层、原样 DDL、审计/唯一性/CAS
 
 ## 当前口径
 
-不用旧未消费 DDL 直接启动，不读取 IAM 内部表，不建设销售分析字段或影子用户中心。单实例部署；测试支持避免让 example 依赖 access-service 测试包或重复自建容器组。详细规则见[权限演示设计](../design/example-permission-demo.md)；持久化基础已完成，定向 PG、原有 E2E、正式包重启检查及包含 E2E/heavy 的完整回归通过。业务入口仍由后续任务交付。
+不用旧未消费 DDL 直接启动，不读取 IAM 内部表，不建设销售分析字段或影子用户中心。单实例部署；测试支持避免让 example 依赖 access-service 测试包或重复自建容器组。详细规则见[权限演示设计](../../../design/example-permission-demo.md)；持久化基础已完成，定向 PG、原有 E2E、正式包重启检查及包含 E2E/heavy 的完整回归通过。业务入口仍由后续任务交付。
 
 [实现与验证记录](evidence/example-permission-demo/T-ACCESS-137.md)保存测试范围、环境问题处置与包验证边界。
 

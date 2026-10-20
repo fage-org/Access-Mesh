@@ -31,19 +31,18 @@
 | 默认组织树与用户生命周期 | [default-org-tree-user-lifecycle.md](default-org-tree-user-lifecycle.md)               |
 | 组织与用户·权限契约    | [org-user-permission-contract.md](org-user-permission-contract.md)                     |
 | 跨服务设计              | [cross-service/](cross-service/)                                                       |
-| 扩展指南（接入与二开全景） | [extension-guide.md](extension-guide.md)（T-FE-023 产出，2026-09-12 定稿 adopted——双通道外评两轮处置收口；场景驱动的接入方导引层，契约细节以 [access-service-api-contract.md](access-service-api-contract.md) 等权威文档为准） |
+| 扩展指南（接入与二开全景） | [extension-guide.md](extension-guide.md)（T-FE-023 产出，2026-09-12 已定稿 adopted；场景驱动的接入方导引层，契约细节以 [access-service-api-contract.md](access-service-api-contract.md) 等权威文档为准） |
 | ~~admin 域对前端 API 契约~~ | 已 `status: superseded`（2026-09-13 T-ACCESS-040 并入契约总册；原文件在 services 目录保留原位作历史锚点，锚点对照见总册附录 C） |
 | 前端页面级设计 | [frontend/](frontend/)（UI 设计，随 T-FE 任务产出回写） |
 | 测试证据精简与维护成本优化 | [testing-simplification.md](testing-simplification.md)（adopted；当前处置、验证边界与归档验收） |
 | 公共 Redis 事务锁与后端并发 | [工程规范 §9.4](project-rules.md#backend-concurrency)、[redis-transaction-locks.md](redis-transaction-locks.md)（adopted；统一实现、接入与验收规范） |
+| example 持久化权限演示 | [设计](example-permission-demo.md)、[API 契约](example-service-api-contract.md)（adopted；动态行列、CSV、快照与内部任务已交付；[验收](../archive/2026-10-20/tasks/evidence/example-permission-demo/T-ACCESS-142.md)） |
 | PostgreSQL 表结构     | [schema/access-service.sql](schema/access-service.sql)（唯一权威 DDL）；[schema/example-service.sql](schema/example-service.sql)（演示库） |
 
 ## 待实施方案
 
 | 文档 | 状态 | 关联计划 |
 |---|---|---|
-| [example 持久化权限演示](example-permission-demo.md) | adopted 目标；动态行列权限、报表字段隔离、CSV、内部调度，无分析或业务页面 | [权限演示计划](../plans/example-permission-demo-plan.md) |
-| [example 演示 API 契约](example-service-api-contract.md) | adopted；元数据与发布已交付，其余按计划实施 | [权限演示计划](../plans/example-permission-demo-plan.md) |
 | [IAM核心正确性与用户任务闭环](iam-task-closure.md) | draft；非现役契约，取舍随任务启动确定 | [执行计划](../archive/2026-09-24/iam-task-closure-plan.md) |
 
 [历史简化评估](../archive/2026-09-20/auto-grant-assessment.md)仅作追溯，当前实施依据为上方已采纳的自动授权设计。
@@ -115,10 +114,11 @@ Claude 按需技能位于 `.claude/skills/`。
 
 [登录审计事务边界](access-service-architecture.md#login-audit-transaction-boundary)已由 T-ACCESS-117 实施，验证见[2026-10-18 归档](../archive/2026-10-18/tasks/evidence/T-ACCESS-117/verification.md)。
 
-[2026-10-18 批次](../archive/2026-10-18/README.md)包含服务凭证验收与 T-ACCESS-097 补归档；Q-069 已收敛。T-PERM-036 已完成权限演示的在线行列验证，后续快照/任务依看板推进。
+[2026-10-18 批次](../archive/2026-10-18/README.md)包含服务凭证验收与 T-ACCESS-097 补归档；Q-069 已收敛。T-PERM-036、快照与内部任务均已完成；[2026-10-20 批次](../archive/2026-10-20/README.md)保存完整权限演示计划与验收。
 
 | 归档批次              | 说明                                                                                                                                            |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| [2026-10-20](../archive/2026-10-20/README.md) | example 持久化权限演示完成；设计与 API 保持现役，计划/任务/证据归档。 |
 | [2026-10-18](../archive/2026-10-18/README.md) | T-ACCESS-114 服务凭证 SHA-256 验密任务与验收证据归档，现行规则见服务认证 §3.2 与契约总册 §24。 |
 | [2026-09-26](../archive/2026-09-26/README.md) | T-ACCESS-064：当前决定归所属规范、入口只导航；旧两册与压缩前原文冻结，增量核对及语义对照随任务归档。 |
 | `../archive/2026-09-14/` | access-service 能力包融合计划归档（T-ACCESS-041 终态）：十任务全 done 后用户确认定稿归档。结构契约沉淀至本页 `access-service-capability-structure.md`（adopted，17 顶层包归属清单与边界断言），错误码/缓存目录/操作码单册与契约总册、engine 三册、permission-coding-standards 规则均为现行权威；遗留登记见 pending-problems（Q-006 滚动发布边界 / Q-007 / Q-008；Q-001/Q-009 已收敛——后者 30 边白名单退役为绝对禁断，T-ACCESS-043~046） |

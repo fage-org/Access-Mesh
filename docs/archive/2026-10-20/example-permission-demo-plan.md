@@ -1,7 +1,7 @@
 ---
 doc_type: plan
 title: example-service 持久化权限演示
-status: active
+status: archived
 domain: cross-service
 design_refs:
   - docs/design/example-permission-demo.md
@@ -26,7 +26,7 @@ last_updated: 2026-10-20
 
 ## 目标
 
-按[需求设计](../design/example-permission-demo.md)交付真实数据库支撑的权限样板；重点是动态行范围、报表上下文的字段权限和任务执行权限，不建设 BI 分析产品。2026-10-19 已获用户授权逐步执行，先完成契约定稿，再按直接依赖实施。
+按[需求设计](../../design/example-permission-demo.md)交付真实数据库支撑的权限样板；重点是动态行范围、报表上下文的字段权限和任务执行权限，不建设 BI 分析产品。2026-10-19 已获用户授权逐步执行，先完成契约定稿，再按直接依赖实施。
 
 ## 非目标
 
@@ -42,16 +42,16 @@ last_updated: 2026-10-20
 
 | ID | 标题 | 状态 | 直接依赖 |
 |---|---|---|---|
-| [T-ACCESS-136](../tasks/T-ACCESS-136.md) | 权限演示需求与实施契约定稿 | ✅ | — |
-| [T-ACCESS-137](../tasks/T-ACCESS-137.md) | 权限演示数据库与持久化基础 | ✅ | T-ACCESS-136 |
-| [T-ACCESS-139](../tasks/T-ACCESS-139.md) | 演示资源登记与可靠发布 | ✅ | T-ACCESS-137 |
-| [T-ACCESS-140](../tasks/T-ACCESS-140.md) | 动态策略配置与真实 SQL 权限过滤 | ✅ | T-ACCESS-139 |
-| [T-ACCESS-138](../tasks/T-ACCESS-138.md) | 演示业务记录与 CSV 导入 | ✅ | T-ACCESS-140 |
-| [T-PERM-036](../tasks/T-PERM-036.md) | 动态数据权限端到端验证 | ✅ | T-ACCESS-138 |
-| [T-ACCESS-141](../tasks/T-ACCESS-141.md) | 有界授权快照导出与结果领取 | ✅ | T-ACCESS-140、T-PERM-036 |
-| [T-ACCESS-143](../tasks/T-ACCESS-143.md) | example 内部自定义定时任务与恢复 | ✅ | T-ACCESS-141 |
-| [T-ACCESS-142](../tasks/T-ACCESS-142.md) | 权限场景包与持久化验收收口 | ⚙️ | T-ACCESS-143、T-PERM-036 |
-| [T-FE-079](../tasks/T-FE-079.md) | BI 工作区与销售分析页面 | ❌ | — |
+| [T-ACCESS-136](tasks/T-ACCESS-136.md) | 权限演示需求与实施契约定稿 | ✅ | — |
+| [T-ACCESS-137](tasks/T-ACCESS-137.md) | 权限演示数据库与持久化基础 | ✅ | T-ACCESS-136 |
+| [T-ACCESS-139](tasks/T-ACCESS-139.md) | 演示资源登记与可靠发布 | ✅ | T-ACCESS-137 |
+| [T-ACCESS-140](tasks/T-ACCESS-140.md) | 动态策略配置与真实 SQL 权限过滤 | ✅ | T-ACCESS-139 |
+| [T-ACCESS-138](tasks/T-ACCESS-138.md) | 演示业务记录与 CSV 导入 | ✅ | T-ACCESS-140 |
+| [T-PERM-036](tasks/T-PERM-036.md) | 动态数据权限端到端验证 | ✅ | T-ACCESS-138 |
+| [T-ACCESS-141](tasks/T-ACCESS-141.md) | 有界授权快照导出与结果领取 | ✅ | T-ACCESS-140、T-PERM-036 |
+| [T-ACCESS-143](tasks/T-ACCESS-143.md) | example 内部自定义定时任务与恢复 | ✅ | T-ACCESS-141 |
+| [T-ACCESS-142](tasks/T-ACCESS-142.md) | 权限场景包与持久化验收收口 | ✅ | T-ACCESS-143、T-PERM-036 |
+| [T-FE-079](tasks/T-FE-079.md) | BI 工作区与销售分析页面 | ❌ | — |
 
 ## 推进顺序
 
@@ -63,6 +63,4 @@ last_updated: 2026-10-20
 
 ## 当前进度
 
-T-ACCESS-136、137、139、140、138 与 T-PERM-036 done；T-ACCESS-141 done；T-ACCESS-143 done，T-ACCESS-142 proposed；T-FE-079 cancelled。下一步为 T-ACCESS-142。执行中的未决设计取舍由用户决定，已确认范围不重复提问。
-
-定稿核对证据见 T-ACCESS-136；已确认的导入请求号、记录定位、安全测试例外、执行预算和固定主操作已回写所属规范。
+全部执行任务已完成，T-FE-079 保持 cancelled。真实数据、行列权限、快照、内部定时任务、同一用户联合主线与可执行 JAR 验收已完成；证据见 [T-ACCESS-142](tasks/T-ACCESS-142.md)。没有未决取舍，不恢复本计划范围外的暂缓事项。

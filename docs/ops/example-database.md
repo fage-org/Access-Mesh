@@ -2,7 +2,7 @@
 
 example-service 使用独立的 `example_db` 和 `example_app` 账号。它不读取 access_db 的 IAM 内部表，也不在启动时创建业务样本或执行 DDL。数据源连接及基础表检查失败会阻止服务启动。
 
-本步骤只交付数据库与持久化基础；旧 `/demo/hello`、`/report/**` 仍是既有探针，不能据此认为新的动态行列业务 API 已交付。实施状态见[权限演示计划](../plans/example-permission-demo-plan.md)。
+本页负责数据库初始化与运行边界；动态行列、导入、快照及内部任务的使用见[演示指南](../../example-service/examples/permission-demo.md)。旧 `/demo/hello`、`/report/**` 仍保留为独立内存探针。完整验收状态见[权限演示计划](../archive/2026-10-20/example-permission-demo-plan.md)。
 
 ## 首次初始化
 

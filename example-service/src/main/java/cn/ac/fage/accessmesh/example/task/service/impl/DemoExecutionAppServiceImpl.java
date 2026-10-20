@@ -70,7 +70,7 @@ public class DemoExecutionAppServiceImpl implements DemoExecutionAppService {
                 var selection=json.readValue(e.getRequestPayload(),Selection.class);
                 permissions.require(c,DemoPermission.TASK_TRIGGER,null);
                 permissions.require(c,DemoPermission.REPORT_EXPORT,selection.reportCode());
-                var plan=data.authorizeRead(c,selection);
+                var plan=data.authorizeSnapshot(c,selection);
                 read.executeWithoutResult(s -> {
                     if(!tasks.executable(e)) { skip(e); return; }
                     var page=data.page(plan,1,1001);

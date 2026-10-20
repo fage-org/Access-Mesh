@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-143
 title: example 内部自定义定时任务与恢复
 status: done
-plan: docs/plans/example-permission-demo-plan.md
+plan: docs/archive/2026-10-20/example-permission-demo-plan.md
 domain: cross-service
 design_refs:
   - docs/design/example-service-api-contract.md#tasks
@@ -38,7 +38,7 @@ last_updated: 2026-10-20
 
 ## 当前口径
 
-不接 access-service 任务管理。任务主体固定为可信创建者，配置不得指定任意用户/URL/方法/SQL。单实例，调度执行复用 T-ACCESS-141 的同一业务入口。 详细规则见[权限演示设计](../design/example-permission-demo.md)；计划已 active，前置快照已完成，本卡实现、定向与标准完整回归已完成。
+不接 access-service 任务管理。任务主体固定为可信创建者，配置不得指定任意用户/URL/方法/SQL。单实例，调度执行复用 T-ACCESS-141 的同一业务入口。 详细规则见[权限演示设计](../../../design/example-permission-demo.md)；计划已 active，前置快照已完成，本卡实现、定向与标准完整回归已完成。
 
 ## 验收对照
 
@@ -58,9 +58,9 @@ last_updated: 2026-10-20
 
 现象：用户在线请求带可信 clientIp，可能满足报表或范围授权的 IP 条件；同一用户的定时任务没有可证明其当前网络位置的上下文，按本计划不传 clientIp，该 IP 条件不满足。若没有其他有效授权，任务依引擎结果进入 DENIED/EMPTY，不产生数据结果；有其他有效授权时仍按正常合并语义处理。
 
-当前处置：按[任务条件上下文](../design/example-permission-demo.md#scheduled-tasks)作为已确认的功能限制保留，不将其视为尚未处理的实现故障；本卡验收验证在线与后台结果的差异。
+当前处置：按[任务条件上下文](../../../design/example-permission-demo.md#scheduled-tasks)作为已确认的功能限制保留，不将其视为尚未处理的实现故障；本卡验收验证在线与后台结果的差异。
 
-后续重访条件：出现确需后台按可信网络/执行环境条件授权的业务场景时，另行明确任务来源、执行环境与用户环境的语义及可信采集方式，再决定是否支持。现有旧一次性导出保存提交 IP 的行为不随本卡自动修改。权威规则见[任务条件上下文](../design/example-permission-demo.md#scheduled-tasks)；本卡已承载问题与验收，不重复登记待解决问题编号。
+后续重访条件：出现确需后台按可信网络/执行环境条件授权的业务场景时，另行明确任务来源、执行环境与用户环境的语义及可信采集方式，再决定是否支持。现有旧一次性导出保存提交 IP 的行为不随本卡自动修改。权威规则见[任务条件上下文](../../../design/example-permission-demo.md#scheduled-tasks)；本卡已承载问题与验收，不重复登记待解决问题编号。
 
 ## 完成记录
 

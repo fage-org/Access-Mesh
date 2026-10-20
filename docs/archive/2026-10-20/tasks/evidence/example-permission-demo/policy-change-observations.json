@@ -1,0 +1,16 @@
+{
+  "artifactSha256Before" : "a895b0f9fb153bb7e8fd0cf1b3debe46ca65ca72d1e42a9cc5a51f1c317f64b5",
+  "artifactSha256After" : "a895b0f9fb153bb7e8fd0cf1b3debe46ca65ca72d1e42a9cc5a51f1c317f64b5",
+  "processIdBefore" : 42452,
+  "processIdAfter" : 42452,
+  "startedAtBefore" : "2026-10-20T01:53:59.405Z",
+  "startedAtAfter" : "2026-10-20T01:53:59.405Z",
+  "before" : {
+    "policyVersion" : 1,
+    "recordCodes" : [ "A", "C" ]
+  },
+  "after" : {
+    "policyVersion" : 2,
+    "recordCodes" : [ "B", "D" ]
+  }
+}

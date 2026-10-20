@@ -75,7 +75,7 @@ last_updated: 2026-09-24
 | [T-PERM-071](tasks/T-PERM-071.md) | 独立依赖声明与可选 SDK 协调 | ✅ | T-PERM-070, T-PERM-078, T-PERM-074 |
 | [T-PERM-072](tasks/T-PERM-072.md) | 自动授权物化与共享推导 | ✅（2026-09-21 收口） | T-PERM-071 |
 | [T-PERM-073](tasks/T-PERM-073.md) | 按需来源解释、授权界面与对账 | ✅（2026-09-21 收口） | T-PERM-072 |
-| [T-PERM-036](../../tasks/T-PERM-036.md) | 动态数据权限端到端验证 | ⚙️（暂缓） | T-FE-013, T-PERM-033 |
+| [T-PERM-036](../2026-10-20/tasks/T-PERM-036.md) | 动态数据权限端到端验证 | ⚙️（暂缓） | T-FE-013, T-PERM-033 |
 | [T-PERM-054](../../archive/2026-10-01/tasks/T-PERM-054.md) | API映射与业务操作权限关联 | ⚙️（暂缓） | — |
 
 ## 归档条件

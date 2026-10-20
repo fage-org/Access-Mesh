@@ -428,4 +428,4 @@ resource_dependency.resource_entity_id 是源，depends_on_resource_entity_id �
 
 ### example 行列消费验收
 
-query-scopes 的真实业务 SQL 消费由 example 的固定字段目录、策略版本和行列执行器完成；引擎仍只返回权限事实，不负责拼业务 SQL。普通用户、四态、跨报表字段身份和多租户链路的验证见 [T-PERM-036](../../tasks/T-PERM-036.md)，不新增第二套查询或授权算法。
+query-scopes 的真实业务 SQL 消费由 example 的固定字段目录、策略版本和行列执行器完成；引擎仍只返回权限事实，不负责拼业务 SQL。普通用户、四态、跨报表字段身份和多租户链路的验证见 [T-PERM-036](../../archive/2026-10-20/tasks/T-PERM-036.md)，不新增第二套查询或授权算法。

@@ -900,13 +900,27 @@ class ExampleBusinessFinalCheckE2EIT {
         assertThat(parseEnvelope(oldField).path("code").asInt()).isEqualTo(30004);
         createDataGrant(dataKey("DEMO_DATA_SCOPE","region-r1","DATA_READ","INSTANCE"),readParent);
         removeDataGrant(dataGrantId("DEMO_DATA_SCOPE","team-t1","DATA_READ",readParent));
-        assertDataCodes(List.of("A","C"));
+        var beforePolicyRows=assertDataCodes(List.of("A","C"));
+        long policyProcess=exampleService.process.pid();
+        var policyStarted=exampleService.process.info().startInstant().orElseThrow();
+        String artifactBefore=exampleArtifactDigest();
         var policy=demoAdminPost("/demo-policy/get",JSON.createObjectNode().put("datasetCode","sales-records")).path("data");
         var configuration=policy.path("configuration").deepCopy();
         for(var binding:configuration.path("bindings")) if(binding.path("resourceCode").asText().equals("region-r1"))
             ((tools.jackson.databind.node.ObjectNode)binding.path("predicates").get(0)).put("value","R2");
         demoAdminPost("/demo-policy/save",JSON.createObjectNode().put("datasetCode","sales-records").put("expectedVersion",policy.path("version").asLong()).set("configuration",configuration));
-        assertDataCodes(List.of("B","D"));
+        var afterPolicyRows=assertDataCodes(List.of("B","D"));
+        String artifactAfter=exampleArtifactDigest();
+        assertThat(artifactAfter).isEqualTo(artifactBefore);
+        assertThat(exampleService.process.pid()).isEqualTo(policyProcess);
+        assertThat(exampleService.process.info().startInstant().orElseThrow()).isEqualTo(policyStarted);
+        assertThat(afterPolicyRows.path("data").path("policyVersion").asLong()).isEqualTo(policy.path("version").asLong()+1);
+        var policyEvidence=JSON.createObjectNode().put("artifactSha256Before",artifactBefore).put("artifactSha256After",artifactAfter)
+            .put("processIdBefore",policyProcess).put("processIdAfter",exampleService.process.pid())
+            .put("startedAtBefore",policyStarted.toString()).put("startedAtAfter",exampleService.process.info().startInstant().orElseThrow().toString());
+        policyEvidence.set("before",JSON.createObjectNode().put("policyVersion",beforePolicyRows.path("data").path("policyVersion").asLong()).set("recordCodes",JSON.createArrayNode().add("A").add("C")));
+        policyEvidence.set("after",JSON.createObjectNode().put("policyVersion",afterPolicyRows.path("data").path("policyVersion").asLong()).set("recordCodes",JSON.createArrayNode().add("B").add("D")));
+        Files.writeString(Path.of("target","e2e","policy-change-observations.json"),JSON.writerWithDefaultPrettyPrinter().writeValueAsString(policyEvidence));
         demoAdminPost("/demo-policy/save",JSON.createObjectNode().put("datasetCode","sales-records").put("expectedVersion",policy.path("version").asLong()+1).set("configuration",policy.path("configuration")));
         removeDataGrant(dataGrantId("DEMO_DATA_SCOPE","region-r1","DATA_READ",readParent));
         var conditional=dataKey("DEMO_DATA_SCOPE","team-t1","DATA_READ","INSTANCE");
@@ -1046,6 +1060,165 @@ class ExampleBusinessFinalCheckE2EIT {
         targetDemo("/demo-task/set-enabled",JSON.createObjectNode().put("taskId",automaticId).put("expectedVersion",enabled.path("version").asLong()).put("enabled",false));
     }
 
+    @Test
+    @Order(18)
+    void jointJourneyUsesSeparatePreparerAndOneOrdinarySubjectThroughEveryBoundary() throws Exception {
+        var trace=JSON.createArrayNode();
+        // Recreate the sample with a separate preparing identity, then remove the reader's preparation privileges.
+        Map<String,Long> owners=new java.util.HashMap<>();
+        demoAdminPost("/demo-data/page",JSON.createObjectNode().put("reportCode","sales-report")).path("data").path("page").path("items")
+            .forEach(row->owners.put(row.path("recordCode").asText(),row.path("ownerUserId").asLong()));
+        assertThat(owners.keySet()).containsExactlyInAnyOrder("A","B","C","D");
+        targetDemo("/demo-data/revoke-import",JSON.createObjectNode().put("importKey",dataImportKey));
+        dataImportKey=java.util.UUID.randomUUID().toString();
+        String preparedCsv="recordCode,ownerUserId,teamCode,departmentCode,regionCode,saleDate,productName,amount,remark\n"
+            +"A,"+owners.get("A")+",T1,D1,R1,2026-10-19,Alpha,10.00,joint-A\n"
+            +"B,"+owners.get("B")+",T1,D1,R2,2026-10-19,Beta,20.00,joint-B\n"
+            +"C,"+owners.get("C")+",T2,D1,R1,2026-10-19,Gamma,30.00,joint-C\n"
+            +"D,"+owners.get("D")+",T3,D2,R2,2026-10-19,Delta,40.00,joint-D\n";
+        assertThat(uploadCsv(adminToken,"sales-report",dataImportKey,preparedCsv).path("code").asInt()).isEqualTo(200);
+        long oldEdit=dataGrantId("DEMO_REPORT","sales-report","DATA_EDIT",null);
+        var grants=postForData(gateway()+"/api/access/role-resource-permission/list",adminToken,
+            JSON.createObjectNode().put("roleTypeCode",ROLE_TYPE).put("roleExternalId",ROLE_EXTERNAL_ID).put("includeChildren",true)).path("items");
+        var removes=JSON.createArrayNode();
+        for(var grant:grants) if(grant.path("id").asLong()==oldEdit || grant.path("dependOn").asLong()==oldEdit
+            || grant.path("resourceTypeCode").asText().equals("DEMO_DATASET")) removes.add(grant.path("id").asLong());
+        dataGrantPlan(JSON.createArrayNode(),removes); awaitFinalPermission("DATA_EDIT",false);
+        assertDataCodes(List.of("A","B"));
+        Map<String,JsonNode> fields=new java.util.HashMap<>();
+        demoAdminPost("/demo-field/list",JSON.createObjectNode().put("reportCode","sales-report")).path("data").path("items")
+            .forEach(field->fields.put(field.path("fieldKey").asText(),field));
+        demoAdminPost("/demo-report/create",JSON.createObjectNode().put("reportCode","joint-other").put("name","Joint other").put("datasetCode","sales-records").put("fieldResourceTypeCode","DEMO_REPORT_FIELD"));
+        awaitDemoPublication("DEMO_REPORT","joint-other");
+        var otherFields=demoAdminPost("/demo-field/register",JSON.createObjectNode().put("reportCode","joint-other").put("expectedCatalogVersion",0)
+            .set("fieldKeys",JSON.createArrayNode().add("productName").add("amount"))).path("data").path("items");
+        for(var field:otherFields) awaitDemoPublication("DEMO_REPORT_FIELD",field.path("resourceCode").asText());
+        var hiddenSort=JSON.createObjectNode().put("reportCode","sales-report").set("sort",JSON.createObjectNode().put("fieldId",fields.get("amount").path("fieldId").asLong()).put("direction","ASC"));
+        assertThat(parseEnvelope(postEnvelope(gateway()+"/api/example/demo-data/page",targetToken,hiddenSort.toString())).path("code").asInt()).isEqualTo(30004);
+        assertThat(parseEnvelope(postEnvelope(gateway()+"/api/example/demo-data/page",targetToken,"{\"reportCode\":\"joint-other\"}")).path("code").asInt()).isEqualTo(30004);
+        assertThat(parseEnvelope(postEnvelope(gateway()+"/api/example/demo-data/update",targetToken,"{\"reportCode\":\"sales-report\",\"recordCode\":\"A\",\"remark\":\"forbidden\"}")).path("code").asInt()).isIn(403,30004);
+        var explicit=JSON.createObjectNode().put("reportCode","sales-report").set("fieldIds",JSON.createArrayNode()
+            .add(fields.get("recordCode").path("fieldId").asLong()).add(fields.get("productName").path("fieldId").asLong()));
+        var task=targetDemo("/demo-task/create",JSON.createObjectNode().put("name","joint explicit").put("cron","0 * * * * *").set("selection",explicit));
+        long id=task.path("taskId").asLong();
+        task=targetDemo("/demo-task/set-enabled",JSON.createObjectNode().put("taskId",id).put("expectedVersion",task.path("version").asLong()).put("enabled",true));
+        var first=new java.util.concurrent.atomic.AtomicReference<JsonNode>();
+        org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(90)).untilAsserted(()->{
+            var rows=targetDemo("/demo-execution/page",JSON.createObjectNode().put("taskId",id)).path("items");
+            assertThat(rows.isEmpty()).isFalse(); assertThat(rows.get(0).path("status").asText()).isEqualTo("SUCCESS"); first.set(rows.get(0));
+        });
+        assertThat(first.get().path("recordCount").asInt()).isEqualTo(2);
+        assertThat(first.get().path("outputColumns").size()).isEqualTo(2);
+        assertThat(first.get().path("policyVersion").asLong()).isPositive(); assertThat(first.get().path("catalogVersion").asLong()).isPositive();
+        trace.add(JSON.createObjectNode().put("step","explicit-cron-A-B").set("execution",first.get()));
+        byte[] original=downloadSnapshot(first.get().path("executionKey").asText());
+        assertThat(new String(original,StandardCharsets.UTF_8)).contains("Alpha","Beta").doesNotContain("Gamma","Delta","amount");
+        task=targetDemo("/demo-task/update",JSON.createObjectNode().put("taskId",id).put("expectedVersion",task.path("version").asLong())
+            .put("name","joint explicit").put("cron","0 0 0 1 1 *").set("selection",explicit));
+        long readParent=dataGrantId("DEMO_REPORT","sales-report","DATA_READ",null);
+        removeDataGrant(dataGrantId("DEMO_DATA_SCOPE","team-t1","DATA_READ",readParent));
+        createDataGrant(dataKey("DEMO_DATA_SCOPE","self","DATA_READ","INSTANCE"),readParent); assertDataCodes(List.of("A"));
+        var self=triggerAndAwait(id,"SUCCESS"); assertThat(self.path("recordCount").asInt()).isEqualTo(1);
+        assertThat(new String(downloadSnapshot(self.path("executionKey").asText()),StandardCharsets.UTF_8)).contains("Alpha").doesNotContain("Beta");
+        trace.add(JSON.createObjectNode().put("step","self-A").set("execution",self));
+        assertThat(downloadSnapshot(first.get().path("executionKey").asText())).containsExactly(original);
+        String product=fields.get("productName").path("resourceCode").asText();
+        removeDataGrant(dataGrantId("DEMO_REPORT_FIELD",product,"DATA_READ",readParent));
+        awaitBusinessResult("/api/example/demo-data/page","{\"reportCode\":\"sales-report\"}",r->r.path("code").asInt()==200
+            && r.path("data").path("columns").size()==1 && r.path("data").path("page").path("total").asInt()==1,"joint field revocation");
+        var denied=triggerAndAwait(id,"DENIED"); trace.add(JSON.createObjectNode().put("step","explicit-field-denied").set("execution",denied));
+        assertNoSnapshot(denied.path("executionKey").asText());
+        var defaults=JSON.createObjectNode().put("reportCode","sales-report");
+        task=targetDemo("/demo-task/update",JSON.createObjectNode().put("taskId",id).put("expectedVersion",task.path("version").asLong())
+            .put("name","joint default").put("cron","0 0 0 1 1 *").set("selection",defaults));
+        var reduced=triggerAndAwait(id,"SUCCESS"); assertThat(reduced.path("outputColumns").size()).isEqualTo(1);
+        assertThat(reduced.path("outputColumns").get(0).path("fieldKey").asText()).isEqualTo("recordCode");
+        trace.add(JSON.createObjectNode().put("step","default-recordCode-only").set("execution",reduced));
+        assertThat(targetDemo("/demo-execution/get",JSON.createObjectNode().put("executionKey",denied.path("executionKey").asText())).path("status").asText()).isEqualTo("DENIED");
+        assertThat(downloadSnapshot(first.get().path("executionKey").asText())).containsExactly(original);
+        createDataGrant(dataKey("DEMO_REPORT_FIELD",product,"DATA_READ","INSTANCE"),readParent);
+        awaitBusinessResult("/api/example/demo-data/page",defaults.toString(),r->r.path("code").asInt()==200 && r.path("data").path("columns").size()==2,"joint field restoration");
+        var restored=triggerAndAwait(id,"SUCCESS"); assertThat(restored.path("recordCount").asInt()).isEqualTo(1); assertThat(restored.path("outputColumns").size()).isEqualTo(2);
+        trace.add(JSON.createObjectNode().put("step","restored-A-two-columns").set("execution",restored));
+        assertThat(parseEnvelope(postEnvelope(gateway()+"/api/example/demo-data/page",targetToken,"{\"reportCode\":\"joint-other\"}")).path("code").asInt()).isEqualTo(30004);
+        var ownerBody=JSON.createObjectNode().put("taskId",id);
+        assertThat(parseEnvelope(postEnvelope(gateway()+"/api/example/demo-task/get",adminToken,ownerBody.toString())).path("code").asInt()).isEqualTo(30004);
+        var stolen=JSON.createObjectNode().put("taskId",id).put("expectedVersion",task.path("version").asLong()).put("name","stolen").put("cron","0 * * * * *").set("selection",defaults);
+        assertThat(parseEnvelope(postEnvelope(gateway()+"/api/example/demo-task/update",adminToken,stolen.toString())).path("code").asInt()).isEqualTo(30004);
+        assertThat(parseEnvelope(postEnvelope(gateway()+"/api/example/demo-task/trigger",adminToken,JSON.createObjectNode().put("taskId",id).put("triggerKey",java.util.UUID.randomUUID().toString()).toString())).path("code").asInt()).isEqualTo(30004);
+        assertThat(targetDemo("/demo-task/get",ownerBody).path("name").asText()).isEqualTo("joint default");
+        createDataParent("sales-report","DATA_EDIT",List.of(dataKey("DEMO_DATA_SCOPE","self","DATA_EDIT","INSTANCE"),
+            dataKey("DEMO_REPORT_FIELD",fields.get("remark").path("resourceCode").asText(),"DATA_EDIT","INSTANCE")));
+        awaitFinalPermission("DATA_EDIT",true);
+        var changed=targetDemo("/demo-data/update",JSON.createObjectNode().put("reportCode","sales-report").put("recordCode","A").put("remark","joint-updated"));
+        assertThat(changed.path("updatedCount").asInt()).isEqualTo(1); assertThat(changed.has("remark")).isFalse();
+        var mixed="{\"reportCode\":\"sales-report\",\"changes\":[{\"recordCode\":\"A\",\"remark\":\"rollback\"},{\"recordCode\":\"B\",\"remark\":\"forbidden\"}]}";
+        assertThat(parseEnvelope(postEnvelope(gateway()+"/api/example/demo-data/batch-update",targetToken,mixed)).path("code").asInt()).isEqualTo(30004);
+        assertThat(demoAdminPost("/demo-data/get",JSON.createObjectNode().put("reportCode","sales-report").put("recordCode","A")).path("data").path("record").path("remark").asText()).isEqualTo("joint-updated");
+        assertThat(demoAdminPost("/demo-data/get",JSON.createObjectNode().put("reportCode","sales-report").put("recordCode","B")).path("data").path("record").path("remark").asText()).isEqualTo("joint-B");
+        removeDataGrant(dataGrantId("DEMO_DATA_SCOPE","self","DATA_READ",readParent));
+        var emptyKey=dataKey("DEMO_DATA_SCOPE","self","DATA_READ","INSTANCE"); String future=java.time.LocalDate.now(java.time.ZoneOffset.UTC).plusYears(5).toString();
+        String rules="{\"logic\":\"AND\",\"items\":[{\"type\":\"DATE_RANGE\",\"params\":{\"start\":\""+future+"\",\"end\":\""+future+"\"}}]}";
+        emptyKey.set("inlineCondition",JSON.createObjectNode().put("name","joint future").put("conditionRules",rules)); createDataGrant(emptyKey,null);
+        awaitBusinessResult("/api/example/demo-data/page",defaults.toString(),r->r.path("code").asInt()==200 && r.path("data").path("state").asText().equals("EMPTY_ROWS"),"joint empty scope");
+        var empty=triggerAndAwait(id,"EMPTY"); assertNoSnapshot(empty.path("executionKey").asText()); trace.add(JSON.createObjectNode().put("step","condition-empty").set("execution",empty));
+        removeDataGrant(dataGrantId("DEMO_DATA_SCOPE","self","DATA_READ",null)); createDataGrant(dataKey("DEMO_DATA_SCOPE","self","DATA_READ","INSTANCE"),readParent); assertDataCodes(List.of("A"));
+        // Persist before execution, restart, then replay after completion with EXPORT revoked: no regeneration is possible.
+        restartExampleWorker(false);
+        var retryBody=JSON.createObjectNode().put("taskId",id).put("triggerKey",java.util.UUID.randomUUID().toString());
+        var pending=targetDemo("/demo-task/trigger",retryBody); assertThat(pending.path("status").asText()).isEqualTo("PENDING");
+        trace.add(JSON.createObjectNode().put("step","restart-pending").set("execution",pending));
+        restartExampleWorker(true); var resumed=awaitExecution(pending.path("executionKey").asText(),"SUCCESS");
+        assertThat(resumed.path("policyVersion").asLong()).isEqualTo(restored.path("policyVersion").asLong());
+        byte[] retained=downloadSnapshot(resumed.path("executionKey").asText());
+        removeDataGrant(dataGrantId("DEMO_REPORT","sales-report","EXPORT",null)); awaitFinalPermission("EXPORT",false);
+        restartExampleWorker(true);
+        var replay=targetDemo("/demo-task/trigger",retryBody);
+        assertThat(replay.path("executionKey").asText()).isEqualTo(resumed.path("executionKey").asText());
+        assertThat(replay.path("attempt").asInt()).isEqualTo(resumed.path("attempt").asInt()); assertThat(replay.path("status").asText()).isEqualTo("SUCCESS");
+        assertThat(downloadSnapshot(replay.path("executionKey").asText())).containsExactly(retained);
+        trace.add(JSON.createObjectNode().put("step","committed-replay-after-export-revoked").set("execution",replay));
+        var owned=targetDemo("/demo-task/get",ownerBody);
+        targetDemo("/demo-task/set-enabled",JSON.createObjectNode().put("taskId",id).put("expectedVersion",owned.path("version").asLong()).put("enabled",false));
+        Files.writeString(Path.of("target","e2e","joint-demo-evidence.json"),JSON.writerWithDefaultPrettyPrinter().writeValueAsString(trace));
+    }
+
+    private static JsonNode triggerAndAwait(long task,String state) throws Exception {
+        var queued=targetDemo("/demo-task/trigger",JSON.createObjectNode().put("taskId",task).put("triggerKey",java.util.UUID.randomUUID().toString()));
+        return awaitExecution(queued.path("executionKey").asText(),state);
+    }
+    private static void assertNoSnapshot(String key) throws IOException {
+        assertThat(parseEnvelope(postEnvelope(gateway()+"/api/example/demo-execution/download",targetToken,JSON.createObjectNode().put("executionKey",key).toString())).path("code").asInt()).isEqualTo(30107);
+    }
+    private static void awaitFinalPermission(String operation,boolean allowed) {
+        var request=JSON.createObjectNode().put("subjectTypeCode","LOCAL_USER").put("subjectExternalId",Long.toString(targetUserId))
+            .put("resourceTypeCode","DEMO_REPORT").put("resourceCode","sales-report").put("operationCode",operation);
+        org.awaitility.Awaitility.await().atMost(STALE_WINDOW).untilAsserted(()->{
+            var result=parseEnvelope(postEnvelope("http://localhost:"+accessService.port()+"/api/access/auth/check",null,request.toString(),
+                Map.of("X-Credential-Id","sc-example-e2e-1","X-Credential-Secret","sk-example-e2e-1")));
+            assertThat(result.path("code").asInt()).isEqualTo(200); assertThat(result.path("data").path("allowed").asBoolean()).isEqualTo(allowed);
+        });
+    }
+
+    private static String exampleArtifactDigest() throws Exception {
+        var digest=MessageDigest.getInstance("SHA-256");
+        String executable=System.getProperty("example.demo.executableJar");
+        if(executable!=null && !executable.isBlank()) updateArtifactDigest(digest,Path.of(executable));
+        else {
+            Path root=Path.of(EXAMPLE_SERVICE_CLASSES_DIR);
+            try(var files=Files.walk(root)) {
+                for(var file:files.filter(Files::isRegularFile).sorted().toList()) {
+                    digest.update(root.relativize(file).toString().getBytes(StandardCharsets.UTF_8));
+                    updateArtifactDigest(digest,file);
+                }
+            }
+        }
+        return HexFormat.of().formatHex(digest.digest());
+    }
+    private static void updateArtifactDigest(MessageDigest digest,Path file) throws IOException {
+        try(var input=new java.security.DigestInputStream(Files.newInputStream(file),digest)) { input.transferTo(java.io.OutputStream.nullOutputStream()); }
+    }
+
     private static JsonNode targetDemo(String path,JsonNode body) throws Exception {
         return awaitBusinessResult("/api/example"+path,body.toString(),r->r.path("code").asInt()==200,"target task operation "+path).path("data");
     }
@@ -1089,13 +1262,14 @@ class ExampleBusinessFinalCheckE2EIT {
             && row.path("operationCode").asText().equals(operation) && Objects.equals(row.hasNonNull("dependOn")?row.path("dependOn").asLong():null,parent)) return row.path("id").asLong();
         throw new AssertionError("Grant not found: "+type+"/"+operation);
     }
-    private static void assertDataCodes(List<String> expected) throws Exception {
+    private static JsonNode assertDataCodes(List<String> expected) throws Exception {
         var result=awaitBusinessResult("/api/example/demo-data/page","{\"reportCode\":\"sales-report\",\"pageSize\":20}",r -> {
             List<String> codes=new java.util.ArrayList<>(); r.path("data").path("page").path("items").forEach(item -> codes.add(item.path("recordCode").asText()));
             boolean noAmount=true; for(var item:r.path("data").path("page").path("items")) if(item.has("amount")) noAmount=false;
             return r.path("code").asInt()==200 && codes.equals(expected) && noAmount;
         },"actual SQL rows must match granted scopes");
         for(var row:result.path("data").path("page").path("items")) assertThat(row.has("amount")).isFalse();
+        return result;
     }
 
     private static void ensureDataSetup() throws Exception { ensureDataSetup(adminToken); }
@@ -1386,7 +1560,10 @@ class ExampleBusinessFinalCheckE2EIT {
         String childClasspath = prependClassesDir != null
             ? prependClassesDir + java.io.File.pathSeparator + baseClasspath
             : baseClasspath;
-        ServiceHandle handle = E2eProcessSupport.launch(name, mainClass, args, env, childClasspath);
+        String executableJar=System.getProperty("example.demo.executableJar");
+        ServiceHandle handle = name.equals("example-service") && executableJar!=null && !executableJar.isBlank()
+            ? E2eProcessSupport.launchJar(name,Path.of(executableJar),args,env)
+            : E2eProcessSupport.launch(name, mainClass, args, env, childClasspath);
         return E2eProcessSupport.readyOrDestroy(handle, () -> waitReady(name, readinessUrl, handle));
     }
 

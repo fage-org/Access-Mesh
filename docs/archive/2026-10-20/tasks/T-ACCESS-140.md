@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-140
 title: 动态策略配置与真实 SQL 权限过滤
 status: done
-plan: docs/plans/example-permission-demo-plan.md
+plan: docs/archive/2026-10-20/example-permission-demo-plan.md
 domain: cross-service
 design_refs:
   - docs/design/example-service-api-contract.md#policy
@@ -36,7 +36,7 @@ last_updated: 2026-10-19
 
 实现报表上下文的字段范围查询、授权字段目录、SQL 明确列投影及编辑列校验；与行范围共同消费四态。
 
-详情和修改按 recordCode 定位，列表只在编号可读时返回编号，不增加 rowId；已知编号不替代权限校验，写后响应不自动回显字段值。依据见[字段权限](../design/example-permission-demo.md#field-permissions)。
+详情和修改按 recordCode 定位，列表只在编号可读时返回编号，不增加 rowId；已知编号不替代权限校验，写后响应不自动回显字段值。依据见[字段权限](../../../design/example-permission-demo.md#field-permissions)。
 
 本卡先于 CSV 导入交付共享行列授权执行器，导入复用它而不复制字段门禁。定向 PG 验证用测试夹具准备记录，不依赖生产导入 API；实现就绪后由 T-ACCESS-138 完成可重复导入接线。
 
@@ -44,7 +44,7 @@ last_updated: 2026-10-19
 
 ## 当前口径
 
-实现只使用有限通用字段/谓词/值来源，不按角色名或业务维度硬编码。租户/有效状态不可配置关闭，SQL 参数化。实现、定向验证与完整回归已验收；T-PERM-036 在本卡和导入交付后验证，不倒置依赖。详细规则见[权限演示设计](../design/example-permission-demo.md)；计划已 active。
+实现只使用有限通用字段/谓词/值来源，不按角色名或业务维度硬编码。租户/有效状态不可配置关闭，SQL 参数化。实现、定向验证与完整回归已验收；T-PERM-036 在本卡和导入交付后验证，不倒置依赖。详细规则见[权限演示设计](../../../design/example-permission-demo.md)；计划已 active。
 
 ## 验收对照
 

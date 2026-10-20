@@ -29,7 +29,7 @@ class DemoExecutionFailureTest {
         var e=new DemoExecution(); e.setTenantId(1L); e.setCreatedBy(42L); e.setExecutionKey(UUID.randomUUID());
         e.setAttempt(1); e.setStatus("RUNNING"); e.setRequestPayload("{\"reportCode\":\"r1\"}");
         when(executions.claim()).thenReturn(e);
-        when(data.authorizeRead(any(),any())).thenThrow(new CannotGetJdbcConnectionException("unavailable",new SQLException("test",sqlState)));
+        when(data.authorizeSnapshot(any(),any())).thenThrow(new CannotGetJdbcConnectionException("unavailable",new SQLException("test",sqlState)));
         var tasks=mock(cn.ac.fage.accessmesh.example.task.domain.DemoTaskDomainService.class);
         when(tasks.executable(any())).thenReturn(true);
         var app=new DemoExecutionAppServiceImpl(executions,data,mock(DemoMetadataDomainService.class),mock(DemoDataPermissions.class),JsonMapper.builder().build(),transactions,tasks);

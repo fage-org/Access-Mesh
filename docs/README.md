@@ -101,11 +101,11 @@ docs/
 | 默认组织树与用户生命周期 | [design/default-org-tree-user-lifecycle.md](design/default-org-tree-user-lifecycle.md)                                                |
 | PostgreSQL 表结构    | [design/schema/access-service.sql](design/schema/access-service.sql)（唯一权威 DDL）                                                 |
 
-自动授权已按[简化方案](design/dependency-auto-grant.md)交付，资源与依赖独立接入；真实业务 SQL 消费验证已由 [T-PERM-036](tasks/T-PERM-036.md) 完成。
+自动授权已按[简化方案](design/dependency-auto-grant.md)交付，资源与依赖独立接入；真实业务 SQL 消费验证已由 [T-PERM-036](archive/2026-10-20/tasks/T-PERM-036.md) 完成。
 
 ## 执行计划
 
-当前 [example 持久化权限演示计划](plans/example-permission-demo-plan.md)为 active，持久化基础、资源发布、动态行列过滤、CSV 导入与在线端到端验证已完成，有界快照也已完成，下一步为内部定时任务；[实施设计](design/example-permission-demo.md)定义动态配置、真实数据与内部调度范围。[候选独立部署与首次接入验收](archive/2026-10-18/candidate-deployment-acceptance-plan.md)已归档，结果及边界见[最终验收](archive/2026-10-18/tasks/evidence/candidate-deployment/verification.md)。
+[example 持久化权限演示计划](archive/2026-10-20/example-permission-demo-plan.md)已完成归档，覆盖真实 SQL 行列权限、CSV、快照、内部任务和同一用户联合验收；[使用指南](../example-service/examples/permission-demo.md)提供可执行脚本与请求样例。[候选独立部署与首次接入验收](archive/2026-10-18/candidate-deployment-acceptance-plan.md)的冻结版本与历史边界保持。
 
 [登录审计事务边界收敛](archive/2026-10-18/login-audit-transaction-plan.md)已完成归档，Q-067 已收敛。
 
@@ -183,10 +183,11 @@ docs/
 
 ## 归档记录
 
-最近完成：[候选独立部署与首次接入验收](archive/2026-10-18/candidate-deployment-acceptance-plan.md)，[最终验收](archive/2026-10-18/tasks/evidence/candidate-deployment/verification.md)包含本地完整回归与独立同版本恢复证据。
+最近完成：[example 持久化权限演示](archive/2026-10-20/example-permission-demo-plan.md)，[最终验收](archive/2026-10-20/tasks/evidence/example-permission-demo/T-ACCESS-142.md)包含联合主线、可执行 JAR 和标准完整回归。
 
 | 归档批次              | 说明                                                                                                   | 入口                                                         |
 | --------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| `archive/2026-10-20/` | example 持久化权限演示计划、任务及验收证据归档。 | [归档入口](archive/2026-10-20/README.md) |
 | `archive/2026-10-18/` | 候选部署/接入/恢复验收与完整回归收口，以及当日服务凭证等任务归档。 | [归档入口](archive/2026-10-18/README.md) |
 | `archive/2026-10-17/` | 场景审查修复计划完成：任务卡、完整回归及真实 CI 安全验收证据归档；批准风险例外仍由现行安全规范约束。 同日独立任务 T-ACCESS-106（租户保底管理员连续性与成员变更审计）及审计日志生命周期计划完成归档；同日 T-FE-071/072 租户与独立平台跨标签会话同步归档。 | [归档入口](archive/2026-10-17/README.md) |
 | `archive/2026-09-26/` | T-ACCESS-064 当前规范归位与定案入口轻量化；原登记两册、压缩前原文及迁移验证冻结，T-ACCESS-063 历史任务随批归档。 | [归档入口](archive/2026-09-26/README.md) |

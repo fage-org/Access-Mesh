@@ -12,11 +12,11 @@
 
 | 编号/等级 | 位置 | 具体问题与影响 | 当前处置 |
 |---|---|---|---|
-| R1 / P1 | [example-permission-demo.md:198](../../../design/example-permission-demo.md#scheduled-tasks) | 原文只固定任务创建者为执行主体，却未限制其他任务管理者改其报表/筛选并触发，可能借他人主体执行 | 已补本人归属与任务操作双门禁；自动/手动都重查 TRIGGER 与源数据权限；领取单独检查 VIEW/归属 |
-| R2 / P2 | [example-permission-demo.md:163](../../../design/example-permission-demo.md#field-permissions) | 显式选列仅写“冻结清单”，同名字段删后新增可能被任务按旧名字重新绑定 | 已固定 fieldId，筛选/排序也保留字段身份；同名替换不自动重绑；默认列和显式空清单分开 |
-| R3 / P2 | [example-permission-demo.md:211](../../../design/example-permission-demo.md#scheduled-tasks) | 只有“失败/重试/恢复”描述，EMPTY、停用及结果提交前后崩溃没有一致终态，可能无限重试或重复产物 | 已定义状态、可重试故障分类，结果与 SUCCESS 同事务按 attempt 提交，成功记录不重做；增加提交前后故障验收 |
-| R4 / P2，已收敛 | [example-permission-demo.md:41](../../../design/example-permission-demo.md#data) | 原稿未规定导入/撤销的行范围，局部 T1 授权与跨范围批次的行为不明 | 已确认并补齐全行编辑 ALL、维护权、来源报表及涉及字段编辑权；INSTANCE 不替代 ALL，普通用户通过查询/备注修改演示行权限 |
-| R5 / P2，已收敛 | [example-permission-demo.md:203](../../../design/example-permission-demo.md#scheduled-tasks) | 长期 cron 的提交来源 IP 与当前网络语义不同，条件验收原先不确定 | 已确认新后台不携带用户 IP，时间按执行时评估；IP 条件缺上下文不满足，由现役引擎合并其他有效授权，不改变旧一次性导出 |
+| R1 / P1 | [example-permission-demo.md:198](../../../../../design/example-permission-demo.md#scheduled-tasks) | 原文只固定任务创建者为执行主体，却未限制其他任务管理者改其报表/筛选并触发，可能借他人主体执行 | 已补本人归属与任务操作双门禁；自动/手动都重查 TRIGGER 与源数据权限；领取单独检查 VIEW/归属 |
+| R2 / P2 | [example-permission-demo.md:163](../../../../../design/example-permission-demo.md#field-permissions) | 显式选列仅写“冻结清单”，同名字段删后新增可能被任务按旧名字重新绑定 | 已固定 fieldId，筛选/排序也保留字段身份；同名替换不自动重绑；默认列和显式空清单分开 |
+| R3 / P2 | [example-permission-demo.md:211](../../../../../design/example-permission-demo.md#scheduled-tasks) | 只有“失败/重试/恢复”描述，EMPTY、停用及结果提交前后崩溃没有一致终态，可能无限重试或重复产物 | 已定义状态、可重试故障分类，结果与 SUCCESS 同事务按 attempt 提交，成功记录不重做；增加提交前后故障验收 |
+| R4 / P2，已收敛 | [example-permission-demo.md:41](../../../../../design/example-permission-demo.md#data) | 原稿未规定导入/撤销的行范围，局部 T1 授权与跨范围批次的行为不明 | 已确认并补齐全行编辑 ALL、维护权、来源报表及涉及字段编辑权；INSTANCE 不替代 ALL，普通用户通过查询/备注修改演示行权限 |
+| R5 / P2，已收敛 | [example-permission-demo.md:203](../../../../../design/example-permission-demo.md#scheduled-tasks) | 长期 cron 的提交来源 IP 与当前网络语义不同，条件验收原先不确定 | 已确认新后台不携带用户 IP，时间按执行时评估；IP 条件缺上下文不满足，由现役引擎合并其他有效授权，不改变旧一次性导出 |
 
 实证通过项：
 
@@ -32,8 +32,8 @@
 | 编号/等级 | 位置 | 具体问题与影响 | 当前处置 |
 |---|---|---|---|
 | D1 / P2 | [T-ACCESS-138.md:11](../../T-ACCESS-138.md)、[T-ACCESS-140.md:12](../../T-ACCESS-140.md) | 导入已验收字段权限，却排在提供通用执行器的 140 之前；会逼迫重复实现或名义完成 | 已重连为 139 → 140 → 138 → T-PERM-036；140 用 PG 测试夹具，不依赖导入 API；计划和看板同步 |
-| D2 / P2 | [example-permission-demo.md:34](../../../design/example-permission-demo.md#scope) | 总旅程仍先导入后授权，违背后文导入字段门禁；报表/字段元数据 API 的任务归属不够明确 | 已改为先登记/授权再导入；139 明确承接最小元数据管理 API，140 承接读者授权字段目录 |
-| D3 / P2 | [example-permission-demo.md:264](../../../design/example-permission-demo.md#joint-demo) | 原场景清单没有同一主体从在线行列权限到后台撤权/恢复的连续证据，也未排除管理员全量授权污染 | 已补联合主线及准备/演示身份隔离；要求记录行列、版本、执行键和提交前后故障结果，分派至对应卡 |
+| D2 / P2 | [example-permission-demo.md:34](../../../../../design/example-permission-demo.md#scope) | 总旅程仍先导入后授权，违背后文导入字段门禁；报表/字段元数据 API 的任务归属不够明确 | 已改为先登记/授权再导入；139 明确承接最小元数据管理 API，140 承接读者授权字段目录 |
+| D3 / P2 | [example-permission-demo.md:264](../../../../../design/example-permission-demo.md#joint-demo) | 原场景清单没有同一主体从在线行列权限到后台撤权/恢复的连续证据，也未排除管理员全量授权污染 | 已补联合主线及准备/演示身份隔离；要求记录行列、版本、执行键和提交前后故障结果，分派至对应卡 |
 
 实证通过项：
 
@@ -45,7 +45,7 @@
 
 ## 可裁剪项与定案状态
 
-C1（已裁剪，不作缺陷等级）：[策略版本流程](../../../design/example-permission-demo.md#dynamic-policy)取消独立草稿存储、保存草稿及分步发布。用户于 2026-10-18 确认提交完整配置、校验后按版本原子生效；管理门禁、版本 CAS、失败保护和审计保留。恢复历史内容按新提交校验并生成新版本，不增设独立回滚流程。
+C1（已裁剪，不作缺陷等级）：[策略版本流程](../../../../../design/example-permission-demo.md#dynamic-policy)取消独立草稿存储、保存草稿及分步发布。用户于 2026-10-18 确认提交完整配置、校验后按版本原子生效；管理门禁、版本 CAS、失败保护和审计保留。恢复历史内容按新提交校验并生成新版本，不增设独立回滚流程。
 
 R4、R5、C1 均已收敛，原问题不再重复询问。T-ACCESS-136 继续承接 API/DDL 等实施契约细化；已确认的产品范围、动态行列模型和内部调度不因此回到待决状态。
 

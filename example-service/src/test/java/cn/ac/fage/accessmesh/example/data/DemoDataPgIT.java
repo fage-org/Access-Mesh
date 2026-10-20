@@ -245,18 +245,26 @@ class DemoDataPgIT {
         assertTrue(csv.contains("Alpha")); assertFalse(csv.contains("Beta")); assertFalse(csv.contains("recordCode"));
     }
 
-    @Test void shouldKeepFrozenFieldIdsAfterRemovalAndSameNameRegistration() {
+    @ParameterizedTest @ValueSource(booleans={true,false})
+    void shouldFailFrozenReferencesWhenRemovedOrDisabled(boolean recreate) {
         allowExecution(); fieldMode=ScopeMode.ALL;
         long field=fields.get("productName").getId();
         var selections=List.of(new Selection("r1",List.of(field),null,null),
             new Selection("r1",null,List.of(new Filter(field,"EQ",json.valueToTree("Alpha"),null)),null),
             new Selection("r1",null,null,new Sort(field,"ASC")));
         var queued=selections.stream().map(selection->executions.submit(actor,new cn.ac.fage.accessmesh.example.task.dto.ExecutionDtos.SubmitReq(UUID.randomUUID(),selection))).toList();
-        tx.executeWithoutResult(s->{metadata.removeFields(1,42,"r1",1,List.of(field)); metadata.registerFields(1,42,"r1",2,List.of("productName"));});
+        tx.executeWithoutResult(s->{
+            if(recreate) { metadata.removeFields(1,42,"r1",1,List.of(field)); metadata.registerFields(1,42,"r1",2,List.of("productName")); }
+            else metadata.updateField(1,42,"r1",1,field,false);
+        });
         jdbc.update("UPDATE demo_report_field SET publication_status='PUBLISHED'");
+        clearInvocations(client);
         for(var execution:queued) {
-            assertTrue(executions.runNext()); assertEquals("DENIED",executions.get(actor,execution.executionKey()).status());
+            assertTrue(executions.runNext());
+            var result=executions.get(actor,execution.executionKey());
+            assertEquals("FAILED",result.status()); assertEquals("OBJECT_UNAVAILABLE",result.reason());
         }
+        verify(client,never()).queryScopes(any(),anyString(),anyString());
         verify(records,never()).page(any(),anyInt(),anyLong());
     }
 

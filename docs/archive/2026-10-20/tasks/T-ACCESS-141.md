@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-141
 title: 有界授权快照导出与结果领取
 status: done
-plan: docs/plans/example-permission-demo-plan.md
+plan: docs/archive/2026-10-20/example-permission-demo-plan.md
 domain: cross-service
 design_refs:
   - docs/design/example-service-api-contract.md#tasks
@@ -40,7 +40,7 @@ last_updated: 2026-10-20
 
 ## 当前口径
 
-缩减文件卷/大文件产品化范围；有界结果可直接存 PG。保留现役已完成导出归提交者的边界。执行函数由内部调度任务复用，不另建一套调度平台。 详细规则见[权限演示设计](../design/example-permission-demo.md)；计划已 active，T-PERM-036 已完成，本卡实现、定向验证、本地双轨及完整回归已完成。
+缩减文件卷/大文件产品化范围；有界结果可直接存 PG。保留现役已完成导出归提交者的边界。执行函数由内部调度任务复用，不另建一套调度平台。 详细规则见[权限演示设计](../../../design/example-permission-demo.md)；计划已 active，T-PERM-036 已完成，本卡实现、定向验证、本地双轨及完整回归已完成。
 
 ## 验收对照
 
