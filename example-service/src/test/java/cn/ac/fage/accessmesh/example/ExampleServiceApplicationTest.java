@@ -28,7 +28,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = {
-        "example.publication.enabled=false",
+        "example.publication.enabled=false","example.execution.enabled=false",
         "spring.cloud.nacos.config.enabled=false",
         "spring.cloud.nacos.config.import-check.enabled=false",
         "spring.cloud.nacos.discovery.enabled=false",

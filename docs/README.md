@@ -101,17 +101,17 @@ docs/
 | 默认组织树与用户生命周期 | [design/default-org-tree-user-lifecycle.md](design/default-org-tree-user-lifecycle.md)                                                |
 | PostgreSQL 表结构    | [design/schema/access-service.sql](design/schema/access-service.sql)（唯一权威 DDL）                                                 |
 
-自动授权已按[简化方案](design/dependency-auto-grant.md)交付，资源与依赖独立接入；剩余真实业务 SQL 消费验证由 [T-PERM-036](tasks/T-PERM-036.md) 承接，现纳入权限演示计划但实施继续暂缓。
+自动授权已按[简化方案](design/dependency-auto-grant.md)交付，资源与依赖独立接入；真实业务 SQL 消费验证已由 [T-PERM-036](tasks/T-PERM-036.md) 完成。
 
 ## 执行计划
 
-当前 [example 持久化权限演示计划](plans/example-permission-demo-plan.md)为 active，实施契约、持久化基础与资源发布已完成，下一步为动态行列过滤；[需求草案](design/example-permission-demo.md)定义动态配置、真实数据与内部调度范围。[候选独立部署与首次接入验收](archive/2026-10-18/candidate-deployment-acceptance-plan.md)已归档，结果及边界见[最终验收](archive/2026-10-18/tasks/evidence/candidate-deployment/verification.md)。
+当前 [example 持久化权限演示计划](plans/example-permission-demo-plan.md)为 active，持久化基础、资源发布、动态行列过滤、CSV 导入与在线端到端验证已完成，有界快照也已完成，下一步为内部定时任务；[实施设计](design/example-permission-demo.md)定义动态配置、真实数据与内部调度范围。[候选独立部署与首次接入验收](archive/2026-10-18/candidate-deployment-acceptance-plan.md)已归档，结果及边界见[最终验收](archive/2026-10-18/tasks/evidence/candidate-deployment/verification.md)。
 
 [登录审计事务边界收敛](archive/2026-10-18/login-audit-transaction-plan.md)已完成归档，Q-067 已收敛。
 
 [顶栏裁剪与标准文件能力补齐](archive/2026-10-18/standard-capability-completion-plan.md)已完成归档，Q-071/Q-078 已收敛；当前待办与暂缓状态见[任务看板](tasks/README.md)。 后续 [T-ACCESS-118](archive/2026-10-18/tasks/T-ACCESS-118.md) 外评核实与修复也已完成归档。
 
-[最近变更核实修复与状态校准](archive/2026-10-18/recent-change-review-remediation.md)已完成归档。当前待办以[任务看板顶部入口](tasks/README.md#当前待办入口)为准；T-PERM-036 保持暂缓。
+[最近变更核实修复与状态校准](archive/2026-10-18/recent-change-review-remediation.md)已完成归档。当前待办以[任务看板顶部入口](tasks/README.md#当前待办入口)为准；T-PERM-036 已完成；其他暂缓事项保持。
 
 独立任务 [T-ACCESS-114](archive/2026-10-18/tasks/T-ACCESS-114.md) 已完成归档；实时任务状态见[任务看板](tasks/README.md)。
 

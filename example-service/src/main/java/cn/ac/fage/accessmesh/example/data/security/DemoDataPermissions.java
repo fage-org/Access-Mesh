@@ -27,6 +27,18 @@ public class DemoDataPermissions {
     public DemoDataPermissions(PermissionFeignClient client,ExamplePermissionProperties credentials) {
         this.client=client; this.credentials=credentials;
     }
+    public void require(Caller caller,DemoPermission permission,String code) {
+        R<cn.ac.fage.accessmesh.perm.common.dto.resp.AuthCheckResp> response;
+        try {
+            var credential=credentials.require(Long.toString(caller.tenantId()));
+            response=client.checkAuth(new cn.ac.fage.accessmesh.perm.common.dto.req.AuthCheckReq("LOCAL_USER",Long.toString(caller.userId()),
+                permission.type(),code,permission.operation(),null,null,null,null,null,null,null,
+                caller.clientIp()==null?null:Map.of("clientIp",caller.clientIp())),credential.credentialId(),credential.credentialSecret());
+        } catch(FeignException e) { throw new DemoPermissionUnavailable(e.status()<0 || e.status()>=500); }
+        catch(BizException e) { throw new DemoPermissionUnavailable(false); }
+        if(response==null || response.getCode()!=200 || response.getData()==null) throw new DemoPermissionUnavailable(response!=null && response.getCode()==99999);
+        if(!response.getData().allowed()) throw denied();
+    }
 
     public Scopes query(Caller caller,String reportCode,Operations operations,DemoPermission main) {
         var types=List.of(operations.rowResourceTypeCode(),operations.fieldResourceTypeCode());

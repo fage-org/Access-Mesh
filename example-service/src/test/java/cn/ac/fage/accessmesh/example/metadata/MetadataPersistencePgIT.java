@@ -36,7 +36,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag("testcontainers")
 @Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(properties = {
-    "example.publication.enabled=false",
+    "example.publication.enabled=false","example.execution.enabled=false",
     "spring.main.web-application-type=none",
     "spring.cloud.nacos.config.enabled=false", "spring.cloud.nacos.discovery.enabled=false",
     "spring.cloud.nacos.config.import-check.enabled=false", "spring.config.import=optional:classpath:/test-nope.yml"

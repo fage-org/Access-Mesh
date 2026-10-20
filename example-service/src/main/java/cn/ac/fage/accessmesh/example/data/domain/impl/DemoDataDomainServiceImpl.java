@@ -202,7 +202,7 @@ public class DemoDataDomainServiceImpl implements DemoDataDomainService {
     }
     private static Map<String,Object> values(DataSqlPlan plan,Map<String,Object> row) {
         Map<String,Object> result=new LinkedHashMap<>();
-        for(var column:plan.columns()) result.put(column.field().key(),row.get(column.field().key()));
+        for(var column:plan.columns()) result.put(column.field().key(),row==null?null:row.get(column.field().key()));
         return Collections.unmodifiableMap(result);
     }
     private static boolean empty(DataSqlPlan plan) { return plan.emptyRows() || plan.columns().isEmpty(); }

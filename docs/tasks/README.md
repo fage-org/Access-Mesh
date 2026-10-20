@@ -22,11 +22,11 @@
 
 ## 当前待办入口
 
-[example 持久化权限演示](../plans/example-permission-demo-plan.md)已启动，T-ACCESS-136、137、139、140、138 已完成，下一步为 T-ACCESS-141；后续任务按依赖等待，业务页面任务已取消。候选部署验收已归档。
+[example 持久化权限演示](../plans/example-permission-demo-plan.md)已启动，T-ACCESS-136、137、139、140、138 已完成，下一步为 T-ACCESS-143；后续任务按依赖等待，业务页面任务已取消。候选部署验收已归档。
 
 | ID | 标题 | 状态 | 直接依赖 |
 |---|---|---|---|
-| [T-ACCESS-141](T-ACCESS-141.md) | 有界授权快照导出与结果领取 | ⚙️ | T-ACCESS-140、T-PERM-036 |
+| [T-ACCESS-143](T-ACCESS-143.md) | example 内部自定义定时任务与恢复 | ⚙️ | T-ACCESS-141 |
 
 T-PERM-036 已验收完成。其他暂缓事项保持。历史批次只供追溯。
 
@@ -42,7 +42,7 @@ T-PERM-036 已验收完成。其他暂缓事项保持。历史批次只供追溯
 | [T-ACCESS-140](T-ACCESS-140.md) | 动态策略配置与真实 SQL 权限过滤 | ✅ | T-ACCESS-139 |
 | [T-ACCESS-138](T-ACCESS-138.md) | 演示业务记录与 CSV 导入 | ✅ | T-ACCESS-140 |
 | [T-PERM-036](T-PERM-036.md) | 动态数据权限端到端验证 | ✅ | T-ACCESS-138 |
-| [T-ACCESS-141](T-ACCESS-141.md) | 有界授权快照导出与结果领取 | ⚙️ | T-ACCESS-140、T-PERM-036 |
+| [T-ACCESS-141](T-ACCESS-141.md) | 有界授权快照导出与结果领取 | ✅ | T-ACCESS-140、T-PERM-036 |
 | [T-ACCESS-143](T-ACCESS-143.md) | example 内部自定义定时任务与恢复 | ⚙️ | T-ACCESS-141 |
 | [T-ACCESS-142](T-ACCESS-142.md) | 权限场景包与持久化验收收口 | ⚙️ | T-ACCESS-143、T-PERM-036 |
 | [T-FE-079](T-FE-079.md) | BI 工作区与销售分析页面 | ❌ | — |

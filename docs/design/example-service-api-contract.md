@@ -3,7 +3,7 @@ doc_type: design
 title: example-service 持久化权限演示 API 契约
 status: adopted
 domain: example-service
-last_reviewed: 2026-10-19
+last_reviewed: 2026-10-20
 ---
 
 # example-service 持久化权限演示 API 契约
@@ -181,6 +181,8 @@ remark 未传/null 表示不修改；`remarkClear=true` 才清空。非空新值
 <a id="tasks"></a>
 ## 快照、内部定时任务与结果
 
+一次性快照 submit 与 execution get/page/download 已实现，T-ACCESS-141 已完成验收；任务定义与 cron 触发仍由 T-ACCESS-143 交付。下载成功返回 `text/csv;charset=UTF-8` 与 `Cache-Control: no-store`，失败使用统一错误信封。
+
 任务权限使用类型级 `DEMO_TASK` 操作，且所有定义、执行和结果入口都校验可信租户/原创建者。其他用户与不存在统一返回 30004，不提供代他人执行或维护入口。
 
 | POST 路径 | 请求 | 门禁与响应 |
@@ -209,7 +211,7 @@ CSV 只输出最终授权列，沿既有引号转义与字符串公式前缀防�
 <a id="business-errors"></a>
 ## 新业务错误码
 
-下列编号随所属能力登记到 ExampleErrorCode；已实现能力已登记 30101/30102/30103/30104/30105/30106/30108，其余随后续任务交付；业务失败沿现役 BizException/统一错误信封，结构与格式非法仍走公共 90001 / HTTP 400。
+下列编号随所属能力登记到 ExampleErrorCode；现役业务族已登记下表编号；业务失败沿现役 BizException/统一错误信封，结构与格式非法仍走公共 90001 / HTTP 400。
 
 | 编号 | 含义 | 暴露边界 |
 |---|---|---|

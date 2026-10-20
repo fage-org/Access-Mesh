@@ -52,3 +52,16 @@ pwsh -File tools/import-example-records.ps1 -BaseUrl https://your-gateway.exampl
 原始文件字节摘要在服务器计算。同号换文件或报表拒绝；有效 recordCode 冲突整批回滚。`demo-data/import-status` / `revoke-import` 使用 `{importKey}`，仅原操作者访问。撤销按来源报表和原字段身份重新检查权限，保留请求号及 REVOKED 状态；旧号重放不恢复数据，主动重导使用新号。字段删除后同名重建不能替代旧授权身份。
 
 一次最多 10 MiB、10,000 行；坏行与超限不部分导入，不回显原始单元格内容。已有行列权限查询可在导入后验证真实记录。完整的非管理员场景包继续由 T-PERM-036/T-ACCESS-142 验收。
+
+## 一次性有界快照
+
+以已经具有 DEMO_TASK:TRIGGER/VIEW、报表 EXPORT 与行列读取授权的普通用户 Bearer 调用：
+
+```json
+POST /api/example/demo-snapshot/submit
+{"triggerKey":"由脚本生成并在本次重试中沿用的 UUID","selection":{"reportCode":"sales-report"}}
+```
+
+保存返回的 executionKey，以 `POST /api/example/demo-execution/get` 请求 `{"executionKey":"返回的 UUID"}` 查询状态；SUCCESS 后以相同请求体调用 `/api/example/demo-execution/download` 接收 CSV。`/demo-execution/page` 使用 `{pageNum,pageSize}` 查本人记录。网络重试沿原 triggerKey，主动新执行才换号；同号不能换选择或借用他人身份。
+
+省略 fieldIds 表示执行时的当前可读列；显式 fieldIds、filters 和 sort 使用 `/demo-data/fields` 返回的稳定身份。执行前撤销显式列会拒绝，默认列只保留仍有权的部分。后台不保存提交 IP；仅凭在线 IP 条件获得的权限不保证后台通过。EMPTY 无文件；超行数/字节预算整次 FAILED；成功文件保留 7 天，过期不可下载。完整词表与预算见 [API 契约](../../docs/design/example-service-api-contract.md#tasks)。单实例后台默认启用，测试可用 `example.execution.enabled=false` 停止自动消费而直接驱动服务；不提供多实例保证。

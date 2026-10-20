@@ -27,7 +27,7 @@ import static org.mockito.ArgumentMatchers.*;
 
 @Tag("testcontainers")
 @Testcontainers(disabledWithoutDocker=true)
-@SpringBootTest(properties={"spring.main.web-application-type=none","example.publication.enabled=false",
+@SpringBootTest(properties={"spring.main.web-application-type=none","example.publication.enabled=false","example.execution.enabled=false",
     "spring.cloud.nacos.config.enabled=false","spring.cloud.nacos.discovery.enabled=false",
     "spring.cloud.nacos.config.import-check.enabled=false","spring.config.import=optional:classpath:/test-nope.yml"})
 class DemoPolicyPgIT {

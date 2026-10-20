@@ -5,7 +5,7 @@
   "groups": [
     {
       "groupCode": "example-demo",
-      "groupName": "持久化权限演示与原有探针",
+      "groupName": "鎸佷箙鍖栨潈闄愭紨绀轰笌鍘熸湁鎺㈤拡",
       "apis": [
         {
           "name": "demo/hello",
@@ -305,6 +305,46 @@
           "requiredPermission": {
             "resourceTypeCode": "DEMO_DATASET",
             "operationCode": "MANAGE"
+          }
+        },
+        {
+          "name": "demo-snapshot/submit",
+          "httpMethod": "POST",
+          "path": "/demo-snapshot/submit",
+          "resourceCode": "example:demo:demo-snapshot:submit",
+          "requiredPermission": {
+            "resourceTypeCode": "DEMO_TASK",
+            "operationCode": "TRIGGER"
+          }
+        },
+        {
+          "name": "demo-execution/get",
+          "httpMethod": "POST",
+          "path": "/demo-execution/get",
+          "resourceCode": "example:demo:demo-execution:get",
+          "requiredPermission": {
+            "resourceTypeCode": "DEMO_TASK",
+            "operationCode": "VIEW"
+          }
+        },
+        {
+          "name": "demo-execution/page",
+          "httpMethod": "POST",
+          "path": "/demo-execution/page",
+          "resourceCode": "example:demo:demo-execution:page",
+          "requiredPermission": {
+            "resourceTypeCode": "DEMO_TASK",
+            "operationCode": "VIEW"
+          }
+        },
+        {
+          "name": "demo-execution/download",
+          "httpMethod": "POST",
+          "path": "/demo-execution/download",
+          "resourceCode": "example:demo:demo-execution:download",
+          "requiredPermission": {
+            "resourceTypeCode": "DEMO_TASK",
+            "operationCode": "VIEW"
           }
         }
       ]

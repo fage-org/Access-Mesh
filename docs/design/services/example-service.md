@@ -3,7 +3,7 @@ doc_type: design
 title: Example Service 设计
 status: adopted
 domain: example-service
-last_reviewed: 2026-10-19
+last_reviewed: 2026-10-20
 ---
 
 # Example Service 设计
@@ -83,3 +83,7 @@ T-ACCESS-135 在相同冻结镜像上完成源栈/恢复栈普通用户允许、
 本服务使用独立 example_db/example_app，已接入 MyBatis-Flex/PostgreSQL；唯一 DDL 为 [example-service.sql](../schema/example-service.sql)，原未使用 BI schema 已替换。初始化、环境变量与备份范围见[业务库说明](../../ops/example-database.md)。启动检查连接与基础表，不自动执行 DDL 或灌业务样本。
 
 持久层当前提供报表/字段实体与显式租户 Mapper，字段资源编码由不可复用主键生成。PG 测试验证唯一约束、租户与父对象归属、UTC 映射和实际 Mapper 事务；完整业务编排、发布和权限过滤不由本段宣称完成。
+
+## 有界权限快照
+
+`/api/example/demo-snapshot/submit` 保存可信创建者和稳定字段选择，后台按实际执行时间重新检查 TRIGGER、EXPORT 和行列范围，不保存用户 IP。`demo-execution/get/page/download` 提供本人状态及有界 CSV 领取；请求重试沿 triggerKey，结果与 SUCCESS 按 attempt 同事务提交，默认后台恢复与期限清理。详细预算和边界见[权限演示设计](../example-permission-demo.md#scheduled-tasks)及[API 契约](../example-service-api-contract.md#tasks)。T-ACCESS-141 已完成验收；自定义 cron 仍待 T-ACCESS-143。

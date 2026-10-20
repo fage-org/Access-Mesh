@@ -42,13 +42,16 @@ import static org.mockito.ArgumentMatchers.*;
 
 @Tag("testcontainers")
 @Testcontainers(disabledWithoutDocker=true)
-@SpringBootTest(properties={"spring.main.web-application-type=none","example.publication.enabled=false",
+@SpringBootTest(properties={"spring.main.web-application-type=none","example.publication.enabled=false","example.execution.enabled=false",
     "spring.cloud.nacos.config.enabled=false","spring.cloud.nacos.discovery.enabled=false",
     "spring.cloud.nacos.config.import-check.enabled=false","spring.config.import=optional:classpath:/test-nope.yml",
     "example.permission.allow-insecure=true","example.permission.tenant-credentials.1.credential-id=test-tenant-1",
-    "example.permission.tenant-credentials.1.credential-secret=test-only-secret"})
+    "example.permission.tenant-credentials.1.credential-secret=test-only-secret",
+    "example.permission.tenant-credentials.2.credential-id=test-tenant-2","example.permission.tenant-credentials.2.credential-secret=test-only-secret"})
 class DemoDataPgIT {
     @DynamicPropertySource static void database(DynamicPropertyRegistry r) { ExamplePgInfra.PG.register(r,DemoDataPgIT.class); }
+    @Autowired cn.ac.fage.accessmesh.example.task.service.DemoExecutionAppService executions;
+    @Autowired cn.ac.fage.accessmesh.example.task.domain.DemoExecutionDomainService executionDomain;
     @Autowired JdbcTemplate jdbc;
     @Autowired PlatformTransactionManager transactions;
     @Autowired DemoMetadataDomainService metadata;
@@ -74,7 +77,7 @@ class DemoDataPgIT {
 
     @BeforeEach void fixtures() {
         tx=new TransactionTemplate(transactions);
-        for(String table:List.of("demo_record","demo_import_batch","demo_policy","demo_publication","demo_report_field","demo_scope","demo_report","demo_dataset")) jdbc.update("DELETE FROM "+table);
+        for(String table:List.of("demo_execution","demo_task","demo_record","demo_import_batch","demo_policy","demo_publication","demo_report_field","demo_scope","demo_report","demo_dataset")) jdbc.update("DELETE FROM "+table);
         var keys=List.of("recordCode","ownerUserId","teamCode","departmentCode","regionCode","saleDate","productName","amount","remark");
         tx.executeWithoutResult(s -> {
             metadata.createReport(1,42,"r1","第一报表","sales-records","FIELDS");
@@ -106,6 +109,172 @@ class DemoDataPgIT {
         grantRead("recordCode","productName"); editCodes=List.of(fields.get("remark").getResourceCode());
         when(client.queryScopes(any(),eq("test-tenant-1"),eq("test-only-secret"))).thenAnswer(invocation -> R.ok(scopeResponse(invocation.getArgument(0))));
         clearInvocations(records);
+    }
+
+    @Test void shouldPersistBoundedSnapshotAndKeepCompletedOwnershipAfterRevocation() {
+        allowExecution();
+        var request=new cn.ac.fage.accessmesh.example.task.dto.ExecutionDtos.SubmitReq(UUID.randomUUID(),new Selection("r1",null,null,null));
+        var queued=executions.submit(new Caller(1,42,"192.0.2.10"),request);
+        assertEquals("PENDING",queued.status());
+        assertNull(queued.policyVersion());
+        clearInvocations(client);
+        assertTrue(executions.runNext());
+        var done=executions.get(actor,queued.executionKey());
+        assertEquals("SUCCESS",done.status()); assertEquals(2L,done.recordCount()); assertEquals(1,done.attempt());
+        assertEquals(List.of("recordCode","productName"),done.outputColumns().stream().map(Column::fieldKey).toList());
+        String csv=new String(executions.download(actor,done.executionKey()),java.nio.charset.StandardCharsets.UTF_8);
+        assertTrue(csv.contains("Alpha")); assertTrue(csv.contains("Beta")); assertFalse(csv.contains("amount")); assertFalse(csv.contains("Gamma"));
+        verify(client).queryScopes(argThat(r->r.context()==null),anyString(),anyString());
+        verify(client,atLeastOnce()).checkAuth(argThat(r->r.context()==null),anyString(),anyString());
+        grantRead(); rowMode=ScopeMode.EMPTY;
+        assertArrayEquals(csv.getBytes(java.nio.charset.StandardCharsets.UTF_8),executions.download(actor,done.executionKey()));
+        assertEquals(30004,assertThrows(BizException.class,()->executions.get(new Caller(1,43,null),done.executionKey())).getErrorCode());
+        assertEquals(30004,assertThrows(BizException.class,()->executions.get(new Caller(2,42,null),done.executionKey())).getErrorCode());
+        assertFalse(executions.runNext());
+    }
+
+    @Test void shouldRejectExplicitRevokedFieldWithoutAnArtifact() {
+        allowExecution();
+        var request=new cn.ac.fage.accessmesh.example.task.dto.ExecutionDtos.SubmitReq(UUID.randomUUID(),new Selection("r1",List.of(fields.get("productName").getId()),null,null));
+        var execution=executions.submit(actor,request);
+        grantRead("recordCode");
+        assertTrue(executions.runNext());
+        assertEquals("DENIED",executions.get(actor,execution.executionKey()).status());
+        assertNull(jdbc.queryForObject("SELECT result_bytes FROM demo_execution WHERE execution_key=?",byte[].class,execution.executionKey()));
+        assertEquals(30107,assertThrows(BizException.class,()->executions.download(actor,execution.executionKey())).getErrorCode());
+    }
+
+    @Test void shouldBindTriggerToOwnerAndPayloadAndExpireWithoutReexecution() {
+        allowExecution();
+        var request=new cn.ac.fage.accessmesh.example.task.dto.ExecutionDtos.SubmitReq(UUID.randomUUID(),new Selection("r1",null,null,null));
+        var first=executions.submit(actor,request);
+        assertEquals(first.executionKey(),executions.submit(actor,request).executionKey());
+        assertEquals(30109,assertThrows(BizException.class,()->executions.submit(actor,
+            new cn.ac.fage.accessmesh.example.task.dto.ExecutionDtos.SubmitReq(request.triggerKey(),new Selection("r2",null,null,null)))).getErrorCode());
+        assertEquals(30004,assertThrows(BizException.class,()->executions.submit(new Caller(1,43,null),request)).getErrorCode());
+        executions.runNext();
+        jdbc.update("UPDATE demo_execution SET expires_at=now()-interval '1 second' WHERE execution_key=?",first.executionKey());
+        assertEquals(30107,assertThrows(BizException.class,()->executions.download(actor,first.executionKey())).getErrorCode());
+        executions.expire(); executions.recover();
+        assertEquals("EXPIRED",executions.get(actor,first.executionKey()).status());
+        assertFalse(executions.runNext());
+        assertEquals(1L,jdbc.queryForObject("SELECT count(*) FROM demo_execution",Long.class));
+    }
+
+    @Test void shouldFenceStaleAttemptsAndRollbackResultWithTerminalStatus() {
+        allowExecution();
+        var queued=executions.submit(actor,new cn.ac.fage.accessmesh.example.task.dto.ExecutionDtos.SubmitReq(UUID.randomUUID(),new Selection("r1",null,null,null)));
+        var first=tx.execute(s -> executionDomain.claim());
+        first.setStatus("SUCCESS"); first.setResultBytes(new byte[]{1}); first.setResultRowCount(1L);
+        assertThrows(IllegalStateException.class,()->tx.executeWithoutResult(s -> {
+            assertTrue(executionDomain.finish(first)); throw new IllegalStateException("before commit");
+        }));
+        assertEquals("RUNNING",executions.get(actor,queued.executionKey()).status());
+        assertNull(jdbc.queryForObject("SELECT result_bytes FROM demo_execution WHERE execution_key=?",byte[].class,queued.executionKey()));
+        executions.recover();
+        jdbc.update("UPDATE demo_execution SET next_attempt_at=now() WHERE execution_key=?",queued.executionKey());
+        var second=tx.execute(s -> executionDomain.claim()); assertEquals(2,second.getAttempt());
+        assertEquals(Boolean.FALSE,tx.execute(s -> executionDomain.finish(first)));
+        second.setStatus("SUCCESS"); second.setResultBytes(new byte[]{2}); second.setResultRowCount(1L);
+        tx.executeWithoutResult(s -> assertTrue(executionDomain.finish(second)));
+        executions.recover(); assertFalse(executions.runNext());
+        assertArrayEquals(new byte[]{2},executions.download(actor,queued.executionKey()));
+        assertEquals(Boolean.FALSE,tx.execute(s -> executionDomain.finish(first)));
+    }
+
+    @ParameterizedTest @ValueSource(booleans={false,true})
+    void shouldFailEntireSnapshotAtRowOrEncodedByteBudget(boolean byteBudget) {
+        allowExecution(); rowMode=ScopeMode.ALL; grantRead("remark");
+        jdbc.update("""
+            INSERT INTO demo_record(tenant_id,batch_id,record_code,owner_user_id,team_code,department_code,region_code,sale_date,product_name,amount,remark)
+            SELECT 1,batch_id,'budget-'||n,42,'T1','D1','R1',sale_date,'budget',1,repeat('界',1000)
+            FROM demo_record CROSS JOIN generate_series(1,?) n WHERE tenant_id=1 AND record_code='A'
+            """,byteBudget?996:997);
+        var queued=executions.submit(actor,new cn.ac.fage.accessmesh.example.task.dto.ExecutionDtos.SubmitReq(UUID.randomUUID(),new Selection("r1",null,null,null)));
+        executions.runNext(); var result=executions.get(actor,queued.executionKey());
+        assertEquals("FAILED",result.status()); assertEquals("LIMIT_EXCEEDED",result.reason());
+        assertEquals(30107,assertThrows(BizException.class,()->executions.download(actor,queued.executionKey())).getErrorCode());
+    }
+
+    @ParameterizedTest @ValueSource(booleans={false,true})
+    void shouldReauthorizeRetriesAndStopAtThreeAttempts(boolean temporary) {
+        allowExecution();
+        var queued=executions.submit(actor,new cn.ac.fage.accessmesh.example.task.dto.ExecutionDtos.SubmitReq(UUID.randomUUID(),new Selection("r1",null,null,null)));
+        when(client.queryScopes(any(),anyString(),anyString())).thenReturn(R.fail(temporary?99999:401,"service failure"));
+        executions.runNext();
+        var first=executions.get(actor,queued.executionKey());
+        assertEquals(temporary?"PENDING":"FAILED",first.status());
+        if(temporary) {
+            assertFalse(executions.runNext());
+            for(int attempt=2;attempt<=3;attempt++) {
+                jdbc.update("UPDATE demo_execution SET next_attempt_at=now() WHERE execution_key=?",queued.executionKey());
+                assertTrue(executions.runNext()); assertEquals(attempt,executions.get(actor,queued.executionKey()).attempt());
+            }
+            assertEquals("FAILED",executions.get(actor,queued.executionKey()).status());
+        }
+        executions.recover(); assertFalse(executions.runNext());
+        assertEquals(1L,jdbc.queryForObject("SELECT count(*) FROM demo_execution",Long.class));
+    }
+
+    @ParameterizedTest @ValueSource(booleans={false,true})
+    void shouldCreateNoArtifactForEmptyRowsOrFields(boolean emptyFields) {
+        allowExecution();
+        var queued=executions.submit(actor,new cn.ac.fage.accessmesh.example.task.dto.ExecutionDtos.SubmitReq(UUID.randomUUID(),new Selection("r1",null,null,null)));
+        if(emptyFields) fieldMode=ScopeMode.EMPTY; else rowMode=ScopeMode.EMPTY;
+        executions.runNext(); assertEquals("EMPTY",executions.get(actor,queued.executionKey()).status());
+        verify(records,never()).page(any(),anyInt(),anyLong());
+        assertEquals(30107,assertThrows(BizException.class,()->executions.download(actor,queued.executionKey())).getErrorCode());
+    }
+
+    @Test void shouldPreserveRowsWhoseOnlyAuthorizedValueIsNull() {
+        grantRead("remark");
+        var result=app.get(actor,new GetReq("r1",null,null,null,"B"));
+        assertEquals("DATA",result.state());
+        assertTrue(result.record().containsKey("remark")); assertNull(result.record().get("remark"));
+    }
+
+    @Test void shouldUseCurrentDefaultColumnsAndRowsOnExecution() {
+        allowExecution();
+        var queued=executions.submit(actor,new cn.ac.fage.accessmesh.example.task.dto.ExecutionDtos.SubmitReq(UUID.randomUUID(),new Selection("r1",null,null,null)));
+        grantRead("productName"); rowCodes=List.of("self");
+        executions.runNext();
+        var result=executions.get(actor,queued.executionKey());
+        assertEquals(1L,result.recordCount()); assertEquals(List.of("productName"),result.outputColumns().stream().map(Column::fieldKey).toList());
+        String csv=new String(executions.download(actor,queued.executionKey()),java.nio.charset.StandardCharsets.UTF_8);
+        assertTrue(csv.contains("Alpha")); assertFalse(csv.contains("Beta")); assertFalse(csv.contains("recordCode"));
+    }
+
+    @Test void shouldKeepFrozenFieldIdsAfterRemovalAndSameNameRegistration() {
+        allowExecution(); fieldMode=ScopeMode.ALL;
+        long field=fields.get("productName").getId();
+        var selections=List.of(new Selection("r1",List.of(field),null,null),
+            new Selection("r1",null,List.of(new Filter(field,"EQ",json.valueToTree("Alpha"),null)),null),
+            new Selection("r1",null,null,new Sort(field,"ASC")));
+        var queued=selections.stream().map(selection->executions.submit(actor,new cn.ac.fage.accessmesh.example.task.dto.ExecutionDtos.SubmitReq(UUID.randomUUID(),selection))).toList();
+        tx.executeWithoutResult(s->{metadata.removeFields(1,42,"r1",1,List.of(field)); metadata.registerFields(1,42,"r1",2,List.of("productName"));});
+        jdbc.update("UPDATE demo_report_field SET publication_status='PUBLISHED'");
+        for(var execution:queued) {
+            assertTrue(executions.runNext()); assertEquals("DENIED",executions.get(actor,execution.executionKey()).status());
+        }
+        verify(records,never()).page(any(),anyInt(),anyLong());
+    }
+
+    @Test void shouldSerializeConcurrentSameTriggerSubmissions() throws Exception {
+        allowExecution();
+        var request=new cn.ac.fage.accessmesh.example.task.dto.ExecutionDtos.SubmitReq(UUID.randomUUID(),new Selection("r1",null,null,null));
+        var start=new java.util.concurrent.CountDownLatch(1);
+        try(var pool=java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+            var a=pool.submit(()->{start.await(); return executions.submit(actor,request);});
+            var b=pool.submit(()->{start.await(); return executions.submit(actor,request);});
+            start.countDown();
+            assertEquals(a.get(10,java.util.concurrent.TimeUnit.SECONDS).executionKey(),b.get(10,java.util.concurrent.TimeUnit.SECONDS).executionKey());
+        }
+        assertEquals(1L,jdbc.queryForObject("SELECT count(*) FROM demo_execution",Long.class));
+    }
+
+    private void allowExecution() {
+        when(client.checkAuth(any(),anyString(),anyString())).thenReturn(R.ok(
+            cn.ac.fage.accessmesh.perm.common.dto.resp.AuthCheckResp.allow(List.of(),List.of(),false)));
     }
 
     @Test void shouldApplyRowUnionBeforePagingAndProjectOnlyAuthorizedColumns() {

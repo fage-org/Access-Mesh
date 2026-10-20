@@ -3377,6 +3377,8 @@ schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正�
 | `30106` | `DEMO_LIMIT_EXCEEDED` | [错误码分段](#contract-section-20-1)；[example 业务契约](example-service-api-contract.md#business-errors) | ExampleErrorCode |
 | `30104` | `DEMO_IMPORT_CONFLICT` | [错误码分段](#contract-section-20-1)；[example 业务契约](example-service-api-contract.md#business-errors) | ExampleErrorCode |
 | `30105` | `DEMO_CSV_INVALID` | [错误码分段](#contract-section-20-1)；[example 业务契约](example-service-api-contract.md#business-errors) | ExampleErrorCode |
+| `30107` | `DEMO_RESULT_UNAVAILABLE` | [错误码分段](#contract-section-20-1)；[example 业务契约](example-service-api-contract.md#business-errors) | ExampleErrorCode |
+| `30109` | `DEMO_TRIGGER_CONFLICT` | [错误码分段](#contract-section-20-1)；[example 业务契约](example-service-api-contract.md#business-errors) | ExampleErrorCode |
 <!-- error-code-index:end -->
 
 退役码 10111 不复用；历史说明保留于 §20.1。SDK 验签的 30003 已由 PermClientErrorCode 单源定义，保持原 HTTP 200 + 业务码行为。

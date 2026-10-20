@@ -21,11 +21,16 @@ class DemoInterfaceManifestTest {
     @Test
     void shouldDeclareExactlyTheImplementedPostRoutesWithExplicitPermissionRequirements() throws Exception {
         Set<String> implemented=new HashSet<>();
-        for (Class<?> controller : Set.of(DemoController.class,ReportController.class,DemoMetadataController.class,DemoPolicyController.class,DemoDataController.class,DemoImportController.class)) {
+        for (Class<?> controller : Set.of(DemoController.class,ReportController.class,DemoMetadataController.class,DemoPolicyController.class,DemoDataController.class,DemoImportController.class,cn.ac.fage.accessmesh.example.task.controller.DemoExecutionController.class)) {
             String prefix=controller.getAnnotation(RequestMapping.class).value()[0];
             for (var method : controller.getDeclaredMethods()) {
                 var mapping=method.getAnnotation(PostMapping.class);
-                if (mapping!=null) for (String path : mapping.value()) implemented.add(prefix+path);
+                if (mapping!=null) for (String path : mapping.value()) {
+                    String full=prefix+path; implemented.add(full);
+                    if(full.equals("/api/example/demo-execution/download")) {
+                        assertThat(method.getReturnType()).isEqualTo(org.springframework.http.ResponseEntity.class);
+                    } else assertThat(method.getReturnType()).isEqualTo(cn.ac.fage.accessmesh.common.model.R.class);
+                }
             }
         }
         var manifest=JsonMapper.builder().build().readTree(Files.readString(Path.of("examples","permission-demo-interfaces.json")));
@@ -46,6 +51,8 @@ class DemoInterfaceManifestTest {
                 case "/demo-data/fields", "/demo-data/page", "/demo-data/get", "/demo-data/batch-get" -> DemoPermission.REPORT_READ;
                 case "/demo-data/update", "/demo-data/batch-update" -> DemoPermission.REPORT_EDIT;
                 case "/demo-data/import", "/demo-data/import-status", "/demo-data/revoke-import" -> DemoPermission.DATASET_MANAGE;
+                case "/demo-snapshot/submit" -> DemoPermission.TASK_TRIGGER;
+                case "/demo-execution/get", "/demo-execution/page", "/demo-execution/download" -> DemoPermission.TASK_VIEW;
                 default -> null; // Legacy probe requirements are verified by their existing E2E journeys.
             };
             if (permission!=null) {
