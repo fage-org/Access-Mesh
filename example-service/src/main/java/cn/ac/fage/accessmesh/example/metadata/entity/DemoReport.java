@@ -13,6 +13,7 @@ public class DemoReport {
     private String reportCode;
     private String name;
     private String fieldResourceTypeCode;
+    private String referencedTypeCodes;
     private Boolean enabled;
     private Long version;
     private Long catalogVersion;

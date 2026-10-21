@@ -24,6 +24,7 @@ public interface DemoDatasetMapper {
 
     @Select("""
         SELECT EXISTS(SELECT 1 FROM demo_scope WHERE tenant_id=#{tenant} AND resource_type_code=#{type})
+          OR EXISTS(SELECT 1 FROM demo_report WHERE tenant_id=#{tenant} AND jsonb_exists(referenced_type_codes,#{type}))
           OR EXISTS(SELECT 1 FROM demo_policy WHERE tenant_id=#{tenant}
             AND (configuration #>> '{read,rowResourceTypeCode}'=#{type}
               OR configuration #>> '{edit,rowResourceTypeCode}'=#{type}))

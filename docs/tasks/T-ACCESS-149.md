@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-149
 title: example 专属字段与通用范围接入
-status: proposed
+status: in-progress
 plan: docs/plans/resource-association-plan.md
 domain: cross-service
 design_refs:
@@ -23,7 +23,7 @@ acceptance:
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-10-21
+last_updated: 2026-10-22
 ---
 
 ## 背景
@@ -38,7 +38,11 @@ last_updated: 2026-10-21
 
 复用两张报表与行列 SQL 解释器，保留报表 DATA_EDIT 门槛。金额用读权限证明隔离，实际编辑继续使用 remark；不将本卡扩成金额编辑或行列配对能力。
 
-详细规则以[资源关系设计](../design/resource-association.md)及上列 design_refs 为准。本卡已获执行授权，保持 proposed，待直接依赖及实施契约门槛满足后启动。
+详细规则以[资源关系设计](../design/resource-association.md)及上列 design_refs 为准。发布协议与运行时已有实现，按用户要求推进不依赖待决项的接入；报表整类引用与字段归属沿既有冻结事件链路实现。
+
+待用户明确：退役 example 本地通用目录后，策略映射保存是否允许先于 IAM 实例准备，或必须增加服务身份下的远程批量目录核验。现行策略保存要求本地实例已登记/启用/发布，不能把直接删除该检查当作已获确认。待决定期间保持这段旧保存路径，不擅自放宽或新增远程核验契约。
+
+报表引用、字段归属与 SDK 发布已实现并完成定向验证，见[实施验证](evidence/T-ACCESS-149/verification.md)。准备脚本的目标类型和 IAM 目录准备已调整，但策略保存分支尚未闭合，脚本未作为完整流程执行，E2E 夹具与旧目录退役仍待接续。
 
 ## 验收对照
 

@@ -3,12 +3,14 @@ doc_type: design
 title: example-service 持久化权限演示需求与设计
 status: adopted
 domain: example-service
-last_reviewed: 2026-10-21
+last_reviewed: 2026-10-22
 ---
 
 # example-service 持久化权限演示
 
-> **资源关系接入目标（T-ACCESS-149，尚未实施）**：字段发布唯一报表归属，通用范围改为 IAM 维护实例、example 发布整类引用并维护业务谓词映射，规则见[资源关系契约](access-service-api-contract.md#resource-association-contract)。通用行范围 ALL 继续表示整个数据集，保留 CSV 导入的 ALL 前提；实例删除/停用不缩窄独立 ALL。字段 ALL 继续仅覆盖当前报表有效字段。INSTANCE 中无法解释的业务键沿现有配置错误拒绝，不静默丢弃或放开范围；本地映射不得成为 MANAGED 目录的另一写入口。具体端点裁剪与发布字段由本计划契约定稿，旧实现仍以下文及现有代码为准。
+> **资源关系接入目标（T-ACCESS-149，分项实施）**：字段发布唯一报表归属，通用范围改为 IAM 维护实例、example 发布整类引用并维护业务谓词映射，规则见[资源关系契约](access-service-api-contract.md#resource-association-contract)。通用行范围 ALL 继续表示整个数据集，保留 CSV 导入的 ALL 前提；实例删除/停用不缩窄独立 ALL。字段 ALL 继续仅覆盖当前报表有效字段。INSTANCE 中无法解释的业务键沿现有配置错误拒绝，不静默丢弃或放开范围；本地映射不得成为 MANAGED 目录的另一写入口。具体端点裁剪与发布字段由本计划契约定稿，旧实现仍以下文及现有代码为准。
+
+报表已保存整类引用并随版本冻结发布；字段事件已携带所属报表业务键及不可复用来源 ID，发送复用 perm-client SDK。通用目录退役及策略保存时的 IAM 核验方式仍待用户决定，见 [T-ACCESS-149](../tasks/T-ACCESS-149.md)。该分项状态不代表新流程已完成联合验收。
 
 <a id="scope"></a>
 ## 1. 定位与确认范围

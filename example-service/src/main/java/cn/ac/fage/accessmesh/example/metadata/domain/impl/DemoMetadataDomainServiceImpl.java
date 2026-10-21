@@ -26,30 +26,35 @@ public class DemoMetadataDomainServiceImpl implements DemoMetadataDomainService 
     private final DemoScopeMapper scopes;
     private final DemoPublicationDomainService publications;
     private final DemoReportFieldMapper fields;
+    private final tools.jackson.databind.json.JsonMapper json;
     private static final Set<String> FIELD_KEYS = java.util.Arrays.stream(DemoField.values())
         .map(DemoField::key).collect(java.util.stream.Collectors.toUnmodifiableSet());
 
     public DemoMetadataDomainServiceImpl(DemoDatasetMapper datasets, DemoReportMapper reports, DemoScopeMapper scopes,
-                                         DemoPublicationDomainService publications, DemoReportFieldMapper fields) {
+                                         DemoPublicationDomainService publications, DemoReportFieldMapper fields,
+                                         tools.jackson.databind.json.JsonMapper json) {
         this.datasets = datasets;
         this.reports = reports;
         this.scopes = scopes;
         this.publications = publications;
         this.fields = fields;
+        this.json = json;
     }
 
     @Override
-    public DemoReport createReport(long tenant, long actor, String code, String name, String dataset, String fieldType) {
+    public DemoReport createReport(long tenant, long actor, String code, String name, String dataset, String fieldType, List<String> referencedTypes) {
         if (!"sales-records".equals(dataset)) throw invalid();
         long datasetId = lock(tenant, actor);
         validatePurpose(tenant, fieldType, true);
+        List<String> references = validateReferences(tenant, fieldType, referencedTypes);
         if (reports.selectByCode(tenant, code) != null) throw conflict();
         var report = new DemoReport();
         report.setTenantId(tenant); report.setCreatedBy(actor); report.setDatasetId(datasetId);
         report.setReportCode(code); report.setName(name); report.setFieldResourceTypeCode(fieldType);
+        report.setReferencedTypeCodes(json.writeValueAsString(references));
         reports.insert(report);
         publications.record(tenant, actor, java.util.List.of(new Change("DEMO_REPORT", code, "default", 1,
-            "UPSERT", name, true, "demo_report", report.getId().toString())));
+            "UPSERT", name, true, "demo_report", report.getId().toString(), null, references)));
         return reports.selectByCode(tenant, code);
     }
 
@@ -124,14 +129,16 @@ public class DemoMetadataDomainServiceImpl implements DemoMetadataDomainService 
     }
 
     @Override
-    public DemoReport updateReport(long tenant, long actor, String code, long version, String name, boolean enabled) {
+    public DemoReport updateReport(long tenant, long actor, String code, long version, String name, boolean enabled, List<String> referencedTypes) {
         lock(tenant, actor);
         var report = getReport(tenant, code);
-        if (report.getVersion() != version || reports.update(tenant, report.getId(), version, name, enabled, actor) != 1) {
+        List<String> references = validateReferences(tenant, report.getFieldResourceTypeCode(), referencedTypes == null
+            ? List.of(json.readValue(report.getReferencedTypeCodes(), String[].class)) : referencedTypes);
+        if (report.getVersion() != version || reports.update(tenant, report.getId(), version, name, enabled, actor, json.writeValueAsString(references)) != 1) {
             throw conflict();
         }
         publications.record(tenant, actor, List.of(new Change("DEMO_REPORT", code, "default", version + 1,
-            "UPSERT", name, enabled, "demo_report", report.getId().toString())));
+            "UPSERT", name, enabled, "demo_report", report.getId().toString(), null, references)));
         return getReport(tenant, code);
     }
 
@@ -185,7 +192,17 @@ public class DemoMetadataDomainServiceImpl implements DemoMetadataDomainService 
 
     private Change fieldChange(DemoReport report, DemoReportField field, String operation, long version) {
         return new Change(report.getFieldResourceTypeCode(), field.getResourceCode(), "default", version,
-            operation, field.getFieldKey(), field.getEnabled(), "demo_report_field", field.getId().toString());
+            operation, field.getFieldKey(), field.getEnabled(), "demo_report_field", field.getId().toString(),
+            new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceAssociationOwnerReq("DEMO_REPORT", report.getReportCode(), "default", report.getId().toString()), null);
+    }
+
+    private List<String> validateReferences(long tenant, String fieldType, List<String> requested) {
+        if (requested == null || requested.isEmpty()) return List.of();
+        if (requested.size() > 200 || requested.stream().anyMatch(code -> code == null || !code.matches("[A-Z][A-Z0-9_]{0,63}"))
+            || Set.copyOf(requested).size() != requested.size() || requested.contains(fieldType)) throw invalid();
+        requested.forEach(DemoTypePurpose::requireDynamic);
+        if (!datasets.fieldTypes(tenant, Set.copyOf(requested)).isEmpty()) throw invalid();
+        return requested.stream().sorted().toList();
     }
 
     private void advanceCatalog(long tenant, long actor, DemoReport report, long version) {

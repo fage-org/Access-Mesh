@@ -10,6 +10,7 @@ import cn.ac.fage.accessmesh.example.metadata.entity.DemoReportField;
 import cn.ac.fage.accessmesh.example.metadata.service.DemoMetadataAppService;
 import cn.ac.fage.accessmesh.example.perm.BusinessPermChecker;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
+import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -19,16 +20,18 @@ public class DemoMetadataAppServiceImpl implements DemoMetadataAppService {
     private final DemoMetadataDomainService metadata;
     private final BusinessPermChecker permissions;
     private final TransactionTemplate transaction;
+    private final tools.jackson.databind.json.JsonMapper json;
     public DemoMetadataAppServiceImpl(DemoMetadataDomainService metadata, BusinessPermChecker permissions,
-                                      PlatformTransactionManager transactions) {
+                                      PlatformTransactionManager transactions, tools.jackson.databind.json.JsonMapper json) {
         this.metadata = metadata; this.permissions = permissions;
         this.transaction = new TransactionTemplate(transactions);
+        this.json = json;
     }
     @Override
     public ReportResp create(Caller c, ReportCreateReq r) {
         require(c, DemoPermission.REPORT_CREATE, null);
         return transaction.execute(s -> report(metadata.createReport(c.tenantId(), c.userId(), r.reportCode(),
-            r.name(), r.datasetCode(), r.fieldResourceTypeCode())));
+            r.name(), r.datasetCode(), r.fieldResourceTypeCode(), r.referencedTypeCodes())));
     }
     @Override
     public ReportResp get(Caller c, ReportGetReq r) {
@@ -39,7 +42,7 @@ public class DemoMetadataAppServiceImpl implements DemoMetadataAppService {
     public ReportResp update(Caller c, ReportUpdateReq r) {
         require(c, DemoPermission.REPORT_UPDATE, r.reportCode());
         return transaction.execute(s -> report(metadata.updateReport(c.tenantId(), c.userId(), r.reportCode(),
-            r.expectedVersion(), r.name(), r.enabled())));
+            r.expectedVersion(), r.name(), r.enabled(), r.referencedTypeCodes())));
     }
     @Override
     public FieldRegistrationResp register(Caller c, FieldRegisterReq r) {
@@ -91,9 +94,10 @@ public class DemoMetadataAppServiceImpl implements DemoMetadataAppService {
         if (!decision.allowed()) throw new BizException(ExampleErrorCode.PERMISSION_DENIED.getCode(),
             ExampleErrorCode.PERMISSION_DENIED.getMessage());
     }
-    private static ReportResp report(DemoReport r) {
+    private ReportResp report(DemoReport r) {
         return new ReportResp(r.getReportCode(), r.getName(), "sales-records", "DEMO_REPORT", r.getFieldResourceTypeCode(),
-            r.getEnabled(), r.getVersion(), r.getCatalogVersion(), r.getPublicationStatus());
+            r.getEnabled(), r.getVersion(), r.getCatalogVersion(), r.getPublicationStatus(),
+            List.of(json.readValue(r.getReferencedTypeCodes(), String[].class)));
     }
     private static FieldResp field(DemoReport r, DemoReportField f) {
         return new FieldResp(f.getId(), f.getFieldKey(), f.getEnabled(), r.getFieldResourceTypeCode(),

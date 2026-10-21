@@ -12,5 +12,12 @@ public interface DemoPublicationDomainService {
     DemoPublication retry(long tenant, long actor, String type, String code, String codeType);
     PageResp<DemoPublication> page(long tenant, String status, int page, int size);
     record Change(String type, String code, String codeType, long version, String operation,
-                  String name, boolean enabled, String entityType, String entityId) {}
+                  String name, boolean enabled, String entityType, String entityId,
+                  cn.ac.fage.accessmesh.perm.common.dto.req.ResourceAssociationOwnerReq associationOwner,
+                  List<String> referencedTypeCodes) {
+        public Change(String type, String code, String codeType, long version, String operation,
+                      String name, boolean enabled, String entityType, String entityId) {
+            this(type, code, codeType, version, operation, name, enabled, entityType, entityId, null, null);
+        }
+    }
 }

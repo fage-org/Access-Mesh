@@ -7,7 +7,7 @@ import cn.ac.fage.accessmesh.example.metadata.domain.DemoPublicationDomainServic
 import cn.ac.fage.accessmesh.example.metadata.dto.MetadataDtos.Caller;
 import cn.ac.fage.accessmesh.example.metadata.dto.PublicationDtos.*;
 import cn.ac.fage.accessmesh.example.metadata.entity.DemoPublication;
-import cn.ac.fage.accessmesh.example.metadata.publication.DemoResourceSyncClient;
+import cn.ac.fage.accessmesh.perm.client.feign.PermissionFeignClient;
 import cn.ac.fage.accessmesh.example.metadata.service.DemoPublicationAppService;
 import cn.ac.fage.accessmesh.example.perm.BusinessPermChecker;
 import cn.ac.fage.accessmesh.example.perm.ExamplePermissionProperties;
@@ -22,13 +22,13 @@ import feign.FeignException;
 @Service
 public class DemoPublicationAppServiceImpl implements DemoPublicationAppService {
     private final DemoPublicationDomainService publications;
-    private final DemoResourceSyncClient client;
+    private final PermissionFeignClient client;
     private final ExamplePermissionProperties credentials;
     private final BusinessPermChecker permissions;
     private final JsonMapper json;
     private final TransactionTemplate write;
     private final TransactionTemplate read;
-    public DemoPublicationAppServiceImpl(DemoPublicationDomainService publications, DemoResourceSyncClient client,
+    public DemoPublicationAppServiceImpl(DemoPublicationDomainService publications, PermissionFeignClient client,
             ExamplePermissionProperties credentials, BusinessPermChecker permissions, JsonMapper json,
             PlatformTransactionManager transactions) {
         this.publications=publications; this.client=client; this.credentials=credentials;
@@ -49,7 +49,7 @@ public class DemoPublicationAppServiceImpl implements DemoPublicationAppService 
     private Outcome send(DemoPublication event) {
         try {
             var credential=credentials.require(Long.toString(event.getTenantId()));
-            var response=client.sync(json.readTree(event.getPayload()), credential.credentialId(), credential.credentialSecret());
+            var response=client.syncResource(json.readValue(event.getPayload(), cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntitySyncReq.class), credential.credentialId(), credential.credentialSecret());
             if (response == null || response.getCode() != 200 || response.getData() == null) {
                 return new Outcome(false, false, "INVALID_ENVELOPE");
             }

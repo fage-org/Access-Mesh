@@ -29,6 +29,7 @@ CREATE TABLE demo_report (
     report_code VARCHAR(64) NOT NULL CHECK (length(btrim(report_code)) > 0),
     name VARCHAR(128) NOT NULL,
     field_resource_type_code VARCHAR(64) NOT NULL,
+    referenced_type_codes JSONB NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(referenced_type_codes) = 'array'),
     enabled BOOLEAN NOT NULL DEFAULT true,
     version BIGINT NOT NULL DEFAULT 1 CHECK (version > 0),
     catalog_version BIGINT NOT NULL DEFAULT 0 CHECK (catalog_version >= 0),

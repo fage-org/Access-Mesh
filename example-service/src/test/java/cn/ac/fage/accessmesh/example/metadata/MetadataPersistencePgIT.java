@@ -54,7 +54,7 @@ class MetadataPersistencePgIT {
     @Autowired DemoMetadataDomainService metadata;
     @Autowired DemoMetadataAppService app;
     @MockitoBean BusinessPermChecker permissionChecker;
-    @MockitoBean cn.ac.fage.accessmesh.example.metadata.publication.DemoResourceSyncClient syncClient;
+    @MockitoBean cn.ac.fage.accessmesh.perm.client.feign.PermissionFeignClient syncClient;
     @Autowired cn.ac.fage.accessmesh.example.metadata.service.DemoPublicationAppService publisher;
     @Autowired cn.ac.fage.accessmesh.example.metadata.domain.DemoPublicationDomainService publications;
     @MockitoBean cn.ac.fage.accessmesh.example.perm.ExamplePermissionProperties credentials;
@@ -101,6 +101,27 @@ class MetadataPersistencePgIT {
     }
 
     private static class ExpectedRollback extends RuntimeException {}
+
+    @Test
+    void shouldFreezeWholeTypeReferencesAndPreserveOmittedUpdates() {
+        when(permissionChecker.check(anyString(),anyString(),any(),any())).thenAnswer(call -> {
+            assertFalse(TransactionSynchronizationManager.isActualTransactionActive());
+            return new BusinessPermChecker.Decision(true,null);
+        });
+        var caller = new Caller(1,42,"127.0.0.1");
+        var created = app.create(caller,new ReportCreateReq("references","报表","sales-records","FIELDS",List.of("ROWS_B","ROWS_A")));
+        assertEquals(List.of("ROWS_A","ROWS_B"),created.referencedTypeCodes());
+        String first = publications.latest(1,"DEMO_REPORT","references",null).getPayload();
+        assertEquals(List.of("ROWS_A","ROWS_B"),List.of(json.readValue(json.readTree(first).path("referencedTypeCodes").toString(),String[].class)));
+        var preserved = app.update(caller,new ReportUpdateReq("references",1L,"改名",true));
+        assertEquals(created.referencedTypeCodes(),preserved.referencedTypeCodes());
+        var cleared = app.update(caller,new ReportUpdateReq("references",2L,"改名",true,List.of()));
+        assertTrue(cleared.referencedTypeCodes().isEmpty());
+        assertEquals(3L,cleared.version());
+        assertEquals(first,jdbc.queryForObject("SELECT payload::text FROM demo_publication WHERE resource_code='references' AND source_version=1",String.class));
+        assertEquals(30103,assertThrows(BizException.class,() -> app.update(caller,new ReportUpdateReq("references",1L,"旧版本",true,List.of("ROWS_A")))).getErrorCode());
+        assertEquals(3L,publications.latest(1,"DEMO_REPORT","references",null).getSourceVersion());
+    }
 
     @Test
     void shouldRejectScopeTypeUsedByReportFieldsAndKeepTransactionAtomic() {
@@ -177,6 +198,9 @@ class MetadataPersistencePgIT {
         var first = tx.execute(s -> metadata.registerFields(1, 42, "catalog", 0, List.of("amount", "remark")));
         long amount = first.stream().filter(f -> f.getFieldKey().equals("amount")).findFirst().orElseThrow().getId();
         String originalPayload = jdbc.queryForObject("SELECT payload::text FROM demo_publication WHERE resource_type_code='FIELDS' AND resource_code=? AND source_version=1", String.class, Long.toString(amount));
+        var owner = json.readTree(originalPayload).path("associationOwner");
+        assertEquals("catalog", owner.path("code").asText());
+        assertEquals(metadata.getReport(1,"catalog").getId().toString(), owner.path("sourceEntityId").asText());
         tx.executeWithoutResult(s -> metadata.removeFields(1, 42, "catalog", 1, List.of(amount)));
         var recreated = tx.execute(s -> metadata.registerFields(1, 42, "catalog", 2, List.of("amount"))).getFirst();
         assertNotEquals(amount, recreated.getId());
@@ -220,7 +244,7 @@ class MetadataPersistencePgIT {
         var response503 = feign.Response.builder().status(503).reason("temporarily unavailable")
             .request(feign.Request.create(feign.Request.HttpMethod.POST, "http://test.invalid/sync", java.util.Map.of(), null,
                 java.nio.charset.StandardCharsets.UTF_8, null)).headers(java.util.Map.of()).build();
-        when(syncClient.sync(any(), eq("test-tenant-1"), eq("test-only-secret")))
+        when(syncClient.syncResource(any(), eq("test-tenant-1"), eq("test-only-secret")))
             .thenThrow(feign.FeignException.errorStatus("sync", response503))
             .thenAnswer(invocation -> {
                 assertFalse(TransactionSynchronizationManager.isActualTransactionActive());
@@ -236,8 +260,8 @@ class MetadataPersistencePgIT {
         var restarted = new cn.ac.fage.accessmesh.example.metadata.service.impl.DemoPublicationAppServiceImpl(
             publications, syncClient, credentials, permissionChecker, json, transactions);
         restarted.publishNext();
-        var calls = org.mockito.ArgumentCaptor.forClass(tools.jackson.databind.JsonNode.class);
-        verify(syncClient, times(2)).sync(calls.capture(), eq("test-tenant-1"), eq("test-only-secret"));
+        var calls = org.mockito.ArgumentCaptor.forClass(cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntitySyncReq.class);
+        verify(syncClient, times(2)).syncResource(calls.capture(), eq("test-tenant-1"), eq("test-only-secret"));
         assertEquals(calls.getAllValues().get(0), calls.getAllValues().get(1));
         assertEquals("PUBLISHED", metadata.getReport(1, "retry").getPublicationStatus());
         assertEquals(2, publications.latest(1, "DEMO_REPORT", "retry", null).getAttempt());
@@ -247,7 +271,7 @@ class MetadataPersistencePgIT {
     void shouldNotMarkNewVersionReadyFromLateOldResponse() {
         var tx = new TransactionTemplate(transactions);
         tx.executeWithoutResult(s -> metadata.createReport(1, 42, "late", "before", "sales-records", "FIELDS"));
-        when(syncClient.sync(any(), anyString(), anyString())).thenAnswer(invocation -> {
+        when(syncClient.syncResource(any(), anyString(), anyString())).thenAnswer(invocation -> {
             assertFalse(TransactionSynchronizationManager.isActualTransactionActive());
             tx.executeWithoutResult(s -> metadata.updateReport(1, 42, "late", 1, "after", true));
             return cn.ac.fage.accessmesh.common.model.R.ok(new cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp(true, true, false, null, null));
@@ -263,7 +287,7 @@ class MetadataPersistencePgIT {
     void shouldFailClosedOnStaleAndExposeOnlyLatestTenantPublication() {
         var tx = new TransactionTemplate(transactions);
         tx.executeWithoutResult(s -> metadata.createReport(1, 42, "stale", "报表", "sales-records", "FIELDS"));
-        when(syncClient.sync(any(), anyString(), anyString())).thenReturn(cn.ac.fage.accessmesh.common.model.R.ok(
+        when(syncClient.syncResource(any(), anyString(), anyString())).thenReturn(cn.ac.fage.accessmesh.common.model.R.ok(
             new cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp(true, false, true, "STALE_VERSION", "SYNC_VERSION_STALE")));
         publisher.publishNext();
         assertEquals("FAILED", metadata.getReport(1, "stale").getPublicationStatus());
@@ -279,7 +303,7 @@ class MetadataPersistencePgIT {
     void shouldPublishScopeVersionsAndRejectConflictingUpdates() {
         var tx=new TransactionTemplate(transactions);
         tx.executeWithoutResult(s -> metadata.saveScope(1,42,"CUSTOM_SCOPE","team-t1"," BIZ ","团队",true,0));
-        when(syncClient.sync(any(),anyString(),anyString())).thenReturn(cn.ac.fage.accessmesh.common.model.R.ok(
+        when(syncClient.syncResource(any(),anyString(),anyString())).thenReturn(cn.ac.fage.accessmesh.common.model.R.ok(
             new cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp(true,true,false,null,null)));
         publisher.publishNext();
         assertEquals("PUBLISHED",jdbc.queryForObject("SELECT publication_status FROM demo_scope",String.class));
@@ -287,11 +311,11 @@ class MetadataPersistencePgIT {
             metadata.saveScope(1,42,"CUSTOM_SCOPE","team-t1","BIZ","冲突",false,0))).getErrorCode());
         tx.executeWithoutResult(s -> metadata.saveScope(1,42,"CUSTOM_SCOPE","team-t1","BIZ","停用",false,1));
         publisher.publishNext();
-        var sent=org.mockito.ArgumentCaptor.forClass(tools.jackson.databind.JsonNode.class);
-        verify(syncClient,times(2)).sync(sent.capture(),anyString(),anyString());
-        assertEquals("BIZ",sent.getAllValues().get(0).path("codeType").asText());
-        assertEquals(2L,sent.getAllValues().get(1).path("syncVersion").path("sequenceNo").asLong());
-        assertEquals(0,sent.getAllValues().get(1).path("status").asInt());
+        var sent=org.mockito.ArgumentCaptor.forClass(cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntitySyncReq.class);
+        verify(syncClient,times(2)).syncResource(sent.capture(),anyString(),anyString());
+        assertEquals("BIZ",sent.getAllValues().get(0).codeType());
+        assertEquals(2L,sent.getAllValues().get(1).syncVersion().sequenceNo());
+        assertEquals(0,sent.getAllValues().get(1).status());
         assertFalse(jdbc.queryForObject("SELECT enabled FROM demo_scope",Boolean.class));
         assertEquals("PUBLISHED",jdbc.queryForObject("SELECT publication_status FROM demo_scope",String.class));
     }

@@ -38,6 +38,8 @@ public class DemoPublicationDomainServiceImpl implements DemoPublicationDomainSe
             payload.put("status", change.enabled() ? 1 : 0);
             payload.put("sourceService", "example-service");
             payload.put("sourceEntityType", change.entityType()); payload.put("sourceEntityId", change.entityId());
+            if (change.associationOwner() != null) payload.put("associationOwner", change.associationOwner());
+            if (change.referencedTypeCodes() != null) payload.put("referencedTypeCodes", change.referencedTypeCodes());
             payload.put("syncVersion", Map.of("occurredAt", occurredAt, "sequenceNo", change.version()));
             return new DemoPublication(null, tenant, change.type(), change.code(), change.codeType(),
                 change.version(), occurredAt, json.writeValueAsString(payload), "PENDING", 0, null, null, actor);

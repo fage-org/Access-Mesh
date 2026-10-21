@@ -44,7 +44,7 @@ last_updated: 2026-10-22
 | [T-ACCESS-147](../tasks/T-ACCESS-147.md) | 资源关系发布与候选查询及 SDK 接线 | ✅ | T-ACCESS-146 |
 | [T-ACCESS-148](../tasks/T-ACCESS-148.md) | 资源关联授权守卫与运行时一致消费 | 🔨 | T-ACCESS-146 |
 | [T-FE-080](../tasks/T-FE-080.md) | 现有子权限入口按资源归属与引用配置 | 🔨 | T-ACCESS-147、T-ACCESS-148 |
-| [T-ACCESS-149](../tasks/T-ACCESS-149.md) | example 专属字段与通用范围接入 | ⚙️ | T-ACCESS-147、T-ACCESS-148 |
+| [T-ACCESS-149](../tasks/T-ACCESS-149.md) | example 专属字段与通用范围接入 | 🔨 | T-ACCESS-147、T-ACCESS-148 |
 | [T-ACCESS-150](../tasks/T-ACCESS-150.md) | 资源关系联合验收与文档收口 | ⚙️ | T-FE-080、T-ACCESS-149 |
 
 ## 归档条件

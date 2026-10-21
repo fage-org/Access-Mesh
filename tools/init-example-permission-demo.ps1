@@ -57,7 +57,7 @@ foreach ($mapping in $current) {
     $api[0].resourceCode=$mapping.resourceCode
 }
 
-function Ensure-DemoType([string]$Code,[bool]$Sync) {
+function Ensure-DemoType([string]$Code,[bool]$Sync,[string]$AssociationMode = 'NONE') {
     $page=1; $found=@()
     do {
         $result=(Invoke-DemoApi '/api/access/type-definition/list' @{typeKey='resource_type';keyword=$Code;pageNum=$page;pageSize=200}).data
@@ -66,12 +66,18 @@ function Ensure-DemoType([string]$Code,[bool]$Sync) {
     if ($found.Count -gt 1) { throw "Ambiguous type $Code" }
     if ($found.Count -eq 0) {
         $extra=if ($Sync) {@{managedMode='SYNC';syncSourceService='example-service'}} else {@{managedMode='MANAGED'}}
+        if ($AssociationMode -ne 'NONE') { $extra.associationMode=$AssociationMode; $extra.associationParentTypeCodes=@('DEMO_REPORT') }
         $null=Invoke-DemoApi '/api/access/type-definition/create' @{typeKey='resource_type';typeCode=$Code;name=$Code;extra=($extra|ConvertTo-Json -Compress)}
     } else {
         $extra=if ([string]::IsNullOrWhiteSpace($found[0].extra)) {@{}} else {$found[0].extra | ConvertFrom-Json -AsHashtable}
         $mode=if ($extra.ContainsKey('managedMode')) {$extra.managedMode} else {'MANAGED'}
         if (($Sync -and ($mode -ne 'SYNC' -or -not $extra.ContainsKey('syncSourceService') -or $extra.syncSourceService -ne 'example-service')) -or (-not $Sync -and $mode -ne 'MANAGED')) {
             throw "Existing type $Code has incompatible ownership."
+        }
+        $association=if ($extra.ContainsKey('associationMode')) {$extra.associationMode} else {'NONE'}
+        $parents=@(if ($extra.ContainsKey('associationParentTypeCodes')) { $extra.associationParentTypeCodes })
+        if ($association -cne $AssociationMode -or ($AssociationMode -ne 'NONE' -and ($parents.Count -ne 1 -or $parents[0] -cne 'DEMO_REPORT'))) {
+            throw "Existing type $Code has incompatible association declaration; use a new type or an empty demonstration environment."
         }
     }
 }
@@ -92,8 +98,10 @@ function Ensure-DemoOperation([string]$Type,[string]$Code) {
 
 Ensure-DemoType 'EXAMPLE' $false
 foreach ($op in @('EXPORT','SUB_VIEW')) { Ensure-DemoOperation 'EXAMPLE' $op }
+Ensure-DemoType 'DEMO_REPORT' $true
+Ensure-DemoType $FieldType $true 'EXCLUSIVE'
+Ensure-DemoType $ScopeType $false 'SHARED'
 foreach ($type in @('DEMO_REPORT',$FieldType,$ScopeType)) {
-    Ensure-DemoType $type $true
     foreach ($op in @('DATA_READ','DATA_EDIT')) { Ensure-DemoOperation $type $op }
 }
 Ensure-DemoOperation 'DEMO_REPORT' 'EXPORT'
@@ -133,10 +141,10 @@ function Wait-DemoPublication([string]$Type,[string]$Code) {
     } while ([DateTime]::UtcNow -lt $until)
     throw "Publication deadline exceeded for $Type/$Code"
 }
-$null=Invoke-DemoApi '/api/example/demo-report/create' @{reportCode=$ReportCode;name='销售记录权限演示';datasetCode='sales-records';fieldResourceTypeCode=$FieldType} $adminHeaders @(200,30103)
+$null=Invoke-DemoApi '/api/example/demo-report/create' @{reportCode=$ReportCode;name='销售记录权限演示';datasetCode='sales-records';fieldResourceTypeCode=$FieldType;referencedTypeCodes=@($ScopeType)} $adminHeaders @(200,30103)
 Wait-DemoPublication 'DEMO_REPORT' $ReportCode
 $report=(Invoke-DemoApi '/api/example/demo-report/get' @{reportCode=$ReportCode}).data
-if ($report.datasetCode -ne 'sales-records' -or $report.fieldResourceTypeCode -cne $FieldType) { throw 'Existing report identity differs from the requested configuration.' }
+if ($report.datasetCode -ne 'sales-records' -or $report.fieldResourceTypeCode -cne $FieldType -or @($report.referencedTypeCodes).Count -ne 1 -or $report.referencedTypeCodes[0] -cne $ScopeType) { throw 'Existing report identity differs from the requested configuration.' }
 $fields=@((Invoke-DemoApi '/api/example/demo-field/list' @{reportCode=$ReportCode;pageNum=1;pageSize=200}).data.items)
 $missing=@(@('recordCode','ownerUserId','teamCode','departmentCode','regionCode','saleDate','productName','amount','remark') | Where-Object {$_ -notin @($fields|ForEach-Object {$_.fieldKey})})
 if ($missing.Count -gt 0) {
@@ -155,11 +163,12 @@ $scopeDefinitions=@($configuration.bindings | ForEach-Object {
     @{code=$_.resourceCode;name=$(if ($scopeNames.ContainsKey($_.resourceCode)) {$scopeNames[$_.resourceCode]} else {$_.resourceCode})}
 })
 foreach ($scope in $scopeDefinitions) {
-    $event=Invoke-DemoApi '/api/example/demo-publication/get' @{resourceTypeCode=$ScopeType;resourceCode=$scope.code;codeType='default'} $adminHeaders @(200,30101)
-    if ($event.code -eq 30101) {
-        $null=Invoke-DemoApi '/api/example/demo-scope/save' @{resourceTypeCode=$ScopeType;resourceCode=$scope.code;codeType='default';name=$scope.name;enabled=$true;expectedVersion=0}
+    $resource=Invoke-DemoApi '/api/access/resource-entity/detail' @{resourceTypeCode=$ScopeType;code=$scope.code;codeType='default'} $adminHeaders @(200,20004)
+    if ($resource.code -eq 20004) {
+        $null=Invoke-DemoApi '/api/access/resource-entity/create' @{resourceTypeCode=$ScopeType;code=$scope.code;codeType='default';name=$scope.name;status=1}
+    } elseif ($resource.data.status -ne 1) {
+        throw "Shared resource $ScopeType/$($scope.code) is disabled; review it in IAM before continuing."
     }
-    Wait-DemoPublication $ScopeType $scope.code
 }
 $policy=Invoke-DemoApi '/api/example/demo-policy/get' @{datasetCode='sales-records'} $adminHeaders @(200,30102)
 if ($policy.code -eq 30102) {

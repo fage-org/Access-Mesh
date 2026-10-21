@@ -11,8 +11,8 @@ import org.apache.ibatis.annotations.Update;
 @Mapper
 public interface DemoReportMapper {
     @Insert("""
-        INSERT INTO demo_report(tenant_id, dataset_id, report_code, name, field_resource_type_code, created_by, updated_by)
-        SELECT #{tenantId}, d.id, #{reportCode}, #{name}, #{fieldResourceTypeCode}, #{createdBy}, #{createdBy}
+        INSERT INTO demo_report(tenant_id, dataset_id, report_code, name, field_resource_type_code, referenced_type_codes, created_by, updated_by)
+        SELECT #{tenantId}, d.id, #{reportCode}, #{name}, #{fieldResourceTypeCode}, COALESCE(CAST(#{referencedTypeCodes} AS jsonb),'[]'::jsonb), #{createdBy}, #{createdBy}
         FROM demo_dataset d
         WHERE d.tenant_id = #{tenantId} AND d.id = #{datasetId} AND d.delete_flag = 0
         """)
@@ -21,7 +21,7 @@ public interface DemoReportMapper {
 
     @Select("""
         SELECT r.id, r.tenant_id, r.dataset_id, r.report_code, r.name, r.field_resource_type_code,
-               r.enabled, r.version, r.catalog_version, r.publication_status, r.delete_flag,
+               r.enabled, r.version, r.catalog_version, r.publication_status, r.delete_flag, r.referenced_type_codes,
                r.created_by, r.updated_by, r.deleted_by, r.created_at, r.updated_at, r.deleted_at
         FROM demo_report r
         JOIN demo_dataset d ON d.id = r.dataset_id AND d.tenant_id = r.tenant_id AND d.delete_flag = 0
@@ -32,12 +32,12 @@ public interface DemoReportMapper {
     DemoReport selectById(@Param("tenant") long tenant,@Param("id") long id);
 
     @Update("""
-        UPDATE demo_report SET name=#{name},enabled=#{enabled},version=version+1,
+        UPDATE demo_report SET name=#{name},enabled=#{enabled},version=version+1,referenced_type_codes=CAST(#{referencedTypes} AS jsonb),
           publication_status='PENDING',updated_by=#{actor},updated_at=now()
         WHERE tenant_id=#{tenant} AND id=#{id} AND version=#{version} AND delete_flag=0
         """)
     int update(@Param("tenant") long tenant, @Param("id") long id, @Param("version") long version,
-               @Param("name") String name, @Param("enabled") boolean enabled, @Param("actor") long actor);
+               @Param("name") String name, @Param("enabled") boolean enabled, @Param("actor") long actor, @Param("referencedTypes") String referencedTypes);
 
     @Update("""
         UPDATE demo_report SET catalog_version=catalog_version+1,updated_by=#{actor},updated_at=now()
