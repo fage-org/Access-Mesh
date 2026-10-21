@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.engine.query;
 
+import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService;
+
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
@@ -40,6 +42,7 @@ public class QueryEngineConfiguration {
             TypeResolutionService typeResolutionService,
             OperationPermissionDomainService operationPermissionDomainService,
             ResourceEntityDomainService resourceEntityDomainService,
+            ResourceAssociationDomainService resourceAssociationDomainService,
             AbstractRoleMapper abstractRoleMapper,
             RoleResourcePermissionMapper roleResourcePermissionMapper,
             CacheService cacheService,
@@ -58,7 +61,7 @@ public class QueryEngineConfiguration {
             : new MicrometerQueryEngineMetrics(registry);
         QueryReadSupport readSupport = new QueryReadSupport(typeResolutionService,
             operationPermissionDomainService, resourceEntityDomainService, abstractRoleMapper,
-            roleResourcePermissionMapper, cacheService, rolePermEntryMapper);
+            roleResourcePermissionMapper, cacheService, rolePermEntryMapper, resourceAssociationDomainService);
         QueryAuditCollector auditCollector = new QueryAuditCollector(auditDomainService, metrics);
         return new QueryExecutionEngine(Clock.systemDefaultZone(), readSupport, subjectDomainService,
             permissionConditionDomainService, permissionConflictDomainService, resourceEntityMapper,

@@ -1,5 +1,8 @@
 package cn.ac.fage.accessmesh.access.grant.service.domain.impl;
 
+import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService;
+import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService.GrantBinding;
+
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.grant.dto.req.ApplyGrantPlanReq;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceResolveKey;
@@ -61,6 +64,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
     private final DomainConfigDomainService domainConfigDomainService;
     private final ObjectMapper objectMapper;
     private final cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService subjectDomainService;
+    private final ResourceAssociationDomainService associations;
 
     public PermissionGrantPlanDomainServiceImpl(
             TypeResolutionService typeResolutionService,
@@ -72,7 +76,8 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             OperationPermissionDomainService operationPermissionDomainService,
             DomainConfigDomainService domainConfigDomainService,
             ObjectMapper objectMapper,
-            cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService subjectDomainService) {
+            cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService subjectDomainService,
+            ResourceAssociationDomainService associations) {
         this.typeResolutionService = typeResolutionService;
         this.domainClassifyService = domainClassifyService;
         this.permissionGrantDomainService = permissionGrantDomainService;
@@ -83,6 +88,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
         this.domainConfigDomainService = domainConfigDomainService;
         this.objectMapper = objectMapper;
         this.subjectDomainService = subjectDomainService;
+        this.associations = associations;
     }
 
     /**
@@ -754,6 +760,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             Map<Long, RoleResourcePermission> existingById,
             Map<String, Integer> typeValues) {
         List<ParentChildTypes> relations = new ArrayList<>();
+        List<GrantBinding> bindings = new ArrayList<>();
         Map<Integer, String> requestedTypeCodesByValue = typeValues.entrySet().stream()
             .collect(Collectors.toMap(Map.Entry::getValue, Map.Entry::getKey, (left, right) -> left));
         Set<Integer> unresolvedParentTypes = creates.stream()
@@ -768,11 +775,13 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
         for (PreparedCreate create : creates) {
             if (create.permission().getDependOn() != null) {
                 RoleResourcePermission parent = existingById.get(create.permission().getDependOn());
+                bindings.add(binding(parent, create.permission()));
                 relations.add(new ParentChildTypes(
                     requestedTypeCodesByValue.get(parent.getResourceType()),
                     List.of(requestedTypeCodesByValue.get(create.permission().getResourceType()))));
             }
             if (!create.children().isEmpty()) {
+                create.children().forEach(child -> bindings.add(binding(create.permission(), child)));
                 relations.add(new ParentChildTypes(
                     requestedTypeCodesByValue.get(create.permission().getResourceType()),
                     create.children().stream()
@@ -797,6 +806,13 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
                 assertSubPermissionAllowed(config, relation.parentTypeCode(), childTypeCode);
             }
         }
+        associations.validateGrantBindings(tenantId, bindings);
+    }
+
+    private static GrantBinding binding(
+            RoleResourcePermission parent, RoleResourcePermission child) {
+        return new GrantBinding(
+            parent.getResourceType(), parent.getResourceEntityId(), child.getResourceType(), child.getResourceEntityId());
     }
 
     private void assertSubPermissionAllowed(DomainConfig config, String parentTypeCode,

@@ -165,6 +165,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
             }
         }
         SyncResultResp result = applySingleSync(tenantId, req, metadata, generation, itemHash, association);
+        associations.finishPublications(tenantId, List.of(association));
         if (generation != null && result.applied()) publications.acceptSingle(tenantId, req.sourceService(), scope, generation);
         if (generation == null && result.applied()) {
             publications.stampIncremental(tenantId, req.sourceService(), scope, keyHash, req.syncVersion(), itemHash);
@@ -380,6 +381,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
             var changedRoles = autoGrantMaterializationDomainService.recomputeByResourceEntities(tenantId, affectedEntities);
             PermissionChangeContext.markRoles(tenantId, changedRoles);
         }
+        associations.finishPublications(tenantId, associationPlans.values());
         publications.acceptFull(tenantId, req.scope().sourceService(), scopeKey, generation, fullHash, failed > 0);
         return SyncResultBuilder.fullSync(applied, stale, failed, deactivated, itemResults);
     }

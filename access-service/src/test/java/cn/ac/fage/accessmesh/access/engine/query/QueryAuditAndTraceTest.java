@@ -113,7 +113,7 @@ class QueryAuditAndTraceTest {
             mock(RoleResourcePermissionDomainService.class), JsonMapper.builder().configureForJackson2().build(), cache);
         var conflicts = new PermissionConflictDomainServiceImpl(rules, cache, JsonMapper.builder().configureForJackson2().build(), audit, operations, subjects);
         return new QueryExecutionEngine(clock,
-            new QueryReadSupport(types, operations, resources, roleMapper, grants, cache, new RolePermEntryMapper()),
+            new QueryReadSupport(types, operations, resources, roleMapper, grants, cache, new RolePermEntryMapper(), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService.class)),
             subjects, conditions, conflicts, resourceMapper, new QueryAuditCollector(audit, metricsImpl),
             metricsImpl, true, limits);
     }

@@ -78,7 +78,8 @@ class PermissionGrantPlanDomainServiceImplTest {
         service = new PermissionGrantPlanDomainServiceImpl(
             typeResolutionService, domainClassifyService, permissionGrantDomainService,
             conditionDomainService, rolePermissionMapper, resourceEntityDomainService, operationPermissionMapper,
-            domainConfigMapper, JsonMapper.builder().configureForJackson2().build(), subjectDomainService);
+            domainConfigMapper, JsonMapper.builder().configureForJackson2().build(), subjectDomainService,
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService.class));
     }
 
     // ---- 2026-10-06 bootstrap 校验方案 A（用户拍板）：固定图墓碑身份写守卫 ----

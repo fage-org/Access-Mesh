@@ -232,7 +232,7 @@ class QueryExecutionPgIT {
             });
         counter.operations.set(0); counter.grants.set(0);
         engine = new QueryExecutionEngine(Clock.fixed(Instant.parse("2026-09-26T02:00:00Z"), ZoneOffset.UTC),
-            new QueryReadSupport(types, operations, resources, roleMapper, grants, cache, entries),
+            new QueryReadSupport(types, operations, resources, roleMapper, grants, cache, entries, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService.class)),
             subjects, conditions, conflicts, resourceMapper,
             new QueryAuditCollector(org.mockito.Mockito.mock(AuditDomainService.class), QueryEngineMetrics.noop()),
             QueryEngineMetrics.noop());

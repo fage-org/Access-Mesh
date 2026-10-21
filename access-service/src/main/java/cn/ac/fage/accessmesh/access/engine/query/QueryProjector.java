@@ -21,6 +21,8 @@ final class QueryProjector {
         Set<Integer> operationTypes = new LinkedHashSet<>();
         Set<TypeOperation> extraKeys = new LinkedHashSet<>();
         Set<Long> parents = new LinkedHashSet<>(), children = new LinkedHashSet<>();
+        Set<Long> relatedParents = new LinkedHashSet<>(), relatedChildren = new LinkedHashSet<>();
+        var association = run.readMemory().associationContext;
         Set<Long> resourceIds = new LinkedHashSet<>(), roleIds = new LinkedHashSet<>();
         for (var entry : run.items().entrySet()) {
             OutputSpec output = entry.getKey().output();
@@ -29,8 +31,12 @@ final class QueryProjector {
                 raw.stream().map(GrantFact::resourceType).filter(Objects::nonNull).forEach(operationTypes::add);
                 extraKeys.addAll(output.extraOperationKeys());
             }
-            if (output.presentationExpansion().parents()) parents.addAll(entities(kept));
-            if (output.presentationExpansion().children()) children.addAll(entities(kept));
+            for (GrantFact fact : kept) {
+                if (fact.resourceEntityId() == null || Boolean.TRUE.equals(fact.scopeAll())) continue;
+                boolean related = hasParent(entry.getKey()) && association != null && association.related(fact.resourceType());
+                if (output.presentationExpansion().parents()) (related ? relatedParents : parents).add(fact.resourceEntityId());
+                if (output.presentationExpansion().children()) (related ? relatedChildren : children).add(fact.resourceEntityId());
+            }
             if (output.descriptions()) {
                 resourceIds.addAll(entities(raw));
                 raw.stream().map(GrantFact::roleId).filter(Objects::nonNull).forEach(roleIds::add);
@@ -43,9 +49,17 @@ final class QueryProjector {
         reads.resolveOperations(run, extraKeys);
         Map<Long, Set<Long>> ancestorIds = reads.ancestorClosures(run, mapper, parents);
         Map<Long, Set<Long>> descendantIds = reads.descendantClosures(run, mapper, children);
+        Map<Long, Set<Long>> scopedParents = new LinkedHashMap<>(ancestorIds), scopedChildren = new LinkedHashMap<>(descendantIds);
+        relatedParents.forEach(id -> scopedParents.put(id, Set.of()));
+        relatedChildren.forEach(id -> scopedChildren.put(id, Set.of()));
+        if (!relatedParents.isEmpty()) scopedParents.putAll(reads.associationAncestors(run, association, relatedParents));
+        if (!relatedChildren.isEmpty()) scopedChildren.putAll(reads.associationDescendants(run, association, relatedChildren));
+        reads.prepareExclusiveScopes(run, run.items().entrySet().stream().filter(entry -> hasParent(entry.getKey()) && entry.getKey().output().descriptions())
+            .flatMap(entry -> allFacts(entry.getValue(), false).stream()).toList());
         Map<QueryItem, List<PresentationEntry>> presentations = new LinkedHashMap<>();
         run.items().forEach((item, state) -> {
-            List<PresentationEntry> entries = present(run, item.output(), allFacts(state, false), ancestorIds, descendantIds);
+            List<PresentationEntry> entries = present(run, item.output(), allFacts(state, false),
+                hasParent(item) ? scopedParents : ancestorIds, hasParent(item) ? scopedChildren : descendantIds);
             presentations.put(item, entries);
             if (item.output().descriptions()) entries.stream().map(PresentationEntry::displayedEntityId)
                 .filter(Objects::nonNull).forEach(resourceIds::add);
@@ -56,14 +70,20 @@ final class QueryProjector {
         run.parents().values().forEach(parent -> parentSummaries.put(parent, projectParent(run, reads, parent)));
         Map<QueryItem, ResultDetails> results = new LinkedHashMap<>();
         run.items().forEach((item, state) -> results.put(item,
-            projectItem(run, reads, item.output(), state, presentations.get(item),
+            projectItem(run, reads, item, state, presentations.get(item),
                 parentSummaries.getOrDefault(state.parent, ResultDetails.ParentCheckSummary.empty()))));
         return results;
     }
 
-    private static ResultDetails projectItem(RunState run, QueryReadSupport reads, OutputSpec output,
+    private static boolean hasParent(QueryItem item) {
+        return item.selection() instanceof TargetSet target && target.parent() != null
+            || item.selection() instanceof GrantList list && list.requiredParent() != null;
+    }
+
+    private static ResultDetails projectItem(RunState run, QueryReadSupport reads, QueryItem item,
                                               RunState.ItemExecution state, List<PresentationEntry> presentation,
                                               ResultDetails.ParentCheckSummary parentSummary) {
+        OutputSpec output = item.output();
         Set<ResultDetails.DetailSection> sections = EnumSet.noneOf(ResultDetails.DetailSection.class);
         if (state.parent != null) sections.add(ResultDetails.DetailSection.PARENT_CHECK);
         List<GrantFact> raw = allFacts(state, true), kept = allFacts(state, false);
@@ -99,7 +119,7 @@ final class QueryProjector {
             operations.values().forEach(values -> values.forEach(op -> definitions.put(op.id(), op)));
             run.budget().outputs((long) resources.size() + roleDescriptions.size() + definitions.size());
             descriptions = new ResultDetails.Descriptions(resources, roleDescriptions, definitions,
-                reads.resolveOperations(run, output.extraOperationKeys()));
+                reads.resolveOperations(run, output.extraOperationKeys()), hasParent(item) ? reads.exclusiveScopes(run, kept) : Map.of());
         }
         List<ResultDetails.EffectiveOperationEntry> effective = List.of();
         if (output.effectiveOperations()) {

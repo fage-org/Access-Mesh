@@ -103,7 +103,7 @@ class QueryStagesTest {
             mock(RoleResourcePermissionDomainService.class), json, cache);
         var conflicts = new PermissionConflictDomainServiceImpl(rules, cache, json, audit, operations, subjects);
         engine = new QueryExecutionEngine(clock,
-            new QueryReadSupport(types, operations, resources, roleMapper, grants, cache, new RolePermEntryMapper()),
+            new QueryReadSupport(types, operations, resources, roleMapper, grants, cache, new RolePermEntryMapper(), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService.class)),
             subjects, conditions, conflicts, resourceMapper,
             new QueryAuditCollector(audit, QueryEngineMetrics.noop()), QueryEngineMetrics.noop(), true, limits);
     }
@@ -243,7 +243,7 @@ class QueryStagesTest {
             .isInstanceOf(UnsupportedOperationException.class);
         verify(conditionMapper).selectValidByIds(1L, Set.of(500L));
         verify(grants).selectScopeAllPermsByBitsBatch(eq(1L), anySet(), anyList());
-        verify(grants, never()).selectInstancePermsByBitsBatch(eq(1L), anySet(), eq(Set.of(200L)), anyList());
+        verify(grants, times(1)).selectInstancePermsByBitsBatch(eq(1L), anySet(), eq(Set.of(200L)), anyList());
         // 判定所需完整目录 + 普通掩码冷填各一次；摘要不能增加第三次操作读取。
         verify(operations, times(2)).selectByTenantAndResourceTypes(1L, Set.of(1));
     }
@@ -882,7 +882,7 @@ class QueryStagesTest {
     }
 
     @Test
-    void should_bindOnlyScopeParentIds_withoutExpandingParentInstanceOrRequiringPublicMatchIds() {
+    void shouldCollectScopeAndInstanceParentSourcesWithoutExposingInternalMatchIds() {
         scopeRows.add(grant(201, 1, null, 2));
         instanceRows.add(grant(202, 1, 200L, 2));
         instanceRows.add(dependent(101, 100L, 201));
@@ -891,10 +891,10 @@ class QueryStagesTest {
         var output = new OutputSpec(FactDetail.RAW_AND_KEPT, false, false, false, PresentationExpansion.NONE, Set.of(), false);
         var result = (GrantSetResult) execute(QueryItem.facts("child", selection, Evaluation.full(), output))
             .orderedResults().getFirst();
-        assertThat(result.details().stageFacts().getFirst().rawAfterContext()).extracting(GrantFact::permissionId).containsExactly(101L);
+        assertThat(result.details().stageFacts().getFirst().rawAfterContext()).extracting(GrantFact::permissionId).containsExactly(101L, 102L);
         assertThat(result.details().matchedPermissionIds()).isEmpty();
         assertThat(result.coverage().parentCheck()).isEqualTo(EvaluationCoverage.ParentCheckCoverage.PASSED);
-        verify(grants, never()).selectInstancePermsByBitsBatch(eq(1L), anySet(), eq(Set.of(200L)), anyList());
+        verify(grants, times(1)).selectInstancePermsByBitsBatch(eq(1L), anySet(), eq(Set.of(200L)), anyList());
     }
 
     @Test

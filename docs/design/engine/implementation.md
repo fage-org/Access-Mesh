@@ -438,9 +438,8 @@ QueryExecutionEngine.execute(QueryRequest)
     │          DEPENDENT_NOT_IN_PARENT_CONTEXT 与无授权区分）
     │
     ├─ GRANT_LIST 阶段（清单/事实面：ReadOptions 读来源=ROLE_SNAPSHOT 缓存或 DATABASE 直查）
-    │     ├─ ParentRequirement 给出时父阶段独立判定（不缺不补：父按普通 DECISION item 走
-    │     │     TYPE_GRANT→INSTANCE，scopeAll 命中即短路跳过实例读取——P05 不扩读父实例，
-    │     │     绑定集来自真实命中权限 ID）
+    │     ├─ ParentRequirement 给出时父阶段以内部 FACTS 项完整收集 TYPE_GRANT 与 INSTANCE，
+    │     │     绑定集来自两个阶段实际保留的主授权 ID；公开输出不额外暴露这些 ID
     │     └─ 评估（EVALUATE/PRESERVE）→ raw/retained 分阶段事实（四态组装=ScopeCoverageProjector 纯投影）
     │
     ├─ ADMISSION_CANDIDATES 阶段（OPERATION_ADMISSION 独占用途，不与普通项混批）
@@ -460,7 +459,9 @@ QueryExecutionEngine.execute(QueryRequest)
 SqlBatches 分块后汇总，`QueryExecutionPgIT` 501 目标锁）。
 
 <a id="association-parent-sources"></a>
-**资源关系计划的父来源目标（2026-10-21 用户确认，尚未实施）**：需要计算子权限的范围查询与带父上下文 check/batchCheck，须完整收集当前父上下文中满足条件及互斥规则的主授权；父类型 ALL 命中不得遮蔽具体主资源授权下面的子权限。此范围将取代上文 P05 的父实例短路边界；普通不计算子权限的布尔检查保持既有快速路径。绑定集仍来自真实有效主授权 ID，不用子行反推父授权已通过。实施归 T-ACCESS-148，共同求值、条件及互斥不另建算法；完整关系语义见[目标设计](../resource-association.md#authorization)。上文流程仍描述当前代码，任务交付时合并更新。
+**资源关系的父来源收集（2026-10-21 用户确认，T-ACCESS-148 实施中）**：需要计算子权限的范围查询与带父上下文 check/batchCheck，完整收集当前父上下文中满足条件及互斥规则的主授权；父类型 ALL 命中不再遮蔽具体主资源授权下面的子权限。该范围取代原 P05 的父实例短路边界；普通不计算子权限的布尔检查保持既有快速路径。绑定集仍来自真实有效主授权 ID，不用子行反推父授权已通过。共同求值、条件及互斥不另建算法；完整关系语义见[资源关系设计](../resource-association.md#authorization)。
+
+带主上下文且类型声明为 EXCLUSIVE/SHARED 时，读取部件批量读取当前类型声明、主资源、归属与整类引用；这些目录事实只在本次执行内记忆。相关目标在 TYPE_GRANT 之前核验，避免 ALL 短路放过幽灵、停用或跨归属对象；每个 OR 子句保留操作与目标配对。阶段候选在条件/互斥求值之前过滤关系适用性，GRANT_LIST 同源处理 DIRECT 与 DEPENDENT。范围投影保留真实授权事实，EXCLUSIVE ALL 的有效对象另外作为不可变描述输出，在既有输出预算内查询并投影 INSTANCE/EMPTY；SHARED ALL 保持原含义。NONE、无主上下文和准入阶段保留各自语义；准入不虚构业务主资源，最终关系校验仍在业务请求中进行。
 
 ### 3.4 判定面继承（目标闭包）与展示面展开（两语义拆分）
 
@@ -470,6 +471,7 @@ X∪同类型祖先链作为查询目标集（改变 allowed/denied）。
 - **闭包实现**：`ResourceEntityMapper.selectSelfAndAncestorClosureBatch` 递归 CTE 上溯（UNION 组合
   去重防环，T-PERM-044 先例；`delete_flag=0` 软删截断；`resource_type` 同类型过滤**止步同类型**）。
   不走全量图（管理 API 每调用 1-3 门禁，逐次加载全租户资源不可接受）。
+- **关联上下文闭包**：EXCLUSIVE/SHARED 使用批量关系闭包，判定上溯与展示展开均在停用、软删、异类型节点处停止；EXCLUSIVE 还在不同主资源归属处停止。无父上下文项继续普通闭包，同一批中的有父/无父项不会共享过滤后的闭包结果。
 - **默认值矩阵**（Q12 口径延续）：管理面写门禁（QueryGate 两轨）**开**；读过滤面（组织可见/菜单
   可见/日志过滤）**开**；`/api/access/auth/check`、batch-check **关** + `inheritMode` 参数显式开
   （PARENT/BOTH）；网关快照天然关（API 扁平无树）；清单/视图面不适用（无目标集）。

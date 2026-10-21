@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.resource.service.domain;
 
+import cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService.AssociationGrant;
+
 import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceAssociationOwnerReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeyReq;
 import java.util.List;
@@ -22,7 +24,16 @@ public final class ResourceAssociationPublication {
 
     public record Plan(String retryClass, String reason, boolean identityRequired, String sourceEntityId,
                        Long ownerId, boolean createOwnership, Set<Long> addedTypeIds, Set<Long> removedTypeIds,
-                       boolean matchesExisting) {
+                       boolean matchesExisting,
+                       List<AssociationGrant> removedGrants) {
+        public Plan { removedGrants = List.copyOf(removedGrants); }
+        public Plan(String retryClass, String reason, boolean identityRequired, String sourceEntityId,
+                    Long ownerId, boolean createOwnership, Set<Long> addedTypeIds, Set<Long> removedTypeIds, boolean matchesExisting) {
+            this(retryClass, reason, identityRequired, sourceEntityId, ownerId, createOwnership, addedTypeIds, removedTypeIds, matchesExisting, List.of());
+        }
+        public Plan withRemovedGrants(List<AssociationGrant> rows) {
+            return new Plan(retryClass, reason, identityRequired, sourceEntityId, ownerId, createOwnership, addedTypeIds, removedTypeIds, matchesExisting, rows);
+        }
         public static final Plan NONE = new Plan(null, null, false, null, null, false, Set.of(), Set.of(), true);
         public boolean valid() { return retryClass == null; }
         public static Plan failure(String retryClass, String reason) {

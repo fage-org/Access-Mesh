@@ -117,10 +117,18 @@ public record ResultDetails(Set<DetailSection> loadedSections, List<Long> matche
     /** raw 超集的描述与额外要求的操作定义；未找到的要求不在 requestedOperations 中。 */
     public record Descriptions(Map<Long, ResourceDescription> resources, Map<Long, RoleDescription> roles,
                                Map<Long, OperationDefinition> operations,
-                               Map<TypeOperation, OperationDefinition> requestedOperations) {
+                               Map<TypeOperation, OperationDefinition> requestedOperations,
+                               Map<Integer, List<ResourceDescription>> exclusiveScopes) {
         public Descriptions {
             resources = Map.copyOf(resources); roles = Map.copyOf(roles);
             operations = Map.copyOf(operations); requestedOperations = Map.copyOf(requestedOperations);
+            var scopes = new java.util.LinkedHashMap<Integer, List<ResourceDescription>>();
+            exclusiveScopes.forEach((type, rows) -> scopes.put(type, List.copyOf(rows)));
+            exclusiveScopes = Map.copyOf(scopes);
+        }
+        public Descriptions(Map<Long, ResourceDescription> resources, Map<Long, RoleDescription> roles,
+                            Map<Long, OperationDefinition> operations, Map<TypeOperation, OperationDefinition> requestedOperations) {
+            this(resources, roles, operations, requestedOperations, Map.of());
         }
         static Descriptions empty() { return new Descriptions(Map.of(), Map.of(), Map.of(), Map.of()); }
     }

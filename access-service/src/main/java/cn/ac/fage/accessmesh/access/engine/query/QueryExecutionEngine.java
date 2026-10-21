@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.engine.query;
 
+import java.util.stream.Collectors;
+
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.engine.query.EvaluationCoverage.*;
 import cn.ac.fage.accessmesh.access.engine.util.OperationPermissionUtils;
@@ -100,6 +102,7 @@ public final class QueryExecutionEngine {
                 processAdmissionStage(run, admissionClauses);
             } else {
                 Map<TypeOperation, ResolvedOperation> operations = prepareOperations(run, request.items());
+                prepareAssociationTargets(run, operations);
                 processTypeGrantStage(run, operations, run.items());
                 processInstanceStage(run, operations, run.items());
                 processGrantListStage(run);
@@ -255,7 +258,10 @@ public final class QueryExecutionEngine {
         Map<QueryItem, List<CandidateSelector.Clause>> clauses = new LinkedHashMap<>();
         for (QueryItem item : executions.keySet()) {
             if (!applicableStages(item.selection()).contains(Stage.TYPE_GRANT)) continue;
-            clauses.put(item, requirements(item.selection()).stream().map(operations::get).filter(Objects::nonNull)
+            List<TypeOperation> requirements = item.selection() instanceof TargetSet target
+                ? target.clauses().stream().filter(c -> !executions.get(item).excludedAssociationTargets.contains(c))
+                    .map(TargetClause::operation).toList() : requirements(item.selection());
+            clauses.put(item, requirements.stream().map(operations::get).filter(Objects::nonNull)
                 .map(op -> new CandidateSelector.Clause(op.type(), op.mask(), Set.of())).toList());
         }
         evaluateStage(run, Stage.TYPE_GRANT, clauses, reads.scopeGrants(run, run.roles(), masks(clauses)), executions);
@@ -280,29 +286,37 @@ public final class QueryExecutionEngine {
         var resourceIds = reads.resolveResources(run, requested);
         Map<TargetClause, Long> targets = new LinkedHashMap<>();
         Set<Long> inheritedTargets = new LinkedHashSet<>();
+        Set<Long> relatedTargets = new LinkedHashSet<>();
+        var context = run.readMemory().associationContext;
         items.forEach(item -> {
             TargetSet selection = (TargetSet) item.selection();
             for (TargetClause clause : selection.clauses()) {
-                if (!operations.containsKey(clause.operation())) continue;
+                if (!operations.containsKey(clause.operation()) || executions.get(item).excludedAssociationTargets.contains(clause)) continue;
                 Long id = clause.resource() instanceof ByEntityId entity ? entity.entityId()
                     : resourceIds.get(resourceRequest(clause.operation(), (ByCode) clause.resource()).toKey());
                 if (id != null) {
                     targets.put(clause, id);
-                    if (selection.inheritance() == Inheritance.SELF_AND_ANCESTORS) inheritedTargets.add(id);
+                    if (selection.inheritance() == Inheritance.SELF_AND_ANCESTORS) {
+                        if (selection.parent() != null && context != null && context.related(operations.get(clause.operation()).type())) relatedTargets.add(id);
+                        else inheritedTargets.add(id);
+                    }
                 }
             }
         });
-        Map<Long, Set<Long>> closures = reads.ancestorClosures(run, resourceMapper, inheritedTargets);
+        Map<Long, Set<Long>> closures = new LinkedHashMap<>(reads.ancestorClosures(run, resourceMapper, inheritedTargets));
+        Map<Long, Set<Long>> relatedClosures = relatedTargets.isEmpty() ? Map.of() : reads.associationAncestors(run, context, relatedTargets);
         Map<QueryItem, List<CandidateSelector.Clause>> clauses = new LinkedHashMap<>();
         Set<Long> allEntities = new LinkedHashSet<>();
         items.forEach(item -> {
             TargetSet selection = (TargetSet) item.selection();
             List<CandidateSelector.Clause> resolved = new ArrayList<>();
             for (TargetClause clause : selection.clauses()) {
+                if (executions.get(item).excludedAssociationTargets.contains(clause)) continue;
                 Long id = targets.get(clause);
                 if (id == null) continue;
                 ResolvedOperation op = operations.get(clause.operation());
-                Set<Long> closure = selection.inheritance() == Inheritance.SELF ? Set.of(id) : closures.get(id);
+                Map<Long, Set<Long>> applicableClosures = selection.parent() != null && context != null && context.related(op.type()) ? relatedClosures : closures;
+                Set<Long> closure = selection.inheritance() == Inheritance.SELF ? Set.of(id) : applicableClosures.getOrDefault(id, Set.of());
                 resolved.add(new CandidateSelector.Clause(op.type(), op.mask(), closure));
                 allEntities.addAll(closure);
             }
@@ -313,6 +327,35 @@ public final class QueryExecutionEngine {
 
     private static ResourceResolveRequest resourceRequest(TypeOperation op, ByCode code) {
         return new ResourceResolveRequest(op.resourceTypeCode(), code.code(), code.codeType(), code.domainCode());
+    }
+
+    /** 在 ALL 快速路径之前核对相关类型的实际目标，保持每个 OR 子句的操作和对象配对。 */
+    private void prepareAssociationTargets(RunState run, Map<TypeOperation, ResolvedOperation> operations) {
+        ParentRequirement parent = run.request().items().stream().map(i -> parentRequirement(i.selection()))
+            .filter(Objects::nonNull).findFirst().orElse(null);
+        var context = reads.associationContext(run, parent,
+            operations.values().stream().map(ResolvedOperation::type).collect(Collectors.toSet()));
+        if (context == null) return;
+        Set<TargetClause> related = new LinkedHashSet<>();
+        run.request().items().forEach(item -> {
+            if (item.selection() instanceof TargetSet target && target.parent() != null) target.clauses().stream()
+                .filter(c -> operations.containsKey(c.operation()) && context.related(operations.get(c.operation()).type())).forEach(related::add);
+        });
+        List<ResourceResolveRequest> requested = related.stream().filter(c -> c.resource() instanceof ByCode)
+            .map(c -> resourceRequest(c.operation(), (ByCode) c.resource())).toList();
+        var resolved = reads.resolveResources(run, requested);
+        Map<TargetClause, Long> ids = new LinkedHashMap<>();
+        related.forEach(c -> ids.put(c, c.resource() instanceof ByEntityId entity ? entity.entityId()
+            : resolved.get(resourceRequest(c.operation(), (ByCode) c.resource()).toKey())));
+        var allowed = reads.associationResources(run, context, ids.values().stream().filter(Objects::nonNull)
+            .collect(Collectors.toSet()));
+        run.items().forEach((item, state) -> {
+            if (!(item.selection() instanceof TargetSet target) || target.parent() == null) return;
+            target.clauses().stream().filter(related::contains).filter(c -> ids.get(c) == null || !allowed.containsKey(ids.get(c))
+                || !Objects.equals(allowed.get(ids.get(c)).getResourceType(), operations.get(c.operation()).type()))
+                .forEach(state.excludedAssociationTargets::add);
+            state.associationExcluded = !state.excludedAssociationTargets.isEmpty();
+        });
     }
 
     private static Map<Integer, Long> masks(Map<QueryItem, List<CandidateSelector.Clause>> clauses) {
@@ -326,6 +369,10 @@ public final class QueryExecutionEngine {
         Map<QueryItem, RunState.ItemExecution> executions) {
         Map<QueryItem, List<GrantFact>> rawByItem = new LinkedHashMap<>();
         CandidateSelector selector = indexedCandidates ? CandidateSelector.prepare(loaded, stage, clauses.values()) : null;
+        ParentRequirement associationParent = clauses.keySet().stream().map(i -> parentRequirement(i.selection()))
+            .filter(Objects::nonNull).findFirst().orElse(null);
+        Set<Long> applicableIds = associationParent == null ? Set.of() : reads.associationFacts(run, associationParent, loaded).stream()
+            .map(GrantFact::permissionId).collect(Collectors.toSet());
         clauses.forEach((item, paired) -> {
             run.budget().checkpoint();
             List<GrantFact> candidates = selector == null ? CandidateSelector.select(loaded, paired, stage)
@@ -333,6 +380,10 @@ public final class QueryExecutionEngine {
             run.budget().candidates(candidates.size());
             RunState.ItemExecution state = executions.get(item);
             ParentRequirement requirement = parentRequirement(item.selection());
+            List<GrantFact> applicable = requirement == null ? candidates
+                : candidates.stream().filter(f -> applicableIds.contains(f.permissionId())).toList();
+            state.associationExcluded |= applicable.size() < candidates.size();
+            candidates = applicable;
             boolean hasDependent = candidates.stream().anyMatch(f -> f.dependOn() != null);
             Set<Long> parentIds = requirement != null && hasDependent
                 ? resolveParent(run, item, state, requirement).matchedPermissionIds() : Set.of();
@@ -363,6 +414,9 @@ public final class QueryExecutionEngine {
                 }
                 raw = bind(raw, parent.matchedPermissionIds());
             }
+            List<GrantFact> applicable = reads.associationFacts(run, selection.requiredParent(), raw);
+            state.associationExcluded |= applicable.size() < raw.size();
+            raw = applicable;
             run.evaluator().preload(Map.of(item, raw));
             recordEvaluation(run, item, state, Stage.GRANT_LIST, List.of(), raw);
         }
@@ -376,8 +430,8 @@ public final class QueryExecutionEngine {
             List<TargetClause> clauses = requirement.operationCodes().stream().sorted()
                 .map(code -> new TargetClause(new TypeOperation(requirement.resourceTypeCode(), code), requirement.resource())).toList();
             // 内部项使用独立执行表，不能与调用方的 key 碰撞；没有父字段保证仅一层。
-            QueryItem item = QueryItem.decision("parent", new TargetSet(clauses, Inheritance.SELF,
-                TypeFallback.ALLOW, null), OutputSpec.minimal());
+            QueryItem item = QueryItem.facts("parent", new TargetSet(clauses, Inheritance.SELF,
+                TypeFallback.ALLOW, null), Evaluation.full(), OutputSpec.minimal());
             parent = new RunState.ParentExecution(run.nextParentEvidenceId(), item);
             run.parents().put(requirement, parent);
         }
@@ -450,6 +504,7 @@ public final class QueryExecutionEngine {
         boolean conflict = state.mutexHits.values().stream().anyMatch(hits -> !hits.isEmpty());
         DecisionResult.Reason reason = state.hadRaw()
             ? conflict ? DecisionResult.Reason.PERMISSION_CONFLICT : DecisionResult.Reason.CONDITION_NOT_MET
+            : state.associationExcluded ? DecisionResult.Reason.RESOURCE_NOT_IN_PARENT_CONTEXT
             : state.dependentExcluded ? DecisionResult.Reason.DEPENDENT_NOT_IN_PARENT_CONTEXT : DecisionResult.Reason.NO_PERMISSION;
         return DecisionResult.deny(item.key(), reason, coverage, details);
     }

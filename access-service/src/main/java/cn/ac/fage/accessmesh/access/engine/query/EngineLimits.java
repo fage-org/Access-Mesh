@@ -122,6 +122,10 @@ public record EngineLimits(@DefaultValue("10000") int maxItems,
         void closures(long count) { closures = add(Kind.CLOSURE_ENTRIES, closures, count, limits.maxClosureEntries()); }
         void candidates(long count) { candidates = add(Kind.CANDIDATE_PAIRS, candidates, count, limits.maxCandidatePairs()); }
         void outputs(long count) { outputs = add(Kind.OUTPUT_ENTRIES, outputs, count, limits.maxOutputEntries()); }
+        int outputReadLimit() {
+            return limits.maxOutputEntries() == 0 ? Integer.MAX_VALUE
+                : (int) Math.min(Integer.MAX_VALUE, Math.max(1, limits.maxOutputEntries() - outputs + 1));
+        }
         void evidence(long count) { evidence = add(Kind.AUDIT_EVIDENCE, evidence, count, limits.maxAuditEvidence()); }
 
         private static long add(Kind kind, long current, long count, long maximum) {

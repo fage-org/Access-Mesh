@@ -42,7 +42,7 @@ class QueryReadSupportTest {
     private final RoleResourcePermissionMapper grants = mock(RoleResourcePermissionMapper.class);
     private final CacheService cache = mock(CacheService.class);
     private final QueryReadSupport reads = new QueryReadSupport(types, operations, resources, roles, grants, cache,
-        new RolePermEntryMapper());
+        new RolePermEntryMapper(), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService.class));
 
     static RunState run(ListGrantRead source) {
         return new RunState(new QueryRequest(1L, new Roles(Set.of(10L)), CallerContext.of(null),
@@ -245,7 +245,7 @@ class QueryReadSupportTest {
         AtomicLong clock = new AtomicLong();
         DistributedCacheStore store = mock(DistributedCacheStore.class);
         CacheService realCache = new DefaultCacheService(null, store, null, new CacheProperties(), null, clock::get);
-        QueryReadSupport timed = new QueryReadSupport(types, operations, resources, roles, grants, realCache, new RolePermEntryMapper());
+        QueryReadSupport timed = new QueryReadSupport(types, operations, resources, roles, grants, realCache, new RolePermEntryMapper(), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService.class));
         when(grants.selectValidByRoleIds(1L, Set.of(10L))).thenAnswer(invocation -> {
             clock.set(Duration.ofSeconds(3).toNanos());
             return List.of(grant(100, 10));

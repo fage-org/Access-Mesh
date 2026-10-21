@@ -22,6 +22,7 @@ public interface ResourceAssociationDomainService {
     Map<ResourceKeyReq, ResourceAssociationPublication.Plan> preparePublications(Long tenantId, String sourceService,
         List<ResourceAssociationPublication.Input> inputs);
     void applyPublication(Long tenantId, Long resourceId, ResourceAssociationPublication.Plan plan, Long actorId);
+    void finishPublications(Long tenantId, Collection<ResourceAssociationPublication.Plan> plans);
     record CandidateScope(Long primaryId, TypeDefinition type, Mode mode) {}
     record OwnerView(Mode mode, ResourceEntity owner, String ownerTypeCode) {
         public static final OwnerView NONE = new OwnerView(Mode.NONE, null, null);
@@ -33,4 +34,13 @@ public interface ResourceAssociationDomainService {
     Map<Long, OwnerView> describeOwners(Long tenantId, List<ResourceEntity> entities);
     DetailView describeResource(Long tenantId, ResourceEntity entity);
     TypeCandidates candidateTypes(Long tenantId, String parentTypeCode, ResourceKeyReq parent);
+    Map<Integer, ResourceAssociationRuntime.TypeRule> runtimeTypes(Long tenantId, Set<Integer> values);
+    ResourceAssociationRuntime.Context runtimeContext(Long tenantId, String parentTypeCode, Long primaryId,
+        Map<Integer, ResourceAssociationRuntime.TypeRule> rules);
+    Map<Long, ResourceEntity> runtimeResources(Long tenantId, ResourceAssociationRuntime.Context context, Set<Long> ids);
+    List<ResourceEntity> exclusiveScope(Long tenantId, ResourceAssociationRuntime.Context context, Set<Integer> values, int limit);
+    Map<Long, Set<Long>> relatedAncestorClosures(Long tenantId, ResourceAssociationRuntime.Context context, Set<Long> ids);
+    Map<Long, Set<Long>> relatedDescendantClosures(Long tenantId, ResourceAssociationRuntime.Context context, Set<Long> ids);
+    record GrantBinding(Integer parentType, Long parentId, Integer childType, Long childId) {}
+    void validateGrantBindings(Long tenantId, List<GrantBinding> bindings);
 }

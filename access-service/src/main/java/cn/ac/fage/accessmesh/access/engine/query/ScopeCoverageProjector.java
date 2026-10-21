@@ -38,6 +38,9 @@ public final class ScopeCoverageProjector {
             }
             List<GrantFact> covered = kept.stream().filter(f -> covers(index, f, target)).toList();
             if (covered.stream().anyMatch(f -> Boolean.TRUE.equals(f.scopeAll()) && f.resourceEntityId() == null)) {
+                var scoped = details.descriptions().exclusiveScopes().get(target.resourceType());
+                if (scoped != null) return group(requirement, scoped.isEmpty() ? ScopeMode.EMPTY : ScopeMode.INSTANCE,
+                    scoped.stream().map(r -> new QueryScopesResp.ScopeItem(r.code(), r.codeType(), r.name())).toList());
                 return group(requirement, ScopeMode.ALL, List.of());
             }
             Map<ResourceKey, QueryScopesResp.ScopeItem> items = new LinkedHashMap<>();

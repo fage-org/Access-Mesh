@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.grant.service.domain.impl;
 
+import cn.ac.fage.accessmesh.access.infrastructure.util.SqlBatches;
+
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService;
 import org.springframework.stereotype.Service;
@@ -19,6 +21,14 @@ import java.util.Set;
  */
 @Service
 public class RoleResourcePermissionDomainServiceImpl implements RoleResourcePermissionDomainService {
+
+    @Override
+    public List<AssociationGrant> selectAssociationGrants(Long tenantId, Set<Long> resourceIds, boolean includeDirect) {
+        java.util.Map<Long, AssociationGrant> rows = new java.util.LinkedHashMap<>();
+        SqlBatches.forEach(new java.util.ArrayList<>(resourceIds), ids ->
+            roleResourcePermissionMapper.selectAssociationGrants(tenantId, ids, includeDirect).forEach(row -> rows.put(row.id(), row)));
+        return List.copyOf(rows.values());
+    }
 
     private final RoleResourcePermissionMapper roleResourcePermissionMapper;
 

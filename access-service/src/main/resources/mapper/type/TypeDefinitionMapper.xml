@@ -2,6 +2,10 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="cn.ac.fage.accessmesh.access.type.mapper.TypeDefinitionMapper">
+    <select id="selectResourceTypeHistoryByValues" flushCache="true" resultType="cn.ac.fage.accessmesh.access.type.entity.TypeDefinition">
+        SELECT * FROM type_definition WHERE tenant_id=#{tenantId} AND type_key='resource_type'
+        AND type_value IN <foreach collection="values" item="value" open="(" separator="," close=")">#{value}</foreach>
+    </select>
 
     <update id="softDeleteBatch">
         UPDATE type_definition

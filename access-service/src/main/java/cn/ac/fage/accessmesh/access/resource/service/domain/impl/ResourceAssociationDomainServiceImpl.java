@@ -1,6 +1,14 @@
 package cn.ac.fage.accessmesh.access.resource.service.domain.impl;
 
+import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService;
+import cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService;
+
 import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
+import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
+import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
+import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
+import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
+import cn.ac.fage.accessmesh.access.projection.PermConstants;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.infrastructure.util.SqlBatches;
 import cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService;
@@ -9,6 +17,7 @@ import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceAssociationMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService;
+import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationRuntime;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationPublication.Input;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationPublication.Plan;
 import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeyReq;
@@ -45,10 +54,16 @@ public class ResourceAssociationDomainServiceImpl implements ResourceAssociation
     private final TreeWriteLockSupport locks;
     private final ObjectMapper json;
     private final RoleResourcePermissionDomainService grants;
+    private final PermissionConditionDomainService conditions;
+    private final AutoGrantMaterializationDomainService autoGrants;
+    private final AuditDomainService audit;
 
     public ResourceAssociationDomainServiceImpl(ResourceAssociationMapper relations, ResourceEntityMapper resources,
             TypeDefinitionDomainService types, ServiceConfigDomainService services, ResourceTypeOwnershipGuard ownership,
-            TreeWriteLockSupport locks, ObjectMapper json, RoleResourcePermissionDomainService grants) {
+            TreeWriteLockSupport locks, ObjectMapper json, RoleResourcePermissionDomainService grants,
+            PermissionConditionDomainService conditions,
+            AutoGrantMaterializationDomainService autoGrants,
+            AuditDomainService audit) {
         this.relations = relations;
         this.resources = resources;
         this.types = types;
@@ -57,6 +72,9 @@ public class ResourceAssociationDomainServiceImpl implements ResourceAssociation
         this.locks = locks;
         this.json = json;
         this.grants = grants;
+        this.conditions = conditions;
+        this.autoGrants = autoGrants;
+        this.audit = audit;
     }
 
     @Override
@@ -136,6 +154,11 @@ public class ResourceAssociationDomainServiceImpl implements ResourceAssociation
         locks.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         LocalDateTime now = LocalDateTime.now();
         SqlBatches.forEach(new ArrayList<>(resourceIds), ids -> relations.softDeleteByResourceIds(tenantId, ids, actorId, now));
+        var removed = grants.selectAssociationGrants(tenantId, resourceIds, true);
+        removeGrants(tenantId, removed, now, "RESOURCE_DELETED");
+        if (!removed.isEmpty()) PermissionChangeContext.markRoles(tenantId,
+            autoGrants.recompute(tenantId, removed.stream().map(RoleResourcePermissionDomainService.AssociationGrant::roleId).collect(Collectors.toSet()), Set.of()));
+        recycleConditions(tenantId, removed);
     }
 
     @Override
@@ -203,6 +226,21 @@ public class ResourceAssociationDomainServiceImpl implements ResourceAssociation
         PublicationFacts facts = new PublicationFacts(byCode, byValue, current, byId, owners, references, retired, enabled);
         Map<ResourceKeyReq, Plan> result = new LinkedHashMap<>();
         for (Input input : inputs) result.put(input.resource(), preparePublication(source, input, facts));
+        Map<ResourceKeyReq, Long> detachedPrimaries = new HashMap<>();
+        result.forEach((key, plan) -> {
+            if (plan.valid() && !plan.removedTypeIds().isEmpty()) detachedPrimaries.put(key,
+                current.get(new EntityKey(byCode.get(key.resourceTypeCode()).getTypeValue(), key.code(), key.normalizedCodeType())).getId());
+        });
+        if (!detachedPrimaries.isEmpty()) {
+            var childGrants = grants.selectAssociationGrants(tenantId, Set.copyOf(detachedPrimaries.values()), false);
+            Map<Long, Integer> typeValues = byCode.values().stream().collect(Collectors.toMap(TypeDefinition::getId, TypeDefinition::getTypeValue));
+            detachedPrimaries.forEach((key, primaryId) -> {
+                Plan plan = result.get(key);
+                Set<Integer> removedValues = plan.removedTypeIds().stream().map(typeValues::get).filter(Objects::nonNull).collect(Collectors.toSet());
+                result.put(key, plan.withRemovedGrants(childGrants.stream().filter(row -> primaryId.equals(row.primaryId())
+                    && removedValues.contains(row.resourceType())).toList()));
+            });
+        }
         return Map.copyOf(result);
     }
 
@@ -293,6 +331,39 @@ public class ResourceAssociationDomainServiceImpl implements ResourceAssociation
         if (plan.createOwnership()) relations.insertExclusive(tenantId, plan.ownerId(), resourceId, actorId, now);
         if (!plan.removedTypeIds().isEmpty()) relations.softDeleteShared(tenantId, resourceId, plan.removedTypeIds(), actorId, now);
         if (!plan.addedTypeIds().isEmpty()) relations.insertShared(tenantId, resourceId, plan.addedTypeIds(), actorId, now);
+        removeGrants(tenantId, plan.removedGrants(), now, "SHARED_TYPE_UNLINKED");
+    }
+
+    private void removeGrants(Long tenantId, List<RoleResourcePermissionDomainService.AssociationGrant> rows, LocalDateTime now, String cause) {
+        if (rows.isEmpty()) return;
+        PermissionChangeContext.markRoles(tenantId,
+            rows.stream().map(RoleResourcePermissionDomainService.AssociationGrant::roleId).collect(Collectors.toSet()));
+        SqlBatches.forEach(rows.stream().map(RoleResourcePermissionDomainService.AssociationGrant::id).toList(),
+            ids -> grants.softDeleteBatch(tenantId, ids, now));
+        List<AuditDomainService.ChangeLogEntry> changes = new ArrayList<>();
+        rows.stream().collect(Collectors.groupingBy(RoleResourcePermissionDomainService.AssociationGrant::roleId)).forEach((roleId, removed) -> {
+            var snapshot = json.createObjectNode();
+            snapshot.put("eventType", "RESOURCE_ASSOCIATION_GRANT_CLEANUP");
+            snapshot.put("cause", cause);
+            var ids = snapshot.putArray("removedPermissionIds");
+            removed.forEach(row -> ids.add(row.id()));
+            changes.add(new AuditDomainService.ChangeLogEntry("role_resource_permission", roleId, "ASSOC_CLEANUP",
+                null, null, snapshot.toString(), new Long[0], new Long[]{roleId}));
+        });
+        audit.recordChangeLog(new AuditDomainService.ChangeLogContext(tenantId, AccessRequestContext.getOperatorId(),
+            OperatorContext.getRequestId(), AccessRequestContext.getServiceCode() == null
+                ? PermConstants.MaintainSource.MANUAL : PermConstants.MaintainSource.SERVICE_SYNC,
+            "resource-association-cleanup"), changes);
+    }
+
+    private void recycleConditions(Long tenantId, List<RoleResourcePermissionDomainService.AssociationGrant> rows) {
+        Set<Long> ids = rows.stream().map(RoleResourcePermissionDomainService.AssociationGrant::conditionId).filter(Objects::nonNull).collect(Collectors.toSet());
+        SqlBatches.forEach(new ArrayList<>(ids), batch -> conditions.recycleOrphanInlineConditions(tenantId, Set.copyOf(batch)));
+    }
+
+    @Override
+    public void finishPublications(Long tenantId, Collection<Plan> plans) {
+        recycleConditions(tenantId, plans.stream().flatMap(plan -> plan.removedGrants().stream()).toList());
     }
 
     private static EntityKey entityKey(ResourceEntity row) { return new EntityKey(row.getResourceType(), row.getCode(), row.getCodeType()); }
@@ -398,9 +469,139 @@ public class ResourceAssociationDomainServiceImpl implements ResourceAssociation
     }
     private static BizException missingAssociation(String message) { return new BizException(AccessErrorCode.RESOURCE_ASSOCIATION_REQUIRED.getCode(), message); }
 
+    @Override
+    public Map<Integer, ResourceAssociationRuntime.TypeRule> runtimeTypes(Long tenantId, Set<Integer> values) {
+        Map<Integer, ResourceAssociationRuntime.TypeRule> result = new HashMap<>();
+        SqlBatches.forEach(new ArrayList<>(values), batch -> {
+            for (TypeDefinition type : types.selectResourceTypeHistoryByValues(tenantId, Set.copyOf(batch))) {
+                ResourceAssociationDeclaration declared = declaration(type);
+                if (declared.mode() != Mode.NONE) result.put(type.getTypeValue(), new ResourceAssociationRuntime.TypeRule(
+                    type.getId(), type.getTypeValue(), type.getTypeCode(), declared.mode(), declared.parentTypeCodes(), Long.valueOf(0).equals(type.getDeleteFlag())));
+            }
+        });
+        return Map.copyOf(result);
+    }
+
+    @Override
+    public ResourceAssociationRuntime.Context runtimeContext(Long tenantId, String parentTypeCode, Long primaryId,
+            Map<Integer, ResourceAssociationRuntime.TypeRule> rules) {
+        Set<Integer> applicable = new HashSet<>();
+        ResourceEntity primary = primaryId == null ? null : resources.selectValidById(tenantId, primaryId);
+        if (primary == null || !Integer.valueOf(1).equals(primary.getStatus()) || primary.getSourceEntityId() == null) {
+            return new ResourceAssociationRuntime.Context(primaryId, rules, applicable);
+        }
+        var primaryTypes = types.selectResourceTypesByValues(tenantId, Set.of(primary.getResourceType()));
+        if (primaryTypes.isEmpty() || !primaryTypes.getFirst().getTypeCode().equals(parentTypeCode)
+            || declaration(primaryTypes.getFirst()).mode() != Mode.NONE) return new ResourceAssociationRuntime.Context(primaryId, rules, applicable);
+        Set<Long> references = rules.values().stream().anyMatch(rule -> rule.mode() == Mode.SHARED)
+            ? Set.copyOf(relations.selectSharedTypeIds(tenantId, primaryId)) : Set.of();
+        for (var rule : rules.values()) {
+            if (rule.active() && rule.parentTypes().contains(parentTypeCode)
+                && (rule.mode() == Mode.EXCLUSIVE || references.contains(rule.id()))) applicable.add(rule.value());
+        }
+        return new ResourceAssociationRuntime.Context(primaryId, rules, applicable);
+    }
+
+    @Override
+    public Map<Long, ResourceEntity> runtimeResources(Long tenantId, ResourceAssociationRuntime.Context context, Set<Long> ids) {
+        if (ids.isEmpty() || context.applicableTypes().isEmpty()) return Map.of();
+        List<ResourceEntity> rows = new ArrayList<>();
+        SqlBatches.forEach(new ArrayList<>(ids), batch -> rows.addAll(resources.selectValidByIds(tenantId, Set.copyOf(batch))));
+        Set<Long> exclusiveIds = rows.stream().filter(row -> context.applicable(row.getResourceType())
+            && context.types().get(row.getResourceType()).mode() == Mode.EXCLUSIVE).map(ResourceEntity::getId).collect(Collectors.toSet());
+        Map<Long, Long> ownerIds = findByExclusiveIds(tenantId, exclusiveIds).stream()
+            .collect(Collectors.toMap(ResourceAssociation::getExclusiveResourceId, ResourceAssociation::getPrimaryResourceId));
+        Map<Long, ResourceEntity> result = new HashMap<>();
+        for (ResourceEntity row : rows) {
+            if (!Integer.valueOf(1).equals(row.getStatus()) || !context.applicable(row.getResourceType())) continue;
+            if (context.types().get(row.getResourceType()).mode() == Mode.EXCLUSIVE
+                && (row.getSourceEntityId() == null || !Objects.equals(ownerIds.get(row.getId()), context.primaryId()))) continue;
+            result.put(row.getId(), row);
+        }
+        return Map.copyOf(result);
+    }
+
+    @Override
+    public List<ResourceEntity> exclusiveScope(Long tenantId, ResourceAssociationRuntime.Context context, Set<Integer> values, int limit) {
+        Set<Integer> allowed = values.stream().filter(context::applicable)
+            .filter(type -> context.types().get(type).mode() == Mode.EXCLUSIVE).collect(Collectors.toSet());
+        return allowed.isEmpty() ? List.of() : resources.selectExclusiveScope(tenantId, context.primaryId(), allowed, limit);
+    }
+
+    @Override
+    public Map<Long, Set<Long>> relatedAncestorClosures(Long tenantId, ResourceAssociationRuntime.Context context, Set<Long> ids) {
+        return relatedClosures(tenantId, context, ids, false);
+    }
+
+    @Override
+    public Map<Long, Set<Long>> relatedDescendantClosures(Long tenantId, ResourceAssociationRuntime.Context context, Set<Long> ids) {
+        return relatedClosures(tenantId, context, ids, true);
+    }
+
+    private Map<Long, Set<Long>> relatedClosures(Long tenantId, ResourceAssociationRuntime.Context context, Set<Long> ids, boolean descendants) {
+        Set<Integer> exclusive = context.types().values().stream().filter(type -> type.mode() == Mode.EXCLUSIVE)
+            .map(ResourceAssociationRuntime.TypeRule::value).collect(Collectors.toSet());
+        Map<Long, Set<Long>> result = new HashMap<>();
+        SqlBatches.forEach(new ArrayList<>(ids), batch -> {
+            for (var row : resources.selectRelatedAncestorClosures(tenantId, context.primaryId(), Set.copyOf(batch), exclusive, descendants)) {
+                result.computeIfAbsent(row.getTargetId(), ignored -> new HashSet<>()).add(row.getClosureId());
+            }
+        });
+        return result;
+    }
+
     private ResourceAssociationDeclaration declaration(TypeDefinition type) {
         try { return ResourceAssociationDeclaration.parse(json, type.getExtra()); }
         catch (IllegalArgumentException exception) { throw invalid(exception.getMessage()); }
+    }
+
+    @Override
+    public void validateGrantBindings(Long tenantId, List<GrantBinding> bindings) {
+        if (bindings.isEmpty()) return;
+        var rules = runtimeTypes(tenantId, bindings.stream().map(GrantBinding::childType).collect(Collectors.toSet()));
+        List<GrantBinding> related = bindings.stream().filter(b -> rules.containsKey(b.childType())).toList();
+        if (related.isEmpty()) return;
+        Set<Long> ids = new HashSet<>();
+        related.forEach(b -> { if (b.parentId() != null) ids.add(b.parentId()); if (b.childId() != null) ids.add(b.childId()); });
+        Map<Long, Long> owners = findByExclusiveIds(tenantId, ids).stream().collect(Collectors.toMap(
+            ResourceAssociation::getExclusiveResourceId, ResourceAssociation::getPrimaryResourceId));
+        ids.addAll(owners.values());
+        Map<Long, ResourceEntity> entities = new HashMap<>();
+        SqlBatches.forEach(new ArrayList<>(ids), batch -> resources.selectValidByIds(tenantId, Set.copyOf(batch))
+            .forEach(row -> entities.put(row.getId(), row)));
+        Set<Integer> parentTypes = related.stream().map(GrantBinding::parentType).collect(Collectors.toSet());
+        Map<Integer, TypeDefinition> definitions = new HashMap<>();
+        SqlBatches.forEach(new ArrayList<>(parentTypes), batch -> types.selectResourceTypesByValues(tenantId, Set.copyOf(batch))
+            .forEach(type -> definitions.put(type.getTypeValue(), type)));
+        Map<Long, Set<Long>> references = new HashMap<>();
+        findByPrimaryIds(tenantId, related.stream().map(GrantBinding::parentId).filter(Objects::nonNull).collect(Collectors.toSet()))
+            .stream().filter(link -> link.getSharedTypeId() != null).forEach(link -> references
+                .computeIfAbsent(link.getPrimaryResourceId(), ignored -> new HashSet<>()).add(link.getSharedTypeId()));
+        for (GrantBinding binding : related) {
+            var rule = rules.get(binding.childType());
+            var primaryType = definitions.get(binding.parentType());
+            boolean valid = rule.active() && primaryType != null && declaration(primaryType).mode() == Mode.NONE
+                && rule.parentTypes().contains(primaryType.getTypeCode());
+            ResourceEntity primary = binding.parentId() == null ? null : entities.get(binding.parentId());
+            if (binding.parentId() != null) valid &= activeSource(primary) && Objects.equals(primary.getResourceType(), binding.parentType());
+            if (binding.parentId() != null && rule.mode() == Mode.SHARED)
+                valid &= references.getOrDefault(binding.parentId(), Set.of()).contains(rule.id());
+            if (binding.childId() != null) {
+                ResourceEntity child = entities.get(binding.childId());
+                valid &= child != null && Integer.valueOf(1).equals(child.getStatus()) && Objects.equals(child.getResourceType(), binding.childType());
+                if (rule.mode() == Mode.EXCLUSIVE) {
+                    Long ownerId = owners.get(binding.childId());
+                    ResourceEntity owner = ownerId == null ? null : entities.get(ownerId);
+                    valid &= activeSource(child) && activeSource(owner) && Objects.equals(owner.getResourceType(), binding.parentType())
+                        && (binding.parentId() == null || binding.parentId().equals(ownerId));
+                }
+            }
+            if (!valid) throw new BizException(AccessErrorCode.RESOURCE_ASSOCIATION_REQUIRED.getCode(), "子权限不在主资源有效归属或整类引用范围内");
+        }
+    }
+
+    private static boolean activeSource(ResourceEntity row) {
+        return row != null && Integer.valueOf(1).equals(row.getStatus()) && row.getSourceEntityId() != null;
     }
 
     private static BizException invalid(String message) { return new BizException(AccessErrorCode.PERM_INVALID_PARAM.getCode(), message); }

@@ -67,6 +67,9 @@ public record DecisionResult(String key, Decision outcome, Reason reason,
         PERMISSION_CONFLICT,
 
         /** 仅有父绑定排除导致拒绝。 */
-        DEPENDENT_NOT_IN_PARENT_CONTEXT
+        DEPENDENT_NOT_IN_PARENT_CONTEXT,
+
+        /** 对象不属于当前主资源的有效归属或整类引用范围。 */
+        RESOURCE_NOT_IN_PARENT_CONTEXT
     }
 }

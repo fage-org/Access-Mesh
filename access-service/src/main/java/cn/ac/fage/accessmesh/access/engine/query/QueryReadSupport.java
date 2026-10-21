@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.engine.query;
 
+import cn.ac.fage.accessmesh.access.type.service.domain.ResourceAssociationDeclaration.Mode;
+
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.engine.util.RolePermEntryMapper;
 import cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry;
@@ -13,6 +15,8 @@ import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceResolveKey;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceResolveRequest;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService;
+import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService;
+import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationRuntime;
 import cn.ac.fage.accessmesh.access.role.entity.AbstractRole;
 import cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
@@ -45,10 +49,12 @@ final class QueryReadSupport {
     private final RoleResourcePermissionMapper grants;
     private final CacheService cache;
     private final RolePermEntryMapper entries;
+    private final ResourceAssociationDomainService associations;
 
     QueryReadSupport(TypeResolutionService types, OperationPermissionDomainService operations,
                      ResourceEntityDomainService resources, AbstractRoleMapper roles,
-                     RoleResourcePermissionMapper grants, CacheService cache, RolePermEntryMapper entries) {
+                     RoleResourcePermissionMapper grants, CacheService cache, RolePermEntryMapper entries,
+                     ResourceAssociationDomainService associations) {
         this.types = types;
         this.operations = operations;
         this.resources = resources;
@@ -56,6 +62,94 @@ final class QueryReadSupport {
         this.grants = grants;
         this.cache = cache;
         this.entries = entries;
+        this.associations = Objects.requireNonNull(associations);
+    }
+
+    /** 关系目录按请求新鲜读取；普通无父上下文查询不进入该路径。 */
+    ResourceAssociationRuntime.Context associationContext(RunState run, ParentRequirement parent, Set<Integer> types) {
+        if (parent == null) return null;
+        Memory memory = run.readMemory();
+        Set<Integer> missing = new LinkedHashSet<>(types);
+        missing.removeAll(memory.associationTypesLoaded);
+        if (!missing.isEmpty()) {
+            memory.associationRules.putAll(associations.runtimeTypes(run.request().tenantId(), missing));
+            memory.associationTypesLoaded.addAll(missing);
+            memory.associationContext = null;
+        }
+        if (memory.associationRules.isEmpty()) return null;
+        if (memory.associationContext == null) {
+            Long id;
+            if (parent.resource() instanceof ByEntityId entity) id = entity.entityId();
+            else {
+                ByCode code = (ByCode) parent.resource();
+                var request = new ResourceResolveRequest(parent.resourceTypeCode(), code.code(), code.codeType(), code.domainCode());
+                id = resolveResources(run, List.of(request)).get(request.toKey());
+            }
+            memory.associationContext = associations.runtimeContext(run.request().tenantId(), parent.resourceTypeCode(), id, memory.associationRules);
+        }
+        return memory.associationContext;
+    }
+
+    Map<Long, ResourceEntity> associationResources(RunState run, ResourceAssociationRuntime.Context context, Set<Long> ids) {
+        Memory memory = run.readMemory();
+        Set<Long> missing = new LinkedHashSet<>(ids);
+        missing.removeAll(memory.associationResourcesLoaded);
+        if (!missing.isEmpty()) {
+            memory.associationResources.putAll(associations.runtimeResources(run.request().tenantId(), context, missing));
+            memory.associationResourcesLoaded.addAll(missing);
+        }
+        Map<Long, ResourceEntity> result = new LinkedHashMap<>();
+        ids.forEach(id -> { if (memory.associationResources.containsKey(id)) result.put(id, memory.associationResources.get(id)); });
+        return Map.copyOf(result);
+    }
+
+    List<GrantFact> associationFacts(RunState run, ParentRequirement parent, List<GrantFact> facts) {
+        Set<Integer> types = facts.stream().map(GrantFact::resourceType).filter(Objects::nonNull).collect(Collectors.toSet());
+        var context = associationContext(run, parent, types);
+        if (context == null) return facts;
+        Set<Long> ids = facts.stream().filter(f -> context.related(f.resourceType()) && f.resourceEntityId() != null)
+            .map(GrantFact::resourceEntityId).collect(Collectors.toSet());
+        var allowed = associationResources(run, context, ids);
+        return facts.stream().filter(f -> !context.related(f.resourceType()) || context.applicable(f.resourceType())
+            && (Boolean.TRUE.equals(f.scopeAll()) || f.resourceEntityId() != null && allowed.containsKey(f.resourceEntityId())
+                && Objects.equals(allowed.get(f.resourceEntityId()).getResourceType(), f.resourceType()))).toList();
+    }
+
+    Map<Long, Set<Long>> associationAncestors(RunState run, ResourceAssociationRuntime.Context context, Set<Long> ids) {
+        var result = associations.relatedAncestorClosures(run.request().tenantId(), context, ids);
+        run.budget().closures(result.values().stream().mapToLong(Set::size).sum());
+        return result;
+    }
+
+    Map<Long, Set<Long>> associationDescendants(RunState run, ResourceAssociationRuntime.Context context, Set<Long> ids) {
+        var result = associations.relatedDescendantClosures(run.request().tenantId(), context, ids);
+        run.budget().closures(result.values().stream().mapToLong(Set::size).sum());
+        return result;
+    }
+
+    void prepareExclusiveScopes(RunState run, List<GrantFact> kept) {
+        var context = run.readMemory().associationContext;
+        if (context == null) return;
+        Set<Integer> types = kept.stream().filter(f -> Boolean.TRUE.equals(f.scopeAll()) && context.related(f.resourceType())
+            && context.types().get(f.resourceType()).mode() == Mode.EXCLUSIVE)
+            .map(GrantFact::resourceType).collect(Collectors.toSet());
+        Map<Integer, List<ResultDetails.ResourceDescription>> result = new LinkedHashMap<>();
+        types.forEach(type -> result.put(type, new ArrayList<>()));
+        if (types.isEmpty()) return;
+        var rows = associations.exclusiveScope(run.request().tenantId(), context, types, run.budget().outputReadLimit());
+        run.budget().outputs(rows.size());
+        rows.forEach(row -> result.get(row.getResourceType()).add(ResultDetails.ResourceDescription.from(row)));
+        result.replaceAll((type, values) -> List.copyOf(values));
+        run.readMemory().exclusiveScopes.putAll(result);
+    }
+
+    Map<Integer, List<ResultDetails.ResourceDescription>> exclusiveScopes(RunState run, List<GrantFact> kept) {
+        Map<Integer, List<ResultDetails.ResourceDescription>> result = new LinkedHashMap<>();
+        kept.stream().filter(f -> Boolean.TRUE.equals(f.scopeAll())).map(GrantFact::resourceType).distinct().forEach(type -> {
+            var rows = run.readMemory().exclusiveScopes.get(type);
+            if (rows != null) result.put(type, rows);
+        });
+        return Map.copyOf(result);
     }
 
     /** 完整数据库类型目录；空桶也标记完整，按 ID 读取绝不写这个完整性标记。 */
@@ -449,6 +543,12 @@ final class QueryReadSupport {
 
     /** key 不存在=UNLOADED；Optional.empty/空集合=LOADED_EMPTY；其余=LOADED_VALUE。 */
     static final class Memory {
+        final Set<Integer> associationTypesLoaded = new LinkedHashSet<>();
+        final Map<Integer, ResourceAssociationRuntime.TypeRule> associationRules = new LinkedHashMap<>();
+        ResourceAssociationRuntime.Context associationContext;
+        final Set<Long> associationResourcesLoaded = new LinkedHashSet<>();
+        final Map<Long, ResourceEntity> associationResources = new LinkedHashMap<>();
+        final Map<Integer, List<ResultDetails.ResourceDescription>> exclusiveScopes = new LinkedHashMap<>();
         final Map<String, Optional<Integer>> typeValues = new LinkedHashMap<>();
         final Map<Long, Optional<OperationDefinition>> freshDefinitionIndex = new LinkedHashMap<>();
         final Map<Integer, List<OperationDefinition>> freshByType = new LinkedHashMap<>();

@@ -17,6 +17,7 @@ import java.util.Set;
  * </p>
  */
 public interface TypeDefinitionMapper extends BaseMapper<TypeDefinition> {
+    List<TypeDefinition> selectResourceTypeHistoryByValues(@Param("tenantId") Long tenantId, @Param("values") Set<Integer> values);
 
     /**
      * 根据租户、类型键和类型编码查询有效类型定义

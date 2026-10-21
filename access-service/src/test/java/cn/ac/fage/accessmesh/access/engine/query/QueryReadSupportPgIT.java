@@ -80,7 +80,7 @@ class QueryReadSupportPgIT {
                 return installed;
             });
         counter.operations.set(0); counter.grants.set(0);
-        reads = new QueryReadSupport(types, operations, resources, roles, grants, cache, entries);
+        reads = new QueryReadSupport(types, operations, resources, roles, grants, cache, entries, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService.class));
     }
 
     private static RunState run(long tenant, ListGrantRead source) {

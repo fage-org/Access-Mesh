@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.grant.mapper;
 
+import cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService.AssociationGrant;
+
 import com.mybatisflex.core.BaseMapper;
 import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
 import org.apache.ibatis.annotations.Param;
@@ -17,6 +19,8 @@ import java.util.Set;
  * </p>
  */
 public interface RoleResourcePermissionMapper extends BaseMapper<RoleResourcePermission> {
+    List<AssociationGrant> selectAssociationGrants(
+        @Param("tenantId") Long tenantId, @Param("resourceIds") List<Long> resourceIds, @Param("includeDirect") boolean includeDirect);
     boolean hasBusinessGrantsForTypes(@Param("tenantId") Long tenantId, @Param("resourceTypes") Set<Integer> resourceTypes);
 
     /**

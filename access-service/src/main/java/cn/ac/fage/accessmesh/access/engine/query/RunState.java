@@ -121,6 +121,8 @@ final class RunState {
         final Map<Stage, StageFacts> stages = new LinkedHashMap<>();
         final Map<Stage, List<BatchPermMutexEvaluator.MutexRuleRef>> mutexHits = new LinkedHashMap<>();
         boolean dependentExcluded;
+        boolean associationExcluded;
+        final Set<TargetClause> excludedAssociationTargets = new LinkedHashSet<>();
         boolean mutexCandidate;
         boolean shortCircuited;
         boolean parentDenied;

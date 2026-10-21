@@ -68,7 +68,7 @@ class AdmissionStagesTest {
         var conflictService = new PermissionConflictDomainServiceImpl(rules, cache, json, audit, operations, subjects);
         engine = new QueryExecutionEngine(Clock.fixed(Instant.parse("2004-01-02T02:00:00Z"), ZoneOffset.UTC),
             new QueryReadSupport(types, operations, mock(ResourceEntityDomainService.class),
-                mock(AbstractRoleMapper.class), grants, cache, new RolePermEntryMapper()),
+                mock(AbstractRoleMapper.class), grants, cache, new RolePermEntryMapper(), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService.class)),
             subjects, conditionService, conflictService, resources,
             new QueryAuditCollector(audit, QueryEngineMetrics.noop()), QueryEngineMetrics.noop());
     }

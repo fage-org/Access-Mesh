@@ -31,6 +31,10 @@ public class TypeDefinitionDomainServiceImpl implements TypeDefinitionDomainServ
     public List<TypeDefinition> selectResourceTypesByCodes(Long tenantId, Set<String> codes) {
         return codes.isEmpty() ? List.of() : typeDefinitionMapper.selectByTypeKeyAndCodes(tenantId, "resource_type", codes);
     }
+    @Override
+    public List<TypeDefinition> selectResourceTypeHistoryByValues(Long tenantId, Set<Integer> values) {
+        return values.isEmpty() ? List.of() : typeDefinitionMapper.selectResourceTypeHistoryByValues(tenantId, values);
+    }
 
     @Override
     public List<TypeDefinition> selectValidByIds(Long tenantId, Set<Long> ids) {

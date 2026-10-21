@@ -16,6 +16,8 @@ import java.util.Set;
  * </p>
  */
 public interface RoleResourcePermissionDomainService {
+    record AssociationGrant(Long id, Long roleId, Long conditionId, Long primaryId, Integer resourceType) {}
+    List<AssociationGrant> selectAssociationGrants(Long tenantId, Set<Long> resourceIds, boolean includeDirect);
     boolean hasBusinessGrantsForTypes(Long tenantId, Set<Integer> resourceTypes);
 
     /**
