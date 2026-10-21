@@ -10,21 +10,35 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| access-service 归并（跨服务） | `T-ACCESS` | 145 |
+| access-service 归并（跨服务） | `T-ACCESS` | 151 |
 | permission-center | `T-PERM` | 113 |
 | admin-service | `T-ADMIN` | 036 |
 | gateway | `T-GW` | 015 |
 | 组织/用户（跨 admin+perm） | `T-ORG` | 006 |
 | 跨服务 API 契约 | `T-API` | 015 |
-| 前端 | `T-FE` | 080 |
+| 前端 | `T-FE` | 081 |
 
 > 新建任务时从对应领域取下一编号，计数器 +1。
 
 ## 当前待办入口
 
-[T-ACCESS-144](../archive/2026-10-20/tasks/T-ACCESS-144.md) 已完成事务隔离接线与 example 执行恢复、导入取锁期限修正，见[验证记录](../archive/2026-10-20/tasks/evidence/T-ACCESS-144/verification.md)。[example 持久化权限演示](../archive/2026-10-20/example-permission-demo-plan.md)已归档；业务页面任务保持取消，当前没有已启动的执行任务，其他暂缓事项保持。
+[专属资源归属与通用资源引用计划](../plans/resource-association-plan.md)已登记，T-ACCESS-145～150、T-FE-080 均为 proposed，尚未启动实施；入口为 [T-ACCESS-145](T-ACCESS-145.md)。[T-ACCESS-144](../archive/2026-10-20/tasks/T-ACCESS-144.md)及[example 持久化权限演示](../archive/2026-10-20/example-permission-demo-plan.md)保持已归档，业务页面任务保持取消，其他暂缓事项不变。
 
 ## 任务总表
+
+### 专属资源归属与通用资源引用
+
+[执行计划](../plans/resource-association-plan.md) · [目标设计](../design/resource-association.md)
+
+| ID | 标题 | 状态 | 直接依赖 |
+|---|---|---|---|
+| [T-ACCESS-145](T-ACCESS-145.md) | 资源归属与引用实施契约定稿 | ⚙️ | — |
+| [T-ACCESS-146](T-ACCESS-146.md) | 资源关系存储与生命周期领域基础 | ⚙️ | T-ACCESS-145 |
+| [T-ACCESS-147](T-ACCESS-147.md) | 资源关系发布与候选查询及 SDK 接线 | ⚙️ | T-ACCESS-146 |
+| [T-ACCESS-148](T-ACCESS-148.md) | 资源关联授权守卫与运行时一致消费 | ⚙️ | T-ACCESS-146 |
+| [T-FE-080](T-FE-080.md) | 现有子权限入口按资源归属与引用配置 | ⚙️ | T-ACCESS-147、T-ACCESS-148 |
+| [T-ACCESS-149](T-ACCESS-149.md) | example 专属字段与通用范围接入 | ⚙️ | T-ACCESS-147、T-ACCESS-148 |
+| [T-ACCESS-150](T-ACCESS-150.md) | 资源关系联合验收与文档收口 | ⚙️ | T-FE-080、T-ACCESS-149 |
 
 ### 事务隔离与演示执行可靠性
 

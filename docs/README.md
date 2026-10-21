@@ -105,6 +105,8 @@ docs/
 
 ## 执行计划
 
+[专属资源归属与通用资源引用](plans/resource-association-plan.md)为 proposed，尚未启动实施；[目标设计](design/resource-association.md)与[任务看板](tasks/README.md)已登记。
+
 [example 持久化权限演示计划](archive/2026-10-20/example-permission-demo-plan.md)已完成归档，覆盖真实 SQL 行列权限、CSV、快照、内部任务和同一用户联合验收；[使用指南](../example-service/examples/permission-demo.md)提供可执行脚本与请求样例。[候选独立部署与首次接入验收](archive/2026-10-18/candidate-deployment-acceptance-plan.md)的冻结版本与历史边界保持。
 
 [登录审计事务边界收敛](archive/2026-10-18/login-audit-transaction-plan.md)已完成归档，Q-067 已收敛。
