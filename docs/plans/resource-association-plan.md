@@ -1,7 +1,7 @@
 ---
 doc_type: plan
 title: 专属资源归属与通用资源引用
-status: proposed
+status: active
 domain: cross-service
 design_refs:
   - docs/design/resource-association.md
@@ -21,7 +21,7 @@ last_updated: 2026-10-21
 
 ## 目标
 
-按[目标设计](../design/resource-association.md)交付资源关系支持及原入口配置优化。2026-10-21 用户授权制定计划和任务；当前未授权启动业务实施，计划保持 proposed。
+按[目标设计](../design/resource-association.md)交付资源关系支持及原入口配置优化。2026-10-21 用户已授权逐项执行；尚未定案的问题由用户决策，等待答复时推进未阻塞项。
 
 ## 非目标
 
@@ -30,7 +30,7 @@ last_updated: 2026-10-21
 ## 准入条件
 
 - 设计目标已确认，实施契约先由 T-ACCESS-145 定稿；G1–G4 未闭合不得启动下游实现。
-- 执行授权、任务直接依赖及相应契约/运行环境满足后，才将任务转入 in-progress。当前只完成计划登记。
+- 执行授权已满足；任务直接依赖及相应契约/运行环境满足后，才将任务转入 in-progress。
 - 新 API、可执行 DDL、SDK 与页面响应的权威位置按设计登记；不把提出目标当成代码已完成。
 
 ## 任务清单
@@ -39,8 +39,8 @@ last_updated: 2026-10-21
 
 | ID | 标题 | 状态 | 直接依赖 |
 |---|---|---|---|
-| [T-ACCESS-145](../tasks/T-ACCESS-145.md) | 资源归属与引用实施契约定稿 | ⚙️ | — |
-| [T-ACCESS-146](../tasks/T-ACCESS-146.md) | 资源关系存储与生命周期领域基础 | ⚙️ | T-ACCESS-145 |
+| [T-ACCESS-145](../tasks/T-ACCESS-145.md) | 资源归属与引用实施契约定稿 | ✅ | — |
+| [T-ACCESS-146](../tasks/T-ACCESS-146.md) | 资源关系存储与生命周期领域基础 | 🔨 | T-ACCESS-145 |
 | [T-ACCESS-147](../tasks/T-ACCESS-147.md) | 资源关系发布与候选查询及 SDK 接线 | ⚙️ | T-ACCESS-146 |
 | [T-ACCESS-148](../tasks/T-ACCESS-148.md) | 资源关联授权守卫与运行时一致消费 | ⚙️ | T-ACCESS-146 |
 | [T-FE-080](../tasks/T-FE-080.md) | 现有子权限入口按资源归属与引用配置 | ⚙️ | T-ACCESS-147、T-ACCESS-148 |
@@ -53,4 +53,4 @@ last_updated: 2026-10-21
 
 ## 当前进度
 
-设计目标、任务范围和直接依赖已登记，所有执行任务为 proposed。先定稿，再完成领域基础；发布查询与授权消费分工后汇合到原页面和 example 接入，最后联合验收。尚未进行代码、DDL 或业务测试变更。
+T-ACCESS-145 已完成实施契约定稿，T-ACCESS-146 开始领域基础实现，其余任务等待直接依赖。先定稿，再完成领域基础；发布查询与授权消费分工后汇合到原页面和 example 接入，最后联合验收。尚未进行代码、DDL 或业务测试变更。

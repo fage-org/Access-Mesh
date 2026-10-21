@@ -3,7 +3,7 @@ doc_type: design
 title: 权限中心 — 核心功能实现设计
 status: adopted
 domain: access-service
-last_reviewed: 2026-10-18
+last_reviewed: 2026-10-21
 ---
 
 # 权限中心 — 核心功能实现设计
@@ -458,6 +458,9 @@ QueryExecutionEngine.execute(QueryRequest)
 可解析 entityId 并集为空（纯 TYPE_LEVEL 批/全幽灵 code）不调闭包 CTE 与实例 SQL（空 foreach
 `IN ()`=500 / `<if>` 空集无界装载）；分块 SQL 在互斥计算前合并实际行（>500 clause 目标集按
 SqlBatches 分块后汇总，`QueryExecutionPgIT` 501 目标锁）。
+
+<a id="association-parent-sources"></a>
+**资源关系计划的父来源目标（2026-10-21 用户确认，尚未实施）**：需要计算子权限的范围查询与带父上下文 check/batchCheck，须完整收集当前父上下文中满足条件及互斥规则的主授权；父类型 ALL 命中不得遮蔽具体主资源授权下面的子权限。此范围将取代上文 P05 的父实例短路边界；普通不计算子权限的布尔检查保持既有快速路径。绑定集仍来自真实有效主授权 ID，不用子行反推父授权已通过。实施归 T-ACCESS-148，共同求值、条件及互斥不另建算法；完整关系语义见[目标设计](../resource-association.md#authorization)。上文流程仍描述当前代码，任务交付时合并更新。
 
 ### 3.4 判定面继承（目标闭包）与展示面展开（两语义拆分）
 

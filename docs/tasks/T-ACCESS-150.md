@@ -39,7 +39,7 @@ last_updated: 2026-10-21
 
 复用各卡已完成的 PG/Vitest 证据，不按命令×不变量笛卡尔积重测。跨服务测试仅在 e2e 模块；本地双轨由主代理执行，外部 AI 评审仅用户显式触发。
 
-详细规则以[资源关系设计](../design/resource-association.md)及上列 design_refs 为准。本卡处于 proposed；当前用户授权为制定计划和任务，不代表已启动本卡实施。
+详细规则以[资源关系设计](../design/resource-association.md)及上列 design_refs 为准。本卡已获执行授权，保持 proposed，待直接依赖及实施契约门槛满足后启动。
 
 ## 验收对照
 

@@ -3,16 +3,29 @@ doc_type: design
 title: example-service 持久化权限演示 API 契约
 status: adopted
 domain: example-service
-last_reviewed: 2026-10-20
+last_reviewed: 2026-10-21
 ---
 
 # example-service 持久化权限演示 API 契约
+
+> **资源关系接入目标（T-ACCESS-149，尚未实施）**：通用范围实例将由 IAM 管理；example 的 `demo-scope/save` 和发布队列不得继续反向修改 MANAGED 实例。字段发布携带唯一报表归属，通用范围按类型整体引用，用户仍可获部分实例授权。现有行 ALL 的全数据语义、导入前提和缺业务映射时的配置错误保留，见[演示设计](example-permission-demo.md)及[资源关系契约](access-service-api-contract.md#resource-association-contract)；正式字段与端点裁剪在 T-ACCESS-145 定稿后实施。
 
 本文件由 T-ACCESS-136 定稿，元数据与资源发布已由 T-ACCESS-139 交付，策略配置与记录查询/备注修改由 T-ACCESS-140 实现，验收状态见任务卡；CSV 导入由 T-ACCESS-138 实现，任务按计划实施。现役 hello/report 探针继续按[服务设计](services/example-service.md)运行，未交付的路由不描述为已上线，也不进入可用接口声明。
 
 报表入口采用已确认的[固定主类型/主操作边界](example-permission-demo.md#admission-binding)：主类型为 DEMO_REPORT，读取/编辑/导出分别为 DATA_READ / DATA_EDIT / EXPORT；它们不作为策略可编辑字段。动态范围、字段与谓词配置继续生效。
 
 行为规则见[演示设计](example-permission-demo.md)，本文件集中维护请求、响应与错误语义。所有普通入口采用 POST + JSON DTO，文件上传使用已允许的 multipart 例外；业务 ID 不进入路径。统一响应信封、HTTP 参数错误和分页边界沿[工程规范](project-rules.md#1-通用报文规范)，不新建同构响应类。
+
+<a id="resource-association-publication"></a>
+## 资源关系发布接线（T-ACCESS-149 目标，尚未实施）
+
+- `demo-report/create` 增加可选 `referencedTypeCodes`，缺省为空；`demo-report/update` 增加同名可选字段，省略/null 保持、空数组解除全部。只允许去重的通用类型编码，最多 200 个。返回的报表元数据增加该数组；现有报表 UPDATE 门禁及 expectedVersion CAS 保持。引用变化与报表版本、冻结的发布事件在本地同事务写入，事件由现有发送器在事务外发布。
+- 报表发布映射到 IAM 主资源 UPSERT 的 `referencedTypeCodes`；字段发布携带真实所属报表的 `associationOwner`，不按 fieldKey/显示名推导身份。IAM 因主资源未到达返回 DEPENDENCY_MISSING 时，保留现有有限重试与人工重试入口，不提前标 PUBLISHED。
+- `demo-scope/save` 及对应本地可编辑目录/实例发布路径退役；本地不再保存通用实例名称、启停或“发布完成”作为另一权威。业务谓词映射继续唯一保存于版本化策略 `configuration.bindings`，不增加映射管理端点。读取 INSTANCE 时任何返回业务键缺映射继续报 `DEMO_POLICY_INVALID`；ALL 继续跳过范围谓词，不把目录或映射不完整当作 ALL。
+- 准备脚本先以管理员通道建立 MANAGED/SHARED 通用类型与目录，以业务服务发布报表整类引用及 SYNC/EXCLUSIVE 字段归属，再配置原策略及用户授权。不得再把通用类型声明为 SYNC 或调用退役的范围发布接口；脚本不覆盖不同的既有声明，已使用类型按用途不可变规则提示重新准备。
+- 本地执行版本检查仍保护报表、字段及策略；删除退役通用目录的本地版本检查，不把本地副本当 IAM 启停真相。查询/写入/导入/导出/后台任务均消费原同源范围接口，远端调用仍在本地数据库写事务外；快照和撤权时效继续遵守原预算。
+
+本节切换前，下文原接口记录仍描述现有实现；T-ACCESS-149 同批删除退役端点、DTO/实体/Mapper/DDL、发布分支、SDK/脚本调用和原接口描述，避免死路径残留。
 
 <a id="identity"></a>
 ## 身份与数据边界

@@ -6,7 +6,7 @@
 
 | 文档 | 状态 |
 |---|---|
-| [专属资源归属与通用资源引用](resource-association-plan.md) | proposed |
+| [专属资源归属与通用资源引用](resource-association-plan.md) | active |
 
 当前没有已启动的执行计划，任务状态以[任务看板](../tasks/README.md)为准。[example 持久化权限演示](../archive/2026-10-20/example-permission-demo-plan.md)保持已归档，其他暂缓事项不变。
 

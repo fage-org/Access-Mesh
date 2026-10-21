@@ -4,7 +4,7 @@ title: access-service 目标架构与归并约束
 status: adopted
 domain: cross-service
 supersedes: docs/archive/2026-08-15/admin-permission-sync.md
-last_reviewed: 2026-10-18
+last_reviewed: 2026-10-21
 ---
 
 # access-service 目标架构与归并约束
@@ -172,6 +172,21 @@ cn.ac.fage.accessmesh.access
 **配置键命名空间（T-ACCESS-007 §5.2 落地）**：`system_config.config_key` 的唯一合法前缀为 `admin.`/`permission.`/`access.` 三值。存量种子键已全部迁移至 `admin.*`；`SystemConfigAppServiceImpl.upsertSystemConfig` 在权限校验后、触达数据访问前校验前缀，非法键 fail-closed 抛 `BizException`（`CONFIG_KEY_NAMESPACE_INVALID`），防止无命名空间键扩散。
 
 **`operation_log` 合并列（T-ACCESS-007 落地）**：`target_id` 为 `VARCHAR(256)`（覆盖 `configKey`(128) / `roleExternalId`(256) 等业务键上限），由原数值列字符串化；`module` 三值化 `ADMIN/PERMISSION/ACCESS`（判定见 §8.2）；补充 `(tenant_id, module, created_at DESC)` 排序索引及列注释，操作者索引为 `(tenant_id, operator_id, created_at DESC)`。`sys_audit_log` 的 `user_id`/`username` 列并入 `operator_id`/`operator_name` 承载，不复用。
+
+<a id="resource-association-storage"></a>
+### 5.2.1 资源关系持久化目标（T-ACCESS-146，尚未实施）
+
+资源能力包承接 `ResourceAssociationDomainService`，类型声明校验复用类型所有权边界；跨能力消费者只经领域入口批量读写，不互读 Mapper。对外字段和发布协议见[资源关系契约](access-service-api-contract.md#resource-association-contract)，正式可执行结构由唯一 schema 在实现任务中落地。
+
+关系表保存主资源的内部身份和二选一目标：专属资源实例身份，或通用类型定义身份。用行内 CHECK 保证目标二选一且不能自身归属；用有效行部分唯一索引保证一个专属实例最多一个主资源、同一主资源对同一通用类型不重复引用。租户与身份用复合唯一键及同租户外键校验；外键不能保证软删除状态、类型模式或来源合法，这些由共同事务锁内的新鲜事实校验承担，不能声称普通 CHECK 能跨表读取模式。专属实例与归属同时提交；不另存一列可独立修改的 owner 副本。软删除使用现有 `delete_flag=id` 与审计字段；重绑创建新关系身份，同名删建的资源/类型不能承接旧关系。
+
+归属/引用写入、single/FULL、资源树变更、主/子删除、类型声明变更、手工授权保存与自动依赖物化复用 RESOURCE_ENTITY 树锁，持有至事务结束；需要其他树锁时遵守既有总顺序，禁止从已持 PG 行锁路径反向获取 Redis 锁。类型与资源首次决定性读取置于锁内，写侧不用类型缓存，批量解析避免 N+1。数据库唯一性与外键提供持久化兜底，锁不代替约束。
+
+主资源删除在同一事务内收集并删除其专属实例（含相关授权及依赖影响）、解除其通用类型引用；不得删除通用实例或他方引用。专属树边只允许同一主资源归属内连接；通用树仍为同类型树，整类引用不产生实例子集边界。先收集最终删除集合，再统一执行授权/依赖回收及 afterCommit 失效，不能只在管理 remove 接线而遗漏 sync DELETE 与 FULL 缺失清理。声明引用的主类型也属于类型删除检查范围，不能删除后留下可重新解释为另一身份的声明。
+
+服务停用/注销沿现役维护入口拒绝新发布，不隐式删除仍保留的业务实例；业务关系不得成为绕过服务状态门禁的另一个写入口。当前租户生命周期未提供删除端点，关系首期只接入租户隔离、开通事务及现有启停门禁，不建设假想租户清理作业。bootstrap 维持原固定图，只补正式只读端点的接口声明；新关系类型由显式初始化声明。
+
+新关系读首期批量查库；实体启停与关系变化在共享消费边界核验。权限清理标记实际受影响角色，快照相关入口按现有 mark/afterCommit 协议失效；不新增全局版本、专属缓存或无限期保存的业务快照。
 
 ### 5.3 生成 SQL 的租户边界
 
