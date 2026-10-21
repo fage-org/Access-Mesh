@@ -156,6 +156,8 @@ public final class BootstrapGraphDefinition {
             ApiRoute.route("POST", "/api/access/abstract-role/tree", "bootstrap:授权页角色树", ResourceTypeCode.ROLE, OperationCode.VIEW),
             ApiRoute.route("POST", "/api/access/type-definition/list", "bootstrap:授权页类型定义列表", ResourceTypeCode.TYPE_DEFINITION, OperationCode.VIEW),
             ApiRoute.route("POST", "/api/access/resource-entity/tree", "bootstrap:授权页资源树", ResourceTypeCode.RESOURCE, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/resource-entity/association-candidates", "bootstrap:关联资源候选", ResourceTypeCode.RESOURCE, OperationCode.VIEW),
+            ApiRoute.route("POST", "/api/access/resource-entity/association-detail", "bootstrap:资源关系详情", ResourceTypeCode.RESOURCE, OperationCode.VIEW),
             ApiRoute.route("POST", "/api/access/operation-permission/list", "bootstrap:授权页操作列表", ResourceTypeCode.OPERATION, OperationCode.VIEW),
             ApiRoute.route("POST", "/api/access/permission-condition/list", "bootstrap:授权页条件列表", ResourceTypeCode.CONDITION, OperationCode.VIEW),
             ApiRoute.route("POST", "/api/access/role-resource-permission/list", "bootstrap:授权页既有授权查询", ResourceTypeCode.ROLE, OperationCode.MANAGE),

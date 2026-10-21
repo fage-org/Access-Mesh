@@ -1878,7 +1878,7 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
 <a id="resource-association-contract"></a>
 ### 12.6 专属归属与通用整类引用（分项实施）
 
-本节由 T-ACCESS-145 定稿。T-ACCESS-146 已实现类型声明、sync/full-sync 的关系字段与来源身份、持久化及写生命周期；下述管理只读端点、授权清理及运行时消费尚待 T-ACCESS-147/148。交付状态以[任务看板](../tasks/README.md)为准，完整目标见[资源关系设计](resource-association.md)。
+本节由 T-ACCESS-145 定稿。T-ACCESS-146 已实现类型声明、sync/full-sync 的关系字段与来源身份、持久化及写生命周期；T-ACCESS-147 接入管理只读查询、类型候选过滤及 SDK。授权清理和运行时消费仍待 T-ACCESS-148，页面实际使用由 T-FE-080 接续。交付状态以[任务看板](../tasks/README.md)为准，完整目标见[资源关系设计](resource-association.md)。
 
 - 专属类型的实例由指定业务服务维护，必须唯一归属某个主资源；通用类型的实例由 IAM 管理，业务服务维护主资源对整个通用类型的引用，不能提交实例子集。整类引用不授予权限，管理员仍可只授权其中部分实例。
 - 候选及保存继续满足 SUB_PERM；专属候选按当前主资源归属限定，通用候选来自已引用类型的全部有效实例。未声明关系能力的类型保持原行为。引用维护不授予业务服务修改 MANAGED 实例的资格。
@@ -1908,9 +1908,13 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
 | 入口 | 请求与响应 | 门禁与结果 |
 |---|---|---|
 | `/api/access/resource-entity/association-candidates` | 请求 `parentResource: ResourceKeyReq`、`resourceTypeCode`、`pageNum/pageSize`；响应 `PageResp<ResourceResp>` | 复用资源目录门票及可见集合，按唯一 SUB_PERM 策略、主资源有效性与关系过滤，过滤先于分页及 total；pageSize 默认 20、最大 200，超限 400。客户端逐页加载，不能将首屏当全量 |
-| `/api/access/resource-entity/association-detail` | 请求 `ResourceKeyReq`；响应 `{associationMode, associationOwner, referencedTypeCodes, exclusiveResourceCount, sourceService}`；owner 使用业务键，引用编码有序去重 | 与资源 detail 相同实例 VIEW 门禁；只读展示归属、整类引用及来源，不返回可编辑实例子集。专属实例的 owner 来自实际关系，不从名称推导 |
+| `/api/access/resource-entity/association-detail` | 请求 `ResourceKeyReq`；响应 `{associationMode, associationOwner, referencedTypeCodes, exclusiveResourceCount, referencingResourceCount, sourceService}`；owner 为 `{resourceTypeCode, code, codeType, name, status}`，引用编码有序去重 | 与资源 detail 相同实例 VIEW 门禁；只读展示归属、整类引用及来源。referencingResourceCount 为通用类型被引用次数，实例不保留独立引用子集；专属 owner 来自实际关系 |
 
-关联类型候选无归属实例时返回空页；SHARED 未引用时返回业务错误 20080，与已引用但目录为空区分；主资源缺失为 20004、类型缺失为 20007、SUB_PERM 不允许为 20011、无目录权限为 403；技术读取故障仍为技术异常，不包装成空页。NONE 类型在显式主上下文候选请求下只应用原 SUB_PERM 和目录规则。父范围为 ALL 的配置继续沿原类型候选入口；写侧按声明的允许主类型检查，运行时对实际主资源应用关系，不枚举并固化所有主资源关系。
+关联类型候选无归属实例时返回空页；SHARED 未引用时返回业务错误 20080，与已引用但目录为空区分；主资源缺失为 20004、类型缺失为 20007、SUB_PERM 不允许为 20011、无目录权限或当前候选全被可见性裁剪时为 403；技术读取故障仍为技术异常，不包装成空页。NONE 类型在显式主上下文候选请求下只应用原 SUB_PERM 和目录规则。父范围为 ALL 的配置继续沿原类型候选入口；写侧按声明的允许主类型检查，运行时对实际主资源应用关系，不枚举并固化所有主资源关系。
+
+`sub-perm-allowed-types` 增加可选 `parentResourceCode` / `parentCodeType`：提供主资源编码时，类型候选同时剔除未引用的 SHARED 类型及不允许该主类型的关联类型；EXCLUSIVE 类型即使当前没有实例仍可提供，支持首次配置。省略主资源编码时按父 ALL 的类型上下文，只做声明适用性过滤，不要求当前已有引用实例。SUB_PERM 的解析仍唯一复用原策略入口；过滤后无允许类型返回 `ALLOW_NONE / ASSOCIATION_NOT_AVAILABLE`，不把缺关系误报配置损坏。资源树节点补 `associationMode` / `associationOwner`（同上 owner 形状）；enabledOnly=true 时专属实例还须有有效且启用的归属主资源。
+
+SDK 单源请求为 perm-common 的 `ResourceEntitySyncReq`、`ResourceEntitySyncItem`、`ResourceEntitySyncScope`、`ResourceEntityFullSyncReq`、`SyncVersionRef` 和 `ResourceAssociationOwnerReq`。`PermissionFeignClient.syncResource/fullSyncResources` 同时提供配置凭证与显式凭证头重载；候选和详情方法仍为管理身份入口。原注册 starter 的 ResourcePreparation 闭包可复用这些调用，不从依赖 manifest 推导归属或引用。
 
 **关系错误分类**（保留现有错误码，新增资源关系段）：
 

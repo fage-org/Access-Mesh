@@ -14,6 +14,7 @@ import java.util.Set;
  */
 public interface TypeDefinitionDomainService {
     List<TypeDefinition> selectResourceTypesByValues(Long tenantId, Set<Integer> values);
+    List<TypeDefinition> selectResourceTypesByCodes(Long tenantId, Set<String> codes);
     List<TypeDefinition> selectValidByIds(Long tenantId, Set<Long> ids);
 
     /**

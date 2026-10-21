@@ -6,7 +6,7 @@ domain: common
 design_refs:
   - docs/design/architecture.md
   - docs/design/access-service-api-contract.md
-last_reviewed: 2026-10-18
+last_reviewed: 2026-10-22
 ---
 
 # AccessMesh 扩展指南（接入与二次开发全景）
@@ -175,6 +175,19 @@ URL 指向服务根地址，不附加 /api/access（方法映射已包含完整�
 | `SYNC` | 声明来源服务（`syncSourceService`）独占同步，管理面只读（写操作 20055） | 资源事实在业务系统里（订单、门店、项目） |
 
 声明约束（api-contract §13 类型所有权声明段 + §19.1 同步入口门禁）：SYNC 来源必须为已注册、未软删、`status=1` 的服务；类型下存在有效资源行时声明不可变更（20056），**系统预置类型（is_system=true）所有权声明一律钉死不可变更**（20056）；API 类型禁止经类型定义接口声明 SYNC——所有权由 DDL 种子钉死 SYNC+access-service（T-PERM-069），唯一事实入口=service-config 接口声明通道+bootstrap 固定图（管理面资源 CRUD 20055）。
+
+#### 关系能力接入
+<a id="resource-association-integration"></a>
+
+**专属归属与通用类型引用**：仅显式启用的自定义类型使用[资源关系契约](access-service-api-contract.md#resource-association-contract)。专属类型声明 EXCLUSIVE + SYNC，通用类型声明 SHARED + MANAGED，并声明允许的主资源类型；通用实例由 IAM 管理，业务服务仅发布对整个类型的引用。未声明关系能力的类型保持原行为。
+
+1. 先登记类型、操作及合法来源服务，再发布主资源的不可复用 `sourceEntityId`。字段发布携带主资源业务键及其来源身份，不能只写同名报表编码。
+2. 复用 `PermissionFeignClient.syncResource` / `fullSyncResources` 及 perm-common 请求 DTO；单租户使用既有配置凭证，共享实例按可信租户选择独立凭证并调用显式凭证重载。URL 仍是服务根地址，不在方法外重复拼接 `/api/access`。
+3. 主资源的 `referencedTypeCodes` 省略表示保留，空数组表示解除全部；数组是类型集合，不能携带实例子集，也不能借此修改 MANAGED 实例。专属实例与归属在 IAM 同事务建立。
+4. 重试保留原冻结载荷、版本及来源身份；DEPENDENCY_MISSING 可等待主资源到达后重试。IDENTITY_CONFLICT 表示旧事件不能属于当前同码新实例，不得直接把旧消息的 owner 身份改成新值。
+5. 业务端保留谓词映射，不能把通用实例名称、启停等复制成第二个可编辑目录。运行时最终检查必须携带实际主资源上下文；无主上下文的直接授权事实不能作为某张报表内的可用性证明。目录候选和接口准入也不能替代最终检查。
+
+管理页面使用候选/只读详情及原授权保存入口。当前发布与查询接线已实现；授权关系消费、example 完整接入及页面闭环的进度见[实施计划](../plans/resource-association-plan.md)，不能只凭候选过滤宣称已完成业务约束。
 
 ### 3.2 完整链路（六步，SYNC 模式）
 

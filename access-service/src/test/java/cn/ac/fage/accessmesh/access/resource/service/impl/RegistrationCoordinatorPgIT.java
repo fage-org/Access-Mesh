@@ -1,9 +1,14 @@
 package cn.ac.fage.accessmesh.access.resource.service.impl;
 
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntitySyncReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntitySyncItem;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntityFullSyncReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntitySyncScope;
+
 import cn.ac.fage.accessmesh.access.infrastructure.credential.service.domain.ServiceCredentialDomainService;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
 import cn.ac.fage.accessmesh.access.sync.dto.*;
-import cn.ac.fage.accessmesh.access.sync.metadata.SyncVersionRef;
+import cn.ac.fage.accessmesh.perm.common.dto.req.SyncVersionRef;
 import cn.ac.fage.accessmesh.perm.common.dto.req.PermissionManifestReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.PermissionManifestReq.*;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;

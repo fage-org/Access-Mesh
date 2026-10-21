@@ -1,6 +1,5 @@
-package cn.ac.fage.accessmesh.access.sync.dto;
+package cn.ac.fage.accessmesh.perm.common.dto.req;
 
-import cn.ac.fage.accessmesh.access.sync.metadata.SyncVersionRef;
 import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeyReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceAssociationOwnerReq;
 import jakarta.validation.Valid;

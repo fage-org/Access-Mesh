@@ -4,7 +4,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
-import cn.ac.fage.accessmesh.access.sync.metadata.SyncVersionRef;
+import cn.ac.fage.accessmesh.perm.common.dto.req.SyncVersionRef;
 import cn.ac.fage.accessmesh.access.sync.dto.AbstractUserSyncReq;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;
 import cn.ac.fage.accessmesh.access.user.entity.AbstractUser;

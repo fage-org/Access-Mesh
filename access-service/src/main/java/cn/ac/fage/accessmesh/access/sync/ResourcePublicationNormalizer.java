@@ -2,9 +2,9 @@ package cn.ac.fage.accessmesh.access.sync;
 
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
-import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntityFullSyncReq;
-import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntitySyncItem;
-import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntitySyncReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntityFullSyncReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntitySyncItem;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntitySyncReq;
 import cn.ac.fage.accessmesh.access.sync.metadata.SyncVersionOrder;
 import cn.ac.fage.accessmesh.common.exception.SystemException;
 import tools.jackson.databind.JsonNode;

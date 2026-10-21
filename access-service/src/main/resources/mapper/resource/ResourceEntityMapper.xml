@@ -2,6 +2,28 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper">
+    <sql id="associationCandidateFilter">
+        e.tenant_id=#{tenantId} AND e.resource_type=#{resourceType} AND e.delete_flag=0 AND e.status=1
+        AND EXISTS(SELECT 1 FROM resource_entity p WHERE p.tenant_id=#{tenantId} AND p.id=#{primaryId} AND p.delete_flag=0 AND p.status=1)
+        <if test="mode == 'EXCLUSIVE'">
+            AND EXISTS(SELECT 1 FROM resource_association a WHERE a.tenant_id=#{tenantId} AND a.primary_resource_id=#{primaryId}
+                AND a.exclusive_resource_id=e.id AND a.delete_flag=0)
+        </if>
+        <if test="mode == 'SHARED'">
+            AND EXISTS(SELECT 1 FROM resource_association a WHERE a.tenant_id=#{tenantId} AND a.primary_resource_id=#{primaryId}
+                AND a.shared_type_id=#{typeId} AND a.delete_flag=0)
+        </if>
+        <if test="visibleIds != null">
+            AND e.id IN <foreach collection="visibleIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+        </if>
+    </sql>
+    <select id="selectAssociationCandidates" resultType="cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity">
+        SELECT e.* FROM resource_entity e WHERE <include refid="associationCandidateFilter"/>
+        ORDER BY e.id LIMIT #{limit} OFFSET #{offset}
+    </select>
+    <select id="countAssociationCandidates" resultType="long">
+        SELECT count(*) FROM resource_entity e WHERE <include refid="associationCandidateFilter"/>
+    </select>
     <select id="hasSourceIdentities" flushCache="true" resultType="boolean">
         SELECT EXISTS(SELECT 1 FROM resource_entity WHERE tenant_id=#{tenantId} AND resource_type=#{resourceType} AND source_entity_id IS NOT NULL)
     </select>

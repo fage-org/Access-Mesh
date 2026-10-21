@@ -8,6 +8,9 @@ import java.util.Collection;
 import java.util.List;
 
 public interface ResourceAssociationMapper {
+    long countExclusive(@Param("tenantId") Long tenantId, @Param("primaryId") Long primaryId);
+    long countReferences(@Param("tenantId") Long tenantId, @Param("typeId") Long typeId);
+    List<Long> selectSharedTypeIds(@Param("tenantId") Long tenantId, @Param("primaryId") Long primaryId);
     List<ResourceAssociation> selectByPrimaryIds(@Param("tenantId") Long tenantId, @Param("ids") Collection<Long> ids);
     List<ResourceAssociation> selectByExclusiveIds(@Param("tenantId") Long tenantId, @Param("ids") Collection<Long> ids);
     List<ResourceAssociation> selectBySharedTypeIds(@Param("tenantId") Long tenantId, @Param("ids") Collection<Long> ids);

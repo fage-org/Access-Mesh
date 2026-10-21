@@ -1,5 +1,8 @@
 package cn.ac.fage.accessmesh.access;
 
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntitySyncReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntitySyncItem;
+
 import cn.ac.fage.accessmesh.access.AccessServiceApplication;
 import cn.ac.fage.accessmesh.access.AccessServiceApplicationTest;
 import cn.ac.fage.accessmesh.access.resource.dto.resp.ResourceResp;

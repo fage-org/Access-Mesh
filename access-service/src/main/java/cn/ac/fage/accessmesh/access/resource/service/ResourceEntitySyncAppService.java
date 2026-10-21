@@ -1,8 +1,8 @@
 package cn.ac.fage.accessmesh.access.resource.service;
 
 import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;
-import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntityFullSyncReq;
-import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntitySyncReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntityFullSyncReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntitySyncReq;
 import jakarta.servlet.http.HttpServletRequest;
 
 /**

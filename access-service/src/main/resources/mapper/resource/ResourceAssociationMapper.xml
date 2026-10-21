@@ -1,6 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="cn.ac.fage.accessmesh.access.resource.mapper.ResourceAssociationMapper">
+    <select id="countExclusive" resultType="long">
+        SELECT count(*) FROM resource_association WHERE tenant_id=#{tenantId} AND primary_resource_id=#{primaryId}
+        AND delete_flag=0 AND exclusive_resource_id IS NOT NULL
+    </select>
+    <select id="countReferences" resultType="long">
+        SELECT count(*) FROM resource_association WHERE tenant_id=#{tenantId} AND shared_type_id=#{typeId} AND delete_flag=0
+    </select>
+    <select id="selectSharedTypeIds" resultType="java.lang.Long">
+        SELECT shared_type_id FROM resource_association WHERE tenant_id=#{tenantId} AND primary_resource_id=#{primaryId}
+        AND delete_flag=0 AND shared_type_id IS NOT NULL ORDER BY shared_type_id
+    </select>
     <sql id="ids"><foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach></sql>
     <sql id="typeIds"><foreach collection="typeIds" item="id" open="(" separator="," close=")">#{id}</foreach></sql>
     <select id="selectByPrimaryIds" flushCache="true" useCache="false" resultType="cn.ac.fage.accessmesh.access.resource.entity.ResourceAssociation">

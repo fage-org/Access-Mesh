@@ -64,6 +64,7 @@ import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomai
  */
 @Service
 public class PermissionGrantAppServiceImpl implements PermissionGrantAppService {
+    private final cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService associations;
 
     private static final Logger log = LoggerFactory.getLogger(PermissionGrantAppServiceImpl.class);
 
@@ -93,7 +94,9 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
                                       ResourceEntityDomainService resourceEntityDomainService,
                                       TreeWriteLockSupport treeWriteLockSupport,
                                       AutoGrantMaterializationDomainService autoGrantMaterializationDomainService,
-                                      AutoGrantInsightDomainService autoGrantInsightDomainService) {
+                                      AutoGrantInsightDomainService autoGrantInsightDomainService,
+                                      cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService associations) {
+        this.associations = associations;
         this.operationPermissionDomainService = operationPermissionDomainService;
         this.rolePermMapper = rolePermMapper;
         this.permissionGrantPlanDomainService = permissionGrantPlanDomainService;
@@ -412,6 +415,20 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         }
         PermissionGrantPlanDomainService.SubPermissionPolicy policy =
             permissionGrantPlanDomainService.resolveSubPermissionPolicy(tenantId, req.parentResourceTypeCode());
+        if (policy.mode() != PermissionGrantPlanDomainService.SubPermissionPolicy.Mode.ALLOW_NONE) {
+            var parent = req.parentResourceCode() == null ? null : new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeyReq(
+                req.parentResourceTypeCode(), req.parentResourceCode(), req.parentCodeType());
+            var candidates = associations.candidateTypes(tenantId, req.parentResourceTypeCode(), parent);
+            if (!candidates.excludedCodes().isEmpty()) {
+                List<String> allowed = (policy.mode() == PermissionGrantPlanDomainService.SubPermissionPolicy.Mode.ALLOW_ALL
+                    ? candidates.knownCodes().stream() : policy.allowedTypeCodes().stream())
+                    .filter(code -> candidates.excludedCodes().stream().noneMatch(code::equalsIgnoreCase)).sorted().toList();
+                policy = new PermissionGrantPlanDomainService.SubPermissionPolicy(
+                    allowed.isEmpty() ? PermissionGrantPlanDomainService.SubPermissionPolicy.Mode.ALLOW_NONE
+                        : PermissionGrantPlanDomainService.SubPermissionPolicy.Mode.ALLOW_LIST,
+                    allowed.isEmpty() ? "ASSOCIATION_NOT_AVAILABLE" : null, allowed);
+            }
+        }
         return new SubPermAllowedTypesResp(
             req.parentResourceTypeCode(),
             policy.mode().name(),

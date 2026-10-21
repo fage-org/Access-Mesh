@@ -123,6 +123,7 @@ import java.util.stream.Collectors;
  */
 @Service
 public class ResourceManageAppServiceImpl implements ResourceManageAppService {
+    private final cn.ac.fage.accessmesh.access.grant.service.domain.PermissionGrantPlanDomainService grantPlans;
     private final cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService associations;
 
     private static final Logger log = LoggerFactory.getLogger(ResourceManageAppServiceImpl.class);
@@ -172,8 +173,10 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
                                      ResourceTypeOwnershipGuard resourceTypeOwnershipGuard,
                                      TreeWriteLockSupport treeWriteLockSupport, ApiMappingWriteDomainService mappingWriter,
                                      OperationPermissionDomainService operations,
-                                     cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService associations) {
+                                     cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService associations,
+                                     cn.ac.fage.accessmesh.access.grant.service.domain.PermissionGrantPlanDomainService grantPlans) {
         this.associations = associations;
+        this.grantPlans = grantPlans;
         this.resourceEntityMapper = resourceEntityMapper;
         this.apiMappingMapper = apiMappingMapper;
         this.serviceConfigMapper = serviceConfigMapper;
@@ -434,6 +437,53 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
             throw new SecurityException("Permission denied: VIEW on RESOURCE:" + entity.getId());
         }
         return toResourceResp(entity);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp<ResourceResp> associationCandidates(Long tenantId,
+            cn.ac.fage.accessmesh.perm.common.dto.req.ResourceAssociationCandidatesReq req) {
+        int page = PageUtil.pageNum(req.pageNum());
+        int size = PageUtil.pageSize(req.pageSize());
+        Set<Long> visible = resolveVisibleResourceEntityIdsOrNull(tenantId, OperatorContext.getOperatorId());
+        var policy = grantPlans.resolveSubPermissionPolicy(tenantId, req.parentResource().resourceTypeCode());
+        if (!policy.allows(req.resourceTypeCode())) throw new BizException(AccessErrorCode.SUB_PERMISSION_RESOURCE_TYPE_NOT_ALLOWED.getCode(),
+            "SUB_PERM 不允许当前子类型: " + policy.reason());
+        var scope = associations.candidateScope(tenantId, req.parentResource(), req.resourceTypeCode());
+        var type = scope.type();
+        long total = resourceEntityMapper.countAssociationCandidates(tenantId, scope.primaryId(), type.getTypeValue(),
+            type.getId(), scope.mode().name(), visible);
+        if (total == 0 && visible != null && resourceEntityMapper.countAssociationCandidates(tenantId, scope.primaryId(),
+            type.getTypeValue(), type.getId(), scope.mode().name(), null) > 0) {
+            throw new SecurityException("Permission denied: VIEW on association candidates");
+        }
+        int offset = PageUtil.offset(page, size);
+        List<ResourceResp> rows = total == 0 ? List.of() : resourceEntityMapper.selectAssociationCandidates(tenantId, scope.primaryId(),
+            type.getTypeValue(), type.getId(), scope.mode().name(), visible, offset, size).stream()
+            .map(entity -> new ResourceResp(entity.getId(), entity.getTenantId(), entity.getParentId(), type.getTypeCode(), type.getName(),
+                entity.getCode(), entity.getCodeType(), entity.getName(), entity.getPath(), entity.getStatus(), entity.getExtra(),
+                entity.getCreatedAt(), entity.getUpdatedAt())).toList();
+        return new cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp<>(rows, total, page, size, PageUtil.hasNext(offset, rows.size(), total));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public cn.ac.fage.accessmesh.perm.common.dto.resp.ResourceAssociationDetailResp associationDetail(Long tenantId, ResourceKeyReq key) {
+        ResourceEntity entity = selectResourceByBusinessKey(tenantId, key);
+        if (!queryGate.hasPermissionByEntityId(tenantId, OperatorContext.getOperatorId(), ResourceTypeCode.RESOURCE, entity.getId(), OperationCode.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on RESOURCE:" + entity.getId());
+        }
+        var detail = associations.describeResource(tenantId, entity);
+        return new cn.ac.fage.accessmesh.perm.common.dto.resp.ResourceAssociationDetailResp(detail.ownerView().mode().name(),
+            associationOwner(detail.ownerView()), detail.referencedTypeCodes(), detail.exclusiveCount(), detail.referencingCount(), detail.sourceService());
+    }
+
+    private static cn.ac.fage.accessmesh.perm.common.dto.resp.ResourceAssociationOwnerResp associationOwner(
+            cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService.OwnerView view) {
+        ResourceEntity owner = view.owner();
+        if (owner == null || view.ownerTypeCode() == null) return null;
+        return new cn.ac.fage.accessmesh.perm.common.dto.resp.ResourceAssociationOwnerResp(view.ownerTypeCode(), owner.getCode(),
+            owner.getCodeType(), owner.getName(), owner.getStatus());
     }
 
     /**
@@ -807,14 +857,27 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
             allEntities = filterTreeToVisibleWithAncestors(allEntities, visibleEntityIds);
         }
 
+        var associationViews = associations.describeOwners(tenantId, allEntities);
+        if (enabledOnly) {
+            allEntities = allEntities.stream().filter(entity -> {
+                var view = associationViews.getOrDefault(entity.getId(), cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService.OwnerView.NONE);
+                return view.mode() != cn.ac.fage.accessmesh.access.type.service.domain.ResourceAssociationDeclaration.Mode.EXCLUSIVE
+                    || view.owner() != null && Integer.valueOf(1).equals(view.owner().getStatus());
+            }).toList();
+        }
+        Map<Integer, String> treeTypeCodes = typeResolutionService.batchResolveTypeCodes(tenantId, "resource_type",
+            allEntities.stream().map(ResourceEntity::getResourceType).collect(Collectors.toSet()));
+
         TreeBuilder<ResourceEntity, ResourceTreeNode> treeBuilder = new TreeBuilder<>(
             ResourceEntity::getId,
             ResourceEntity::getParentId,
             (entity, children) -> new ResourceTreeNode(
                 entity.getId(), entity.getParentId(),
-                typeResolutionService.resolveTypeCode(entity.getTenantId(), "resource_type", entity.getResourceType()),
+                treeTypeCodes.get(entity.getResourceType()),
                 entity.getCode(), entity.getCodeType(), entity.getName(),
-                entity.getPath(), entity.getStatus(), children
+                entity.getPath(), entity.getStatus(), children,
+                associationViews.getOrDefault(entity.getId(), cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService.OwnerView.NONE).mode().name(),
+                associationOwner(associationViews.getOrDefault(entity.getId(), cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService.OwnerView.NONE))
             )
         );
 

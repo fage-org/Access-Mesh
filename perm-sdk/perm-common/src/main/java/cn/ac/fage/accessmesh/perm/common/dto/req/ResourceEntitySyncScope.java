@@ -1,4 +1,4 @@
-package cn.ac.fage.accessmesh.access.sync.dto;
+package cn.ac.fage.accessmesh.perm.common.dto.req;
 
 import jakarta.validation.constraints.NotBlank;
 

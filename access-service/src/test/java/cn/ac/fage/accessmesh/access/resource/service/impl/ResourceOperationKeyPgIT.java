@@ -162,7 +162,8 @@ class ResourceOperationKeyPgIT {
             resourceEntityDomainService, typeResolutionService, domainClassifyService,
             engine, rolePermMapper, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService.class), ownershipGuard(),
             mock(TreeWriteLockSupport.class), admMappingWriter, admOperations,
-            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService.class));
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService.class),
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.service.domain.PermissionGrantPlanDomainService.class));
     }
 
     private OperationAppServiceImpl newOperationAppService(QueryGate engine) {

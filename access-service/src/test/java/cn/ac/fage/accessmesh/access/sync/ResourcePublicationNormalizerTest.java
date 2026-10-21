@@ -3,11 +3,11 @@ package cn.ac.fage.accessmesh.access.sync;
 import tools.jackson.databind.json.JsonMapper;
 
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
-import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntityFullSyncReq;
-import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntitySyncItem;
-import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntitySyncReq;
-import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntitySyncScope;
-import cn.ac.fage.accessmesh.access.sync.metadata.SyncVersionRef;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntityFullSyncReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntitySyncItem;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntitySyncReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntitySyncScope;
+import cn.ac.fage.accessmesh.perm.common.dto.req.SyncVersionRef;
 import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 

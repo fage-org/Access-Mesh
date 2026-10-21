@@ -31,6 +31,25 @@ import cn.ac.fage.accessmesh.perm.common.feign.PermFeignClientsConfiguration;
  */
 @FeignClient(name = "access-service", configuration = PermFeignClientsConfiguration.class)
 public interface PermissionFeignClient {
+    @PostMapping("/api/access/resource-entity/sync")
+    R<cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp> syncResource(@RequestBody ResourceEntitySyncReq req);
+
+    @PostMapping("/api/access/resource-entity/sync")
+    R<cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp> syncResource(@RequestBody ResourceEntitySyncReq req,
+        @RequestHeader("X-Credential-Id") String credentialId, @RequestHeader("X-Credential-Secret") String credentialSecret);
+
+    @PostMapping("/api/access/resource-entity/full-sync")
+    R<cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp> fullSyncResources(@RequestBody ResourceEntityFullSyncReq req);
+
+    @PostMapping("/api/access/resource-entity/full-sync")
+    R<cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp> fullSyncResources(@RequestBody ResourceEntityFullSyncReq req,
+        @RequestHeader("X-Credential-Id") String credentialId, @RequestHeader("X-Credential-Secret") String credentialSecret);
+
+    @PostMapping("/api/access/resource-entity/association-candidates")
+    R<PageResp<ResourceResp>> associationCandidates(@RequestBody ResourceAssociationCandidatesReq req);
+
+    @PostMapping("/api/access/resource-entity/association-detail")
+    R<cn.ac.fage.accessmesh.perm.common.dto.resp.ResourceAssociationDetailResp> associationDetail(@RequestBody ResourceKeyReq req);
 
     // ========== 用户管理 ==========
 

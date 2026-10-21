@@ -7,7 +7,7 @@ import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.projection.PermConstants;
-import cn.ac.fage.accessmesh.access.sync.metadata.SyncVersionRef;
+import cn.ac.fage.accessmesh.perm.common.dto.req.SyncVersionRef;
 import cn.ac.fage.accessmesh.access.sync.dto.AbstractRoleFullSyncReq;
 import cn.ac.fage.accessmesh.access.sync.dto.AbstractRoleSyncItem;
 import cn.ac.fage.accessmesh.access.sync.dto.AbstractRoleSyncReq;

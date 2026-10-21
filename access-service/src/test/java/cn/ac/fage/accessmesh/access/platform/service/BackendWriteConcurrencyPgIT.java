@@ -23,11 +23,11 @@ import cn.ac.fage.accessmesh.access.sync.dto.AbstractUserFullSyncReq;
 import cn.ac.fage.accessmesh.access.sync.dto.AbstractUserSyncItem;
 import cn.ac.fage.accessmesh.access.sync.dto.AbstractUserSyncReq;
 import cn.ac.fage.accessmesh.access.sync.dto.AbstractUserSyncScope;
-import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntityFullSyncReq;
-import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntitySyncItem;
-import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntitySyncReq;
-import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntitySyncScope;
-import cn.ac.fage.accessmesh.access.sync.metadata.SyncVersionRef;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntityFullSyncReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntitySyncItem;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntitySyncReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntitySyncScope;
+import cn.ac.fage.accessmesh.perm.common.dto.req.SyncVersionRef;
 import cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtil;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.BeforeEach;
@@ -274,12 +274,12 @@ class BackendWriteConcurrencyPgIT {
         var time = java.time.LocalDateTime.of(2026, 10, 18, 0, 0);
         var first = new cn.ac.fage.accessmesh.access.sync.dto.AbstractUserSyncReq("UPSERT", "USER", external,
             "version-one", true, null, source, "user", external,
-            new cn.ac.fage.accessmesh.access.sync.metadata.SyncVersionRef(time, 1L));
+            new cn.ac.fage.accessmesh.perm.common.dto.req.SyncVersionRef(time, 1L));
         var second = new cn.ac.fage.accessmesh.access.sync.dto.AbstractUserFullSyncReq(
             new cn.ac.fage.accessmesh.access.sync.dto.AbstractUserSyncScope(source, "USER"),
             java.util.List.of(new cn.ac.fage.accessmesh.access.sync.dto.AbstractUserSyncItem(external,
                 "version-two", true, null, "user", external,
-                new cn.ac.fage.accessmesh.access.sync.metadata.SyncVersionRef(time, 2L))));
+                new cn.ac.fage.accessmesh.perm.common.dto.req.SyncVersionRef(time, 2L))));
         var result = new java.util.concurrent.atomic.AtomicReference<cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp>();
         RuntimeException failure = raceApplicationTransactions(RequestContext.service(1L, source),
             () -> assertThat(sync.sync(1L, first, null).applied()).isTrue(),

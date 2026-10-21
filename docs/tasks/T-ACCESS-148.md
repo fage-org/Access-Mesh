@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-148
 title: 资源关联授权守卫与运行时一致消费
-status: proposed
+status: in-progress
 plan: docs/plans/resource-association-plan.md
 domain: access-service
 design_refs:
@@ -24,7 +24,7 @@ acceptance:
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-10-21
+last_updated: 2026-10-22
 ---
 
 ## 背景
@@ -39,7 +39,7 @@ last_updated: 2026-10-21
 
 精确遵循 G1/G2：关联只限定适用对象，不自动授权；需要计算子权限时完整收集有效父授权来源，不让父 ALL 短路遮蔽实例父下子项。通用整类引用解绑清理当前主资源实例主授权下对应类型的子授权，保留跨报表共享来源及 DIRECT/类型 ALL；解绑期间保留来源停止在该主资源中贡献，重绑后可按当前条件恢复，已删除子授权不恢复。资源删除另按身份生命周期处理。直接查询无上下文和 Gateway 准入继续其各自契约，不虚构报表身份。
 
-详细规则以[资源关系设计](../design/resource-association.md)及上列 design_refs 为准。本卡已获执行授权，保持 proposed，待直接依赖及实施契约门槛满足后启动。
+详细规则以[资源关系设计](../design/resource-association.md)及上列 design_refs 为准。T-ACCESS-146/147 已完成，本卡开始授权保存、关系生命周期的授权清理与运行时同源消费。
 
 ## 验收对照
 

@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.sync.metadata;
 
+import cn.ac.fage.accessmesh.perm.common.dto.req.SyncVersionRef;
+
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.sync.metadata.SyncMetadata;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;

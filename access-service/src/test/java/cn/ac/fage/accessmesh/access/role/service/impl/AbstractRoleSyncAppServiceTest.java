@@ -5,7 +5,7 @@ import tools.jackson.databind.json.JsonMapper;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import cn.ac.fage.accessmesh.access.sync.metadata.SyncVersionRef;
+import cn.ac.fage.accessmesh.perm.common.dto.req.SyncVersionRef;
 import cn.ac.fage.accessmesh.access.sync.dto.AbstractRoleSyncReq;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;
 import cn.ac.fage.accessmesh.access.role.entity.AbstractRole;

@@ -3,7 +3,7 @@ doc_type: design
 title: 公共服务认证模块（per-service credential）
 status: adopted
 domain: access-service
-last_reviewed: 2026-10-18
+last_reviewed: 2026-10-22
 ---
 
 # 公共服务认证模块（per-service credential）设计
@@ -166,6 +166,8 @@ Compose 环境变量注入时，更新私密 env 后须 `up -d` 重建 example-s
 ---
 
 ## 4. 错误码与契约（已登记）
+
+资源关系发布（T-ACCESS-147）继续使用原 resource-entity/sync 与 full-sync 凭证通道：请求 sourceService 必须匹配凭证绑定服务，租户来自可信上下文；associationOwner.sourceEntityId 只用于实例代际核验，不是身份凭证，不能替代来源资格检查。新增 association-candidates / association-detail 是用户管理面只读入口，未加入 M2M 白名单；SDK 管理方法仍须有效用户身份。具体字段及失败分类见[资源关系契约](access-service-api-contract.md#resource-association-contract)，不增加另一套密钥或信任头。
 
 凭证认证失败 403 错误码四枚（2026-09-20 拍板三码细分 + 服务停用码）：**20065** `SERVICE_CREDENTIAL_INVALID`（定位失败/secret 错误/半头/白名单外路径——仲裁器对白名单外完整凭证头统一落本码，T-ACCESS-053 实测确认）/ **20066** `SERVICE_CREDENTIAL_EXPIRED` / **20067** `SERVICE_CREDENTIAL_DISABLED` / **20068** `SERVICE_CREDENTIAL_SERVICE_INACTIVE`（凭证有效但绑定服务未注册/停用——「沿用既有拒绝口径」的仲裁器细分形态）。端点契约、仲裁状态表、M2M 白名单与 SDK 配置键全部登记于契约总册 §24（T-PERM-070 落地，实现语义以该章为准）。业务键构造唯一入口 `BusinessKeyUtil`。
 

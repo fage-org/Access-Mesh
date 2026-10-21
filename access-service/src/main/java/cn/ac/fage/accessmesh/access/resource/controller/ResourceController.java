@@ -1,8 +1,6 @@
 package cn.ac.fage.accessmesh.access.resource.controller;
 
 import cn.ac.fage.accessmesh.access.infrastructure.dto.BatchDeleteResp;
-import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeyReq;
-
 import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceBatchCreateReq;
@@ -33,7 +31,7 @@ import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceListReq;
  * 提供资源实体的CRUD操作、树结构查询、批量创建等功能。
  * 资源实体是权限系统中的受保护对象，如菜单、按钮、API等。
  * 所有接口采用POST + JSON Body方式。
- * 租户ID通过TenantContextHolder从X-Tenant-Id请求头获取。
+ * 租户来自安全入口绑定的可信上下文。
  * </p>
  */
 @RestController
@@ -49,6 +47,17 @@ public class ResourceController {
      */
     public ResourceController(ResourceManageAppService resourceManageAppService) {
         this.resourceManageAppService = resourceManageAppService;
+    }
+
+    @PostMapping("/association-candidates")
+    public R<PageResp<ResourceResp>> associationCandidates(@Valid @RequestBody
+            cn.ac.fage.accessmesh.perm.common.dto.req.ResourceAssociationCandidatesReq req) {
+        return R.ok(resourceManageAppService.associationCandidates(TenantContextHolder.getTenantId(), req));
+    }
+
+    @PostMapping("/association-detail")
+    public R<cn.ac.fage.accessmesh.perm.common.dto.resp.ResourceAssociationDetailResp> associationDetail(@Valid @RequestBody ResourceKeyReq req) {
+        return R.ok(resourceManageAppService.associationDetail(TenantContextHolder.getTenantId(), req));
     }
 
     /**

@@ -4,13 +4,13 @@ import tools.jackson.databind.json.JsonMapper;
 
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
-import cn.ac.fage.accessmesh.access.sync.metadata.SyncVersionRef;
-import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntityFullSyncReq;
-import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntitySyncItem;
-import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntitySyncScope;
+import cn.ac.fage.accessmesh.perm.common.dto.req.SyncVersionRef;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntityFullSyncReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntitySyncItem;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntitySyncScope;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceResolveKey;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceResolveRequest;
-import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntitySyncReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntitySyncReq;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;

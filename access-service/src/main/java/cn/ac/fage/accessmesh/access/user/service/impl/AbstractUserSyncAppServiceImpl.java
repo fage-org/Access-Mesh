@@ -5,7 +5,7 @@ import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.common.exception.SystemException;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLog;
-import cn.ac.fage.accessmesh.access.sync.metadata.SyncVersionRef;
+import cn.ac.fage.accessmesh.perm.common.dto.req.SyncVersionRef;
 import cn.ac.fage.accessmesh.access.sync.dto.AbstractUserFullSyncReq;
 import cn.ac.fage.accessmesh.access.sync.dto.AbstractUserSyncItem;
 import cn.ac.fage.accessmesh.access.sync.dto.AbstractUserSyncReq;

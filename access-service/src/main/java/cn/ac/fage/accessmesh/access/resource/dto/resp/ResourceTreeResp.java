@@ -39,6 +39,13 @@ public record ResourceTreeResp(
         String name,
         String path,
         Integer status,
-        List<ResourceTreeNode> children
-    ) {}
+        List<ResourceTreeNode> children,
+        String associationMode,
+        cn.ac.fage.accessmesh.perm.common.dto.resp.ResourceAssociationOwnerResp associationOwner
+    ) {
+        public ResourceTreeNode(Long id, Long parentId, String resourceTypeCode, String code, String codeType,
+                                String name, String path, Integer status, List<ResourceTreeNode> children) {
+            this(id, parentId, resourceTypeCode, code, codeType, name, path, status, children, "NONE", null);
+        }
+    }
 }

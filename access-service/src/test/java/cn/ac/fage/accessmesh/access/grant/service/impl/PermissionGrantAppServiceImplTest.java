@@ -39,6 +39,7 @@ import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -78,6 +79,7 @@ class PermissionGrantAppServiceImplTest {
     @Mock private cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport treeWriteLockSupport;
     @Mock private cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService autoGrantMaterializationDomainService;
     @Mock private cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantInsightDomainService autoGrantInsightDomainService;
+    @Mock private cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService associations;
 
     private PermissionGrantAppService service;
 
@@ -88,7 +90,8 @@ class PermissionGrantAppServiceImplTest {
             rolePermMapper, conditionDomainService, permissionGrantPlanDomainService,
             auditDomainService, typeResolutionService, engine, JsonMapper.builder().configureForJackson2().build(),
             subjectDomainService, resourceEntityDomainService,
-            treeWriteLockSupport, autoGrantMaterializationDomainService, autoGrantInsightDomainService);
+            treeWriteLockSupport, autoGrantMaterializationDomainService, autoGrantInsightDomainService,
+            associations);
     }
 
     private SubPermAllowedTypesReq subPermReq() {
@@ -126,6 +129,8 @@ class PermissionGrantAppServiceImplTest {
 
     @Test
     void shouldSerializePolicyResultDirectly() {
+        when(associations.candidateTypes(TENANT, "MENU", null)).thenReturn(
+            new cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService.TypeCandidates(Set.of("BUTTON", "DATA"), Set.of()));
         when(typeResolutionService.resolveRoleId(TENANT, "BASIC_ROLE", "role_report_editor", null))
             .thenReturn(ROLE_ID);
         when(permissionGrantPlanDomainService.resolveSubPermissionPolicy(TENANT, "MENU"))

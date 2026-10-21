@@ -19,5 +19,11 @@ public record SubPermAllowedTypesReq(
     String domainCode,
     @NotBlank String roleTypeCode,
     @NotBlank String roleExternalId,
-    @NotBlank String parentResourceTypeCode
-) {}
+    @NotBlank String parentResourceTypeCode,
+    @jakarta.validation.constraints.Pattern(regexp = "(?s)(?U).*\\S.*") String parentResourceCode,
+    String parentCodeType
+) {
+    public SubPermAllowedTypesReq(String domainCode, String roleTypeCode, String roleExternalId, String parentResourceTypeCode) {
+        this(domainCode, roleTypeCode, roleExternalId, parentResourceTypeCode, null, null);
+    }
+}

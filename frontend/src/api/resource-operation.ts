@@ -29,6 +29,30 @@ export type ResourceKey = {
   codeType?: string | null;
 };
 
+export type ResourceAssociationOwnerResp = {
+  resourceTypeCode: string;
+  code: string;
+  codeType: string;
+  name: string;
+  status: number;
+};
+
+export type ResourceAssociationDetailResp = {
+  associationMode: string;
+  associationOwner: ResourceAssociationOwnerResp | null;
+  referencedTypeCodes: string[];
+  exclusiveResourceCount: number;
+  referencingResourceCount: number;
+  sourceService: string | null;
+};
+
+export type ResourceAssociationCandidatesReq = {
+  parentResource: ResourceKey;
+  resourceTypeCode: string;
+  pageNum?: number;
+  pageSize?: number;
+};
+
 /** 操作权限业务键（uk_operation_permission_typed；全局操作概念已退役，resourceTypeCode 必填） */
 export type OperationKey = {
   resourceTypeCode: string;
@@ -65,6 +89,30 @@ export type ResourceTreeNode = {
   path: string | null;
   status: number;
   children: ResourceTreeNode[] | null;
+  associationMode?: string;
+  associationOwner?: ResourceAssociationOwnerResp | null;
+};
+
+export const getResourceAssociationCandidates = async (
+  data: ResourceAssociationCandidatesReq
+): Promise<PageResp<ResourceResp>> => {
+  const result = await http.request<R<PageResp<ResourceResp>>>(
+    "post",
+    "/api/access/resource-entity/association-candidates",
+    { data }
+  );
+  return unwrap(result);
+};
+
+export const getResourceAssociationDetail = async (
+  data: ResourceKey
+): Promise<ResourceAssociationDetailResp> => {
+  const result = await http.request<R<ResourceAssociationDetailResp>>(
+    "post",
+    "/api/access/resource-entity/association-detail",
+    { data }
+  );
+  return unwrap(result);
 };
 
 /** 资源树响应（对齐后端 ResourceTreeResp，单 root 包裹） */

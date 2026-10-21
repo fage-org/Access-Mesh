@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.sync.dto;
 
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntityFullSyncReq;
+
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 

@@ -157,7 +157,8 @@ class OperationLogRuntimeContextAppServiceTest {
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.type.service.domain.ResourceTypeOwnershipGuard.class),
             org.mockito.Mockito.mock(TreeWriteLockSupport.class)
         , org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.ApiMappingWriteDomainService.class), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomainService.class),
-            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService.class));
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService.class),
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.service.domain.PermissionGrantPlanDomainService.class));
 
         ResourceEntity first = new ResourceEntity();
         first.setId(10L);

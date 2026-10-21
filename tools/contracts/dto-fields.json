@@ -933,5 +933,65 @@
         "name": "FileResp"
       }
     ]
+  },
+  {
+    "name": "ResourceTreeNode",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "access-service/src/main/java/cn/ac/fage/accessmesh/access/resource/dto/resp/ResourceTreeResp.java",
+        "name": "ResourceTreeNode"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/resource-operation.ts",
+        "name": "ResourceTreeNode"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "ResourceTreeNode"
+      }
+    ]
+  },
+  {
+    "name": "ResourceAssociationOwnerResp",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "perm-sdk/perm-common/src/main/java/cn/ac/fage/accessmesh/perm/common/dto/resp/ResourceAssociationOwnerResp.java",
+        "name": "ResourceAssociationOwnerResp"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/resource-operation.ts",
+        "name": "ResourceAssociationOwnerResp"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "ResourceAssociationOwnerResp"
+      }
+    ]
+  },
+  {
+    "name": "ResourceAssociationDetailResp",
+    "targets": [
+      {
+        "kind": "java",
+        "file": "perm-sdk/perm-common/src/main/java/cn/ac/fage/accessmesh/perm/common/dto/resp/ResourceAssociationDetailResp.java",
+        "name": "ResourceAssociationDetailResp"
+      },
+      {
+        "kind": "typescript",
+        "file": "frontend/src/api/resource-operation.ts",
+        "name": "ResourceAssociationDetailResp"
+      },
+      {
+        "kind": "markdown",
+        "file": "docs/design/dto-field-coverage.md",
+        "name": "ResourceAssociationDetailResp"
+      }
+    ]
   }
 ]

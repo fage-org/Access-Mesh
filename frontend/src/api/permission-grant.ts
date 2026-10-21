@@ -394,6 +394,8 @@ export type SubPermAllowedTypesReq = {
   roleExternalId: string;
   /** 父资源类型（必填；不存在 -> 20007） */
   parentResourceTypeCode: string;
+  parentResourceCode?: string | null;
+  parentCodeType?: string | null;
 };
 
 /**

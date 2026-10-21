@@ -300,6 +300,104 @@ public class ResourceAssociationDomainServiceImpl implements ResourceAssociation
     private static Plan identityConflict() { return Plan.failure("NON_RETRYABLE", "RESOURCE_ASSOCIATION_IDENTITY_CONFLICT"); }
     private static Plan invalidPublication() { return Plan.failure("NON_RETRYABLE", "RESOURCE_ASSOCIATION_INVALID"); }
 
+    @Override
+    public CandidateScope candidateScope(Long tenantId, ResourceKeyReq parent, String childTypeCode) {
+        Set<String> requestedTypes = new HashSet<>(List.of(parent.resourceTypeCode(), childTypeCode));
+        Map<String, TypeDefinition> definitions = types.selectResourceTypesByCodes(tenantId, requestedTypes).stream()
+            .collect(Collectors.toMap(TypeDefinition::getTypeCode, type -> type));
+        TypeDefinition primaryType = definitions.get(parent.resourceTypeCode());
+        TypeDefinition childType = definitions.get(childTypeCode);
+        if (primaryType == null || childType == null) throw new BizException(AccessErrorCode.RESOURCE_TYPE_NOT_FOUND.getCode(), "资源类型不存在");
+        ResourceEntity primary = resources.selectByTypeCodeAndCodeType(tenantId, primaryType.getTypeValue(), parent.code(), parent.normalizedCodeType());
+        requireActivePrimary(primary);
+        ResourceAssociationDeclaration child = declaration(childType);
+        if (child.mode() != Mode.NONE) {
+            if (!child.parentTypeCodes().contains(primaryType.getTypeCode())) throw missingAssociation("当前主类型不能使用该关联类型");
+            if (primary.getSourceEntityId() == null) throw missingAssociation("主资源来源身份尚未发布");
+            if (child.mode() == Mode.SHARED && !relations.selectSharedTypeIds(tenantId, primary.getId()).contains(childType.getId())) {
+                throw missingAssociation("主资源尚未引用该通用类型");
+            }
+        }
+        return new CandidateScope(primary.getId(), childType, child.mode());
+    }
+
+    @Override
+    public Map<Long, OwnerView> describeOwners(Long tenantId, List<ResourceEntity> entities) {
+        if (entities.isEmpty()) return Map.of();
+        Set<Integer> values = entities.stream().map(ResourceEntity::getResourceType).collect(Collectors.toSet());
+        Map<Integer, TypeDefinition> definitions = new HashMap<>();
+        SqlBatches.forEach(new ArrayList<>(values), batch -> types.selectResourceTypesByValues(tenantId, Set.copyOf(batch))
+            .forEach(type -> definitions.put(type.getTypeValue(), type)));
+        Map<Long, Mode> modes = new HashMap<>();
+        Set<Long> exclusive = new HashSet<>();
+        for (ResourceEntity entity : entities) {
+            TypeDefinition type = definitions.get(entity.getResourceType());
+            if (type == null) throw new BizException(AccessErrorCode.RESOURCE_TYPE_NOT_FOUND.getCode(), "资源所属类型不存在");
+            Mode mode = declaration(type).mode();
+            if (mode != Mode.NONE) modes.put(entity.getId(), mode);
+            if (mode == Mode.EXCLUSIVE) exclusive.add(entity.getId());
+        }
+        Map<Long, Long> ownerIds = findByExclusiveIds(tenantId, exclusive).stream()
+            .collect(Collectors.toMap(ResourceAssociation::getExclusiveResourceId, ResourceAssociation::getPrimaryResourceId));
+        Map<Long, ResourceEntity> owners = new HashMap<>();
+        SqlBatches.forEach(new ArrayList<>(new HashSet<>(ownerIds.values())), ids -> resources.selectValidByIds(tenantId, Set.copyOf(ids))
+            .forEach(owner -> owners.put(owner.getId(), owner)));
+        Set<Integer> ownerTypes = owners.values().stream().map(ResourceEntity::getResourceType).collect(Collectors.toSet());
+        ownerTypes.removeAll(definitions.keySet());
+        SqlBatches.forEach(new ArrayList<>(ownerTypes), batch -> types.selectResourceTypesByValues(tenantId, Set.copyOf(batch))
+            .forEach(type -> definitions.put(type.getTypeValue(), type)));
+        Map<Long, OwnerView> result = new HashMap<>();
+        modes.forEach((id, mode) -> {
+            ResourceEntity owner = owners.get(ownerIds.get(id));
+            TypeDefinition ownerType = owner == null ? null : definitions.get(owner.getResourceType());
+            result.put(id, new OwnerView(mode, owner, ownerType == null ? null : ownerType.getTypeCode()));
+        });
+        return Map.copyOf(result);
+    }
+
+    @Override
+    public DetailView describeResource(Long tenantId, ResourceEntity entity) {
+        OwnerView view = describeOwners(tenantId, List.of(entity)).getOrDefault(entity.getId(), OwnerView.NONE);
+        List<Long> referenceIds = relations.selectSharedTypeIds(tenantId, entity.getId());
+        List<TypeDefinition> referenced = types.selectValidByIds(tenantId, Set.copyOf(referenceIds));
+        if (referenced.size() != referenceIds.size()) throw conflict("存在指向无效类型的引用");
+        List<TypeDefinition> ownTypes = types.selectResourceTypesByValues(tenantId, Set.of(entity.getResourceType()));
+        if (ownTypes.isEmpty()) throw new BizException(AccessErrorCode.RESOURCE_TYPE_NOT_FOUND.getCode(), "资源所属类型不存在");
+        TypeDefinition type = ownTypes.getFirst();
+        return new DetailView(view, referenced.stream().map(TypeDefinition::getTypeCode).sorted().toList(),
+            relations.countExclusive(tenantId, entity.getId()), view.mode() == Mode.SHARED ? relations.countReferences(tenantId, type.getId()) : 0,
+            ownership.parseOwnership(type.getExtra()).syncSourceService());
+    }
+
+    @Override
+    public TypeCandidates candidateTypes(Long tenantId, String parentTypeCode, ResourceKeyReq parent) {
+        List<TypeDefinition> directory = types.selectByTenantAndTypeKey(tenantId, "resource_type");
+        TypeDefinition primaryType = directory.stream().filter(type -> type.getTypeCode().equals(parentTypeCode)).findFirst()
+            .orElseThrow(() -> new BizException(AccessErrorCode.RESOURCE_TYPE_NOT_FOUND.getCode(), "主类型不存在"));
+        Set<Long> referenced = Set.of();
+        if (parent != null) {
+            ResourceEntity primary = resources.selectByTypeCodeAndCodeType(tenantId, primaryType.getTypeValue(), parent.code(), parent.normalizedCodeType());
+            requireActivePrimary(primary);
+            referenced = Set.copyOf(relations.selectSharedTypeIds(tenantId, primary.getId()));
+        }
+        Set<String> known = new HashSet<>();
+        Set<String> excluded = new HashSet<>();
+        for (TypeDefinition type : directory) {
+            known.add(type.getTypeCode());
+            ResourceAssociationDeclaration declared = declaration(type);
+            if (declared.mode() == Mode.NONE) continue;
+            if (!declared.parentTypeCodes().contains(parentTypeCode)
+                || parent != null && declared.mode() == Mode.SHARED && !referenced.contains(type.getId())) excluded.add(type.getTypeCode());
+        }
+        return new TypeCandidates(Set.copyOf(known), Set.copyOf(excluded));
+    }
+
+    private static void requireActivePrimary(ResourceEntity primary) {
+        if (primary == null) throw new BizException(AccessErrorCode.RESOURCE_NOT_FOUND.getCode(), "主资源不存在");
+        if (!Integer.valueOf(1).equals(primary.getStatus())) throw missingAssociation("主资源已停用");
+    }
+    private static BizException missingAssociation(String message) { return new BizException(AccessErrorCode.RESOURCE_ASSOCIATION_REQUIRED.getCode(), message); }
+
     private ResourceAssociationDeclaration declaration(TypeDefinition type) {
         try { return ResourceAssociationDeclaration.parse(json, type.getExtra()); }
         catch (IllegalArgumentException exception) { throw invalid(exception.getMessage()); }

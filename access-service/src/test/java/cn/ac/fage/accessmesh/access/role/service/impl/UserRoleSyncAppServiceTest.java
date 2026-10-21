@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.access.role.service.impl;
 
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
-import cn.ac.fage.accessmesh.access.sync.metadata.SyncVersionRef;
+import cn.ac.fage.accessmesh.perm.common.dto.req.SyncVersionRef;
 import cn.ac.fage.accessmesh.access.sync.dto.UserRoleFullSyncReq;
 import cn.ac.fage.accessmesh.access.sync.dto.UserRoleSyncItem;
 import cn.ac.fage.accessmesh.access.sync.dto.UserRoleSyncReq;

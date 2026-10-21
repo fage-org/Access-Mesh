@@ -31,7 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>
  * 封闭语义（评审 P2 修复）：接口的**全部**声明方法都必须满足 POST + 单一
  * {@code @RequestBody}——不以 @PostMapping 预过滤（否则新增 GET/未标注方法会逃逸）；
- * 单 DTO 方法路径清单封闭且不得重复；仅四运行时查询允许追加显式凭证头重载。
+ * 单 DTO 方法路径清单封闭且不得重复；运行时查询与资源发布允许追加显式凭证头重载。
  * 新增或删除端点必须同步修改本清单。
  * （{@code SyncTaskFeignClient} 已随内部同步链路退役删除，不在契约范围。）
  * </p>
@@ -55,6 +55,10 @@ class PermissionFeignClientContractTest {
         "/api/access/resource-entity/batch-create",
         "/api/access/resource-entity/update",
         "/api/access/resource-entity/remove",
+        "/api/access/resource-entity/sync",
+        "/api/access/resource-entity/full-sync",
+        "/api/access/resource-entity/association-candidates",
+        "/api/access/resource-entity/association-detail",
         "/api/access/operation-permission/list",
         "/api/access/permission-view/effective-permission-codes",
         "/api/access/auth/interface-admission",
@@ -79,7 +83,7 @@ class PermissionFeignClientContractTest {
     }
 
     @Test
-    @DisplayName("HTTP 契约：路径封闭清单；仅运行时查询允许显式凭证重载")
+    @DisplayName("HTTP 契约：路径封闭清单；运行时查询与资源发布允许显式凭证重载")
     void contractPathsAreFrozen() {
         assertThat(allInstanceMethods())
             .as("全部方法必须标注 @PostMapping（未标注/GET 方法不得混入 SDK 契约）")
@@ -99,7 +103,8 @@ class PermissionFeignClientContractTest {
         assertThat(allInstanceMethods().stream().filter(m -> m.getParameterCount() == 3)
             .map(m -> m.getAnnotation(PostMapping.class).value()[0]).toList())
             .containsExactlyInAnyOrder("/api/access/auth/check", "/api/access/auth/batch-check",
-                "/api/access/auth/query-resources", "/api/access/auth/query-scopes");
+                "/api/access/auth/query-resources", "/api/access/auth/query-scopes",
+                "/api/access/resource-entity/sync", "/api/access/resource-entity/full-sync");
     }
 
     @Test
@@ -220,13 +225,16 @@ class PermissionFeignClientContractTest {
             Object body = constructor.newInstance(new Object[constructor.getParameterCount()]);
             method.invoke(client, body, "sc-selected", "sk-selected");
         }
-        assertThat(requests).hasSize(4);
+        assertThat(requests).hasSize(6);
         for (var request : requests) {
             assertThat(request.httpMethod()).isEqualTo(feign.Request.HttpMethod.POST);
             assertThat(request.headers().get("X-Credential-Id")).containsExactly("sc-selected");
             assertThat(request.headers().get("X-Credential-Secret")).containsExactly("sk-selected");
             assertThat(request.headers()).doesNotContainKeys("X-Tenant-Id", "X-Internal-Secret");
-            assertThat(json.readTree(request.body()).has("subjectExternalId")).isTrue();
+            var body = json.readTree(request.body());
+            if (request.url().endsWith("/resource-entity/full-sync")) assertThat(body.has("scope")).isTrue();
+            else if (request.url().endsWith("/resource-entity/sync")) assertThat(body.has("sourceService")).isTrue();
+            else assertThat(body.has("subjectExternalId")).isTrue();
         }
     }
 
@@ -234,5 +242,22 @@ class PermissionFeignClientContractTest {
         return Arrays.stream(record.getRecordComponents())
             .map(RecordComponent::getName)
             .toList();
+    }
+
+    @Test
+    void resourcePublicationUsesSharedDtosAndKeepsIncarnationIdentity() {
+        var json = JsonMapper.builder().configureForJackson2().build();
+        var version = new cn.ac.fage.accessmesh.perm.common.dto.req.SyncVersionRef(java.time.LocalDateTime.of(2026, 10, 22, 0, 0), 1L);
+        var owner = new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceAssociationOwnerReq("REPORT", "sales-report", null, "report-10");
+        var field = new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntitySyncReq("UPSERT", "FIELD", "field-10", null,
+            "amount", null, null, null, null, 1, null, "reports", "field", "field-10", version, null, owner, null);
+        var tree = json.valueToTree(field);
+        assertThat(tree.path("associationOwner").path("sourceEntityId").asText()).isEqualTo("report-10");
+        assertThat(tree.has("tenantId")).isFalse();
+        var report = new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntitySyncItem("sales-report", null, "report", null,
+            null, null, null, 1, null, "report", "report-10", version, null, List.of("REGION"));
+        var full = new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntityFullSyncReq(
+            new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntitySyncScope("reports", "REPORT"), List.of(report), "2");
+        assertThat(json.valueToTree(full).path("items").get(0).path("referencedTypeCodes").get(0).asText()).isEqualTo("REGION");
     }
 }

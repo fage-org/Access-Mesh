@@ -15,7 +15,7 @@ last_reviewed: 2026-10-22
 
 通用整类引用取代本文件原先的通用实例级引用目标；不再采用同一通用类型中“A 引用 X/Y、B 只引用 X”的关系模型或验收场景。专属实例归属与用户实例级授权保持。
 
-本文件为**已采纳目标，部分实现，整体尚未交付**。T-ACCESS-145 已定稿，T-ACCESS-146 已实现关系存储、类型声明、原子发布及写生命周期基础；候选/SDK、授权与运行时、页面和 example 接入仍按计划推进。实施契约见[契约总册目标章节](access-service-api-contract.md#resource-association-contract)，执行与验证由 [resource-association-plan](../plans/resource-association-plan.md) 编排；不能以写侧基础完成代替完整鉴权能力已交付。
+本文件为**已采纳目标，部分实现，整体尚未交付**。T-ACCESS-145 已定稿，T-ACCESS-146 已实现关系存储、类型声明、原子发布及写生命周期基础，T-ACCESS-147 已实现候选/只读查询和 SDK；授权与运行时、页面和 example 接入仍按计划推进。实施契约见[契约总册目标章节](access-service-api-contract.md#resource-association-contract)，执行与验证由 [resource-association-plan](../plans/resource-association-plan.md) 编排；不能以候选过滤代替完整鉴权能力已交付。
 
 适用对象是显式声明此能力的资源类型。未声明的现有类型保持现役行为，不默认把所有类型归为通用并强制补关系。2026-10-21 用户确认：关系模式及允许主类型声明只能在没有有效实例、关系和用户业务授权时修改，系统自动生成的 AUTHORITY_ROOT 不算用户业务授权；已有使用时不得直接转换用途。名称等不改变关系语义的普通资料仍可编辑。需要改变用途时另建类型并准备资源，本计划不做保留旧数据的在线转换，不能用新规则隐式扩围既有业务。
 

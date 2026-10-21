@@ -15,10 +15,10 @@ import cn.ac.fage.accessmesh.access.resource.dto.resp.DependencyDeclarationStatu
 import cn.ac.fage.accessmesh.access.resource.service.DependencyAppService;
 import cn.ac.fage.accessmesh.access.resource.service.PermissionManifestAppService;
 import cn.ac.fage.accessmesh.access.resource.service.ResourceEntitySyncAppService;
-import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntityFullSyncReq;
-import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntitySyncItem;
-import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntitySyncScope;
-import cn.ac.fage.accessmesh.access.sync.metadata.SyncVersionRef;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntityFullSyncReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntitySyncItem;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntitySyncScope;
+import cn.ac.fage.accessmesh.perm.common.dto.req.SyncVersionRef;
 import cn.ac.fage.accessmesh.perm.common.dto.req.PermissionManifestReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.PermissionManifestReq.Dependency;
 import cn.ac.fage.accessmesh.perm.common.dto.req.PermissionManifestReq.ResourceKey;

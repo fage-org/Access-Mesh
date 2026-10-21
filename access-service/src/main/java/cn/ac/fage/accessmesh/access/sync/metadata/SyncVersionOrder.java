@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.sync.metadata;
 
+import cn.ac.fage.accessmesh.perm.common.dto.req.SyncVersionRef;
+
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 

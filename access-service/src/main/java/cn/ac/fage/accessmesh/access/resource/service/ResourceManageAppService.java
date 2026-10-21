@@ -22,6 +22,9 @@ import java.util.List;
  * </p>
  */
 public interface ResourceManageAppService {
+    cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp<ResourceResp> associationCandidates(Long tenantId,
+        cn.ac.fage.accessmesh.perm.common.dto.req.ResourceAssociationCandidatesReq req);
+    cn.ac.fage.accessmesh.perm.common.dto.resp.ResourceAssociationDetailResp associationDetail(Long tenantId, ResourceKeyReq key);
 
     /**
      * 创建资源实体

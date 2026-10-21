@@ -3,7 +3,7 @@ doc_type: design
 title: DTO 字段对账覆盖
 status: adopted
 domain: cross-service
-last_reviewed: 2026-10-18
+last_reviewed: 2026-10-22
 ---
 
 # DTO 字段对账覆盖
@@ -21,6 +21,9 @@ RolePermissionItemResp 与其列表信封已由 perm-common 单源供服务端�
 | `SystemConfigResp` | configKey, configValue, description, id, isSystem, tenantId, updatedAt |
 | `RoleResp` | createdAt, externalId, extra, id, name, parentId, roleTypeCode, roleTypeName, sortOrder, status, tenantId, updatedAt |
 | `ResourceResp` | code, codeType, createdAt, extra, id, name, parentId, path, resourceTypeCode, resourceTypeName, status, tenantId, updatedAt |
+| `ResourceTreeNode` | associationMode, associationOwner, children, code, codeType, id, name, parentId, path, resourceTypeCode, status |
+| `ResourceAssociationOwnerResp` | code, codeType, name, resourceTypeCode, status |
+| `ResourceAssociationDetailResp` | associationMode, associationOwner, exclusiveResourceCount, referencedTypeCodes, referencingResourceCount, sourceService |
 | `OperationPermissionResp` | binaryBit, code, createdAt, id, inheritMask, name, resourceTypeCode, resourceTypeName, tenantId, updatedAt |
 | `ConditionResp` | code, conditionRules, createdAt, description, enabled, gatewayEvaluable, id, name, source, tenantId, updatedAt |
 | `ConflictRuleResp` | conflictType, createdAt, description, firstAbstractRoleId, firstOperationPermissionId, id, resourceTypeValue, secondAbstractRoleId, secondOperationPermissionId, tenantId, updatedAt |

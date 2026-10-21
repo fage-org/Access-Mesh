@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.contract;
 
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntityFullSyncReq;
+
 import cn.ac.fage.accessmesh.access.sync.dto.UserRoleFullSyncReq;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;

@@ -20,6 +20,12 @@ import java.util.Set;
  * </p>
  */
 public interface ResourceEntityMapper extends BaseMapper<ResourceEntity> {
+    List<ResourceEntity> selectAssociationCandidates(@Param("tenantId") Long tenantId, @Param("primaryId") Long primaryId,
+        @Param("resourceType") Integer resourceType, @Param("typeId") Long typeId, @Param("mode") String mode,
+        @Param("visibleIds") Set<Long> visibleIds, @Param("offset") int offset, @Param("limit") int limit);
+    long countAssociationCandidates(@Param("tenantId") Long tenantId, @Param("primaryId") Long primaryId,
+        @Param("resourceType") Integer resourceType, @Param("typeId") Long typeId, @Param("mode") String mode,
+        @Param("visibleIds") Set<Long> visibleIds);
     boolean hasSourceIdentities(@Param("tenantId") Long tenantId, @Param("resourceType") Integer resourceType);
     List<ResourceEntity> selectSourceIdentityHistory(@Param("tenantId") Long tenantId,
         @Param("resourceTypes") Set<Integer> resourceTypes, @Param("codes") Set<String> codes, @Param("codeTypes") Set<String> codeTypes);

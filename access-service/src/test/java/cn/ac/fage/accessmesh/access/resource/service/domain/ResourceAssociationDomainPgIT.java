@@ -9,11 +9,11 @@ import org.junit.jupiter.api.AfterEach;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.access.resource.service.ResourceEntitySyncAppService;
-import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntitySyncReq;
-import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntityFullSyncReq;
-import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntitySyncScope;
-import cn.ac.fage.accessmesh.access.sync.dto.ResourceEntitySyncItem;
-import cn.ac.fage.accessmesh.access.sync.metadata.SyncVersionRef;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntitySyncReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntityFullSyncReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntitySyncScope;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntitySyncItem;
+import cn.ac.fage.accessmesh.perm.common.dto.req.SyncVersionRef;
 import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceAssociationOwnerReq;
 import java.time.LocalDateTime;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,11 +55,15 @@ class ResourceAssociationDomainPgIT {
     @Autowired PlatformTransactionManager transactions;
     @Autowired JdbcTemplate jdbc;
     @Autowired ResourceEntitySyncAppService sync;
+    @Autowired cn.ac.fage.accessmesh.access.resource.service.ResourceManageAppService resourceManagement;
     @Autowired cn.ac.fage.accessmesh.access.type.service.TypeDefinitionAppService typeService;
+    @Autowired cn.ac.fage.accessmesh.access.grant.service.PermissionGrantAppService grantService;
     @org.springframework.test.context.bean.override.mockito.MockitoBean
     cn.ac.fage.accessmesh.access.engine.query.QueryGate gate;
     @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
     cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport locks;
+    @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
+    cn.ac.fage.accessmesh.access.grant.service.domain.PermissionGrantPlanDomainService grantPlans;
     @Autowired cn.ac.fage.accessmesh.access.resource.mapper.ResourceAssociationMapper relationMapper;
     @Autowired cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper resourceMapper;
     private TransactionTemplate tx;
@@ -174,6 +178,125 @@ class ResourceAssociationDomainPgIT {
     private ResourceEntitySyncItem reportItem(String code, String identity, long version) {
         return new ResourceEntitySyncItem(code, null, code, null, null, null, null, 1, null, "association-test", identity,
             new SyncVersionRef(LocalDateTime.of(2026, 10, 21, 0, 0), version), null, java.util.List.of("ASSOCIATION_SCOPE"));
+    }
+
+    @Test
+    void shouldExposeOwnedCandidatesAndWholeSharedDirectoryThroughTheResourceApi() throws Exception {
+        assertThat(sync.sync(1L, publication("UPSERT", "ASSOCIATION_FIELD", "owned-a", "field-a-id", 1,
+            new ResourceAssociationOwnerReq("ASSOCIATION_REPORT", "report-a", null, "10"), null), null).applied()).isTrue();
+        assertThat(sync.sync(1L, publication("UPSERT", "ASSOCIATION_FIELD", "owned-b", "field-b-id", 1,
+            new ResourceAssociationOwnerReq("ASSOCIATION_REPORT", "report-b", null, "20"), null), null).applied()).isTrue();
+        jdbc.update("UPDATE resource_entity SET name='amount' WHERE code IN ('owned-a','owned-b')");
+        assertThat(sync.sync(1L, publication("UPSERT", "ASSOCIATION_REPORT", "report-a", "10", 1, null, java.util.List.of("ASSOCIATION_SCOPE")), null).applied()).isTrue();
+        assertThat(sync.sync(1L, publication("UPSERT", "ASSOCIATION_REPORT", "report-b", "20", 1, null, java.util.List.of("ASSOCIATION_SCOPE")), null).applied()).isTrue();
+        jdbc.update("INSERT INTO resource_entity(tenant_id,resource_type,code,name) VALUES (1,993,'region-r2','R2')");
+        allowCandidateReads();
+        var mvc = resourceMvc();
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/access/resource-entity/association-candidates")
+            .contentType("application/json").content(candidateJson("report-a", "ASSOCIATION_FIELD", 20)))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.total").value(1))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.items[0].code").value("owned-a"));
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/access/resource-entity/association-candidates")
+            .contentType("application/json").content(candidateJson("report-b", "ASSOCIATION_FIELD", 20)))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.items[0].code").value("owned-b"));
+        for (String report : java.util.List.of("report-a", "report-b")) {
+            mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/access/resource-entity/association-candidates")
+                .contentType("application/json").content(candidateJson(report, "ASSOCIATION_SCOPE", 20)))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.total").value(2));
+        }
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/access/resource-entity/association-detail")
+            .contentType("application/json").content("{\"resourceTypeCode\":\"ASSOCIATION_FIELD\",\"code\":\"owned-a\"}"))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.associationMode").value("EXCLUSIVE"))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.associationOwner.code").value("report-a"));
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/access/resource-entity/tree")
+            .contentType("application/json").content("{\"resourceTypeCode\":\"ASSOCIATION_FIELD\",\"enabledOnly\":true}"))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.items.length()").value(2))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.items[0].root.associationMode").value("EXCLUSIVE"))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.items[0].root.associationOwner.code").value("report-a"));
+    }
+
+    @Test
+    void shouldFilterCandidateVisibilityBeforePaginationAndDistinguishMissingReference() throws Exception {
+        allowCandidateReads();
+        var mvc = resourceMvc();
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/access/resource-entity/association-candidates")
+            .contentType("application/json").content(candidateJson("report-a", "ASSOCIATION_SCOPE", 1)))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.code").value(20080));
+        AccessRequestContext.bind(RequestContext.service(1L, SOURCE));
+        assertThat(sync.sync(1L, publication("UPSERT", "ASSOCIATION_REPORT", "report-a", "10", 1, null, java.util.List.of("ASSOCIATION_SCOPE")), null).applied()).isTrue();
+        Long visible = jdbc.queryForObject("INSERT INTO resource_entity(tenant_id,resource_type,code,name) VALUES (1,993,'visible-scope','visible') RETURNING id", Long.class);
+        AccessRequestContext.bind(RequestContext.user(1L, 42L));
+        org.mockito.Mockito.when(gate.hasPermissionByCode(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(false);
+        org.mockito.Mockito.when(gate.getDeniedEntityIds(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenAnswer(invocation -> {
+                Set<Long> denied = new java.util.HashSet<>(invocation.<Set<Long>>getArgument(3)); denied.remove(visible); return denied;
+            });
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/access/resource-entity/association-candidates")
+            .contentType("application/json").content(candidateJson("report-a", "ASSOCIATION_SCOPE", 1)))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.total").value(1))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.items[0].code").value("visible-scope"))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.hasNext").value(false));
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/access/resource-entity/association-candidates")
+            .contentType("application/json").content(candidateJson("report-a", "ASSOCIATION_SCOPE", 201)))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isBadRequest());
+        org.mockito.Mockito.doAnswer(invocation -> {
+            Set<Long> denied = new java.util.HashSet<>(invocation.<Set<Long>>getArgument(3)); denied.remove(991001L); return denied;
+        }).when(gate).getDeniedEntityIds(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/access/resource-entity/association-candidates")
+            .contentType("application/json").content(candidateJson("report-a", "ASSOCIATION_SCOPE", 1)))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isForbidden());
+        jdbc.update("UPDATE resource_entity SET delete_flag=id WHERE tenant_id=1 AND resource_type=993");
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/access/resource-entity/association-candidates")
+            .contentType("application/json").content(candidateJson("report-a", "ASSOCIATION_SCOPE", 1)))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.total").value(0));
+    }
+
+    private void allowCandidateReads() {
+        AccessRequestContext.bind(RequestContext.user(1L, 42L));
+        org.mockito.Mockito.when(gate.hasPermissionByCode(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(true);
+        org.mockito.Mockito.when(gate.hasPermissionByEntityId(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(true);
+        var policy = new cn.ac.fage.accessmesh.access.grant.service.domain.PermissionGrantPlanDomainService.SubPermissionPolicy(
+            cn.ac.fage.accessmesh.access.grant.service.domain.PermissionGrantPlanDomainService.SubPermissionPolicy.Mode.ALLOW_LIST,
+            null, java.util.List.of("ASSOCIATION_FIELD", "ASSOCIATION_SCOPE"));
+        org.mockito.Mockito.doReturn(policy).when(grantPlans).resolveSubPermissionPolicy(1L, "ASSOCIATION_REPORT");
+    }
+
+    @Test
+    void shouldFilterChildTypeChoicesByTheSelectedPrimaryButKeepTypeLevelConfiguration() {
+        int roleType = jdbc.queryForObject("SELECT type_value FROM type_definition WHERE tenant_id=1 AND type_key='role_type' AND type_code='BASIC_ROLE' AND delete_flag=0", Integer.class);
+        jdbc.update("INSERT INTO abstract_role(id,tenant_id,role_type,external_id,name) VALUES (991020,1,?,'reader-role','reader')", roleType);
+        allowCandidateReads();
+        var specific = new cn.ac.fage.accessmesh.access.grant.dto.req.SubPermAllowedTypesReq(null, "BASIC_ROLE", "reader-role",
+            "ASSOCIATION_REPORT", "report-a", null);
+        assertThat(grantService.subPermAllowedTypes(1L, specific).allowedChildResourceTypeCodes()).containsExactly("ASSOCIATION_FIELD");
+        var typeLevel = new cn.ac.fage.accessmesh.access.grant.dto.req.SubPermAllowedTypesReq(null, "BASIC_ROLE", "reader-role", "ASSOCIATION_REPORT");
+        assertThat(grantService.subPermAllowedTypes(1L, typeLevel).allowedChildResourceTypeCodes())
+            .containsExactly("ASSOCIATION_FIELD", "ASSOCIATION_SCOPE");
+        AccessRequestContext.bind(RequestContext.service(1L, SOURCE));
+        assertThat(sync.sync(1L, publication("UPSERT", "ASSOCIATION_REPORT", "report-a", "10", 1, null, java.util.List.of("ASSOCIATION_SCOPE")), null).applied()).isTrue();
+        AccessRequestContext.bind(RequestContext.user(1L, 42L));
+        assertThat(grantService.subPermAllowedTypes(1L, specific).allowedChildResourceTypeCodes())
+            .containsExactly("ASSOCIATION_FIELD", "ASSOCIATION_SCOPE");
+        assertThat(grantService.subPermAllowedTypes(1L, new cn.ac.fage.accessmesh.access.grant.dto.req.SubPermAllowedTypesReq(
+            null, "BASIC_ROLE", "reader-role", "ASSOCIATION_REPORT", "report-b", null)).allowedChildResourceTypeCodes())
+            .containsExactly("ASSOCIATION_FIELD");
+    }
+
+    private org.springframework.test.web.servlet.MockMvc resourceMvc() {
+        return org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(
+            new cn.ac.fage.accessmesh.access.resource.controller.ResourceController(resourceManagement))
+            .setControllerAdvice(new cn.ac.fage.accessmesh.common.exception.GlobalExceptionHandler()).build();
+    }
+
+    private static String candidateJson(String report, String type, int size) {
+        return "{\"parentResource\":{\"resourceTypeCode\":\"ASSOCIATION_REPORT\",\"code\":\"" + report
+            + "\"},\"resourceTypeCode\":\"" + type + "\",\"pageNum\":1,\"pageSize\":" + size + "}";
     }
 
     @Test

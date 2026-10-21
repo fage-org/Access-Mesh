@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.sync.metadata;
 
+import cn.ac.fage.accessmesh.perm.common.dto.req.SyncVersionRef;
+
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.resource.entity.ServiceManifestSync;
 import cn.ac.fage.accessmesh.access.sync.SyncKeyCodecUtil;

@@ -41,8 +41,8 @@ last_updated: 2026-10-22
 |---|---|---|---|
 | [T-ACCESS-145](../tasks/T-ACCESS-145.md) | 资源归属与引用实施契约定稿 | ✅ | — |
 | [T-ACCESS-146](../tasks/T-ACCESS-146.md) | 资源关系存储与生命周期领域基础 | ✅ | T-ACCESS-145 |
-| [T-ACCESS-147](../tasks/T-ACCESS-147.md) | 资源关系发布与候选查询及 SDK 接线 | 🔨 | T-ACCESS-146 |
-| [T-ACCESS-148](../tasks/T-ACCESS-148.md) | 资源关联授权守卫与运行时一致消费 | ⚙️ | T-ACCESS-146 |
+| [T-ACCESS-147](../tasks/T-ACCESS-147.md) | 资源关系发布与候选查询及 SDK 接线 | ✅ | T-ACCESS-146 |
+| [T-ACCESS-148](../tasks/T-ACCESS-148.md) | 资源关联授权守卫与运行时一致消费 | 🔨 | T-ACCESS-146 |
 | [T-FE-080](../tasks/T-FE-080.md) | 现有子权限入口按资源归属与引用配置 | ⚙️ | T-ACCESS-147、T-ACCESS-148 |
 | [T-ACCESS-149](../tasks/T-ACCESS-149.md) | example 专属字段与通用范围接入 | ⚙️ | T-ACCESS-147、T-ACCESS-148 |
 | [T-ACCESS-150](../tasks/T-ACCESS-150.md) | 资源关系联合验收与文档收口 | ⚙️ | T-FE-080、T-ACCESS-149 |
@@ -53,4 +53,4 @@ last_updated: 2026-10-22
 
 ## 当前进度
 
-T-ACCESS-145/146 已完成，T-ACCESS-147 推进候选查询与 SDK 接线，其余任务等待直接依赖。先定稿，再完成领域基础；发布查询与授权消费分工后汇合到原页面和 example 接入，最后联合验收。写侧基础已由真实 PG 与定向单测验证，整体功能待后续任务完成。
+T-ACCESS-145～147 已完成，T-ACCESS-148 推进授权守卫与运行时消费，其余任务等待直接依赖。先定稿，再完成领域基础；发布查询与授权消费分工后汇合到原页面和 example 接入，最后联合验收。写侧基础已由真实 PG 与定向单测验证，整体功能待后续任务完成。

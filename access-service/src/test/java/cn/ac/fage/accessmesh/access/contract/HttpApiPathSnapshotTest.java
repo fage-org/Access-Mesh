@@ -1,5 +1,8 @@
 package cn.ac.fage.accessmesh.access.contract;
 
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntitySyncReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntityFullSyncReq;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.config.BeanDefinition;
@@ -140,6 +143,8 @@ class HttpApiPathSnapshotTest {
 /api/access/resource-entity/detail
 /api/access/resource-entity/full-sync
 /api/access/resource-entity/list
+/api/access/resource-entity/association-candidates
+/api/access/resource-entity/association-detail
 /api/access/resource-entity/move
 /api/access/resource-entity/remove
 /api/access/resource-entity/sync
@@ -347,11 +352,13 @@ class HttpApiPathSnapshotTest {
 /api/access/resource-entity/batch-create|perm.common.dto.req.ResourceBatchCreateReq|common.model.R<perm.common.dto.resp.ItemsResp<access.resource.dto.resp.ResourceResp>>
 /api/access/resource-entity/create|perm.common.dto.req.ResourceCreateReq|common.model.R<access.resource.dto.resp.ResourceResp>
 /api/access/resource-entity/detail|perm.common.dto.req.ResourceKeyReq|common.model.R<access.resource.dto.resp.ResourceResp>
-/api/access/resource-entity/full-sync|access.sync.dto.ResourceEntityFullSyncReq|common.model.R<perm.common.dto.resp.SyncResultResp>
+/api/access/resource-entity/full-sync|perm.common.dto.req.ResourceEntityFullSyncReq|common.model.R<perm.common.dto.resp.SyncResultResp>
 /api/access/resource-entity/list|access.resource.dto.req.ResourceListReq|common.model.R<perm.common.dto.resp.PageResp<access.resource.dto.resp.ResourceResp>>
+/api/access/resource-entity/association-candidates|perm.common.dto.req.ResourceAssociationCandidatesReq|common.model.R<perm.common.dto.resp.PageResp<access.resource.dto.resp.ResourceResp>>
+/api/access/resource-entity/association-detail|perm.common.dto.req.ResourceKeyReq|common.model.R<perm.common.dto.resp.ResourceAssociationDetailResp>
 /api/access/resource-entity/move|access.resource.dto.req.ResourceMoveReq|common.model.R<Void>
 /api/access/resource-entity/remove|perm.common.dto.req.ResourceKeysReq|common.model.R<access.infrastructure.dto.BatchDeleteResp<perm.common.dto.req.ResourceKeyReq>>
-/api/access/resource-entity/sync|access.sync.dto.ResourceEntitySyncReq|common.model.R<perm.common.dto.resp.SyncResultResp>
+/api/access/resource-entity/sync|perm.common.dto.req.ResourceEntitySyncReq|common.model.R<perm.common.dto.resp.SyncResultResp>
 /api/access/resource-entity/tree|access.resource.dto.req.ResourceTreeReq|common.model.R<perm.common.dto.resp.ItemsResp<access.resource.dto.resp.ResourceTreeResp>>
 /api/access/resource-entity/update|perm.common.dto.req.ResourceUpdateReq|common.model.R<access.resource.dto.resp.ResourceResp>
 /api/access/role-resource-permission/apply-grant-plan|access.grant.dto.req.ApplyGrantPlanReq|common.model.R<perm.common.dto.resp.RolePermissionItemsResp>
