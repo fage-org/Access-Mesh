@@ -259,6 +259,7 @@ function onCellDetail(target: NonNullable<typeof drawerTarget.value>) {
         :resource-forest="resourceForest"
         :all-operations="allOperationDefs"
         :all-resource-forest="allResourceForest"
+        :resource-types="typeCandidates"
         :conditions="conditions"
         :records="effective.mains"
         :baseline="grantStore.baseline"

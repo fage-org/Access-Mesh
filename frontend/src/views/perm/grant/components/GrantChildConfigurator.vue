@@ -12,11 +12,13 @@
  */
 import { computed, nextTick, ref, watch } from "vue";
 import type { ResourceTreeNode } from "@/api/resource-operation";
-import type { GrantRecordKey } from "@/api/permission-grant";
+import type { TypeDefResp } from "@/api/type-def";
 import {
-  getSubPermAllowedTypes,
-  type SubPermissionPolicy
-} from "@/api/permission-grant";
+  resourceDeclaration,
+  associationLabel
+} from "@/utils/resource-association";
+import { useChildCandidates } from "../utils/child-candidates";
+import type { GrantRecordKey } from "@/api/permission-grant";
 import {
   groupKeyOf,
   normalizeChildGrantKey,
@@ -27,6 +29,8 @@ import {
   type OperationDefInput
 } from "../utils/source-chain";
 
+defineOptions({ name: "GrantChildConfigurator" });
+
 const props = defineProps<{
   /** 单父上下文（v3.1 S6）：挂载目标 = 聚焦记录（INSTANCE 主权限） */
   parent: EffectiveRecord;
@@ -35,6 +39,7 @@ const props = defineProps<{
   childrenProvider: (record: EffectiveRecord) => EffectiveRecord[];
   operations: OperationDefInput[];
   resourceForest: ResourceTreeNode[];
+  resourceTypes: TypeDefResp[];
 }>();
 
 const emit = defineEmits<{
@@ -72,40 +77,30 @@ const activeChildCount = computed(
 
 // ========== SUB_PERM 允许集（S6：读写同源策略，三态） ==========
 
-const subPolicy = ref<SubPermissionPolicy | null>(null);
-const subPolicyLoading = ref(false);
-const subPolicyError = ref<string | null>(null);
-
-async function loadSubPolicy() {
-  subPolicyLoading.value = true;
-  subPolicyError.value = null;
-  subPolicy.value = null;
-  try {
-    subPolicy.value = await getSubPermAllowedTypes({
-      domainCode: null,
-      roleTypeCode: props.subjectKey.roleTypeCode,
-      roleExternalId: props.subjectKey.roleExternalId,
-      parentResourceTypeCode: props.parent.resourceTypeCode
-    });
-  } catch (e: any) {
-    subPolicy.value = null;
-    subPolicyError.value = e.message || "子权限类型加载失败，请重试";
-  } finally {
-    subPolicyLoading.value = false;
-  }
-}
-
-watch(
-  () => props.parent.id,
-  () => {
-    void loadSubPolicy();
-  },
-  { immediate: true }
+const candidates = useChildCandidates(
+  () => props.parent,
+  () => props.subjectKey
 );
+const selectedResourceType = candidates.selectedType;
+const subPolicy = computed(() => candidates.policy.list.value[0] ?? null);
+const subPolicyLoading = candidates.policy.loading;
+const subPolicyError = candidates.policy.error;
+const loadSubPolicy = () => candidates.policy.load();
+const resourceLoading = candidates.resources.loading;
+const resourceError = candidates.resources.error;
+const pagination = candidates.resources.pagination;
+const selectedMode = computed(() => {
+  const type = props.resourceTypes.find(
+    t => t.typeCode === selectedResourceType.value
+  );
+  return type ? resourceDeclaration(type.extra).mode : "UNKNOWN";
+});
 
 const subPermDenyText = computed(() => {
   const policy = subPolicy.value;
   if (!policy || policy.mode !== "ALLOW_NONE") return null;
+  if (policy.reason === "ASSOCIATION_NOT_AVAILABLE")
+    return "当前主资源没有可用的专属类型或通用类型引用，请由业务服务发布关系后重试";
   // P2-4 修复：按契约归并 ALLOW_NONE 文案为两类（业务不允许 / 配置异常）
   const businessDeny = new Set(["PARENT_NOT_CONFIGURED", "CHILD_TYPES_EMPTY"]);
   if (policy.reason != null && businessDeny.has(policy.reason)) {
@@ -132,8 +127,7 @@ type OpOption = {
 const selectableTypes = computed(() => {
   const policy = subPolicy.value;
   if (!policy) return [];
-  const all = new Set<string>();
-  for (const root of props.resourceForest) all.add(root.resourceTypeCode);
+  const all = new Set(props.resourceTypes.map(type => type.typeCode));
   if (policy.mode === "ALLOW_ALL") return [...all].sort();
   if (policy.mode === "ALLOW_LIST") {
     const allowed = new Set(
@@ -144,7 +138,6 @@ const selectableTypes = computed(() => {
   return []; // ALLOW_NONE
 });
 
-const selectedResourceType = ref<string | null>(null);
 const operationOptions = computed<OpOption[]>(() => {
   const typeCode = selectedResourceType.value;
   if (!typeCode) return [];
@@ -162,12 +155,18 @@ const selectedOp = computed<OpOption | null>(
     null
 );
 
-const selectableForest = computed(() => {
+const selectableForest = computed<ResourceTreeNode[]>(() => {
   const typeCode = selectedResourceType.value;
-  if (!typeCode) return [];
-  return props.resourceForest.filter(
-    root => root.resourceTypeCode === typeCode
-  );
+  if (!typeCode || selectedMode.value === "UNKNOWN") return [];
+  if (props.parent.scopeMode === "ALL")
+    return props.resourceForest.filter(
+      root => root.resourceTypeCode === typeCode
+    );
+  return candidates.resources.tableData.value.map(row => ({
+    ...row,
+    children: null,
+    associationMode: selectedMode.value
+  }));
 });
 
 const defaultExpandedKeys = computed(() =>
@@ -238,7 +237,16 @@ function toggleRecord(
   selected: boolean
 ) {
   const parent = props.parent;
-  if (!key || !parent) return;
+  if (
+    !key ||
+    !parent ||
+    resourceLoading.value ||
+    resourceError.value ||
+    subPolicyLoading.value ||
+    subPolicyError.value ||
+    selectedMode.value === "UNKNOWN"
+  )
+    return;
   const record = recordForKey(key);
   if (selected) {
     if (record?.draftMark === "remove") {
@@ -274,7 +282,12 @@ const treeDisabled = computed(
   () =>
     selectedResourceType.value == null ||
     selectedOp.value == null ||
-    allScopeSelected.value
+    allScopeSelected.value ||
+    resourceLoading.value ||
+    !!resourceError.value ||
+    subPolicyLoading.value ||
+    !!subPolicyError.value ||
+    selectedMode.value === "UNKNOWN"
 );
 const treeRenderKey = computed(
   () =>
@@ -308,6 +321,32 @@ async function applyTreePreset() {
   treeRef.value?.setCheckedKeys(checkedNodeIds.value);
 }
 
+watch(
+  candidates.contextKey,
+  () => {
+    selectedOpKey.value = null;
+    presetToken++;
+  },
+  { flush: "sync" }
+);
+
+function selectCurrentPage() {
+  const nodes = [...selectableForest.value];
+  for (const node of nodes) {
+    if (node.children) nodes.push(...node.children);
+    toggleRecord(
+      childKey({
+        resourceTypeCode: node.resourceTypeCode,
+        resourceCode: node.code,
+        codeType: node.codeType,
+        scopeMode: "INSTANCE"
+      }),
+      node.name,
+      true
+    );
+  }
+}
+
 const childSelectionSignature = computed(() =>
   childList.value
     .filter(child => child.grantSource === "MANUAL")
@@ -319,7 +358,12 @@ const childSelectionSignature = computed(() =>
 );
 
 watch(
-  [selectedResourceType, selectedOpKey, childSelectionSignature],
+  [
+    selectedResourceType,
+    selectedOpKey,
+    childSelectionSignature,
+    selectableForest
+  ],
   () => void applyTreePreset(),
   { immediate: true, flush: "post" }
 );
@@ -383,8 +427,14 @@ function nodeState(node: ResourceTreeNode): {
 const resourceHint = computed(() => {
   if (!selectedResourceType.value) return "选择资源类型后展示可配置资源";
   if (!selectedOp.value) return "选择操作权限后可调整授权";
-  if (allScopeSelected.value) return "已选择当前类型的全部资源";
-  return "勾选表示授权，取消勾选表示撤销";
+  if (allScopeSelected.value) {
+    if (selectedMode.value === "EXCLUSIVE")
+      return "使用时仅覆盖当前主资源的有效专属字段，包含以后新增的字段";
+    if (selectedMode.value === "SHARED")
+      return "通用数据范围 ALL 表示整份数据集，仍需主资源有效引用该类型";
+    return "整个类型的全部资源，包含以后新增的实例";
+  }
+  return `${associationLabel(selectedMode.value)}：勾选保存具体实例，之后新增实例不会自动加入`;
 });
 
 const emptyResourceDescription = computed(() =>
@@ -483,7 +533,7 @@ const emptyResourceDescription = computed(() =>
             <el-option
               v-for="typeCode in selectableTypes"
               :key="typeCode"
-              :label="typeCode"
+              :label="`${props.resourceTypes.find(t => t.typeCode === typeCode)?.name ?? typeCode}（${typeCode}）`"
               :value="typeCode"
             />
           </el-select>
@@ -516,19 +566,54 @@ const emptyResourceDescription = computed(() =>
             <span class="resource-hint">{{ resourceHint }}</span>
           </div>
           <div class="resource-actions">
+            <el-button
+              size="small"
+              :disabled="treeDisabled || selectableForest.length === 0"
+              @click="selectCurrentPage"
+              >选择本页全部</el-button
+            >
             <el-checkbox
               v-model="allScopeSelected"
               border
               size="small"
-              :disabled="!selectedOp || !effectiveAllType"
+              :disabled="
+                !selectedOp ||
+                !effectiveAllType ||
+                resourceLoading ||
+                !!resourceError ||
+                selectedMode === 'UNKNOWN'
+              "
               class="all-scope-checkbox"
             >
-              全量
+              动态全部（ALL）
             </el-checkbox>
           </div>
         </div>
 
-        <div class="scope-tree" :class="{ disabled: treeDisabled }">
+        <el-alert
+          v-if="selectedResourceType && selectedMode === 'UNKNOWN'"
+          title="无法识别该类型的关系声明，请先检查类型配置"
+          type="error"
+          :closable="false"
+        />
+        <el-alert
+          v-if="resourceError"
+          :title="resourceError"
+          type="error"
+          :closable="false"
+        >
+          <el-button
+            link
+            type="primary"
+            @click="candidates.resources.loadTable()"
+            >重试</el-button
+          >
+        </el-alert>
+        <div
+          v-loading="resourceLoading"
+          class="scope-tree"
+          :class="{ disabled: treeDisabled }"
+        >
           <el-empty
             v-if="selectableForest.length === 0"
             :description="emptyResourceDescription"
@@ -552,6 +637,11 @@ const emptyResourceDescription = computed(() =>
               <span class="tree-node">
                 <span class="node-label">
                   {{ data.name }}<span class="node-code">{{ data.code }}</span>
+                  <span v-if="data.associationOwner" class="node-code"
+                    >所属：{{ data.associationOwner.name }}（{{
+                      data.associationOwner.code
+                    }}）</span
+                  >
                 </span>
                 <span
                   v-if="nodeState(data)"
@@ -564,11 +654,54 @@ const emptyResourceDescription = computed(() =>
             </template>
           </el-tree>
           <div v-if="selectedOp && !allScopeSelected" class="tree-hint">
-            父节点授权会自动覆盖其子孙节点；资源类型仍受 SUB_PERM 配置约束。
+            本页只显示当前主资源可用的候选。已有授权的实际范围还受当前关系、启停状态与生效条件约束。
           </div>
         </div>
+        <el-pagination
+          v-if="
+            props.parent.scopeMode === 'INSTANCE' &&
+            pagination.total > pagination.size
+          "
+          :current-page="pagination.page"
+          :page-size="pagination.size"
+          :total="pagination.total"
+          layout="total, prev, pager, next"
+          @current-change="candidates.resources.onPageChange"
+        />
       </section>
     </div>
+    <el-collapse v-if="childList.length">
+      <el-collapse-item
+        title="已有子权限配置（可查看与撤销，不代表当前有效范围）"
+        name="existing"
+      >
+        <div v-for="child in childList" :key="child.id" class="parent-context">
+          <span
+            >{{ child.resourceTypeCode }} ·
+            {{ child.resourceName ?? child.resourceCode ?? "全部（ALL）" }} ·
+            {{ child.operationCode }}</span
+          >
+          <el-tag
+            v-if="
+              !subPolicyLoading &&
+              !subPolicyError &&
+              subPolicy &&
+              !selectableTypes.includes(child.resourceTypeCode)
+            "
+            type="warning"
+            >当前类型不在可选范围</el-tag
+          >
+          <span v-if="child.draftMark === 'remove'">待撤销</span>
+          <el-button
+            v-else-if="child.grantSource === 'MANUAL'"
+            link
+            type="danger"
+            @click="emit('remove', child)"
+            >撤销此配置</el-button
+          >
+        </div>
+      </el-collapse-item>
+    </el-collapse>
   </section>
 </template>
 

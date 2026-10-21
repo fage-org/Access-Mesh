@@ -12,6 +12,8 @@ last_reviewed: 2026-10-22
 
 RolePermissionItemResp 与其列表信封已由 perm-common 单源供服务端和 SDK 使用；AuthCheckResp/BatchAuthCheckResp 保留双副本，另由 CheckFamilyWireShapeTest 检查包括子项在内的形状。共用 perm-common 的请求与分页信封无需再造 Java 副本。
 
+资源关系页面消费已登记的 ResourceTreeNode、ResourceAssociationOwnerResp、ResourceAssociationDetailResp；候选分页沿现有 ResourceResp。T-FE-080 同步现有子权限拒绝原因 `ASSOCIATION_NOT_AVAILABLE`，未另建同构响应或未登记的字段副本。
+
 已锁家族见下表。未进入本表的用户/组织/登录菜单树、嵌套授权预览、依赖诊断等前端模型仍由各自行为测试或人工契约核对覆盖，不宣称全仓镜像均受字段对账保护；新增镜像时优先登记本检查。HTTP 路径及请求/响应类型由 HttpApiPathSnapshotTest 管理。
 
 | DTO | 字段集合 |

@@ -1,3 +1,4 @@
+import { resourceDeclaration } from "@/utils/resource-association";
 import { deleteResultNotice } from "@/utils/delete-result";
 import { loadAllTypeDefs } from "@/api/type-def-options";
 import { ref, reactive, computed, onMounted } from "vue";
@@ -247,7 +248,7 @@ export function useResourceOperation() {
   async function deleteResource(node: ResourceTreeNode): Promise<boolean> {
     try {
       await ElMessageBox.confirm(
-        `确认删除资源「${node.name}」吗？其所有子资源将一并删除，关联的权限配置将失效。`,
+        `确认删除资源「${node.name}」吗？其所有子资源将一并删除，关联的权限配置将失效。${resourceDeclaration(resourceTypes.value.find(t => t.typeCode === node.resourceTypeCode)?.extra).mode === "SHARED" ? "这是通用目录实例，删除会影响全部引用方；整类引用及其他实例保持。" : ""}`,
         "删除资源",
         {
           type: "warning",

@@ -1,4 +1,10 @@
 <script setup lang="ts">
+import { loadAllTypeDefs } from "@/api/type-def-options";
+import {
+  resourceDeclaration,
+  updateResourceDeclaration
+} from "@/utils/resource-association";
+import { message } from "@/utils/message";
 import { ENUM_PAGE_SIZE } from "@/constants/access";
 
 import { ref, reactive, computed, watch } from "vue";
@@ -151,6 +157,66 @@ watch(
   }
 );
 
+const declaration = computed(() => resourceDeclaration(formData.extra));
+const parentTypeOptions = ref<TypeDefResp[]>([]);
+const parentTypesError = ref<string | null>(null);
+watch(
+  ownerSelectorVisible,
+  async visible => {
+    if (!visible) return;
+    try {
+      parentTypeOptions.value = await loadAllTypeDefs({
+        typeKey: "resource_type"
+      });
+      parentTypesError.value = null;
+    } catch {
+      parentTypesError.value =
+        "主类型候选加载失败，可输入类型编码；保存时仍由服务端核验";
+    }
+  },
+  { immediate: true }
+);
+const eligibleParents = computed(() =>
+  parentTypeOptions.value.filter(type => {
+    const parent = resourceDeclaration(type.extra);
+    return (
+      type.typeCode !== formData.typeCode &&
+      parent.mode === "NONE" &&
+      parent.managedMode === "SYNC" &&
+      (declaration.value.mode !== "EXCLUSIVE" ||
+        parent.source === declaration.value.source)
+    );
+  })
+);
+function setDeclaration(key: string, value: unknown) {
+  try {
+    formData.extra = updateResourceDeclaration(formData.extra, key, value);
+  } catch {
+    message("请先将扩展属性修正为有效 JSON 对象", { type: "warning" });
+  }
+}
+function setRelationMode(mode: string) {
+  setDeclaration("associationMode", mode);
+  if (mode === "NONE") setDeclaration("associationParentTypeCodes", []);
+}
+function setManagedMode(mode: string) {
+  setDeclaration("managedMode", mode);
+  if (mode === "MANAGED") setDeclaration("syncSourceService", undefined);
+}
+const declarationError = computed(() => {
+  const value = declaration.value;
+  if (value.mode === "UNKNOWN") return "关系声明无法识别，请检查扩展属性";
+  if (value.mode === "EXCLUSIVE" && value.managedMode !== "SYNC")
+    return "专属资源必须选择业务服务维护";
+  if (value.mode === "SHARED" && value.managedMode !== "MANAGED")
+    return "通用资源必须选择 IAM 管理";
+  if (value.managedMode === "SYNC" && !value.source.trim())
+    return "请填写维护资源的业务服务编码";
+  if (value.mode !== "NONE" && value.parentTypes.length === 0)
+    return "请选择允许使用此类型的主资源类型";
+  return null;
+});
+
 /** 表单校验规则。
  *  typeCode 对外稳定编码，新建可空（留空由服务端按 <TYPEKEY大写>_<typeValue> 生成），
  *  格式与大写 @Pattern 对齐（T-PERM-066 大写族，OperationForm 同款；空串放行）。
@@ -202,6 +268,10 @@ async function validate(): Promise<boolean> {
   if (!formRef.value) return false;
   try {
     await formRef.value.validate();
+    if (ownerSelectorVisible.value && declarationError.value) {
+      message(declarationError.value, { type: "warning" });
+      return false;
+    }
     return true;
   } catch {
     return false;
@@ -324,6 +394,78 @@ defineExpose({
       />
     </el-form-item>
 
+    <template v-if="ownerSelectorVisible">
+      <el-form-item label="资源维护方">
+        <el-select
+          :model-value="declaration.managedMode"
+          class="w-full!"
+          @update:model-value="setManagedMode"
+        >
+          <el-option label="IAM 管理员" value="MANAGED" />
+          <el-option label="业务服务" value="SYNC" />
+        </el-select>
+      </el-form-item>
+      <el-form-item v-if="declaration.managedMode === 'SYNC'" label="来源服务">
+        <el-input
+          :model-value="declaration.source"
+          placeholder="例如 example-service"
+          @update:model-value="
+            value => setDeclaration('syncSourceService', value)
+          "
+        />
+      </el-form-item>
+      <el-form-item label="关系性质">
+        <el-select
+          :model-value="declaration.mode"
+          class="w-full!"
+          @update:model-value="setRelationMode"
+        >
+          <el-option label="普通资源（不声明归属或引用）" value="NONE" />
+          <el-option
+            label="专属资源（每个实例归属一个主资源）"
+            value="EXCLUSIVE"
+          />
+          <el-option label="通用资源（主资源整类引用）" value="SHARED" />
+        </el-select>
+      </el-form-item>
+      <el-form-item
+        v-if="declaration.mode === 'EXCLUSIVE' || declaration.mode === 'SHARED'"
+        label="允许主类型"
+      >
+        <el-select
+          :model-value="declaration.parentTypes"
+          multiple
+          filterable
+          allow-create
+          default-first-option
+          :multiple-limit="200"
+          class="w-full!"
+          placeholder="选择或输入主资源类型编码"
+          @update:model-value="
+            value => setDeclaration('associationParentTypeCodes', value)
+          "
+        >
+          <el-option
+            v-for="type in eligibleParents"
+            :key="type.id"
+            :label="`${type.name}（${type.typeCode}）`"
+            :value="type.typeCode"
+          />
+        </el-select>
+      </el-form-item>
+      <el-alert
+        v-if="declarationError || parentTypesError"
+        :title="declarationError ?? parentTypesError ?? ''"
+        type="warning"
+        :closable="false"
+      />
+      <el-form-item>
+        <span class="owner-role-hint"
+          >专属实例与关系由业务服务发布；通用实例由 IAM
+          维护，业务服务只发布整类引用。已使用的类型不能直接改用途，保存时由服务端检查。</span
+        >
+      </el-form-item>
+    </template>
     <el-form-item label="扩展属性" prop="extra">
       <el-input
         v-model="formData.extra"

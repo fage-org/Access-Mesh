@@ -372,7 +372,8 @@ export type SubPermissionDenyReason =
   | "CONFIG_EMPTY"
   | "CONFIG_INVALID"
   | "PARENT_NOT_CONFIGURED"
-  | "CHILD_TYPES_EMPTY";
+  | "CHILD_TYPES_EMPTY"
+  | "ASSOCIATION_NOT_AVAILABLE";
 
 /**
  * 子权限类型策略（sub-perm-allowed-types 响应 data）。

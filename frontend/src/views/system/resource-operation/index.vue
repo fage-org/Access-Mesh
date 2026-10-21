@@ -6,6 +6,11 @@ import { hasPerms } from "@/utils/auth";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import { message } from "@/utils/message";
 import { toErrorMessage } from "@/api/_envelope";
+import ResourceAssociationInfo from "./components/ResourceAssociationInfo.vue";
+import {
+  resourceDeclaration,
+  associationLabel
+} from "@/utils/resource-association";
 import ResourceForm from "./components/ResourceForm.vue";
 import OperationForm from "./components/OperationForm.vue";
 import ResourceMoveForm from "./components/ResourceMoveForm.vue";
@@ -66,17 +71,34 @@ const treeRef = ref();
 // RESOURCE:VIEW / OPERATION:VIEW 分别隔离：资源树与操作权限表独立可见性。
 // computed 包装而非顶层 const，是为了响应 store.permissions 变化（角色切换时刷新）。
 const canView = computed(() => canViewResource.value || canViewOperation.value);
-const canCreateResource = computed(() =>
-  hasPerms(RESOURCE_OPERATION_PERMS.RESOURCE_ADD)
+const selectedDeclaration = computed(() =>
+  resourceDeclaration(
+    resourceTypes.value.find(t => t.typeCode === selectedResourceTypeCode.value)
+      ?.extra
+  )
 );
-const canEditResource = computed(() =>
-  hasPerms(RESOURCE_OPERATION_PERMS.RESOURCE_EDIT)
+const resourceWritable = computed(
+  () =>
+    !!selectedResourceTypeCode.value &&
+    selectedDeclaration.value.mode !== "UNKNOWN" &&
+    selectedDeclaration.value.mode !== "EXCLUSIVE" &&
+    selectedDeclaration.value.managedMode === "MANAGED"
 );
-const canDeleteResource = computed(() =>
-  hasPerms(RESOURCE_OPERATION_PERMS.RESOURCE_DELETE)
+const canCreateResource = computed(
+  () =>
+    resourceWritable.value && hasPerms(RESOURCE_OPERATION_PERMS.RESOURCE_ADD)
 );
-const canMoveResource = computed(() =>
-  hasPerms(RESOURCE_OPERATION_PERMS.RESOURCE_MOVE)
+const canEditResource = computed(
+  () =>
+    resourceWritable.value && hasPerms(RESOURCE_OPERATION_PERMS.RESOURCE_EDIT)
+);
+const canDeleteResource = computed(
+  () =>
+    resourceWritable.value && hasPerms(RESOURCE_OPERATION_PERMS.RESOURCE_DELETE)
+);
+const canMoveResource = computed(
+  () =>
+    resourceWritable.value && hasPerms(RESOURCE_OPERATION_PERMS.RESOURCE_MOVE)
 );
 const canCreateOperation = computed(() =>
   hasPerms(RESOURCE_OPERATION_PERMS.OPERATION_ADD)
@@ -487,6 +509,23 @@ watch(resourceSearch, val => {
           </span>
         </div>
 
+        <el-alert
+          v-if="selectedResourceTypeCode && !resourceWritable"
+          :title="
+            selectedDeclaration.mode === 'UNKNOWN'
+              ? '无法识别关系声明，请检查类型配置'
+              : `由业务服务 ${selectedDeclaration.source || '指定来源'} 维护，实例与关系仅由业务服务发布`
+          "
+          type="info"
+          :closable="false"
+        />
+        <el-tag v-if="selectedResourceTypeCode">{{
+          associationLabel(selectedDeclaration.mode)
+        }}</el-tag>
+        <ResourceAssociationInfo
+          v-if="selectedNode && canViewResource"
+          :resource="selectedNode"
+        />
         <!-- 操作权限表（选了资源类型即展示，不依赖 selectedNode） -->
         <div
           v-if="selectedResourceTypeCode && canViewOperation"

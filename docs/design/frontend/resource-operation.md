@@ -3,7 +3,7 @@ doc_type: design
 title: 资源与操作定义 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-10-03
+last_reviewed: 2026-10-22
 ---
 
 # 资源与操作定义 前端设计
@@ -18,6 +18,10 @@ last_reviewed: 2026-10-03
 - **操作权限**（`operation_permission`，按资源类型维度）：CREATE/VIEW/UPDATE/DELETE 等动作，位运算（`binaryBit` 独占位 + `inheritMask` 继承掩码，实际权限 = 两者按位或）。
 
 ## 2. 布局结构
+
+资源关系接线（T-FE-080 实施中）：保持本页布局，在选中资源信息后展示只读归属、整类引用、关联数量和维护服务。SYNC/EXCLUSIVE 实例隐藏管理编辑入口，通用 MANAGED 实例沿原权限维护；删除提示影响所有引用方，但不删除整类引用和其他实例。详情加载按业务键隔离，资源树刷新后重新获取详情，失败显示错误和重试。
+
+类型定义表单沿既有 extra 保存声明，显式提供维护方、来源服务、关系性质、允许主类型。打开表单不写默认关系模式，编辑声明保留所有者指针及其他扩展字段；EXCLUSIVE/SYNC、SHARED/MANAGED 的组合在表单提示并由后端最终校验。未知模式不能自动降级为普通资源，已使用类型的用途变更仍由服务端守卫决定。真实浏览器联合验收待后续完成。
 
 左右两栏 Grid（对齐用户管理/角色管理范式）：
 

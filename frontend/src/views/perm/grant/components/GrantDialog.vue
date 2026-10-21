@@ -10,6 +10,7 @@
  */
 import { computed, nextTick, ref, watch } from "vue";
 import { PREVIEW_BOUNDARY_NOTES } from "../utils/preview-impact";
+import type { TypeDefResp } from "@/api/type-def";
 import type { ResourceTreeNode } from "@/api/resource-operation";
 import type { ConditionResp } from "@/api/permission-condition";
 import type {
@@ -55,6 +56,8 @@ import type { DraftChange } from "../utils/types";
 import ConditionPicker from "./ConditionPicker.vue";
 import GrantChildConfigurator from "./GrantChildConfigurator.vue";
 
+defineOptions({ name: "GrantDialog" });
+
 const props = defineProps<{
   modelValue: boolean;
   /** 触发预填（无权限单元格点击：操作+资源/范围预填；含聚焦槽位） */
@@ -70,6 +73,7 @@ const props = defineProps<{
   /** 子权限可跨类型，使用依赖加载阶段取得的全量定义。 */
   allOperations: OperationDefInput[];
   allResourceForest: ResourceTreeNode[];
+  resourceTypes: TypeDefResp[];
   conditions: ConditionResp[];
   /** 生效主权限（baseline+draft；资源树授权现状预填） */
   records: EffectiveRecord[];
@@ -1424,6 +1428,7 @@ function handleClose() {
       :children-provider="childrenOfLocal"
       :operations="allOperations"
       :resource-forest="allResourceForest"
+      :resource-types="resourceTypes"
       @back="handleBackToMain"
       @add="handleAddChild"
       @remove="handleRemoveChild"
