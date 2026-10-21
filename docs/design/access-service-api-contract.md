@@ -6,7 +6,7 @@ domain: cross-service
 supersedes:
   - docs/design/permission-center/api-contract.md
   - docs/design/services/admin-service-api-contract.md
-last_reviewed: 2026-10-21
+last_reviewed: 2026-10-22
 ---
 
 # access-service API 契约总册
@@ -1876,9 +1876,9 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
 - T-PERM-027：`ApiMappingResp`（`list`/`service-config/apis`/`create`/`update` 共用）另含关联资源业务字段 `resourceCode/resourceName/resourceTypeCode`（资源已软删时为 null），以及映射自身 maintainSource、requiredPermission（§25.1）。
 
 <a id="resource-association-contract"></a>
-### 12.6 专属归属与通用整类引用（目标契约，尚未实施）
+### 12.6 专属归属与通用整类引用（分项实施）
 
-本节由 T-ACCESS-145 定稿，交付状态以[任务看板](../tasks/README.md)为准；以下已确认语义不表示现有端点已支持新字段。完整目标与待定稿范围见[资源关系设计](resource-association.md)。
+本节由 T-ACCESS-145 定稿。T-ACCESS-146 已实现类型声明、sync/full-sync 的关系字段与来源身份、持久化及写生命周期；下述管理只读端点、授权清理及运行时消费尚待 T-ACCESS-147/148。交付状态以[任务看板](../tasks/README.md)为准，完整目标见[资源关系设计](resource-association.md)。
 
 - 专属类型的实例由指定业务服务维护，必须唯一归属某个主资源；通用类型的实例由 IAM 管理，业务服务维护主资源对整个通用类型的引用，不能提交实例子集。整类引用不授予权限，管理员仍可只授权其中部分实例。
 - 候选及保存继续满足 SUB_PERM；专属候选按当前主资源归属限定，通用候选来自已引用类型的全部有效实例。未声明关系能力的类型保持原行为。引用维护不授予业务服务修改 MANAGED 实例的资格。
@@ -1894,12 +1894,14 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
 
 | 字段 | 形状 | 语义 |
 |---|---|---|
-| `associationOwner` | 可选资源业务键 `{resourceTypeCode, code, codeType}` | EXCLUSIVE 新建必填；更新可省略并保留，提供时必须仍为同一有效主资源身份，不允许迁移归属；其他模式不得提供。与同类型树父 `parentResource*` 分离 |
+| `associationOwner` | 可选对象 `{resourceTypeCode, code, codeType, sourceEntityId}` | EXCLUSIVE 新建必填；其中 sourceEntityId 为预期主资源的不可复用来源身份；更新可省略并保留，提供时必须仍为同一有效主资源身份，不允许迁移归属；其他模式不得提供。与同类型树父 `parentResource*` 分离 |
 | `referencedTypeCodes` | 可选字符串数组，最多 200 个唯一类型编码 | 仅合法主资源提供，完整替换该主资源的 SHARED 类型引用；省略/null 保持已有引用，空数组解除全部引用；只接受类型编码，不接受实例键或自由关系对象 |
 
 业务键按现役规则归一。可信租户及服务身份仍取认证上下文，并与 `sourceService` 核验；持 RESOURCE_ENTITY 树锁后重新校验类型维护资格、目标类型及主资源。同一次发布中资源和关系原子提交，引用请求不能创建或修改 SHARED 实例。主资源/目标类型不存在时返回 `DEPENDENCY_MISSING`，不写资源、关系或消费该项版本；主资源暂时停用不阻止业务维护关系，但运行时不能贡献。
 
-例：报表发布在原 UPSERT 载荷上添加 `"referencedTypeCodes":["DEMO_DATA_SCOPE"]`；字段发布添加 `"associationOwner":{"resourceTypeCode":"DEMO_REPORT","code":"sales-report","codeType":"default"}`。同步摘要包含规范化关系字段，类型数组排序去重后参与摘要；相同版本且不同关系内容按现有版本冲突拒绝，严格重放不重复解绑清理或广播。FULL 继续现役逐项业务结果与技术异常整事务回滚协议，每项先完整验证再写；被请求显式包含但失败的项不作缺失项清理，缺失资源删除同时走关系生命周期。FULL 只覆盖原调用服务及 scope，不清理其他来源、SHARED 实例或其他主资源引用。FULL items 沿现役完整快照协议，不套用分页 200 上限；新增引用数组上限是单主资源预算。
+例：报表发布在原 UPSERT 载荷上添加 `"referencedTypeCodes":["DEMO_DATA_SCOPE"]`，既有 `sourceEntityId` 携带本地报表身份；字段发布添加 `"associationOwner":{"resourceTypeCode":"DEMO_REPORT","code":"sales-report","codeType":"default","sourceEntityId":"10"}`。同步摘要包含规范化关系字段，类型数组排序去重后参与摘要；相同版本且不同关系内容按现有版本冲突拒绝，严格重放不重复解绑清理或广播。FULL 继续现役逐项业务结果与技术异常整事务回滚协议，每项先完整验证再写；被请求显式包含但失败的项不作缺失项清理，缺失资源删除同时走关系生命周期。FULL 只覆盖原调用服务及 scope，不清理其他来源、SHARED 实例或其他主资源引用。FULL items 沿现役完整快照协议，不套用分页 200 上限；新增引用数组上限是单主资源预算。
+
+**来源身份与删建（2026-10-21 用户确认）**：参与专属归属或通用引用的业务资源发布须携带非空、至多 256 字符的不可复用 `sourceEntityId`，由 IAM 持久化。主资源允许同业务编码删除重建，但新实例必须使用新的来源身份；当前有效实例的来源身份不可原地修改，同业务键的历史来源身份不可复用。专属归属请求的预期主来源身份必须与当前主资源匹配；旧报表身份 10 的字段事件不能绑定到同码新报表身份 20。身份核验先于版本重放确认，重复消息不能凭旧摘要获得“当前已发布”确认。级联删除须同步终止受影响专属资源的发布身份，旧版本/旧代次不能复活已删除实例。未声明且未参与关系的普通类型保留原同步契约，不强制所有旧调用方提交来源身份。拒绝类别为 `NON_RETRYABLE / RESOURCE_ASSOCIATION_IDENTITY_CONFLICT`；主资源尚未发布来源身份属于 `DEPENDENCY_MISSING / ASSOCIATION_OWNER_NOT_READY`。
 
 **管理只读接线**：复用 `resource-entity` Controller/AppService，增加以下 POST + JSON 入口；写仍走上述业务同步。
 
@@ -3402,6 +3404,8 @@ schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正�
 | `20073` | ROLE_GRANT_ORIGIN_CONFLICT | [§10.3](#contract-section-10-3)、[§13.1](#contract-section-13-1)、[§19.4](#contract-section-19-4) | [源码](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/enums/AccessErrorCode.java) |
 | `20074` | BOOTSTRAP_SEED_READONLY | [§11](#contract-section-11) | [源码](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/enums/AccessErrorCode.java) |
 | `20075` | BOOTSTRAP_TOMBSTONE_TWIN_READONLY | [§11](#contract-section-11) | [源码](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/enums/AccessErrorCode.java) |
+| `20080` | RESOURCE_ASSOCIATION_REQUIRED | [§12.6](#resource-association-contract) | [源码](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/enums/AccessErrorCode.java) |
+| `20081` | RESOURCE_ASSOCIATION_CONFLICT | [§12.6](#resource-association-contract) | [源码](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/infrastructure/enums/AccessErrorCode.java) |
 | `30001` | DEMO_PARAM_INVALID | [§20.1](#contract-section-20-1) | [源码](../../example-service/src/main/java/cn/ac/fage/accessmesh/example/enums/ExampleErrorCode.java) |
 | `30002` | DEMO_IDENTITY_HEADER_MISSING | [§20.1](#contract-section-20-1) | [源码](../../example-service/src/main/java/cn/ac/fage/accessmesh/example/enums/ExampleErrorCode.java) |
 | `30003` | SIGNATURE_INVALID | [§20.1](#contract-section-20-1) | [源码](../../perm-sdk/perm-client-spring-boot-starter/src/main/java/cn/ac/fage/accessmesh/perm/client/enums/PermClientErrorCode.java) |

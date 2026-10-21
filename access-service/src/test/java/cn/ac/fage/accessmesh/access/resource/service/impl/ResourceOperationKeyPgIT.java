@@ -161,7 +161,8 @@ class ResourceOperationKeyPgIT {
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper.class),
             resourceEntityDomainService, typeResolutionService, domainClassifyService,
             engine, rolePermMapper, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService.class), ownershipGuard(),
-            mock(TreeWriteLockSupport.class), admMappingWriter, admOperations);
+            mock(TreeWriteLockSupport.class), admMappingWriter, admOperations,
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService.class));
     }
 
     private OperationAppServiceImpl newOperationAppService(QueryGate engine) {
@@ -361,7 +362,8 @@ class ResourceOperationKeyPgIT {
             mock(TreeWriteLockSupport.class),
             cacheService,
             grantOrigin, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.DependencyCompilationDomainService.class),
-            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService.class));
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService.class),
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService.class));
 
         var resp = typeService.createType(TENANT,
             new TypeCreateReq("resource_type", "PGIT28_TYPE", "联调测试类型", null, null, null, null, null), 100L);

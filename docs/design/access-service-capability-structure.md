@@ -3,7 +3,7 @@ doc_type: design
 title: access-service 能力包结构与两域融合
 status: adopted
 domain: cross-service
-last_reviewed: 2026-10-06（T-ACCESS-062 退役清扫：engine 归位表 check-interface/interface-snapshot/SnapshotAssembler/CheckInterfaceResp 标注删除）；此前 2026-09-26
+last_reviewed: 2026-10-22（T-ACCESS-062 退役清扫：engine 归位表 check-interface/interface-snapshot/SnapshotAssembler/CheckInterfaceResp 标注删除）；此前 2026-09-26
 ---
 
 # access-service 能力包结构与两域融合
@@ -162,7 +162,7 @@ last_reviewed: 2026-10-06（T-ACCESS-062 退役清扫：engine 归位表 check-i
 └── enums/ util/           # 按需
 ```
 
-Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{org,menu,role}/`；其余 mapper XML（`resources/mapper/` 根下存量）随所属能力包同规则迁移，namespace/resultType FQCN 同批更新（033 任务卡断言面覆盖）。**Mapper 接口一律落 `*.mapper` 子包**（能力包 `{cap}.mapper`、`sync.mapper`、`infrastructure.mapper`——@MapperScan 按包清单扫描不漏注册；记账/租约的 DomainService 与实体可留在语义子包，mapper 接口不随行）。表基线：权威 DDL 全部 40 张表在 §8.2 各节「表：」行登记（T-PERM-070 增 service_credential，落 infrastructure；T-PERM-071 增 permission_dependency_declaration、service_manifest_sync，落 resource，与 resource_publication_state，落 sync）。
+Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{org,menu,role}/`；其余 mapper XML（`resources/mapper/` 根下存量）随所属能力包同规则迁移，namespace/resultType FQCN 同批更新（033 任务卡断言面覆盖）。**Mapper 接口一律落 `*.mapper` 子包**（能力包 `{cap}.mapper`、`sync.mapper`、`infrastructure.mapper`——@MapperScan 按包清单扫描不漏注册；记账/租约的 DomainService 与实体可留在语义子包，mapper 接口不随行）。表基线：权威 DDL 各表在 §8.2 各节「表：」行登记（T-PERM-070 增 service_credential，落 infrastructure；T-PERM-071 增 permission_dependency_declaration、service_manifest_sync，落 resource，与 resource_publication_state，落 sync）。
 
 ### 8.2 逐包归属清单（源 → 目标）
 
@@ -266,7 +266,7 @@ Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{
 | permission.service.domain：ResourceEntityDomainService/Impl、MappingSyncHandler/Impl、ResourceSyncHandler/Impl | resource.service.domain | |
 | permission.entity：ResourceEntity、ResourceApiMapping、ResourceDependency、**ServiceConfig** + 4 Mapper | resource | 裁决 3 |
 
-表：`resource_entity`、`resource_api_mapping`、`resource_dependency`、`service_config`、`permission_dependency_declaration`、`service_manifest_sync`（依赖声明与服务发布状态，T-PERM-071）。
+表：`resource_entity`、`resource_association`（专属实例归属与通用类型引用）、`resource_api_mapping`、`resource_dependency`、`service_config`、`permission_dependency_declaration`、`service_manifest_sync`（依赖声明与服务发布状态，T-PERM-071）。关系领域及 Mapper 留在 resource，类型与授权消费者经领域接口访问，不新增跨能力 Mapper 依赖。
 
 #### type
 

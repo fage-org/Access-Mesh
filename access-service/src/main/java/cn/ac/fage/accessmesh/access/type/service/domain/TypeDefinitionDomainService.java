@@ -3,6 +3,7 @@ package cn.ac.fage.accessmesh.access.type.service.domain;
 import cn.ac.fage.accessmesh.access.type.entity.TypeDefinition;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * 类型定义事实领域服务（Q-009 收敛产物，T-ACCESS-045）。
@@ -12,6 +13,8 @@ import java.util.List;
  * </p>
  */
 public interface TypeDefinitionDomainService {
+    List<TypeDefinition> selectResourceTypesByValues(Long tenantId, Set<Integer> values);
+    List<TypeDefinition> selectValidByIds(Long tenantId, Set<Long> ids);
 
     /**
      * 查询租户内全部有效类型定义行（跨 type_key）。

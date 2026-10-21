@@ -57,6 +57,7 @@ import java.util.stream.Collectors;
  */
 @Service
 public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
+    private final cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService associations;
 
     private final DependencyCompilationDomainService compilation;
     private final TypeDefinitionMapper typeDefinitionMapper;
@@ -103,7 +104,9 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
                                          CacheService cacheService,
                                          GrantOriginDomainService grantOriginDomainService,
                                       DependencyCompilationDomainService compilation,
-                                      cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService autoGrantMaterializationDomainService) {
+                                      cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService autoGrantMaterializationDomainService,
+                                      cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService associations) {
+        this.associations = associations;
         this.compilation = compilation;
         this.typeDefinitionMapper = typeDefinitionMapper;
         this.operationPermissionMapper = operationPermissionMapper;
@@ -506,6 +509,9 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         }
         resourceTypeOwnershipGuard.rejectIfDeclarationChangeBlocked(
                 tenantId, type, req.extra() != null ? req.extra() : type.getExtra());
+        if ("resource_type".equals(type.getTypeKey()) && req.extra() != null) {
+            associations.assertTypeChangeAllowed(tenantId, type.getId(), req.extra());
+        }
         if (req.name() != null) type.setName(req.name());
         // description 清空走 descriptionClear 显式标志（T-API-004，U006 拍板：type extra 不提供清空）
         boolean descriptionClear = Boolean.TRUE.equals(req.descriptionClear());
@@ -698,6 +704,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
             .map(TypeDefinition::getTypeValue)
             .collect(Collectors.toSet());
         if (!deletableResourceTypes.isEmpty()) {
+            associations.assertTypesDeletable(tenantId, deletableResourceTypes.stream().map(TypeDefinition::getId).collect(Collectors.toSet()));
             Set<Integer> typesWithRows = resourceEntityDomainService.findTypesWithValidRows(tenantId, deletableTypeValues);
             List<String> conflictCodes = deletableResourceTypes.stream()
                 .filter(t -> typesWithRows.contains(t.getTypeValue()))

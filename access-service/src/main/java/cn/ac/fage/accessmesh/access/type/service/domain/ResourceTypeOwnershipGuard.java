@@ -241,6 +241,7 @@ public class ResourceTypeOwnershipGuard {
         } catch (Exception e) {
             throw new IllegalArgumentException("extra 不是合法 JSON", e);
         }
+        validateAssociationDeclaration(tenantId, typeKey, typeCode, extraJson, root, isSystemType);
         JsonNode mode = root.get(EXTRA_KEY_MANAGED_MODE);
         JsonNode source = root.get(EXTRA_KEY_SYNC_SOURCE_SERVICE);
         if (mode == null && source == null) {
@@ -332,6 +333,41 @@ public class ResourceTypeOwnershipGuard {
         }
     }
 
+    private void validateAssociationDeclaration(Long tenantId, String typeKey, String typeCode,
+                                                String extra, JsonNode root, boolean systemType) {
+        if (root.get("associationMode") == null && root.get("associationParentTypeCodes") == null) return;
+        if (!TYPE_KEY_RESOURCE.equals(typeKey) || systemType) {
+            throw new IllegalArgumentException("只有自定义资源类型可声明资源关系");
+        }
+        ResourceAssociationDeclaration declaration = ResourceAssociationDeclaration.from(root);
+        if (declaration.mode() == ResourceAssociationDeclaration.Mode.NONE) return;
+        Ownership ownership = parseOwnership(extra);
+        if (declaration.mode() == ResourceAssociationDeclaration.Mode.EXCLUSIVE && !MODE_SYNC.equals(ownership.managedMode())
+            || declaration.mode() == ResourceAssociationDeclaration.Mode.SHARED && !MODE_MANAGED.equals(ownership.managedMode())) {
+            throw new IllegalArgumentException("专属类型必须由 SYNC 维护，通用类型必须由 MANAGED 维护");
+        }
+        if (declaration.parentTypeCodes().contains(typeCode)) {
+            throw new IllegalArgumentException("资源关系不允许自身归属或递归引用");
+        }
+        List<TypeDefinition> parents = typeDefinitionMapper.selectByTypeKeyAndCodes(
+            tenantId, TYPE_KEY_RESOURCE, declaration.parentTypeCodes());
+        if (parents.size() != declaration.parentTypeCodes().size()) {
+            throw new IllegalArgumentException("允许主资源类型不存在");
+        }
+        for (TypeDefinition parent : parents) {
+            Ownership parentOwnership = parseOwnership(parent.getExtra());
+            if (ResourceAssociationDeclaration.parse(objectMapper, parent.getExtra()).mode() != ResourceAssociationDeclaration.Mode.NONE
+                || !MODE_SYNC.equals(parentOwnership.managedMode())
+                || LocalProjectionOwner.isInternalSourceService(parentOwnership.syncSourceService())) {
+                throw new IllegalArgumentException("主资源必须由业务服务维护且不得为关联类型");
+            }
+            if (declaration.mode() == ResourceAssociationDeclaration.Mode.EXCLUSIVE
+                && !Objects.equals(ownership.syncSourceService(), parentOwnership.syncSourceService())) {
+                throw new IllegalArgumentException("专属类型与主类型必须由同一业务服务维护");
+            }
+        }
+    }
+
     /**
      * 声明变更守卫（type-definition update）：resource_type 类型的所有权声明有效值变更
      * （含删除键隐式切回 MANAGED）时——系统预置类型（is_system）一律拒绝；自定义类型在
@@ -343,7 +379,9 @@ public class ResourceTypeOwnershipGuard {
         }
         Ownership oldDeclaration = parseOwnership(existingType.getExtra());
         Ownership newDeclaration = parseOwnership(newExtraJson);
-        if (Objects.equals(oldDeclaration, newDeclaration)) {
+        boolean associationChanged = !ResourceAssociationDeclaration.parse(objectMapper, existingType.getExtra())
+            .equals(ResourceAssociationDeclaration.parse(objectMapper, newExtraJson));
+        if (Objects.equals(oldDeclaration, newDeclaration) && !associationChanged) {
             return;
         }
         // codex 二轮复评 P1-1 定案（2026-09-05）：系统预置类型所有权声明钉死——事实链路类型
@@ -355,6 +393,8 @@ public class ResourceTypeOwnershipGuard {
                             + " " + oldDeclaration + " -> " + newDeclaration);
         }
         if (resourceEntityDomainService.hasValidRowsOfType(tenantId, existingType.getTypeValue())) {
+            if (associationChanged) throw new BizException(AccessErrorCode.RESOURCE_ASSOCIATION_CONFLICT.getCode(),
+                "类型已有有效资源，不允许改变关系用途: " + existingType.getTypeCode());
             throw new BizException(AccessErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(),
                     "类型所有权声明不可变更（类型下存在有效资源行）: " + existingType.getTypeCode()
                             + " " + oldDeclaration + " -> " + newDeclaration);

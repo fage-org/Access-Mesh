@@ -20,6 +20,9 @@ import java.util.Set;
  * </p>
  */
 public interface ResourceEntityMapper extends BaseMapper<ResourceEntity> {
+    boolean hasSourceIdentities(@Param("tenantId") Long tenantId, @Param("resourceType") Integer resourceType);
+    List<ResourceEntity> selectSourceIdentityHistory(@Param("tenantId") Long tenantId,
+        @Param("resourceTypes") Set<Integer> resourceTypes, @Param("codes") Set<String> codes, @Param("codeTypes") Set<String> codeTypes);
 
     /**
      * 根据ID查询有效资源（含租户校验）

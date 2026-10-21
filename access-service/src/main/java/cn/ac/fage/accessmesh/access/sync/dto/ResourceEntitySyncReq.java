@@ -2,11 +2,14 @@ package cn.ac.fage.accessmesh.access.sync.dto;
 
 import cn.ac.fage.accessmesh.access.sync.metadata.SyncVersionRef;
 import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeyReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceAssociationOwnerReq;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 import java.util.Map;
+import java.util.List;
+import jakarta.validation.constraints.Size;
 
 /**
  * 资源实体同步请求
@@ -30,8 +33,18 @@ public record ResourceEntitySyncReq(
         String sourceEntityType,
         String sourceEntityId,
         @NotNull @Valid SyncVersionRef syncVersion,
-        String publicationGeneration
+        String publicationGeneration,
+        @Valid ResourceAssociationOwnerReq associationOwner,
+        @Size(max = 200) List<@NotBlank String> referencedTypeCodes
 ) {
+    public ResourceEntitySyncReq(String operation, String resourceTypeCode, String resourceCode, String codeType,
+            String name, String parentResourceTypeCode, String parentResourceCode, String parentCodeType,
+            String path, Integer status, Map<String, Object> extra, String sourceService,
+            String sourceEntityType, String sourceEntityId, SyncVersionRef syncVersion, String publicationGeneration) {
+        this(operation, resourceTypeCode, resourceCode, codeType, name, parentResourceTypeCode, parentResourceCode,
+            parentCodeType, path, status, extra, sourceService, sourceEntityType, sourceEntityId, syncVersion,
+            publicationGeneration, null, null);
+    }
     /** 纯增量旧调用方保持原 Java 构造形态；不替调用方生成代次。 */
     public ResourceEntitySyncReq(String operation, String resourceTypeCode, String resourceCode, String codeType,
             String name, String parentResourceTypeCode, String parentResourceCode, String parentCodeType,

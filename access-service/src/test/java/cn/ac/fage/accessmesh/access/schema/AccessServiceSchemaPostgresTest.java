@@ -126,7 +126,7 @@ class AccessServiceSchemaPostgresTest {
              ResultSet rs = s.executeQuery(
                  "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'")) {
             rs.next();
-            assertEquals(40, rs.getLong(1));
+            assertEquals(41, rs.getLong(1));
         }
     }
 
@@ -537,6 +537,78 @@ class AccessServiceSchemaPostgresTest {
         }
         assertConstraintViolation("23514", "ck_role_resource_permission_condition_can_grant",
             "UPDATE role_resource_permission SET can_grant = TRUE WHERE tenant_id = 1 AND abstract_role_id = 1 AND resource_entity_id = 101 AND condition_id = 30");
+    }
+
+    @Test
+    void shouldEnforceExclusiveOwnershipAndAllowRebindingAfterSoftDelete() throws SQLException {
+        assertTrue(tableExists("resource_association"), "资源关系必须有持久化约束");
+        associationFixtures();
+        try (Statement statement = conn.createStatement()) {
+            statement.executeUpdate("INSERT INTO resource_association(tenant_id,primary_resource_id,exclusive_resource_id) VALUES (1,990001,990003)");
+            assertConstraintViolation("23505", "uk_resource_association_exclusive",
+                "INSERT INTO resource_association(tenant_id,primary_resource_id,exclusive_resource_id) VALUES (1,990002,990003)");
+            statement.executeUpdate("UPDATE resource_association SET delete_flag=id,deleted_at=now() WHERE tenant_id=1 AND exclusive_resource_id=990003");
+            statement.executeUpdate("INSERT INTO resource_association(tenant_id,primary_resource_id,exclusive_resource_id) VALUES (1,990002,990003)");
+            try (ResultSet rows = statement.executeQuery("SELECT primary_resource_id FROM resource_association WHERE tenant_id=1 AND exclusive_resource_id=990003 AND delete_flag=0")) {
+                assertTrue(rows.next());
+                assertEquals(990002, rows.getLong(1));
+                assertFalse(rows.next());
+            }
+        }
+    }
+
+    @Test
+    void shouldReferenceTheSameSharedTypeFromMultipleResourcesWithoutDuplicateLinks() throws SQLException {
+        assertTrue(tableExists("resource_association"));
+        associationFixtures();
+        try (Statement statement = conn.createStatement()) {
+            statement.executeUpdate("INSERT INTO resource_association(tenant_id,primary_resource_id,shared_type_id) VALUES (1,990001,990010),(1,990002,990010)");
+            assertConstraintViolation("23505", "uk_resource_association_shared",
+                "INSERT INTO resource_association(tenant_id,primary_resource_id,shared_type_id) VALUES (1,990001,990010)");
+            assertEquals(2, countRows("resource_association"));
+        }
+    }
+
+    @Test
+    void shouldRejectCrossTenantAndAmbiguousAssociationTargets() throws SQLException {
+        assertTrue(tableExists("resource_association"));
+        associationFixtures();
+        assertConstraintViolation("23503", "fk_resource_association_primary",
+            "INSERT INTO resource_association(tenant_id,primary_resource_id,exclusive_resource_id) VALUES (2,990001,990004)");
+        assertConstraintViolation("23503", "fk_resource_association_exclusive",
+            "INSERT INTO resource_association(tenant_id,primary_resource_id,exclusive_resource_id) VALUES (1,990001,990004)");
+        assertConstraintViolation("23503", "fk_resource_association_shared",
+            "INSERT INTO resource_association(tenant_id,primary_resource_id,shared_type_id) VALUES (1,990001,990011)");
+        assertConstraintViolation("23514", "ck_resource_association_target",
+            "INSERT INTO resource_association(tenant_id,primary_resource_id) VALUES (1,990001)");
+        assertConstraintViolation("23514", "ck_resource_association_target",
+            "INSERT INTO resource_association(tenant_id,primary_resource_id,exclusive_resource_id,shared_type_id) VALUES (1,990001,990003,990010)");
+        assertConstraintViolation("23514", "ck_resource_association_not_self",
+            "INSERT INTO resource_association(tenant_id,primary_resource_id,exclusive_resource_id) VALUES (1,990001,990001)");
+    }
+
+    @Test
+    void shouldRequireNewSourceIdentityWhenRecreatingAnAssociatedResourceCode() throws SQLException {
+        try (Statement statement = conn.createStatement()) {
+            statement.executeUpdate("INSERT INTO resource_entity(tenant_id,resource_type,code,name,source_entity_id) VALUES(1,990,'recreated-report','old','10')");
+            statement.executeUpdate("UPDATE resource_entity SET delete_flag=id,deleted_at=now() WHERE tenant_id=1 AND resource_type=990 AND code='recreated-report'");
+            assertConstraintViolation("23505", "uk_resource_entity_source_identity",
+                "INSERT INTO resource_entity(tenant_id,resource_type,code,name,source_entity_id) VALUES(1,990,'recreated-report','replayed','10')");
+            statement.executeUpdate("INSERT INTO resource_entity(tenant_id,resource_type,code,name,source_entity_id) VALUES(1,990,'recreated-report','new','20')");
+        }
+    }
+
+    private static void associationFixtures() throws SQLException {
+        try (Statement statement = conn.createStatement()) {
+            statement.executeUpdate("""
+                INSERT INTO resource_entity(id,tenant_id,resource_type,code,name) VALUES
+                    (990001,1,990,'association-a','A'),(990002,1,990,'association-b','B'),
+                    (990003,1,991,'association-field','field'),(990004,2,991,'association-foreign','foreign');
+                INSERT INTO type_definition(id,tenant_id,type_key,type_code,type_value,name) VALUES
+                    (990010,1,'resource_type','ASSOCIATION_SHARED',992,'shared'),
+                    (990011,2,'resource_type','ASSOCIATION_SHARED',992,'foreign shared');
+                """);
+        }
     }
 
     private static void assertConstraintViolation(String sqlState, String constraint, String sql) throws SQLException {

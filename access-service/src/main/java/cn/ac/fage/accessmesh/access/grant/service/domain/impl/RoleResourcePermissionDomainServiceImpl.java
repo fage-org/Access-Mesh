@@ -27,6 +27,11 @@ public class RoleResourcePermissionDomainServiceImpl implements RoleResourcePerm
     }
 
     @Override
+    public boolean hasBusinessGrantsForTypes(Long tenantId, Set<Integer> resourceTypes) {
+        return !resourceTypes.isEmpty() && roleResourcePermissionMapper.hasBusinessGrantsForTypes(tenantId, resourceTypes);
+    }
+
+    @Override
     public List<Long> selectValidPermIdsByResourceIds(Long tenantId, List<Long> resourceIds) {
         if (resourceIds == null || resourceIds.isEmpty()) {
             return Collections.emptyList();

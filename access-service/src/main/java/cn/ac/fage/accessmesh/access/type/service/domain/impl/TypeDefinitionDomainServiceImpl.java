@@ -6,6 +6,7 @@ import cn.ac.fage.accessmesh.access.type.service.domain.TypeDefinitionDomainServ
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * 类型定义事实领域服务实现（Q-009 收敛产物，T-ACCESS-045）。
@@ -20,6 +21,16 @@ public class TypeDefinitionDomainServiceImpl implements TypeDefinitionDomainServ
 
     public TypeDefinitionDomainServiceImpl(TypeDefinitionMapper typeDefinitionMapper) {
         this.typeDefinitionMapper = typeDefinitionMapper;
+    }
+
+    @Override
+    public List<TypeDefinition> selectResourceTypesByValues(Long tenantId, Set<Integer> values) {
+        return values.isEmpty() ? List.of() : typeDefinitionMapper.selectByTypeKeyAndValues(tenantId, "resource_type", values);
+    }
+
+    @Override
+    public List<TypeDefinition> selectValidByIds(Long tenantId, Set<Long> ids) {
+        return ids.isEmpty() ? List.of() : typeDefinitionMapper.selectValidByIds(tenantId, ids);
     }
 
     @Override

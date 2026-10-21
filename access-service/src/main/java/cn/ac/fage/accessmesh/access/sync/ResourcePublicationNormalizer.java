@@ -35,12 +35,14 @@ public final class ResourcePublicationNormalizer {
         return new ResourceEntitySyncReq(request.operation(), request.resourceTypeCode(), request.resourceCode(),
                 request.codeType(), request.name(), request.parentResourceTypeCode(), request.parentResourceCode(),
                 request.parentCodeType(), request.path(), request.status(), copyExtra(request.extra()), request.sourceService(),
-                request.sourceEntityType(), request.sourceEntityId(), request.syncVersion(), request.publicationGeneration());
+                request.sourceEntityType(), request.sourceEntityId(), request.syncVersion(), request.publicationGeneration(),
+                request.associationOwner(), referenceTypes(request.referencedTypeCodes()));
     }
     public ResourceEntityFullSyncReq snapshot(ResourceEntityFullSyncReq request) {
         var items = request.items().stream().map(item -> new ResourceEntitySyncItem(item.resourceCode(), item.codeType(),
                 item.name(), item.parentResourceTypeCode(), item.parentResourceCode(), item.parentCodeType(), item.path(),
-                item.status(), copyExtra(item.extra()), item.sourceEntityType(), item.sourceEntityId(), item.syncVersion())).toList();
+                item.status(), copyExtra(item.extra()), item.sourceEntityType(), item.sourceEntityId(), item.syncVersion(),
+                item.associationOwner(), referenceTypes(item.referencedTypeCodes()))).toList();
         return new ResourceEntityFullSyncReq(request.scope(), items, request.publicationGeneration());
     }
     public String businessKey(ResourceEntitySyncReq request) {
@@ -65,7 +67,7 @@ public final class ResourcePublicationNormalizer {
         return new ResourceEntitySyncReq("UPSERT", full.scope().resourceTypeCode(), item.resourceCode(), item.codeType(),
                 item.name(), item.parentResourceTypeCode(), item.parentResourceCode(), item.parentCodeType(), item.path(),
                 item.status(), item.extra(), full.scope().sourceService(), item.sourceEntityType(), item.sourceEntityId(),
-                item.syncVersion(), full.publicationGeneration());
+                item.syncVersion(), full.publicationGeneration(), item.associationOwner(), item.referencedTypeCodes());
     }
 
     /** FULL 相同逐键版本只能确认当前有效值，不以相等版本变更事实。 */
@@ -124,6 +126,15 @@ public final class ResourcePublicationNormalizer {
         node.put("parentCodeType", parent ? codeType(request.parentCodeType()) : null);
         node.put("sourceEntityType", request.sourceEntityType());
         node.put("sourceEntityId", request.sourceEntityId());
+        if (request.associationOwner() != null) {
+            var input = request.associationOwner();
+            node.putObject("associationOwner").put("resourceTypeCode", input.resourceTypeCode()).put("code", input.code())
+                .put("codeType", input.normalizedCodeType()).put("sourceEntityId", input.sourceEntityId());
+        }
+        if (request.referencedTypeCodes() != null) {
+            var refs = node.putArray("referencedTypeCodes");
+            referenceTypes(request.referencedTypeCodes()).forEach(refs::add);
+        }
         var version = node.putObject("syncVersion");
         version.put("occurredAt", SyncVersionOrder.roundToMicros(request.syncVersion().occurredAt()).toString());
         version.put("sequenceNo", request.syncVersion().sequenceNo());
@@ -135,6 +146,13 @@ public final class ResourcePublicationNormalizer {
         Map<String, Object> copied = new LinkedHashMap<>();
         value.properties().iterator().forEachRemaining(entry -> copied.put(entry.getKey(), entry.getValue().deepCopy()));
         return Collections.unmodifiableMap(copied);
+    }
+    private List<String> referenceTypes(List<String> values) {
+        if (values == null) return null;
+        if (values.size() > 200 || values.stream().anyMatch(value -> value == null || value.isBlank())) {
+            throw new IllegalArgumentException("RESOURCE_ASSOCIATION_INVALID");
+        }
+        return values.stream().distinct().sorted().toList();
     }
     private boolean blank(String value) { return value == null || value.isBlank(); }
     private String codeType(String value) { return ResourceEntitySyncReq.normalizeCodeType(value); }

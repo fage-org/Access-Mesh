@@ -6,6 +6,9 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 import java.util.Map;
+import java.util.List;
+import jakarta.validation.constraints.Size;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceAssociationOwnerReq;
 
 /**
  * 资源实体 full-sync 单条 item。
@@ -22,8 +25,16 @@ public record ResourceEntitySyncItem(
         Map<String, Object> extra,
         String sourceEntityType,
         String sourceEntityId,
-        @NotNull @Valid SyncVersionRef syncVersion
+        @NotNull @Valid SyncVersionRef syncVersion,
+        @Valid ResourceAssociationOwnerReq associationOwner,
+        @Size(max = 200) List<@NotBlank String> referencedTypeCodes
 ) {
+    public ResourceEntitySyncItem(String resourceCode, String codeType, String name, String parentResourceTypeCode,
+            String parentResourceCode, String parentCodeType, String path, Integer status, Map<String, Object> extra,
+            String sourceEntityType, String sourceEntityId, SyncVersionRef syncVersion) {
+        this(resourceCode, codeType, name, parentResourceTypeCode, parentResourceCode, parentCodeType, path, status,
+            extra, sourceEntityType, sourceEntityId, syncVersion, null, null);
+    }
     /** 归一后的编码类型（T-PERM-100：null/空白→default、去首尾空白，与管理面同口径）。 */
     public String normalizedCodeType() {
         return ResourceEntitySyncReq.normalizeCodeType(codeType);

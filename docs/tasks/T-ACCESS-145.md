@@ -39,7 +39,7 @@ last_updated: 2026-10-21
 
 通用引用采用[整类引用、实例级授权](../design/resource-association.md#model)，原通用实例子集引用方案已取代；需要计算子权限时采用[完整父来源](../design/engine/implementation.md#association-parent-sources)。ALL、解绑再绑、实例/类型删除及已使用类型用途不可变规则已归[目标契约](../design/access-service-api-contract.md#resource-association-contract)。下游任务验收随目标修订，直接依赖不变。
 
-详细规则以[资源关系设计](../design/resource-association.md)及上列 design_refs 为准。契约定稿与本地核对已完成；下游实现发现新业务取舍时仍须交用户决定。
+详细规则以[资源关系设计](../design/resource-association.md)及上列 design_refs 为准。G3 的主资源删建代际采用不可复用来源身份核验，允许业务编码复用，字段发布须携带预期主来源身份；规则与协议已回写契约总册及 example 契约。实现中的新取舍仍须交用户决定。
 
 **实施入口核对**（代码基线 `52eba3f0147bcca86a41c7320e6788f617c48e11`；下面记录现状与接线责任，不表示新能力已实现）：
 

@@ -822,7 +822,11 @@ public enum AccessErrorCode {
 
     BOOTSTRAP_SEED_READONLY(20074, "平台初始化种子行只读，不可修改或删除"),
 
-    BOOTSTRAP_TOMBSTONE_TWIN_READONLY(20075, "固定图种子墓碑身份的行只读：该身份曾有平台初始化种子行（已离线撤销），编辑会固化 bootstrap 重启冲突；恢复请按 deployment.md 离线规程处理");
+    BOOTSTRAP_TOMBSTONE_TWIN_READONLY(20075, "固定图种子墓碑身份的行只读：该身份曾有平台初始化种子行（已离线撤销），编辑会固化 bootstrap 重启冲突；恢复请按 deployment.md 离线规程处理"),
+
+    // 资源归属与通用类型引用
+    RESOURCE_ASSOCIATION_REQUIRED(20080, "资源缺少适用的专属归属或通用类型引用"),
+    RESOURCE_ASSOCIATION_CONFLICT(20081, "资源关系或类型声明与现有使用冲突");
 
     private final int code;
     private final String message;

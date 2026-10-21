@@ -20,7 +20,7 @@ last_reviewed: 2026-10-21
 ## 资源关系发布接线（T-ACCESS-149 目标，尚未实施）
 
 - `demo-report/create` 增加可选 `referencedTypeCodes`，缺省为空；`demo-report/update` 增加同名可选字段，省略/null 保持、空数组解除全部。只允许去重的通用类型编码，最多 200 个。返回的报表元数据增加该数组；现有报表 UPDATE 门禁及 expectedVersion CAS 保持。引用变化与报表版本、冻结的发布事件在本地同事务写入，事件由现有发送器在事务外发布。
-- 报表发布映射到 IAM 主资源 UPSERT 的 `referencedTypeCodes`；字段发布携带真实所属报表的 `associationOwner`，不按 fieldKey/显示名推导身份。IAM 因主资源未到达返回 DEPENDENCY_MISSING 时，保留现有有限重试与人工重试入口，不提前标 PUBLISHED。
+- 报表发布映射到 IAM 主资源 UPSERT 的 `referencedTypeCodes`；字段发布携带真实所属报表的 `associationOwner`，其中 `sourceEntityId` 来自本地 reportId；报表和字段的既有 sourceEntityId 均来自不可复用本地主键，不按 fieldKey/显示名推导身份。IAM 因主资源未到达或身份尚未就绪返回 DEPENDENCY_MISSING 时，保留现有有限重试与人工重试入口，不提前标 PUBLISHED；同码新主资源身份不匹配时记录受控失败，不改写冻结事件重挂新身份。
 - `demo-scope/save` 及对应本地可编辑目录/实例发布路径退役；本地不再保存通用实例名称、启停或“发布完成”作为另一权威。业务谓词映射继续唯一保存于版本化策略 `configuration.bindings`，不增加映射管理端点。读取 INSTANCE 时任何返回业务键缺映射继续报 `DEMO_POLICY_INVALID`；ALL 继续跳过范围谓词，不把目录或映射不完整当作 ALL。
 - 准备脚本先以管理员通道建立 MANAGED/SHARED 通用类型与目录，以业务服务发布报表整类引用及 SYNC/EXCLUSIVE 字段归属，再配置原策略及用户授权。不得再把通用类型声明为 SYNC 或调用退役的范围发布接口；脚本不覆盖不同的既有声明，已使用类型按用途不可变规则提示重新准备。
 - 本地执行版本检查仍保护报表、字段及策略；删除退役通用目录的本地版本检查，不把本地副本当 IAM 启停真相。查询/写入/导入/导出/后台任务均消费原同源范围接口，远端调用仍在本地数据库写事务外；快照和撤权时效继续遵守原预算。

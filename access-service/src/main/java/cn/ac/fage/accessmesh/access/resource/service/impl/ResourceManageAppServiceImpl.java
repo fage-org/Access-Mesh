@@ -123,6 +123,7 @@ import java.util.stream.Collectors;
  */
 @Service
 public class ResourceManageAppServiceImpl implements ResourceManageAppService {
+    private final cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService associations;
 
     private static final Logger log = LoggerFactory.getLogger(ResourceManageAppServiceImpl.class);
 
@@ -170,7 +171,9 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
                                      cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService conditionDomainService,
                                      ResourceTypeOwnershipGuard resourceTypeOwnershipGuard,
                                      TreeWriteLockSupport treeWriteLockSupport, ApiMappingWriteDomainService mappingWriter,
-                                     OperationPermissionDomainService operations) {
+                                     OperationPermissionDomainService operations,
+                                     cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService associations) {
+        this.associations = associations;
         this.resourceEntityMapper = resourceEntityMapper;
         this.apiMappingMapper = apiMappingMapper;
         this.serviceConfigMapper = serviceConfigMapper;
@@ -664,6 +667,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         for (List<Long> descendants : descendantsMap.values()) {
             allIdsToDelete.addAll(descendants);
         }
+        allIdsToDelete.addAll(associations.expandResourceDeletion(tenantId, allIdsToDelete));
 
         // T-PERM-052：SYNC 类型级联守卫——对删除全集（含展开的后代，非仅请求根集合）判定：
         // 入口虽已收紧同类型父边（T-PERM-068），DB 直写脏数据仍可能构成 MANAGED 根子树含
@@ -698,6 +702,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
         LocalDateTime now = LocalDateTime.now();
         resourceEntityDomainService.softDeleteBatch(tenantId, resourceIdsToDelete, now);
+        associations.removeResourceAssociations(tenantId, allIdsToDelete, operatorId);
 
         if (!permIds.isEmpty()) {
             roleResourcePermissionDomainService.softDeleteBatch(tenantId, permIds, now);

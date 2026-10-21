@@ -19,6 +19,8 @@ import java.util.Optional;
  * </p>
  */
 public interface SyncMetadataDomainService {
+    /** 删除资源身份时撤销其历史发布成功确认，保留版本屏障。 */
+    void invalidateResourceTargets(Long tenantId, java.util.Set<Long> resourceIds);
 
     /**
      * applyVersion 结果。

@@ -254,7 +254,8 @@ class ServiceConfigCascadePgIT {
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper.class),
             resourceEntityDomainService, typeResolutionService, domainClassifyService,
             engine, rolePermMapper, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService.class), ownershipGuard(),
-            mock(TreeWriteLockSupport.class), admMappingWriter, admOperations);
+            mock(TreeWriteLockSupport.class), admMappingWriter, admOperations,
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService.class));
     }
 
     private final LocalDateTime now = LocalDateTime.now();

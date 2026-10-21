@@ -15,6 +15,7 @@ import java.util.List;
  * </p>
  */
 public interface SyncMetadataMapper extends BaseMapper<SyncMetadata> {
+    int invalidateResourceTargets(@Param("tenantId") Long tenantId, @Param("ids") List<Long> ids);
     int stampResourceIncremental(@Param("tenantId") Long tenantId, @Param("service") String service,
         @Param("scopeHash") String scopeHash, @Param("businessHash") String businessHash,
         @Param("occurredAt") LocalDateTime occurredAt, @Param("sequenceNo") Long sequenceNo,

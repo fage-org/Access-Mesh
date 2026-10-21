@@ -2,6 +2,11 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="cn.ac.fage.accessmesh.access.sync.mapper.SyncMetadataMapper">
+    <update id="invalidateResourceTargets">
+        UPDATE sync_metadata SET target_status='DELETED',last_incremental_hash=NULL,last_publication_hash=NULL,updated_at=now()
+        WHERE tenant_id=#{tenantId} AND entity_kind='RESOURCE_ENTITY' AND delete_flag=0 AND target_id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </update>
 
     <update id="markResourcesDeleted">
         UPDATE sync_metadata SET target_status='DELETED',updated_at=now()

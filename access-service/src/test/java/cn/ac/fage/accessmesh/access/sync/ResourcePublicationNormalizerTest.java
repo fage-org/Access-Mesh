@@ -24,6 +24,25 @@ class ResourcePublicationNormalizerTest {
     private static final LocalDateTime AT = LocalDateTime.of(2026, 9, 21, 0, 0);
     private final ResourcePublicationNormalizer normalizer = new ResourcePublicationNormalizer(JsonMapper.builder().configureForJackson2().build());
 
+    @Test void shouldIncludeAssociationIdentityAndCanonicalWholeTypeReferencesInReplayHash() {
+        var mapper = JsonMapper.builder().configureForJackson2().build();
+        tools.jackson.databind.node.ObjectNode json = mapper.valueToTree(request(null, "1", AT));
+        json.putArray("referencedTypeCodes").add("SCOPE_B").add("SCOPE_A");
+        ResourceEntitySyncReq first = mapper.treeToValue(json, ResourceEntitySyncReq.class);
+        json.putArray("referencedTypeCodes").add("SCOPE_A").add("SCOPE_B");
+        ResourceEntitySyncReq reordered = mapper.treeToValue(json, ResourceEntitySyncReq.class);
+        assertThat(normalizer.hash(first)).isEqualTo(normalizer.hash(reordered));
+        assertThat(normalizer.hash(normalizer.snapshot(first))).isEqualTo(normalizer.hash(first));
+        json.putArray("referencedTypeCodes").add("SCOPE_A");
+        assertThat(normalizer.hash(mapper.treeToValue(json, ResourceEntitySyncReq.class))).isNotEqualTo(normalizer.hash(first));
+        json.remove("referencedTypeCodes");
+        var owner = json.putObject("associationOwner");
+        owner.put("resourceTypeCode", "REPORT").put("code", "sales-report").put("sourceEntityId", "10");
+        ResourceEntitySyncReq oldOwner = mapper.treeToValue(json, ResourceEntitySyncReq.class);
+        owner.put("sourceEntityId", "20");
+        assertThat(normalizer.hash(mapper.treeToValue(json, ResourceEntitySyncReq.class))).isNotEqualTo(normalizer.hash(oldOwner));
+    }
+
     @Test void shouldIgnoreGenerationAndObjectKeyOrder_butPreserveArrayOrder() {
         Map<String, Object> first = new LinkedHashMap<>();
         first.put("z", List.of(1, 2)); first.put("a", true);

@@ -3,7 +3,7 @@ doc_type: design
 title: 公共 Redis 事务锁与后端并发接入规范
 status: adopted
 domain: common
-last_reviewed: 2026-10-18
+last_reviewed: 2026-10-22
 ---
 
 # 公共 Redis 事务锁与后端并发接入规范
@@ -62,6 +62,8 @@ public static boolean tryLock(RedissonClient client, String key);
 
 <a id="lock-verification"></a>
 ## 接入与验收
+
+资源关系写生命周期（T-ACCESS-146）复用 RESOURCE_ENTITY 边界：资源 single/FULL、类型用途变更与删除、归属/引用应用、删除集合扩展与关系回收均在同一事务持锁；不新增锁键或另一套释放机制。关系批量读取与类型/实体锁内读取显式避开 MyBatis 会话旧值。`ResourceAssociationDomainPgIT` 使用真实提交闸门覆盖竞争绑定、未提交字段发布与主资源删除、未提交引用与类型用途修改；授权提交和失效消费由 T-ACCESS-148 接入同一边界。
 
 现有公共实现与树写/重置门面迁移已完成，真实 Redis 中断迟到成功、事务提交/回滚、重入和身份键隔离证据保持。新增接入须覆盖相互竞争入口是否共用锁、锁是否持续到真实提交/回滚、锁内读取是否新鲜，以及所选竞争模式和适用异常路径；公共机制已有的证据优先复用，不为每个调用方重复整套底层测试。修复并发缺陷的新增用例必须在旧实现下稳定失败；使用闩锁/提交闸门安排交错，不依靠裸 sleep。数据库行为使用既有 ItInfra，单元模拟不能代替持久化结果。
 

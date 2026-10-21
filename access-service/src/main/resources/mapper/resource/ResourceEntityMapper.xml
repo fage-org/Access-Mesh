@@ -2,6 +2,15 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper">
+    <select id="hasSourceIdentities" flushCache="true" resultType="boolean">
+        SELECT EXISTS(SELECT 1 FROM resource_entity WHERE tenant_id=#{tenantId} AND resource_type=#{resourceType} AND source_entity_id IS NOT NULL)
+    </select>
+    <select id="selectSourceIdentityHistory" flushCache="true" resultType="cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity">
+        SELECT * FROM resource_entity WHERE tenant_id=#{tenantId} AND source_entity_id IS NOT NULL AND delete_flag!=0
+        AND resource_type IN <foreach collection="resourceTypes" item="type" open="(" separator="," close=")">#{type}</foreach>
+        AND code IN <foreach collection="codes" item="code" open="(" separator="," close=")">#{code}</foreach>
+        AND code_type IN <foreach collection="codeTypes" item="ct" open="(" separator="," close=")">#{ct}</foreach>
+    </select>
 
     <update id="batchDisableStatus">
         UPDATE resource_entity
@@ -79,14 +88,14 @@
         SELECT target_id as targetId, id as closureId FROM closure
     </select>
 
-    <select id="selectValidById" resultType="cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity">
+    <select id="selectValidById" flushCache="true" resultType="cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity">
         SELECT * FROM resource_entity
         WHERE id = #{resourceId}
           AND tenant_id = #{tenantId}
           AND delete_flag = 0
     </select>
 
-    <select id="selectValidByIds" resultType="cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity">
+    <select id="selectValidByIds" flushCache="true" resultType="cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity">
         SELECT * FROM resource_entity
         WHERE tenant_id = #{tenantId}
           AND id IN
@@ -131,7 +140,7 @@
           AND delete_flag = 0
     </select>
 
-    <select id="selectByTypesAndCodesAndCodeTypes" resultType="cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity">
+    <select id="selectByTypesAndCodesAndCodeTypes" flushCache="true" resultType="cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity">
         SELECT * FROM resource_entity
         WHERE tenant_id = #{tenantId}
           AND resource_type IN

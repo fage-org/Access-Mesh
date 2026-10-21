@@ -25,6 +25,8 @@ import java.time.LocalDateTime;
 @Setter
 @Table("resource_entity")
 public class ResourceEntity {
+    /** 参与关联的业务实例不可复用来源身份；与主业务编码分离。 */
+    private String sourceEntityId;
 
     /**
      * 源唯一标识

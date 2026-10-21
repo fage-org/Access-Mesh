@@ -4,7 +4,7 @@ title: access-service 目标架构与归并约束
 status: adopted
 domain: cross-service
 supersedes: docs/archive/2026-08-15/admin-permission-sync.md
-last_reviewed: 2026-10-21
+last_reviewed: 2026-10-22
 ---
 
 # access-service 目标架构与归并约束
@@ -174,11 +174,13 @@ cn.ac.fage.accessmesh.access
 **`operation_log` 合并列（T-ACCESS-007 落地）**：`target_id` 为 `VARCHAR(256)`（覆盖 `configKey`(128) / `roleExternalId`(256) 等业务键上限），由原数值列字符串化；`module` 三值化 `ADMIN/PERMISSION/ACCESS`（判定见 §8.2）；补充 `(tenant_id, module, created_at DESC)` 排序索引及列注释，操作者索引为 `(tenant_id, operator_id, created_at DESC)`。`sys_audit_log` 的 `user_id`/`username` 列并入 `operator_id`/`operator_name` 承载，不复用。
 
 <a id="resource-association-storage"></a>
-### 5.2.1 资源关系持久化目标（T-ACCESS-146，尚未实施）
+### 5.2.1 资源关系持久化与写生命周期基础
 
-资源能力包承接 `ResourceAssociationDomainService`，类型声明校验复用类型所有权边界；跨能力消费者只经领域入口批量读写，不互读 Mapper。对外字段和发布协议见[资源关系契约](access-service-api-contract.md#resource-association-contract)，正式可执行结构由唯一 schema 在实现任务中落地。
+T-ACCESS-146 已实现关系存储、声明守卫与现有 single/FULL 的原子写入基础。资源能力包承接 `ResourceAssociationDomainService`，类型声明校验复用类型所有权边界；跨能力消费者只经领域入口批量读写，不互读 Mapper。对外字段和发布协议见[资源关系契约](access-service-api-contract.md#resource-association-contract)，正式可执行结构在唯一 schema；候选查询/SDK 由 T-ACCESS-147、授权清理及运行时消费由 T-ACCESS-148 接续，整体能力尚未交付。
 
 关系表保存主资源的内部身份和二选一目标：专属资源实例身份，或通用类型定义身份。用行内 CHECK 保证目标二选一且不能自身归属；用有效行部分唯一索引保证一个专属实例最多一个主资源、同一主资源对同一通用类型不重复引用。租户与身份用复合唯一键及同租户外键校验；外键不能保证软删除状态、类型模式或来源合法，这些由共同事务锁内的新鲜事实校验承担，不能声称普通 CHECK 能跨表读取模式。专属实例与归属同时提交；不另存一列可独立修改的 owner 副本。软删除使用现有 `delete_flag=id` 与审计字段；重绑创建新关系身份，同名删建的资源/类型不能承接旧关系。
+
+参与关系的业务资源持久化 source_entity_id，同业务键的历史来源身份由不排除软删行的唯一索引防复用。归属请求对照当前主资源来源身份；校验先于重放确认。资源删除清理对应发布确认摘要并保留版本屏障，避免旧事件把已删除的专属实例标为当前已发布。FULL 的关系预校验按批装载，应用阶段不逐项查询关系；声明、身份、树边、引用失败不消费该项版本。
 
 归属/引用写入、single/FULL、资源树变更、主/子删除、类型声明变更、手工授权保存与自动依赖物化复用 RESOURCE_ENTITY 树锁，持有至事务结束；需要其他树锁时遵守既有总顺序，禁止从已持 PG 行锁路径反向获取 Redis 锁。类型与资源首次决定性读取置于锁内，写侧不用类型缓存，批量解析避免 N+1。数据库唯一性与外键提供持久化兜底，锁不代替约束。
 

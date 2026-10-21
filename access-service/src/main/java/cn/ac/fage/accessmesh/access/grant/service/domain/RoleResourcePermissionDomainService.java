@@ -16,6 +16,7 @@ import java.util.Set;
  * </p>
  */
 public interface RoleResourcePermissionDomainService {
+    boolean hasBusinessGrantsForTypes(Long tenantId, Set<Integer> resourceTypes);
 
     /**
      * 查询指定资源 ID 集合的有效权限行 ID（删除级联盘点）。

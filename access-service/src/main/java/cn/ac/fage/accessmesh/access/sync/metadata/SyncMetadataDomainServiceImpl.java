@@ -22,6 +22,11 @@ import java.util.stream.Collectors;
  */
 @Service
 public class SyncMetadataDomainServiceImpl implements SyncMetadataDomainService {
+    @Override
+    public void invalidateResourceTargets(Long tenantId, Set<Long> resourceIds) {
+        cn.ac.fage.accessmesh.access.infrastructure.util.SqlBatches.forEach(new java.util.ArrayList<>(resourceIds),
+            ids -> syncMetadataMapper.invalidateResourceTargets(tenantId, ids));
+    }
 
     /**
      * USER_ROLE 允许的 targetStatus 集合。

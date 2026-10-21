@@ -27,6 +27,9 @@ import cn.ac.fage.accessmesh.access.sync.mapper.SyncMetadataMapper;
 import cn.ac.fage.accessmesh.access.resource.service.ResourceEntitySyncAppService;
 import cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService;
+import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationPublication;
+import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationPublication.Plan;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeyReq;
 import cn.ac.fage.accessmesh.access.type.service.domain.ResourceTypeOwnershipGuard;
 import cn.ac.fage.accessmesh.access.sync.metadata.SyncMetadataDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
@@ -52,6 +55,7 @@ import java.util.Set;
  */
 @Service
 public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppService {
+    private final cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService associations;
 
     private static final String ENTITY_KIND = "RESOURCE_ENTITY";
     private static final String OP_UPSERT = "UPSERT";
@@ -87,7 +91,9 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                                              TreeWriteLockSupport treeWriteLockSupport,
                                              ResourcePublicationDomainService publications,
                                              DependencyCompilationDomainService compilation,
-                                             AutoGrantMaterializationDomainService autoGrantMaterializationDomainService) {
+                                             AutoGrantMaterializationDomainService autoGrantMaterializationDomainService,
+                                             cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService associations) {
+        this.associations = associations;
         this.compilation = compilation;
         this.syncMetadataDomainService = syncMetadataDomainService;
         this.syncMetadataMapper = syncMetadataMapper;
@@ -137,22 +143,28 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         String scope = SyncKeyCodecUtil.resourceEntityScopeKey(req.resourceTypeCode());
         var state = publications.read(tenantId, req.sourceService(), scope);
         req = publicationNormalizer.snapshot(req);
+        Plan association = prepareAssociation(tenantId, req);
+        if (!association.valid()) return associationRejection(association);
         String itemHash = publicationNormalizer.hash(req);
         String keyHash = SyncKeyCodecUtil.sha256Hex(publicationNormalizer.businessKey(req));
         SyncMetadata metadata = syncMetadataDomainService.mapByBusinessKeyHash(tenantId, ENTITY_KIND, req.sourceService(),
                 SyncKeyCodecUtil.sha256Hex(scope), Set.of(keyHash)).get(keyHash);
         var decision = ResourcePublicationPolicy.single(state, metadata, generation, itemHash);
+        if (decision == ResourcePublicationPolicy.Decision.UNCHANGED && !association.matchesExisting()) {
+            return SyncResultBuilder.nonRetryable("SYNC_VERSION_CONFLICT");
+        }
         if (decision != ResourcePublicationPolicy.Decision.APPLY) return publicationRejection(decision);
         if (generation == null && metadata != null) {
             int order = SyncVersionOrder.compareIncoming(metadata, req.syncVersion());
             if (order < 0) return SyncResultBuilder.stale();
             if (order == 0) {
+                if (!association.matchesExisting()) return SyncResultBuilder.nonRetryable("SYNC_VERSION_CONFLICT");
                 if (metadata.getLastIncrementalHash() == null) return SyncResultBuilder.stale();
                 return metadata.getLastIncrementalHash().equals(itemHash) ? SyncResultBuilder.replayed()
                     : SyncResultBuilder.nonRetryable("SYNC_VERSION_CONFLICT");
             }
         }
-        SyncResultResp result = applySingleSync(tenantId, req, metadata, generation, itemHash);
+        SyncResultResp result = applySingleSync(tenantId, req, metadata, generation, itemHash, association);
         if (generation != null && result.applied()) publications.acceptSingle(tenantId, req.sourceService(), scope, generation);
         if (generation == null && result.applied()) {
             publications.stampIncremental(tenantId, req.sourceService(), scope, keyHash, req.syncVersion(), itemHash);
@@ -213,6 +225,13 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                 tenantId, ENTITY_KIND, req.scope().sourceService(), scopeKeyHash);
         Map<String, SyncMetadata> metadataByKey = new HashMap<>();
         existingScope.forEach(md -> metadataByKey.put(md.getBusinessKeyHash(), md));
+        ResourceEntityFullSyncReq fullSnapshot = req;
+        boolean associationAware = req.items().stream().anyMatch(item -> item.associationOwner() != null || item.referencedTypeCodes() != null)
+            || associations.isAssociationAwareType(tenantId, req.scope().resourceTypeCode());
+        Map<ResourceKeyReq, Plan> associationPlans = associationAware
+            ? associations.preparePublications(tenantId, req.scope().sourceService(), req.items().stream()
+                .map(item -> associationInput(publicationNormalizer.asSingle(fullSnapshot, item))).toList())
+            : Map.of();
 
         // ---- 阶段 A：收集 (resourceCode, codeType) 与 parent (typeCode, code, codeType) 集合 ----
         List<ResourceResolveRequest> parentRequests = new ArrayList<>();
@@ -315,7 +334,8 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
             }
             SyncResultResp r = applyItemSync(tenantId, oneReq,
                     new FullSyncPrefetch(resourceTypeValue, existing, true, parentRequested, preResolvedParentId, true),
-                    now, itemMetadata, generation, itemHash);
+                    now, itemMetadata, generation, itemHash,
+                    associationAware ? requireAssociationPlan(associationPlans, oneReq) : Plan.NONE);
             if (r.applied()) {
                 applied++;
                 // applyItemSync 在新建分支会把 insert 后的 ResourceEntity 注入 cache 不在此处再查 DB（避免 N+1）。
@@ -348,9 +368,12 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         String scopeSource = req.scope().sourceService();
         SqlBatches.forEach(missingHashes,
                 batch -> publications.markDeleted(tenantId, scopeSource, scopeKey, batch));
+        deactivateTargetIds.addAll(associations.expandResourceDeletion(tenantId, deactivateTargetIds));
         List<Long> deleteIds = new ArrayList<>(deactivateTargetIds);
         SqlBatches.forEach(deleteIds,
                 batch -> resourceEntityMapper.softDeleteBatch(tenantId, batch, now));
+        associations.removeResourceAssociations(tenantId, deactivateTargetIds, null);
+        syncMetadataDomainService.invalidateResourceTargets(tenantId, deactivateTargetIds);
         // 资源 FULL 漂移删除触发面（§7/T-PERM-072）：依赖贡献收缩同事务完整重算受影响角色 AUTO_DEP
         if (!deleteIds.isEmpty()) {
             var affectedEntities = compilation.resourcesDeleted(tenantId, deleteIds, now);
@@ -399,8 +422,8 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
 
     /** single-sync 路径入口：无预载，逐项单条解析/查询（版本/依赖语义与 full-sync 同源）。 */
     private SyncResultResp applySingleSync(Long tenantId, ResourceEntitySyncReq req,
-                                           SyncMetadata metadata, Long generation, String hash) {
-        return applyItemSync(tenantId, req, FullSyncPrefetch.NONE, LocalDateTime.now(), metadata, generation, hash);
+                                           SyncMetadata metadata, Long generation, String hash, Plan association) {
+        return applyItemSync(tenantId, req, FullSyncPrefetch.NONE, LocalDateTime.now(), metadata, generation, hash, association);
     }
 
     /**
@@ -449,7 +472,8 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
      * 预解析事实经 {@link FullSyncPrefetch} 传入（NONE=逐项回退单条查询）。
      */
     private SyncResultResp applyItemSync(Long tenantId, ResourceEntitySyncReq req, FullSyncPrefetch prefetch,
-                                         LocalDateTime now, SyncMetadata metadata, Long generation, String publicationHash) {
+                                         LocalDateTime now, SyncMetadata metadata, Long generation, String publicationHash, Plan association) {
+        if (!association.valid()) return associationRejection(association);
         // T-PERM-100：codeType 写入/寻址/业务键统一走归一（空白→default、trim，与管理面同口径）
         String codeType = req.normalizedCodeType();
         String businessKey = SyncKeyCodecUtil.resourceEntityBusinessKey(
@@ -461,6 +485,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         String syncKeyHash = SyncKeyCodecUtil.sha256Hex(syncKey);
 
         if (prefetch.existingResolved() && metadata != null && java.util.Objects.equals(metadata.getLastPublicationGeneration(), generation)) {
+            if (!association.matchesExisting()) return SyncResultBuilder.nonRetryable("SYNC_VERSION_CONFLICT");
             return java.util.Objects.equals(metadata.getLastPublicationHash(), publicationHash)
                     ? SyncResultBuilder.stale() : SyncResultBuilder.nonRetryable("PUBLICATION_GENERATION_CONFLICT");
         }
@@ -544,7 +569,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
             int order = SyncVersionOrder.compareIncoming(metadata, req.syncVersion());
             if (order < 0) return SyncResultBuilder.nonRetryable("SYNC_VERSION_CONFLICT");
             if (order == 0) {
-                if (!publicationNormalizer.matchesExisting(req, existing, parentId)) return SyncResultBuilder.nonRetryable("SYNC_VERSION_CONFLICT");
+                if (!association.matchesExisting() || !publicationNormalizer.matchesExisting(req, existing, parentId)) return SyncResultBuilder.nonRetryable("SYNC_VERSION_CONFLICT");
                 publications.stampItem(tenantId, req.sourceService(), scopeKey, businessKeyHash, generation, publicationHash);
                 return SyncResultBuilder.stale();
             }
@@ -571,6 +596,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                 re.setPath(req.path());
                 re.setStatus(req.status() == null ? 1 : req.status());
                 re.setMaintainSource(MAINTAIN_SOURCE_SYNC);
+                if (association.identityRequired()) re.setSourceEntityId(association.sourceEntityId());
                 // 外部业务服务同步的行所有权保持 NULL（owner 由本地投影独占，见 LocalProjectionOwner）
                 re.setExtra(serializeExtra(req.extra()));
                 re.setCreatedAt(now);
@@ -590,6 +616,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                     if (req.path() != null) patch.setPath(req.path());
                     if (req.status() != null) patch.setStatus(req.status());
                     if (req.extra() != null) patch.setExtra(serializeExtra(req.extra()));
+                    if (association.identityRequired()) patch.setSourceEntityId(association.sourceEntityId());
                     patch.setUpdatedAt(now);
                     resourceEntityMapper.update(patch);
                 } else {
@@ -598,10 +625,12 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                     if (req.path() != null) existing.setPath(req.path());
                     if (req.status() != null) existing.setStatus(req.status());
                     if (req.extra() != null) existing.setExtra(serializeExtra(req.extra()));
+                    if (association.identityRequired()) existing.setSourceEntityId(association.sourceEntityId());
                     existing.setUpdatedAt(now);
                     resourceEntityMapper.update(existing);
                 }
             }
+            if (association.identityRequired()) associations.applyPublication(tenantId, existing.getId(), association, null);
             syncMetadataDomainService.markStatus(tenantId, ENTITY_KIND, req.sourceService(),
                     scopeKeyHash, businessKeyHash, STATUS_ACTIVE);
             syncMetadataDomainService.backfillTargetId(tenantId, ENTITY_KIND, req.sourceService(),
@@ -614,9 +643,14 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                     scopeKeyHash, businessKeyHash, STATUS_DISABLED);
         } else { // DELETE
             if (existing != null) {
-                resourceEntityMapper.softDeleteBatch(tenantId, List.of(existing.getId()), now);
+                Set<Long> deletedIds = new HashSet<>(Set.of(existing.getId()));
+                deletedIds.addAll(associations.expandResourceDeletion(tenantId, deletedIds));
+                List<Long> deleted = new ArrayList<>(deletedIds);
+                SqlBatches.forEach(deleted, ids -> resourceEntityMapper.softDeleteBatch(tenantId, ids, now));
+                associations.removeResourceAssociations(tenantId, deletedIds, null);
+                syncMetadataDomainService.invalidateResourceTargets(tenantId, deletedIds);
                 // 资源单条 DELETE 触发面（§7/T-PERM-072）：依赖贡献收缩同事务重算受影响角色 AUTO_DEP
-                var affectedEntities = compilation.resourcesDeleted(tenantId, List.of(existing.getId()), now);
+                var affectedEntities = compilation.resourcesDeleted(tenantId, deleted, now);
                 var changedRoles = autoGrantMaterializationDomainService.recomputeByResourceEntities(tenantId, affectedEntities);
                 PermissionChangeContext.markRoles(tenantId, changedRoles);
             }
@@ -626,6 +660,38 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
 
         if (generation != null) publications.stampItem(tenantId, req.sourceService(), scopeKey, businessKeyHash, generation, publicationHash);
         return SyncResultBuilder.applied();
+    }
+
+    private Plan prepareAssociation(Long tenantId, ResourceEntitySyncReq request) {
+        if (request.associationOwner() == null && request.referencedTypeCodes() == null
+            && !associations.isAssociationAwareType(tenantId, request.resourceTypeCode())) return Plan.NONE;
+        return requireAssociationPlan(associations.preparePublications(tenantId, request.sourceService(),
+            List.of(associationInput(request))), request);
+    }
+
+    private static ResourceAssociationPublication.Input associationInput(ResourceEntitySyncReq request) {
+        boolean hasTreeParent = OP_UPSERT.equals(request.operation()) && request.parentResourceCode() != null
+            && !request.parentResourceCode().isBlank();
+        ResourceKeyReq treeParent = hasTreeParent ? new ResourceKeyReq(effectiveParentTypeCode(request.parentResourceTypeCode(), request.resourceTypeCode()),
+            request.parentResourceCode(), request.normalizedParentCodeType()) : null;
+        return new ResourceAssociationPublication.Input(request.operation(),
+            new ResourceKeyReq(request.resourceTypeCode(), request.resourceCode(), request.normalizedCodeType()),
+            request.sourceEntityId(), request.associationOwner(), request.referencedTypeCodes(), treeParent);
+    }
+
+    private static Plan requireAssociationPlan(Map<ResourceKeyReq, Plan> plans, ResourceEntitySyncReq request) {
+        Plan result = plans.get(new ResourceKeyReq(request.resourceTypeCode(), request.resourceCode(), request.normalizedCodeType()));
+        if (result == null) throw new SystemException(AccessErrorCode.SYSTEM_INIT_FAILED.getCode(), "资源关系预校验结果不完整");
+        return result;
+    }
+
+    private static SyncResultResp associationRejection(Plan plan) {
+        return switch (plan.retryClass()) {
+            case "DEPENDENCY_MISSING" -> SyncResultBuilder.dependencyMissing(plan.reason());
+            case "NON_RETRYABLE" -> SyncResultBuilder.nonRetryable(plan.reason());
+            case "SECURITY_DENIED" -> SyncResultBuilder.securityDenied(plan.reason());
+            default -> throw new SystemException(AccessErrorCode.SYSTEM_INIT_FAILED.getCode(), "未知资源关系预校验结果");
+        };
     }
 
     /**

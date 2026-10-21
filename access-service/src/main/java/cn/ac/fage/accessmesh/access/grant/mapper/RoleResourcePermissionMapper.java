@@ -17,6 +17,7 @@ import java.util.Set;
  * </p>
  */
 public interface RoleResourcePermissionMapper extends BaseMapper<RoleResourcePermission> {
+    boolean hasBusinessGrantsForTypes(@Param("tenantId") Long tenantId, @Param("resourceTypes") Set<Integer> resourceTypes);
 
     /**
      * 查询指定ID列表中属于指定角色和租户的有效权限

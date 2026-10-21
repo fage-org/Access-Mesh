@@ -34,6 +34,28 @@ import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomain
 @ExtendWith(MockitoExtension.class)
 class ResourceTypeOwnershipGuardTest {
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+        "{\"associationMode\":\"UNKNOWN\"}",
+        "{\"associationMode\":null}",
+        "{\"associationMode\":\"SHARED\"}",
+        "{\"associationMode\":\"NONE\",\"associationParentTypeCodes\":[\"REPORT\"]}",
+        "{\"associationMode\":\"EXCLUSIVE\",\"associationParentTypeCodes\":[\"REPORT\"]}",
+        "{\"associationMode\":\"SHARED\",\"associationParentTypeCodes\":[]}",
+        "{\"associationMode\":\"SHARED\",\"associationParentTypeCodes\":[\"REPORT\",\"REPORT\"]}"
+    })
+    void shouldRejectInvalidAssociationDeclarations(String extra) {
+        assertThatThrownBy(() -> guard.validateExtraDeclaration(TENANT, "resource_type", "FIELD", extra, false))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void shouldRejectAssociationDeclarationsOnOtherTypeKinds() {
+        assertThatThrownBy(() -> guard.validateExtraDeclaration(TENANT, "role_type", "CUSTOM",
+            "{\"associationMode\":\"SHARED\",\"associationParentTypeCodes\":[\"REPORT\"]}", false))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
+
     private static final Long TENANT = 1L;
 
     @Mock

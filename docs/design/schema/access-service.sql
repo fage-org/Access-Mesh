@@ -5,13 +5,7 @@
 -- 取代：admin-service.sql、permission-center.sql、seed-admin-operations.sql、seed-perm-operations.sql
 --       （四份旧文件已随 T-ACCESS-012 归档至 docs/archive/2026-08-22/schema/，不再作为实现依据）
 --
--- 范围：40 张表
---   管理事实表（sys_*）14 张（管理面，原 17 张：sys_config/sys_audit_log 并入合并表；sys_sync_task 已随 T-ACCESS-005 退役）
---   权限事实表 19 张（权限面，原 18 张：system_config/operation_log 由合并表承接；T-PERM-071 增 3 张：
---     permission_dependency_declaration、service_manifest_sync、resource_publication_state——依赖声明/发布状态/资源发布代次）
---   合并表 2 张（system_config、operation_log）
---   独立平台主数据与审计 3 张（platform_account、sys_tenant、platform_audit_log，无所属 tenant_id）
---   基础设施 2 张（sys_task_execution，T-ACCESS-009 任务租约预建；service_credential，T-PERM-070 服务凭证）
+-- 表覆盖以 AccessServiceSchemaPostgresTest 为准；资源归属/整类引用由 resource_association 承载。
 --
 -- 合并说明（access-service-architecture §5.2）：
 --   system_config = sys_config + 原 system_config（字段取超集；tenant_id+config_key 唯一；
@@ -630,6 +624,7 @@ CREATE TABLE type_definition (
 
 CREATE UNIQUE INDEX uk_type_definition_value ON type_definition (tenant_id, type_key, type_value) WHERE delete_flag = 0;
 CREATE UNIQUE INDEX uk_type_definition_code ON type_definition (tenant_id, type_key, type_code) WHERE delete_flag = 0;
+ALTER TABLE type_definition ADD CONSTRAINT uk_type_definition_tenant_identity UNIQUE (tenant_id, id);
 
 COMMENT ON TABLE type_definition IS '类型定义：type_code 是对外稳定编码，type_value 是内部存储和计算值。type_key 如 user_type/role_type/resource_type，is_system=true 为系统预置不可删改。创建 resource_type 时自动预置 CRUD 四个 operation_permission；删除 resource_type（非系统、类型下无有效资源行）时同事务级联软删该类型全部有效 operation_permission 与该类型下有效授权行（正常流仅剩 scope_all 类型级行，T-PERM-050）；删除 user_type/role_type（非系统、类型下存在有效 abstract_user/abstract_role 行）时整批拒绝（20056 删除保护——主体数据不级联，T-PERM-056）';
 COMMENT ON COLUMN type_definition.type_key IS '类型键，如 user_type、role_type、resource_type';
@@ -849,6 +844,7 @@ CREATE TABLE resource_entity (
     path          VARCHAR(1024),
     status        INT NOT NULL DEFAULT 1,
     extra         JSONB DEFAULT '{}',
+    source_entity_id VARCHAR(256),
     owner_service_code VARCHAR(128),
     maintain_source    VARCHAR(32) NOT NULL DEFAULT 'MANUAL',
     created_by    BIGINT,
@@ -861,9 +857,41 @@ CREATE TABLE resource_entity (
 );
 
 CREATE UNIQUE INDEX uk_resource_entity ON resource_entity (tenant_id, resource_type, code, code_type) WHERE delete_flag = 0;
+CREATE UNIQUE INDEX uk_resource_entity_source_identity ON resource_entity (tenant_id, resource_type, code, code_type, source_entity_id)
+    WHERE source_entity_id IS NOT NULL;
+COMMENT ON COLUMN resource_entity.source_entity_id IS '参与资源关系的业务实例来源身份；有效实例不可原地修改，同业务键历史身份不可复用，普通未参与关系类型保持 NULL';
 CREATE INDEX idx_resource_entity_parent ON resource_entity (parent_id) WHERE delete_flag = 0;
 CREATE INDEX idx_resource_entity_type ON resource_entity (tenant_id, resource_type) WHERE delete_flag = 0;
 CREATE INDEX idx_resource_entity_sync_owner ON resource_entity (tenant_id, owner_service_code, maintain_source) WHERE delete_flag = 0 AND owner_service_code IS NOT NULL;
+ALTER TABLE resource_entity ADD CONSTRAINT uk_resource_entity_tenant_identity UNIQUE (tenant_id, id);
+
+CREATE TABLE resource_association (
+    id                    BIGSERIAL PRIMARY KEY,
+    tenant_id             BIGINT NOT NULL,
+    primary_resource_id   BIGINT NOT NULL,
+    exclusive_resource_id BIGINT,
+    shared_type_id        BIGINT,
+    created_by            BIGINT,
+    updated_by            BIGINT,
+    deleted_by            BIGINT,
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at            TIMESTAMPTZ,
+    delete_flag           BIGINT NOT NULL DEFAULT 0,
+    CONSTRAINT ck_resource_association_target CHECK (num_nonnulls(exclusive_resource_id, shared_type_id) = 1),
+    CONSTRAINT ck_resource_association_not_self CHECK (exclusive_resource_id IS NULL OR exclusive_resource_id <> primary_resource_id),
+    CONSTRAINT fk_resource_association_primary FOREIGN KEY (tenant_id, primary_resource_id) REFERENCES resource_entity(tenant_id, id),
+    CONSTRAINT fk_resource_association_exclusive FOREIGN KEY (tenant_id, exclusive_resource_id) REFERENCES resource_entity(tenant_id, id),
+    CONSTRAINT fk_resource_association_shared FOREIGN KEY (tenant_id, shared_type_id) REFERENCES type_definition(tenant_id, id)
+);
+CREATE UNIQUE INDEX uk_resource_association_exclusive ON resource_association(tenant_id, exclusive_resource_id)
+    WHERE delete_flag = 0 AND exclusive_resource_id IS NOT NULL;
+CREATE UNIQUE INDEX uk_resource_association_shared ON resource_association(tenant_id, primary_resource_id, shared_type_id)
+    WHERE delete_flag = 0 AND shared_type_id IS NOT NULL;
+CREATE INDEX idx_resource_association_primary ON resource_association(tenant_id, primary_resource_id) WHERE delete_flag = 0;
+CREATE INDEX idx_resource_association_shared_type ON resource_association(tenant_id, shared_type_id)
+    WHERE delete_flag = 0 AND shared_type_id IS NOT NULL;
+COMMENT ON TABLE resource_association IS '主资源的专属实例归属或通用类型整体引用；类型模式、来源与软删除有效性在共同资源树锁内校验，外键保证同租户身份，部分唯一索引保证专属基数和引用去重';
 
 COMMENT ON TABLE resource_entity IS '权限资源实体，树形；同一资源可有多行不同 code_type 用于编码转换（如 "default"="100", "en"="Britain", "cn"="英国"）。用户/组织等管理对象通过既有资源类型（如 USER/ORG）建模实例级权限（T-ACCESS-018 收敛，原 ADMIN_* 管理类型已并入）；owner_service_code/maintain_source 仅记录行归属（service-config 声明通道的撞码归属消歧与前端展示），写入门禁不依赖该列——资源边界以 type_definition.extra 类型级所有权声明为准（T-PERM-052，architecture §4.3）';
 COMMENT ON COLUMN resource_entity.code IS '资源业务编码。长度上限 256（T-PERM-051：TYPE_DEFINITION 实例投影为复合键 {typeKey}:{typeCode}，type_key/type_code 各 ≤64，最坏 129 字符超出原 128 列宽而加宽；手工/同步入口的编码长度语义不变，仅列宽放行）';

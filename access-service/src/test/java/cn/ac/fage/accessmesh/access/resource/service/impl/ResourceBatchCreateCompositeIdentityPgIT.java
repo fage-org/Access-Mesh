@@ -120,7 +120,8 @@ class ResourceBatchCreateCompositeIdentityPgIT {
             new cn.ac.fage.accessmesh.access.type.service.domain.ResourceTypeOwnershipGuard(
                 typeDefinitionMapper, serviceConfigDomainService, resourceEntityDomainService,
                 JsonMapper.builder().configureForJackson2().build()),
-            mock(TreeWriteLockSupport.class), admMappingWriter, admOperations);
+            mock(TreeWriteLockSupport.class), admMappingWriter, admOperations,
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.ResourceAssociationDomainService.class));
     }
 
     @BeforeEach

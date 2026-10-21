@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.ac.fage.accessmesh.access.resource.mapper.ResourceAssociationMapper">
+    <sql id="ids"><foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach></sql>
+    <sql id="typeIds"><foreach collection="typeIds" item="id" open="(" separator="," close=")">#{id}</foreach></sql>
+    <select id="selectByPrimaryIds" flushCache="true" useCache="false" resultType="cn.ac.fage.accessmesh.access.resource.entity.ResourceAssociation">
+        SELECT * FROM resource_association WHERE tenant_id=#{tenantId} AND delete_flag=0 AND primary_resource_id IN <include refid="ids"/>
+    </select>
+    <select id="selectByExclusiveIds" flushCache="true" useCache="false" resultType="cn.ac.fage.accessmesh.access.resource.entity.ResourceAssociation">
+        SELECT * FROM resource_association WHERE tenant_id=#{tenantId} AND delete_flag=0 AND exclusive_resource_id IN <include refid="ids"/>
+    </select>
+    <select id="selectBySharedTypeIds" flushCache="true" useCache="false" resultType="cn.ac.fage.accessmesh.access.resource.entity.ResourceAssociation">
+        SELECT * FROM resource_association WHERE tenant_id=#{tenantId} AND delete_flag=0 AND shared_type_id IN <include refid="ids"/>
+    </select>
+    <select id="hasTypeUses" flushCache="true" useCache="false" resultType="boolean">
+        SELECT EXISTS(SELECT 1 FROM resource_association a
+            JOIN resource_entity p ON p.tenant_id=a.tenant_id AND p.id=a.primary_resource_id
+            LEFT JOIN resource_entity e ON e.tenant_id=a.tenant_id AND e.id=a.exclusive_resource_id
+            WHERE a.tenant_id=#{tenantId} AND a.delete_flag=0
+              AND (a.shared_type_id=#{typeId} OR p.resource_type=#{typeValue} OR e.resource_type=#{typeValue}))
+    </select>
+    <insert id="insertExclusive">
+        INSERT INTO resource_association(tenant_id,primary_resource_id,exclusive_resource_id,created_by,updated_by,created_at,updated_at)
+        VALUES(#{tenantId},#{primaryId},#{exclusiveId},#{actorId},#{actorId},#{now},#{now})
+    </insert>
+    <insert id="insertShared">
+        INSERT INTO resource_association(tenant_id,primary_resource_id,shared_type_id,created_by,updated_by,created_at,updated_at) VALUES
+        <foreach collection="typeIds" item="id" separator=",">(#{tenantId},#{primaryId},#{id},#{actorId},#{actorId},#{now},#{now})</foreach>
+    </insert>
+    <update id="softDeleteShared">
+        UPDATE resource_association SET delete_flag=id,deleted_by=#{actorId},deleted_at=#{now},updated_by=#{actorId},updated_at=#{now}
+        WHERE tenant_id=#{tenantId} AND delete_flag=0 AND primary_resource_id=#{primaryId} AND shared_type_id IN <include refid="typeIds"/>
+    </update>
+    <update id="softDeleteByResourceIds">
+        UPDATE resource_association SET delete_flag=id,deleted_by=#{actorId},deleted_at=#{now},updated_by=#{actorId},updated_at=#{now}
+        WHERE tenant_id=#{tenantId} AND delete_flag=0 AND
+        (primary_resource_id IN <include refid="ids"/> OR exclusive_resource_id IN <include refid="ids"/>)
+    </update>
+</mapper>

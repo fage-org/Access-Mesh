@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-147
 title: 资源关系发布与候选查询及 SDK 接线
-status: proposed
+status: in-progress
 plan: docs/plans/resource-association-plan.md
 domain: cross-service
 design_refs:
@@ -24,7 +24,7 @@ acceptance:
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-10-21
+last_updated: 2026-10-22
 ---
 
 ## 背景
@@ -39,7 +39,7 @@ last_updated: 2026-10-21
 
 实例变更和关系变更权限分离；可信租户/服务身份来自现有认证，关系调用不授予角色权限。通用引用以整个类型为目标，不接受实例子集；专属归属以实例为目标。接口必须按主资源所属来源限定，单/FULL 清理不越权。
 
-详细规则以[资源关系设计](../design/resource-association.md)及上列 design_refs 为准。本卡已获执行授权，保持 proposed，待直接依赖及实施契约门槛满足后启动。
+详细规则以[资源关系设计](../design/resource-association.md)及上列 design_refs 为准。T-ACCESS-146 已完成写侧基础，本卡开始候选/只读查询、SDK 与发布接入验证。
 
 ## 验收对照
 
