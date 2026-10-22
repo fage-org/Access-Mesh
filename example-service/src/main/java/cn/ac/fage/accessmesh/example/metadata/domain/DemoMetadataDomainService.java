@@ -1,7 +1,6 @@
 package cn.ac.fage.accessmesh.example.metadata.domain;
 
 import cn.ac.fage.accessmesh.example.metadata.entity.DemoReport;
-import cn.ac.fage.accessmesh.example.metadata.entity.DemoScope;
 import cn.ac.fage.accessmesh.example.metadata.entity.DemoReportField;
 import java.util.List;
 
@@ -11,8 +10,6 @@ public interface DemoMetadataDomainService {
     default DemoReport createReport(long tenant, long actor, String code, String name, String dataset, String fieldType) {
         return createReport(tenant, actor, code, name, dataset, fieldType, List.of());
     }
-    DemoScope saveScope(long tenant, long actor, String type, String code, String codeType,
-                        String name, boolean enabled, long expectedVersion);
     DemoReport getReport(long tenant, String code);
     DemoReport getReportById(long tenant,long id);
     DemoReport updateReport(long tenant, long actor, String code, long version, String name, boolean enabled, List<String> referencedTypes);
@@ -25,6 +22,5 @@ public interface DemoMetadataDomainService {
     void removeFields(long tenant, long actor, String code, long catalogVersion, List<Long> ids);
     long lockDataset(long tenant,long actor);
     void validatePolicyTypes(long tenant,String fieldType,java.util.Set<String> rowTypes);
-    List<DemoScope> scopes(long tenant,java.util.Set<cn.ac.fage.accessmesh.example.metadata.DemoResourceKey> keys);
     List<DemoReportField> fieldsByResourceCodes(long tenant,String type,java.util.Set<String> codes);
 }

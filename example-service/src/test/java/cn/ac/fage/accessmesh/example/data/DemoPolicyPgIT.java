@@ -40,16 +40,15 @@ class DemoPolicyPgIT {
     @Autowired PolicyCompiler compiler;
     @Autowired tools.jackson.databind.json.JsonMapper json;
     @MockitoBean BusinessPermChecker permissionChecker;
+    @MockitoBean cn.ac.fage.accessmesh.perm.client.feign.PermissionFeignClient directoryClient;
     private TransactionTemplate tx;
 
     @BeforeEach void fixtures() {
         tx=new TransactionTemplate(transactions);
-        for(String table:java.util.List.of("demo_policy","demo_publication","demo_report_field","demo_scope","demo_report","demo_dataset")) jdbc.update("DELETE FROM "+table);
+        for(String table:java.util.List.of("demo_policy","demo_publication","demo_report_field","demo_report","demo_dataset")) jdbc.update("DELETE FROM "+table);
         tx.executeWithoutResult(s -> {
             metadata.createReport(1,42,"policy-report","策略报表","sales-records","FIELDS");
-            metadata.saveScope(1,42,"SCOPES","self",null,"本人",true,0);
         });
-        jdbc.update("UPDATE demo_scope SET publication_status='PUBLISHED'");
     }
 
     @Test void shouldAtomicallyActivateNewVersionAndKeepHistoryOnConflict() {
@@ -64,15 +63,14 @@ class DemoPolicyPgIT {
         assertEquals(30102,assertThrows(BizException.class,()->policies.current(2)).getErrorCode());
     }
 
-    @Test void shouldKeepPreviousPolicyWhenBindingIsUnknownOrNotPublished() {
-        tx.executeWithoutResult(s -> policies.save(1,42,0,compiler.parse(PolicyCompilerTest.valid())));
+    @Test void shouldSaveMappingsBeforeDirectoryPreparationWithoutRemoteLookup() {
+        when(permissionChecker.check(anyString(),anyString(),any(),any())).thenReturn(new BusinessPermChecker.Decision(true,null));
+        assertEquals(1L,app.save(new Caller(1,42,null),new SaveReq("sales-records",0L,PolicyCompilerTest.valid())).version());
         var unknown=PolicyCompilerTest.valid();
         ((tools.jackson.databind.node.ObjectNode)unknown.path("bindings").get(0)).put("resourceCode","unknown");
-        assertEquals(30102,assertThrows(BizException.class,()->tx.execute(s -> policies.save(1,42,1,compiler.parse(unknown)))).getErrorCode());
-        jdbc.update("UPDATE demo_scope SET publication_status='PENDING'");
-        assertEquals(30108,assertThrows(BizException.class,()->tx.execute(s -> policies.save(1,42,1,compiler.parse(PolicyCompilerTest.valid())))).getErrorCode());
-        assertEquals(1L,policies.current(1).getVersion());
-        assertEquals(1L,jdbc.queryForObject("SELECT count(*) FROM demo_policy",Long.class));
+        assertEquals(2L,app.save(new Caller(1,42,null),new SaveReq("sales-records",1L,unknown)).version());
+        assertEquals(2L,policies.current(1).getVersion());
+        verifyNoInteractions(directoryClient);
     }
 
     @Test void shouldReservePolicyRowTypeEvenWithAllRowsAndNoScopeInstances() {

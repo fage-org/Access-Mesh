@@ -33,8 +33,6 @@ public class DemoMetadataController {
     public R<Void> updateField(@Valid @RequestBody FieldUpdateReq r, HttpServletRequest h) { service.updateField(caller(h), r); return R.ok(); }
     @PostMapping("/demo-field/remove")
     public R<Void> removeFields(@Valid @RequestBody FieldRemoveReq r, HttpServletRequest h) { service.removeFields(caller(h), r); return R.ok(); }
-    @PostMapping("/demo-scope/save")
-    public R<ScopeResp> saveScope(@Valid @RequestBody ScopeSaveReq r, HttpServletRequest h) { return R.ok(service.saveScope(caller(h), r)); }
     @PostMapping("/demo-publication/get")
     public R<PublicationResp> publication(@Valid @RequestBody PublicationGetReq r, HttpServletRequest h) { return R.ok(publications.get(caller(h), r)); }
     @PostMapping("/demo-publication/page")

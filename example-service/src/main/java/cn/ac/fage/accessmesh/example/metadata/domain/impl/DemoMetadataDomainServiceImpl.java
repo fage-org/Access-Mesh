@@ -8,10 +8,8 @@ import cn.ac.fage.accessmesh.example.enums.ExampleErrorCode;
 import cn.ac.fage.accessmesh.example.metadata.DemoTypePurpose;
 import cn.ac.fage.accessmesh.example.data.catalog.DemoField;
 import cn.ac.fage.accessmesh.example.metadata.entity.DemoReport;
-import cn.ac.fage.accessmesh.example.metadata.entity.DemoScope;
 import cn.ac.fage.accessmesh.example.metadata.mapper.DemoDatasetMapper;
 import cn.ac.fage.accessmesh.example.metadata.mapper.DemoReportMapper;
-import cn.ac.fage.accessmesh.example.metadata.mapper.DemoScopeMapper;
 import cn.ac.fage.accessmesh.example.metadata.mapper.DemoReportFieldMapper;
 import cn.ac.fage.accessmesh.example.metadata.entity.DemoReportField;
 import java.util.List;
@@ -23,19 +21,17 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 public class DemoMetadataDomainServiceImpl implements DemoMetadataDomainService {
     private final DemoDatasetMapper datasets;
     private final DemoReportMapper reports;
-    private final DemoScopeMapper scopes;
     private final DemoPublicationDomainService publications;
     private final DemoReportFieldMapper fields;
     private final tools.jackson.databind.json.JsonMapper json;
     private static final Set<String> FIELD_KEYS = java.util.Arrays.stream(DemoField.values())
         .map(DemoField::key).collect(java.util.stream.Collectors.toUnmodifiableSet());
 
-    public DemoMetadataDomainServiceImpl(DemoDatasetMapper datasets, DemoReportMapper reports, DemoScopeMapper scopes,
+    public DemoMetadataDomainServiceImpl(DemoDatasetMapper datasets, DemoReportMapper reports,
                                          DemoPublicationDomainService publications, DemoReportFieldMapper fields,
                                          tools.jackson.databind.json.JsonMapper json) {
         this.datasets = datasets;
         this.reports = reports;
-        this.scopes = scopes;
         this.publications = publications;
         this.fields = fields;
         this.json = json;
@@ -45,7 +41,7 @@ public class DemoMetadataDomainServiceImpl implements DemoMetadataDomainService 
     public DemoReport createReport(long tenant, long actor, String code, String name, String dataset, String fieldType, List<String> referencedTypes) {
         if (!"sales-records".equals(dataset)) throw invalid();
         long datasetId = lock(tenant, actor);
-        validatePurpose(tenant, fieldType, true);
+        validateFieldType(tenant, fieldType);
         List<String> references = validateReferences(tenant, fieldType, referencedTypes);
         if (reports.selectByCode(tenant, code) != null) throw conflict();
         var report = new DemoReport();
@@ -56,30 +52,6 @@ public class DemoMetadataDomainServiceImpl implements DemoMetadataDomainService 
         publications.record(tenant, actor, java.util.List.of(new Change("DEMO_REPORT", code, "default", 1,
             "UPSERT", name, true, "demo_report", report.getId().toString(), null, references)));
         return reports.selectByCode(tenant, code);
-    }
-
-    @Override
-    public DemoScope saveScope(long tenant, long actor, String type, String code, String codeType,
-                               String name, boolean enabled, long expectedVersion) {
-        lock(tenant, actor);
-        validatePurpose(tenant, type, false);
-        String normalized = codeType == null || codeType.isBlank() ? "default" : codeType.trim();
-        var scope = scopes.find(tenant, type, code, normalized);
-        if (scope == null) {
-            if (expectedVersion != 0) throw conflict();
-            scope = new DemoScope();
-            scope.setTenantId(tenant); scope.setResourceTypeCode(type); scope.setResourceCode(code);
-            scope.setCodeType(normalized); scope.setName(name); scope.setEnabled(enabled); scope.setCreatedBy(actor);
-            scopes.insert(scope);
-        } else {
-            if (scope.getVersion() != expectedVersion) throw conflict();
-            scope.setName(name); scope.setEnabled(enabled); scope.setCreatedBy(actor);
-            if (scopes.update(scope) != 1) throw conflict();
-        }
-        var saved = scopes.find(tenant, type, code, normalized);
-        publications.record(tenant, actor, java.util.List.of(new Change(type, code, normalized, saved.getVersion(),
-            "UPSERT", name, enabled, "demo_scope", saved.getId().toString())));
-        return saved;
     }
 
     private long lock(long tenant, long actor) { return lockDataset(tenant,actor); }
@@ -103,11 +75,6 @@ public class DemoMetadataDomainServiceImpl implements DemoMetadataDomainService 
         var types=new java.util.HashSet<>(rowTypes); types.add(fieldType);
         var fieldTypes=datasets.fieldTypes(tenant,types);
         if (!fieldTypes.contains(fieldType) || !java.util.Collections.disjoint(fieldTypes,rowTypes)) throw invalid();
-    }
-
-    @Override
-    public List<DemoScope> scopes(long tenant,Set<cn.ac.fage.accessmesh.example.metadata.DemoResourceKey> keys) {
-        return keys.isEmpty()?List.of():scopes.byKeys(tenant,keys);
     }
 
     @Override
@@ -209,9 +176,9 @@ public class DemoMetadataDomainServiceImpl implements DemoMetadataDomainService 
         if (reports.advanceCatalog(tenant, report.getId(), version, actor) != 1) throw conflict();
     }
 
-    private void validatePurpose(long tenant, String type, boolean field) {
+    private void validateFieldType(long tenant, String type) {
         DemoTypePurpose.requireDynamic(type);
-        if (field ? datasets.usedForScope(tenant, type) : datasets.usedForField(tenant, type)) {
+        if (datasets.usedForScope(tenant, type)) {
             throw invalid();
         }
     }

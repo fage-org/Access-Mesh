@@ -68,28 +68,6 @@ CREATE UNIQUE INDEX uniq_demo_report_field_tenant_report_key ON demo_report_fiel
 CREATE INDEX idx_demo_report_field_tenant_resource ON demo_report_field(tenant_id, resource_code);
 COMMENT ON TABLE demo_report_field IS '报表字段身份：资源编码由不可复用主键派生，软删不复用主键或编码';
 
--- 范围资源元数据：业务谓词归策略版本，不写入远端资源
-CREATE TABLE demo_scope (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL CHECK (tenant_id > 0),
-    resource_type_code VARCHAR(64) NOT NULL,
-    resource_code VARCHAR(64) NOT NULL,
-    code_type VARCHAR(32) NOT NULL DEFAULT 'default',
-    name VARCHAR(128) NOT NULL,
-    enabled BOOLEAN NOT NULL DEFAULT true,
-    version BIGINT NOT NULL DEFAULT 1 CHECK (version > 0),
-    publication_status VARCHAR(16) NOT NULL DEFAULT 'PENDING' CHECK (publication_status IN ('PENDING','PUBLISHED','FAILED')),
-    delete_flag BIGINT NOT NULL DEFAULT 0 CHECK (delete_flag = 0 OR delete_flag = id),
-    created_by BIGINT,
-    updated_by BIGINT,
-    deleted_by BIGINT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    deleted_at TIMESTAMPTZ
-);
-CREATE UNIQUE INDEX uniq_demo_scope_tenant_type_code ON demo_scope(tenant_id, resource_type_code, resource_code, code_type) WHERE delete_flag = 0;
-COMMENT ON TABLE demo_scope IS '范围资源元数据：业务谓词归策略版本，不写入远端资源';
-
 -- 完整策略历史：发布后内容不可改写，恢复历史生成新版本
 CREATE TABLE demo_policy (
     id BIGSERIAL PRIMARY KEY,

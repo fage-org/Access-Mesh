@@ -19,7 +19,6 @@ import cn.ac.fage.accessmesh.example.metadata.domain.DemoMetadataDomainService;
 import cn.ac.fage.accessmesh.example.metadata.dto.MetadataDtos.Caller;
 import cn.ac.fage.accessmesh.example.metadata.entity.DemoReport;
 import cn.ac.fage.accessmesh.example.metadata.entity.DemoReportField;
-import cn.ac.fage.accessmesh.example.metadata.entity.DemoScope;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import org.springframework.stereotype.Service;
@@ -69,19 +68,12 @@ public class DemoDataDomainServiceImpl implements DemoDataDomainService {
         if(!report.getFieldResourceTypeCode().equals(operations.fieldResourceTypeCode())) throw error(ExampleErrorCode.DEMO_POLICY_INVALID);
         var scopes=permissions.query(caller,report.getReportCode(),operations,edit?DemoPermission.REPORT_EDIT:DemoPermission.REPORT_READ);
         var sql=new PredicateSql();
-        Map<DemoResourceKey,Long> versions=new LinkedHashMap<>();
         String rowPredicate="TRUE";
         if(scopes.rows().scopeMode()==ScopeMode.EMPTY) rowPredicate="FALSE";
         if(scopes.rows().scopeMode()==ScopeMode.INSTANCE) {
             Set<DemoResourceKey> keys=scopes.rows().items().stream().map(i -> new DemoResourceKey(operations.rowResourceTypeCode(),i.resourceCode(),DemoDataPermissions.codeType(i.codeType())))
                 .collect(Collectors.toCollection(LinkedHashSet::new));
             if(!configuration.bindings().keySet().containsAll(keys)) throw error(ExampleErrorCode.DEMO_POLICY_INVALID);
-            var local=metadata.scopes(caller.tenantId(),keys);
-            if(local.size()!=keys.size()) throw error(ExampleErrorCode.DEMO_POLICY_INVALID);
-            for(var scope:local) {
-                requireScope(scope);
-                versions.put(key(scope),scope.getVersion());
-            }
             List<String> alternatives=new ArrayList<>();
             for(var key:keys) {
                 List<String> clauses=new ArrayList<>();
@@ -150,7 +142,7 @@ public class DemoDataDomainServiceImpl implements DemoDataDomainService {
             return new ColumnBinding(f.getId(),field,flags.filterable(),flags.sortable());
         }).toList();
         return new DataSqlPlan(caller.tenantId(),report.getDatasetId(),report.getReportCode(),report.getVersion(),stored.getVersion(),
-            report.getCatalogVersion(),Map.copyOf(versions),edit?DemoPermission.REPORT_EDIT:DemoPermission.REPORT_READ,
+            report.getCatalogVersion(),edit?DemoPermission.REPORT_EDIT:DemoPermission.REPORT_READ,
             scopes.rows().scopeMode(),columns,String.join(" AND ",predicates),List.copyOf(sql.parameters),order);
     }
 
@@ -168,12 +160,7 @@ public class DemoDataDomainServiceImpl implements DemoDataDomainService {
             if(field==null || !field.getEnabled() || !field.getFieldKey().equals(selected.field().key())) throw error(ExampleErrorCode.DEMO_VERSION_CONFLICT);
             requirePublished(field.getPublicationStatus());
         }
-        var scopes=metadata.scopes(plan.tenantId(),plan.scopeVersions().keySet());
-        if(scopes.size()!=plan.scopeVersions().size()) throw error(ExampleErrorCode.DEMO_VERSION_CONFLICT);
-        for(var scope:scopes) {
-            if(!Objects.equals(scope.getVersion(),plan.scopeVersions().get(key(scope)))) throw error(ExampleErrorCode.DEMO_VERSION_CONFLICT);
-            requireScope(scope);
-        }
+
     }
     @Override
     public PageResp<Map<String,Object>> page(DataSqlPlan plan,int page,int size) {
@@ -240,12 +227,7 @@ public class DemoDataDomainServiceImpl implements DemoDataDomainService {
         if(!report.getEnabled()) throw error(ExampleErrorCode.DEMO_OBJECT_UNAVAILABLE);
         requirePublished(report.getPublicationStatus());
     }
-    private static void requireScope(DemoScope scope) {
-        if(!scope.getEnabled()) throw error(ExampleErrorCode.DEMO_POLICY_INVALID);
-        requirePublished(scope.getPublicationStatus());
-    }
     private static void requirePublished(String status) { if(!"PUBLISHED".equals(status)) throw error(ExampleErrorCode.DEMO_RESOURCE_NOT_READY); }
-    private static DemoResourceKey key(DemoScope s) { return new DemoResourceKey(s.getResourceTypeCode(),s.getResourceCode(),s.getCodeType()); }
     private static BizException error(ExampleErrorCode e) { return new BizException(e.getCode(),e.getMessage()); }
     private static final class PredicateSql {
         private final List<Object> parameters=new ArrayList<>();

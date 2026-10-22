@@ -78,16 +78,6 @@ public class DemoMetadataAppServiceImpl implements DemoMetadataAppService {
         transaction.executeWithoutResult(s -> metadata.removeFields(c.tenantId(), c.userId(), r.reportCode(),
             r.expectedCatalogVersion(), r.fieldIds()));
     }
-    @Override
-    public ScopeResp saveScope(Caller c, ScopeSaveReq r) {
-        require(c, DemoPermission.POLICY_MANAGE, null);
-        return transaction.execute(s -> {
-            var saved = metadata.saveScope(c.tenantId(), c.userId(), r.resourceTypeCode(), r.resourceCode(),
-                r.codeType(), r.name(), r.enabled(), r.expectedVersion());
-            return new ScopeResp(saved.getResourceTypeCode(), saved.getResourceCode(), saved.getCodeType(),
-                saved.getName(), saved.getEnabled(), saved.getVersion(), saved.getPublicationStatus());
-        });
-    }
     private void require(Caller c, DemoPermission permission, String code) {
         var decision = permissions.check(Long.toString(c.tenantId()), Long.toString(c.userId()), c.clientIp(),
             BusinessPermChecker.Target.of(permission.type(), code, permission.operation()));

@@ -31,9 +31,6 @@ public final class MetadataDtos {
         @NotNull @PositiveOrZero Long expectedCatalogVersion, @NotNull @Positive Long fieldId, @NotNull Boolean enabled) {}
     public record FieldRemoveReq(@NotBlank @Size(max=64) String reportCode,
         @NotNull @PositiveOrZero Long expectedCatalogVersion, @NotEmpty @Size(max=100) List<@NotNull @Positive Long> fieldIds) {}
-    public record ScopeSaveReq(@NotBlank @Size(max=64) String resourceTypeCode,
-        @NotBlank @Size(max=64) String resourceCode, @Size(max=32) String codeType,
-        @NotBlank @Size(max=128) String name, @NotNull Boolean enabled, @NotNull @PositiveOrZero Long expectedVersion) {}
     public record ReportResp(String reportCode, String name, String datasetCode, String resourceTypeCode,
         String fieldResourceTypeCode, boolean enabled, long version, long catalogVersion, String publicationStatus,
         List<String> referencedTypeCodes) {
@@ -42,6 +39,5 @@ public final class MetadataDtos {
     public record FieldResp(long fieldId, String fieldKey, boolean enabled, String resourceTypeCode,
         String resourceCode, String codeType, String publicationStatus) {}
     public record FieldRegistrationResp(List<FieldResp> items, long catalogVersion) {}
-    public record ScopeResp(String resourceTypeCode, String resourceCode, String codeType,
-        String name, boolean enabled, long version, String publicationStatus) {}
+
 }

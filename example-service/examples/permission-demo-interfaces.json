@@ -158,16 +158,6 @@
           }
         },
         {
-          "name": "demo-scope/save",
-          "httpMethod": "POST",
-          "path": "/demo-scope/save",
-          "resourceCode": "example:demo:demo-scope:save",
-          "requiredPermission": {
-            "resourceTypeCode": "DEMO_POLICY",
-            "operationCode": "MANAGE"
-          }
-        },
-        {
           "name": "demo-publication/get",
           "httpMethod": "POST",
           "path": "/demo-publication/get",

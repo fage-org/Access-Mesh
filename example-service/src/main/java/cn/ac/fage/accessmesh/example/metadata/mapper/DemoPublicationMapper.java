@@ -107,10 +107,5 @@ public interface DemoPublicationMapper {
         """)
     int markField(@Param("event") DemoPublication event, @Param("status") String status);
 
-    @Update("""
-        UPDATE demo_scope SET publication_status=#{status}
-        WHERE tenant_id=#{event.tenantId} AND resource_type_code=#{event.resourceTypeCode}
-          AND resource_code=#{event.resourceCode} AND code_type=#{event.codeType} AND version=#{event.sourceVersion}
-        """)
-    int markScope(@Param("event") DemoPublication event, @Param("status") String status);
+
 }

@@ -11,5 +11,4 @@ public interface DemoMetadataAppService {
     PageResp<FieldResp> fields(Caller caller, FieldListReq req);
     void updateField(Caller caller, FieldUpdateReq req);
     void removeFields(Caller caller, FieldRemoveReq req);
-    ScopeResp saveScope(Caller caller, ScopeSaveReq req);
 }

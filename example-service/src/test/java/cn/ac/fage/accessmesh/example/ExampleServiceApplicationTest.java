@@ -121,6 +121,10 @@ class ExampleServiceApplicationTest {
     @Autowired
     private org.springframework.jdbc.core.JdbcTemplate jdbc;
 
+    @Autowired
+    @org.springframework.beans.factory.annotation.Qualifier("requestMappingHandlerMapping")
+    private org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping handlerMapping;
+
     @Test
     void metadataRoutesUseSignedIdentityValidateRequestsAndPersistPendingEvents() {
         org.mockito.Mockito.when(permissionChecker.check(org.mockito.ArgumentMatchers.eq("9001"),
@@ -145,11 +149,8 @@ class ExampleServiceApplicationTest {
         var invalidPage = rest.postForEntity("/api/example/demo-field/list", new HttpEntity<>(Map.of(
             "reportCode", "http-report", "pageSize", 201), headers), String.class);
         assertThat(invalidPage.getStatusCode().value()).isEqualTo(400);
-        var conflicting = json.readTree(rest.postForObject("/api/example/demo-scope/save", new HttpEntity<>(Map.of(
-            "resourceTypeCode", "HTTP_FIELDS", "resourceCode", "1", "name", "团队 T1",
-            "enabled", true, "expectedVersion", 0), headers), String.class));
-        assertThat(conflicting.path("code").asInt()).isEqualTo(30102);
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM demo_scope WHERE tenant_id=9001", Long.class)).isZero();
+        assertThat(handlerMapping.getHandlerMethods().keySet().stream().flatMap(info -> info.getPatternValues().stream()))
+            .doesNotContain("/api/example/demo-scope/save");
     }
 
     @Test

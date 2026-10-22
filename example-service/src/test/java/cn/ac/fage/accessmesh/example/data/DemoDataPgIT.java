@@ -78,7 +78,7 @@ class DemoDataPgIT {
 
     @BeforeEach void fixtures() {
         tx=new TransactionTemplate(transactions);
-        for(String table:List.of("demo_execution","demo_task","demo_record","demo_import_batch","demo_policy","demo_publication","demo_report_field","demo_scope","demo_report","demo_dataset")) jdbc.update("DELETE FROM "+table);
+        for(String table:List.of("demo_execution","demo_task","demo_record","demo_import_batch","demo_policy","demo_publication","demo_report_field","demo_report","demo_dataset")) jdbc.update("DELETE FROM "+table);
         var keys=List.of("recordCode","ownerUserId","teamCode","departmentCode","regionCode","saleDate","productName","amount","remark");
         tx.executeWithoutResult(s -> {
             metadata.createReport(1,42,"r1","第一报表","sales-records","FIELDS");
@@ -86,11 +86,9 @@ class DemoDataPgIT {
             metadata.createReport(2,42,"r1","另一租户","sales-records","FIELDS");
             metadata.registerFields(1,42,"r1",0,keys);
             metadata.registerFields(1,42,"r2",0,keys);
-            for(String code:List.of("self","team-t1","department-d1","region-r1")) metadata.saveScope(1,42,"SCOPES",code,null,"display name is not a predicate",true,0);
         });
         jdbc.update("UPDATE demo_report SET publication_status='PUBLISHED'");
         jdbc.update("UPDATE demo_report_field SET publication_status='PUBLISHED'");
-        jdbc.update("UPDATE demo_scope SET publication_status='PUBLISHED'");
         var initial=configuration(); var initialBindings=(tools.jackson.databind.node.ArrayNode)initial.path("bindings");
         initialBindings.remove(initialBindings.size()-1);
         tx.executeWithoutResult(s -> policies.save(1,42,0,compiler.parse(initial)));
@@ -560,12 +558,10 @@ class DemoDataPgIT {
         assertNull(remark("B"));
     }
 
-    @Test void shouldRejectLocalScopeVersionChangeAndNeverUseReadAuthorizationForWrites() {
+    @Test void shouldNeverUseReadAuthorizationForWrites() {
         var captured=domain.authorizeRead(actor,new Selection("r1",null,null,null));
         assertEquals(30004,assertThrows(BizException.class,()->tx.execute(s -> domain.update(captured,42,List.of(new Change("A","no",false))))).getErrorCode());
-        tx.executeWithoutResult(s -> metadata.saveScope(1,42,"SCOPES","team-t1",null,"changed",false,1));
-        assertEquals(30103,assertThrows(BizException.class,()->tx.execute(s -> domain.page(captured,1,20))).getErrorCode());
-        verify(records,never()).page(any(),anyInt(),anyLong()); verify(records,never()).update(any(),anyLong(),anyList());
+        verify(records,never()).update(any(),anyLong(),anyList());
     }
 
     @Test void shouldApplyRegionConfigurationWithoutChangingJavaOrAuthorizationAlgorithm() {
@@ -600,14 +596,12 @@ class DemoDataPgIT {
         int left=parameters,scopeIndex=0;
         while(left>0) {
             String code="budget-"+scopeIndex++; codes.add(code);
-            tx.executeWithoutResult(s -> metadata.saveScope(1,42,"SCOPES",code,null,code,true,0));
             var predicates=bindings.addObject().put("resourceTypeCode","SCOPES").put("resourceCode",code).putArray("predicates");
             for(int clause=0;clause<8 && left>0;clause++) {
                 var values=predicates.addObject().put("fieldKey","ownerUserId").put("operator","IN").put("valueSource","LITERAL").putArray("values");
                 int size=Math.min(left,100); for(int i=1;i<=size;i++) values.add(i); left-=size;
             }
         }
-        jdbc.update("UPDATE demo_scope SET publication_status='PUBLISHED'");
         tx.executeWithoutResult(s -> policies.save(1,42,1,compiler.parse(configuration)));
         rowCodes=List.copyOf(codes);
         assertEquals(30106,assertThrows(BizException.class,()->app.page(actor,page("r1",1,20))).getErrorCode());

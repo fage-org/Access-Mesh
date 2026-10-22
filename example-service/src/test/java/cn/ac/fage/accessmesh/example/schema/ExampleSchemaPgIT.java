@@ -44,7 +44,7 @@ class ExampleSchemaPgIT {
         assertEquals(0L, number("SELECT count(*) FROM demo_dataset"));
         assertEquals(0L, number("SELECT count(*) FROM demo_report"));
         assertEquals(0L, number("SELECT count(*) FROM demo_record"));
-        assertEquals(0L, number("SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('sys_user','resource_entity','role_resource_permission','demo_datasource')"));
+        assertEquals(0L, number("SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('sys_user','resource_entity','role_resource_permission','demo_datasource','demo_scope')"));
     }
 
     @Test

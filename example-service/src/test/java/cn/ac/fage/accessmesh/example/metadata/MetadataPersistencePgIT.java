@@ -65,7 +65,6 @@ class MetadataPersistencePgIT {
         // JdbcTemplate fixtures are outside Flex's Mapper transaction and must be cleaned explicitly.
         jdbc.update("DELETE FROM demo_report_field");
         jdbc.update("DELETE FROM demo_publication");
-        jdbc.update("DELETE FROM demo_scope");
         jdbc.update("DELETE FROM demo_report");
         jdbc.update("DELETE FROM demo_dataset");
         jdbc.update("INSERT INTO demo_dataset(id,tenant_id,dataset_code) VALUES (1,1,'sales-records'),(2,2,'sales-records')");
@@ -124,29 +123,29 @@ class MetadataPersistencePgIT {
     }
 
     @Test
-    void shouldRejectScopeTypeUsedByReportFieldsAndKeepTransactionAtomic() {
+    void shouldRejectReferencesToFieldTypesAndKeepTransactionAtomic() {
         var tx = new TransactionTemplate(transactions);
         tx.executeWithoutResult(s -> metadata.createReport(1, 42, "r1", "报表", "sales-records", "CUSTOM_FIELD"));
         var denied = assertThrows(BizException.class, () -> tx.executeWithoutResult(s ->
-            metadata.saveScope(1, 42, "CUSTOM_FIELD", "1", "default", "团队 T1", true, 0)));
+            metadata.createReport(1, 42, "ref-conflict", "报表", "sales-records", "OTHER_FIELD", List.of("CUSTOM_FIELD"))));
         assertEquals(30102, denied.getErrorCode());
-        assertEquals(0L, jdbc.queryForObject("SELECT count(*) FROM demo_scope", Long.class));
+        assertEquals(0L, jdbc.queryForObject("SELECT count(*) FROM demo_report WHERE report_code='ref-conflict'", Long.class));
         // The reservation is tenant-local, and custom names remain supported.
-        tx.executeWithoutResult(s -> metadata.saveScope(2, 42, "CUSTOM_FIELD", "1", "default", "团队", true, 0));
+        tx.executeWithoutResult(s -> metadata.createReport(2, 42, "ref-ok", "报表", "sales-records", "OTHER_FIELD", List.of("CUSTOM_FIELD")));
         tx.executeWithoutResult(s -> metadata.createReport(1, 42, "r2", "另一报表", "sales-records", "CUSTOM_FIELD"));
     }
 
     @Test
     void shouldRejectFieldTypeUsedByScopesIncludingHistoricalAndReservedTypes() {
         var tx = new TransactionTemplate(transactions);
-        tx.executeWithoutResult(s -> metadata.saveScope(1, 42, "CUSTOM_SCOPE", "T1", null, "团队", true, 0));
-        jdbc.update("UPDATE demo_scope SET delete_flag=id");
+        tx.executeWithoutResult(s -> metadata.createReport(1, 42, "historical", "报表", "sales-records", "FIELDS", List.of("CUSTOM_SCOPE")));
+        jdbc.update("UPDATE demo_report SET delete_flag=id WHERE report_code='historical'");
         for (String type : java.util.List.of("CUSTOM_SCOPE", "DEMO_REPORT", "DEMO_POLICY", "DEMO_DATASET", "DEMO_TASK")) {
             var denied = assertThrows(BizException.class, () -> tx.executeWithoutResult(s ->
                 metadata.createReport(1, 42, "invalid", "报表", "sales-records", type)), type);
             assertEquals(30102, denied.getErrorCode());
         }
-        assertEquals(0L, jdbc.queryForObject("SELECT count(*) FROM demo_report", Long.class));
+        assertEquals(0L, jdbc.queryForObject("SELECT count(*) FROM demo_report WHERE report_code='invalid'", Long.class));
     }
 
     @Test
@@ -157,7 +156,7 @@ class MetadataPersistencePgIT {
             metadata.createReport(1, 42, "concurrent", "报表", "sales-records", "SHARED_TYPE");
             var future = CompletableFuture.supplyAsync(() -> {
                 try {
-                    tx.executeWithoutResult(other -> metadata.saveScope(1, 42, "SHARED_TYPE", "T1", null, "团队", true, 0));
+                    tx.executeWithoutResult(other -> metadata.createReport(1, 42, "ref-conflict", "报表", "sales-records", "OTHER_FIELD", List.of("SHARED_TYPE")));
                     return 200;
                 } catch (BizException e) { return e.getErrorCode(); }
             });
@@ -175,7 +174,7 @@ class MetadataPersistencePgIT {
             assertTrue(blocked, "the competing write must wait for the actual transaction, not see uncommitted absence");
         });
         assertEquals(30102, pending.get().get(10, TimeUnit.SECONDS));
-        assertEquals(0L, jdbc.queryForObject("SELECT count(*) FROM demo_scope", Long.class));
+        assertEquals(0L, jdbc.queryForObject("SELECT count(*) FROM demo_report WHERE report_code='ref-conflict'", Long.class));
     }
 
     @Test
@@ -297,27 +296,6 @@ class MetadataPersistencePgIT {
         tx.executeWithoutResult(s -> publications.retry(1, 42, "DEMO_REPORT", "stale", null));
         assertEquals(payload, publications.latest(1, "DEMO_REPORT", "stale", null).getPayload());
         assertEquals("PENDING", metadata.getReport(1, "stale").getPublicationStatus());
-    }
-
-    @Test
-    void shouldPublishScopeVersionsAndRejectConflictingUpdates() {
-        var tx=new TransactionTemplate(transactions);
-        tx.executeWithoutResult(s -> metadata.saveScope(1,42,"CUSTOM_SCOPE","team-t1"," BIZ ","团队",true,0));
-        when(syncClient.syncResource(any(),anyString(),anyString())).thenReturn(cn.ac.fage.accessmesh.common.model.R.ok(
-            new cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp(true,true,false,null,null)));
-        publisher.publishNext();
-        assertEquals("PUBLISHED",jdbc.queryForObject("SELECT publication_status FROM demo_scope",String.class));
-        assertEquals(30103,assertThrows(BizException.class,() -> tx.executeWithoutResult(s ->
-            metadata.saveScope(1,42,"CUSTOM_SCOPE","team-t1","BIZ","冲突",false,0))).getErrorCode());
-        tx.executeWithoutResult(s -> metadata.saveScope(1,42,"CUSTOM_SCOPE","team-t1","BIZ","停用",false,1));
-        publisher.publishNext();
-        var sent=org.mockito.ArgumentCaptor.forClass(cn.ac.fage.accessmesh.perm.common.dto.req.ResourceEntitySyncReq.class);
-        verify(syncClient,times(2)).syncResource(sent.capture(),anyString(),anyString());
-        assertEquals("BIZ",sent.getAllValues().get(0).codeType());
-        assertEquals(2L,sent.getAllValues().get(1).syncVersion().sequenceNo());
-        assertEquals(0,sent.getAllValues().get(1).status());
-        assertFalse(jdbc.queryForObject("SELECT enabled FROM demo_scope",Boolean.class));
-        assertEquals("PUBLISHED",jdbc.queryForObject("SELECT publication_status FROM demo_scope",String.class));
     }
 
     @Test

@@ -74,7 +74,6 @@ public class DemoPublicationDomainServiceImpl implements DemoPublicationDomainSe
         switch (entity) {
             case "demo_report" -> events.markReport(event, status);
             case "demo_report_field" -> events.markField(event, status);
-            case "demo_scope" -> events.markScope(event, status);
             default -> throw new IllegalStateException("Unexpected stored publication entity");
         }
     }

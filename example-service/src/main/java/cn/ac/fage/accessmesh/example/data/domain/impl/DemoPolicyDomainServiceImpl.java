@@ -32,9 +32,6 @@ public class DemoPolicyDomainServiceImpl implements DemoPolicyDomainService {
         var rowTypes=new HashSet<String>();
         rowTypes.add(configuration.read().rowResourceTypeCode()); rowTypes.add(configuration.edit().rowResourceTypeCode());
         metadata.validatePolicyTypes(tenant,configuration.read().fieldResourceTypeCode(),rowTypes);
-        var scopes=metadata.scopes(tenant,configuration.bindings().keySet());
-        if (scopes.size()!=configuration.bindings().size() || scopes.stream().anyMatch(s -> !s.getEnabled())) throw error(ExampleErrorCode.DEMO_POLICY_INVALID);
-        if (scopes.stream().anyMatch(s -> !"PUBLISHED".equals(s.getPublicationStatus()))) throw error(ExampleErrorCode.DEMO_RESOURCE_NOT_READY);
         if (policies.storedLength(configuration.json())>262144) throw error(ExampleErrorCode.DEMO_LIMIT_EXCEEDED);
         var policy=new DemoPolicy();
         policy.setTenantId(tenant); policy.setDatasetId(dataset); policy.setVersion(expectedVersion+1);

@@ -23,18 +23,12 @@ public interface DemoDatasetMapper {
     Long lock(@Param("tenant") long tenant);
 
     @Select("""
-        SELECT EXISTS(SELECT 1 FROM demo_scope WHERE tenant_id=#{tenant} AND resource_type_code=#{type})
-          OR EXISTS(SELECT 1 FROM demo_report WHERE tenant_id=#{tenant} AND jsonb_exists(referenced_type_codes,#{type}))
+        SELECT EXISTS(SELECT 1 FROM demo_report WHERE tenant_id=#{tenant} AND jsonb_exists(referenced_type_codes,#{type}))
           OR EXISTS(SELECT 1 FROM demo_policy WHERE tenant_id=#{tenant}
             AND (configuration #>> '{read,rowResourceTypeCode}'=#{type}
               OR configuration #>> '{edit,rowResourceTypeCode}'=#{type}))
         """)
     boolean usedForScope(@Param("tenant") long tenant, @Param("type") String type);
-
-    @Select("""
-        SELECT EXISTS(SELECT 1 FROM demo_report WHERE tenant_id=#{tenant} AND field_resource_type_code=#{type})
-        """)
-    boolean usedForField(@Param("tenant") long tenant, @Param("type") String type);
 
     @Select("""
         <script>

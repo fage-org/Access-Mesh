@@ -47,7 +47,7 @@ class DemoInterfaceManifestTest {
                 case "/demo-report/create" -> DemoPermission.REPORT_CREATE;
                 case "/demo-report/get" -> DemoPermission.REPORT_VIEW;
                 case "/demo-report/update", "/demo-field/register", "/demo-field/list", "/demo-field/update", "/demo-field/remove" -> DemoPermission.REPORT_UPDATE;
-                case "/demo-scope/save", "/demo-publication/get", "/demo-publication/page", "/demo-publication/retry", "/demo-policy/get", "/demo-policy/save" -> DemoPermission.POLICY_MANAGE;
+                case "/demo-publication/get", "/demo-publication/page", "/demo-publication/retry", "/demo-policy/get", "/demo-policy/save" -> DemoPermission.POLICY_MANAGE;
                 case "/demo-data/fields", "/demo-data/page", "/demo-data/get", "/demo-data/batch-get" -> DemoPermission.REPORT_READ;
                 case "/demo-data/update", "/demo-data/batch-update" -> DemoPermission.REPORT_EDIT;
                 case "/demo-data/import", "/demo-data/import-status", "/demo-data/revoke-import" -> DemoPermission.DATASET_MANAGE;
@@ -66,5 +66,6 @@ class DemoInterfaceManifestTest {
             }
         }
         assertThat(declared).containsExactlyInAnyOrderElementsOf(implemented);
+        assertThat(declared).doesNotContain("/api/example/demo-scope/save");
     }
 }
