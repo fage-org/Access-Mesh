@@ -20,6 +20,9 @@ import java.util.Set;
  * </p>
  */
 public interface ResourceEntityMapper extends BaseMapper<ResourceEntity> {
+    boolean hasResourceHistoryForType(@Param("tenantId") Long tenantId, @Param("resourceType") Integer resourceType);
+    List<ResourceEntity> selectIdentityHistoryByIds(@Param("tenantId") Long tenantId,
+        @Param("resourceIds") List<Long> resourceIds);
     List<ResourceEntity> selectExclusiveScope(@Param("tenantId") Long tenantId, @Param("primaryId") Long primaryId,
         @Param("types") Set<Integer> types, @Param("limit") int limit);
     List<AncestorClosureResult> selectRelatedAncestorClosures(@Param("tenantId") Long tenantId, @Param("primaryId") Long primaryId,

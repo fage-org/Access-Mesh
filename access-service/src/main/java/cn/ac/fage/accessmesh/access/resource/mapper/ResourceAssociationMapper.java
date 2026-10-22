@@ -14,7 +14,7 @@ public interface ResourceAssociationMapper {
     List<ResourceAssociation> selectByPrimaryIds(@Param("tenantId") Long tenantId, @Param("ids") Collection<Long> ids);
     List<ResourceAssociation> selectByExclusiveIds(@Param("tenantId") Long tenantId, @Param("ids") Collection<Long> ids);
     List<ResourceAssociation> selectBySharedTypeIds(@Param("tenantId") Long tenantId, @Param("ids") Collection<Long> ids);
-    boolean hasTypeUses(@Param("tenantId") Long tenantId, @Param("typeId") Long typeId, @Param("typeValue") Integer typeValue);
+    boolean hasTypeHistory(@Param("tenantId") Long tenantId, @Param("typeId") Long typeId, @Param("typeValue") Integer typeValue);
     int insertExclusive(@Param("tenantId") Long tenantId, @Param("primaryId") Long primaryId,
         @Param("exclusiveId") Long exclusiveId, @Param("actorId") Long actorId, @Param("now") LocalDateTime now);
     int insertShared(@Param("tenantId") Long tenantId, @Param("primaryId") Long primaryId,

@@ -18,7 +18,7 @@ import java.util.Set;
 public interface RoleResourcePermissionDomainService {
     record AssociationGrant(Long id, Long roleId, Long conditionId, Long primaryId, Integer resourceType) {}
     List<AssociationGrant> selectAssociationGrants(Long tenantId, Set<Long> resourceIds, boolean includeDirect);
-    boolean hasBusinessGrantsForTypes(Long tenantId, Set<Integer> resourceTypes);
+    boolean hasBusinessGrantHistoryForTypes(Long tenantId, Set<Integer> resourceTypes);
 
     /**
      * 查询指定资源 ID 集合的有效权限行 ID（删除级联盘点）。

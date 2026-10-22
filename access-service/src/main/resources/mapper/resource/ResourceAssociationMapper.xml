@@ -23,11 +23,11 @@
     <select id="selectBySharedTypeIds" flushCache="true" useCache="false" resultType="cn.ac.fage.accessmesh.access.resource.entity.ResourceAssociation">
         SELECT * FROM resource_association WHERE tenant_id=#{tenantId} AND delete_flag=0 AND shared_type_id IN <include refid="ids"/>
     </select>
-    <select id="hasTypeUses" flushCache="true" useCache="false" resultType="boolean">
+    <select id="hasTypeHistory" flushCache="true" useCache="false" resultType="boolean">
         SELECT EXISTS(SELECT 1 FROM resource_association a
             JOIN resource_entity p ON p.tenant_id=a.tenant_id AND p.id=a.primary_resource_id
             LEFT JOIN resource_entity e ON e.tenant_id=a.tenant_id AND e.id=a.exclusive_resource_id
-            WHERE a.tenant_id=#{tenantId} AND a.delete_flag=0
+            WHERE a.tenant_id=#{tenantId}
               AND (a.shared_type_id=#{typeId} OR p.resource_type=#{typeValue} OR e.resource_type=#{typeValue}))
     </select>
     <insert id="insertExclusive">

@@ -112,10 +112,10 @@ public class ResourceAssociationDomainServiceImpl implements ResourceAssociation
             }
         }
         if (!associationChanged) return;
-        if (Boolean.TRUE.equals(type.getIsSystem()) || resources.existsValidByType(tenantId, type.getTypeValue()) > 0
-            || relations.hasTypeUses(tenantId, type.getId(), type.getTypeValue())
-            || grants.hasBusinessGrantsForTypes(tenantId, Set.of(type.getTypeValue()))) {
-            throw conflict("类型已有资源、关系或业务授权，不允许改变关系用途");
+        if (Boolean.TRUE.equals(type.getIsSystem()) || resources.hasResourceHistoryForType(tenantId, type.getTypeValue())
+            || relations.hasTypeHistory(tenantId, type.getId(), type.getTypeValue())
+            || grants.hasBusinessGrantHistoryForTypes(tenantId, Set.of(type.getTypeValue()))) {
+            throw conflict("类型曾有资源、关系或业务授权，包含已删除历史，不允许改变关系用途");
         }
     }
 
@@ -153,8 +153,15 @@ public class ResourceAssociationDomainServiceImpl implements ResourceAssociation
         if (resourceIds.isEmpty()) return;
         locks.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         LocalDateTime now = LocalDateTime.now();
+        // 调用方已软删资源；仍需按原身份限定新增清理，普通 NONE 同步资源保留既有生命周期。
+        List<ResourceEntity> deleted = new ArrayList<>();
+        SqlBatches.forEach(new ArrayList<>(resourceIds), ids -> deleted.addAll(resources.selectIdentityHistoryByIds(tenantId, ids)));
+        var relatedTypes = runtimeTypes(tenantId, deleted.stream().map(ResourceEntity::getResourceType).collect(Collectors.toSet()));
+        Set<Long> associationIds = deleted.stream()
+            .filter(row -> row.getSourceEntityId() != null || relatedTypes.containsKey(row.getResourceType()))
+            .map(ResourceEntity::getId).collect(Collectors.toSet());
         SqlBatches.forEach(new ArrayList<>(resourceIds), ids -> relations.softDeleteByResourceIds(tenantId, ids, actorId, now));
-        var removed = grants.selectAssociationGrants(tenantId, resourceIds, true);
+        var removed = grants.selectAssociationGrants(tenantId, associationIds, true);
         removeGrants(tenantId, removed, now, "RESOURCE_DELETED");
         if (!removed.isEmpty()) PermissionChangeContext.markRoles(tenantId,
             autoGrants.recompute(tenantId, removed.stream().map(RoleResourcePermissionDomainService.AssociationGrant::roleId).collect(Collectors.toSet()), Set.of()));

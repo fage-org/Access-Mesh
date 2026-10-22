@@ -15,10 +15,9 @@
           </if>
         )
     </select>
-    <select id="hasBusinessGrantsForTypes" flushCache="true" useCache="false" resultType="boolean">
+    <select id="hasBusinessGrantHistoryForTypes" flushCache="true" useCache="false" resultType="boolean">
         SELECT EXISTS(SELECT 1 FROM role_resource_permission p
-          JOIN abstract_role r ON r.tenant_id=p.tenant_id AND r.id=p.abstract_role_id AND r.delete_flag=0
-          WHERE p.tenant_id=#{tenantId} AND p.delete_flag=0 AND COALESCE(p.grant_source,'MANUAL') != 'AUTHORITY_ROOT'
+          WHERE p.tenant_id=#{tenantId} AND COALESCE(p.grant_source,'MANUAL') != 'AUTHORITY_ROOT'
             AND p.resource_type IN <foreach collection="resourceTypes" item="type" open="(" separator="," close=")">#{type}</foreach>)
     </select>
 

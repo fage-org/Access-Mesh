@@ -83,7 +83,7 @@ QueryResult result = queryEngine.execute(new QueryRequest(tenantId, new User(use
 return PermResultUtils.toAuthCheckResp((DecisionResult) result.orderedResults().get(0));
 
 // batchCheck：多个独立 DECISION item 一次 execute 批量表达（禁循环 N 次公开 execute）；
-// 拒绝原因词表（NO_ROLE/NO_PERMISSION/CONDITION_NOT_MET/PERMISSION_CONFLICT/DEPENDENT_NOT_IN_PARENT_CONTEXT）
+// 拒绝原因词表（NO_ROLE/NO_PERMISSION/CONDITION_NOT_MET/PERMISSION_CONFLICT/DEPENDENT_NOT_IN_PARENT_CONTEXT/RESOURCE_NOT_IN_PARENT_CONTEXT）
 // 与 DecisionResult.Reason 枚举 1:1（.name() 输出）
 ```
 

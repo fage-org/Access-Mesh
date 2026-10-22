@@ -21,7 +21,7 @@ import java.util.Set;
 public interface RoleResourcePermissionMapper extends BaseMapper<RoleResourcePermission> {
     List<AssociationGrant> selectAssociationGrants(
         @Param("tenantId") Long tenantId, @Param("resourceIds") List<Long> resourceIds, @Param("includeDirect") boolean includeDirect);
-    boolean hasBusinessGrantsForTypes(@Param("tenantId") Long tenantId, @Param("resourceTypes") Set<Integer> resourceTypes);
+    boolean hasBusinessGrantHistoryForTypes(@Param("tenantId") Long tenantId, @Param("resourceTypes") Set<Integer> resourceTypes);
 
     /**
      * 查询指定ID列表中属于指定角色和租户的有效权限

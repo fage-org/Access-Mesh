@@ -384,6 +384,20 @@ class ResourceAssociationDomainPgIT {
             .isInstanceOf(BizException.class);
         assertThat(sync.sync(1L, publication("UPSERT", "ASSOCIATION_REPORT", "report-a", "10", 2, null, java.util.List.of()), null).applied()).isTrue();
         tx.executeWithoutResult(s -> associations.assertTypesDeletable(1L, Set.of(991012L)));
+        assertThatThrownBy(() -> tx.executeWithoutResult(s -> associations.assertTypeChangeAllowed(1L, 991012L, "{}")))
+            .isInstanceOfSatisfying(BizException.class, error -> assertThat(error.getErrorCode()).isEqualTo(20081));
+    }
+
+    @Test
+    void shouldKeepTypePurposeLockedAfterLastInstanceIsDeleted() {
+        jdbc.update("DELETE FROM resource_entity WHERE id=991005");
+        jdbc.update("INSERT INTO resource_entity(id,tenant_id,resource_type,code,name,delete_flag) VALUES (991006,2,993,'old-region','other tenant',991006)");
+        tx.executeWithoutResult(s -> associations.assertTypeChangeAllowed(1L, 991012L, "{}"));
+        jdbc.update("INSERT INTO resource_entity(id,tenant_id,resource_type,code,name,delete_flag) VALUES (991005,1,993,'region-r1','R1',991005)");
+        assertThatThrownBy(() -> tx.executeWithoutResult(s -> associations.assertTypeChangeAllowed(1L, 991012L, "{}")))
+            .isInstanceOfSatisfying(BizException.class, error -> assertThat(error.getErrorCode()).isEqualTo(20081));
+        String unchanged = jdbc.queryForObject("SELECT extra::text FROM type_definition WHERE id=991012", String.class);
+        tx.executeWithoutResult(s -> associations.assertTypeChangeAllowed(1L, 991012L, unchanged));
     }
 
     @Test
@@ -392,9 +406,16 @@ class ResourceAssociationDomainPgIT {
         jdbc.update("INSERT INTO abstract_role(id,tenant_id,role_type,external_id,name) VALUES (991020,1,1,'association-role','role')");
         jdbc.update("INSERT INTO role_resource_permission(tenant_id,abstract_role_id,resource_type,granted_bits,scope_all,can_grant,grant_source) VALUES (1,991020,993,1,true,true,'AUTHORITY_ROOT')");
         tx.executeWithoutResult(s -> associations.assertTypeChangeAllowed(1L, 991012L, "{}"));
+        jdbc.update("UPDATE role_resource_permission SET delete_flag=id WHERE abstract_role_id=991020");
+        tx.executeWithoutResult(s -> associations.assertTypeChangeAllowed(1L, 991012L, "{}"));
+        jdbc.update("UPDATE role_resource_permission SET delete_flag=0 WHERE abstract_role_id=991020");
         jdbc.update("UPDATE role_resource_permission SET grant_source='MANUAL' WHERE abstract_role_id=991020");
         assertThatThrownBy(() -> tx.executeWithoutResult(s -> associations.assertTypeChangeAllowed(1L, 991012L, "{}")))
             .isInstanceOf(BizException.class);
+        jdbc.update("UPDATE role_resource_permission SET delete_flag=id WHERE abstract_role_id=991020");
+        jdbc.update("UPDATE abstract_role SET delete_flag=id WHERE id=991020");
+        assertThatThrownBy(() -> tx.executeWithoutResult(s -> associations.assertTypeChangeAllowed(1L, 991012L, "{}")))
+            .isInstanceOfSatisfying(BizException.class, error -> assertThat(error.getErrorCode()).isEqualTo(20081));
     }
 
     @Test
