@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-145
 title: 资源归属与引用实施契约定稿
 status: done
-plan: docs/plans/resource-association-plan.md
+plan: docs/archive/2026-10-22/resource-association-plan.md
 domain: cross-service
 design_refs:
   - docs/design/resource-association.md#contract-gate
@@ -37,11 +37,11 @@ last_updated: 2026-10-21
 
 已确认的类型性质、来源分工、操作复用和原入口不重复决策；G1/G2 的 ALL、DIRECT、父来源及解绑复用取舍按真实场景交用户确认。技术细化按现有组件与工程规范解决，不另设审批流程。只有文档定稿，不执行后端、前端或数据库变更。
 
-通用引用采用[整类引用、实例级授权](../design/resource-association.md#model)，原通用实例子集引用方案已取代；需要计算子权限时采用[完整父来源](../design/engine/implementation.md#association-parent-sources)。ALL、解绑再绑、实例/类型删除及已使用类型用途不可变规则已归[目标契约](../design/access-service-api-contract.md#resource-association-contract)。下游任务验收随目标修订，直接依赖不变。
+通用引用采用[整类引用、实例级授权](../../../design/resource-association.md#model)，原通用实例子集引用方案已取代；需要计算子权限时采用[完整父来源](../../../design/engine/implementation.md#association-parent-sources)。ALL、解绑再绑、实例/类型删除及已使用类型用途不可变规则已归[目标契约](../../../design/access-service-api-contract.md#resource-association-contract)。下游任务验收随目标修订，直接依赖不变。
 
-详细规则以[资源关系设计](../design/resource-association.md)及上列 design_refs 为准。G3 的主资源删建代际采用不可复用来源身份核验，允许业务编码复用，字段发布须携带预期主来源身份；规则与协议已回写契约总册及 example 契约。实现中的新取舍仍须交用户决定。
+详细规则以[资源关系设计](../../../design/resource-association.md)及上列 design_refs 为准。G3 的主资源删建代际采用不可复用来源身份核验，允许业务编码复用，字段发布须携带预期主来源身份；规则与协议已回写契约总册及 example 契约。实现中的新取舍仍须交用户决定。
 
-**实施入口核对**（代码基线 `52eba3f0147bcca86a41c7320e6788f617c48e11`；下面记录现状与接线责任，不表示新能力已实现）：
+**实施入口核对**（代码基线 `52eba3f0147bcca86a41c7320e6788f617c48e11`；下面记录定稿时现状与接线责任，不表示新能力已实现）：
 
 | 入口 | 已核对现状 | 本计划接线责任 |
 |---|---|---|
@@ -58,7 +58,7 @@ last_updated: 2026-10-21
 | bootstrap / SDK / DTO 对账 | 固定管理图与接口清单、SDK、TS 镜像均有现有载体 | 147/FE-080 在正式接口确定后同步字段、路由与客户端；不向既有普通类型默认开启关系模式 |
 | example 元数据、发布与准备脚本 | `saveScope` 写本地目录并入发布队列；`publishNext` 在本地领取事务之外调用 IAM，再单独结束事件；脚本仍逐项调用 `demo-scope/save` | 149 改为 IAM 管理通用目录、业务只保留映射与整类引用；保留远端调用不入本地写事务的边界 |
 
-**定稿落点**：API 字段、错误、预算与消费者边界见契约总册 §12.6；数据库约束方案与锁序见[服务架构](../design/access-service-architecture.md#resource-association-storage)；example 接线与退役范围见[业务契约](../design/example-service-api-contract.md#resource-association-publication)。现有业务代码未变，不以文档定稿宣称能力可用。
+**定稿落点**：API 字段、错误、预算与消费者边界见契约总册 §12.6；数据库约束方案与锁序见[服务架构](../../../design/access-service-architecture.md#resource-association-storage)；example 接线与退役范围见[业务契约](../../../design/example-service-api-contract.md#resource-association-publication)。本卡仅定稿；实际交付与联合证据见 [T-ACCESS-150](T-ACCESS-150.md)。
 
 ## 验收对照
 

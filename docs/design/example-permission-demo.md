@@ -8,9 +8,9 @@ last_reviewed: 2026-10-22
 
 # example-service 持久化权限演示
 
-> **资源关系接入目标（T-ACCESS-149，分项实施）**：字段发布唯一报表归属，通用范围改为 IAM 维护实例、example 发布整类引用并维护业务谓词映射，规则见[资源关系契约](access-service-api-contract.md#resource-association-contract)。通用行范围 ALL 继续表示整个数据集，保留 CSV 导入的 ALL 前提；实例删除/停用不缩窄独立 ALL。字段 ALL 继续仅覆盖当前报表有效字段。INSTANCE 中无法解释的业务键沿现有配置错误拒绝，不静默丢弃或放开范围；本地映射不得成为 MANAGED 目录的另一写入口。具体端点裁剪与发布字段由本计划契约定稿，旧实现仍以下文及现有代码为准。
+> **资源关系接入（T-ACCESS-149）**：字段发布唯一报表归属，通用范围改为 IAM 维护实例、example 发布整类引用并维护业务谓词映射，规则见[资源关系契约](access-service-api-contract.md#resource-association-contract)。通用行范围 ALL 继续表示整个数据集，保留 CSV 导入的 ALL 前提；实例删除/停用不缩窄独立 ALL。字段 ALL 继续仅覆盖当前报表有效字段。INSTANCE 中无法解释的业务键沿现有配置错误拒绝，不静默丢弃或放开范围；本地映射不得成为 MANAGED 目录的另一写入口。端点退役与发布字段以 example 契约为准。
 
-报表已保存整类引用并随版本冻结发布；字段事件已携带所属报表业务键及不可复用来源 ID，发送复用 perm-client SDK。通用目录退役及策略保存时的 IAM 核验方式仍待用户决定，见 [T-ACCESS-149](../tasks/T-ACCESS-149.md)。该分项状态不代表新流程已完成联合验收。
+报表已保存整类引用并随版本冻结发布；字段事件已携带所属报表业务键及不可复用来源 ID，发送复用 perm-client SDK。通用目录已退役；2026-10-22 用户确认业务映射可先保存，执行时以 IAM 有效权限和映射完整性为准，见 [T-ACCESS-149](../archive/2026-10-22/tasks/T-ACCESS-149.md)。联合验收已完成，含普通角色 A/B 行列隔离、解绑重绑、实例启停和删除主资源。
 
 <a id="scope"></a>
 ## 1. 定位与确认范围
@@ -219,7 +219,7 @@ access-service 当前任务调用仅支持本进程 `@JobInvocable bean.method(T
 
 独立 example_db 与数据库账号，MyBatis-Flex/PostgreSQL 沿项目技术栈，不读取 IAM 内部表。逻辑实体为报表、报表字段与资源映射、业务记录、导入批次、数据集字段目录、策略版本/范围绑定、待发布资源、定时任务、执行记录与有界结果；报表字段归属/身份和目录版本必须有持久约束，不能只放内存映射。同生命周期结构按首版表结构合并，不为概念各造一层框架。唯一可执行 DDL 由 [example schema](schema/example-service.sql)维护，T-ACCESS-137 已完成原样 PG 验证；实际环境只按[业务库初始化说明](../ops/example-database.md)在空库执行，不由服务隐式建表。
 
-资源通过现有 SYNC 通道登记，类型定义和操作仍由租户管理员经既有管理 API 创建，类型来源明确归 example。待发布事件与本地业务写入同事务，事务外发请求，重试同载荷/版本；发布未完成不冒充资源已可授权。政策规则修改不直接改用户授权，所有授权仍在 AccessMesh。
+报表和专属字段通过现有 SYNC 通道登记，来源归 example；通用范围由 IAM 的 MANAGED 管理入口维护。类型定义和操作由租户管理员经既有管理 API 创建。待发布事件与本地业务写入同事务，事务外发请求，重试同载荷/版本；发布未完成不冒充资源已可授权。政策规则修改不直接改用户授权，所有授权仍在 AccessMesh。
 
 Controller → AppService → DomainService → Mapper；事务在 AppService。本地唯一性、CAS、行锁优先，不为示例新增 Redis 依赖。按[并发规范](project-rules.md#backend-concurrency)枚举竞争入口；所有远程查询/发布在本地写事务之外。字段类型、节点/参数数量、SQL 时间和分页设置硬上限，禁止原始 SQL 或可执行表达式。
 

@@ -22,23 +22,23 @@
 
 ## 当前待办入口
 
-[专属资源归属与通用资源引用计划](../plans/resource-association-plan.md)已启动，[T-ACCESS-145](T-ACCESS-145.md) 已完成，[T-ACCESS-146](T-ACCESS-146.md) 已完成，[T-ACCESS-147](T-ACCESS-147.md) 已完成，当前实现入口为 [T-ACCESS-148](T-ACCESS-148.md)，其余任务等待直接依赖。[T-ACCESS-144](../archive/2026-10-20/tasks/T-ACCESS-144.md)及[example 持久化权限演示](../archive/2026-10-20/example-permission-demo-plan.md)保持已归档，业务页面任务保持取消，其他暂缓事项不变。
+[专属资源归属与通用资源引用计划](../archive/2026-10-22/resource-association-plan.md)全部七项任务已完成并归档，证据见[联合验收](../archive/2026-10-22/tasks/evidence/T-ACCESS-150/verification.md)。[example 持久化权限演示](../archive/2026-10-20/example-permission-demo-plan.md)保持已归档，业务页面任务保持取消，其他暂缓事项不变。
 
 ## 任务总表
 
-### 专属资源归属与通用资源引用
+### 专属资源归属与通用资源引用（已归档）
 
-[执行计划](../plans/resource-association-plan.md) · [目标设计](../design/resource-association.md)
+[执行计划](../archive/2026-10-22/resource-association-plan.md) · [目标设计](../design/resource-association.md)
 
 | ID | 标题 | 状态 | 直接依赖 |
 |---|---|---|---|
-| [T-ACCESS-145](T-ACCESS-145.md) | 资源归属与引用实施契约定稿 | ✅ | — |
-| [T-ACCESS-146](T-ACCESS-146.md) | 资源关系存储与生命周期领域基础 | ✅ | T-ACCESS-145 |
-| [T-ACCESS-147](T-ACCESS-147.md) | 资源关系发布与候选查询及 SDK 接线 | ✅ | T-ACCESS-146 |
-| [T-ACCESS-148](T-ACCESS-148.md) | 资源关联授权守卫与运行时一致消费 | 🔨 | T-ACCESS-146 |
-| [T-FE-080](T-FE-080.md) | 现有子权限入口按资源归属与引用配置 | 🔨 | T-ACCESS-147、T-ACCESS-148 |
-| [T-ACCESS-149](T-ACCESS-149.md) | example 专属字段与通用范围接入 | 🔨 | T-ACCESS-147、T-ACCESS-148 |
-| [T-ACCESS-150](T-ACCESS-150.md) | 资源关系联合验收与文档收口 | ⚙️ | T-FE-080、T-ACCESS-149 |
+| [T-ACCESS-145](../archive/2026-10-22/tasks/T-ACCESS-145.md) | 资源归属与引用实施契约定稿 | ✅ | — |
+| [T-ACCESS-146](../archive/2026-10-22/tasks/T-ACCESS-146.md) | 资源关系存储与生命周期领域基础 | ✅ | T-ACCESS-145 |
+| [T-ACCESS-147](../archive/2026-10-22/tasks/T-ACCESS-147.md) | 资源关系发布与候选查询及 SDK 接线 | ✅ | T-ACCESS-146 |
+| [T-ACCESS-148](../archive/2026-10-22/tasks/T-ACCESS-148.md) | 资源关联授权守卫与运行时一致消费 | ✅ | T-ACCESS-146 |
+| [T-FE-080](../archive/2026-10-22/tasks/T-FE-080.md) | 现有子权限入口按资源归属与引用配置 | ✅ | T-ACCESS-147、T-ACCESS-148 |
+| [T-ACCESS-149](../archive/2026-10-22/tasks/T-ACCESS-149.md) | example 专属字段与通用范围接入 | ✅ | T-ACCESS-147、T-ACCESS-148 |
+| [T-ACCESS-150](../archive/2026-10-22/tasks/T-ACCESS-150.md) | 资源关系联合验收与文档收口 | ✅ | T-FE-080、T-ACCESS-149 |
 
 ### 事务隔离与演示执行可靠性
 

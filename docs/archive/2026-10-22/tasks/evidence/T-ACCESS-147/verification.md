@@ -1,3 +1,5 @@
+> 本文保留分项验证时点的命令和结果；整体终态与最终完整回归见 [T-ACCESS-150](../T-ACCESS-150/verification.md)。早期 target/task-logs 已随根 clean 清理，不能作为当前可访问文件；最终日志在本地 .git/task-logs。
+
 # T-ACCESS-147 验证证据
 
 范围：资源候选/关系详情、类型候选、树形归属显示数据、SDK 发布/管理 DTO 接线与身份边界。运行时判定和页面组件接入由下游任务负责。
@@ -12,7 +14,7 @@
 | 2026-10-22 | `pnpm -C frontend typecheck` | TypeScript 与 Vue 类型检查通过 |
 | 2026-10-22 | `mvn test -pl access-service '-Dtest=ResourceAssociationDomainPgIT#shouldFilterCandidateVisibilityBeforePaginationAndDistinguishMissingReference'` | 1 项 PG 通过，零跳过；区分缺引用、无可见权限、空目录及分页超限 |
 
-本地完整日志在 `target/task-logs/T-ACCESS-147-*.log`；源码移动后已执行 access-service clean 构建，未依赖旧目录遗留 class。字段对账已显式登记新响应及资源树节点，不假设未登记字段受保护。
+当时完整日志写入 target/task-logs；源码移动后已执行 access-service clean 构建，未依赖旧目录遗留 class。字段对账已显式登记新响应及资源树节点，不假设未登记字段受保护。
 
 ## 代码轨
 

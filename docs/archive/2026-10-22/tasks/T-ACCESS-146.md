@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-146
 title: 资源关系存储与生命周期领域基础
 status: done
-plan: docs/plans/resource-association-plan.md
+plan: docs/archive/2026-10-22/resource-association-plan.md
 domain: access-service
 design_refs:
   - docs/design/resource-association.md#model
@@ -39,7 +39,7 @@ last_updated: 2026-10-22
 
 沿用既有资源类型和操作身份，未声明类型保持原契约。单层关系，不复用 parent_id、depend_on 或维护服务字段。数据来源与唯一归属守卫以 T-ACCESS-145 定稿为准，禁止在两处存可独立修改的归属。
 
-详细规则以[资源关系设计](../design/resource-association.md)及上列 design_refs 为准。存储、类型守卫、原子发布与生命周期基础已实现，定向验证及本地双轨核对通过；完整功能须待候选/SDK、授权消费及联合验收完成。
+详细规则以[资源关系设计](../../../design/resource-association.md)及上列 design_refs 为准。存储、类型守卫、原子发布与生命周期基础已实现，定向验证及本地双轨核对通过；完整功能须待候选/SDK、授权消费及联合验收完成。
 
 ## 验收对照
 

@@ -1,3 +1,5 @@
+> 本文保留分项验证时点的命令和结果；整体终态与最终完整回归见 [T-ACCESS-150](../T-ACCESS-150/verification.md)。早期 target/task-logs 已随根 clean 清理，不能作为当前可访问文件；最终日志在本地 .git/task-logs。
+
 # T-ACCESS-146 验证证据
 
 范围：资源关系存储、类型用途守卫、single/FULL 原子发布、来源身份、删除与事务串行边界。完整查询/授权/页面闭环不属于本卡交付。
@@ -10,7 +12,7 @@
 | 2026-10-22 | `mvn test -pl access-service -Dtest=ResourceAssociationDomainPgIT,TypeDefinitionAppServiceImplTest,ResourceTypeOwnershipGuardTest` | 单测 88、关系 PG 14，零失败/错误/跳过；包括真实提交闸门下引用与用途修改、字段发布与主资源删除 |
 | 2026-10-22 | `mvn test -pl access-service -Dtest=ResourceAssociationDomainPgIT` | PG 15，零失败/错误/跳过；补齐专属树跨归属拒绝与同归属允许，最终领域用例实际经过生产同步入口 |
 
-完整本地日志保存在 `target/task-logs/T-ACCESS-146-*.log`，长期结论以本文件的命令和结果及对应提交为据。SQL、声明与发布行为先由缺失能力触发失败，再验证实现；容器不可用导致的跳过未计入上表通过证据。
+当时的完整本地日志写入 target/task-logs；长期结论以本文件的命令和结果及对应提交为据。SQL、声明与发布行为先由缺失能力触发失败，再验证实现；容器不可用导致的跳过未计入上表通过证据。
 
 ## 代码轨
 

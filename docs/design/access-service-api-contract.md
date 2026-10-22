@@ -1876,9 +1876,9 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
 - T-PERM-027：`ApiMappingResp`（`list`/`service-config/apis`/`create`/`update` 共用）另含关联资源业务字段 `resourceCode/resourceName/resourceTypeCode`（资源已软删时为 null），以及映射自身 maintainSource、requiredPermission（§25.1）。
 
 <a id="resource-association-contract"></a>
-### 12.6 专属归属与通用整类引用（分项实施）
+### 12.6 专属归属与通用整类引用
 
-本节由 T-ACCESS-145 定稿。T-ACCESS-146 已实现类型声明、sync/full-sync 的关系字段与来源身份、持久化及写生命周期；T-ACCESS-147 接入管理只读查询、类型候选过滤及 SDK。授权清理和运行时消费正在 T-ACCESS-148 实施与验证，页面实际使用由 T-FE-080 接续。交付状态以[任务看板](../tasks/README.md)为准，完整目标见[资源关系设计](resource-association.md)。
+本节由 T-ACCESS-145 定稿，T-ACCESS-146～150、T-FE-080 已实现并完成联合验收。范围包括类型声明、sync/full-sync 的关系与来源身份、持久化、生命周期、候选/只读接口、SDK、授权守卫与运行时消费，以及原页面和 example 接入。验收见[任务看板](../tasks/README.md)，完整语义见[资源关系设计](resource-association.md)。
 
 - 专属类型的实例由指定业务服务维护，必须唯一归属某个主资源；通用类型的实例由 IAM 管理，业务服务维护主资源对整个通用类型的引用，不能提交实例子集。整类引用不授予权限，管理员仍可只授权其中部分实例。
 - 候选及保存继续满足 SUB_PERM；专属候选按当前主资源归属限定，通用候选来自已引用类型的全部有效实例。未声明关系能力的类型保持原行为。引用维护不授予业务服务修改 MANAGED 实例的资格。
@@ -1886,9 +1886,9 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
 - 通用 ALL 在有效整类引用下保留全范围含义，不能改成目录实例所表达范围的并集。专属 ALL 只覆盖当前主资源的有效专属实例；“选择当前全部”保存具体实例集合，不等价于 ALL。无父上下文的原直接检查和类型级授权根不虚构主资源。
 - 解除整类引用时，清理明确依附当前主资源实例主授权、属于该通用类型的子授权；保留父 ALL 共享子项及 DIRECT/类型 ALL。解绑期间保留来源也不能在该主资源中贡献；重绑后它们可恢复，已删子授权须重新授予。
 - 删除通用实例沿现有权限门禁进行，清理该实例授权，不删除整类引用或其他实例；同名重建为新身份。停用实例保留其授权但停止实例贡献，不缩窄独立类型 ALL。删除仍被整类引用的通用类型须拒绝，先解除引用。
-- 关系模式及允许主类型声明在已有有效实例、关系或用户业务授权时不可变更；AUTHORITY_ROOT 不计入业务授权。名称等普通字段仍可更新，不提供在线用途转换。
+- 关系模式及允许主类型声明在曾有实例、关系或用户业务授权（含软删除历史）时不可变更；AUTHORITY_ROOT 不计入业务授权。名称等普通字段仍可更新，不提供在线用途转换。
 
-**类型声明**：沿现有 `type_definition.extra` 扩展 `associationMode` 与 `associationParentTypeCodes`。模式为 `NONE`（缺省、维持原行为）、`EXCLUSIVE`（专属实例）或 `SHARED`（通用整类引用）；后两者要求非空、去重的允许主资源类型编码列表。只允许自定义 `resource_type` 声明，非法模式、显式 null、空列表、未知主类型及递归声明拒绝，不能降级为 NONE。EXCLUSIVE 必须为 SYNC，SHARED 必须为 MANAGED；主类型须为 NONE 且由合法业务服务 SYNC 维护，专属类型与主类型来源须一致。允许主类型声明不得包含自身或另一个关联类型。系统内置类型保持原声明，不隐式启用。模式及允许主类型变更守卫覆盖有效实例、作为主/子目标的关系和非 AUTHORITY_ROOT 有效授权；树锁内以数据库事实核验。
+**类型声明**：沿现有 `type_definition.extra` 扩展 `associationMode` 与 `associationParentTypeCodes`。模式为 `NONE`（缺省、维持原行为）、`EXCLUSIVE`（专属实例）或 `SHARED`（通用整类引用）；后两者要求非空、去重的允许主资源类型编码列表。只允许自定义 `resource_type` 声明，非法模式、显式 null、空列表、未知主类型及递归声明拒绝，不能降级为 NONE。EXCLUSIVE 必须为 SYNC，SHARED 必须为 MANAGED；主类型须为 NONE 且由合法业务服务 SYNC 维护，专属类型与主类型来源须一致。允许主类型声明不得包含自身或另一个关联类型。系统内置类型保持原声明，不隐式启用。模式及允许主类型变更守卫覆盖当前和历史实例、作为主/子目标的关系及非 AUTHORITY_ROOT 业务授权，不因授权或所属角色已删除而解锁；树锁内以数据库事实核验。
 
 **发布复用现有资源 sync/full-sync**：不新增独立关系写端点或第二套版本账本。在 `ResourceEntitySyncReq` 和 FULL item 上增加：
 
@@ -1932,7 +1932,7 @@ sync 复用结果壳和 retryClass，不把结果拒绝改成 HTTP 成功即已�
 
 **消费者适用边界**：手工 `depend_on` 子授权保存验证实际主资源关系；父 ALL 下子项按允许主类型验证，实际关系延后有主资源上下文的运行时检查。DIRECT（含自动依赖物化出的直接事实）和 AUTHORITY_ROOT 没有可虚构的主资源，创建时沿原授权/来源规则，不强行绑定某张报表；它们在带主上下文消费时仍受关系限制。自动依赖不能创建归属/引用，资源删除引起的依赖收缩和角色重算沿既有领域入口执行。操作准入只核结构并要求最终检查，普通视图保留真实授权及其来源，不把当前不可贡献的配置伪装成已删除。树判定与展示展开在 EXCLUSIVE 类型上限于同一归属，SHARED 只在整个类型已引用时进入该主上下文；无关联语义的查询不增加关系表扫描。
 
-**清理事务与审计**：解绑按发布预校验批量装载待删子授权，实际接受发布后才执行删除；版本拒绝不执行清理。删除资源同时清理其具体实例授权及依附子项，并按受影响角色重算自动授权。关系、授权、条件孤儿回收与变更审计同事务完成，`markRoles` / `markConditions` 沿提交后失效。清理审计事件为 `RESOURCE_ASSOCIATION_GRANT_CLEANUP`，记录 `RESOURCE_DELETED` 或 `SHARED_TYPE_UNLINKED` 原因、角色及删除的真实授权 ID；不把保留的共享来源记为已撤销。
+**清理事务与审计**：解绑按发布预校验批量装载待删子授权，实际接受发布后才执行删除；版本拒绝不执行清理。本能力适用资源删除时同时清理其具体实例授权及依附子项，并按受影响角色重算自动授权；新增清理限定关联类型或已登记关系来源身份的资源，未声明能力的普通 NONE 同步资源保持原生命周期。关系、授权、条件孤儿回收与变更审计同事务完成，`markRoles` / `markConditions` 沿提交后失效。清理审计事件为 `RESOURCE_ASSOCIATION_GRANT_CLEANUP`，记录 `RESOURCE_DELETED` 或 `SHARED_TYPE_UNLINKED` 原因、角色及删除的真实授权 ID；不把保留的共享来源记为已撤销。
 
 <a id="contract-section-13"></a>
 ## 13. type 能力（类型定义与操作权限）

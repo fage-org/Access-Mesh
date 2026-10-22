@@ -8,7 +8,7 @@ last_reviewed: 2026-10-22
 
 # example-service 持久化权限演示 API 契约
 
-> **资源关系接入目标（T-ACCESS-149，分项实施）**：通用范围实例将由 IAM 管理；example 的 `demo-scope/save` 和发布队列不得继续反向修改 MANAGED 实例。字段发布携带唯一报表归属，通用范围按类型整体引用，用户仍可获部分实例授权。现有行 ALL 的全数据语义、导入前提和缺业务映射时的配置错误保留，见[演示设计](example-permission-demo.md)及[资源关系契约](access-service-api-contract.md#resource-association-contract)；接线状态及待决边界见下节。
+> **资源关系接入（T-ACCESS-149）**：通用范围实例由 IAM 管理；`demo-scope/save` 已退役，example 发布队列只维护报表和字段。字段发布携带唯一报表归属，通用范围按类型整体引用，用户仍可获部分实例授权。现有行 ALL 的全数据语义、导入前提和缺业务映射时的配置错误保留，见[演示设计](example-permission-demo.md)及[资源关系契约](access-service-api-contract.md#resource-association-contract)；接线及验收状态见下节。
 
 本文件由 T-ACCESS-136 定稿，元数据与资源发布已由 T-ACCESS-139 交付，策略配置与记录查询/备注修改由 T-ACCESS-140 实现，验收状态见任务卡；CSV 导入由 T-ACCESS-138 实现，任务按计划实施。现役 hello/report 探针继续按[服务设计](services/example-service.md)运行，未交付的路由不描述为已上线，也不进入可用接口声明。
 
@@ -17,9 +17,9 @@ last_reviewed: 2026-10-22
 行为规则见[演示设计](example-permission-demo.md)，本文件集中维护请求、响应与错误语义。所有普通入口采用 POST + JSON DTO，文件上传使用已允许的 multipart 例外；业务 ID 不进入路径。统一响应信封、HTTP 参数错误和分页边界沿[工程规范](project-rules.md#1-通用报文规范)，不新建同构响应类。
 
 <a id="resource-association-publication"></a>
-## 资源关系发布接线（T-ACCESS-149 分项实施）
+## 资源关系发布接线
 
-报表引用持久化、字段归属冻结发布及 SDK 接线已实现并经定向验证。通用目录退役仍待确认策略保存的目录核验规则，见[任务卡](../tasks/T-ACCESS-149.md)；不把旧本地核验直接删除视作已接受方案，整体尚未交付。
+报表引用持久化、字段归属冻结发布及 SDK 接线已实现并经定向验证。2026-10-22 用户确认：允许先保存合法业务映射，保存不依赖 IAM 实例已存在或启用，不新增保存前远程目录核验；实际执行仍以 IAM 有效权限为准，INSTANCE 缺业务映射拒绝。通用目录已退役，接入与联合验收已完成，证据见[任务卡](../archive/2026-10-22/tasks/T-ACCESS-149.md)。
 
 - `demo-report/create` 增加可选 `referencedTypeCodes`，缺省为空；`demo-report/update` 增加同名可选字段，省略/null 保持、空数组解除全部。只允许去重的通用类型编码，最多 200 个。返回的报表元数据增加该数组；现有报表 UPDATE 门禁及 expectedVersion CAS 保持。引用变化与报表版本、冻结的发布事件在本地同事务写入，事件由现有发送器在事务外发布。
 - 报表发布映射到 IAM 主资源 UPSERT 的 `referencedTypeCodes`；字段发布携带真实所属报表的 `associationOwner`，其中 `sourceEntityId` 来自本地 reportId；报表和字段的既有 sourceEntityId 均来自不可复用本地主键，不按 fieldKey/显示名推导身份。IAM 因主资源未到达或身份尚未就绪返回 DEPENDENCY_MISSING 时，保留现有有限重试与人工重试入口，不提前标 PUBLISHED；同码新主资源身份不匹配时记录受控失败，不改写冻结事件重挂新身份。
@@ -27,7 +27,7 @@ last_reviewed: 2026-10-22
 - 准备脚本先以管理员通道建立 MANAGED/SHARED 通用类型与目录，以业务服务发布报表整类引用及 SYNC/EXCLUSIVE 字段归属，再配置原策略及用户授权。不得再把通用类型声明为 SYNC 或调用退役的范围发布接口；脚本不覆盖不同的既有声明，已使用类型按用途不可变规则提示重新准备。
 - 本地执行版本检查仍保护报表、字段及策略；删除退役通用目录的本地版本检查，不把本地副本当 IAM 启停真相。查询/写入/导入/导出/后台任务均消费原同源范围接口，远端调用仍在本地数据库写事务外；快照和撤权时效继续遵守原预算。
 
-下文报表接口已反映新增引用字段；旧通用目录及保存核验在待决分支确认前保留。T-ACCESS-149 后续统一删除退役端点、DTO/实体/Mapper/DDL、发布分支和旧说明。准备脚本已改为 IAM 目录与关系声明，但完整执行尚待策略保存规则闭合，不作为当前联合验证通过的入口。
+旧通用目录端点、DTO、实体、Mapper、DDL、发布分支及 scopeVersions 本地版本检查均已移除。准备脚本通过 IAM 管理通道准备目录，策略可在目录准备前保存，实际访问仍要求 IAM 有效关系与权限。
 
 <a id="identity"></a>
 ## 身份与数据边界
@@ -108,10 +108,10 @@ service-config/sync-v2 接口声明使用完整清单，须保留仍受支持的
 
 安全管理入口固定检查 `DEMO_POLICY:MANAGE`，数据维护入口固定检查 `DEMO_DATASET:MANAGE`，任务控制按 `DEMO_TASK` 族检查；这些门禁不能被被管理的策略改写。报表类型固定，字段类型由元数据登记保存，范围类型/操作按生效策略绑定；默认行/字段操作同名 DATA_READ / DATA_EDIT。业务最终检查仍读取真实报表身份，不由客户端替换主类型/主操作。
 
-所有业务编码不为空、长度至多 64；名称至多 128。初始化类型所有权归 example-service，codeType 缺省为 default。元数据登记允许在策略生效前完成，字段只引用服务端固定目录；因此“登记 → 发布 → 配置 → 授权 → 导入”不形成循环依赖。
+所有业务编码不为空、长度至多 64；名称至多 128。报表及专属字段类型来源为 example-service，通用类型/实例由 IAM 管理；codeType 缺省为 default。元数据登记允许在策略生效前完成，字段只引用服务端固定目录；因此“登记 → 发布 → 配置 → 授权 → 导入”不形成循环依赖。
 
 <a id="resource-type-purposes"></a>
-同一租户内资源类型按用途隔离：DEMO_REPORT 只用于报表，DEMO_POLICY / DEMO_DATASET / DEMO_TASK 保留给对应管理门禁；字段类型与行范围类型不得混用。字段与行范围允许自定义类型名，多个报表可共用字段类型。策略历史中使用的行范围类型也占用行范围用途，ALL 不要求先造范围实例，但不能因此绕过用途隔离。创建报表和保存范围在共同数据库事务守卫内检查已登记用途，冲突整次拒绝 30102；不能仅在单份策略内检查类型不同。已有历史身份保留用途，不能通过停用、软删或同名重建绕过检查；不增加独立类型管理平台。
+同一租户内资源类型按用途隔离：DEMO_REPORT 只用于报表，DEMO_POLICY / DEMO_DATASET / DEMO_TASK 保留给对应管理门禁；字段类型与行范围类型不得混用。字段与行范围允许自定义类型名，多个报表可共用字段类型。策略历史中使用的行范围类型也占用行范围用途，ALL 不要求先造范围实例，但不能因此绕过用途隔离。创建报表、引用声明和保存策略在共同数据库事务守卫内检查已登记用途，冲突整次拒绝 30102；不能仅在单份策略内检查类型不同。已有历史身份保留用途，不能通过停用、软删或同名重建绕过检查；不增加独立类型管理平台。
 
 | POST 路径 | 请求关键字段 | 门禁与响应 |
 |---|---|---|
@@ -122,7 +122,6 @@ service-config/sync-v2 接口声明使用完整清单，须保留仍受支持的
 | `/api/example/demo-field/list` | `reportCode,pageNum,pageSize` | 报表 UPDATE；管理目录返回 fieldId、fieldKey、启用状态、资源业务键及发布状态，无记录值 |
 | `/api/example/demo-field/update` | `reportCode,expectedCatalogVersion,fieldId,enabled` | 报表 UPDATE；仅启停，不改绑物理字段、所属报表或稳定资源身份 |
 | `/api/example/demo-field/remove` | `reportCode,expectedCatalogVersion,fieldIds[]` | 报表 UPDATE；软删并登记 DELETE 待发布事实；以后同名新增得到新 fieldId/资源编码 |
-| `/api/example/demo-scope/save` | `resourceTypeCode,resourceCode,codeType,name,enabled,expectedVersion` | DEMO_POLICY:MANAGE；创建期望版本 0，后续 CAS；仅登记范围资源，不把谓词写进远端资源 |
 | `/api/example/demo-publication/get` | `resourceTypeCode,resourceCode,codeType` | DEMO_POLICY:MANAGE；返回本地源版本、发布状态、尝试数及受控失败原因 |
 | `/api/example/demo-publication/page` | `pageNum,pageSize,status?` | DEMO_POLICY:MANAGE；分页查看本租户发布记录，包含删除后的失败待发布项，便于定位重放 |
 | `/api/example/demo-publication/retry` | `resourceTypeCode,resourceCode,codeType` | DEMO_POLICY:MANAGE；重试尚未发布的最新事实，保留原源版本/载荷；不能将旧事件改写成新状态 |
@@ -154,7 +153,7 @@ service-config/sync-v2 接口声明使用完整清单，须保留仍受支持的
 
 导入不能因缺某字段编辑权而用默认值写入。ownerUserId 的演示有效性由准备脚本创建用户并回填真实 ID；运行时只校验合法 ID 形态，不同步或维护用户目录。未知 ID 绝不能解释为所有主体；SELF 只比较已验签主体 ID，不匹配即无记录。
 
-`POST /api/example/demo-policy/get` 请求 `{datasetCode}`，`save` 请求 `{datasetCode,expectedVersion,configuration}`；都要求 DEMO_POLICY:MANAGE。响应为 `{datasetCode,version,configuration,updatedAt}`；尚无生效策略时 get 返回 30102，首次保存 expectedVersion=0。配置完整校验、版本写入、生效引用与变更摘要同事务；绑定的范围须已登记、启用且当前版本已发布，失败保持原版本。恢复旧配置也按新一次 save 执行。
+`POST /api/example/demo-policy/get` 请求 `{datasetCode}`，`save` 请求 `{datasetCode,expectedVersion,configuration}`；都要求 DEMO_POLICY:MANAGE。响应为 `{datasetCode,version,configuration,updatedAt}`；尚无生效策略时 get 返回 30102，首次保存 expectedVersion=0。配置完整校验、版本写入、生效引用与变更摘要同事务；允许先保存尚未在 IAM 建立实例的合法业务映射；保存不远程核验 IAM 目录，也不授予权限。执行 INSTANCE 时返回键缺映射即报配置错误；配置校验或 CAS 失败保持原版本。恢复旧配置也按新一次 save 执行。
 
 `configuration` 结构：
 

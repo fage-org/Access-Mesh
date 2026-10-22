@@ -674,8 +674,7 @@ class ExampleBusinessFinalCheckE2EIT {
     @Order(13)
     void persistentMetadataPublishesThroughServiceCredentialsAndSupportsScopedFieldGrants() throws Exception {
         for (String type : List.of("DEMO_REPORT", "DEMO_REPORT_FIELD", "DEMO_DATA_SCOPE", "DEMO_POLICY", "DEMO_DATASET", "DEMO_TASK")) {
-            String extra = List.of("DEMO_POLICY", "DEMO_DATASET", "DEMO_TASK").contains(type) ? "{\"managedMode\":\"MANAGED\"}"
-                : "{\"managedMode\":\"SYNC\",\"syncSourceService\":\"example-service\"}";
+            String extra = demoTypeExtra(type);
             postForData(gateway()+"/api/access/type-definition/create", adminToken,
                 JSON.createObjectNode().put("typeKey","resource_type").put("typeCode",type).put("name",type).put("extra",extra));
             postForData(gateway()+"/api/access/operation-permission/create", adminToken,
@@ -718,7 +717,7 @@ class ExampleBusinessFinalCheckE2EIT {
             "{\"reportCode\":\"forbidden\",\"name\":\"denied\",\"datasetCode\":\"sales-records\",\"fieldResourceTypeCode\":\"DEMO_REPORT_FIELD\"}");
         assertThat(denied.status()).isEqualTo(403);
         demoAdminPost("/demo-report/create",JSON.createObjectNode().put("reportCode","persistent")
-            .put("name","Persistent report").put("datasetCode","sales-records").put("fieldResourceTypeCode","DEMO_REPORT_FIELD"));
+            .put("name","Persistent report").put("datasetCode","sales-records").put("fieldResourceTypeCode","DEMO_REPORT_FIELD").set("referencedTypeCodes",JSON.createArrayNode().add("DEMO_DATA_SCOPE")));
         awaitDemoPublication("DEMO_REPORT","persistent");
         var registered=demoAdminPost("/demo-field/register", JSON.createObjectNode().put("reportCode","persistent")
             .put("expectedCatalogVersion",0).set("fieldKeys",JSON.createArrayNode().add("amount"))).path("data");
@@ -878,15 +877,18 @@ class ExampleBusinessFinalCheckE2EIT {
         removeDataGrant(dataGrantId("DEMO_DATA_SCOPE","team-t1","DATA_EDIT",editParent));
         createDataGrant(dataKey("DEMO_DATA_SCOPE",null,"DATA_EDIT","ALL"),editParent);
         // Same physical field under another report does not inherit sales-report's field identity.
-        demoAdminPost("/demo-report/create",JSON.createObjectNode().put("reportCode","isolated-view").put("name","Isolated").put("datasetCode","sales-records").put("fieldResourceTypeCode","DEMO_REPORT_FIELD"));
+        demoAdminPost("/demo-report/create",JSON.createObjectNode().put("reportCode","isolated-view").put("name","Isolated").put("datasetCode","sales-records").put("fieldResourceTypeCode","DEMO_REPORT_FIELD").set("referencedTypeCodes",JSON.createArrayNode().add("DEMO_DATA_SCOPE")));
         awaitDemoPublication("DEMO_REPORT","isolated-view");
         var isolated=demoAdminPost("/demo-field/register",JSON.createObjectNode().put("reportCode","isolated-view").put("expectedCatalogVersion",0)
             .set("fieldKeys",JSON.createArrayNode().add("productName"))).path("data").path("items").get(0);
         awaitDemoPublication("DEMO_REPORT_FIELD",isolated.path("resourceCode").asText());
-        createDataParent("isolated-view","DATA_READ",List.of(dataKey("DEMO_DATA_SCOPE","team-t1","DATA_READ","INSTANCE"),dataKey("DEMO_REPORT_FIELD",productCode,"DATA_READ","INSTANCE")));
-        awaitBusinessResult("/api/example/demo-data/page","{\"reportCode\":\"isolated-view\"}",r -> r.path("code").asInt()==200 && r.path("data").path("state").asText().equals("EMPTY_FIELDS"),"foreign report field cannot reveal values");
+        createDataParent("isolated-view","DATA_READ",List.of(dataKey("DEMO_DATA_SCOPE","team-t1","DATA_READ","INSTANCE")));
         long isolatedParent=dataGrantId("DEMO_REPORT","isolated-view","DATA_READ",null);
-        removeDataGrant(dataGrantId("DEMO_REPORT_FIELD",productCode,"DATA_READ",isolatedParent));
+        var forbiddenChild=JSON.createObjectNode().put("parentPermissionId",isolatedParent).set("key",dataKey("DEMO_REPORT_FIELD",productCode,"DATA_READ","INSTANCE"));
+        var forbiddenPlan=JSON.createObjectNode().set("creates",JSON.createArrayNode().add(forbiddenChild));
+        var forbiddenBody=JSON.createObjectNode().put("roleTypeCode",ROLE_TYPE).put("roleExternalId",ROLE_EXTERNAL_ID).set("plan",forbiddenPlan);
+        assertThat(parseEnvelope(postEnvelope(gateway()+"/api/access/role-resource-permission/apply-grant-plan",adminToken,forbiddenBody.toString())).path("code").asInt()).isEqualTo(20080);
+        awaitBusinessResult("/api/example/demo-data/page","{\"reportCode\":\"isolated-view\"}",r -> r.path("code").asInt()==30004,"foreign report field grant must be rejected before any data access");
         createDataGrant(dataKey("DEMO_REPORT_FIELD",isolated.path("resourceCode").asText(),"DATA_READ","INSTANCE"),isolatedParent);
         awaitBusinessResult("/api/example/demo-data/page","{\"reportCode\":\"isolated-view\"}",r -> r.path("code").asInt()==200 && r.path("data").path("page").path("total").asInt()==2,"correct report field must allow");
         demoAdminPost("/demo-field/remove",JSON.createObjectNode().put("reportCode","isolated-view").put("expectedCatalogVersion",1)
@@ -948,7 +950,7 @@ class ExampleBusinessFinalCheckE2EIT {
         postForData(gateway()+"/api/access/service-credential/update",token,JSON.createObjectNode().put("id",credential).put("status",1));
         for(String type:List.of("DEMO_REPORT","DEMO_REPORT_FIELD","DEMO_DATA_SCOPE","DEMO_POLICY","DEMO_DATASET","DEMO_TASK")) {
             boolean synced=List.of("DEMO_REPORT","DEMO_REPORT_FIELD","DEMO_DATA_SCOPE").contains(type);
-            String extra=synced?"{\"managedMode\":\"SYNC\",\"syncSourceService\":\"example-service\"}":"{\"managedMode\":\"MANAGED\"}";
+            String extra=demoTypeExtra(type);
             postForData(gateway()+"/api/access/type-definition/create",token,JSON.createObjectNode().put("typeKey","resource_type").put("typeCode",type).put("name",type).put("extra",extra));
             var operations=synced?List.of("DATA_READ","DATA_EDIT"):type.equals("DEMO_TASK")?List.of("TRIGGER","ENABLE"):List.of("MANAGE");
             long bit=16;
@@ -1088,7 +1090,7 @@ class ExampleBusinessFinalCheckE2EIT {
         Map<String,JsonNode> fields=new java.util.HashMap<>();
         demoAdminPost("/demo-field/list",JSON.createObjectNode().put("reportCode","sales-report")).path("data").path("items")
             .forEach(field->fields.put(field.path("fieldKey").asText(),field));
-        demoAdminPost("/demo-report/create",JSON.createObjectNode().put("reportCode","joint-other").put("name","Joint other").put("datasetCode","sales-records").put("fieldResourceTypeCode","DEMO_REPORT_FIELD"));
+        demoAdminPost("/demo-report/create",JSON.createObjectNode().put("reportCode","joint-other").put("name","Joint other").put("datasetCode","sales-records").put("fieldResourceTypeCode","DEMO_REPORT_FIELD").set("referencedTypeCodes",JSON.createArrayNode().add("DEMO_DATA_SCOPE")));
         awaitDemoPublication("DEMO_REPORT","joint-other");
         var otherFields=demoAdminPost("/demo-field/register",JSON.createObjectNode().put("reportCode","joint-other").put("expectedCatalogVersion",0)
             .set("fieldKeys",JSON.createArrayNode().add("productName").add("amount"))).path("data").path("items");
@@ -1183,6 +1185,109 @@ class ExampleBusinessFinalCheckE2EIT {
         Files.writeString(Path.of("target","e2e","joint-demo-evidence.json"),JSON.writerWithDefaultPrettyPrinter().writeValueAsString(trace));
     }
 
+    @Test
+    @Order(19)
+    void resourceAssociationsKeepReportFieldsAndSharedScopeGrantsIndependent() throws Exception {
+        postForData(gateway()+"/api/access/resource-entity/create",adminToken,JSON.createObjectNode()
+            .put("resourceTypeCode","DEMO_DATA_SCOPE").put("code","region-r2").put("codeType","default").put("name","地区 R2").put("status",1));
+        var policy=demoAdminPost("/demo-policy/get",JSON.createObjectNode().put("datasetCode","sales-records")).path("data");
+        var configuration=(tools.jackson.databind.node.ObjectNode)policy.path("configuration").deepCopy();
+        var binding=configuration.withArray("bindings").addObject().put("resourceTypeCode","DEMO_DATA_SCOPE")
+            .put("resourceCode","region-r2").put("codeType","default");
+        binding.putArray("predicates").addObject().put("fieldKey","regionCode").put("operator","EQ").put("valueSource","LITERAL").put("value","R2");
+        demoAdminPost("/demo-policy/save",JSON.createObjectNode().put("datasetCode","sales-records")
+            .put("expectedVersion",policy.path("version").asLong()).set("configuration",configuration));
+
+        Map<String,List<String>> fieldCodes=new java.util.LinkedHashMap<>();
+        for(String report:List.of("assoc-a","assoc-b")) {
+            demoAdminPost("/demo-report/create",JSON.createObjectNode().put("reportCode",report).put("name",report)
+                .put("datasetCode","sales-records").put("fieldResourceTypeCode","DEMO_REPORT_FIELD")
+                .set("referencedTypeCodes",JSON.createArrayNode().add("DEMO_DATA_SCOPE")));
+            awaitDemoPublication("DEMO_REPORT",report);
+            var fields=demoAdminPost("/demo-field/register",JSON.createObjectNode().put("reportCode",report).put("expectedCatalogVersion",0)
+                .set("fieldKeys",JSON.createArrayNode().add("recordCode").add("amount"))).path("data").path("items");
+            List<String> codes=new java.util.ArrayList<>();
+            for(var field:fields) { codes.add(field.path("resourceCode").asText()); awaitDemoPublication("DEMO_REPORT_FIELD",field.path("resourceCode").asText()); }
+            fieldCodes.put(report,List.copyOf(codes));
+            var request=JSON.createObjectNode().put("resourceTypeCode","DEMO_REPORT_FIELD").set("parentResource",JSON.createObjectNode()
+                .put("resourceTypeCode","DEMO_REPORT").put("code",report).put("codeType","default"));
+            var candidates=postForData(gateway()+"/api/access/resource-entity/association-candidates",adminToken,request).path("items");
+            List<String> actual=new java.util.ArrayList<>(); candidates.forEach(row -> actual.add(row.path("code").asText()));
+            assertThat(actual).containsExactlyInAnyOrderElementsOf(codes);
+            ((tools.jackson.databind.node.ObjectNode)request).put("resourceTypeCode","DEMO_DATA_SCOPE");
+            var shared=postForData(gateway()+"/api/access/resource-entity/association-candidates",adminToken,request).path("items");
+            List<String> sharedCodes=new java.util.ArrayList<>(); shared.forEach(row -> sharedCodes.add(row.path("code").asText()));
+            assertThat(sharedCodes).contains("region-r1","region-r2");
+        }
+        assertThat(fieldCodes.get("assoc-a")).doesNotContainAnyElementsOf(fieldCodes.get("assoc-b"));
+        String role="association-reader", username="association-reader";
+        var created=postForData(gateway()+"/api/access/user/create",adminToken,JSON.createObjectNode().put("username",username).put("name","Association Reader"));
+        postForData(gateway()+"/api/access/abstract-role/create",adminToken,JSON.createObjectNode().put("roleTypeCode",ROLE_TYPE).put("externalId",role).put("name",role));
+        postForData(gateway()+"/api/access/user-role/assign",adminToken,JSON.createObjectNode().set("items",JSON.createArrayNode().add(JSON.createObjectNode()
+            .put("subjectTypeCode","LOCAL_USER").put("subjectExternalId",created.path("id").asText()).put("roleTypeCode",ROLE_TYPE).put("roleExternalId",role))));
+        var creates=JSON.createArrayNode();
+        for(String report:fieldCodes.keySet()) {
+            var item=creates.addObject(); item.set("key",dataKey("DEMO_REPORT",report,"DATA_READ","INSTANCE"));
+            var children=item.putArray("children");
+            fieldCodes.get(report).forEach(code -> children.add(dataKey("DEMO_REPORT_FIELD",code,"DATA_READ","INSTANCE")));
+            children.add(dataKey("DEMO_DATA_SCOPE",report.equals("assoc-a")?"region-r1":"region-r2","DATA_READ","INSTANCE"));
+        }
+        postForData(gateway()+"/api/access/role-resource-permission/apply-grant-plan",adminToken,JSON.createObjectNode()
+            .put("roleTypeCode",ROLE_TYPE).put("roleExternalId",role).set("plan",JSON.createObjectNode().set("creates",creates)));
+        String token=realLogin(username,created.path("initialPassword").asText());
+        assertAssociationRows(token,"assoc-a",List.of("A","C")); assertAssociationRows(token,"assoc-b",List.of("B","D"));
+        demoAdminPost("/demo-report/update",JSON.createObjectNode().put("reportCode","assoc-a").put("expectedVersion",1).put("name","assoc-a").put("enabled",true)
+            .set("referencedTypeCodes",JSON.createArrayNode()));
+        awaitDemoPublication("DEMO_REPORT","assoc-a"); assertAssociationFailure(token,"assoc-a",30004); assertAssociationRows(token,"assoc-b",List.of("B","D"));
+        demoAdminPost("/demo-report/update",JSON.createObjectNode().put("reportCode","assoc-a").put("expectedVersion",2).put("name","assoc-a").put("enabled",true)
+            .set("referencedTypeCodes",JSON.createArrayNode().add("DEMO_DATA_SCOPE")));
+        awaitDemoPublication("DEMO_REPORT","assoc-a"); assertAssociationFailure(token,"assoc-a",30004);
+        var grants=postForData(gateway()+"/api/access/role-resource-permission/list",adminToken,JSON.createObjectNode()
+            .put("roleTypeCode",ROLE_TYPE).put("roleExternalId",role).put("includeChildren",true)).path("items");
+        long parentId=0; for(var grant:grants) if(grant.path("resourceTypeCode").asText().equals("DEMO_REPORT") && grant.path("resourceCode").asText().equals("assoc-a")) parentId=grant.path("id").asLong();
+        assertThat(parentId).isPositive();
+        var child=JSON.createObjectNode().put("parentPermissionId",parentId).set("key",dataKey("DEMO_DATA_SCOPE","region-r1","DATA_READ","INSTANCE"));
+        postForData(gateway()+"/api/access/role-resource-permission/apply-grant-plan",adminToken,JSON.createObjectNode().put("roleTypeCode",ROLE_TYPE).put("roleExternalId",role)
+            .set("plan",JSON.createObjectNode().set("creates",JSON.createArrayNode().add(child))));
+        assertAssociationRows(token,"assoc-a",List.of("A","C"));
+        var region=JSON.createObjectNode().put("resourceTypeCode","DEMO_DATA_SCOPE").put("code","region-r1").put("codeType","default").put("status",0);
+        postForData(gateway()+"/api/access/resource-entity/update",adminToken,region);
+        assertAssociationFailure(token,"assoc-a",30004); assertAssociationRows(token,"assoc-b",List.of("B","D"));
+        postForData(gateway()+"/api/access/resource-entity/update",adminToken,region.put("status",1));
+        assertAssociationRows(token,"assoc-a",List.of("A","C"));
+        String reportIdentity;
+        String url="jdbc:postgresql://"+exampleEnvironment.get("EXAMPLE_DB_HOST")+":"+exampleEnvironment.get("EXAMPLE_DB_PORT")+"/"+exampleEnvironment.get("EXAMPLE_DB_NAME");
+        try(var connection=java.sql.DriverManager.getConnection(url,exampleEnvironment.get("EXAMPLE_DB_USERNAME"),exampleEnvironment.get("EXAMPLE_DB_PASSWORD"));
+            var statement=connection.prepareStatement("SELECT id FROM demo_report WHERE tenant_id=1 AND report_code=? AND delete_flag=0")) {
+            statement.setString(1,"assoc-a"); try(var rows=statement.executeQuery()) { assertThat(rows.next()).isTrue(); reportIdentity=rows.getString(1); }
+        }
+        var delete=JSON.createObjectNode().put("operation","DELETE").put("resourceTypeCode","DEMO_REPORT").put("resourceCode","assoc-a").put("codeType","default")
+            .put("sourceService",SERVICE).put("sourceEntityType","demo_report").put("sourceEntityId",reportIdentity);
+        delete.set("syncVersion",JSON.createObjectNode().put("occurredAt",java.time.LocalDateTime.now(java.time.ZoneOffset.UTC).toString()).put("sequenceNo",100));
+        var deleted=parseEnvelope(postEnvelope("http://localhost:"+accessService.port()+"/api/access/resource-entity/sync",null,delete.toString(),
+            Map.of("X-Credential-Id","sc-example-e2e-1","X-Credential-Secret","sk-example-e2e-1")));
+        assertThat(deleted.path("data").path("applied").asBoolean()).isTrue();
+        assertAssociationFailure(token,"assoc-a",30108); assertAssociationRows(token,"assoc-b",List.of("B","D"));
+        for(String code:fieldCodes.get("assoc-a")) assertThat(parseEnvelope(postEnvelope(gateway()+"/api/access/resource-entity/detail",adminToken,
+            JSON.createObjectNode().put("resourceTypeCode","DEMO_REPORT_FIELD").put("code",code).put("codeType","default").toString())).path("code").asInt()).isEqualTo(20004);
+    }
+
+    private static void assertAssociationRows(String token,String report,List<String> expected) {
+        org.awaitility.Awaitility.await().atMost(STALE_WINDOW).untilAsserted(() -> {
+            var response=parseEnvelope(postEnvelope(gateway()+"/api/example/demo-data/page",token,JSON.createObjectNode().put("reportCode",report).toString()));
+            assertThat(response.path("code").asInt()).isEqualTo(200);
+            List<String> codes=new java.util.ArrayList<>(); response.path("data").path("page").path("items").forEach(row -> {
+                codes.add(row.path("recordCode").asText()); assertThat(row.has("amount")).isTrue();
+            });
+            assertThat(codes).containsExactlyElementsOf(expected);
+        });
+    }
+
+    private static void assertAssociationFailure(String token,String report,int expectedCode) {
+        org.awaitility.Awaitility.await().atMost(STALE_WINDOW).untilAsserted(() ->
+            assertThat(parseEnvelope(postEnvelope(gateway()+"/api/example/demo-data/page",token,JSON.createObjectNode().put("reportCode",report).toString())).path("code").asInt()).isEqualTo(expectedCode));
+    }
+
     private static JsonNode triggerAndAwait(long task,String state) throws Exception {
         var queued=targetDemo("/demo-task/trigger",JSON.createObjectNode().put("taskId",task).put("triggerKey",java.util.UUID.randomUUID().toString()));
         return awaitExecution(queued.path("executionKey").asText(),state);
@@ -1272,6 +1377,16 @@ class ExampleBusinessFinalCheckE2EIT {
         return result;
     }
 
+    private static String demoTypeExtra(String type) {
+        var extra=JSON.createObjectNode().put("managedMode",List.of("DEMO_REPORT","DEMO_REPORT_FIELD").contains(type)?"SYNC":"MANAGED");
+        if(List.of("DEMO_REPORT","DEMO_REPORT_FIELD").contains(type)) extra.put("syncSourceService",SERVICE);
+        if(type.equals("DEMO_REPORT_FIELD") || type.equals("DEMO_DATA_SCOPE")) {
+            extra.put("associationMode",type.equals("DEMO_REPORT_FIELD")?"EXCLUSIVE":"SHARED");
+            extra.putArray("associationParentTypeCodes").add("DEMO_REPORT");
+        }
+        return extra.toString();
+    }
+
     private static void ensureDataSetup() throws Exception { ensureDataSetup(adminToken); }
 
     private static void ensureDataSetup(String token) throws Exception {
@@ -1279,7 +1394,7 @@ class ExampleBusinessFinalCheckE2EIT {
         if(current.path("code").asInt()==200) return;
         assertThat(current.path("code").asInt()).isEqualTo(30102);
         var create=parseEnvelope(postEnvelope(gateway()+"/api/example/demo-report/create",token,
-            "{\"reportCode\":\"sales-report\",\"name\":\"Sales\",\"datasetCode\":\"sales-records\",\"fieldResourceTypeCode\":\"DEMO_REPORT_FIELD\"}"));
+            "{\"reportCode\":\"sales-report\",\"name\":\"Sales\",\"datasetCode\":\"sales-records\",\"fieldResourceTypeCode\":\"DEMO_REPORT_FIELD\",\"referencedTypeCodes\":[\"DEMO_DATA_SCOPE\"]}"));
         assertThat(create.path("code").asInt()).isIn(200,30103);
         awaitDemoPublication(token,"DEMO_REPORT","sales-report");
         var report=demoPost(token,"/demo-report/get",JSON.createObjectNode().put("reportCode","sales-report")).path("data");
@@ -1296,9 +1411,8 @@ class ExampleBusinessFinalCheckE2EIT {
         for(var field:fields) awaitDemoPublication(token,"DEMO_REPORT_FIELD",field.path("resourceCode").asText());
         for(var binding:configured.path("bindings")) {
             String code=binding.path("resourceCode").asText();
-            demoPost(token,"/demo-scope/save",JSON.createObjectNode().put("resourceTypeCode","DEMO_DATA_SCOPE").put("resourceCode",code)
-                .put("name",code).put("enabled",true).put("expectedVersion",0));
-            awaitDemoPublication(token,"DEMO_DATA_SCOPE",code);
+            postForData(gateway()+"/api/access/resource-entity/create",token,JSON.createObjectNode().put("resourceTypeCode","DEMO_DATA_SCOPE").put("code",code)
+                .put("codeType","default").put("name",code).put("status",1));
         }
         demoPost(token,"/demo-policy/save",JSON.createObjectNode().put("datasetCode","sales-records").put("expectedVersion",0).set("configuration",configured));
     }

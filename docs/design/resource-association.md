@@ -15,25 +15,25 @@ last_reviewed: 2026-10-22
 
 通用整类引用取代本文件原先的通用实例级引用目标；不再采用同一通用类型中“A 引用 X/Y、B 只引用 X”的关系模型或验收场景。专属实例归属与用户实例级授权保持。
 
-本文件为**已采纳目标，部分实现，整体尚未交付**。T-ACCESS-145 已定稿，T-ACCESS-146 已实现关系存储、类型声明、原子发布及写生命周期基础，T-ACCESS-147 已实现候选/只读查询和 SDK；授权与运行时、页面和 example 接入仍按计划推进。实施契约见[契约总册目标章节](access-service-api-contract.md#resource-association-contract)，执行与验证由 [resource-association-plan](../plans/resource-association-plan.md) 编排；不能以候选过滤代替完整鉴权能力已交付。
+本能力已实现并完成联合验收：类型声明、归属与整类引用、原子发布、候选过滤、授权守卫、运行时消费、原管理页面和 example 接入形成闭环。正式接口见[契约总册](access-service-api-contract.md#resource-association-contract)，实施与验证见 [resource-association-plan](../archive/2026-10-22/resource-association-plan.md)及其联合验收记录。
 
-适用对象是显式声明此能力的资源类型。未声明的现有类型保持现役行为，不默认把所有类型归为通用并强制补关系。2026-10-21 用户确认：关系模式及允许主类型声明只能在没有有效实例、关系和用户业务授权时修改，系统自动生成的 AUTHORITY_ROOT 不算用户业务授权；已有使用时不得直接转换用途。名称等不改变关系语义的普通资料仍可编辑。需要改变用途时另建类型并准备资源，本计划不做保留旧数据的在线转换，不能用新规则隐式扩围既有业务。
+适用对象是显式声明此能力的资源类型。未声明的现有类型保持现役行为，不默认把所有类型归为通用并强制补关系。2026-10-22 用户确认：关系模式及允许主类型声明只在从未有实例、关系或用户业务授权时可修改；软删除历史也算已使用，清空有效数据后仍不得直接转换用途。系统自动生成的 AUTHORITY_ROOT（含历史基座）不算用户业务授权。名称等不改变关系语义的普通资料仍可编辑。需要改变用途时另建类型并准备资源，本计划不做保留旧数据的在线转换，不能用新规则隐式扩围既有业务。
 
 不建设资源内自定义操作、每主资源独立类型、通用关系图、递归归属、独立配置页、授权模板传播、行列配对规则或金额更新接口。不改报表定义编辑 UPDATE 与数据编辑 DATA_EDIT 的区分，不恢复已取消的 BI 前端。不因本计划引入历史数据迁移或双写系统；适用现行空库重建约束。
 
 <a id="baseline"></a>
-## 2. 当前实现与目标差异
+## 2. 当前实现
 
-核对基线：`333363db5`。下列证据是立项依据，不作为未来实现完成证明。
+资源能力包维护归属与整类引用，其他能力包经领域入口批量消费；关系不替代授权。实现与验收由 T-ACCESS-145～150、T-FE-080 完成。
 
-| 当前事实 | 证据 | 本次影响 |
-|---|---|---|
-| 字段在 example 本地记录 reportId，独立字段身份区分 A.amount/B.amount | [字段设计](example-permission-demo.md#field-permissions)、[DemoReportField](../../example-service/src/main/java/cn/ac/fage/accessmesh/example/metadata/entity/DemoReportField.java) | 归属从业务事实同步到 IAM，不按名称推断 |
-| 通用子权限编辑器按允许子类型、选中类型过滤，未按主资源实例关联过滤 | [GrantChildConfigurator](../../frontend/src/views/perm/grant/components/GrantChildConfigurator.vue) | 原入口增加关系限定 |
-| 操作定义按资源类型隔离；父资源树要求同类型 | [契约总册](access-service-api-contract.md)、[ResourceMoveReq](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/resource/dto/req/ResourceMoveReq.java) | 复用类型内操作，关系不占用 parent_id |
-| 实例维护权已有 MANAGED / SYNC + syncSourceService | [类型生命周期](access-service-api-contract.md#type-lifecycle) | 复用维护来源，不给业务系统开放通用实例写权限 |
-| 子权限以 depend_on 绑定主授权；DIRECT 与 DEPENDENT 可并集；父 ALL 可短路实例父来源 | [查询实现](engine/implementation.md#permission-query)、[QueryExecutionEngine](../../access-service/src/main/java/cn/ac/fage/accessmesh/access/engine/query/QueryExecutionEngine.java) | 归属/引用不代替授权；ALL 和来源收集必须单独核对 |
-| 示例脚本把报表、字段和范围类型均登记为 SYNC，范围实例由 example 发布 | [准备脚本](../../tools/init-example-permission-demo.ps1)、[示例元数据服务](../../example-service/src/main/java/cn/ac/fage/accessmesh/example/metadata/service/impl/DemoMetadataAppServiceImpl.java) | 通用范围接入不能只补一列关联；须调整实例维护方与发布链 |
+| 能力 | 当前实现及证据 |
+|---|---|
+| 资源身份与维护分工 | EXCLUSIVE 唯一主归属，SHARED 引用类型；sourceEntityId 区分同码代际，MANAGED/SYNC 约束维护来源 |
+| 发布和生命周期 | 复用 sync/FULL 原子发布，真实事务锁与数据库约束保护；解绑精确清理、停用退出实例贡献、删除主资源保留共享实例 |
+| 授权与查询 | 原 apply-grant-plan 写守卫；QueryExecutionEngine 完整收集父来源、按关系过滤事实与树闭包，专属 ALL 输出当前有效实例 |
+| 管理页面 | 原子权限配置器按主资源取候选，通用整类目录仍可部分授权；只读关系与维护服务展示，主子联合保存 |
+| example | 报表发布整类引用、字段冻结归属；通用实例仅 IAM 管理，业务策略可提前保存映射；实际查询/写入/任务继续同源鉴权 |
+| 联合证据 | [T-ACCESS-150 验收](../archive/2026-10-22/tasks/evidence/T-ACCESS-150/verification.md)，含真实 PG、跨服务 E2E、浏览器保存回读及完整回归 |
 
 <a id="model"></a>
 ## 3. 对象、关系与操作复用
@@ -48,7 +48,7 @@ last_reviewed: 2026-10-22
 
 归属/引用与 parent_id（树继承）、depend_on（授权依附）、owner_service_code（维护来源）分别建模。业务系统管理实例不自动取得类型/操作定义的任意修改权；类型及操作仍按可信注册和现有管理门禁登记。共享定义修改影响该类型全部实例，不能按单报表解释。
 
-存储须区分两种目标身份：专属关系指向具体资源实例，通用引用指向资源类型定义。通用整类引用不得展开成可分别编辑的逐实例关系，也不得为尚未新增的实例预建关系。只保留实际业务关系，不抽象任意关系种类、图遍历或策略插件。是否共表及最终字段、唯一性、软删除形状在 [schema 唯一权威](schema/access-service.sql) 定稿。专属唯一归属不得仅凭应用层先查后写；禁止声称普通 CHECK 可以跨表读取类型模式来保证基数。
+存储须区分两种目标身份：专属关系指向具体资源实例，通用引用指向资源类型定义。通用整类引用不得展开成可分别编辑的逐实例关系，也不得为尚未新增的实例预建关系。只保留实际业务关系，不抽象任意关系种类、图遍历或策略插件。两种关系共用 resource_association，字段、唯一性及软删除形状见 [schema 唯一权威](schema/access-service.sql)。专属唯一归属不得仅凭应用层先查后写；禁止声称普通 CHECK 可以跨表读取类型模式来保证基数。
 
 <a id="ownership"></a>
 ## 4. 维护职责与信任边界
@@ -82,7 +82,7 @@ last_reviewed: 2026-10-22
 
 “共用地区实例”不等于“共用子授权”：A 主授权下授 X 市，不使 B 主授权下自动得到 X 市。关系建立本身不新建角色授权，但已有 DIRECT / 类型级 ALL 可能在新关系上下文产生贡献，不能承诺关联变化完全没有授权影响。
 
-运行时必须消费关系及主/关联资源状态。关系过滤进入共享查询流程及同源范围投影，不能只在页面隐藏。保留 QueryGate / QueryExecutionEngine 为判定入口，不新增独立判定算法、不逐字段递归 execute、不在多个业务接口复制关联校验。过滤、四态及错误规则见[契约总册目标章节](access-service-api-contract.md#resource-association-contract)，父来源规则见[引擎设计](engine/implementation.md#association-parent-sources)。
+运行时必须消费关系及主/关联资源状态。关系过滤进入共享查询流程及同源范围投影，不能只在页面隐藏。保留 QueryGate / QueryExecutionEngine 为判定入口，不新增独立判定算法、不逐字段递归 execute、不在多个业务接口复制关联校验。过滤、四态及错误规则见[契约总册](access-service-api-contract.md#resource-association-contract)，父来源规则见[引擎设计](engine/implementation.md#association-parent-sources)。
 
 必须覆盖 query-scopes、带父上下文 check/batchCheck、DIRECT、DEPENDENT、资源树继承、转授检查与准入/快照的适用边界。无主上下文的直接检查不能虚构当前报表，准入不代替最终判定；普通类型和无关联语义的查询不增加无关扫描。
 
@@ -90,7 +90,7 @@ last_reviewed: 2026-10-22
 
 专属字段 ALL 只覆盖当前主资源已登记且有效的专属实例，不能跨归属；新增有效字段可被既有显式 ALL 覆盖。界面“选择当前全部”保存具体实例集合，以后新增实例不自动加入这组固定授权，不新增独立 owner-ALL 授权模式。类型级授权根和无主上下文的转授资格仍保留其原用途；运行时有主上下文时消费归属/引用边界，不能以维护授权根为由绕过关系。
 
-**父授权来源完整收集（2026-10-21 用户确认，T-ACCESS-148 实施中）**：需要计算子权限时，所有满足父上下文、条件及互斥规则的主授权都进入绑定来源集；父类型 ALL 命中不得跳过具体主资源授权及其子项。范围查询与带父上下文的 check/batchCheck 使用同源规则；普通不计算子权限的布尔检查保持既有短路。该范围内取代现行 P05 不扩读父实例边界，不能据此改写无父上下文查询或自动绕过条件与互斥。实施位置见[引擎设计](engine/implementation.md#association-parent-sources)。
+**父授权来源完整收集（2026-10-21 用户确认，T-ACCESS-148 已实现）**：需要计算子权限时，所有满足父上下文、条件及互斥规则的主授权都进入绑定来源集；父类型 ALL 命中不得跳过具体主资源授权及其子项。范围查询与带父上下文的 check/batchCheck 使用同源规则；普通不计算子权限的布尔检查保持既有短路。该范围内取代现行 P05 不扩读父实例边界，不能据此改写无父上下文查询或自动绕过条件与互斥。实施位置见[引擎设计](engine/implementation.md#association-parent-sources)。
 
 关系变化的撤权时效须覆盖角色事实、资源状态及受影响准入快照。复用[缓存框架](../../.agents/skills/dual-layer-cache-framework/SKILL.md)和既有预算，不新增全局权限版本、不承诺跨服务即时撤权。首期新关系读取优先批量数据库查询；有实际性能证据再决定新增缓存，不先造专用缓存体系。
 
@@ -108,7 +108,7 @@ last_reviewed: 2026-10-22
 | 被引用通用类型删除 | 即使类型内已无实例，只要仍有有效整类引用就拒绝删除；先由业务服务解除引用，再按既有类型删除条件处理 |
 | 解除并重建通用类型引用 | 删除明确依附当前主资源实例主授权、属于被解绑通用类型的子授权；父 ALL 下共享子授权及 DIRECT/类型 ALL 保留。解绑期间该类型不能在当前主资源上下文贡献；重绑不恢复已删除子授权，保留来源可按当前条件重新贡献 |
 
-**解绑清理规则（2026-10-21 用户确认，T-ACCESS-148 实施中）**：解除通用类型引用时，按当前主资源实例主授权的真实身份，跨角色清理属于该通用类型的子授权，包括其具体实例和类型 ALL 子行；不删除其他类型子项、其他主资源下的子项、父 ALL 下可共享的子项或 DIRECT/类型 ALL 主授权。解绑期间保留来源也不能在该主资源上下文贡献，重新引用后它们可按当前资源身份、启停状态、条件与互斥重新贡献；被清理的子授权须重新授予。此规则取代解绑时保留全部授权的方案，不能承诺重绑后绝无权限恢复。解绑 A 不影响 B 的引用和共享来源。资源删除另按身份生命周期处理，同名重建不能接续旧关系和旧实例授权。
+**解绑清理规则（2026-10-21 用户确认，T-ACCESS-148 已实现）**：解除通用类型引用时，按当前主资源实例主授权的真实身份，跨角色清理属于该通用类型的子授权，包括其具体实例和类型 ALL 子行；不删除其他类型子项、其他主资源下的子项、父 ALL 下可共享的子项或 DIRECT/类型 ALL 主授权。解绑期间保留来源也不能在该主资源上下文贡献，重新引用后它们可按当前资源身份、启停状态、条件与互斥重新贡献；被清理的子授权须重新授予。此规则取代解绑时保留全部授权的方案，不能承诺重绑后绝无权限恢复。解绑 A 不影响 B 的引用和共享来源。资源删除另按身份生命周期处理，同名重建不能接续旧关系和旧实例授权。
 
 <a id="ui"></a>
 ## 8. 现有页面调整
@@ -124,7 +124,7 @@ last_reviewed: 2026-10-22
 
 复用现有报表、字段和行范围解释器，不新建 BI 页面，不开放金额普通更新端点。A.amount/B.amount 用读权限验证独立身份；已有 remark 写端点验证 DATA_EDIT 与行列约束，避免用未实现的金额更新作为验收前提。
 
-专属字段由 example 维护并发布归属；通用地区实例改由 IAM 管理链路准备，example 只保留业务谓词映射和关联发布。现有 demo-scope/save、发布队列和准备脚本不得继续反向修改 MANAGED 实例；各自的保留/裁剪点须在 example 契约中明确。不为通用资源新增双向实例同步。
+专属字段由 example 维护并发布归属；通用地区实例改由 IAM 管理链路准备，example 只保留业务谓词映射和关联发布。demo-scope/save 及本地通用目录已退役，发布队列仅发布报表和字段；准备脚本通过 IAM 管理通道建立通用目录，细节见 example 契约。不为通用资源新增双向实例同步。
 
 联合夹具：两张报表 A/B 有同名金额，均引用同一通用地区类型；X/Y 作为该类型实例同时成为两张报表的候选。普通角色不持默认全量授权，在 A 下只授 X、B 下只授 Y，验证共享目录不共享父授权贡献。另验证未引用该通用类型时不能配置其任何实例、A 字段不串 B、解除整类引用/实例停用后访问变化、删除 A 不损坏 B，再以单独的 DIRECT/ALL 身份验证定稿的广泛授权边界。浏览器验证现有配置入口，API/脚本和 SQL 证明真实执行；不以截图替代后端拒绝证据。
 
@@ -136,9 +136,9 @@ last_reviewed: 2026-10-22
 | 编号 | 核对场景 | 定稿依据 |
 |---|---|---|
 | G1 范围与来源 | 整类引用与实例授权分离；DIRECT/ALL、父 ALL 与实例父子项并存；授权根不误禁 | [运行时及四态契约](access-service-api-contract.md#resource-association-contract)、[完整父来源](engine/implementation.md#association-parent-sources)、本设计 §6 |
-| G2 解绑与复用 | 解绑精确清理、共享来源保留与重绑；通用实例删除和类型删除分离 | 本设计[生命周期表](#lifecycle)，API 目标契约；删建身份不复活、独立 ALL 不因实例停用缩窄 |
+| G2 解绑与复用 | 解绑精确清理、共享来源保留与重绑；通用实例删除和类型删除分离 | 本设计[生命周期表](#lifecycle)，API 契约；删建身份不复活、独立 ALL 不因实例停用缩窄 |
 | G3 身份与发布 | 来源资格、乱序/重放、主资源晚到、FULL 清理、模式变更及树边界 | [发布字段/错误/预算](access-service-api-contract.md#resource-association-contract)、[持久化约束与锁序](access-service-architecture.md#resource-association-storage) |
-| G4 实施接线 | 所有写者、运行时与快照、目录来源切换、SDK/页面 | [任务入口核对](../tasks/T-ACCESS-145.md)、[example 接线](example-service-api-contract.md#resource-association-publication)、[原授权页](frontend/permission-grant.md) |
+| G4 实施接线 | 所有写者、运行时与快照、目录来源切换、SDK/页面 | [任务入口核对](../archive/2026-10-22/tasks/T-ACCESS-145.md)、[example 接线](example-service-api-contract.md#resource-association-publication)、[原授权页](frontend/permission-grant.md) |
 
 接口详细字段和错误码归[契约总册](access-service-api-contract.md)，可执行表结构归[唯一 DDL](schema/access-service.sql)，查询语义归[引擎实现](engine/implementation.md#permission-query)，页面行为归[授权页设计](frontend/permission-grant.md)，业务发布与 SQL 映射归[example 设计](example-permission-demo.md)。本文件不复制另一份正式 API 或 DDL。
 

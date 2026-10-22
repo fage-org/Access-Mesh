@@ -176,7 +176,7 @@ cn.ac.fage.accessmesh.access
 <a id="resource-association-storage"></a>
 ### 5.2.1 资源关系持久化与写生命周期基础
 
-T-ACCESS-146 已实现关系存储、声明守卫与现有 single/FULL 的原子写入基础。资源能力包承接 `ResourceAssociationDomainService`，类型声明校验复用类型所有权边界；跨能力消费者只经领域入口批量读写，不互读 Mapper。对外字段和发布协议见[资源关系契约](access-service-api-contract.md#resource-association-contract)，正式可执行结构在唯一 schema；候选查询/SDK 由 T-ACCESS-147、授权清理及运行时消费由 T-ACCESS-148 接续，整体能力尚未交付。
+资源能力包以 ResourceAssociationDomainService 承接关系存储、声明守卫、single/FULL 原子发布及生命周期；类型声明校验复用类型所有权边界，跨能力消费者只经领域入口批量读写，不互读 Mapper。候选/SDK、授权清理及运行时消费已接线，原页面和 example 联合验收完成。对外字段和发布协议见[资源关系契约](access-service-api-contract.md#resource-association-contract)，正式可执行结构在唯一 schema。
 
 关系表保存主资源的内部身份和二选一目标：专属资源实例身份，或通用类型定义身份。用行内 CHECK 保证目标二选一且不能自身归属；用有效行部分唯一索引保证一个专属实例最多一个主资源、同一主资源对同一通用类型不重复引用。租户与身份用复合唯一键及同租户外键校验；外键不能保证软删除状态、类型模式或来源合法，这些由共同事务锁内的新鲜事实校验承担，不能声称普通 CHECK 能跨表读取模式。专属实例与归属同时提交；不另存一列可独立修改的 owner 副本。软删除使用现有 `delete_flag=id` 与审计字段；重绑创建新关系身份，同名删建的资源/类型不能承接旧关系。
 

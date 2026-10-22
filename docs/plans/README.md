@@ -4,16 +4,13 @@
 
 ## 当前计划
 
-| 文档 | 状态 |
-|---|---|
-| [专属资源归属与通用资源引用](resource-association-plan.md) | active |
-
 当前没有已启动的执行计划，任务状态以[任务看板](../tasks/README.md)为准。[example 持久化权限演示](../archive/2026-10-20/example-permission-demo-plan.md)保持已归档，其他暂缓事项不变。
 
 ## 已归档计划
 
 | 文档 | 类型 | 状态 | 说明 |
 |------|------|------|------|
+| [resource-association-plan](../archive/2026-10-22/resource-association-plan.md) | 专属归属与通用整类引用 | archived | 七项任务全部完成；[联合验收](../archive/2026-10-22/tasks/evidence/T-ACCESS-150/verification.md) |
 | [example-permission-demo-plan](../archive/2026-10-20/example-permission-demo-plan.md) | example-service 持久化权限演示 | archived | [联合、正式包及完整回归验收](../archive/2026-10-20/tasks/evidence/example-permission-demo/T-ACCESS-142.md)；无业务页面 |
 | [candidate-deployment-acceptance-plan](../archive/2026-10-18/candidate-deployment-acceptance-plan.md) | 当前候选独立部署与首次接入验收 | archived | [最终验收](../archive/2026-10-18/tasks/evidence/candidate-deployment/verification.md)；本地预览与同版本恢复范围 |
 | [standard-capability-completion-plan](../archive/2026-10-18/standard-capability-completion-plan.md) | 顶栏裁剪与标准文件能力补齐 | archived | [验收](../archive/2026-10-18/tasks/evidence/standard-capability/verification.md)，Q-071/Q-078 已收敛 |

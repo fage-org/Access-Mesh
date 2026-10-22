@@ -1,0 +1,150 @@
+{
+  "date": "2026-10-22",
+  "command": "mvn test -T 1C",
+  "result": "full_scope_passed_after_isolated_environment_retry",
+  "fullRunResult": "BUILD FAILURE: ExampleProtectedApiE2EIT startup port 62952 already in use; all other tests passed",
+  "retryCommand": "mvn test -pl e2e -am -Dtest=ExampleProtectedApiE2EIT -Dsurefire.failIfNoSpecifiedTests=false",
+  "retryResult": "BUILD SUCCESS: 12 tests, no failures/errors/skips; no source changes",
+  "modules": {
+    "access-service": {
+      "tests": 2604,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "common": {
+      "tests": 119,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "e2e": {
+      "tests": 42,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "example-service": {
+      "tests": 176,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "gateway": {
+      "tests": 152,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "perm-sdk/perm-client-spring-boot-starter": {
+      "tests": 30,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "perm-sdk/perm-common": {
+      "tests": 54,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "perm-sdk/perm-registration-spring-boot-starter": {
+      "tests": 19,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "sdk-host-probe": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "sdk-host-probe-log4j2": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "total": {
+    "tests": 3201,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "selectedSuites": {
+    "AccessBootstrapPgIT": {
+      "tests": 20,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "InterfaceAdmissionHeavyPgIT": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "AutoGrantMaterializationPgIT": {
+      "tests": 19,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "ResourceAssociationAuthorizationPgIT": {
+      "tests": 10,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "ResourceAssociationDomainPgIT": {
+      "tests": 19,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "ResourcePublicationHeavyPgIT": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "ExampleBusinessFinalCheckE2EIT": {
+      "tests": 19,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "DemoDataPgIT": {
+      "tests": 49,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "DemoPolicyPgIT": {
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "MetadataPersistencePgIT": {
+      "tests": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "ExampleSchemaPgIT": {
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "frontend": {
+    "command": "pnpm exec vitest run",
+    "files": 61,
+    "tests": 648,
+    "failed": 0
+  }
+}

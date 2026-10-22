@@ -459,7 +459,7 @@ QueryExecutionEngine.execute(QueryRequest)
 SqlBatches 分块后汇总，`QueryExecutionPgIT` 501 目标锁）。
 
 <a id="association-parent-sources"></a>
-**资源关系的父来源收集（2026-10-21 用户确认，T-ACCESS-148 实施中）**：需要计算子权限的范围查询与带父上下文 check/batchCheck，完整收集当前父上下文中满足条件及互斥规则的主授权；父类型 ALL 命中不再遮蔽具体主资源授权下面的子权限。该范围取代原 P05 的父实例短路边界；普通不计算子权限的布尔检查保持既有快速路径。绑定集仍来自真实有效主授权 ID，不用子行反推父授权已通过。共同求值、条件及互斥不另建算法；完整关系语义见[资源关系设计](../resource-association.md#authorization)。
+**资源关系的父来源收集（2026-10-21 用户确认，T-ACCESS-148 已实现）**：需要计算子权限的范围查询与带父上下文 check/batchCheck，完整收集当前父上下文中满足条件及互斥规则的主授权；父类型 ALL 命中不再遮蔽具体主资源授权下面的子权限。该范围取代原 P05 的父实例短路边界；普通不计算子权限的布尔检查保持既有快速路径。绑定集仍来自真实有效主授权 ID，不用子行反推父授权已通过。共同求值、条件及互斥不另建算法；完整关系语义见[资源关系设计](../resource-association.md#authorization)。
 
 带主上下文且类型声明为 EXCLUSIVE/SHARED 时，读取部件批量读取当前类型声明、主资源、归属与整类引用；这些目录事实只在本次执行内记忆。相关目标在 TYPE_GRANT 之前核验，避免 ALL 短路放过幽灵、停用或跨归属对象；每个 OR 子句保留操作与目标配对。阶段候选在条件/互斥求值之前过滤关系适用性，GRANT_LIST 同源处理 DIRECT 与 DEPENDENT。范围投影保留真实授权事实，EXCLUSIVE ALL 的有效对象另外作为不可变描述输出，在既有输出预算内查询并投影 INSTANCE/EMPTY；SHARED ALL 保持原含义。NONE、无主上下文和准入阶段保留各自语义；准入不虚构业务主资源，最终关系校验仍在业务请求中进行。
 
