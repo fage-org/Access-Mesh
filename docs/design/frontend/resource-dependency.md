@@ -1,11 +1,13 @@
 # 3.4 资源依赖页前端设计
 
 > status: adopted
-> last_reviewed: 2026-09-21
+> last_reviewed: 2026-11-01
 > 当前实现：T-PERM-071 的管理写入口关闭与只读页面 + T-PERM-073 的声明诊断与来源解释（本页 §5 已实现）。
 > 正式契约：[总册 §12.3](../access-service-api-contract.md#123-资源依赖只读查询apiaccessresource-dependency)、[manifest §19.10（071 已交付）](../access-service-api-contract.md#1910-独立依赖-manifest071-已交付)。历史 CRUD 联调证据见 [T-FE-044](../../archive/2026-09-14/tasks/T-FE-044.md)，不作为现役写契约。
 
 ## 1. 用途与边界
+
+**图表依赖目标（2026-11-01 确认，待实施）**：[T-FE-083](../../tasks/T-FE-083.md) 按实际消费者收窄 ECharts 注册，保留本页依赖图、真实所需组件与当前渲染器。当前插件仍有未见消费的图表/组件注册；实施前复核全部 option 与构建入口，若出现新消费者先报告。图例、悬浮提示、拖拽缩放、resize 与销毁行为保持，不删除整个 ECharts，也不为假想页面保留通用注册。
 
 本页只读查看资源依赖图，并提供循环检查。依赖声明由所属业务服务通过 manifest 发布；页面提示修改入口所在服务。不存在手工新增、编辑、删除、批量导入或跨 owner override。
 

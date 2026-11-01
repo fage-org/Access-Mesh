@@ -3,7 +3,7 @@ doc_type: design
 title: 权限中心 — 核心功能实现设计
 status: adopted
 domain: access-service
-last_reviewed: 2026-10-21
+last_reviewed: 2026-11-01
 ---
 
 # 权限中心 — 核心功能实现设计
@@ -629,6 +629,8 @@ T-PERM-089 起，替代旧 queryBatch A+ 形态——wire 契约零变化：请�
 - **等价差分**：check()×N vs batchCheck 逐 item 对拍 allowed/reason/matched（按集合比较，①锁）。
 
 ### 3.11 观测落地与上线门槛（T-PERM-094，2026-10-01）
+
+**已采纳目标与当前实现差异**：普通操作目录、查询计算预算转日志、判定证据提交的目标分别见[目录一致性](../access-service-architecture.md#operation-catalog-consistency)、[查询观测边界](../access-service-architecture.md#query-observation-boundary)、[证据提交](../access-service-architecture.md#query-evidence-submission)。对应实施尚未完成；本节及缓存/证据段的旧 BUDGET_EXCEEDED、长 TTL 掩码与共享池描述仅为当前代码现状，不能据此否定已采纳目标。具体退役与保留边界按所链主题及其任务验收执行。
 
 - **指标面（Micrometer 绑定已落地）**：`MicrometerQueryEngineMetrics`（engine.query 包）把
   `QueryEngineMetrics` 端口接入 MeterRegistry——`access.query.stage`（Counter，selection/stage/outcome；

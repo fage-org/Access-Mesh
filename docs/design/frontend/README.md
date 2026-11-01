@@ -59,4 +59,6 @@ last_reviewed: YYYY-MM-DD
 
 ## 参考实现
 
+公共工具的定向精简由 [T-FE-082](../../tasks/T-FE-082.md) 承接：已确认在实施时复核零消费后删除 localForage/打印工具及专属类型、直接依赖；当前尚未实施。图表注册按[资源依赖页](resource-dependency.md)的已采纳目标处理。
+
 2.1 组织与用户页的设计范式（布局/组件结构/权限接线清单）见 `docs/archive/2026-06-21/org-user-page-impl-plan.md` §1/§4，可作为新页面设计的参照模板。

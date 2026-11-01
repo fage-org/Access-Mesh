@@ -4,7 +4,7 @@ title: access-service 目标架构与归并约束
 status: adopted
 domain: cross-service
 supersedes: docs/archive/2026-08-15/admin-permission-sync.md
-last_reviewed: 2026-10-22
+last_reviewed: 2026-11-01
 ---
 
 # access-service 目标架构与归并约束
@@ -300,6 +300,34 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 - **普通 L1 跨实例失效**：L1_L2 目录 evict/evictAll 时经 RTopic `accessmesh:cache:l1-invalidate` 广播，各实例订阅清本地 L1；失败计 `cache.invalidate.failures` 指标，L1 TTL 兜底；回滚不失效。
 - **Gateway**：快照缓存迁统一 CacheService（L1_ONLY `gw:interface-admission-snapshot` 15s/50000——T-ACCESS-059 操作准入快照，schema 与旧目录隔离；`accessmesh.cache.catalogs` 运维覆盖）；失效粒度用户级精确（跟踪索引 + 在途回源注册表候选；索引缺失由快照 TTL 兜底）+ 租户级兜底（设计定案③）；失效先递增代际再清缓存（防旧回源复活窗口）；固定 fail-closed（fail-mode/open/stale-allow 删除）；`snapshot-load-deadline` 5s 全链路墙钟硬截止（重试共享截止、超时不写缓存 503）；`GatewayCacheBoundaryValidator` 启动强制 L1≤15s、截止≤5s。
 
+<a id="operation-catalog-consistency"></a>
+### 普通操作目录统一目标（已采纳，待实施）
+
+2026-11-01 确认，实施任务为 [T-PERM-113](../tasks/T-PERM-113.md)。普通最终判定复用本次执行已从数据库批量装载的新鲜操作目录，与准入的目录来源保持一致；请求内保留首次读取记忆，不承诺在途请求与后续数据库提交线性化。
+
+当前代码仍通过 `OPERATION_PERMISSIONS_BY_TYPE` 的 L1_L2 长 TTL 目录计算普通掩码，存在查库旧值越过提交后失效再回填的窗口。此前保留该普通目录的口径由本目标取代；上方缓存条目描述仅表示尚未实施期间的代码现状。实现须确认无其他消费者后退役该目录及专属读写/失效/配置/旧测试约束，同步缓存技能双副本；不改其他缓存目录、授权快照剩余 TTL 与公共广播协议，不新增跨实例版本协调框架。
+
+<a id="query-observation-boundary"></a>
+### 查询规模与时间观测目标（已采纳，待实施）
+
+2026-11-01 确认，定稿与实施分别由 [T-PERM-114](../tasks/T-PERM-114.md)、[T-PERM-115](../tasks/T-PERM-115.md) 承接。以日志观察实际批量和复杂查询负载，不再以内部计算数量或引擎执行时间阈值拒绝查询。本目标仅取代下表所列计算预算，其他独立校验保持。
+
+| 当前 EngineLimits 字段 | 已采纳目标 |
+|---|---|
+| maxItems（10000，含输入项与展开要求） | 只观测，不按此拒绝内部执行；外部 DTO 批量约束保留 |
+| maxGrantRows（50000） | 只观测累计授权读取量，不新增 SQL 返回硬限 |
+| maxClosureEntries（200000） | 只观测闭包规模，防环保留 |
+| maxCandidatePairs（250000） | 只观测候选配对规模 |
+| maxOutputEntries（250000） | 只观测输出规模；移除仅为该预算服务的输出探测读取上限，保留真实范围语义 |
+| maxAuditEvidence（10000） | 只观测证据数量，提交饱和按下方专属通道处理 |
+| deadline（5s） | 只观测引擎耗时，不再抛执行时间预算异常；Gateway 自身回源截止不变 |
+| maxContextDepth / maxContextNodes / maxContextCharacters | 保留输入边界（32 / 10000 / 262144） |
+| maxSnapshotRoutes / maxSnapshotBytes | 保留准入快照边界（10000 / 245760 字节） |
+
+正常执行输出一条 DEBUG 摘要；任一原计算规模/时间阈值触发时，同次执行仅汇总一条 WARN。摘要含 executionId、输入及展开规模、累计授权读取/闭包/候选/输出/证据数量、耗时与终态，不记录上下文内容、授权明细或凭证，不逐行打日志；原阈值只作观测触发。保留既有指标，不建设新监控平台。计数和日志失败不得改变查询结果。
+
+租户隔离、权限/条件/互斥/继承与资源关系语义、非法组合校验、DTO 分页/批量约束、防环、Gateway 加载截止及其 30 秒授权陈旧预算保持；数据库或其他技术故障仍整体失败，不返回截断事实。保留不设置全局 SQL 超时的现有决定。当前 EngineLimits 硬拒绝和旧 BUDGET_EXCEEDED 分类尚未调整，实施时须同步配置、异常/指标说明、测试与相关设计；保留边界的超限仍按独立保护处理，不误写成已撤除全部限制。
+
 ## 8. 任务、异步与审计
 
 ### 8.1 多实例任务协调
@@ -361,6 +389,13 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 
 - **强制覆盖已收敛（T-ACCESS-025）**：原 admin/application 域与 permission 域同口径的「public `@Transactional` 非 readOnly 写方法必须标注 `@OperationLog`（或登记豁免）」包扫描强制断言（含 `EXEMPT_WRITE_METHODS` 豁免清单与失配校验、类数下限防漂移）已随操作日志收敛删除——存量标注不强制新增，仅保持已标注语义（全域已标注方法契约校验继续生效）。写方法是否标注由写入口通用清单（project-rules §写入口通用清单）规范指导。历史豁免项 `NoticeServiceImpl#markNoticeAsRead` 的口径见上方「审计口径」。
 - **无事务方法不强制（按事务边界判定，防双重记录）**：`MenuServiceImpl`/`OrgServiceImpl`/`UserOrgServiceImpl` 的 Controller 直连写方法为委托门面（无 `@Transactional`），审计由事务边界的 `*WriteAppServiceImpl` 承载，门面重复标注会产生双重 `operation_log`；`AuthServiceImpl` login/logout 会话操作由 `sys_login_log` 承载（§8.2 登录日志口径）；`application.query.impl` 三个查询服务全部 `readOnly=true` 无写方法；`OAuth2ServiceImpl`/`JobServiceImpl` 已标注但非事务的方法（token/refresh/revoke、trigger）继续由全域已标注方法契约校验覆盖。实施核验：三包既有写方法已全部标注或按审计口径不标注（`markNoticeAsRead`），无补标、无主代码变更。
+
+<a id="query-evidence-submission"></a>
+### 判定证据专属提交目标（已采纳，待实施）
+
+2026-11-01 确认，验证与实施分别由 [T-ACCESS-151](../tasks/T-ACCESS-151.md)、[T-ACCESS-152](../tasks/T-ACCESS-152.md) 承接。冲突判定证据采用专属小型有界异步提交通道，线程池饱和或关闭时放弃本次提交并告警、计入既有证据失败指标，绝不在鉴权调用线程同步落库。保留尽力语义，不承诺补偿重试或持久必达；不新增 MQ、独立数据源或可靠消息平台。
+
+普通 `operation_log` 继续采用原有有界池与 CallerRuns；登录/任务日志及同事务权限事实变更审计保持各自可靠性边界。原共享池同步降级规则的适用范围据此收窄，不能再用于判定证据。当前代码仍经 `asyncRecordLog` 共享池提交，目标尚未交付；实现前以可释放闸门核对连接/提交线程饱和证据，并明确专属容量依据、生命周期、拒绝信号、角色对去重回退及请求关联。
 
 ## 9. API、SDK 与生态切换
 

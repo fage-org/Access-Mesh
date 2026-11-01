@@ -42,6 +42,8 @@
 
 ## 待实施方案
 
+[架构边界修复与维护复杂度收敛计划](../plans/architecture-boundary-remediation-plan.md)跟踪[操作目录统一](access-service-architecture.md#operation-catalog-consistency)、[查询规模与时间观测](access-service-architecture.md#query-observation-boundary)、[判定证据专属提交](access-service-architecture.md#query-evidence-submission)的已采纳目标；实现尚未交付，其余结构建议仍待逐项确认。
+
 | 文档 | 状态 | 关联计划 |
 |---|---|---|
 | [IAM核心正确性与用户任务闭环](iam-task-closure.md) | draft；非现役契约，取舍随任务启动确定 | [执行计划](../archive/2026-09-24/iam-task-closure-plan.md) |

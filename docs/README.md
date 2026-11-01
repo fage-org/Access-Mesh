@@ -105,6 +105,8 @@ docs/
 
 ## 执行计划
 
+[架构边界修复与维护复杂度收敛计划](plans/architecture-boundary-remediation-plan.md)已建立，状态 proposed；[任务看板](tasks/README.md)为唯一任务清单，[原报告范围映射](tasks/evidence/architecture-boundary-remediation/scope-map.md)提供来源导航。当前仅制定计划，实施尚未启动。
+
 [专属资源归属与通用资源引用](archive/2026-10-22/resource-association-plan.md)已完成并归档，后端、原管理页面及 example 联合验收通过；现行规则见[资源关系设计](design/resource-association.md)，证据见[联合验收](archive/2026-10-22/tasks/evidence/T-ACCESS-150/verification.md)。
 
 [example 持久化权限演示计划](archive/2026-10-20/example-permission-demo-plan.md)已完成归档，覆盖真实 SQL 行列权限、CSV、快照、内部任务和同一用户联合验收；[使用指南](../example-service/examples/permission-demo.md)提供可执行脚本与请求样例。[候选独立部署与首次接入验收](archive/2026-10-18/candidate-deployment-acceptance-plan.md)的冻结版本与历史边界保持。

@@ -10,21 +10,56 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| access-service 归并（跨服务） | `T-ACCESS` | 151 |
-| permission-center | `T-PERM` | 113 |
-| admin-service | `T-ADMIN` | 036 |
+| access-service 归并（跨服务） | `T-ACCESS` | 160 |
+| permission-center | `T-PERM` | 122 |
+| admin-service | `T-ADMIN` | 038 |
 | gateway | `T-GW` | 015 |
 | 组织/用户（跨 admin+perm） | `T-ORG` | 006 |
 | 跨服务 API 契约 | `T-API` | 015 |
-| 前端 | `T-FE` | 081 |
+| 前端 | `T-FE` | 086 |
 
 > 新建任务时从对应领域取下一编号，计数器 +1。
 
 ## 当前待办入口
 
+[架构边界修复与维护复杂度收敛](../plans/architecture-boundary-remediation-plan.md)为 proposed，等待后续执行启动；全部报告范围已登记，未确认方案由任务卡门槛控制。
+
 [专属资源归属与通用资源引用计划](../archive/2026-10-22/resource-association-plan.md)全部七项任务已完成并归档，证据见[联合验收](../archive/2026-10-22/tasks/evidence/T-ACCESS-150/verification.md)。[example 持久化权限演示](../archive/2026-10-20/example-permission-demo-plan.md)保持已归档，业务页面任务保持取消，其他暂缓事项不变。
 
 ## 任务总表
+
+### 架构边界修复与维护复杂度收敛
+
+[执行计划](../plans/architecture-boundary-remediation-plan.md) · [范围映射](evidence/architecture-boundary-remediation/scope-map.md)
+
+| ID | 标题 | 状态 | 直接依赖 |
+|---|---|---|---|
+| [T-PERM-113](T-PERM-113.md) | 操作定义读取统一与掩码缓存退役 | ⚙️ | — |
+| [T-FE-081](T-FE-081.md) | 公共分页失败后的页码与数据一致性 | ⚙️ | — |
+| [T-PERM-114](T-PERM-114.md) | 查询预算退役范围与日志口径定稿 | ⚙️ | — |
+| [T-PERM-115](T-PERM-115.md) | 内部计算预算改为执行观测日志 | ⚙️ | T-PERM-114 |
+| [T-ACCESS-151](T-ACCESS-151.md) | 审计饱和与事务连接占用验证 | ⚙️ | — |
+| [T-ACCESS-152](T-ACCESS-152.md) | 判定证据提交饱和策略修复 | ⚙️ | T-ACCESS-151 |
+| [T-ACCESS-153](T-ACCESS-153.md) | 现役架构规则与交付状态订正 | ⚙️ | — |
+| [T-FE-082](T-FE-082.md) | 零消费存储与打印工具裁剪 | ⚙️ | — |
+| [T-FE-083](T-FE-083.md) | 依赖图的 ECharts 按需注册精简 | ⚙️ | — |
+| [T-ACCESS-154](T-ACCESS-154.md) | 认证通道矩阵与 OAuth2 职责核查 | ⚙️ | — |
+| [T-ACCESS-155](T-ACCESS-155.md) | 租户运营结果与运行时门禁表达核查 | ⚙️ | — |
+| [T-PERM-116](T-PERM-116.md) | SDK 协议与客户端职责边界核查 | ⚙️ | — |
+| [T-ACCESS-156](T-ACCESS-156.md) | example 最小接入与完整样例分工核查 | ⚙️ | — |
+| [T-PERM-117](T-PERM-117.md) | 主体组织写入与 FULL 同步规模核查 | ⚙️ | — |
+| [T-ADMIN-036](T-ADMIN-036.md) | 菜单读取故障与无权限表达核查 | ⚙️ | — |
+| [T-PERM-118](T-PERM-118.md) | 角色类型支持面与管理提示核查 | ⚙️ | — |
+| [T-PERM-119](T-PERM-119.md) | 授权计划处理阶段与目录装载核查 | ⚙️ | — |
+| [T-PERM-120](T-PERM-120.md) | 资源类型配置与生命周期职责核查 | ⚙️ | — |
+| [T-PERM-121](T-PERM-121.md) | 业务域分类与条件互斥解释边界核查 | ⚙️ | — |
+| [T-ACCESS-157](T-ACCESS-157.md) | 投影初始化与公共设施职责核查 | ⚙️ | — |
+| [T-ADMIN-037](T-ADMIN-037.md) | 平台公告与文件容量边界核查 | ⚙️ | — |
+| [T-FE-084](T-FE-084.md) | 授权交互状态与局部类型边界核查 | ⚙️ | — |
+| [T-FE-085](T-FE-085.md) | 管理导航与身份交互一致性核查 | ⚙️ | — |
+| [T-ACCESS-158](T-ACCESS-158.md) | 工程验证与发布支持范围核查 | ⚙️ | — |
+| [T-ACCESS-159](T-ACCESS-159.md) | 边界修复联合验收与计划归档 | ⚙️ | T-PERM-113、T-FE-081、T-PERM-114、T-PERM-115、T-ACCESS-151、T-ACCESS-152、T-ACCESS-153、T-FE-082、T-FE-083、T-ACCESS-154、T-ACCESS-155、T-PERM-116、T-ACCESS-156、T-PERM-117、T-ADMIN-036、T-PERM-118、T-PERM-119、T-PERM-120、T-PERM-121、T-ACCESS-157、T-ADMIN-037、T-FE-084、T-FE-085、T-ACCESS-158 |
+
 
 ### 专属资源归属与通用资源引用（已归档）
 
